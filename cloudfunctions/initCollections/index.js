@@ -15,8 +15,8 @@ exports.main = async (event, context) => {
       await db.createCollection(name)
       created.push(name)
     } catch (e) {
-      // -501007: 集合已存在
-      if (e.errCode === -501007 || (e.message && e.message.indexOf('already exist') !== -1)) {
+      // 集合已存在（errCode可能是-501001或-501007）
+      if (e.errCode === -501001 || e.errCode === -501007 || (e.message && (e.message.indexOf('already exist') !== -1 || e.message.indexOf('ALREADY_EXIST') !== -1 || e.message.indexOf('Table exist') !== -1))) {
         existed.push(name)
       } else {
         errors.push({ name, error: e.message || e.errMsg || String(e) })

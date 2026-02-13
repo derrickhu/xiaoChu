@@ -36,6 +36,24 @@ class Render {
     c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath()
   }
 
+  // Loading页背景（使用loading_bg图片，降级为暗色星空）
+  drawLoadingBg(frame) {
+    const {ctx:c,W,H,S}=this
+    const img=this.getImg('assets/backgrounds/loading_bg.jpg')
+    if(img&&img.width>0) {
+      const iw=img.width, ih=img.height
+      const scale=Math.max(W/iw,H/ih)
+      const dw=iw*scale, dh=ih*scale
+      const dx=(W-dw)/2, dy=(H-dh)/2
+      c.drawImage(img,dx,dy,dw,dh)
+      // 轻微压暗，确保标题和进度条可读
+      c.save(); c.globalAlpha=0.3
+      c.fillStyle='rgba(0,0,0,1)'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
   drawBg(frame) {
     const {ctx:c,W,H,S}=this
     const g=c.createLinearGradient(0,0,0,H)
@@ -236,21 +254,28 @@ class Render {
 
   // ===== 首页专用绘制方法 =====
 
-  // 首页暖色背景（模拟图中的黄橙渐变色调）
+  // 首页背景（优先使用背景图片，降级为暖色渐变）
   drawHomeBg(frame) {
     const {ctx:c,W,H,S}=this
-    const g=c.createLinearGradient(0,0,0,H)
-    g.addColorStop(0,'#f5c842'); g.addColorStop(0.15,'#f0b830')
-    g.addColorStop(0.4,'#e8a820'); g.addColorStop(0.7,'#d49518')
-    g.addColorStop(1,'#c08510')
-    c.fillStyle=g; c.fillRect(0,0,W,H)
-    // 浅色光晕
-    c.save(); c.globalAlpha=0.15
-    const rg=c.createRadialGradient(W/2,H*0.2,0,W/2,H*0.2,W*0.8)
-    rg.addColorStop(0,'#fff'); rg.addColorStop(1,'transparent'); c.fillStyle=rg; c.fillRect(0,0,W,H); c.restore()
-    // 底部稍微暗
-    c.save(); c.globalAlpha=0.2
-    const bg=c.createLinearGradient(0,H*0.7,0,H); bg.addColorStop(0,'transparent'); bg.addColorStop(1,'rgba(0,0,0,0.3)')
+    const img=this.getImg('assets/backgrounds/home_bg.jpg')
+    if(img&&img.width>0) {
+      // cover模式：保持比例填满画布
+      const iw=img.width, ih=img.height
+      const scale=Math.max(W/iw,H/ih)
+      const dw=iw*scale, dh=ih*scale
+      const dx=(W-dw)/2, dy=(H-dh)/2
+      c.drawImage(img,dx,dy,dw,dh)
+    } else {
+      // 降级：暖色渐变
+      const g=c.createLinearGradient(0,0,0,H)
+      g.addColorStop(0,'#f5c842'); g.addColorStop(0.15,'#f0b830')
+      g.addColorStop(0.4,'#e8a820'); g.addColorStop(0.7,'#d49518')
+      g.addColorStop(1,'#c08510')
+      c.fillStyle=g; c.fillRect(0,0,W,H)
+    }
+    // 底部压暗，提升UI可读性
+    c.save(); c.globalAlpha=0.35
+    const bg=c.createLinearGradient(0,H*0.5,0,H); bg.addColorStop(0,'transparent'); bg.addColorStop(1,'rgba(0,0,0,0.6)')
     c.fillStyle=bg; c.fillRect(0,0,W,H); c.restore()
   }
 
