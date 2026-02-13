@@ -1,5 +1,5 @@
 /**
- * 龙珠战纪 - 音效管理
+ * 修仙消消乐 - 音效管理
  */
 class MusicManager {
   constructor() {

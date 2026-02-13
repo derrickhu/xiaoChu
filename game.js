@@ -1,4 +1,4 @@
-console.log('龙珠战纪开始初始化...')
+console.log('修仙消消乐开始初始化...')
 try {
   require('./js/main')
   console.log('游戏初始化成功')

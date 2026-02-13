@@ -1,49 +1,49 @@
 /**
- * 存储管理 - 适配单主角+装备系统
+ * 存储管理 - 适配修仙消消乐法宝系统
  * 本地缓存 + 云数据库双重存储
  */
 const { generateEquipment } = require('./equipment')
 
-const LOCAL_KEY = 'dragonBead_v2'
+const LOCAL_KEY = 'xiuxianXXL_v1'
 const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
 
 // 默认玩家数据
 function defaultData() {
-  // 初始装备：一把普通火焰长剑
+  // 初始法宝：一把凡品赤焰飞剑
   const starterWeapon = generateEquipment('weapon', 'fire', 'N')
   const starterArmor  = generateEquipment('armor', 'water', 'N')
   return {
-    // 主角固定属性
+    // 修士固定属性
     hero: { baseAtk: 120, baseHp: 3000 },
-    // 当前佩戴装备（6槽位）
+    // 当前佩戴法宝（6槽位）
     equipped: { weapon:starterWeapon, armor:starterArmor, boots:null, cloak:null, helmet:null, trinket:null },
-    // 背包（永久装备列表）
+    // 乾坤袋（永久法宝列表）
     inventory: [starterWeapon, starterArmor],
     // 关卡进度
     levelProgress: {}, // { levelId_difficulty: true }
     currentTheme: 'fire',
     currentLevel: 101,
-    // 金币
+    // 灵石
     gold: 1000,
-    // 每日任务
+    // 每日修炼
     dailyTask: {
       tasks: [
-        { id:'dt1', name:'完成1次关卡挑战', target:1, progress:0, done:false, reward:{ gold:200 } },
-        { id:'dt2', name:'触发10次技能', target:10, progress:0, done:false, reward:{ gold:100 } },
-        { id:'dt3', name:'使用1件掉落装备', target:1, progress:0, done:false, reward:{ gold:150 } },
+        { id:'dt1', name:'闯秘境1次', target:1, progress:0, done:false, reward:{ gold:200 } },
+        { id:'dt2', name:'施展仙术10次', target:10, progress:0, done:false, reward:{ gold:100 } },
+        { id:'dt3', name:'获得1件法宝', target:1, progress:0, done:false, reward:{ gold:150 } },
       ],
       allClaimed: false,
       allReward: { equipTier:'R' },
       lastReset: '',
     },
-    // 成就
+    // 成就（修仙成就）
     achievements: {
-      ach_clear_normal:  { name:'普通征服者',  desc:'通关所有普通关卡', done:false, claimed:false },
-      ach_clear_hard:    { name:'困难征服者',  desc:'通关所有困难关卡', done:false, claimed:false },
-      ach_clear_extreme: { name:'极难征服者',  desc:'通关所有极难关卡', done:false, claimed:false },
-      ach_combo8:        { name:'连锁大师',    desc:'单次达成8连锁', done:false, claimed:false },
-      ach_equip_ssr:     { name:'传说收藏家',  desc:'拥有1件传说装备', done:false, claimed:false },
-      ach_full_equip:    { name:'全副武装',    desc:'同时佩戴6件装备', done:false, claimed:false },
+      ach_clear_normal:  { name:'初入仙途',    desc:'练气难度通关所有秘境', done:false, claimed:false },
+      ach_clear_hard:    { name:'筑基有成',    desc:'筑基难度通关所有秘境', done:false, claimed:false },
+      ach_clear_extreme: { name:'金丹大成',    desc:'金丹难度通关所有秘境', done:false, claimed:false },
+      ach_combo8:        { name:'天机连珠',    desc:'单次达成8连消', done:false, claimed:false },
+      ach_equip_ssr:     { name:'神兵入手',    desc:'拥有1件神品法宝', done:false, claimed:false },
+      ach_full_equip:    { name:'法宝齐备',    desc:'同时佩戴6件法宝', done:false, claimed:false },
     },
     // 统计
     stats: { totalBattles:0, totalCombos:0, maxCombo:0, totalSkills:0 },
@@ -77,7 +77,7 @@ class Storage {
   get bestRecords()  { return this._d.bestRecords }
   get levelProgress(){ return this._d.levelProgress }
 
-  // ===== 计算主角最终属性（含装备被动加成） =====
+  // ===== 计算修士最终属性（含法宝被动加成） =====
   getHeroStats() {
     let atk = this._d.hero.baseAtk
     let hp  = this._d.hero.baseHp
@@ -94,11 +94,11 @@ class Storage {
     return { atk, hp, def }
   }
 
-  // ===== 装备操作 =====
+  // ===== 法宝操作 =====
   equipItem(uid) {
     const item = this._d.inventory.find(e => e.uid === uid)
     if (!item) return false
-    // 卸下同槽位旧装备
+    // 卸下同槽位旧法宝
     this._d.equipped[item.slot] = item
     this._save()
     return true
@@ -173,15 +173,15 @@ class Storage {
   // ===== 成就 =====
   checkAchievements(extra) {
     const a = this._d.achievements
-    // 连锁大师
+    // 天机连珠
     if (extra && extra.combo >= 8 && !a.ach_combo8.done) {
       a.ach_combo8.done = true
     }
-    // 传说收藏家
+    // 神兵入手
     if (this._d.inventory.some(e => e.quality === 'SSR') && !a.ach_equip_ssr.done) {
       a.ach_equip_ssr.done = true
     }
-    // 全副武装
+    // 法宝齐备
     if (Object.values(this._d.equipped).every(e => e !== null) && !a.ach_full_equip.done) {
       a.ach_full_equip.done = true
     }

@@ -1,30 +1,30 @@
 /**
- * 关卡系统 - 6属性主题×10关 + 混合关卡
- * 适配单主角+装备技能玩法
+ * 关卡系统 - 6灵根秘境×10关 + 混沌秘境
+ * 适配修仙消消乐玩法
  */
 const { ATTRS, ATTR_NAME } = require('./equipment')
 
 // 难度倍率
 const DIFFICULTY = {
-  normal:  { id:'normal',  name:'普通', hpMul:1,   atkMul:1,   color:'#4dcc4d', tier:'low' },
-  hard:    { id:'hard',    name:'困难', hpMul:1.8, atkMul:1.8, color:'#ff8c00', tier:'mid' },
-  extreme: { id:'extreme', name:'极难', hpMul:3,   atkMul:3,   color:'#ff4d6a', tier:'high' },
+  normal:  { id:'normal',  name:'练气', hpMul:1,   atkMul:1,   color:'#4dcc4d', tier:'low' },
+  hard:    { id:'hard',    name:'筑基', hpMul:1.8, atkMul:1.8, color:'#ff8c00', tier:'mid' },
+  extreme: { id:'extreme', name:'金丹', hpMul:3,   atkMul:3,   color:'#ff4d6a', tier:'high' },
 }
 
-// 敌方技能池
+// 妖兽技能池
 const ENEMY_SKILLS = {
-  atkBuff:   { name:'怒气爆发', desc:'ATK提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
-  poison:    { name:'毒雾', desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
-  seal:      { name:'封印', desc:'随机封锁2颗宝珠,持续2回合', type:'seal', count:2, dur:2 },
-  convert:   { name:'属性干扰', desc:'随机转换3颗宝珠属性', type:'convert', count:3 },
-  aoe:       { name:'全屏冲击', desc:'对主角造成{val}点伤害', type:'aoe' },
-  defDown:   { name:'破甲', desc:'降低主角防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
-  healBlock: { name:'治愈封锁', desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
+  atkBuff:   { name:'妖气暴涨', desc:'攻击提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
+  poison:    { name:'毒瘴', desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
+  seal:      { name:'封灵', desc:'随机封锁2颗灵珠,持续2回合', type:'seal', count:2, dur:2 },
+  convert:   { name:'灵气紊乱', desc:'随机转换3颗灵珠属性', type:'convert', count:3 },
+  aoe:       { name:'妖力横扫', desc:'对修士造成{val}点伤害', type:'aoe' },
+  defDown:   { name:'破甲爪', desc:'降低修士防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
+  healBlock: { name:'噬灵', desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
 }
 
 /**
- * 生成属性主题关卡
- * 每个属性10关，敌人以该属性为主
+ * 生成灵根秘境关卡
+ * 每个灵根10关，妖兽以该灵根为主
  */
 function _genThemeLevels(attr, startId) {
   const an = ATTR_NAME[attr]
@@ -42,16 +42,16 @@ function _genThemeLevels(attr, startId) {
     levels.push({
       levelId: startId + i,
       theme: attr,
-      name: `${an}之域·第${i}关`,
+      name: `${an}灵秘境·第${i}层`,
       enemy: {
-        name: `${an}之${i<=3?'卫兵':i<=6?'精英':i<=9?'将领':'王者'}`,
+        name: `${an}灵${i<=3?'妖兵':i<=6?'妖将':i<=9?'妖王':'妖帝'}`,
         attr,
         hp: baseHp,
         atk: baseAtk,
         skills,
         avatar: `assets/enemies/enemy_${((startId/10 + i - 1) % 8) + 1}.png`,
       },
-      // 主题宝珠权重：对应属性50%，其他各10%
+      // 灵珠权重：对应灵根50%，其他各10%
       beadWeights: _themeWeights(attr),
       dropRate: 0.15 + i * 0.03,  // 掉落概率随关卡递增
       specialCond: i === 10 ? { type:'turnLimit', turns:15, reward:'extraEquip' } : null,
@@ -66,7 +66,7 @@ function _themeWeights(attr) {
   return w
 }
 
-// 混合属性关卡（高阶挑战，均匀分布）
+// 混沌秘境关卡（高阶挑战，均匀分布）
 function _genMixedLevels() {
   const levels = []
   for (let i = 1; i <= 10; i++) {
@@ -83,9 +83,9 @@ function _genMixedLevels() {
     levels.push({
       levelId: 700 + i,
       theme: 'mixed',
-      name: `混沌试炼·第${i}关`,
+      name: `混沌秘境·第${i}层`,
       enemy: {
-        name: `混沌${i<=5?'守卫':'魔王'}`,
+        name: `混沌${i<=5?'妖兽':'魔尊'}`,
         attr: enemyAttr,
         hp: baseHp,
         atk: baseAtk,
@@ -146,8 +146,8 @@ function getThemeLevels(theme) {
  */
 function getAllThemes() {
   return [
-    ...ATTRS.map(a => ({ id: a, name: ATTR_NAME[a]+'之域', levels: 10 })),
-    { id: 'mixed', name: '混沌试炼', levels: 10 },
+    ...ATTRS.map(a => ({ id: a, name: ATTR_NAME[a]+'灵秘境', levels: 10 })),
+    { id: 'mixed', name: '混沌秘境', levels: 10 },
   ]
 }
 
