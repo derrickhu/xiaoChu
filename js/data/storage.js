@@ -9,13 +9,11 @@ const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
 
 // 默认玩家数据
 function defaultData() {
-  // 初始法宝：一把凡品赤焰飞剑
-  const starterWeapon = generateEquipment('weapon', 'fire', 'N')
-  const starterArmor  = generateEquipment('armor', 'water', 'N')
+  // 初始法宝：一把凡品赤焰飞剑 Lv1 + 一件凡品碧水道袍 Lv1
+  const starterWeapon = generateEquipment('weapon', 'fire', 'N', 1)
+  const starterArmor  = generateEquipment('armor', 'water', 'N', 1)
   return {
-    // 修士固定属性
-    hero: { baseAtk: 120, baseHp: 3000 },
-    // 当前佩戴法宝（6槽位）
+    // 当前佩戴法宝（6槽位）- 人物属性完全由装备提供
     equipped: { weapon:starterWeapon, armor:starterArmor, boots:null, cloak:null, helmet:null, trinket:null },
     // 乾坤袋（永久法宝列表）
     inventory: [starterWeapon, starterArmor],
@@ -62,7 +60,6 @@ class Storage {
   }
 
   // ===== 数据访问快捷属性 =====
-  get hero()         { return this._d.hero }
   get equipped()     { return this._d.equipped }
   get inventory()    { return this._d.inventory }
   get gold()         { return this._d.gold }
@@ -77,21 +74,35 @@ class Storage {
   get bestRecords()  { return this._d.bestRecords }
   get levelProgress(){ return this._d.levelProgress }
 
-  // ===== 计算修士最终属性（含法宝被动加成） =====
+  // ===== 计算修士最终五维属性（纯由装备提供） =====
+  // 返回 { hp, pAtk, mAtk, pDef, mDef, atk(兼容), def(兼容) }
   getHeroStats() {
-    let atk = this._d.hero.baseAtk
-    let hp  = this._d.hero.baseHp
-    let def = 0
+    let hp = 500    // 基础裸体血量（保底值）
+    let pAtk = 10   // 基础裸体物攻
+    let mAtk = 10   // 基础裸体魔攻
+    let pDef = 5    // 基础裸体物防
+    let mDef = 5    // 基础裸体魔防
     const eq = this._d.equipped
     Object.values(eq).forEach(e => {
       if (!e) return
-      e.passives.forEach(p => {
-        if (p.field === 'atk') atk += p.val
-        if (p.field === 'hp')  hp  += p.val
-        if (p.field === 'def') def += p.val
-      })
+      // 装备的五维属性
+      if (e.stats) {
+        if (e.stats.hp)   hp   += e.stats.hp
+        if (e.stats.pAtk) pAtk += e.stats.pAtk
+        if (e.stats.mAtk) mAtk += e.stats.mAtk
+        if (e.stats.pDef) pDef += e.stats.pDef
+        if (e.stats.mDef) mDef += e.stats.mDef
+      }
+      // 被动技能加成（兼容旧数据）
+      if (e.passives) {
+        e.passives.forEach(p => {
+          if (p.field === 'atk') { pAtk += Math.round(p.val * 0.5); mAtk += Math.round(p.val * 0.5) }
+          if (p.field === 'hp')  hp  += p.val
+          if (p.field === 'def') { pDef += Math.round(p.val * 0.5); mDef += Math.round(p.val * 0.5) }
+        })
+      }
     })
-    return { atk, hp, def }
+    return { hp, pAtk, mAtk, pDef, mDef, atk: pAtk + mAtk, def: pDef + mDef }
   }
 
   // ===== 法宝操作 =====

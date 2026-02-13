@@ -4,7 +4,7 @@
  */
 const { Render, A, TH } = require('./render')
 const Storage = require('./data/storage')
-const { ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP, EQUIP_SLOT, QUALITY, randomDrop, generateEquipment } = require('./data/equipment')
+const { ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP, EQUIP_SLOT, QUALITY, STAT_DEFS, STAT_KEYS, randomDrop, generateEquipment } = require('./data/equipment')
 const { DIFFICULTY, ALL_LEVELS, getLevelData } = require('./data/levels')
 const MusicMgr = require('./runtime/music')
 
@@ -40,7 +40,10 @@ class Main {
     this.ultSwipe = null  // { idx, startX, startY, progress, eq }
     this._ultIconArea = null  // 绝技图标区域信息
     // 战斗状态
-    this.bState = 'none'  // none/playerTurn/eliminating/settling/enemyTurn/victory/defeat
+    this.bState = 'none'  // none/playerTurn/eliminating/preAttack/settling/preEnemy/enemyTurn/victory/defeat
+    this._stateTimer = 0  // 状态延迟计时器（帧数）
+    this._enemyTurnWait = false  // 敌方攻击后等待标记
+    this._pendingElimMap = null  // 消除阶段累积的属性消除数据
     this.combo = 0; this.turnCount = 0; this.elimSets = []
     this.enemyHp = 0; this.enemyMaxHp = 0; this.heroHp = 0; this.heroMaxHp = 0
     this.heroShield = 0  // 减伤
@@ -60,6 +63,8 @@ class Main {
     this.skillCastAnim  = { active:false, progress:0, duration:30, type:'slash', color:TH.accent, skillName:'', targetX:0, targetY:0 }
     // 掉落
     this.dropPopup = null; this.tempEquips = []
+    // 属性查看面板
+    this.statPanel = null  // { type:'hero'|'enemy', visible:true }
     // Loading
     this._loadStart = Date.now()
     // 当前关卡数据
@@ -106,6 +111,33 @@ class Main {
     }
     // 消除动画
     if (this.bState === 'eliminating') this._processElim()
+    // 消除后等待→攻击
+    if (this.bState === 'preAttack') {
+      this._stateTimer++
+      if (this._stateTimer >= 60) {  // 约1秒（60帧）
+        this._stateTimer = 0
+        this._executeAttack()
+      }
+    }
+    // 攻击后等待→敌方回合
+    if (this.bState === 'preEnemy') {
+      this._stateTimer++
+      if (this._stateTimer >= 60) {  // 约1秒
+        this._stateTimer = 0
+        this._enemyTurn()
+      }
+    }
+    // 敌方攻击后等待→玩家回合
+    if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
+      this._stateTimer++
+      if (this._stateTimer >= 60) {  // 约1秒
+        this._stateTimer = 0
+        this._enemyTurnWait = false
+        this.bState = 'playerTurn'
+        this.selectedR = -1; this.selectedC = -1
+        this._checkDeadlock()
+      }
+    }
     // 交换动画更新
     this._updateSwapAnim()
     // 战斗角色动画更新
@@ -218,7 +250,7 @@ class Main {
     ctx.beginPath(); ctx.arc(W/2, charY+charH/2, 80*S*pulse, 0, Math.PI*2); ctx.fill()
     ctx.restore()
     // 角色图片
-    const heroImg = R.getImg('assets/hero/hero_default.png')
+    const heroImg = R.getImg('assets/hero/hero_body.png')
     const heroSize = 120*S
     if (heroImg && heroImg.width > 0) {
       ctx.drawImage(heroImg, W/2-heroSize/2, charY+charH/2-heroSize/2, heroSize, heroSize)
@@ -243,7 +275,7 @@ class Main {
     ctx.textAlign='center'; ctx.textBaseline='middle'
     ctx.fillText('初始修为', W/2, infoY+16*S)
     ctx.fillStyle=TH.text; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`ATK:${stats.atk}   HP:${stats.hp}   DEF:${stats.def}`, W/2, infoY+40*S)
+    ctx.fillText(`HP:${stats.hp} 物攻:${stats.pAtk} 魔攻:${stats.mAtk}`, W/2, infoY+40*S)
 
     // 法宝提示
     const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
@@ -281,7 +313,7 @@ class Main {
     const avatarSize = 50*S, avatarX = m+14*S, avatarY = cardY+15*S
     ctx.save()
     ctx.beginPath(); ctx.arc(avatarX+avatarSize/2, avatarY+avatarSize/2, avatarSize/2, 0, Math.PI*2); ctx.clip()
-    const heroImg = R.getImg('assets/hero/hero_default.png')
+    const heroImg = R.getImg('assets/hero/hero_avatar.png')
     if (heroImg && heroImg.width > 0) {
       ctx.drawImage(heroImg, avatarX, avatarY, avatarSize, avatarSize)
     } else {
@@ -296,7 +328,7 @@ class Main {
     ctx.textAlign='left'; ctx.textBaseline='middle'
     ctx.fillText('修仙者', textX, cardY+22*S)
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`ATK:${stats.atk}  HP:${stats.hp}  DEF:${stats.def}`, textX, cardY+42*S)
+    ctx.fillText(`物攻:${stats.pAtk} 魔攻:${stats.mAtk} HP:${stats.hp}`, textX, cardY+42*S)
     // 灵石
     ctx.fillStyle=TH.accent; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
     ctx.textAlign='right'; ctx.fillText(`💎 ${this.storage.gold}`, W-m-12*S, cardY+22*S)
@@ -322,7 +354,7 @@ class Main {
     // 敌人信息
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
-    ctx.fillText(`HP:${lv.enemy.hp}  ATK:${lv.enemy.atk}  ${ATTR_NAME[lv.enemy.attr]}属性`, W/2, lvY+100*S)
+    ctx.fillText(`HP:${lv.enemy.hp}  物攻:${lv.enemy.pAtk||0}  魔攻:${lv.enemy.mAtk||0}`, W/2, lvY+100*S)
 
     // 关卡名
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
@@ -343,7 +375,7 @@ class Main {
 
   // ===== 战斗准备 =====
   rBattlePrepare() {
-    R.drawBg(this.af); R.drawTopBar('备战',true)
+    R.drawLevelBg(this.af); R.drawTopBar('备战',true)
     if (!this.curLevel) return
     const m=14*S, startY=safeTop+56*S
     const lv = this.curLevel
@@ -354,9 +386,9 @@ class Main {
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='top'
     ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
-    ctx.fillText(`ATK: ${lv.enemy.atk}`, m+90*S, startY+38*S)
+    ctx.fillText(`物攻:${lv.enemy.pAtk||0} 魔攻:${lv.enemy.mAtk||0}`, m+90*S, startY+38*S)
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`难度: ${DIFFICULTY[lv.difficulty].name}`, m+90*S, startY+56*S)
+    ctx.fillText(`物防:${lv.enemy.pDef||0} 魔防:${lv.enemy.mDef||0}`, m+90*S, startY+56*S)
     if (lv.specialCond) {
       ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+90*S, startY+72*S)
     }
@@ -373,14 +405,14 @@ class Main {
     const stats = this.storage.getHeroStats()
     const infoY = eqY+20*S + 3*(eqH+6*S) + 10*S
     ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`修士 ATK:${stats.atk} HP:${stats.hp} DEF:${stats.def}`, m, infoY)
+    ctx.fillText(`修士 HP:${stats.hp} 物攻:${stats.pAtk} 魔攻:${stats.mAtk} 物防:${stats.pDef} 魔防:${stats.mDef}`, m, infoY)
     // 出战按钮
     R.drawBtn(W/2-55*S, infoY+30*S, 110*S, 40*S, '出 战', TH.danger)
   }
 
   // ===== 战斗 =====
   rBattle() {
-    R.drawBg(this.af)
+    R.drawBattleBg(this.af)
     const topArea = safeTop+4*S
     const arenaBottom = H * 0.42  // 上半区域底部（42%屏高）
     const arenaH = arenaBottom - topArea
@@ -470,6 +502,11 @@ class Main {
     this.dmgFloats.forEach(f => R.drawDmgFloat(f.x,f.y,f.text,f.color,f.alpha,f.scale))
     // 技能特效文字
     this.skillEffects.forEach(e => R.drawSkillEffect(e.x,e.y,e.text,e.color,e.alpha))
+
+    // 属性查看面板
+    if (this.statPanel && this.statPanel.visible) {
+      this._drawStatPanel()
+    }
 
     // 掉落弹窗
     if (this.dropPopup) {
@@ -611,6 +648,11 @@ class Main {
 
   // ===== 战斗触摸 =====
   tBattle(type,x,y) {
+    // 属性面板显示时，点击任意位置关闭
+    if (this.statPanel && this.statPanel.visible) {
+      if (type === 'end') { this.statPanel = null }
+      return
+    }
     // 掉落弹窗
     if (this.dropPopup) {
       if (type !== 'end') return
@@ -656,6 +698,26 @@ class Main {
     // 退出按钮
     if (type === 'end' && this._hitRect(x,y,10*S,safeTop+4*S,40*S,20*S)) {
       this.bState = 'none'; this.scene = 'home'; return
+    }
+    // 点击角色/怪物区域查看属性（仅在战斗进行中）
+    if (type === 'end' && this.bState !== 'none' && this.bState !== 'victory' && this.bState !== 'defeat') {
+      const topArea = safeTop+4*S
+      const arenaBottom = H * 0.42
+      const arenaH = arenaBottom - topArea
+      const charY = topArea + 24*S + arenaH * 0.4
+      const charSize = Math.min(arenaH * 0.65, 120*S)
+      const heroX = W * 0.28, enemyX = W * 0.72
+      const clickR = charSize * 0.5
+      // 点击修士
+      const dhx = x - heroX, dhy = y - charY
+      if (dhx*dhx + dhy*dhy < clickR*clickR) {
+        this.statPanel = { type:'hero', visible:true }; return
+      }
+      // 点击怪物
+      const dex = x - enemyX, dey = y - charY
+      if (dex*dex + dey*dey < clickR*clickR) {
+        this.statPanel = { type:'enemy', visible:true }; return
+      }
     }
     // 绝技图标上滑释放
     if (this._ultIconArea && this.bState === 'playerTurn') {
@@ -756,11 +818,18 @@ class Main {
     const stats = this.storage.getHeroStats()
     this.enemyHp = lv.enemy.hp; this.enemyMaxHp = lv.enemy.hp
     this.heroHp = stats.hp; this.heroMaxHp = stats.hp; this.heroShield = stats.def
+    // 五维属性存储（战斗中使用）
+    this.heroStats = { ...stats }
+    this.enemyStats = {
+      hp: lv.enemy.hp, pAtk: lv.enemy.pAtk || 0, mAtk: lv.enemy.mAtk || 0,
+      pDef: lv.enemy.pDef || 0, mDef: lv.enemy.mDef || 0,
+    }
     this.heroBuffs = []; this.enemyBuffs = []
     this.combo = 0; this.turnCount = 1
     this.skillTriggers = {}; this.ultReady = {}
     this.pendingUlt = null; this.tempEquips = []; this.dropPopup = null
     this.dmgFloats = []; this.skillEffects = []
+    this.statPanel = null
     // 重置动画
     this.heroAttackAnim = { active:false, progress:0, duration:24 }
     this.enemyHurtAnim  = { active:false, progress:0, duration:18 }
@@ -771,6 +840,7 @@ class Main {
     this.bState = 'playerTurn'
     this.scene = 'battle'
     this.selectedR = -1; this.selectedC = -1; this.swapAnim = null; this.ultSwipe = null
+    this._stateTimer = 0; this._enemyTurnWait = false; this._pendingElimMap = null
     // 检查死局
     this._checkDeadlock()
   }
@@ -831,9 +901,10 @@ class Main {
     sa.progress += 1/sa.duration
     if (sa.progress >= 1) {
       if (sa.revert) {
-        // 归位完成 → 敌方回合
+        // 归位完成 → 等待后进入敌方回合
         this.swapAnim = null
-        this._enemyTurn()
+        this.bState = 'preEnemy'
+        this._stateTimer = 0
       } else {
         // 交换完成 → 真正执行交换并消除
         this._swapBeads(sa.r1, sa.c1, sa.r2, sa.c2)
@@ -847,12 +918,14 @@ class Main {
     const sets = this._findMatches()
     if (sets.length > 0) {
       this.combo = 0
+      this._pendingElimMap = {}
       this.elimSets = sets
       this.bState = 'eliminating'
     }
-    // 无消除 = 回合结束
+    // 无消除 = 回合结束，等待后进入敌方回合
     else if (this.turnCount > 0) {
-      this._enemyTurn()
+      this.bState = 'preEnemy'
+      this._stateTimer = 0
     }
   }
 
@@ -934,25 +1007,34 @@ class Main {
       if (newSets.length > 0) {
         this.elimSets = newSets
       } else {
-        // 消除结束 → 结算
-        this._settle()
-        // 结算后检查死局（会在playerTurn开始时再次检查）
+        // 消除全部结束 → 等待1s后执行攻击
+        this.bState = 'preAttack'
+        this._stateTimer = 0
       }
       return
     }
     // 清除标记的珠子
     this.combo++
-    const allElim = {}
+    if (!this._pendingElimMap) this._pendingElimMap = {}
     this.elimSets.forEach(g => {
-      if(!allElim[g.attr]) allElim[g.attr]=0
-      allElim[g.attr] += g.count
+      if(!this._pendingElimMap[g.attr]) this._pendingElimMap[g.attr]=0
+      this._pendingElimMap[g.attr] += g.count
       g.cells.forEach(({r,c}) => this.board[r][c] = null)
     })
-    // 触发技能
-    this._triggerSkills(allElim)
     MusicMgr.playEliminate()
     this.shakeT = 6; this.shakeI = 4*S
     this.elimSets = []
+  }
+
+  // 消除等待结束后，统一执行攻击
+  _executeAttack() {
+    const elimMap = this._pendingElimMap || {}
+    this._pendingElimMap = null
+    this._triggerSkills(elimMap)
+    // 如果已经胜利，不再进入敌方回合
+    if (this.bState === 'victory') return
+    // 进入等待→敌方回合
+    this._settle()
   }
 
   _fillBoard() {
@@ -980,6 +1062,8 @@ class Main {
     const arenaBottom = H * 0.42
     const topArea = safeTop + 4*S
     const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
+    const heroS = this.heroStats || {}
+    const enemyS = this.enemyStats || {}
     Object.entries(elimMap).forEach(([attr,count]) => {
       if (count < 3) return
       // 心珠回血
@@ -998,6 +1082,11 @@ class Main {
         // Combo加成
         const comboMul = 1 + (this.combo-1)*0.1
         dmg = Math.round(dmg * comboMul)
+        // 物理/魔法攻击加成（武器类偏物攻，其他类偏魔攻）
+        const isPhysical = (eq.slot === 'weapon' || eq.slot === 'boots')
+        const atkBonus = isPhysical ? (heroS.pAtk || 0) : (heroS.mAtk || 0)
+        const enemyDef = isPhysical ? (enemyS.pDef || 0) : (enemyS.mDef || 0)
+        dmg = Math.max(1, dmg + Math.round(atkBonus * 0.3) - Math.round(enemyDef * 0.5))
         // 属性克制
         if (this.curLevel && COUNTER_MAP[attr] === this.curLevel.enemy.attr) {
           dmg = Math.round(dmg * 1.5)
@@ -1059,14 +1148,14 @@ class Main {
   }
 
   _settle() {
-    this.bState = 'settling'
     // 检查胜利
     if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory(); return }
     // buff持续时间衰减
     this.heroBuffs = this.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
     this.enemyBuffs = this.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
-    // 进入敌方回合
-    setTimeout(() => this._enemyTurn(), 400)
+    // 进入等待→敌方回合（1s延迟在update中的preEnemy处理）
+    this.bState = 'preEnemy'
+    this._stateTimer = 0
   }
 
   _enemyTurn() {
@@ -1076,15 +1165,21 @@ class Main {
     const arenaBottom = H * 0.42
     const topArea = safeTop + 4*S
     const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
-    // 基础攻击
-    let atk = enemy.atk
+    const heroS = this.heroStats || {}
+    const enemyS = this.enemyStats || {}
+    // 物理攻击伤害 = 敌pAtk - 己pDef*0.5
+    let pDmg = Math.max(0, (enemyS.pAtk || enemy.pAtk || 0) - Math.round((heroS.pDef || 0) * 0.5))
+    // 魔法攻击伤害 = 敌mAtk - 己mDef*0.5
+    let mDmg = Math.max(0, (enemyS.mAtk || enemy.mAtk || 0) - Math.round((heroS.mDef || 0) * 0.5))
     // buff减攻
-    this.enemyBuffs.forEach(b => { if(b.type==='atkDown') atk = Math.max(0,atk-b.val) })
-    // 减伤
-    let dmg = Math.max(0, atk - this.heroShield)
-    this.heroHp = Math.max(0, this.heroHp - dmg)
-    if (dmg > 0) {
-      this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`-${dmg}`, color:TH.danger, alpha:1, scale:1, t:0 })
+    this.enemyBuffs.forEach(b => {
+      if (b.type === 'atkDown') { pDmg = Math.max(0, pDmg - Math.round(b.val * 0.5)); mDmg = Math.max(0, mDmg - Math.round(b.val * 0.5)) }
+    })
+    // 总伤害 - 护盾
+    let totalDmg = Math.max(0, pDmg + mDmg - this.heroShield)
+    this.heroHp = Math.max(0, this.heroHp - totalDmg)
+    if (totalDmg > 0) {
+      this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`-${totalDmg}`, color:TH.danger, alpha:1, scale:1, t:0 })
       this.shakeT = 4; this.shakeI = 3*S
       MusicMgr.playAttack()
       this._playEnemyAttack(enemy.name+'攻击')
@@ -1106,7 +1201,9 @@ class Main {
       this.storage.updateTaskProgress('dt3', 1)
     }
     this.turnCount++
-    setTimeout(() => { this.bState = 'playerTurn'; this.selectedR = -1; this.selectedC = -1; this._checkDeadlock() }, 500)
+    // 敌方攻击动画播放后回到玩家回合（约1s后）
+    this._stateTimer = 0
+    this._enemyTurnWait = true
   }
 
   _applyEnemySkill(sk) {
@@ -1158,6 +1255,111 @@ class Main {
       this.storage.addToInventory(reward)
       this.dropPopup = reward
     }
+  }
+
+  // ===== 属性查看面板 =====
+  _drawStatPanel() {
+    const panel = this.statPanel
+    if (!panel || !panel.visible) return
+    const m = 30*S, panelW = W - m*2
+    const panelH = 200*S
+    const panelX = m, panelY = H*0.25
+
+    // 遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    ctx.fillRect(0, 0, W, H)
+
+    // 面板背景
+    R.drawDarkPanel(panelX, panelY, panelW, panelH, 14*S)
+
+    const padX = 14*S
+    let cy = panelY + 14*S
+
+    if (panel.type === 'hero') {
+      const s = this.heroStats || this.storage.getHeroStats()
+      // 标题
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+      ctx.fillText('修仙者 · 属性', panelX + panelW/2, cy); cy += 24*S
+
+      // 当前HP
+      ctx.fillStyle = TH.text; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(`当前气血: ${this.heroHp} / ${this.heroMaxHp}`, panelX + padX, cy); cy += 20*S
+
+      // 五维属性
+      const stats = [
+        { key:'hp',   label:'气血上限', val:s.hp,   color:STAT_DEFS.hp.color },
+        { key:'pAtk', label:'物理攻击', val:s.pAtk, color:STAT_DEFS.pAtk.color },
+        { key:'mAtk', label:'魔法攻击', val:s.mAtk, color:STAT_DEFS.mAtk.color },
+        { key:'pDef', label:'物理防御', val:s.pDef, color:STAT_DEFS.pDef.color },
+        { key:'mDef', label:'魔法防御', val:s.mDef, color:STAT_DEFS.mDef.color },
+      ]
+      const colW = (panelW - padX*2) / 2
+      stats.forEach((st, i) => {
+        const col = i % 2, row = Math.floor(i / 2)
+        const sx = panelX + padX + col * colW
+        const sy = cy + row * 22*S
+        ctx.fillStyle = st.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.fillText(`${STAT_DEFS[st.key].icon} ${st.label}`, sx, sy)
+        ctx.fillStyle = TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${st.val}`, sx + 75*S, sy)
+      })
+      cy += Math.ceil(stats.length/2) * 22*S + 10*S
+
+      // 护盾
+      ctx.fillStyle = TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(`护盾: ${this.heroShield}`, panelX + padX, cy)
+    } else {
+      // 怪物属性
+      const enemy = this.curLevel?.enemy
+      if (!enemy) return
+      const es = this.enemyStats || {}
+      // 标题
+      ctx.fillStyle = ATTR_COLOR[enemy.attr]?.main || TH.danger
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+      ctx.fillText(`${enemy.name} · 属性`, panelX + panelW/2, cy); cy += 24*S
+
+      // 当前HP
+      ctx.fillStyle = TH.text; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(`当前气血: ${this.enemyHp} / ${this.enemyMaxHp}`, panelX + padX, cy); cy += 20*S
+
+      // 五维属性
+      const stats = [
+        { key:'hp',   label:'气血上限', val:es.hp   || enemy.hp,   color:STAT_DEFS.hp.color },
+        { key:'pAtk', label:'物理攻击', val:es.pAtk || enemy.pAtk || 0, color:STAT_DEFS.pAtk.color },
+        { key:'mAtk', label:'魔法攻击', val:es.mAtk || enemy.mAtk || 0, color:STAT_DEFS.mAtk.color },
+        { key:'pDef', label:'物理防御', val:es.pDef || enemy.pDef || 0, color:STAT_DEFS.pDef.color },
+        { key:'mDef', label:'魔法防御', val:es.mDef || enemy.mDef || 0, color:STAT_DEFS.mDef.color },
+      ]
+      const colW = (panelW - padX*2) / 2
+      stats.forEach((st, i) => {
+        const col = i % 2, row = Math.floor(i / 2)
+        const sx = panelX + padX + col * colW
+        const sy = cy + row * 22*S
+        ctx.fillStyle = st.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.fillText(`${STAT_DEFS[st.key].icon} ${st.label}`, sx, sy)
+        ctx.fillStyle = TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${st.val}`, sx + 75*S, sy)
+      })
+      cy += Math.ceil(stats.length/2) * 22*S + 10*S
+
+      // 属性标签
+      ctx.fillStyle = ATTR_COLOR[enemy.attr]?.main || TH.sub
+      ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(`${ATTR_NAME[enemy.attr]}属性`, panelX + padX, cy)
+    }
+
+    // 关闭提示
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillText('点击任意位置关闭', panelX + panelW/2, panelY + panelH + 10*S)
   }
 
   // ===== 工具方法 =====

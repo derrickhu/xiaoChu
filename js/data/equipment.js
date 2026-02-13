@@ -2,14 +2,108 @@
  * 法宝系统数据定义
  * 6类法宝 × 6灵根 = 36种基础法宝
  * 4个品质等级：凡品(N)/灵品(R)/仙品(SR)/神品(SSR)
+ * 
+ * 五维属性系统：hp(血量) pAtk(物理攻击) mAtk(魔法攻击) pDef(物理防御) mDef(魔法防御)
+ * 品质决定属性条目数：N=1条 R=2条 SR=3条 SSR=4条（从五维中随机选）
+ * 等级决定数值浮动范围：等级越高数值越高，有随机浮动
  */
 
 // 品质定义
 const QUALITY = {
-  N:   { id:'N',   name:'凡品', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', triggerCount:3, ultMulti:3, passiveRange:[100,200] },
-  R:   { id:'R',   name:'灵品', color:'#4a9eff', glow:'rgba(74,158,255,0.4)',  triggerCount:3, ultMulti:3.5, passiveRange:[200,350] },
-  SR:  { id:'SR',  name:'仙品', color:'#b44aff', glow:'rgba(180,74,255,0.5)',  triggerCount:4, ultMulti:4, passiveRange:[350,550] },
-  SSR: { id:'SSR', name:'神品', color:'#ff8c00', glow:'rgba(255,140,0,0.6)',   triggerCount:5, ultMulti:5, passiveRange:[500,800] },
+  N:   { id:'N',   name:'凡品', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', triggerCount:3, ultMulti:3, passiveRange:[100,200], statSlots:1 },
+  R:   { id:'R',   name:'灵品', color:'#4a9eff', glow:'rgba(74,158,255,0.4)',  triggerCount:3, ultMulti:3.5, passiveRange:[200,350], statSlots:2 },
+  SR:  { id:'SR',  name:'仙品', color:'#b44aff', glow:'rgba(180,74,255,0.5)',  triggerCount:4, ultMulti:4, passiveRange:[350,550], statSlots:3 },
+  SSR: { id:'SSR', name:'神品', color:'#ff8c00', glow:'rgba(255,140,0,0.6)',   triggerCount:5, ultMulti:5, passiveRange:[500,800], statSlots:4 },
+}
+
+// 最大等级
+const MAX_LEVEL = 30
+
+// 五维属性定义
+const STAT_DEFS = {
+  hp:   { id:'hp',   name:'气血', icon:'❤️', color:'#ff5555' },
+  pAtk: { id:'pAtk', name:'物攻', icon:'⚔️', color:'#ff8c00' },
+  mAtk: { id:'mAtk', name:'魔攻', icon:'🔮', color:'#b366ff' },
+  pDef: { id:'pDef', name:'物防', icon:'🛡️', color:'#4dabff' },
+  mDef: { id:'mDef', name:'魔防', icon:'🔰', color:'#4dcc4d' },
+}
+const STAT_KEYS = ['hp','pAtk','mAtk','pDef','mDef']
+
+// 各槽位主属性倾向（权重高的更容易出现）
+const SLOT_STAT_WEIGHTS = {
+  weapon:  { hp:5,  pAtk:40, mAtk:40, pDef:5,  mDef:10 },
+  armor:   { hp:20, pAtk:5,  mAtk:5,  pDef:35, mDef:35 },
+  boots:   { hp:15, pAtk:20, mAtk:10, pDef:25, mDef:30 },
+  cloak:   { hp:10, pAtk:10, mAtk:30, pDef:15, mDef:35 },
+  helmet:  { hp:40, pAtk:5,  mAtk:10, pDef:20, mDef:25 },
+  trinket: { hp:15, pAtk:20, mAtk:30, pDef:15, mDef:20 },
+}
+
+// 等级→属性基础值表（每等级的基础值，乘以浮动系数）
+// hp基数较大，攻防基数较小
+const STAT_BASE_PER_LEVEL = {
+  hp:   { base:50,  growth:35 },   // Lv1=50~85, Lv30=50+35*30=1100
+  pAtk: { base:5,   growth:4 },    // Lv1=5~9,   Lv30=5+4*30=125
+  mAtk: { base:5,   growth:4 },
+  pDef: { base:3,   growth:3 },    // Lv1=3~6,   Lv30=3+3*30=93
+  mDef: { base:3,   growth:3 },
+}
+
+/**
+ * 根据等级计算某条属性的数值范围
+ * @param {string} statKey - hp/pAtk/mAtk/pDef/mDef
+ * @param {number} level - 装备等级 1~30
+ * @returns {{ min:number, max:number }}
+ */
+function _getStatRange(statKey, level) {
+  const def = STAT_BASE_PER_LEVEL[statKey]
+  const baseVal = def.base + def.growth * level
+  // 浮动范围：±15% 
+  const min = Math.round(baseVal * 0.85)
+  const max = Math.round(baseVal * 1.15)
+  return { min, max }
+}
+
+/**
+ * 为装备随机生成属性条目
+ * @param {string} slot - 槽位
+ * @param {string} qualityId - 品质
+ * @param {number} level - 等级
+ * @returns {object} { hp:123, pAtk:45, ... } 只有被选中的属性有值
+ */
+function _genEquipStats(slot, qualityId, level) {
+  const q = QUALITY[qualityId]
+  const slotCount = q.statSlots  // 品质决定条目数
+  const weights = SLOT_STAT_WEIGHTS[slot]
+  // 按权重随机选择不重复的属性
+  const selected = _weightedPick(STAT_KEYS, weights, slotCount)
+  const stats = {}
+  selected.forEach(key => {
+    const range = _getStatRange(key, level)
+    stats[key] = _randRange(range.min, range.max)
+  })
+  return stats
+}
+
+/**
+ * 带权重的不重复随机选取
+ */
+function _weightedPick(keys, weights, count) {
+  const pool = keys.slice()
+  const result = []
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const totalW = pool.reduce((s, k) => s + (weights[k] || 1), 0)
+    let r = Math.random() * totalW
+    for (let j = 0; j < pool.length; j++) {
+      r -= (weights[pool[j]] || 1)
+      if (r <= 0) {
+        result.push(pool[j])
+        pool.splice(j, 1)
+        break
+      }
+    }
+  }
+  return result
 }
 
 // 法宝类别（仙侠法宝）
@@ -112,12 +206,17 @@ const EQUIP_NAMES = {
  * @param {string} slot - 法宝类别 weapon/armor/...
  * @param {string} attr - 灵根 fire/water/...
  * @param {string} qualityId - 品质 N/R/SR/SSR
+ * @param {number} [level=1] - 装备等级 1~30
  * @returns {object} 完整法宝对象
  */
-function generateEquipment(slot, attr, qualityId) {
+function generateEquipment(slot, attr, qualityId, level) {
   const q = QUALITY[qualityId]
   const qi = ['N','R','SR','SSR'].indexOf(qualityId)
+  const lv = Math.max(1, Math.min(MAX_LEVEL, level || 1))
   const name = EQUIP_NAMES[slot][attr]
+
+  // 五维属性（品质决定条目数，等级决定数值范围）
+  const stats = _genEquipStats(slot, qualityId, lv)
 
   // 普通技能
   const skillTpl = SKILL_TEMPLATES[slot][attr][0]
@@ -151,7 +250,9 @@ function generateEquipment(slot, attr, qualityId) {
     slot,
     attr,
     quality: qualityId,
+    level: lv,
     name,
+    stats,
     skill,
     ult,
     ultTrigger: q.triggerCount,
@@ -179,13 +280,26 @@ function randomQuality(tier) {
 
 /**
  * 随机生成掉落法宝
+ * @param {string} tier - 掉落档次
+ * @param {number} [levelHint] - 基准等级（默认按档次: low=1~8, mid=6~18, high=14~30）
  */
-function randomDrop(tier) {
+function randomDrop(tier, levelHint) {
   const slots = Object.keys(EQUIP_SLOT)
   const slot = slots[Math.floor(Math.random()*slots.length)]
   const attr = ATTRS[Math.floor(Math.random()*ATTRS.length)]
   const quality = randomQuality(tier)
-  return generateEquipment(slot, attr, quality)
+  // 等级范围
+  let minLv, maxLv
+  if (levelHint) {
+    minLv = Math.max(1, levelHint - 3)
+    maxLv = Math.min(MAX_LEVEL, levelHint + 3)
+  } else {
+    const ranges = { low:[1,8], mid:[6,18], high:[14,30] }
+    const r = ranges[tier] || ranges.low
+    minLv = r[0]; maxLv = r[1]
+  }
+  const level = _randRange(minLv, maxLv)
+  return generateEquipment(slot, attr, quality, level)
 }
 
 // 工具函数
@@ -195,5 +309,6 @@ function _uid() { return Date.now().toString(36) + Math.random().toString(36).sl
 module.exports = {
   QUALITY, EQUIP_SLOT, ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP,
   SKILL_TEMPLATES, PASSIVE_TYPES, EQUIP_NAMES,
+  STAT_DEFS, STAT_KEYS, MAX_LEVEL, SLOT_STAT_WEIGHTS,
   generateEquipment, randomQuality, randomDrop,
 }

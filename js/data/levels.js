@@ -1,14 +1,15 @@
 /**
  * 关卡系统 - 6灵根秘境×10关 + 混沌秘境
  * 适配修仙消消乐玩法
+ * 怪物五维属性：hp/pAtk/mAtk/pDef/mDef
  */
 const { ATTRS, ATTR_NAME } = require('./equipment')
 
 // 难度倍率
 const DIFFICULTY = {
-  normal:  { id:'normal',  name:'练气', hpMul:1,   atkMul:1,   color:'#4dcc4d', tier:'low' },
-  hard:    { id:'hard',    name:'筑基', hpMul:1.8, atkMul:1.8, color:'#ff8c00', tier:'mid' },
-  extreme: { id:'extreme', name:'金丹', hpMul:3,   atkMul:3,   color:'#ff4d6a', tier:'high' },
+  normal:  { id:'normal',  name:'练气', hpMul:1,   atkMul:1,   defMul:1,   color:'#4dcc4d', tier:'low' },
+  hard:    { id:'hard',    name:'筑基', hpMul:1.8, atkMul:1.8, defMul:1.5, color:'#ff8c00', tier:'mid' },
+  extreme: { id:'extreme', name:'金丹', hpMul:3,   atkMul:3,   defMul:2.5, color:'#ff4d6a', tier:'high' },
 }
 
 // 妖兽技能池
@@ -25,15 +26,28 @@ const ENEMY_SKILLS = {
 /**
  * 生成灵根秘境关卡
  * 每个灵根10关，妖兽以该灵根为主
+ * 妖兽属性：hp/pAtk/mAtk/pDef/mDef
  */
 function _genThemeLevels(attr, startId) {
   const an = ATTR_NAME[attr]
+  // 不同灵根的属性倾向
+  const attrBias = {
+    fire:  { pAtkBias:1.3, mAtkBias:0.8, pDefBias:0.8, mDefBias:0.9 },
+    water: { pAtkBias:0.8, mAtkBias:1.3, pDefBias:0.9, mDefBias:1.2 },
+    wood:  { pAtkBias:0.9, mAtkBias:1.0, pDefBias:1.2, mDefBias:1.0 },
+    light: { pAtkBias:1.0, mAtkBias:1.2, pDefBias:1.0, mDefBias:0.8 },
+    dark:  { pAtkBias:1.2, mAtkBias:1.1, pDefBias:0.7, mDefBias:1.0 },
+    heart: { pAtkBias:0.7, mAtkBias:0.7, pDefBias:1.3, mDefBias:1.3 },
+  }
+  const bias = attrBias[attr] || { pAtkBias:1, mAtkBias:1, pDefBias:1, mDefBias:1 }
   const levels = []
   for (let i = 1; i <= 10; i++) {
     const baseHp = 800 + i * 400
-    const baseAtk = 60 + i * 25
+    const basePAtk = Math.round((30 + i * 15) * bias.pAtkBias)
+    const baseMAtk = Math.round((25 + i * 12) * bias.mAtkBias)
+    const basePDef = Math.round((10 + i * 8) * bias.pDefBias)
+    const baseMDef = Math.round((8 + i * 7) * bias.mDefBias)
     const skills = []
-    // 第4关起有技能
     if (i >= 4) skills.push({ ...ENEMY_SKILLS.atkBuff, triggerTurn: 3 })
     if (i >= 6) skills.push({ ...ENEMY_SKILLS.seal, triggerTurn: 4 })
     if (i >= 8) skills.push({ ...ENEMY_SKILLS.poison, val: 50 + i*10, triggerTurn: 2 })
@@ -47,13 +61,16 @@ function _genThemeLevels(attr, startId) {
         name: `${an}灵${i<=3?'妖兵':i<=6?'妖将':i<=9?'妖王':'妖帝'}`,
         attr,
         hp: baseHp,
-        atk: baseAtk,
+        pAtk: basePAtk,
+        mAtk: baseMAtk,
+        pDef: basePDef,
+        mDef: baseMDef,
+        atk: basePAtk + baseMAtk,  // 兼容旧字段
         skills,
-        avatar: `assets/enemies/enemy_${((startId/10 + i - 1) % 8) + 1}.png`,
+        avatar: `assets/enemies/enemy_${attr}_${i<=3?1:i<=6?2:3}.png`,
       },
-      // 灵珠权重：对应灵根50%，其他各10%
       beadWeights: _themeWeights(attr),
-      dropRate: 0.15 + i * 0.03,  // 掉落概率随关卡递增
+      dropRate: 0.15 + i * 0.03,
       specialCond: i === 10 ? { type:'turnLimit', turns:15, reward:'extraEquip' } : null,
     })
   }
@@ -71,7 +88,10 @@ function _genMixedLevels() {
   const levels = []
   for (let i = 1; i <= 10; i++) {
     const baseHp = 2000 + i * 600
-    const baseAtk = 120 + i * 35
+    const basePAtk = 60 + i * 20
+    const baseMAtk = 50 + i * 18
+    const basePDef = 25 + i * 12
+    const baseMDef = 20 + i * 10
     const enemyAttr = ATTRS[(i - 1) % 6]
     const skills = [
       { ...ENEMY_SKILLS.convert, triggerTurn: 2 },
@@ -88,9 +108,13 @@ function _genMixedLevels() {
         name: `混沌${i<=5?'妖兽':'魔尊'}`,
         attr: enemyAttr,
         hp: baseHp,
-        atk: baseAtk,
+        pAtk: basePAtk,
+        mAtk: baseMAtk,
+        pDef: basePDef,
+        mDef: baseMDef,
+        atk: basePAtk + baseMAtk,  // 兼容旧字段
         skills,
-        avatar: `assets/enemies/enemy_${(i % 8) + 1}.png`,
+        avatar: `assets/enemies/enemy_mixed_${i<=5?1:2}.png`,
       },
       beadWeights: { fire:17, water:17, wood:17, light:17, dark:16, heart:16 },
       dropRate: 0.25 + i * 0.03,
@@ -126,10 +150,14 @@ function getLevelData(levelId, difficulty) {
     enemy: {
       ...e,
       hp: Math.round(e.hp * diff.hpMul),
-      atk: Math.round(e.atk * diff.atkMul),
+      pAtk: Math.round((e.pAtk || 0) * diff.atkMul),
+      mAtk: Math.round((e.mAtk || 0) * diff.atkMul),
+      pDef: Math.round((e.pDef || 0) * diff.defMul),
+      mDef: Math.round((e.mDef || 0) * diff.defMul),
+      atk: Math.round((e.atk || 0) * diff.atkMul),
       skills: diff.id === 'normal' ? e.skills.filter(s => s.triggerTurn >= 4) :
               diff.id === 'hard' ? e.skills :
-              [...e.skills, { ...ENEMY_SKILLS.aoe, val: Math.round(e.atk*0.8), triggerTurn: 2 }],
+              [...e.skills, { ...ENEMY_SKILLS.aoe, val: Math.round((e.pAtk||e.atk)*0.8), triggerTurn: 2 }],
     },
   }
 }
