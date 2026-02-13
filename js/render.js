@@ -90,6 +90,45 @@ class Render {
     }
   }
 
+  drawBattleBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/battle_bg.jpg')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      const dw=iw*scale, dh=ih*scale
+      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      c.save(); c.globalAlpha=0.2; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
+  drawLevelBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/level_bg.jpg')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      const dw=iw*scale, dh=ih*scale
+      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
+  drawEquipBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/equip_bg.jpg')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      const dw=iw*scale, dh=ih*scale
+      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
   // ===== 顶部栏 =====
   drawTopBar(title, showBack) {
     const {ctx:c,W,S,safeTop:st} = this, barH = st+44*S
@@ -302,21 +341,36 @@ class Render {
     // 属性色条（圆角）
     c.fillStyle = a.main
     this.rr(x+3*S,y+4*S,3*S,h-8*S,1.5*S); c.fill()
+    // 装备图标
+    const eqIcon = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.png`)
+    const iconSz = h - 8*S
+    if (eqIcon && eqIcon.width > 0) {
+      c.drawImage(eqIcon, x+8*S, y+4*S, iconSz, iconSz)
+    }
+    const textOff = (eqIcon && eqIcon.width > 0) ? iconSz + 10*S : 12*S
     // 名称
     c.fillStyle=TH.text; c.font=`bold ${11*S}px "PingFang SC",sans-serif`
     c.textAlign='left'; c.textBaseline='top'
-    c.fillText(equip.name, x+12*S, y+6*S)
-    // 品质标签
+    c.fillText(equip.name, x+textOff, y+6*S)
+    // 品质标签 + 等级
     c.fillStyle=q.color; c.font=`bold ${9*S}px "PingFang SC",sans-serif`
-    c.fillText(q.name, x+12*S, y+20*S)
+    c.fillText(q.name + (equip.level ? ` Lv.${equip.level}` : ''), x+12*S, y+20*S)
     // 槽位图标
     const slot = EQUIP_SLOT[equip.slot]
     c.fillStyle=TH.sub; c.font=`${10*S}px "PingFang SC",sans-serif`
     c.textAlign='right'; c.fillText(slot.icon+' '+slot.name, x+w-8*S, y+6*S)
-    // 技能简述
+    // 属性概要（优先显示stats，兼容旧数据）
     c.fillStyle=TH.sub; c.font=`${9*S}px "PingFang SC",sans-serif`
     c.textAlign='left'
-    c.fillText(equip.skill.name, x+12*S, y+34*S)
+    if (equip.stats && Object.keys(equip.stats).length > 0) {
+      const statText = Object.entries(equip.stats).map(([k,v]) => {
+        const names = {hp:'HP',pAtk:'物攻',mAtk:'魔攻',pDef:'物防',mDef:'魔防'}
+        return `${names[k]||k}+${v}`
+      }).join(' ')
+      c.fillText(statText, x+12*S, y+34*S)
+    } else {
+      c.fillText(equip.skill.name, x+12*S, y+34*S)
+    }
     c.restore()
   }
 
@@ -333,9 +387,22 @@ class Render {
     c.fillStyle = q.color; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'top'
     c.fillText(equip.name, x+padX, cy); cy += 22*S
-    // 品质+属性
+    // 品质+属性+等级
     c.fillStyle = TH.sub; c.font = `${11*S}px "PingFang SC",sans-serif`
-    c.fillText(`${q.name} · ${ATTR_NAME[equip.attr]}属性 · ${EQUIP_SLOT[equip.slot].name}`, x+padX, cy); cy += lineH
+    c.fillText(`${q.name} · ${ATTR_NAME[equip.attr]}属性 · ${EQUIP_SLOT[equip.slot].name}${equip.level ? ' · Lv.'+equip.level : ''}`, x+padX, cy); cy += lineH
+
+    // 五维属性
+    if (equip.stats && Object.keys(equip.stats).length > 0) {
+      cy += 4*S
+      c.fillStyle = TH.accent; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.fillText('▸ 属性:', x+padX, cy); cy += 14*S
+      const statNames = {hp:'气血',pAtk:'物理攻击',mAtk:'魔法攻击',pDef:'物理防御',mDef:'魔法防御'}
+      const statColors = {hp:'#ff5555',pAtk:'#ff8c00',mAtk:'#b366ff',pDef:'#4dabff',mDef:'#4dcc4d'}
+      Object.entries(equip.stats).forEach(([k,v]) => {
+        c.fillStyle = statColors[k] || TH.text; c.font = `${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`  ${statNames[k]||k} +${v}`, x+padX, cy); cy += 14*S
+      })
+    }
 
     // 普通技能
     cy += 6*S
@@ -649,11 +716,18 @@ class Render {
     }
     this.rr(x, y, size, size, 8*S); c.stroke()
 
-    // ===== 槽位图标（大） =====
-    c.fillStyle = ready ? '#fff' : a.main
-    c.font = `${size*0.38}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(slot.icon, x+size/2, y+size*0.38)
+    // ===== 槽位图标（大）- 优先使用图片 =====
+    const eqIconImg = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.png`)
+    const iconPad = size * 0.15
+    if (eqIconImg && eqIconImg.width > 0) {
+      const iSz = size - iconPad*2
+      c.drawImage(eqIconImg, x+iconPad, y+iconPad*0.6, iSz, iSz*0.7)
+    } else {
+      c.fillStyle = ready ? '#fff' : a.main
+      c.font = `${size*0.38}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText(slot.icon, x+size/2, y+size*0.38)
+    }
 
     // ===== 属性小标（左上角） =====
     c.save()
@@ -712,7 +786,7 @@ class Render {
     c.restore()
 
     // 角色主体图片
-    const heroImg = this.getImg('assets/hero/hero_default.png')
+    const heroImg = this.getImg('assets/hero/hero_body.png')
     const imgSize = size * 0.85
     if (heroImg && heroImg.width > 0) {
       c.drawImage(heroImg, x-imgSize/2, y-imgSize*0.4, imgSize, imgSize)
@@ -726,6 +800,24 @@ class Render {
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText('🧙', x, y)
       c.restore()
+    }
+
+    // 盔甲外观叠加
+    const armorEquip = equipped.armor
+    if (armorEquip) {
+      const armorImg = this.getImg(`assets/hero/armor/armor_${armorEquip.attr}.png`)
+      if (armorImg && armorImg.width > 0) {
+        c.drawImage(armorImg, x-imgSize/2, y-imgSize*0.4, imgSize, imgSize)
+      }
+    }
+    // 武器外观叠加
+    const weaponEquip = equipped.weapon
+    if (weaponEquip) {
+      const wpnImg = this.getImg(`assets/hero/weapon/weapon_${weaponEquip.attr}.png`)
+      if (wpnImg && wpnImg.width > 0) {
+        const wpnSize = imgSize * 0.6
+        c.drawImage(wpnImg, x+imgSize*0.1, y-imgSize*0.35, wpnSize, wpnSize)
+      }
     }
 
     // 已装备法宝小图标（角色脚下一排）
@@ -745,11 +837,16 @@ class Render {
         // 品质边框
         c.strokeStyle = q.color+'99'; c.lineWidth = 1
         this.rr(ix, y+size*0.35, iconS, iconS, 3*S); c.stroke()
-        // 槽位图标
-        const slot = EQUIP_SLOT[eq.slot]
-        c.fillStyle = '#fff'; c.font = `${8*S}px "PingFang SC",sans-serif`
-        c.textAlign = 'center'; c.textBaseline = 'middle'
-        c.fillText(slot.icon, ix+iconS/2, y+size*0.35+iconS/2)
+        // 槽位图标（优先图片）
+        const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.png`)
+        if (eqImg && eqImg.width > 0) {
+          c.drawImage(eqImg, ix+1*S, y+size*0.35+1*S, iconS-2*S, iconS-2*S)
+        } else {
+          const slot = EQUIP_SLOT[eq.slot]
+          c.fillStyle = '#fff'; c.font = `${8*S}px "PingFang SC",sans-serif`
+          c.textAlign = 'center'; c.textBaseline = 'middle'
+          c.fillText(slot.icon, ix+iconS/2, y+size*0.35+iconS/2)
+        }
         ix += iconS + 2*S
       })
     }
