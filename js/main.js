@@ -36,6 +36,8 @@ class Main {
     this.cols=6; this.rows=5; this.bs=W/7; this.beads=[]; this.isDrag=false
     this.selBead=null; this.lastSwap=null
     this.bx=(W-this.cols*this.bs)/2; this.by=H*0.52
+    // 拖拽跟手
+    this.dragX=0; this.dragY=0; this.dragTrail=[]
 
     // 战斗
     this.bState='idle'; this.lvData=null; this.curDiff='normal'
@@ -70,6 +72,14 @@ class Main {
     if(this.ta>0) this.ta=Math.max(0,this.ta-0.05)
     for(let i=this.particles.length-1;i>=0;i--){ const p=this.particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.life-=0.02; if(p.life<=0) this.particles.splice(i,1) }
     for(let i=this.dmgFloats.length-1;i>=0;i--){ const d=this.dmgFloats[i]; d.y-=1.2*S; d.life-=0.018; d.sa=Math.min(1,d.sa+0.08); if(d.life<=0) this.dmgFloats.splice(i,1) }
+    // 拖尾粒子衰减
+    for(let i=this.dragTrail.length-1;i>=0;i--){ this.dragTrail[i].life-=0.06; if(this.dragTrail[i].life<=0) this.dragTrail.splice(i,1) }
+    // 宝珠交换弹性归位动画
+    if(this.beads.length) for(let i=0;i<this.rows;i++) for(let j=0;j<this.cols;j++){
+      const b=this.beads[i]&&this.beads[i][j]; if(!b) continue
+      if(b.offsetX) b.offsetX*=0.6; if(b.offsetY) b.offsetY*=0.6
+      if(Math.abs(b.offsetX)<0.5) b.offsetX=0; if(Math.abs(b.offsetY)<0.5) b.offsetY=0
+    }
     if(this.comboT>0) this.comboT--
     if(this.shakeT>0) this.shakeT--
     if(this.toastT>0) this.toastT--
@@ -336,7 +346,7 @@ class Main {
     ctx.strokeStyle=TH.cardB; ctx.lineWidth=1; R.rr(cx2,cy2,cw,ch2,12*S); ctx.stroke()
 
     const ey=cy2+50*S
-    R.drawEnemy(W/2,ey,32*S,lv.enemy.attr,this.af)
+    R.drawEnemy(W/2,ey,32*S,lv.enemy.attr,this.af,lv.enemy.sprite)
     ctx.fillStyle='#fff'; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText(lv.enemy.enemyName,W/2,ey+44*S)
     ctx.fillStyle=a.lt; ctx.font=`${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${lv.enemy.attr}属性  ·  HP ${lv.enemy.hp}  ·  ATK ${lv.enemy.atk}`,W/2,ey+60*S)
@@ -508,33 +518,38 @@ class Main {
     })
 
     const lv=this.lvData; if(!lv) return; const a=A[lv.enemy.attr]
-    const topY=safeTop+6*S
 
-    // 难度+回合
-    ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='top'
-    ctx.fillText(DIFFICULTY[this.curDiff].name,14*S,topY)
-    ctx.fillStyle=TH.dim; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='right'
-    ctx.fillText(`回合 ${this.turn}`,W-14*S,topY)
+    // 第一行：退出 + 难度 + 回合
+    const row1Y=safeTop+4*S
+    const qx=10*S, qy=row1Y, qw=40*S, qh=20*S
+    ctx.fillStyle='rgba(255,255,255,0.08)'; R.rr(qx,qy,qw,qh,qh/2); ctx.fill()
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
+    ctx.fillText('‹ 退出',qx+qw/2,qy+qh/2)
+    ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle'
+    ctx.fillText(DIFFICULTY[this.curDiff].name,qx+qw+8*S,qy+qh/2)
+    ctx.fillStyle=TH.dim; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='right'; ctx.textBaseline='middle'
+    ctx.fillText(`回合 ${this.turn}`,W-14*S,qy+qh/2)
 
-    // 敌方
-    const eiX=44*S, eiY=topY+30*S
-    R.drawEnemy(eiX,eiY,24*S,lv.enemy.attr,this.af)
-    ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText(lv.enemy.enemyName,eiX,eiY+34*S)
+    // 第二行：敌人图标 + HP条 + 名字
+    const row2Y=row1Y+qh+6*S
+    const eiR=20*S, eiX=14*S+eiR, eiY=row2Y+eiR
+    R.drawEnemy(eiX,eiY,eiR,lv.enemy.attr,this.af,lv.enemy.sprite)
+    ctx.fillStyle=TH.sub; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='top'
+    ctx.fillText(lv.enemy.enemyName,eiX,eiY+eiR+4*S)
 
-    const ehX=80*S, ehY=eiY-4*S, ehW=W-ehX-20*S
-    R.drawHp(ehX,ehY,ehW,14*S,this.eDisp,this.eMax,TH.danger,'#c0392b')
-    ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'
-    ctx.fillText(`${Math.ceil(this.eDisp)} / ${this.eMax}`,ehX,ehY+26*S)
+    const ehX=eiX+eiR+10*S, ehY=row2Y+6*S, ehW=W-ehX-14*S
+    R.drawHp(ehX,ehY,ehW,12*S,this.eDisp,this.eMax,TH.danger,'#c0392b')
+    ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText(`${Math.ceil(this.eDisp)} / ${this.eMax}`,ehX,ehY+16*S)
 
     if(lv.enemy.skill){
       const tl=lv.enemy.skill.triggerTurn-((this.turn-1)%lv.enemy.skill.triggerTurn+1)
-      ctx.textAlign='right'; ctx.fillStyle=tl<=0?TH.danger:TH.dim; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`⚡ ${tl+1}`,W-14*S,ehY+26*S)
+      ctx.textAlign='right'; ctx.fillStyle=tl<=0?TH.danger:TH.dim; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.textBaseline='top'
+      ctx.fillText(`⚡ ${tl+1}`,W-14*S,ehY+16*S)
     }
 
     // 我方HP
-    const midY=safeTop+78*S
+    const midY=row2Y+eiR*2+22*S
     R.drawHp(14*S,midY,W-28*S,10*S,this.tDisp,this.tMax,TH.success,'#1e8449')
     ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
     ctx.fillText(`HP ${Math.ceil(this.tDisp)} / ${this.tMax}`,W/2,midY+20*S)
@@ -597,21 +612,49 @@ class Main {
     for(let i=1;i<this.rows;i++){ ctx.beginPath(); ctx.moveTo(ox,oy+i*bs); ctx.lineTo(ox+this.cols*bs,oy+i*bs); ctx.stroke() }
     for(let j=1;j<this.cols;j++){ ctx.beginPath(); ctx.moveTo(ox+j*bs,oy); ctx.lineTo(ox+j*bs,oy+this.rows*bs); ctx.stroke() }
 
+    const isDragging=this.isDrag&&this.selBead
+
     for(let i=0;i<this.rows;i++) for(let j=0;j<this.cols;j++){
       const b=this.beads[i]&&this.beads[i][j]; if(!b) continue
       const cx=ox+j*bs+bs/2, cy=oy+i*bs+bs/2
       if(b._elim){ const al=1-this.elimProg, sc=1-this.elimProg*0.3; if(al<=0) continue; ctx.globalAlpha=al; R.drawBead(cx,cy,(bs/2-3*S)*sc,b.attr); ctx.globalAlpha=1; continue }
       if(b.alpha<=0) continue
+      // 拖拽中：选中珠子不在原位绘制（改在手指位置浮层绘制），原位留半透明占位
+      if(isDragging&&this.selBead.row===i&&this.selBead.col===j){
+        ctx.globalAlpha=0.25
+        R.drawBead(cx,cy,bs/2-3*S,b.attr)
+        ctx.globalAlpha=1
+        continue
+      }
       const r=(bs/2-3*S)*(b.scale||1)
-      // 被封锁的宝珠暗化
       const locked=this.lockedBead&&b.attr===this.lockedBead
       ctx.globalAlpha=(b.alpha||1)*(locked?0.35:1)
       R.drawBead(cx+(b.offsetX||0),cy+(b.offsetY||0),r,b.attr)
-      if(this.selBead&&this.selBead.row===i&&this.selBead.col===j){
-        ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2.5*S; ctx.beginPath(); ctx.arc(cx,cy,r+3*S,0,Math.PI*2); ctx.stroke()
-        ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1.5*S; ctx.beginPath(); ctx.arc(cx,cy,r+6*S,0,Math.PI*2); ctx.stroke()
-      }
       ctx.globalAlpha=1
+    }
+
+    // 拖尾轨迹
+    if(isDragging){
+      const sb=this.beads[this.selBead.row][this.selBead.col], a=A[sb.attr]
+      // 轨迹光点
+      this.dragTrail.forEach(pt=>{
+        ctx.globalAlpha=pt.life*0.5
+        ctx.fillStyle=pt.color
+        ctx.beginPath(); ctx.arc(pt.x,pt.y,(3+pt.life*4)*S,0,Math.PI*2); ctx.fill()
+      })
+      ctx.globalAlpha=1
+
+      // 浮层珠子：放大1.25x + 发光
+      const dr=((bs/2-3*S)*1.25)
+      ctx.save()
+      // 外圈发光
+      ctx.shadowColor=a.main; ctx.shadowBlur=18*S
+      ctx.beginPath(); ctx.arc(this.dragX,this.dragY,dr+4*S,0,Math.PI*2)
+      ctx.fillStyle=a.gw; ctx.fill()
+      ctx.shadowBlur=0; ctx.restore()
+      R.drawBead(this.dragX,this.dragY,dr,sb.attr)
+      // 白色选中环
+      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2.5*S; ctx.beginPath(); ctx.arc(this.dragX,this.dragY,dr+3*S,0,Math.PI*2); ctx.stroke()
     }
   }
 
@@ -740,7 +783,7 @@ class Main {
     // 记录combo
     if(this.combo>0) this.storage.recordCombo(this.combo)
     this.eHp=Math.max(0,this.eHp-td); this.tHp=Math.min(this.tMax,this.tHp+th)
-    if(td>0){ this.dmgFloats.push({x:W/2,y:safeTop+55*S,text:`-${td}`,color:TH.danger,size:26*S,life:1.5,sa:0}); this.shakeT=12; this.shakeI=6*S; music.playAttack() }
+    if(td>0){ this.dmgFloats.push({x:W/2,y:safeTop+60*S,text:`-${td}`,color:TH.danger,size:26*S,life:1.5,sa:0}); this.shakeT=12; this.shakeI=6*S; music.playAttack() }
     if(th>0) this.dmgFloats.push({x:W/2,y:H*0.32,text:`+${Math.floor(th)}`,color:TH.success,size:20*S,life:1.5,sa:0})
     setTimeout(()=>{ if(this.eHp<=0) this.victory(); else this.enemyTurn() },1000)
   }
@@ -973,6 +1016,12 @@ class Main {
   }
 
   tBattle(x,y) {
+    // 退出按钮（任何非弹窗状态下都可以点）
+    const qx=10*S, qy=safeTop+4*S, qw=40*S, qh=20*S
+    if(this.bState!=='victory'&&this.bState!=='defeat'&&this.ir(x,y,qx,qy,qw,qh)){
+      this.goBack(); return
+    }
+
     if(this.bState==='victory'){
       const mw=W*0.82,mh=310*S,mx=(W-mw)/2,my=(H-mh)/2,bw2=mw*0.38,bh2=40*S,byy=my+mh-62*S
       if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){
@@ -991,27 +1040,36 @@ class Main {
     }
     if(this.bState!=='playerTurn') return
 
-    const midY=safeTop+78*S, cY=midY+44*S, cR=W/16, cSp=W/(this.teamChars.length+1)
+    const row1Y=safeTop+4*S,qh2=20*S,row2Y=row1Y+qh2+6*S,eiR=20*S
+    const midY=row2Y+eiR*2+22*S, cY=midY+44*S, cR=W/16, cSp=W/(this.teamChars.length+1)
     for(let i=0;i<this.teamChars.length;i++){ const ch=this.teamChars[i]; if(!ch) continue; if(Math.sqrt((x-cSp*(i+1))**2+(y-cY)**2)<=cR){ this.useSkill(i); return } }
 
     const col=Math.floor((x-this.bx)/this.bs), row=Math.floor((y-this.by)/this.bs)
-    if(row>=0&&row<this.rows&&col>=0&&col<this.cols){ this.isDrag=true; this.selBead={row,col}; this.lastSwap=null; this.beads[row][col].scale=1.1 }
+    if(row>=0&&row<this.rows&&col>=0&&col<this.cols){ this.isDrag=true; this.selBead={row,col}; this.lastSwap=null; this.beads[row][col].scale=1.1; this.dragX=x; this.dragY=y; this.dragTrail=[] }
   }
 
   handleMove(x,y) {
     if(!this.selBead||this.bState!=='playerTurn') return
+    this.dragX=x; this.dragY=y
+    // 拖尾粒子
+    const sb=this.selBead, a=A[this.beads[sb.row][sb.col].attr]
+    if(this.dragTrail.length<40) this.dragTrail.push({x,y,life:1,color:a.lt})
     const col=Math.floor((x-this.bx)/this.bs), row=Math.floor((y-this.by)/this.bs)
     if(row<0||row>=this.rows||col<0||col>=this.cols) return
     if(row===this.selBead.row&&col===this.selBead.col) return
     if(Math.abs(row-this.selBead.row)+Math.abs(col-this.selBead.col)!==1) return
-    const sr=this.selBead.row,sc=this.selBead.col
+    const sr=this.selBead.row,sc=this.selBead.col, bs=this.bs
+    // 交换弹性偏移（被交换的珠子从目标位弹回）
+    const dx=(sc-col)*bs, dy=(sr-row)*bs
     const tmp=this.beads[sr][sc]; this.beads[sr][sc]=this.beads[row][col]; this.beads[row][col]=tmp
+    this.beads[sr][sc].offsetX=dx; this.beads[sr][sc].offsetY=dy
     this.lastSwap={row,col}; this.selBead={row,col}
   }
 
   handleEnd() {
     if(!this.selBead||this.bState!=='playerTurn') return
     this.beads[this.selBead.row][this.selBead.col].scale=1
+    this.dragTrail=[]
     const gs=this.checkElim()
     if(gs.length>0) this.execElim(gs)
     this.selBead=null; this.lastSwap=null

@@ -4,12 +4,12 @@
 
 // 属性配色
 const A = {
-  '火': { bg:'#c0392b',main:'#e74c3c',lt:'#ff8a80',ltr:'#ffcdd2',dk:'#8e1a0e',gw:'rgba(231,76,60,0.5)',ic:'炎' },
-  '水': { bg:'#1e5799',main:'#3498db',lt:'#82b1ff',ltr:'#bbdefb',dk:'#0d2f5e',gw:'rgba(52,152,219,0.5)',ic:'水' },
-  '木': { bg:'#1b7a3d',main:'#27ae60',lt:'#69f0ae',ltr:'#c8e6c9',dk:'#0d4a22',gw:'rgba(39,174,96,0.5)',ic:'木' },
-  '光': { bg:'#b7860b',main:'#f1c40f',lt:'#fff176',ltr:'#fff9c4',dk:'#7a5a07',gw:'rgba(241,196,15,0.5)',ic:'光' },
-  '暗': { bg:'#5b2c8e',main:'#8e44ad',lt:'#ce93d8',ltr:'#e1bee7',dk:'#3a1259',gw:'rgba(142,68,173,0.5)',ic:'暗' },
-  '心': { bg:'#ad1457',main:'#e84393',lt:'#f48fb1',ltr:'#f8bbd0',dk:'#7b0e3c',gw:'rgba(232,67,147,0.5)',ic:'心' }
+  '火': { bg:'#c0392b',main:'#e74c3c',lt:'#ff8a80',ltr:'#ffcdd2',dk:'#8e1a0e',gw:'rgba(231,76,60,0.5)',ic:'炎',orb:'assets/orbs/orb_fire.png' },
+  '水': { bg:'#1e5799',main:'#3498db',lt:'#82b1ff',ltr:'#bbdefb',dk:'#0d2f5e',gw:'rgba(52,152,219,0.5)',ic:'水',orb:'assets/orbs/orb_water.png' },
+  '木': { bg:'#1b7a3d',main:'#27ae60',lt:'#69f0ae',ltr:'#c8e6c9',dk:'#0d4a22',gw:'rgba(39,174,96,0.5)',ic:'木',orb:'assets/orbs/orb_wood.png' },
+  '光': { bg:'#b7860b',main:'#f1c40f',lt:'#fff176',ltr:'#fff9c4',dk:'#7a5a07',gw:'rgba(241,196,15,0.5)',ic:'光',orb:'assets/orbs/orb_light.png' },
+  '暗': { bg:'#5b2c8e',main:'#8e44ad',lt:'#ce93d8',ltr:'#e1bee7',dk:'#3a1259',gw:'rgba(142,68,173,0.5)',ic:'暗',orb:'assets/orbs/orb_dark.png' },
+  '心': { bg:'#ad1457',main:'#e84393',lt:'#f48fb1',ltr:'#f8bbd0',dk:'#7b0e3c',gw:'rgba(232,67,147,0.5)',ic:'心',orb:'assets/orbs/orb_heart.png' }
 }
 
 const TH = { accent:'#f5a623', danger:'#e74c3c', success:'#27ae60', info:'#3498db',
@@ -72,18 +72,35 @@ class Render {
 
   drawBead(cx,cy,r,attr) {
     const {ctx:c,S}=this, a=A[attr]; c.save()
+    // 外发光
     c.beginPath(); c.arc(cx,cy,r+2*S,0,Math.PI*2); c.fillStyle=a.gw.replace('0.5','0.2'); c.fill()
-    const rg=c.createRadialGradient(cx-r*0.22,cy-r*0.22,r*0.05,cx,cy,r)
-    rg.addColorStop(0,a.ltr); rg.addColorStop(0.3,a.lt); rg.addColorStop(0.65,a.main); rg.addColorStop(1,a.dk)
-    c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.fillStyle=rg; c.fill()
-    c.beginPath(); c.arc(cx,cy,r*0.85,0,Math.PI*2); c.strokeStyle='rgba(0,0,0,0.15)'; c.lineWidth=1*S; c.stroke()
-    c.beginPath(); c.ellipse(cx-r*0.12,cy-r*0.28,r*0.45,r*0.22,-0.2,0,Math.PI*2)
-    const hg=c.createRadialGradient(cx-r*0.12,cy-r*0.28,0,cx-r*0.12,cy-r*0.28,r*0.45)
-    hg.addColorStop(0,'rgba(255,255,255,0.45)'); hg.addColorStop(1,'rgba(255,255,255,0)'); c.fillStyle=hg; c.fill()
-    c.beginPath(); c.ellipse(cx,cy+r*0.3,r*0.5,r*0.15,0,0,Math.PI*2); c.fillStyle='rgba(0,0,0,0.12)'; c.fill()
-    c.fillStyle='#fff'; c.font=`bold ${r*0.75}px "PingFang SC",sans-serif`
-    c.textAlign='center'; c.textBaseline='middle'; c.shadowColor='rgba(0,0,0,0.5)'; c.shadowBlur=2*S
-    c.fillText(a.ic,cx,cy+1*S); c.shadowBlur=0; c.restore()
+    // 用图片绘制宝珠
+    if(a.orb){
+      const img=this.getImg(a.orb)
+      c.drawImage(img,cx-r,cy-r,r*2,r*2)
+      // 内环描边
+      c.beginPath(); c.arc(cx,cy,r*0.85,0,Math.PI*2); c.strokeStyle='rgba(0,0,0,0.15)'; c.lineWidth=1*S; c.stroke()
+      // 顶部高光
+      c.beginPath(); c.ellipse(cx-r*0.12,cy-r*0.28,r*0.45,r*0.22,-0.2,0,Math.PI*2)
+      const hg=c.createRadialGradient(cx-r*0.12,cy-r*0.28,0,cx-r*0.12,cy-r*0.28,r*0.45)
+      hg.addColorStop(0,'rgba(255,255,255,0.4)'); hg.addColorStop(1,'rgba(255,255,255,0)'); c.fillStyle=hg; c.fill()
+      // 底部阴影
+      c.beginPath(); c.ellipse(cx,cy+r*0.3,r*0.5,r*0.15,0,0,Math.PI*2); c.fillStyle='rgba(0,0,0,0.12)'; c.fill()
+    } else {
+      // 兜底：canvas渐变绘制
+      const rg=c.createRadialGradient(cx-r*0.22,cy-r*0.22,r*0.05,cx,cy,r)
+      rg.addColorStop(0,a.ltr); rg.addColorStop(0.3,a.lt); rg.addColorStop(0.65,a.main); rg.addColorStop(1,a.dk)
+      c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.fillStyle=rg; c.fill()
+      c.beginPath(); c.arc(cx,cy,r*0.85,0,Math.PI*2); c.strokeStyle='rgba(0,0,0,0.15)'; c.lineWidth=1*S; c.stroke()
+      c.beginPath(); c.ellipse(cx-r*0.12,cy-r*0.28,r*0.45,r*0.22,-0.2,0,Math.PI*2)
+      const hg=c.createRadialGradient(cx-r*0.12,cy-r*0.28,0,cx-r*0.12,cy-r*0.28,r*0.45)
+      hg.addColorStop(0,'rgba(255,255,255,0.45)'); hg.addColorStop(1,'rgba(255,255,255,0)'); c.fillStyle=hg; c.fill()
+      c.beginPath(); c.ellipse(cx,cy+r*0.3,r*0.5,r*0.15,0,0,Math.PI*2); c.fillStyle='rgba(0,0,0,0.12)'; c.fill()
+      c.fillStyle='#fff'; c.font=`bold ${r*0.75}px "PingFang SC",sans-serif`
+      c.textAlign='center'; c.textBaseline='middle'; c.shadowColor='rgba(0,0,0,0.5)'; c.shadowBlur=2*S
+      c.fillText(a.ic,cx,cy+1*S); c.shadowBlur=0
+    }
+    c.restore()
   }
 
   drawChar(x,y,r,ch,hl,frame) {
@@ -109,17 +126,33 @@ class Render {
     c.restore()
   }
 
-  drawEnemy(x,y,r,attr,frame) {
+  drawEnemy(x,y,r,attr,frame,sprite) {
     const {ctx:c,S}=this, a=A[attr]; c.save()
     const pulse=0.1+0.06*Math.sin(frame*0.06)
+    // 脉冲外发光
     c.beginPath(); c.arc(x,y,r+5*S,0,Math.PI*2); c.fillStyle=a.gw.replace('0.5',String(pulse)); c.fill()
-    c.beginPath(); c.arc(x,y,r,0,Math.PI*2)
-    const rg=c.createRadialGradient(x-r*0.2,y-r*0.2,0,x,y,r)
-    rg.addColorStop(0,a.lt); rg.addColorStop(0.6,a.main); rg.addColorStop(1,a.bg); c.fillStyle=rg; c.fill()
-    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.strokeStyle=a.main; c.lineWidth=2*S; c.stroke()
-    c.beginPath(); c.ellipse(x-r*0.15,y-r*0.22,r*0.38,r*0.18,-0.15,0,Math.PI*2); c.fillStyle='rgba(255,255,255,0.25)'; c.fill()
-    c.fillStyle='#fff'; c.font=`bold ${r*0.7}px "PingFang SC",sans-serif`; c.textAlign='center'; c.textBaseline='middle'
-    c.fillText(a.ic,x,y+1); c.restore()
+    if(sprite){
+      // 图片绘制（圆形裁剪，去掉方框）
+      const img=this.getImg(sprite)
+      c.save()
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip()
+      c.drawImage(img,x-r,y-r,r*2,r*2)
+      c.restore()
+      // 属性光环边框
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.strokeStyle=a.main; c.lineWidth=2*S; c.stroke()
+      // 高光
+      c.beginPath(); c.ellipse(x-r*0.15,y-r*0.22,r*0.38,r*0.18,-0.15,0,Math.PI*2); c.fillStyle='rgba(255,255,255,0.2)'; c.fill()
+    } else {
+      // 兜底：canvas渐变球体
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2)
+      const rg=c.createRadialGradient(x-r*0.2,y-r*0.2,0,x,y,r)
+      rg.addColorStop(0,a.lt); rg.addColorStop(0.6,a.main); rg.addColorStop(1,a.bg); c.fillStyle=rg; c.fill()
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.strokeStyle=a.main; c.lineWidth=2*S; c.stroke()
+      c.beginPath(); c.ellipse(x-r*0.15,y-r*0.22,r*0.38,r*0.18,-0.15,0,Math.PI*2); c.fillStyle='rgba(255,255,255,0.25)'; c.fill()
+      c.fillStyle='#fff'; c.font=`bold ${r*0.7}px "PingFang SC",sans-serif`; c.textAlign='center'; c.textBaseline='middle'
+      c.fillText(a.ic,x,y+1)
+    }
+    c.restore()
   }
 
   drawHp(x,y,w,h,cur,max,c1,c2) {

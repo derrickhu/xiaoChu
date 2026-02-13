@@ -19,12 +19,28 @@ class Storage {
       this.db = wx.cloud.database()
       this._ = this.db.command
       this.cloudReady = true
+      this._collectionsReady = false
       console.log('云开发初始化成功')
+      this._ensureCollections()
       this._getOpenid()
     } catch (e) {
       console.error('云开发初始化失败:', e)
       this.cloudReady = false
     }
+  }
+
+  // 自动创建所需集合
+  _ensureCollections() {
+    wx.cloud.callFunction({ name: 'initCollections' }).then(res => {
+      const r = res.result || {}
+      if (r.created && r.created.length > 0) console.log('自动创建集合:', r.created.join(', '))
+      if (r.existed && r.existed.length > 0) console.log('集合已存在:', r.existed.join(', '))
+      if (r.errors && r.errors.length > 0) console.warn('创建集合异常:', r.errors)
+      this._collectionsReady = true
+    }).catch(e => {
+      console.warn('调用 initCollections 云函数失败（请先上传该云函数）:', e)
+      this._collectionsReady = true // 失败也继续，走兜底逻辑
+    })
   }
 
   // 获取用户openid
@@ -395,6 +411,18 @@ class Storage {
     })
   }
 
+  // 调用云函数创建集合，成功后执行回调
+  _createAndRetry(collectionName, callback) {
+    console.log(`集合 ${collectionName} 不存在，自动创建中...`)
+    wx.cloud.callFunction({ name: 'initCollections' }).then(res => {
+      const r = res.result || {}
+      if (r.created && r.created.length > 0) console.log('自动创建集合:', r.created.join(', '))
+      if (callback) setTimeout(callback, 500) // 延迟500ms等集合生效后重试
+    }).catch(e => {
+      console.warn(`自动创建集合失败（请上传 initCollections 云函数）:`, e)
+    })
+  }
+
   _syncToCloud() {
     if (!this.cloudReady || !this.openid) return
     const data = {
@@ -414,11 +442,7 @@ class Storage {
       stats: this.stats,
       updatedAt: this.db.serverDate()
     }
-    this._collectionExists('playerData').then(exists => {
-      if (!exists) {
-        console.warn('云数据库集合 playerData 不存在，跳过云同步。请在云开发控制台手动创建该集合。')
-        return
-      }
+    const doSync = () => {
       this.db.collection('playerData').where({ openid: this.openid }).count().then(res => {
         if (res.total > 0) {
           this.db.collection('playerData').where({ openid: this.openid }).update({ data })
@@ -426,16 +450,20 @@ class Storage {
           this.db.collection('playerData').add({ data })
         }
       }).catch(e => console.warn('云同步失败:', e))
+    }
+    this._collectionExists('playerData').then(exists => {
+      if (!exists) {
+        // 集合不存在，自动创建后重试
+        this._createAndRetry('playerData', doSync)
+      } else {
+        doSync()
+      }
     }).catch(e => console.warn('云同步异常:', e))
   }
 
   _syncFromCloud() {
     if (!this.cloudReady || !this.openid) return
-    this._collectionExists('playerData').then(exists => {
-      if (!exists) {
-        console.warn('云数据库集合 playerData 不存在，使用本地数据。请在云开发控制台创建 playerData 集合。')
-        return
-      }
+    const doFetch = () => {
       this.db.collection('playerData').where({ openid: this.openid }).get().then(res => {
         if (res.data && res.data.length > 0) {
           const d = res.data[0]
@@ -461,16 +489,19 @@ class Storage {
           console.log('云端数据同步成功')
         }
       }).catch(e => console.warn('云端拉取失败:', e))
+    }
+    this._collectionExists('playerData').then(exists => {
+      if (!exists) {
+        this._createAndRetry('playerData', doFetch)
+      } else {
+        doFetch()
+      }
     }).catch(e => console.warn('云端拉取异常:', e))
   }
 
   _uploadRecord(levelId, difficulty, turns, combo) {
     if (!this.cloudReady || !this.openid) return
-    this._collectionExists('leaderboard').then(exists => {
-      if (!exists) {
-        console.warn('云数据库集合 leaderboard 不存在，跳过排行榜上传。')
-        return
-      }
+    const doUpload = () => {
       this.db.collection('leaderboard').add({
         data: {
           openid: this.openid,
@@ -478,6 +509,13 @@ class Storage {
           createdAt: this.db.serverDate()
         }
       }).catch(() => {})
+    }
+    this._collectionExists('leaderboard').then(exists => {
+      if (!exists) {
+        this._createAndRetry('leaderboard', doUpload)
+      } else {
+        doUpload()
+      }
     }).catch(() => {})
   }
 
