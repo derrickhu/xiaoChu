@@ -118,7 +118,7 @@ class Main {
 
   // ===== 加载 =====
   rLoading() {
-    R.drawBg(this.af)
+    R.drawLoadingBg(this.af)
     const p=Math.min(1,(Date.now()-this._loadStart)/1400), cy=H*0.4
     ctx.save(); ctx.shadowColor=TH.accent; ctx.shadowBlur=30*S
     ctx.fillStyle=TH.accent; ctx.font=`bold ${48*S}px "PingFang SC",sans-serif`
@@ -135,24 +135,8 @@ class Main {
   rHome() {
     R.drawHomeBg(this.af)
 
-    // ---- 标题区 ----
-    const ty=safeTop+18*S
-    ctx.save(); ctx.shadowColor='rgba(180,80,0,0.6)'; ctx.shadowBlur=20*S
-    ctx.fillStyle='#fff'; ctx.font=`bold ${38*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('龙珠战纪',W/2,ty)
-    ctx.shadowBlur=0; ctx.restore()
-    ctx.fillStyle='rgba(100,50,0,0.7)'; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='center'; ctx.fillText('— 转珠消除 × 回合RPG —',W/2,ty+28*S)
-
-    // ---- 属性珠子行 ----
-    const oy=ty+54*S
-    BEAD_ATTRS.forEach((a,i)=>{
-      const x=W/2+(i-2.5)*36*S
-      ctx.globalAlpha=0.9+0.1*Math.sin(this.af*0.04+i*1.2)
-      R.drawBead(x,oy,14*S,a); ctx.globalAlpha=1
-    })
-
-    // ---- 当前挑战进度条 ----
+    // ---- 当前挑战进度条 ----（留出背景Logo空间）
+    const oy=safeTop+80*S
     const pbarY=oy+30*S, pbarH=30*S, pbarM=16*S
     R.drawGlassCard(pbarM,pbarY,W-pbarM*2,pbarH,pbarH/2)
     ctx.fillStyle='rgba(80,50,0,0.7)'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
