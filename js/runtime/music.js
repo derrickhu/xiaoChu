@@ -1,32 +1,54 @@
-let instance;
-
 /**
- * 统一的音效管理器
+ * 龙珠战纪 - 音效管理
  */
-export default class Music {
-  bgmAudio = wx.createInnerAudioContext();
-  shootAudio = wx.createInnerAudioContext();
-  boomAudio = wx.createInnerAudioContext();
-
+class MusicManager {
   constructor() {
-    if (instance) return instance;
-
-    instance = this;
-
-    this.bgmAudio.loop = true; // 背景音乐循环播放
-    this.bgmAudio.autoplay = true; // 背景音乐自动播放
-    this.bgmAudio.src = 'audio/bgm.mp3';
-    this.shootAudio.src = 'audio/bullet.mp3';
-    this.boomAudio.src = 'audio/boom.mp3';
+    this.enabled = true
+    this.bgmEnabled = true
   }
 
-  playShoot() {
-    this.shootAudio.currentTime = 0;
-    this.shootAudio.play();
+  playBgm() {
+    if (!this.bgmEnabled) return
+    if (!this._bgm) {
+      this._bgm = wx.createInnerAudioContext()
+      this._bgm.src = 'audio/bgm.mp3'
+      this._bgm.loop = true
+      this._bgm.volume = 0.3
+    }
+    this._bgm.play()
   }
 
-  playExplosion() {
-    this.boomAudio.currentTime = 0;
-    this.boomAudio.play();
+  stopBgm() {
+    if (this._bgm) this._bgm.stop()
+  }
+
+  playEliminate() {
+    if (!this.enabled) return
+    const a = wx.createInnerAudioContext()
+    a.src = 'audio/boom.mp3'
+    a.play()
+    a.onEnded(() => a.destroy())
+  }
+
+  playAttack() {
+    if (!this.enabled) return
+    const a = wx.createInnerAudioContext()
+    a.src = 'audio/bullet.mp3'
+    a.play()
+    a.onEnded(() => a.destroy())
+  }
+
+  toggleBgm() {
+    this.bgmEnabled = !this.bgmEnabled
+    if (this.bgmEnabled) this.playBgm()
+    else this.stopBgm()
+    return this.bgmEnabled
+  }
+
+  toggleSfx() {
+    this.enabled = !this.enabled
+    return this.enabled
   }
 }
+
+module.exports = new MusicManager()
