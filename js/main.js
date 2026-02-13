@@ -13,8 +13,15 @@ const W = canvas.width
 const H = canvas.height
 const scale = W / 375
 const sysInfo = wx.getSystemInfoSync()
-const menuBtn = wx.getMenuButtonBoundingClientRect()
-const safeTop = (menuBtn.bottom + 8) * (W / sysInfo.windowWidth)
+let safeTop = 40 // 默认安全区域
+try {
+  const menuBtn = wx.getMenuButtonBoundingClientRect()
+  if (menuBtn && menuBtn.bottom) {
+    safeTop = (menuBtn.bottom + 8) * (W / sysInfo.windowWidth)
+  }
+} catch (e) {
+  console.warn('获取菜单按钮失败，使用默认安全区域', e)
+}
 
 // 属性配色
 const ATTR_COLORS = {
