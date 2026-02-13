@@ -29,7 +29,7 @@
   "compileType": "game",
   "libVersion": "latest",
   "appid": "wx0066a17086e2422f",
-  "projectname": "quickstart",
+  "projectname": "dragon-bead-saga",
   "condition": {
     "search": {
       "current": -1,
