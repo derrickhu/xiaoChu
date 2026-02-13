@@ -1,10 +1,8 @@
 /**
- * 龙珠战纪 - UI渲染模块（参考智龙迷城/原神UI风格）
+ * 龙珠战纪 - UI渲染模块（升级版：支持难度分层、养成、每日任务等新UI）
  */
-const CHARACTERS = require('./data/characters')
-const LEVELS = require('./data/levels')
 
-// 属性配色（多层渐变，增强质感）
+// 属性配色
 const A = {
   '火': { bg:'#c0392b',main:'#e74c3c',lt:'#ff8a80',ltr:'#ffcdd2',dk:'#8e1a0e',gw:'rgba(231,76,60,0.5)',ic:'炎' },
   '水': { bg:'#1e5799',main:'#3498db',lt:'#82b1ff',ltr:'#bbdefb',dk:'#0d2f5e',gw:'rgba(52,152,219,0.5)',ic:'水' },
@@ -16,7 +14,11 @@ const A = {
 
 const TH = { accent:'#f5a623', danger:'#e74c3c', success:'#27ae60', info:'#3498db',
   text:'#e8e8e8', sub:'rgba(255,255,255,0.55)', dim:'rgba(255,255,255,0.3)',
-  card:'rgba(255,255,255,0.06)', cardB:'rgba(255,255,255,0.08)' }
+  card:'rgba(255,255,255,0.06)', cardB:'rgba(255,255,255,0.08)',
+  hard:'#ff9800', extreme:'#ff1744' }
+
+// 难度颜色
+const DC = { normal:TH.success, hard:TH.hard, extreme:TH.extreme }
 
 class Render {
   constructor(ctx, W, H, S, safeTop) {
@@ -27,7 +29,6 @@ class Render {
     }
   }
 
-  // 圆角矩形
   rr(x,y,w,h,r) {
     const c=this.ctx; if(w<=0||h<=0)return; r=Math.min(r,w/2,h/2)
     c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r)
@@ -35,7 +36,6 @@ class Render {
     c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath()
   }
 
-  // 深色背景+星空
   drawBg(frame) {
     const {ctx:c,W,H,S}=this
     const g=c.createLinearGradient(0,0,0,H)
@@ -48,7 +48,6 @@ class Render {
     })
   }
 
-  // 顶部导航栏
   drawTopBar(title, showBack) {
     const {ctx:c,W,S,safeTop:st}=this, barH=st+44*S
     c.fillStyle='rgba(0,0,0,0.4)'; c.fillRect(0,0,W,barH)
@@ -59,30 +58,22 @@ class Render {
     if(showBack){ c.fillStyle=TH.sub; c.font=`${13*S}px "PingFang SC",sans-serif`; c.textAlign='left'; c.fillText('‹ 返回',14*S,st+22*S) }
   }
 
-  // 宝珠（多层渐变+玻璃高光+阴影）
   drawBead(cx,cy,r,attr) {
     const {ctx:c,S}=this, a=A[attr]; c.save()
-    // 外光晕
     c.beginPath(); c.arc(cx,cy,r+2*S,0,Math.PI*2); c.fillStyle=a.gw.replace('0.5','0.2'); c.fill()
-    // 主体
     const rg=c.createRadialGradient(cx-r*0.22,cy-r*0.22,r*0.05,cx,cy,r)
     rg.addColorStop(0,a.ltr); rg.addColorStop(0.3,a.lt); rg.addColorStop(0.65,a.main); rg.addColorStop(1,a.dk)
     c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.fillStyle=rg; c.fill()
-    // 内环
     c.beginPath(); c.arc(cx,cy,r*0.85,0,Math.PI*2); c.strokeStyle='rgba(0,0,0,0.15)'; c.lineWidth=1*S; c.stroke()
-    // 高光椭圆
     c.beginPath(); c.ellipse(cx-r*0.12,cy-r*0.28,r*0.45,r*0.22,-0.2,0,Math.PI*2)
     const hg=c.createRadialGradient(cx-r*0.12,cy-r*0.28,0,cx-r*0.12,cy-r*0.28,r*0.45)
     hg.addColorStop(0,'rgba(255,255,255,0.45)'); hg.addColorStop(1,'rgba(255,255,255,0)'); c.fillStyle=hg; c.fill()
-    // 底部暗影
     c.beginPath(); c.ellipse(cx,cy+r*0.3,r*0.5,r*0.15,0,0,Math.PI*2); c.fillStyle='rgba(0,0,0,0.12)'; c.fill()
-    // 图标
     c.fillStyle='#fff'; c.font=`bold ${r*0.75}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'; c.shadowColor='rgba(0,0,0,0.5)'; c.shadowBlur=2*S
     c.fillText(a.ic,cx,cy+1*S); c.shadowBlur=0; c.restore()
   }
 
-  // 角色头像
   drawChar(x,y,r,ch,hl,frame) {
     const {ctx:c,S}=this, a=A[ch.attr]; c.save()
     if(hl){ c.beginPath(); c.arc(x,y,r+4*S,0,Math.PI*2); c.fillStyle=`rgba(245,166,35,${0.2+0.15*Math.sin(frame*0.1)})`; c.fill() }
@@ -95,7 +86,6 @@ class Render {
     c.fillText(ch.charName[0],x,y+1); c.restore()
   }
 
-  // 敌方头像
   drawEnemy(x,y,r,attr,frame) {
     const {ctx:c,S}=this, a=A[attr]; c.save()
     const pulse=0.1+0.06*Math.sin(frame*0.06)
@@ -109,7 +99,6 @@ class Render {
     c.fillText(a.ic,x,y+1); c.restore()
   }
 
-  // HP条
   drawHp(x,y,w,h,cur,max,c1,c2) {
     const {ctx:c,S}=this
     c.fillStyle='rgba(255,255,255,0.06)'; this.rr(x,y,w,h,h/2); c.fill()
@@ -122,7 +111,6 @@ class Render {
     }
   }
 
-  // 按钮
   drawBtn(x,y,w,h,text,c1,c2,fs,pressed) {
     const {ctx:c,S}=this, sc=pressed?0.96:1; c.save()
     c.translate(x+w/2,y+h/2); c.scale(sc,sc); const lx=-w/2,ly=-h/2
@@ -133,6 +121,42 @@ class Render {
     c.fillStyle='#fff'; c.font=`bold ${(fs||15)*S}px "PingFang SC",sans-serif`; c.textAlign='center'; c.textBaseline='middle'
     c.fillText(text,0,1*S); c.restore()
   }
+
+  // 难度标签
+  drawDiffTag(x, y, w, h, text, color, active) {
+    const {ctx:c,S}=this; c.save()
+    if (active) {
+      c.fillStyle=color; this.rr(x,y,w,h,h/2); c.fill()
+      c.fillStyle='#fff'
+    } else {
+      c.fillStyle='rgba(255,255,255,0.06)'; this.rr(x,y,w,h,h/2); c.fill()
+      c.strokeStyle='rgba(255,255,255,0.15)'; c.lineWidth=1; this.rr(x,y,w,h,h/2); c.stroke()
+      c.fillStyle=TH.dim
+    }
+    c.font=`bold ${11*S}px "PingFang SC",sans-serif`; c.textAlign='center'; c.textBaseline='middle'
+    c.fillText(text,x+w/2,y+h/2); c.restore()
+  }
+
+  // 进度条（通用）
+  drawProgress(x,y,w,h,ratio,color) {
+    const {ctx:c,S}=this
+    c.fillStyle='rgba(255,255,255,0.06)'; this.rr(x,y,w,h,h/2); c.fill()
+    if (ratio > 0) {
+      c.fillStyle=color; this.rr(x,y,Math.max(h,w*Math.min(1,ratio)),h,h/2); c.fill()
+    }
+  }
+
+  // 任务卡片
+  drawTaskCard(x,y,w,h,text,done) {
+    const {ctx:c,S}=this
+    c.fillStyle=done?'rgba(39,174,96,0.1)':TH.card; this.rr(x,y,w,h,8*S); c.fill()
+    c.strokeStyle=done?TH.success:TH.cardB; c.lineWidth=1; this.rr(x,y,w,h,8*S); c.stroke()
+    // 勾选
+    c.fillStyle=done?TH.success:TH.dim; c.font=`${14*S}px "PingFang SC",sans-serif`
+    c.textAlign='left'; c.textBaseline='middle'; c.fillText(done?'✓':'○',x+10*S,y+h/2)
+    c.fillStyle=done?TH.sub:TH.text; c.font=`${12*S}px "PingFang SC",sans-serif`
+    c.fillText(text,x+28*S,y+h/2)
+  }
 }
 
-module.exports = { Render, A, TH, CHARACTERS, LEVELS }
+module.exports = { Render, A, TH, DC }
