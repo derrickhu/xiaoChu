@@ -250,7 +250,7 @@ class Main {
     ctx.beginPath(); ctx.arc(W/2, charY+charH/2, 80*S*pulse, 0, Math.PI*2); ctx.fill()
     ctx.restore()
     // 角色图片
-    const heroImg = R.getImg('assets/hero/hero_body.png')
+    const heroImg = R.getImg('assets/hero/hero_body.jpg')
     const heroSize = 120*S
     if (heroImg && heroImg.width > 0) {
       ctx.drawImage(heroImg, W/2-heroSize/2, charY+charH/2-heroSize/2, heroSize, heroSize)
@@ -313,7 +313,7 @@ class Main {
     const avatarSize = 50*S, avatarX = m+14*S, avatarY = cardY+15*S
     ctx.save()
     ctx.beginPath(); ctx.arc(avatarX+avatarSize/2, avatarY+avatarSize/2, avatarSize/2, 0, Math.PI*2); ctx.clip()
-    const heroImg = R.getImg('assets/hero/hero_avatar.png')
+    const heroImg = R.getImg('assets/hero/hero_avatar.jpg')
     if (heroImg && heroImg.width > 0) {
       ctx.drawImage(heroImg, avatarX, avatarY, avatarSize, avatarSize)
     } else {
@@ -518,26 +518,119 @@ class Main {
 
     // 胜负
     if (this.bState === 'victory') {
-      ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
+      // 标题
       ctx.fillStyle=TH.accent; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.3)
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.22)
+      // 回合/连击
       ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.38)
-      ctx.fillStyle=TH.accent; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`+200 灵石`,W/2,H*0.43)
-      const btnW = 130*S, gap = 16*S
-      R.drawBtn(W/2-btnW-gap/2, H*0.5, btnW, 40*S, '继续闯关', TH.success)
-      R.drawBtn(W/2+gap/2, H*0.5, btnW, 40*S, '回到首页', TH.info)
+      ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.29)
+      // 奖励标题
+      ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillText('── 战利品 ──',W/2,H*0.35)
+      // 灵石奖励
+      ctx.fillStyle='#ffd700'; ctx.font=`bold ${16*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`💰 +${this.battleGold||200} 灵石`,W/2,H*0.41)
+      // 本局获得的装备
+      const drops = this.tempEquips || []
+      if (drops.length > 0) {
+        ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`获得法宝 ×${drops.length}`,W/2,H*0.47)
+        // 装备图标排列
+        const iconSz = 42*S, gap = 8*S
+        const totalW = drops.length * iconSz + (drops.length-1) * gap
+        let startX = (W - totalW) / 2
+        const iconY = H*0.50
+        drops.forEach(eq => {
+          const q = QUALITY[eq.quality]
+          const a = ATTR_COLOR[eq.attr]
+          // 底色背景
+          ctx.fillStyle = 'rgba(20,20,40,0.9)'
+          R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.fill()
+          // 品质边框
+          ctx.strokeStyle = q.color; ctx.lineWidth = 2*S
+          R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.stroke()
+          // 属性色条
+          ctx.fillStyle = a.main
+          R.rr(startX+2*S, iconY+2*S, 3*S, iconSz-4*S, 1.5*S); ctx.fill()
+          // 装备图片
+          const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
+          if (eqIcon && eqIcon.width > 0) {
+            ctx.drawImage(eqIcon, startX+4*S, iconY+4*S, iconSz-8*S, iconSz-8*S)
+          } else {
+            const slot = EQUIP_SLOT[eq.slot]
+            ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+            ctx.fillText(slot.icon, startX+iconSz/2, iconY+iconSz/2)
+          }
+          // 品质标签
+          ctx.fillStyle = q.color; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+          ctx.fillText(q.name, startX+iconSz/2, iconY+iconSz+2*S)
+          startX += iconSz + gap
+        })
+      } else {
+        ctx.fillStyle=TH.dim; ctx.font=`${12*S}px "PingFang SC",sans-serif`
+        ctx.fillText('本局未获得法宝',W/2,H*0.50)
+      }
+      // 按钮
+      const btnW = 130*S, gap2 = 16*S, btnY2 = H*0.68
+      R.drawBtn(W/2-btnW-gap2/2, btnY2, btnW, 40*S, '继续闯关', TH.success)
+      R.drawBtn(W/2+gap2/2, btnY2, btnW, 40*S, '回到首页', TH.info)
     }
     if (this.bState === 'defeat') {
-      ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
       ctx.fillStyle=TH.danger; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('💀 失败',W/2,H*0.3)
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('💀 失败',W/2,H*0.22)
       ctx.fillStyle=TH.sub; ctx.font=`${13*S}px "PingFang SC",sans-serif`
-      ctx.fillText('道心不灭，再战！', W/2, H*0.38)
-      const btnW = 130*S, gap = 16*S
-      R.drawBtn(W/2-btnW-gap/2, H*0.48, btnW, 40*S, '重新挑战', TH.danger)
-      R.drawBtn(W/2+gap/2, H*0.48, btnW, 40*S, '回到首页', TH.info)
+      ctx.fillText('道心不灭，再战！', W/2, H*0.29)
+      // 本局已失去的装备提醒
+      const lost = this.lostEquips || []
+      if (lost.length > 0) {
+        ctx.fillStyle=TH.danger; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.fillText('── 战败失去法宝 ──',W/2,H*0.36)
+        const iconSz = 42*S, gap3 = 8*S
+        const totalW2 = lost.length * iconSz + (lost.length-1) * gap3
+        let sx = (W - totalW2) / 2
+        const iy = H*0.40
+        lost.forEach(eq => {
+          const q = QUALITY[eq.quality]
+          const a = ATTR_COLOR[eq.attr]
+          // 暗色底框（表示已失去）
+          ctx.fillStyle = 'rgba(40,10,10,0.9)'
+          R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.fill()
+          ctx.strokeStyle = TH.danger+'88'; ctx.lineWidth = 2*S
+          R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.stroke()
+          // 装备图片（半透明表示失去）
+          ctx.save(); ctx.globalAlpha = 0.4
+          const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
+          if (eqIcon && eqIcon.width > 0) {
+            ctx.drawImage(eqIcon, sx+4*S, iy+4*S, iconSz-8*S, iconSz-8*S)
+          } else {
+            const slot = EQUIP_SLOT[eq.slot]
+            ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+            ctx.fillText(slot.icon, sx+iconSz/2, iy+iconSz/2)
+          }
+          ctx.restore()
+          // 红色叉号
+          ctx.fillStyle = TH.danger; ctx.font = `bold ${24*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText('✕', sx+iconSz/2, iy+iconSz/2)
+          // 品质标签
+          ctx.fillStyle = TH.dim; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+          ctx.fillText(q.name, sx+iconSz/2, iy+iconSz+2*S)
+          sx += iconSz + gap3
+        })
+        // 提示文字
+        ctx.fillStyle=TH.danger; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+        ctx.textAlign='center'
+        ctx.fillText(`战败惩罚：失去本局获得的 ${lost.length} 件法宝`, W/2, H*0.40+iconSz+16*S)
+      }
+      const btnW2 = 130*S, gap4 = 16*S, btnY3 = H*0.65
+      R.drawBtn(W/2-btnW2-gap4/2, btnY3, btnW2, 40*S, '重新挑战', TH.danger)
+      R.drawBtn(W/2+gap4/2, btnY3, btnW2, 40*S, '回到首页', TH.info)
     }
   }
 
@@ -577,17 +670,17 @@ class Main {
           ctx.save()
           ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S
           ctx.globalAlpha = 0.6 + 0.3*Math.sin(this.af*0.1)
-          ctx.beginPath(); ctx.arc(cx, cy, cs*0.46, 0, Math.PI*2); ctx.stroke()
+          ctx.beginPath(); ctx.arc(cx, cy, cs*0.50, 0, Math.PI*2); ctx.stroke()
           ctx.restore()
         }
         // 消除标记
         if (cell._elim) {
           ctx.save(); ctx.globalAlpha = 0.4 + 0.3*Math.sin(this.af*0.15)
-          R.drawBead(cx,cy,cs*0.42,cell._attr||cell,this.af)
+          R.drawBead(cx,cy,cs*0.48,cell._attr||cell,this.af)
           ctx.restore()
         } else {
           const attr = typeof cell === 'string' ? cell : cell
-          R.drawBead(cx,cy,cs*0.42,attr,this.af)
+          R.drawBead(cx,cy,cs*0.48,attr,this.af)
         }
       }
     }
@@ -658,11 +751,21 @@ class Main {
       if (type !== 'end') return
       const btnY = H*0.2+H*0.45-44*S
       if (this._hitRect(x,y,40*S,btnY,100*S,34*S)) {
+        // 点击"佩戴"：加入背包并立即装备
         const eq = this.dropPopup
+        if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
+          this.storage.addToInventory(eq)
+        }
+        this.storage.equipItem(eq.uid)
         this.tempEquips.push(eq)
         this.dropPopup = null
       } else if (this._hitRect(x,y,W-140*S,btnY,100*S,34*S)) {
-        this.tempEquips.push(this.dropPopup)
+        // 点击"暂存"：仅加入背包，不装备
+        const eq = this.dropPopup
+        if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
+          this.storage.addToInventory(eq)
+        }
+        this.tempEquips.push(eq)
         this.dropPopup = null
       }
       return
@@ -670,7 +773,7 @@ class Main {
     // 胜利按钮：继续闯关 / 回到首页
     if (this.bState === 'victory') {
       if (type !== 'end') return
-      const btnW = 130*S, gap = 16*S, btnY = H*0.5
+      const btnW = 130*S, gap = 16*S, btnY = H*0.68
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
         // 继续闯关 → 进入下一关
         this.bState = 'none'
@@ -684,7 +787,7 @@ class Main {
     // 失败按钮：重新挑战 / 回到首页
     if (this.bState === 'defeat') {
       if (type !== 'end') return
-      const btnW = 130*S, gap = 16*S, btnY = H*0.48
+      const btnW = 130*S, gap = 16*S, btnY = H*0.65
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
         // 重新挑战
         this.bState = 'none'
@@ -827,7 +930,7 @@ class Main {
     this.heroBuffs = []; this.enemyBuffs = []
     this.combo = 0; this.turnCount = 1
     this.skillTriggers = {}; this.ultReady = {}
-    this.pendingUlt = null; this.tempEquips = []; this.dropPopup = null
+    this.pendingUlt = null; this.tempEquips = []; this.lostEquips = []; this.dropPopup = null; this.battleGold = 0
     this.dmgFloats = []; this.skillEffects = []
     this.statPanel = null
     // 重置动画
@@ -1193,10 +1296,14 @@ class Main {
       })
     }
     // 检查失败
-    if (this.heroHp <= 0) { this.bState = 'defeat'; return }
+    if (this.heroHp <= 0) {
+      this._onDefeat()
+      return
+    }
     // 掉落检查
     if (this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
       const drop = randomDrop(this.curLevel.tier)
+      this.storage.addToInventory(drop)
       this.dropPopup = drop
       this.storage.updateTaskProgress('dt3', 1)
     }
@@ -1248,13 +1355,20 @@ class Main {
     this.storage.updateTaskProgress('dt1', 1)
     this.storage.checkAchievements({ combo: this.combo })
     // 通关奖励灵石
-    this.storage.gold += 200
-    // 法宝掉落
-    if (Math.random() < (lv.dropRate||0.2)) {
-      const reward = randomDrop(lv.tier)
-      this.storage.addToInventory(reward)
-      this.dropPopup = reward
-    }
+    this.battleGold = 200
+    this.storage.gold += this.battleGold
+    // 装备只在战斗过程中通过消除掉落，通关不再额外掉落
+  }
+
+  _onDefeat() {
+    this.bState = 'defeat'
+    // 记录本局获得的装备（用于结算画面展示）
+    this.lostEquips = [...(this.tempEquips || [])]
+    // 移除本局获得的所有装备（从背包和已佩戴中清除）
+    this.lostEquips.forEach(eq => {
+      this.storage.removeFromInventory(eq.uid)
+    })
+    this.tempEquips = []
   }
 
   // ===== 属性查看面板 =====
