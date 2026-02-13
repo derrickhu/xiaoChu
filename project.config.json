@@ -26,6 +26,7 @@
     "disableUseStrict": false,
     "useCompilerPlugins": false
   },
+  "cloudfunctionRoot": "cloudfunctions/",
   "compileType": "game",
   "libVersion": "latest",
   "appid": "wx0066a17086e2422f",
