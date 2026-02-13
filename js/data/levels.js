@@ -67,7 +67,7 @@ function _genThemeLevels(attr, startId) {
         mDef: baseMDef,
         atk: basePAtk + baseMAtk,  // 兼容旧字段
         skills,
-        avatar: `assets/enemies/enemy_${attr}_${i<=3?1:i<=6?2:3}.png`,
+        avatar: `assets/enemies/enemy_${attr}_${i<=3?1:i<=6?2:3}.jpg`,
       },
       beadWeights: _themeWeights(attr),
       dropRate: 0.15 + i * 0.03,
@@ -114,7 +114,7 @@ function _genMixedLevels() {
         mDef: baseMDef,
         atk: basePAtk + baseMAtk,  // 兼容旧字段
         skills,
-        avatar: `assets/enemies/enemy_mixed_${i<=5?1:2}.png`,
+        avatar: `assets/enemies/enemy_mixed_${i<=5?1:2}.jpg`,
       },
       beadWeights: { fire:17, water:17, wood:17, light:17, dark:16, heart:16 },
       dropRate: 0.25 + i * 0.03,

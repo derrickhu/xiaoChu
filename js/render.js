@@ -154,13 +154,11 @@ class Render {
     const {ctx:c,S} = this
     const a = A[attr]
     if (!a) return
-    // 尝试用图片
-    const img = this.getImg(`assets/orbs/orb_${attr}.png`)
+    const sz = r * 2  // 直径即为绘制尺寸
+    // 尝试用图片（方形绘制，占满格子）
+    const img = this.getImg(`assets/orbs/orb_${attr}.jpg`)
     if (img && img.width > 0) {
-      c.save()
-      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip()
-      c.drawImage(img,x-r,y-r,r*2,r*2)
-      c.restore()
+      c.drawImage(img, x-r, y-r, sz, sz)
     } else {
       // 降级渐变球体
       const g = c.createRadialGradient(x-r*0.25,y-r*0.3,r*0.1,x,y,r)
@@ -342,7 +340,7 @@ class Render {
     c.fillStyle = a.main
     this.rr(x+3*S,y+4*S,3*S,h-8*S,1.5*S); c.fill()
     // 装备图标
-    const eqIcon = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.png`)
+    const eqIcon = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.jpg`)
     const iconSz = h - 8*S
     if (eqIcon && eqIcon.width > 0) {
       c.drawImage(eqIcon, x+8*S, y+4*S, iconSz, iconSz)
@@ -717,7 +715,7 @@ class Render {
     this.rr(x, y, size, size, 8*S); c.stroke()
 
     // ===== 槽位图标（大）- 优先使用图片 =====
-    const eqIconImg = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.png`)
+    const eqIconImg = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.jpg`)
     const iconPad = size * 0.15
     if (eqIconImg && eqIconImg.width > 0) {
       const iSz = size - iconPad*2
@@ -786,7 +784,7 @@ class Render {
     c.restore()
 
     // 角色主体图片
-    const heroImg = this.getImg('assets/hero/hero_body.png')
+    const heroImg = this.getImg('assets/hero/hero_body.jpg')
     const imgSize = size * 0.85
     if (heroImg && heroImg.width > 0) {
       c.drawImage(heroImg, x-imgSize/2, y-imgSize*0.4, imgSize, imgSize)
@@ -805,7 +803,7 @@ class Render {
     // 盔甲外观叠加
     const armorEquip = equipped.armor
     if (armorEquip) {
-      const armorImg = this.getImg(`assets/hero/armor/armor_${armorEquip.attr}.png`)
+      const armorImg = this.getImg(`assets/hero/armor/armor_${armorEquip.attr}.jpg`)
       if (armorImg && armorImg.width > 0) {
         c.drawImage(armorImg, x-imgSize/2, y-imgSize*0.4, imgSize, imgSize)
       }
@@ -813,7 +811,7 @@ class Render {
     // 武器外观叠加
     const weaponEquip = equipped.weapon
     if (weaponEquip) {
-      const wpnImg = this.getImg(`assets/hero/weapon/weapon_${weaponEquip.attr}.png`)
+      const wpnImg = this.getImg(`assets/hero/weapon/weapon_${weaponEquip.attr}.jpg`)
       if (wpnImg && wpnImg.width > 0) {
         const wpnSize = imgSize * 0.6
         c.drawImage(wpnImg, x+imgSize*0.1, y-imgSize*0.35, wpnSize, wpnSize)
@@ -838,7 +836,7 @@ class Render {
         c.strokeStyle = q.color+'99'; c.lineWidth = 1
         this.rr(ix, y+size*0.35, iconS, iconS, 3*S); c.stroke()
         // 槽位图标（优先图片）
-        const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.png`)
+        const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
         if (eqImg && eqImg.width > 0) {
           c.drawImage(eqImg, ix+1*S, y+size*0.35+1*S, iconS-2*S, iconS-2*S)
         } else {
