@@ -41,7 +41,7 @@ const BASE_LEVELS = [
     levelName: '火焰试炼',
     attr: '火',
     enemy: {
-      enemyId: 2001, enemyName: '小火龙', attr: '火',
+      enemyId: 2001, enemyName: '小火龙', attr: '火', sprite: 'assets/enemies/enemy_1.png',
       hp: 30000, atk: 2000,
       skill: { skillName: '火焰吐息', skillDesc: '对我方造成火属性伤害', triggerTurn: 3 }
     },
@@ -53,7 +53,7 @@ const BASE_LEVELS = [
     levelName: '烈火深渊',
     attr: '火',
     enemy: {
-      enemyId: 2002, enemyName: '火焰巨人', attr: '火',
+      enemyId: 2002, enemyName: '火焰巨人', attr: '火', sprite: 'assets/enemies/enemy_2.png',
       hp: 40000, atk: 2300,
       skill: { skillName: '熔岩爆发', skillDesc: '对我方造成火属性伤害', triggerTurn: 3 }
     },
@@ -65,7 +65,7 @@ const BASE_LEVELS = [
     levelName: '水之洞窟',
     attr: '水',
     enemy: {
-      enemyId: 2003, enemyName: '水晶蟹', attr: '水',
+      enemyId: 2003, enemyName: '水晶蟹', attr: '水', sprite: 'assets/enemies/enemy_3.png',
       hp: 50000, atk: 2500,
       skill: { skillName: '水流冲击', skillDesc: '对我方造成水属性伤害', triggerTurn: 3 }
     },
@@ -77,7 +77,7 @@ const BASE_LEVELS = [
     levelName: '迷雾森林',
     attr: '木',
     enemy: {
-      enemyId: 2004, enemyName: '毒藤怪', attr: '木',
+      enemyId: 2004, enemyName: '毒藤怪', attr: '木', sprite: 'assets/enemies/enemy_4.png',
       hp: 55000, atk: 2800,
       skill: { skillName: '藤蔓鞭打', skillDesc: '对我方造成木属性伤害', triggerTurn: 2 }
     },
@@ -89,7 +89,7 @@ const BASE_LEVELS = [
     levelName: '光明神殿',
     attr: '光',
     enemy: {
-      enemyId: 2005, enemyName: '堕落圣骑', attr: '光',
+      enemyId: 2005, enemyName: '堕落圣骑', attr: '光', sprite: 'assets/enemies/enemy_5.png',
       hp: 70000, atk: 3200,
       skill: { skillName: '圣光制裁', skillDesc: '对我方造成光属性伤害', triggerTurn: 3 }
     },
@@ -101,7 +101,7 @@ const BASE_LEVELS = [
     levelName: '暗影深渊',
     attr: '暗',
     enemy: {
-      enemyId: 2006, enemyName: '暗影领主', attr: '暗',
+      enemyId: 2006, enemyName: '暗影领主', attr: '暗', sprite: 'assets/enemies/enemy_6.png',
       hp: 90000, atk: 3800,
       skill: { skillName: '暗影吞噬', skillDesc: '对我方造成暗属性伤害', triggerTurn: 2 }
     },
@@ -113,7 +113,7 @@ const BASE_LEVELS = [
     levelName: '混沌战场',
     attr: '火',
     enemy: {
-      enemyId: 2007, enemyName: '混沌魔龙', attr: '火',
+      enemyId: 2007, enemyName: '混沌魔龙', attr: '火', sprite: 'assets/enemies/enemy_7.png',
       hp: 110000, atk: 4200,
       skill: { skillName: '混沌吐息', skillDesc: '火暗双属性伤害', triggerTurn: 2 }
     },
@@ -125,7 +125,7 @@ const BASE_LEVELS = [
     levelName: '龙之巢穴',
     attr: '暗',
     enemy: {
-      enemyId: 2008, enemyName: '远古巨龙', attr: '暗',
+      enemyId: 2008, enemyName: '远古巨龙', attr: '暗', sprite: 'assets/enemies/enemy_8.png',
       hp: 140000, atk: 5000,
       skill: { skillName: '龙息毁灭', skillDesc: '全属性毁灭攻击', triggerTurn: 2 }
     },
