@@ -1392,14 +1392,14 @@ class Main {
 
   // ===== 触摸事件 =====
   bindTouch() {
-    canvas.addEventListener('touchstart', (e) => {
+    wx.onTouchStart((e) => {
       const touch = e.touches[0]
       const x = touch.clientX * (W / sysInfo.windowWidth)
       const y = touch.clientY * (W / sysInfo.windowWidth)
       this.handleTouch(x, y)
     })
 
-    canvas.addEventListener('touchmove', (e) => {
+    wx.onTouchMove((e) => {
       if (!this.isDragging || this.scene !== 'battle') return
       const touch = e.touches[0]
       const x = touch.clientX * (W / sysInfo.windowWidth)
@@ -1407,7 +1407,7 @@ class Main {
       this.handleTouchMove(x, y)
     })
 
-    canvas.addEventListener('touchend', () => {
+    wx.onTouchEnd(() => {
       if (this.isDragging && this.scene === 'battle') {
         this.handleTouchEnd()
       }
