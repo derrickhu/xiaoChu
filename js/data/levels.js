@@ -1,160 +1,157 @@
 /**
- * 龙珠战纪 - 关卡数据（8关 + 难度分层）
- * 按属性梯度递进：1-2火、3-4水/木、5-6光/暗、7-8混合
+ * 关卡系统 - 6属性主题×10关 + 混合关卡
+ * 适配单主角+装备技能玩法
  */
+const { ATTRS, ATTR_NAME } = require('./equipment')
 
-// 难度倍率配置
+// 难度倍率
 const DIFFICULTY = {
-  normal: {
-    name: '普通', hpRate: 1, atkRate: 1, rewardRate: 1,
-    enemyAI: null, // 无特殊AI
-    unlockCondition: null // 默认解锁
-  },
-  hard: {
-    name: '困难', hpRate: 1.8, atkRate: 1.8, rewardRate: 2,
-    enemyAI: {
-      skillInterval: 2, // 每2回合释放1次小技能
-      skills: [
-        { type: 'reduceHeal', desc: '减少我方50%回血', rate: 0.5 },
-        { type: 'lockBead', desc: '封锁某类宝珠1回合', duration: 1 }
-      ]
-    },
-    unlockCondition: 'normalAllClear' // 通关普通8关后解锁
-  },
-  extreme: {
-    name: '极难', hpRate: 3, atkRate: 3, rewardRate: 3,
-    enemyAI: {
-      skillProb: 0.5, // 每回合50%概率释放强力技能
-      skills: [
-        { type: 'aoeAttack', desc: '全屏伤害', rate: 1.5 },
-        { type: 'convertBead', desc: '将所有心珠转为暗珠', from: '心', to: '暗' }
-      ]
-    },
-    unlockCondition: 'hardAllClear' // 通关困难8关后解锁
-  }
+  normal:  { id:'normal',  name:'普通', hpMul:1,   atkMul:1,   color:'#4dcc4d', tier:'low' },
+  hard:    { id:'hard',    name:'困难', hpMul:1.8, atkMul:1.8, color:'#ff8c00', tier:'mid' },
+  extreme: { id:'extreme', name:'极难', hpMul:3,   atkMul:3,   color:'#ff4d6a', tier:'high' },
 }
 
-// 基础8关数据
-const BASE_LEVELS = [
-  {
-    levelId: 1,
-    levelName: '火焰试炼',
-    attr: '火',
-    enemy: {
-      enemyId: 2001, enemyName: '小火龙', attr: '火', sprite: 'assets/enemies/enemy_1.png',
-      hp: 30000, atk: 2000,
-      skill: { skillName: '火焰吐息', skillDesc: '对我方造成火属性伤害', triggerTurn: 3 }
-    },
-    reward: { gold: 1000, charId: null },
-    unlockCondition: { preLevelId: 0 }
-  },
-  {
-    levelId: 2,
-    levelName: '烈火深渊',
-    attr: '火',
-    enemy: {
-      enemyId: 2002, enemyName: '火焰巨人', attr: '火', sprite: 'assets/enemies/enemy_2.png',
-      hp: 40000, atk: 2300,
-      skill: { skillName: '熔岩爆发', skillDesc: '对我方造成火属性伤害', triggerTurn: 3 }
-    },
-    reward: { gold: 1200, charId: 1002 },
-    unlockCondition: { preLevelId: 1 }
-  },
-  {
-    levelId: 3,
-    levelName: '水之洞窟',
-    attr: '水',
-    enemy: {
-      enemyId: 2003, enemyName: '水晶蟹', attr: '水', sprite: 'assets/enemies/enemy_3.png',
-      hp: 50000, atk: 2500,
-      skill: { skillName: '水流冲击', skillDesc: '对我方造成水属性伤害', triggerTurn: 3 }
-    },
-    reward: { gold: 1500, charId: 1003 },
-    unlockCondition: { preLevelId: 2 }
-  },
-  {
-    levelId: 4,
-    levelName: '迷雾森林',
-    attr: '木',
-    enemy: {
-      enemyId: 2004, enemyName: '毒藤怪', attr: '木', sprite: 'assets/enemies/enemy_4.png',
-      hp: 55000, atk: 2800,
-      skill: { skillName: '藤蔓鞭打', skillDesc: '对我方造成木属性伤害', triggerTurn: 2 }
-    },
-    reward: { gold: 2000, charId: 1004 },
-    unlockCondition: { preLevelId: 3 }
-  },
-  {
-    levelId: 5,
-    levelName: '光明神殿',
-    attr: '光',
-    enemy: {
-      enemyId: 2005, enemyName: '堕落圣骑', attr: '光', sprite: 'assets/enemies/enemy_5.png',
-      hp: 70000, atk: 3200,
-      skill: { skillName: '圣光制裁', skillDesc: '对我方造成光属性伤害', triggerTurn: 3 }
-    },
-    reward: { gold: 2500, charId: 1005 },
-    unlockCondition: { preLevelId: 4 }
-  },
-  {
-    levelId: 6,
-    levelName: '暗影深渊',
-    attr: '暗',
-    enemy: {
-      enemyId: 2006, enemyName: '暗影领主', attr: '暗', sprite: 'assets/enemies/enemy_6.png',
-      hp: 90000, atk: 3800,
-      skill: { skillName: '暗影吞噬', skillDesc: '对我方造成暗属性伤害', triggerTurn: 2 }
-    },
-    reward: { gold: 3000, charId: 1007 },
-    unlockCondition: { preLevelId: 5 }
-  },
-  {
-    levelId: 7,
-    levelName: '混沌战场',
-    attr: '火',
-    enemy: {
-      enemyId: 2007, enemyName: '混沌魔龙', attr: '火', sprite: 'assets/enemies/enemy_7.png',
-      hp: 110000, atk: 4200,
-      skill: { skillName: '混沌吐息', skillDesc: '火暗双属性伤害', triggerTurn: 2 }
-    },
-    reward: { gold: 4000, charId: 1008 },
-    unlockCondition: { preLevelId: 6 }
-  },
-  {
-    levelId: 8,
-    levelName: '龙之巢穴',
-    attr: '暗',
-    enemy: {
-      enemyId: 2008, enemyName: '远古巨龙', attr: '暗', sprite: 'assets/enemies/enemy_8.png',
-      hp: 140000, atk: 5000,
-      skill: { skillName: '龙息毁灭', skillDesc: '全属性毁灭攻击', triggerTurn: 2 }
-    },
-    reward: { gold: 6000, charId: null },
-    unlockCondition: { preLevelId: 7 }
+// 敌方技能池
+const ENEMY_SKILLS = {
+  atkBuff:   { name:'怒气爆发', desc:'ATK提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
+  poison:    { name:'毒雾', desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
+  seal:      { name:'封印', desc:'随机封锁2颗宝珠,持续2回合', type:'seal', count:2, dur:2 },
+  convert:   { name:'属性干扰', desc:'随机转换3颗宝珠属性', type:'convert', count:3 },
+  aoe:       { name:'全屏冲击', desc:'对主角造成{val}点伤害', type:'aoe' },
+  defDown:   { name:'破甲', desc:'降低主角防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
+  healBlock: { name:'治愈封锁', desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
+}
+
+/**
+ * 生成属性主题关卡
+ * 每个属性10关，敌人以该属性为主
+ */
+function _genThemeLevels(attr, startId) {
+  const an = ATTR_NAME[attr]
+  const levels = []
+  for (let i = 1; i <= 10; i++) {
+    const baseHp = 800 + i * 400
+    const baseAtk = 60 + i * 25
+    const skills = []
+    // 第4关起有技能
+    if (i >= 4) skills.push({ ...ENEMY_SKILLS.atkBuff, triggerTurn: 3 })
+    if (i >= 6) skills.push({ ...ENEMY_SKILLS.seal, triggerTurn: 4 })
+    if (i >= 8) skills.push({ ...ENEMY_SKILLS.poison, val: 50 + i*10, triggerTurn: 2 })
+    if (i === 10) skills.push({ ...ENEMY_SKILLS.aoe, val: 200 + i*30, triggerTurn: 5 })
+
+    levels.push({
+      levelId: startId + i,
+      theme: attr,
+      name: `${an}之域·第${i}关`,
+      enemy: {
+        name: `${an}之${i<=3?'卫兵':i<=6?'精英':i<=9?'将领':'王者'}`,
+        attr,
+        hp: baseHp,
+        atk: baseAtk,
+        skills,
+        avatar: `assets/enemies/enemy_${((startId/10 + i - 1) % 8) + 1}.png`,
+      },
+      // 主题宝珠权重：对应属性50%，其他各10%
+      beadWeights: _themeWeights(attr),
+      dropRate: 0.15 + i * 0.03,  // 掉落概率随关卡递增
+      specialCond: i === 10 ? { type:'turnLimit', turns:15, reward:'extraEquip' } : null,
+    })
   }
+  return levels
+}
+
+function _themeWeights(attr) {
+  const w = {}
+  ATTRS.forEach(a => w[a] = a === attr ? 50 : 10)
+  return w
+}
+
+// 混合属性关卡（高阶挑战，均匀分布）
+function _genMixedLevels() {
+  const levels = []
+  for (let i = 1; i <= 10; i++) {
+    const baseHp = 2000 + i * 600
+    const baseAtk = 120 + i * 35
+    const enemyAttr = ATTRS[(i - 1) % 6]
+    const skills = [
+      { ...ENEMY_SKILLS.convert, triggerTurn: 2 },
+      { ...ENEMY_SKILLS.defDown, triggerTurn: 3 },
+    ]
+    if (i >= 4) skills.push({ ...ENEMY_SKILLS.healBlock, triggerTurn: 4 })
+    if (i >= 7) skills.push({ ...ENEMY_SKILLS.aoe, val: 300 + i*40, triggerTurn: 3 })
+
+    levels.push({
+      levelId: 700 + i,
+      theme: 'mixed',
+      name: `混沌试炼·第${i}关`,
+      enemy: {
+        name: `混沌${i<=5?'守卫':'魔王'}`,
+        attr: enemyAttr,
+        hp: baseHp,
+        atk: baseAtk,
+        skills,
+        avatar: `assets/enemies/enemy_${(i % 8) + 1}.png`,
+      },
+      beadWeights: { fire:17, water:17, wood:17, light:17, dark:16, heart:16 },
+      dropRate: 0.25 + i * 0.03,
+      specialCond: i >= 8 ? { type:'comboReq', count:5, reward:'extraEquip' } : null,
+    })
+  }
+  return levels
+}
+
+// 生成全部关卡
+const ALL_LEVELS = [
+  ..._genThemeLevels('fire', 100),
+  ..._genThemeLevels('water', 200),
+  ..._genThemeLevels('wood', 300),
+  ..._genThemeLevels('light', 400),
+  ..._genThemeLevels('dark', 500),
+  ..._genThemeLevels('heart', 600),
+  ..._genMixedLevels(),
 ]
 
-// 根据难度生成关卡数据
+/**
+ * 获取关卡数据（含难度加成）
+ */
 function getLevelData(levelId, difficulty) {
-  const base = BASE_LEVELS.find(l => l.levelId === levelId)
+  const base = ALL_LEVELS.find(l => l.levelId === levelId)
   if (!base) return null
-  const diff = DIFFICULTY[difficulty]
-  if (!diff) return null
+  const diff = DIFFICULTY[difficulty] || DIFFICULTY.normal
+  const e = base.enemy
   return {
     ...base,
-    difficulty: difficulty,
-    difficultyName: diff.name,
+    difficulty: diff.id,
+    tier: diff.tier,
     enemy: {
-      ...base.enemy,
-      hp: Math.floor(base.enemy.hp * diff.hpRate),
-      atk: Math.floor(base.enemy.atk * diff.atkRate)
+      ...e,
+      hp: Math.round(e.hp * diff.hpMul),
+      atk: Math.round(e.atk * diff.atkMul),
+      skills: diff.id === 'normal' ? e.skills.filter(s => s.triggerTurn >= 4) :
+              diff.id === 'hard' ? e.skills :
+              [...e.skills, { ...ENEMY_SKILLS.aoe, val: Math.round(e.atk*0.8), triggerTurn: 2 }],
     },
-    reward: {
-      gold: Math.floor(base.reward.gold * diff.rewardRate),
-      charId: base.reward.charId
-    },
-    enemyAI: diff.enemyAI
   }
 }
 
-module.exports = { BASE_LEVELS, DIFFICULTY, getLevelData }
+/**
+ * 获取主题关卡列表
+ */
+function getThemeLevels(theme) {
+  return ALL_LEVELS.filter(l => l.theme === theme)
+}
+
+/**
+ * 获取所有主题
+ */
+function getAllThemes() {
+  return [
+    ...ATTRS.map(a => ({ id: a, name: ATTR_NAME[a]+'之域', levels: 10 })),
+    { id: 'mixed', name: '混沌试炼', levels: 10 },
+  ]
+}
+
+module.exports = {
+  DIFFICULTY, ENEMY_SKILLS, ALL_LEVELS,
+  getLevelData, getThemeLevels, getAllThemes,
+}

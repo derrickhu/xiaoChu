@@ -1,24 +1,23 @@
 /**
- * 龙珠战纪 - 转珠消除RPG微信小游戏
- * 含：难度分层、云开发、角色养成、每日任务、周回挑战、成就系统
+ * 龙珠战纪 - 主游戏逻辑
+ * 单主角 + 装备技能体系 + 三消打怪
  */
-const CHARACTERS = require('./data/characters')
-const { BASE_LEVELS, DIFFICULTY, getLevelData } = require('./data/levels')
+const { Render, A, TH } = require('./render')
 const Storage = require('./data/storage')
-const music = require('./runtime/music')
-const { Render, A, TH, DC } = require('./render')
+const { ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP, EQUIP_SLOT, QUALITY, randomDrop, generateEquipment } = require('./data/equipment')
+const { DIFFICULTY, ALL_LEVELS, getLevelData, getThemeLevels, getAllThemes } = require('./data/levels')
+const MusicMgr = require('./runtime/music')
 
+// Canvas 初始化
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
-const W = canvas.width, H = canvas.height, S = W / 375
-const sysInfo = wx.getSystemInfoSync()
-const DPR = W / sysInfo.windowWidth
-const DPRH = H / sysInfo.windowHeight
-const BEAD_ATTRS = ['火','水','木','光','暗','心']
-const COUNTER_MAP = { '火':'木','木':'水','水':'火','光':'暗','暗':'光' }
+const W = canvas.width, H = canvas.height
+const S = W / 375  // 设计基准375宽
+const safeTop = (wx.getSystemInfoSync().safeArea?.top || 20) * (W / wx.getSystemInfoSync().windowWidth)
 
-let safeTop = 44 * S
-try { const m = wx.getMenuButtonBoundingClientRect(); if(m&&m.bottom) safeTop=(m.bottom+8)*DPR } catch(e){}
+// 珠子属性列表（不含heart的5种用于战斗伤害，heart用于回血）
+const BEAD_ATTRS = ['fire','water','wood','light','dark','heart']
+const COLS = 6, ROWS = 5
 
 const R = new Render(ctx, W, H, S, safeTop)
 
@@ -26,1038 +25,1028 @@ class Main {
   constructor() {
     this.storage = new Storage()
     this.storage.checkDailyReset()
-    this.storage.checkWeeklyReset()
     this.scene = 'loading'
-    this.sceneStack = [] // 场景栈，用于返回
-    this.af = 0; this.ta = 1
-    this.scrollY = 0; this.maxScrollY = 0 // 滚动支持
+    this.sceneStack = []
+    this.af = 0  // 动画帧
+    this.scrollY = 0; this.maxScrollY = 0
 
     // 棋盘
-    this.cols=6; this.rows=5; this.bs=W/7; this.beads=[]; this.isDrag=false
-    this.selBead=null; this.lastSwap=null
-    this.bx=(W-this.cols*this.bs)/2; this.by=H*0.52
-    // 拖拽跟手
-    this.dragX=0; this.dragY=0; this.dragTrail=[]
-
-    // 战斗
-    this.bState='idle'; this.lvData=null; this.curDiff='normal'
-    this.eHp=0; this.eMax=0; this.eDisp=0
-    this.tHp=0; this.tMax=0; this.tDisp=0
-    this.turn=0; this.combo=0; this.comboDisp=0; this.comboT=0
-    this.dmgFloats=[]; this.elimAnim=0; this.elimGroups=[]; this.allElimGroups=[]
-    this.elimProg=0; this.teamChars=[]; this.lockedBead=null; this.healRate=1
-
+    this.board = []; this.cellSize = 0; this.boardX = 0; this.boardY = 0
+    // 拖拽
+    this.dragging = false; this.dragR = -1; this.dragC = -1; this.dragOX = 0; this.dragOY = 0
+    this.dragTrail = []
+    // 战斗状态
+    this.bState = 'none'  // none/playerTurn/eliminating/settling/enemyTurn/victory/defeat
+    this.combo = 0; this.turnCount = 0; this.elimSets = []
+    this.enemyHp = 0; this.enemyMaxHp = 0; this.heroHp = 0; this.heroMaxHp = 0
+    this.heroShield = 0  // 减伤
+    this.heroBuffs = []; this.enemyBuffs = []
+    this.skillTriggers = {}  // 各属性技能触发次数（用于绝技蓄力）
+    this.ultReady = {}  // 各属性绝技是否就绪
+    this.pendingUlt = null  // 待使用的绝技
     // 动画
-    this.particles=[]; this.shakeT=0; this.shakeI=0; this.btnP={}
-
-    // 引导
-    this.guideStep=0; this.showGuide=false
-
-    // 弹窗
-    this.toast=null; this.toastT=0
-
+    this.animQueue = []; this.dmgFloats = []; this.skillEffects = []
+    this.shakeT = 0; this.shakeI = 0
+    // 掉落
+    this.dropPopup = null; this.tempEquips = []
+    // Loading
     this._loadStart = Date.now()
-    this.bindTouch()
-    this.loop()
-    setTimeout(() => { this.scene='home'; this.ta=1; music.playBgm() }, 1500)
-  }
+    // 关卡选择
+    this.selTheme = 'fire'; this.selDiff = 'normal'
+    // 当前关卡数据
+    this.curLevel = null
+    // 按下态
+    this._pressedBtn = null
 
-  loop() { this.af++; this.update(); this.render(); requestAnimationFrame(()=>this.loop()) }
-
-  // 场景导航
-  goTo(scene) { this.sceneStack.push(this.scene); this.scene=scene; this.ta=1 }
-  goBack() { this.scene=this.sceneStack.length>0?this.sceneStack.pop():'home'; this.ta=1 }
-
-  update() {
-    if(this.ta>0) this.ta=Math.max(0,this.ta-0.05)
-    for(let i=this.particles.length-1;i>=0;i--){ const p=this.particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.life-=0.02; if(p.life<=0) this.particles.splice(i,1) }
-    for(let i=this.dmgFloats.length-1;i>=0;i--){ const d=this.dmgFloats[i]; d.y-=1.2*S; d.life-=0.018; d.sa=Math.min(1,d.sa+0.08); if(d.life<=0) this.dmgFloats.splice(i,1) }
-    // 拖尾粒子衰减
-    for(let i=this.dragTrail.length-1;i>=0;i--){ this.dragTrail[i].life-=0.06; if(this.dragTrail[i].life<=0) this.dragTrail.splice(i,1) }
-    // 宝珠交换弹性归位动画
-    if(this.beads.length) for(let i=0;i<this.rows;i++) for(let j=0;j<this.cols;j++){
-      const b=this.beads[i]&&this.beads[i][j]; if(!b) continue
-      if(b.offsetX) b.offsetX*=0.6; if(b.offsetY) b.offsetY*=0.6
-      if(Math.abs(b.offsetX)<0.5) b.offsetX=0; if(Math.abs(b.offsetY)<0.5) b.offsetY=0
+    // 触摸（兼容 canvas.bindEvent 和 wx 全局事件两种方式）
+    if (typeof canvas.addEventListener === 'function') {
+      canvas.addEventListener('touchstart', e => this.onTouch('start', e))
+      canvas.addEventListener('touchmove', e => this.onTouch('move', e))
+      canvas.addEventListener('touchend', e => this.onTouch('end', e))
+    } else {
+      wx.onTouchStart(e => this.onTouch('start', e))
+      wx.onTouchMove(e => this.onTouch('move', e))
+      wx.onTouchEnd(e => this.onTouch('end', e))
     }
-    if(this.comboT>0) this.comboT--
-    if(this.shakeT>0) this.shakeT--
-    if(this.toastT>0) this.toastT--
-    if(this.scene==='battle'){ this.eDisp+=(this.eHp-this.eDisp)*0.1; this.tDisp+=(this.tHp-this.tDisp)*0.1 }
-    if(this.bState==='eliminating'&&this.elimAnim>0){ this.elimAnim--; this.elimProg=1-this.elimAnim/30; if(this.elimAnim<=0) this.afterElim() }
+
+    // 主循环
+    const loop = () => {
+      this.af++
+      this.update()
+      this.render()
+      requestAnimationFrame(loop)
+    }
+    requestAnimationFrame(loop)
   }
 
-  showToast(msg) { this.toast=msg; this.toastT=80 }
+  // ===== 场景管理 =====
+  goTo(scene) { this.sceneStack.push(this.scene); this.scene = scene; this.scrollY = 0 }
+  goBack() {
+    if (this.sceneStack.length) { this.scene = this.sceneStack.pop(); this.scrollY = 0 }
+    else this.scene = 'home'
+  }
 
+  // ===== 更新 =====
+  update() {
+    if (this.shakeT > 0) this.shakeT--
+    // 伤害飘字衰减
+    this.dmgFloats = this.dmgFloats.filter(f => { f.t++; f.y -= 1.5*S; f.alpha -= 0.025; return f.alpha > 0 })
+    // 技能特效
+    this.skillEffects = this.skillEffects.filter(e => { e.t++; e.y -= 1*S; e.alpha -= 0.02; return e.alpha > 0 })
+    // Loading自动跳转
+    if (this.scene === 'loading' && Date.now() - this._loadStart > 1500) {
+      this.scene = 'home'
+      MusicMgr.playBgm()
+    }
+    // 消除动画
+    if (this.bState === 'eliminating') this._processElim()
+  }
+
+  // ===== 渲染入口 =====
   render() {
     ctx.save()
-    if(this.shakeT>0) ctx.translate((Math.random()-0.5)*this.shakeI,(Math.random()-0.5)*this.shakeI)
-    switch(this.scene){
-      case 'loading': this.rLoading(); break
-      case 'home': this.rHome(); break
-      case 'levelSelect': this.rLevels(); break
-      case 'teamEdit': this.rTeam(); break
-      case 'battlePrepare': this.rPrep(); break
-      case 'battle': this.rBattle(); break
-      case 'charDetail': this.rCharDetail(); break
-      case 'dailyTask': this.rDailyTask(); break
-      case 'achievement': this.rAchievement(); break
-    }
-    if(this.ta>0){ ctx.fillStyle=`rgba(10,10,20,${this.ta})`; ctx.fillRect(0,0,W,H) }
-    // Toast
-    if(this.toastT>0&&this.toast){
-      const al=Math.min(1,this.toastT/15)
-      ctx.globalAlpha=al; ctx.fillStyle='rgba(0,0,0,0.8)'
-      const tw=ctx.measureText(this.toast).width+40*S
-      R.rr((W-tw)/2,H*0.42,tw,36*S,18*S); ctx.fill()
-      ctx.fillStyle='#fff'; ctx.font=`${13*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-      ctx.fillText(this.toast,W/2,H*0.42+18*S); ctx.globalAlpha=1
+    if (this.shakeT > 0) ctx.translate((Math.random()-0.5)*this.shakeI,(Math.random()-0.5)*this.shakeI)
+    switch(this.scene) {
+      case 'loading':       this.rLoading(); break
+      case 'home':          this.rHome(); break
+      case 'themeSelect':   this.rThemeSelect(); break
+      case 'levelSelect':   this.rLevelSelect(); break
+      case 'equipManage':   this.rEquipManage(); break
+      case 'battlePrepare': this.rBattlePrepare(); break
+      case 'battle':        this.rBattle(); break
+      case 'dailyTask':     this.rDailyTask(); break
+      case 'achievement':   this.rAchievement(); break
     }
     ctx.restore()
   }
 
-  // ===== 加载 =====
+  // ===== Loading =====
   rLoading() {
     R.drawLoadingBg(this.af)
-    const p=Math.min(1,(Date.now()-this._loadStart)/1400), cy=H*0.4
+    const p = Math.min(1, (Date.now()-this._loadStart)/1400), cy = H*0.4
     ctx.save(); ctx.shadowColor=TH.accent; ctx.shadowBlur=30*S
     ctx.fillStyle=TH.accent; ctx.font=`bold ${48*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('龙珠战纪',W/2,cy)
     ctx.shadowBlur=0; ctx.restore()
-    const bw=W*0.5,bh=4*S,bx2=(W-bw)/2,by2=cy+60*S
-    ctx.fillStyle='rgba(255,255,255,0.1)'; R.rr(bx2,by2,bw,bh,bh/2); ctx.fill()
-    const g=ctx.createLinearGradient(bx2,by2,bx2+bw*p,by2); g.addColorStop(0,TH.accent); g.addColorStop(1,TH.danger)
-    ctx.fillStyle=g; R.rr(bx2,by2,bw*p,bh,bh/2); ctx.fill()
-    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`; ctx.fillText('加载中...',W/2,by2+24*S)
+    const bw=W*0.5, bh=4*S, bx=(W-bw)/2, by=cy+60*S
+    ctx.fillStyle='rgba(255,255,255,0.1)'; R.rr(bx,by,bw,bh,bh/2); ctx.fill()
+    const g=ctx.createLinearGradient(bx,by,bx+bw*p,by)
+    g.addColorStop(0,TH.accent); g.addColorStop(1,TH.danger)
+    ctx.fillStyle=g; R.rr(bx,by,bw*p,bh,bh/2); ctx.fill()
+    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText('加载中...',W/2,by+24*S)
   }
 
-  // ===== 首页（高度还原设计图） =====
+  // ===== 首页 =====
   rHome() {
     R.drawHomeBg(this.af)
-
-    // ---- 当前挑战进度条 ----（留出背景Logo空间）
-    const oy=safeTop+80*S
-    const pbarY=oy+30*S, pbarH=30*S, pbarM=16*S
-    R.drawGlassCard(pbarM,pbarY,W-pbarM*2,pbarH,pbarH/2)
-    ctx.fillStyle='rgba(80,50,0,0.7)'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+    const oy = safeTop+80*S
+    const m = 16*S
+    // 战力信息
+    const stats = this.storage.getHeroStats()
+    const cardY = oy, cardW = W-m*2, cardH = 60*S
+    R.drawDarkPanel(m,cardY,cardW,cardH,12*S)
+    ctx.fillStyle=TH.accent; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='middle'
-    ctx.fillText('⚔ 当前挑战进度',pbarM+12*S,pbarY+pbarH/2)
-    ctx.textAlign='right'; ctx.fillStyle='rgba(180,120,0,0.9)'; ctx.font=`bold ${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`💰 ${this.storage.gold}`,W-pbarM-12*S,pbarY+pbarH/2)
+    ctx.fillText('⚔ 主角信息', m+12*S, cardY+16*S)
+    ctx.fillStyle=TH.text; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`ATK:${stats.atk}  HP:${stats.hp}  DEF:${stats.def}`, m+12*S, cardY+36*S)
+    ctx.textAlign='right'; ctx.fillStyle=TH.accent; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`💰 ${this.storage.gold}`, W-m-12*S, cardY+16*S)
+    // 装备预览
+    ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='right'
+    const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
+    ctx.fillText(`装备 ${eqCount}/6`, W-m-12*S, cardY+36*S)
 
-    // ---- 关卡信息卡片 ----
-    const cardM=12*S, cardY=pbarY+pbarH+10*S, cardW=W-cardM*2
-    const curLv=this.storage.currentLevel
-    const curLvData=BASE_LEVELS.find(l=>l.levelId===curLv)||BASE_LEVELS[0]
-    const ea=A[curLvData.enemy.attr]
-    const team=this.getTeam(), validTeam=team.filter(c=>c!==null)
-
-    // 自适应关卡卡片高度
-    const dpContentH=110*S
-    const cardH=dpContentH+40*S
-    R.drawGlassCard(cardM,cardY,cardW,cardH,14*S)
-
-    // 关卡信息标题
-    const infoY=cardY+10*S, infoM=cardM+10*S, infoW=cardW-20*S
-    ctx.fillStyle='rgba(60,50,30,0.85)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText('⭐ 关卡信息',infoM,infoY)
-
-    // 深色面板
-    const dpY=infoY+24*S
-    R.drawDarkPanel(infoM,dpY,infoW,dpContentH,10*S)
-
-    // 左侧：关卡名 + 敌人信息 + 属性条
-    const dpInM=infoM+12*S, dpInY=dpY+10*S
-    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    // 当前关卡卡片
+    const lvCardY = cardY+cardH+10*S, lvCardH = 80*S
+    const lv = ALL_LEVELS.find(l=>l.levelId===this.storage.currentLevel) || ALL_LEVELS[0]
+    R.drawDarkPanel(m,lvCardY,cardW,lvCardH,12*S)
+    ctx.fillStyle=TH.text; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='top'
-    ctx.fillText(`⚔ 第${curLvData.levelId}关`,dpInM,dpInY)
-    ctx.fillStyle=ea.lt; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${curLvData.enemy.enemyName} · ${curLvData.enemy.attr}属性`,dpInM,dpInY+18*S)
+    ctx.fillText('📍 '+lv.name, m+12*S, lvCardY+10*S)
+    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`敌人: ${lv.enemy.name} (${ATTR_NAME[lv.enemy.attr]}属性)`, m+12*S, lvCardY+30*S)
+    ctx.fillText(`HP:${lv.enemy.hp}  ATK:${lv.enemy.atk}`, m+12*S, lvCardY+46*S)
+    // 开始战斗按钮
+    R.drawBtn(W-m-90*S, lvCardY+lvCardH-34*S, 80*S, 28*S, '开始战斗', TH.danger)
 
-    const barStartY=dpInY+38*S, barW=infoW*0.48, barH2=8*S, barGap=14*S
-    const maxHp=50000, maxAtk=5000
-    const bars=[
-      {label:'HP',val:curLvData.enemy.hp,max:maxHp,color:TH.success},
-      {label:'ATK',val:curLvData.enemy.atk,max:maxAtk,color:TH.info},
-      {label:'防御',val:Math.floor(curLvData.enemy.hp*0.3),max:maxHp,color:'#e67e22'},
-      {label:'速度',val:Math.floor(curLvData.enemy.atk*0.8),max:maxAtk,color:'#f1c40f'}
-    ]
-    bars.forEach((b,i)=>{
-      const by=barStartY+i*barGap
-      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font=`${8*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(b.label,dpInM,by+barH2/2)
-      R.drawAttrBar(dpInM+28*S,by,barW,barH2,b.val/b.max,b.color)
+    // 装备一览
+    const eqY = lvCardY+lvCardH+14*S
+    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText('🛡️ 当前装备', m, eqY)
+    const eqSlots = Object.keys(EQUIP_SLOT)
+    const eqW = (cardW-10*S)/2, eqH = 48*S
+    eqSlots.forEach((slot,i) => {
+      const col = i%2, row = Math.floor(i/2)
+      const ex = m + col*(eqW+10*S), ey = eqY+20*S + row*(eqH+6*S)
+      R.drawEquipCard(ex,ey,eqW,eqH,this.storage.equipped[slot],false,this.af)
     })
 
-    // 右侧：我方队伍
-    const teamAreaX=infoM+infoW*0.60, teamY=dpY+12*S
-    const tR=15*S, tGap=tR*2+4*S
-    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font=`bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText('我方队伍',teamAreaX+(infoW*0.40)/2-6*S,teamY)
-    const tCols=Math.min(3,Math.max(1,validTeam.length)), tRows=Math.ceil(validTeam.length/tCols)
-    validTeam.forEach((c,i)=>{
-      if(!c) return
-      const col=i%tCols, row=Math.floor(i/tCols)
-      const tx=teamAreaX+col*tGap+tR, ty2=teamY+16*S+row*(tR*2+8*S)+tR
-      R.drawChar(tx,ty2,tR,c,false,this.af)
+    // 底部导航
+    this._drawNav('home')
+  }
+
+  // ===== 主题选择（关卡大区） =====
+  rThemeSelect() {
+    R.drawBg(this.af); R.drawTopBar('关卡选择',true)
+    const themes = getAllThemes()
+    const m=14*S, startY=safeTop+56*S, cardH=58*S, gap=8*S
+    // 难度Tab
+    const diffs = Object.values(DIFFICULTY)
+    const tabW = 60*S, tabH = 26*S, tabY = startY
+    diffs.forEach((d,i) => {
+      const tx = m + i*(tabW+8*S)
+      R.drawDiffTag(tx,tabY,tabW,tabH,d.name,d.color,this.selDiff===d.id)
     })
-
-    // ---- 角色信息区 ----
-    const guideY=cardY+cardH+12*S
-    const bottomNavH=48*S
-    const guideH=115*S // 固定较小的高度，不再铺满
-    R.drawDarkPanel(cardM,guideY,cardW,guideH,12*S)
-
-    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText('英雄名录',cardM+14*S,guideY+10*S)
-
-    // 右侧角色解锁统计
-    const unlockCount=this.storage.unlockedChars.length
-    ctx.fillStyle='rgba(255,200,100,0.8)'; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='right'; ctx.fillText(`已收录: ${unlockCount}/${CHARACTERS.length}`,cardM+cardW-14*S,guideY+12*S)
-
-    // 角色格子：更紧凑的矩阵
-    const gcY=guideY+32*S
-    const gcCols=5
-    const gcGap=8*S
-    const gcSize=46*S // 固定尺寸，更精致
-    const gcTotalW=gcCols*gcSize+(gcCols-1)*gcGap
-    const gcStartX=(W-gcTotalW)/2
-
-    CHARACTERS.forEach((ch,i)=>{
-      const col=i%gcCols, row=Math.floor(i/gcCols)
-      const gx=gcStartX+col*(gcSize+gcGap)
-      const gy=gcY+row*(gcSize+gcGap)
-      if(gy+gcSize > guideY+guideH-8*S) return // 超过区域不画
-      const unlocked=this.storage.unlockedChars.includes(ch.charId)
-      R.drawCharGrid(gx,gy,gcSize,ch,unlocked,this.af)
-    })
-
-    // ---- 底部导航栏 ----
-    const navH=38*S, navY=H-navH-6*S
-    // 底部栏背景
-    ctx.fillStyle='rgba(20,18,30,0.75)'
-    R.rr(8*S,navY-4*S,W-16*S,navH+8*S,12*S); ctx.fill()
-
-    const navBtns=[
-      {key:'hs',text:'战斗',icon:'assets/nav_icons/nav_battle.png'},
-      {key:'hl',text:'关卡',icon:'assets/nav_icons/nav_level.png'},
-      {key:'ht',text:'队伍',icon:'assets/nav_icons/nav_team.png'},
-      {key:'hg',text:'养成',icon:'assets/nav_icons/nav_develop.png'},
-      {key:'hd',text:'任务',icon:'assets/nav_icons/nav_quest.png'},
-      {key:'ha',text:'成就',icon:'assets/nav_icons/nav_achievement.png'}
-    ]
-    const navGap=5*S, navPad=14*S
-    const navInnerW=W-navPad*2
-    const navBtnW=(navInnerW-(navBtns.length-1)*navGap)/navBtns.length
-    navBtns.forEach((b,i)=>{
-      const nx=navPad+i*(navBtnW+navGap)
-      R.drawNavBtn(nx,navY,navBtnW,navH,b.text,b.icon,false,this.btnP[b.key])
+    const listY = tabY+tabH+12*S
+    themes.forEach((t,i) => {
+      const ty = listY + i*(cardH+gap)
+      const a = t.id !== 'mixed' ? ATTR_COLOR[t.id] : { main:'#aaa' }
+      R.drawDarkPanel(m,ty,W-m*2,cardH,10*S)
+      // 属性色条
+      ctx.fillStyle = a.main; ctx.fillRect(m+4*S,ty+4*S,3*S,cardH-8*S)
+      ctx.fillStyle=TH.text; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='left'; ctx.textBaseline='middle'
+      ctx.fillText(t.name, m+16*S, ty+cardH/2-8*S)
+      // 进度
+      const passed = getThemeLevels(t.id).filter(l => this.storage.isLevelPassed(l.levelId,this.selDiff)).length
+      ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`进度: ${passed}/${t.levels}`, m+16*S, ty+cardH/2+10*S)
+      // 进入箭头
+      ctx.fillStyle=TH.accent; ctx.font=`${18*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='right'; ctx.fillText('›', W-m-12*S, ty+cardH/2)
     })
   }
 
-  // ===== 关卡选择（含难度tab） =====
-  rLevels() {
-    R.drawBg(this.af); R.drawTopBar('关卡选择',true)
-    const barH=safeTop+44*S
-
-    // 难度切换tab
-    const diffs=['normal','hard','extreme'], dNames=['普通','困难','极难']
-    const tw=W*0.28, th=30*S, tsy=barH+10*S, tgap=6*S
-    const tsx=(W-tw*3-tgap*2)/2
-    diffs.forEach((d,i)=>{
-      const x=tsx+i*(tw+tgap), ul=this.storage.isDifficultyUnlocked(d)
-      const active=this.curDiff===d
-      if(ul) R.drawDiffTag(x,tsy,tw,th,dNames[i],DC[d],active)
-      else { ctx.globalAlpha=0.3; R.drawDiffTag(x,tsy,tw,th,'🔒'+dNames[i],DC[d],false); ctx.globalAlpha=1 }
+  // ===== 关卡列表（某主题内） =====
+  rLevelSelect() {
+    R.drawBg(this.af)
+    const themeName = this.selTheme==='mixed' ? '混沌试炼' : ATTR_NAME[this.selTheme]+'之域'
+    R.drawTopBar(themeName,true)
+    const levels = getThemeLevels(this.selTheme)
+    const m=14*S, startY=safeTop+56*S, cardH=52*S, gap=6*S
+    levels.forEach((lv,i) => {
+      const ly = startY + i*(cardH+gap) - this.scrollY
+      if (ly < safeTop-cardH || ly > H) return  // 视窗裁剪
+      const passed = this.storage.isLevelPassed(lv.levelId, this.selDiff)
+      R.drawDarkPanel(m,ly,W-m*2,cardH,8*S)
+      ctx.fillStyle = passed ? TH.success : TH.text
+      ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='left'; ctx.textBaseline='middle'
+      ctx.fillText((passed?'✓ ':'')+lv.name, m+12*S, ly+cardH/2-6*S)
+      ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`${lv.enemy.name} · HP:${lv.enemy.hp} · ATK:${lv.enemy.atk}`, m+12*S, ly+cardH/2+10*S)
     })
+    this.maxScrollY = Math.max(0, levels.length*(cardH+gap) - (H-startY) + 40*S)
+  }
 
-    // 进度
-    const prog=this.storage.levelProgress[this.curDiff]
-    const passed=prog.filter(v=>v).length
-    ctx.fillStyle=TH.dim; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText(`进度: ${passed}/8`,W/2,tsy+th+16*S)
-
-    const sty=tsy+th+28*S, isz=W/4.5, cols=3
-    const gx=(W-cols*isz)/(cols+1), gy=24*S
-
-    BASE_LEVELS.forEach((lv,i)=>{
-      const col=i%cols, row=Math.floor(i/cols)
-      const x=gx+col*(isz+gx), y=sty+row*(isz+gy+24*S)
-      const cx=x+isz/2, cy=y+isz/2
-      const ul=this.storage.isLevelUnlocked(lv.levelId)
-      const pa=this.storage.getLevelPassedInDifficulty(lv.levelId,this.curDiff)
-      const a=A[lv.enemy.attr]
-
-      ctx.save()
-      if(ul){
-        ctx.beginPath(); ctx.arc(cx,cy,isz/2+4*S,0,Math.PI*2)
-        ctx.fillStyle=pa?'rgba(245,166,35,0.15)':a.gw.replace('0.5','0.1'); ctx.fill()
-        ctx.beginPath(); ctx.arc(cx,cy,isz/2,0,Math.PI*2)
-        const rg=ctx.createRadialGradient(cx-isz*0.15,cy-isz*0.15,0,cx,cy,isz/2)
-        rg.addColorStop(0,a.lt); rg.addColorStop(0.7,a.main); rg.addColorStop(1,a.dk); ctx.fillStyle=rg; ctx.fill()
-        ctx.beginPath(); ctx.ellipse(cx,cy-isz*0.18,isz*0.32,isz*0.2,0,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fill()
-      } else {
-        ctx.beginPath(); ctx.arc(cx,cy,isz/2,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill()
-      }
-      ctx.beginPath(); ctx.arc(cx,cy,isz/2,0,Math.PI*2)
-      ctx.strokeStyle=pa?TH.accent:ul?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.06)'; ctx.lineWidth=pa?2.5*S:1*S; ctx.stroke()
-
-      ctx.globalAlpha=ul?1:0.35; ctx.fillStyle='#fff'
-      ctx.font=`bold ${24*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-      ctx.fillText(ul?lv.levelId:'🔒',cx,cy-2*S)
-      ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.fillText(lv.levelName,cx,cy+isz/2+16*S)
-      if(pa){ ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.fillText('★ 已通关',cx,cy+14*S) }
-      ctx.restore()
+  // ===== 装备管理 =====
+  rEquipManage() {
+    R.drawBg(this.af); R.drawTopBar('装备管理',true)
+    const m=14*S, startY=safeTop+56*S
+    // 当前佩戴
+    ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText('当前佩戴', m, startY)
+    const eqW = (W-m*2-10*S)/2, eqH = 50*S
+    const slots = Object.keys(EQUIP_SLOT)
+    slots.forEach((slot,i) => {
+      const col=i%2, row=Math.floor(i/2)
+      const ex=m+col*(eqW+10*S), ey=startY+22*S+row*(eqH+6*S)
+      R.drawEquipCard(ex,ey,eqW,eqH,this.storage.equipped[slot],false,this.af)
     })
+    // 背包标题
+    const bagY = startY+22*S + 3*(eqH+6*S) + 10*S
+    ctx.fillStyle=TH.text; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`背包 (${this.storage.inventory.length})`, m, bagY)
+    // 背包列表
+    const inv = this.storage.inventory
+    inv.forEach((eq,i) => {
+      const iy = bagY+22*S + i*(eqH+6*S) - this.scrollY
+      if (iy < bagY || iy > H) return
+      const isEquipped = Object.values(this.storage.equipped).some(e => e && e.uid === eq.uid)
+      R.drawEquipCard(m,iy,W-m*2,eqH,eq,isEquipped,this.af)
+    })
+    this.maxScrollY = Math.max(0, inv.length*(eqH+6*S) - (H-bagY-22*S) + 40*S)
   }
 
   // ===== 战斗准备 =====
-  rPrep() {
+  rBattlePrepare() {
     R.drawBg(this.af); R.drawTopBar('战斗准备',true)
-    const barH=safeTop+44*S, lv=this.lvData; if(!lv) return
-    const a=A[lv.enemy.attr]
-
-    // 难度标识
-    ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText(`【${DIFFICULTY[this.curDiff].name}】`,W/2,barH+18*S)
-
-    ctx.fillStyle=TH.text; ctx.font=`bold ${18*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`第${lv.levelId}关 · ${lv.levelName}`,W/2,barH+40*S)
-
-    const cy2=barH+55*S, cw=W*0.7, ch2=150*S, cx2=(W-cw)/2
-    ctx.fillStyle=TH.card; R.rr(cx2,cy2,cw,ch2,12*S); ctx.fill()
-    ctx.strokeStyle=TH.cardB; ctx.lineWidth=1; R.rr(cx2,cy2,cw,ch2,12*S); ctx.stroke()
-
-    const ey=cy2+50*S
-    R.drawEnemy(W/2,ey,32*S,lv.enemy.attr,this.af,lv.enemy.sprite)
-    ctx.fillStyle='#fff'; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText(lv.enemy.enemyName,W/2,ey+44*S)
-    ctx.fillStyle=a.lt; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${lv.enemy.attr}属性  ·  HP ${lv.enemy.hp}  ·  ATK ${lv.enemy.atk}`,W/2,ey+60*S)
-
-    // 敌方AI提示
-    if(lv.enemyAI){
-      ctx.fillStyle=TH.danger; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-      if(this.curDiff==='hard') ctx.fillText('⚠ 敌方每2回合释放技能',W/2,ey+76*S)
-      else if(this.curDiff==='extreme') ctx.fillText('⚠ 敌方每回合50%概率释放强力技能',W/2,ey+76*S)
+    if (!this.curLevel) return
+    const m=14*S, startY=safeTop+56*S
+    const lv = this.curLevel
+    const a = ATTR_COLOR[lv.enemy.attr]
+    // 敌人信息
+    R.drawDarkPanel(m,startY,W-m*2,100*S,12*S)
+    R.drawEnemy(m+50*S, startY+50*S, 30*S, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
+    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
+    ctx.fillText(`ATK: ${lv.enemy.atk}`, m+90*S, startY+38*S)
+    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`难度: ${DIFFICULTY[lv.difficulty].name}`, m+90*S, startY+56*S)
+    if (lv.specialCond) {
+      ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+90*S, startY+72*S)
     }
-
-    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('— 我方队伍 —',W/2,cy2+ch2+24*S)
-    const tcy=cy2+ch2+50*S, ir=22*S, team=this.getTeam()
-    team.forEach((c2,i)=>{ if(!c2) return; const x=W/2+(i-(team.length-1)/2)*(ir*2+12*S); R.drawChar(x,tcy,ir,c2,false,this.af) })
-
-    const bw=W*0.38,bh=44*S,byy=H*0.84
-    R.drawBtn(W/2-bw-8*S,byy,bw,bh,'编辑队伍',TH.info,'#2471a3',13,this.btnP.pt)
-    R.drawBtn(W/2+8*S,byy,bw,bh,'开始战斗',TH.danger,'#a93226',13,this.btnP.ps)
+    // 装备概览
+    const eqY = startY+116*S
+    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.fillText('出战装备', m, eqY)
+    const eqW = (W-m*2-10*S)/2, eqH = 46*S
+    Object.keys(EQUIP_SLOT).forEach((slot,i) => {
+      const col=i%2, row=Math.floor(i/2)
+      R.drawEquipCard(m+col*(eqW+10*S), eqY+20*S+row*(eqH+6*S), eqW, eqH, this.storage.equipped[slot], false, this.af)
+    })
+    // 主角信息
+    const stats = this.storage.getHeroStats()
+    const infoY = eqY+20*S + 3*(eqH+6*S) + 10*S
+    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`主角 ATK:${stats.atk} HP:${stats.hp} DEF:${stats.def}`, m, infoY)
+    // 出战按钮
+    R.drawBtn(W/2-55*S, infoY+30*S, 110*S, 40*S, '出 战', TH.danger)
   }
 
-  // ===== 队伍编辑 =====
-  rTeam() {
-    R.drawBg(this.af); R.drawTopBar('编辑队伍',true)
-    const barH=safeTop+44*S, tcY=barH+8*S, tcH=110*S
-
-    ctx.fillStyle=TH.card; ctx.fillRect(0,tcY,W,tcH)
-    ctx.strokeStyle=TH.cardB; ctx.lineWidth=0.5; ctx.beginPath(); ctx.moveTo(0,tcY+tcH); ctx.lineTo(W,tcY+tcH); ctx.stroke()
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('当前队伍（点击头像移除）',W/2,tcY+14*S)
-
-    const sy=tcY+45*S, sr=22*S
-    for(let i=0;i<6;i++){
-      const x=W/2+(i-2.5)*(sr*2+12*S), cid=this.storage.teamData[i]
-      const ch=cid?CHARACTERS.find(c=>c.charId===cid):null
-      if(ch){ R.drawChar(x,sy,sr,ch,false,this.af) }
-      else { ctx.beginPath(); ctx.arc(x,sy,sr,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1.5*S; ctx.setLineDash([4*S,4*S]); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle=TH.dim; ctx.font=`${22*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('+',x,sy) }
-      if(i===0||i===5){ ctx.fillStyle=i===0?TH.accent:A['暗'].lt; ctx.font=`bold ${8*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText(i===0?'队长':'友队长',x,sy+sr+12*S) }
+  // ===== 战斗 =====
+  rBattle() {
+    R.drawBg(this.af)
+    // 顶部信息
+    const topY = safeTop+4*S
+    // 退出按钮
+    ctx.fillStyle='rgba(255,255,255,0.08)'; R.rr(10*S,topY,40*S,20*S,10*S); ctx.fill()
+    ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('退出',30*S,topY+10*S)
+    // 回合数
+    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='right'; ctx.fillText(`回合 ${this.turnCount}`,W-12*S,topY+10*S)
+    // 难度
+    if (this.curLevel) {
+      const d = DIFFICULTY[this.curLevel.difficulty]
+      ctx.fillStyle=d.color; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'; ctx.fillText(d.name, W/2, topY+10*S)
     }
 
-    const lY=tcY+tcH+12*S
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('可用角色（点击添加到队伍）',W/2,lY+4*S)
+    // 敌人区
+    const eiR = 28*S, eiY = topY+50*S
+    if (this.curLevel) {
+      R.drawEnemy(W/2, eiY, eiR, this.curLevel.enemy.attr, this.enemyHp, this.enemyMaxHp,
+        this.curLevel.enemy.name, this.curLevel.enemy.avatar, this.af)
+    }
 
-    const cdH=62*S, cdW=W-28*S, cdX=14*S
-    this.storage.unlockedChars.forEach((cid,i)=>{
-      const ch=CHARACTERS.find(c=>c.charId===cid); if(!ch) return
-      const y=lY+20*S+i*(cdH+8*S), inT=this.storage.teamData.includes(cid), a=A[ch.attr]
-      const gro=this.storage.getCharGrowth(cid)
-      ctx.fillStyle=inT?'rgba(255,255,255,0.02)':TH.card; R.rr(cdX,y,cdW,cdH,10*S); ctx.fill()
-      ctx.strokeStyle=inT?'rgba(255,255,255,0.04)':TH.cardB; ctx.lineWidth=0.5; R.rr(cdX,y,cdW,cdH,10*S); ctx.stroke()
-      ctx.fillStyle=a.main; R.rr(cdX,y,3.5*S,cdH,2*S); ctx.fill()
-      R.drawChar(cdX+36*S,y+cdH/2,18*S,ch,false,this.af)
-      ctx.globalAlpha=inT?0.35:1; ctx.fillStyle=TH.text; ctx.textAlign='left'; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`; ctx.textBaseline='middle'
-      ctx.fillText(ch.charName,cdX+62*S,y+16*S)
-      ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.fillStyle=a.lt
-      ctx.fillText(`${ch.attr}属性  Lv.${gro.level}`,cdX+62*S,y+32*S)
-      const st=this.storage.getCharStats(ch)
-      ctx.fillStyle=TH.sub; ctx.fillText(`ATK ${st.atk}  ·  HP ${st.hp}`,cdX+62*S,y+47*S)
-      if(ch.activeSkill){ ctx.textAlign='right'; ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.fillText(`${ch.activeSkill.skillName} (CD${Math.floor(st.cd)})`,cdX+cdW-10*S,y+24*S) }
-      if(inT){ ctx.textAlign='right'; ctx.fillStyle=TH.dim; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.fillText('已编入',cdX+cdW-10*S,y+44*S) }
-      ctx.globalAlpha=1; ctx.textAlign='center'; ctx.textBaseline='middle'
+    // 主角HP
+    const heroHpY = eiY+eiR+36*S
+    ctx.fillStyle=TH.text; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.fillText(`主角 HP`, 14*S, heroHpY-4*S)
+    R.drawHp(14*S, heroHpY+6*S, W-28*S, 6*S, this.heroHp, this.heroMaxHp, TH.success)
+    ctx.fillStyle=TH.sub; ctx.font=`${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='right'; ctx.fillText(`${this.heroHp}/${this.heroMaxHp}`, W-14*S, heroHpY-4*S)
+
+    // 绝技蓄力区（佩戴的装备）
+    const ultY = heroHpY+20*S
+    const equipped = this.storage.equipped
+    let ultIdx = 0
+    Object.keys(equipped).forEach(slot => {
+      const eq = equipped[slot]
+      if (!eq) return
+      const ux = 14*S + ultIdx*(56*S), uy = ultY
+      const cur = this.skillTriggers[eq.attr] || 0
+      const ready = cur >= eq.ultTrigger
+      R.drawUltGauge(ux,uy,50*S,10*S, cur, eq.ultTrigger, ready, ATTR_COLOR[eq.attr].main, this.af)
+      ctx.fillStyle=TH.sub; ctx.font=`${8*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'; ctx.fillText(ATTR_NAME[eq.attr], ux+25*S, uy+14*S)
+      ultIdx++
     })
 
-    R.drawBtn((W-W*0.5)/2,H-70*S,W*0.5,44*S,'确认',TH.success,'#1e8449',15,this.btnP.tc)
+    // Combo显示
+    if (this.combo > 0) {
+      ctx.fillStyle=TH.accent; ctx.font=`bold ${20*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText(`${this.combo} Combo!`, W/2, ultY+32*S)
+    }
+
+    // 棋盘
+    const midY = ultY+44*S
+    this._drawBoard(midY)
+
+    // 伤害飘字
+    this.dmgFloats.forEach(f => R.drawDmgFloat(f.x,f.y,f.text,f.color,f.alpha,f.scale))
+    // 技能特效
+    this.skillEffects.forEach(e => R.drawSkillEffect(e.x,e.y,e.text,e.color,e.alpha))
+
+    // 掉落弹窗
+    if (this.dropPopup) {
+      R.drawDropPopup(30*S,H*0.2,W-60*S,H*0.45,this.dropPopup,this.af)
+      // 按钮
+      const btnY = H*0.2+H*0.45-44*S
+      R.drawBtn(40*S,btnY,100*S,34*S,'装备',TH.success)
+      R.drawBtn(W-140*S,btnY,100*S,34*S,'暂存',TH.info)
+    }
+
+    // 胜负
+    if (this.bState === 'victory') {
+      ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
+      ctx.fillStyle=TH.accent; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.35)
+      ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.43)
+      R.drawBtn(W/2-50*S,H*0.52,100*S,36*S,'返回',TH.accent)
+    }
+    if (this.bState === 'defeat') {
+      ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
+      ctx.fillStyle=TH.danger; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('💀 失败',W/2,H*0.35)
+      R.drawBtn(W/2-50*S,H*0.45,100*S,36*S,'返回',TH.danger)
+    }
   }
 
-  // ===== 角色养成详情 =====
-  rCharDetail() {
-    R.drawBg(this.af); R.drawTopBar('角色养成',true)
-    const barH=safeTop+44*S
-    const chars=this.storage.unlockedChars
-    if(chars.length===0){ ctx.fillStyle=TH.sub; ctx.font=`${14*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('暂无角色',W/2,H*0.4); return }
-
-    const cdH=130*S, cdW=W-28*S, cdX=14*S
-    chars.forEach((cid,i)=>{
-      const ch=CHARACTERS.find(c=>c.charId===cid); if(!ch) return
-      const gro=this.storage.getCharGrowth(cid), a=A[ch.attr], st=this.storage.getCharStats(ch)
-      const y=barH+16*S+i*(cdH+10*S)
-
-      ctx.fillStyle=TH.card; R.rr(cdX,y,cdW,cdH,12*S); ctx.fill()
-      ctx.strokeStyle=TH.cardB; ctx.lineWidth=1; R.rr(cdX,y,cdW,cdH,12*S); ctx.stroke()
-      ctx.fillStyle=a.main; R.rr(cdX,y,4*S,cdH,2*S); ctx.fill()
-
-      R.drawChar(cdX+40*S,y+36*S,24*S,ch,false,this.af)
-      ctx.fillStyle=TH.text; ctx.textAlign='left'; ctx.font=`bold ${15*S}px "PingFang SC",sans-serif`; ctx.textBaseline='middle'
-      ctx.fillText(ch.charName,cdX+72*S,y+18*S)
-      ctx.fillStyle=a.lt; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`${ch.attr}属性  Lv.${gro.level}/${20+gro.breakCount*5}  突破${gro.breakCount}/3`,cdX+72*S,y+36*S)
-      ctx.fillStyle=TH.sub; ctx.fillText(`ATK ${st.atk}  HP ${st.hp}`,cdX+72*S,y+52*S)
-      if(ch.activeSkill) ctx.fillText(`技能: ${ch.activeSkill.skillName} Lv.${gro.skillLevel} CD${Math.floor(st.cd)}`,cdX+72*S,y+67*S)
-
-      // 3个操作按钮
-      const bw2=cdW/3-8*S, bh2=28*S, by2=y+cdH-38*S
-      R.drawBtn(cdX+8*S,by2,bw2,bh2,'升级',TH.info,'#2471a3',10)
-      R.drawBtn(cdX+8*S+bw2+6*S,by2,bw2,bh2,'强化技能',TH.hard,'#e67e22',10)
-      R.drawBtn(cdX+8*S+(bw2+6*S)*2,by2,bw2,bh2,'突破',TH.danger,'#a93226',10)
-    })
-
-    // 材料信息
-    const m=this.storage.materials
-    const my=barH+16*S+chars.length*(cdH+10*S)+6*S
-    ctx.fillStyle=TH.card; R.rr(cdX,my,cdW,50*S,10*S); ctx.fill()
-    ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-    ctx.fillText(`经验道具: ${m.expItem}  技能材料: ${m.skillMat}  突破材料: ${m.rareMat}`,W/2,my+16*S)
-    const stones=Object.entries(m.attrStone).map(([k,v])=>`${k}${v}`).join(' ')
-    ctx.fillText(`属性石: ${stones}`,W/2,my+36*S)
+  _drawBoard(topY) {
+    const padX = 8*S
+    this.cellSize = (W-padX*2)/COLS
+    this.boardX = padX; this.boardY = topY
+    const cs = this.cellSize, bx = this.boardX, by = this.boardY
+    // 棋盘背景
+    ctx.fillStyle='rgba(10,10,25,0.7)'
+    R.rr(bx-4*S,by-4*S,cs*COLS+8*S,cs*ROWS+8*S,10*S); ctx.fill()
+    // 珠子
+    for (let r=0; r<ROWS; r++) {
+      for (let c=0; c<COLS; c++) {
+        const cell = this.board[r]?.[c]
+        if (!cell) continue
+        let cx = bx + c*cs + cs/2
+        let cy = by + r*cs + cs/2
+        // 拖拽中的珠子
+        if (this.dragging && r===this.dragR && c===this.dragC) {
+          cx += this.dragOX; cy += this.dragOY
+          // 拖尾
+          this.dragTrail.forEach((t,i) => {
+            ctx.save(); ctx.globalAlpha = 0.15*(1-i/this.dragTrail.length)
+            R.drawBead(t.x,t.y,cs*0.38,cell,this.af)
+            ctx.restore()
+          })
+        }
+        // 消除标记
+        if (cell._elim) {
+          ctx.save(); ctx.globalAlpha = 0.4 + 0.3*Math.sin(this.af*0.15)
+          R.drawBead(cx,cy,cs*0.42,cell._attr||cell,this.af)
+          ctx.restore()
+        } else {
+          const attr = typeof cell === 'string' ? cell : cell
+          R.drawBead(cx,cy,cs*0.42,attr,this.af)
+        }
+      }
+    }
   }
 
   // ===== 每日任务 =====
   rDailyTask() {
     R.drawBg(this.af); R.drawTopBar('每日任务',true)
-    const barH=safeTop+44*S, dt=this.storage.dailyTask
-    const taskTexts=['完成1次任意关卡挑战','达成1次Combo≥5','挑战1次周回/困难关卡']
-    const mx=20*S, tw=W-40*S, sy=barH+20*S
-
-    taskTexts.forEach((t,i)=>{
-      R.drawTaskCard(mx,sy+i*50*S,tw,40*S,t,dt.tasks[i])
+    const m=14*S, startY=safeTop+56*S
+    const tasks = this.storage.dailyTask.tasks
+    tasks.forEach((t,i) => {
+      const ty = startY + i*56*S
+      R.drawTaskCard(m,ty,W-m*2,48*S,t)
     })
-
-    const ay=sy+160*S
-    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText('全部完成可领取稀有材料×1',W/2,ay)
-    const allDone=dt.tasks.every(v=>v)
-    const bw=W*0.5,bh=42*S
-    if(allDone&&!dt.rewardGot) R.drawBtn((W-bw)/2,ay+16*S,bw,bh,'领取奖励',TH.accent,'#d4941e',14,this.btnP.dr)
-    else if(dt.rewardGot){ ctx.fillStyle=TH.success; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`; ctx.fillText('✓ 已领取',W/2,ay+38*S) }
-
-    // 周回挑战区域
-    const wy=ay+80*S
-    ctx.fillStyle=TH.text; ctx.font=`bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText('周回挑战',W/2,wy)
-    const wc=this.storage.weeklyChallenge
-    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`本周关卡: 第${wc.weeklyLevelId}关  ·  剩余次数: ${wc.count}/3`,W/2,wy+24*S)
-    ctx.fillText(`最佳Combo: ${wc.bestCombo}`,W/2,wy+42*S)
-    if(wc.count>0) R.drawBtn((W-bw)/2,wy+56*S,bw,bh,'挑战周回',TH.info,'#2471a3',14,this.btnP.wc)
+    // 全完成奖励
+    if (tasks.every(t=>t.done) && !this.storage.dailyTask.allClaimed) {
+      const by = startY + tasks.length*56*S + 10*S
+      R.drawBtn(m,by,W-m*2,36*S,'领取全部完成奖励',TH.accent)
+    }
   }
 
   // ===== 成就 =====
   rAchievement() {
     R.drawBg(this.af); R.drawTopBar('成就',true)
-    const barH=safeTop+44*S
-    const list=this.storage.getAchievementList()
-    const mx=20*S, tw=W-40*S
-
-    list.forEach((ach,i)=>{
-      const y=barH+16*S+i*60*S
-      const data=this.storage.achievements[ach.id]
-      const done=data&&data.completed
-      ctx.fillStyle=done?'rgba(39,174,96,0.08)':TH.card; R.rr(mx,y,tw,50*S,10*S); ctx.fill()
-      ctx.strokeStyle=done?TH.success:TH.cardB; ctx.lineWidth=1; R.rr(mx,y,tw,50*S,10*S); ctx.stroke()
-      ctx.fillStyle=done?TH.success:TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle'
-      ctx.fillText((done?'✓ ':'')+ach.name,mx+12*S,y+16*S)
+    const m=14*S, startY=safeTop+56*S
+    const achs = this.storage.achievements
+    Object.entries(achs).forEach(([id,a],i) => {
+      const ay = startY + i*56*S
+      R.drawDarkPanel(m,ay,W-m*2,48*S,8*S)
+      ctx.fillStyle = a.done ? TH.success : TH.text
+      ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='left'; ctx.textBaseline='middle'
+      ctx.fillText((a.done?'✓ ':'')+a.name, m+12*S, ay+16*S)
       ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(ach.desc,mx+12*S,y+36*S)
-      if(done&&data&&!data.claimedReward){
-        R.drawBtn(mx+tw-70*S,y+10*S,60*S,30*S,'领取',TH.accent,'#d4941e',10)
+      ctx.fillText(a.desc, m+12*S, ay+34*S)
+      if (a.done && !a.claimed) {
+        R.drawBtn(W-m-70*S, ay+10*S, 58*S, 28*S, '领取', TH.accent)
       }
     })
   }
 
-  // ===== 战斗界面 =====
-  rBattle() {
-    const g=ctx.createLinearGradient(0,0,0,H)
-    g.addColorStop(0,'#080814'); g.addColorStop(0.35,'#10102a'); g.addColorStop(1,'#060610')
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H)
-    const t=this.af*0.01
-    R.bgStars.forEach(s=>{
-      ctx.fillStyle=`rgba(255,255,255,${0.15+0.2*Math.sin(t*s.sp*5+s.ph)})`
-      ctx.beginPath(); ctx.arc(s.x,(s.y+this.af*s.sp*0.3)%H,s.r*S,0,Math.PI*2); ctx.fill()
+  // ===== 底部导航 =====
+  _drawNav(active) {
+    const navH = 56*S, navY = H-navH-10*S
+    ctx.fillStyle='rgba(12,12,28,0.88)'
+    R.rr(8*S,navY,W-16*S,navH,14*S); ctx.fill()
+    const items = [
+      { id:'battle',icon:'assets/nav_icons/nav_battle.png',text:'战斗' },
+      { id:'themeSelect',icon:'assets/nav_icons/nav_level.png',text:'关卡' },
+      { id:'equipManage',icon:'assets/nav_icons/nav_team.png',text:'装备' },
+      { id:'dailyTask',icon:'assets/nav_icons/nav_quest.png',text:'任务' },
+      { id:'achievement',icon:'assets/nav_icons/nav_achievement.png',text:'成就' },
+    ]
+    const iw = (W-16*S)/items.length
+    items.forEach((it,i) => {
+      R.drawNavBtn(8*S+i*iw, navY, iw, navH, it.icon, it.text, active===it.id || active==='home'&&i===0)
     })
-
-    const lv=this.lvData; if(!lv) return; const a=A[lv.enemy.attr]
-
-    // 第一行：退出 + 难度 + 回合
-    const row1Y=safeTop+4*S
-    const qx=10*S, qy=row1Y, qw=40*S, qh=20*S
-    ctx.fillStyle='rgba(255,255,255,0.08)'; R.rr(qx,qy,qw,qh,qh/2); ctx.fill()
-    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-    ctx.fillText('‹ 退出',qx+qw/2,qy+qh/2)
-    ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle'
-    ctx.fillText(DIFFICULTY[this.curDiff].name,qx+qw+8*S,qy+qh/2)
-    ctx.fillStyle=TH.dim; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='right'; ctx.textBaseline='middle'
-    ctx.fillText(`回合 ${this.turn}`,W-14*S,qy+qh/2)
-
-    // 第二行：敌人图标 + HP条 + 名字
-    const row2Y=row1Y+qh+6*S
-    const eiR=20*S, eiX=14*S+eiR, eiY=row2Y+eiR
-    R.drawEnemy(eiX,eiY,eiR,lv.enemy.attr,this.af,lv.enemy.sprite)
-    ctx.fillStyle=TH.sub; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='top'
-    ctx.fillText(lv.enemy.enemyName,eiX,eiY+eiR+4*S)
-
-    const ehX=eiX+eiR+10*S, ehY=row2Y+6*S, ehW=W-ehX-14*S
-    R.drawHp(ehX,ehY,ehW,12*S,this.eDisp,this.eMax,TH.danger,'#c0392b')
-    ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='left'; ctx.textBaseline='top'
-    ctx.fillText(`${Math.ceil(this.eDisp)} / ${this.eMax}`,ehX,ehY+16*S)
-
-    if(lv.enemy.skill){
-      const tl=lv.enemy.skill.triggerTurn-((this.turn-1)%lv.enemy.skill.triggerTurn+1)
-      ctx.textAlign='right'; ctx.fillStyle=tl<=0?TH.danger:TH.dim; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`; ctx.textBaseline='top'
-      ctx.fillText(`⚡ ${tl+1}`,W-14*S,ehY+16*S)
-    }
-
-    // 我方HP
-    const midY=row2Y+eiR*2+22*S
-    R.drawHp(14*S,midY,W-28*S,10*S,this.tDisp,this.tMax,TH.success,'#1e8449')
-    ctx.fillStyle=TH.dim; ctx.font=`${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText(`HP ${Math.ceil(this.tDisp)} / ${this.tMax}`,W/2,midY+20*S)
-
-    // 队伍
-    const cY=midY+44*S, cR=W/16, cSp=W/(this.teamChars.length+1)
-    this.teamChars.forEach((ch,i)=>{
-      if(!ch) return; const x=cSp*(i+1), cd0=ch._cd===0&&ch.activeSkill
-      R.drawChar(x,cY,cR,ch,cd0,this.af)
-      if(ch.activeSkill){
-        const bx=x+cR*0.65, by2=cY-cR*0.65, br=8*S
-        ctx.beginPath(); ctx.arc(bx,by2,br,0,Math.PI*2)
-        if(ch._cd>0){ ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fill(); ctx.fillStyle='#fff'; ctx.font=`bold ${8*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ch._cd,bx,by2) }
-        else { ctx.fillStyle=`rgba(245,166,35,${0.6+0.4*Math.sin(this.af*0.12)})`; ctx.fill(); ctx.fillStyle='#fff'; ctx.font=`bold ${9*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('!',bx,by2) }
-      }
-      ctx.fillStyle=TH.dim; ctx.font=`${8*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText(ch.charName,x,cY+cR+11*S)
-    })
-
-    // 状态
-    const stY=cY+cR+26*S
-    ctx.textAlign='center'; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
-    const sm={playerTurn:{t:'▶ 滑动转珠',c:TH.accent},eliminating:{t:'⚡ 消除中...',c:TH.danger},settling:{t:'⚡ 结算中...',c:TH.danger},enemyTurn:{t:'⚠ 敌方回合',c:'#ff6b6b'},victory:{t:'🎉 胜利！',c:TH.success},defeat:{t:'💀 失败',c:TH.danger}}
-    const s=sm[this.bState]; if(s){ ctx.fillStyle=s.c; ctx.fillText(s.t,W/2,stY) }
-
-    // 宝珠封锁提示
-    if(this.lockedBead){ ctx.fillStyle=TH.danger; ctx.font=`${10*S}px "PingFang SC",sans-serif`; ctx.fillText(`⚠ ${this.lockedBead}珠已被封锁`,W/2,stY+16*S) }
-
-    this.rBoard()
-
-    // Combo
-    if(this.comboT>0&&this.comboDisp>0){
-      const ca=Math.min(1,this.comboT/20), cs=1+0.2*(1-ca)
-      ctx.save(); ctx.globalAlpha=ca; ctx.translate(W/2,this.by-20*S); ctx.scale(cs,cs)
-      ctx.shadowColor=TH.accent; ctx.shadowBlur=15*S; ctx.fillStyle=TH.accent
-      ctx.font=`bold ${34*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-      ctx.fillText(`${this.comboDisp} Combo!`,0,0); ctx.shadowBlur=0; ctx.restore()
-    }
-
-    this.dmgFloats.forEach(d=>{
-      const al=Math.min(1,d.life*2.5)
-      ctx.save(); ctx.globalAlpha=al; ctx.translate(d.x,d.y); ctx.scale(d.sa,d.sa)
-      ctx.shadowColor=d.color; ctx.shadowBlur=8*S; ctx.fillStyle=d.color
-      ctx.font=`bold ${d.size}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
-      ctx.fillText(d.text,0,0); ctx.shadowBlur=0; ctx.restore()
-    })
-
-    this.particles.forEach(p=>{ ctx.globalAlpha=p.life*0.8; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill() })
-    ctx.globalAlpha=1
-
-    if(this.bState==='victory') this.rVicModal()
-    if(this.bState==='defeat') this.rDefModal()
-    if(this.showGuide) this.rGuide()
+    this._navItems = items
+    this._navY = navY; this._navH = navH; this._navIW = iw
   }
 
-  rBoard() {
-    const ox=this.bx,oy=this.by,bs=this.bs,p=8*S
-    ctx.fillStyle='rgba(0,0,0,0.35)'; R.rr(ox-p,oy-p,this.cols*bs+p*2,this.rows*bs+p*2,12*S); ctx.fill()
-    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; R.rr(ox-p,oy-p,this.cols*bs+p*2,this.rows*bs+p*2,12*S); ctx.stroke()
-    ctx.strokeStyle='rgba(255,255,255,0.03)'; ctx.lineWidth=0.5
-    for(let i=1;i<this.rows;i++){ ctx.beginPath(); ctx.moveTo(ox,oy+i*bs); ctx.lineTo(ox+this.cols*bs,oy+i*bs); ctx.stroke() }
-    for(let j=1;j<this.cols;j++){ ctx.beginPath(); ctx.moveTo(ox+j*bs,oy); ctx.lineTo(ox+j*bs,oy+this.rows*bs); ctx.stroke() }
+  // ===== 触摸处理 =====
+  onTouch(type, e) {
+    const t = e.touches[0] || e.changedTouches[0]
+    if (!t) return
+    const x = t.clientX * (W/wx.getSystemInfoSync().windowWidth)
+    const y = t.clientY * (H/wx.getSystemInfoSync().windowHeight)
 
-    const isDragging=this.isDrag&&this.selBead
-
-    for(let i=0;i<this.rows;i++) for(let j=0;j<this.cols;j++){
-      const b=this.beads[i]&&this.beads[i][j]; if(!b) continue
-      const cx=ox+j*bs+bs/2, cy=oy+i*bs+bs/2
-      if(b._elim){ const al=1-this.elimProg, sc=1-this.elimProg*0.3; if(al<=0) continue; ctx.globalAlpha=al; R.drawBead(cx,cy,(bs/2-3*S)*sc,b.attr); ctx.globalAlpha=1; continue }
-      if(b.alpha<=0) continue
-      // 拖拽中：选中珠子不在原位绘制（改在手指位置浮层绘制），原位留半透明占位
-      if(isDragging&&this.selBead.row===i&&this.selBead.col===j){
-        ctx.globalAlpha=0.25
-        R.drawBead(cx,cy,bs/2-3*S,b.attr)
-        ctx.globalAlpha=1
-        continue
-      }
-      const r=(bs/2-3*S)*(b.scale||1)
-      const locked=this.lockedBead&&b.attr===this.lockedBead
-      ctx.globalAlpha=(b.alpha||1)*(locked?0.35:1)
-      R.drawBead(cx+(b.offsetX||0),cy+(b.offsetY||0),r,b.attr)
-      ctx.globalAlpha=1
+    switch(this.scene) {
+      case 'home':          this.tHome(type,x,y); break
+      case 'themeSelect':   this.tThemeSelect(type,x,y); break
+      case 'levelSelect':   this.tLevelSelect(type,x,y); break
+      case 'equipManage':   this.tEquipManage(type,x,y); break
+      case 'battlePrepare': this.tBattlePrepare(type,x,y); break
+      case 'battle':        this.tBattle(type,x,y); break
+      case 'dailyTask':     this.tDailyTask(type,x,y); break
+      case 'achievement':   this.tAchievement(type,x,y); break
     }
+  }
 
-    // 拖尾轨迹
-    if(isDragging){
-      const sb=this.beads[this.selBead.row][this.selBead.col], a=A[sb.attr]
-      // 轨迹光点
-      this.dragTrail.forEach(pt=>{
-        ctx.globalAlpha=pt.life*0.5
-        ctx.fillStyle=pt.color
-        ctx.beginPath(); ctx.arc(pt.x,pt.y,(3+pt.life*4)*S,0,Math.PI*2); ctx.fill()
+  // --- 首页触摸 ---
+  tHome(type,x,y) {
+    if (type !== 'end') return
+    const m=16*S
+    const oy = safeTop+80*S
+    // 开始战斗按钮
+    const lvCardY = oy+60*S+10*S, lvCardH = 80*S
+    if (this._hitRect(x,y,W-m-90*S,lvCardY+lvCardH-34*S,80*S,28*S)) {
+      this._startBattle(this.storage.currentLevel, this.selDiff)
+      return
+    }
+    // 底部导航
+    this._handleNav(x,y)
+  }
+
+  // --- 主题选择触摸 ---
+  tThemeSelect(type,x,y) {
+    if (type !== 'end') return
+    const m=14*S, startY=safeTop+56*S
+    // 返回
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
+    // 难度Tab
+    const tabY = startY, tabW=60*S, tabH=26*S
+    Object.values(DIFFICULTY).forEach((d,i) => {
+      if (this._hitRect(x,y,m+i*(tabW+8*S),tabY,tabW,tabH)) this.selDiff = d.id
+    })
+    // 主题列表
+    const listY = tabY+tabH+12*S, cardH=58*S, gap=8*S
+    getAllThemes().forEach((t,i) => {
+      if (this._hitRect(x,y,m,listY+i*(cardH+gap),W-m*2,cardH)) {
+        this.selTheme = t.id; this.goTo('levelSelect')
+      }
+    })
+  }
+
+  // --- 关卡列表触摸 ---
+  tLevelSelect(type,x,y) {
+    if (type === 'move' && this._lastTouchY !== undefined) {
+      this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY - (y-this._lastTouchY)))
+      this._lastTouchY = y; return
+    }
+    if (type === 'start') { this._lastTouchY = y; return }
+    if (type !== 'end') return
+    this._lastTouchY = undefined
+    // 返回
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
+    // 关卡
+    const m=14*S, startY=safeTop+56*S, cardH=52*S, gap=6*S
+    const levels = getThemeLevels(this.selTheme)
+    levels.forEach((lv,i) => {
+      const ly = startY + i*(cardH+gap) - this.scrollY
+      if (this._hitRect(x,y,m,ly,W-m*2,cardH)) {
+        this._startBattle(lv.levelId, this.selDiff)
+      }
+    })
+  }
+
+  // --- 装备管理触摸 ---
+  tEquipManage(type,x,y) {
+    if (type === 'move' && this._lastTouchY !== undefined) {
+      this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY - (y-this._lastTouchY)))
+      this._lastTouchY = y; return
+    }
+    if (type === 'start') { this._lastTouchY = y; return }
+    if (type !== 'end') return
+    this._lastTouchY = undefined
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
+    // 背包物品点击 → 装备/卸下
+    const m=14*S, startY=safeTop+56*S
+    const eqW = (W-m*2-10*S)/2, eqH = 50*S
+    const bagY = startY+22*S + 3*(eqH+6*S) + 10*S
+    const inv = this.storage.inventory
+    inv.forEach((eq,i) => {
+      const iy = bagY+22*S + i*(eqH+6*S) - this.scrollY
+      if (this._hitRect(x,y,m,iy,W-m*2,eqH)) {
+        const isEquipped = Object.values(this.storage.equipped).some(e => e && e.uid === eq.uid)
+        if (isEquipped) {
+          this.storage.unequipSlot(eq.slot)
+        } else {
+          this.storage.equipItem(eq.uid)
+        }
+      }
+    })
+  }
+
+  // --- 战斗准备触摸 ---
+  tBattlePrepare(type,x,y) {
+    if (type !== 'end') return
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
+    // 出战按钮
+    const stats = this.storage.getHeroStats()
+    const eqH = 46*S, startY=safeTop+56*S
+    const eqY = startY+116*S
+    const infoY = eqY+20*S + 3*(eqH+6*S) + 10*S
+    if (this._hitRect(x,y,W/2-55*S,infoY+30*S,110*S,40*S)) {
+      this._enterBattle()
+    }
+  }
+
+  // --- 战斗触摸 ---
+  tBattle(type,x,y) {
+    // 掉落弹窗
+    if (this.dropPopup) {
+      if (type !== 'end') return
+      const btnY = H*0.2+H*0.45-44*S
+      if (this._hitRect(x,y,40*S,btnY,100*S,34*S)) {
+        // 装备
+        const eq = this.dropPopup
+        this.tempEquips.push(eq)
+        // 如果对应槽位为空则直接装上（临时）
+        this.dropPopup = null
+      } else if (this._hitRect(x,y,W-140*S,btnY,100*S,34*S)) {
+        // 暂存
+        this.tempEquips.push(this.dropPopup)
+        this.dropPopup = null
+      }
+      return
+    }
+    // 胜负按钮
+    if (this.bState === 'victory' || this.bState === 'defeat') {
+      if (type === 'end' && this._hitRect(x,y,W/2-50*S,this.bState==='victory'?H*0.52:H*0.45,100*S,36*S)) {
+        this.bState = 'none'; this.goBack()
+      }
+      return
+    }
+    // 退出按钮
+    if (type === 'end' && this._hitRect(x,y,10*S,safeTop+4*S,40*S,20*S)) {
+      this.bState = 'none'; this.goBack(); return
+    }
+    // 绝技点击
+    const ultY = safeTop+4*S+50*S+28*S+36*S+20*S
+    const equipped = this.storage.equipped
+    let ultIdx = 0
+    if (type === 'end' && this.bState === 'playerTurn') {
+      Object.keys(equipped).forEach(slot => {
+        const eq = equipped[slot]
+        if (!eq) return
+        const ux = 14*S + ultIdx*(56*S), uy = ultY
+        if (this._hitRect(x,y,ux,uy,50*S,18*S)) {
+          const cur = this.skillTriggers[eq.attr] || 0
+          if (cur >= eq.ultTrigger) {
+            this._triggerUlt(eq)
+          }
+        }
+        ultIdx++
       })
-      ctx.globalAlpha=1
-
-      // 浮层珠子：放大1.25x + 发光
-      const dr=((bs/2-3*S)*1.25)
-      ctx.save()
-      // 外圈发光
-      ctx.shadowColor=a.main; ctx.shadowBlur=18*S
-      ctx.beginPath(); ctx.arc(this.dragX,this.dragY,dr+4*S,0,Math.PI*2)
-      ctx.fillStyle=a.gw; ctx.fill()
-      ctx.shadowBlur=0; ctx.restore()
-      R.drawBead(this.dragX,this.dragY,dr,sb.attr)
-      // 白色选中环
-      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2.5*S; ctx.beginPath(); ctx.arc(this.dragX,this.dragY,dr+3*S,0,Math.PI*2); ctx.stroke()
     }
-  }
-
-  rVicModal() {
-    ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,0,W,H)
-    const mw=W*0.82,mh=310*S,mx=(W-mw)/2,my=(H-mh)/2
-    ctx.fillStyle='#161630'; R.rr(mx,my,mw,mh,16*S); ctx.fill()
-    const tg=ctx.createLinearGradient(mx,my,mx+mw,my); tg.addColorStop(0,TH.accent); tg.addColorStop(0.5,TH.danger); tg.addColorStop(1,TH.accent)
-    ctx.fillStyle=tg; R.rr(mx,my,mw,4*S,16*S); ctx.fill()
-    ctx.strokeStyle='rgba(245,166,35,0.2)'; ctx.lineWidth=1; R.rr(mx,my,mw,mh,16*S); ctx.stroke()
-
-    ctx.save(); ctx.shadowColor=TH.accent; ctx.shadowBlur=15*S; ctx.fillStyle=TH.accent
-    ctx.font=`bold ${28*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('战斗胜利！',W/2,my+45*S); ctx.shadowBlur=0; ctx.restore()
-
-    const lv=this.lvData
-    ctx.fillStyle=DC[this.curDiff]; ctx.font=`bold ${11*S}px "PingFang SC",sans-serif`; ctx.fillText(`【${DIFFICULTY[this.curDiff].name}】`,W/2,my+70*S)
-    ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`; ctx.fillText(`💰 金币 +${lv.reward.gold}`,W/2,my+95*S)
-    if(lv.reward.charId){ const nc=CHARACTERS.find(c=>c.charId===lv.reward.charId); if(nc){ ctx.fillStyle=A[nc.attr].lt; ctx.fillText(`🎁 解锁: ${nc.charName}`,W/2,my+117*S) } }
-
-    // 材料奖励提示
-    const matTxt=this.curDiff==='normal'?'经验×2 材料×1':this.curDiff==='hard'?'经验×4 材料×2 技能材料×1':'经验×6 材料×3 技能材料×2 突破材料×1'
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.fillText(`📦 ${matTxt}`,W/2,my+140*S)
-    ctx.fillStyle=TH.dim; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.fillText(`用时 ${this.turn} 回合  最高Combo ${this.combo}`,W/2,my+162*S)
-
-    const bw2=mw*0.38,bh2=40*S,byy=my+mh-62*S
-    R.drawBtn(mx+12*S,byy,bw2,bh2,'返回关卡',TH.info,'#2471a3',13)
-    if(BASE_LEVELS.find(l=>l.levelId===lv.levelId+1)) R.drawBtn(mx+mw-bw2-12*S,byy,bw2,bh2,'下一关',TH.danger,'#a93226',13)
-  }
-
-  rDefModal() {
-    ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,0,W,H)
-    const mw=W*0.82,mh=230*S,mx=(W-mw)/2,my=(H-mh)/2
-    ctx.fillStyle='#161630'; R.rr(mx,my,mw,mh,16*S); ctx.fill()
-    ctx.fillStyle=TH.danger; R.rr(mx,my,mw,4*S,16*S); ctx.fill()
-    ctx.strokeStyle='rgba(231,76,60,0.2)'; ctx.lineWidth=1; R.rr(mx,my,mw,mh,16*S); ctx.stroke()
-
-    ctx.fillStyle=TH.danger; ctx.font=`bold ${28*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'; ctx.fillText('战斗失败',W/2,my+50*S)
-    ctx.fillStyle=TH.sub; ctx.font=`${13*S}px "PingFang SC",sans-serif`; ctx.fillText('调整队伍再来一次！',W/2,my+90*S)
-
-    const bw2=mw*0.38,bh2=40*S,byy=my+mh-60*S
-    R.drawBtn(mx+12*S,byy,bw2,bh2,'返回关卡',TH.info,'#2471a3',13)
-    R.drawBtn(mx+mw-bw2-12*S,byy,bw2,bh2,'重新挑战',TH.danger,'#a93226',13)
-  }
-
-  rGuide() {
-    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
-    const ts=['滑动宝珠，连成3个及以上\n即可消除！','消除宝珠可触发攻击\n对敌方造成伤害！','点击角色头像\n可释放主动技能！','通关可获得奖励\n解锁新角色！']
-    const txt=ts[this.guideStep]||'', ls=txt.split('\n')
-    const bw=W*0.72,bh=110*S,bx2=(W-bw)/2,by2=H*0.35
-    ctx.fillStyle='rgba(22,22,48,0.95)'; R.rr(bx2,by2,bw,bh,14*S); ctx.fill()
-    ctx.strokeStyle=TH.accent; ctx.lineWidth=1.5*S; R.rr(bx2,by2,bw,bh,14*S); ctx.stroke()
-    ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ls.forEach((l,i)=>ctx.fillText(l,W/2,by2+32*S+i*24*S))
-    ctx.fillStyle=TH.accent; ctx.font=`${12*S}px "PingFang SC",sans-serif`; ctx.fillText(`点击继续 (${this.guideStep+1}/4)`,W/2,by2+bh-14*S)
-  }
-
-  // ===== 游戏逻辑 =====
-  initBoard() {
-    let att=0
-    do {
-      this.beads=[]
-      for(let i=0;i<this.rows;i++){ const row=[]
-        for(let j=0;j<this.cols;j++){ let at
-          do { at=BEAD_ATTRS[Math.floor(Math.random()*6)] }
-          while((j>=2&&row[j-1].attr===at&&row[j-2].attr===at)||(i>=2&&this.beads[i-1][j].attr===at&&this.beads[i-2][j].attr===at))
-          row.push({attr:at,scale:1,alpha:1,offsetX:0,offsetY:0}) }
-        this.beads.push(row) }
-      att++
-    } while(this.checkElim().length>0&&att<100)
-  }
-
-  checkElim() {
-    const gs=[], mk=Array.from({length:this.rows},()=>Array(this.cols).fill(false))
-    for(let i=0;i<this.rows;i++) for(let j=0;j<this.cols-2;j++){
-      const at=this.beads[i][j].attr
-      if(at===this.beads[i][j+1].attr&&at===this.beads[i][j+2].attr){
-        let e=j+2; while(e+1<this.cols&&this.beads[i][e+1].attr===at) e++
-        const g2={attr:at,cells:[]}; for(let k=j;k<=e;k++) if(!mk[i][k]){g2.cells.push({row:i,col:k});mk[i][k]=true}
-        if(g2.cells.length>0) gs.push(g2); j=e } }
-    for(let j=0;j<this.cols;j++) for(let i=0;i<this.rows-2;i++){
-      const at=this.beads[i][j].attr
-      if(at===this.beads[i+1][j].attr&&at===this.beads[i+2][j].attr){
-        let e=i+2; while(e+1<this.rows&&this.beads[e+1][j].attr===at) e++
-        const g2={attr:at,cells:[]}; for(let k=i;k<=e;k++) if(!mk[k][j]){g2.cells.push({row:k,col:j});mk[k][j]=true}
-        if(g2.cells.length>0) gs.push(g2); i=e } }
-    return gs
-  }
-
-  execElim(groups) {
-    this.bState='eliminating'; this.elimGroups=groups
-    this.allElimGroups=[...(this.allElimGroups||[]),...groups]; this.elimAnim=30; this.elimProg=0
-    let hc=0
-    groups.forEach(g=>g.cells.forEach(({row,col})=>{
-      const b=this.beads[row][col]; b._elim=true; if(b.attr==='心') hc++
-      const cx=this.bx+col*this.bs+this.bs/2, cy=this.by+row*this.bs+this.bs/2, cl=A[b.attr].lt
-      for(let p=0;p<8;p++){ const ang=Math.PI*2*p/8; this.particles.push({x:cx,y:cy,vx:Math.cos(ang)*(2+Math.random()*2),vy:Math.sin(ang)*(2+Math.random()*2)-1,r:(2+Math.random()*2)*S,color:cl,life:1}) }
-    }))
-    this.combo+=groups.length; this.comboDisp=this.combo; this.comboT=60
-    music.playEliminate(); this._phc=(this._phc||0)+hc
-  }
-
-  afterElim() {
-    for(let j=0;j<this.cols;j++){
-      const nc=[]; for(let i=this.rows-1;i>=0;i--) if(!this.beads[i][j]._elim) nc.unshift(this.beads[i][j])
-      while(nc.length<this.rows){ let at; do{at=BEAD_ATTRS[Math.floor(Math.random()*6)]}while(nc.length>=2&&nc[0].attr===at&&nc[1].attr===at); nc.unshift({attr:at,scale:1,alpha:1,offsetX:0,offsetY:0}) }
-      for(let i=0;i<this.rows;i++) this.beads[i][j]=nc[i]
-    }
-    const ng=this.checkElim()
-    if(ng.length>0) setTimeout(()=>this.execElim(ng),300)
-    else this.settle()
-  }
-
-  settle() {
-    this.bState='settling'; const hc=this._phc||0; this._phc=0
-    const lr=this.getLeaderRate(), acs={}, gs=this.allElimGroups||this.elimGroups
-    gs.forEach(g=>{ acs[g.attr]=(acs[g.attr]||0)+g.cells.length })
-    let td=0; const cr=Math.pow(1.2,this.combo-1)
-    this.teamChars.forEach(ch=>{
-      if(!ch||!acs[ch.attr]) return
-      const st=this.storage.getCharStats(ch)
-      let d=st.atk*cr*lr
-      if(COUNTER_MAP[ch.attr]===this.lvData.enemy.attr) d*=1.5
-      td+=Math.floor(d)
-    })
-    let th=hc*1000*this.healRate
-    // 记录combo
-    if(this.combo>0) this.storage.recordCombo(this.combo)
-    this.eHp=Math.max(0,this.eHp-td); this.tHp=Math.min(this.tMax,this.tHp+th)
-    if(td>0){ this.dmgFloats.push({x:W/2,y:safeTop+60*S,text:`-${td}`,color:TH.danger,size:26*S,life:1.5,sa:0}); this.shakeT=12; this.shakeI=6*S; music.playAttack() }
-    if(th>0) this.dmgFloats.push({x:W/2,y:H*0.32,text:`+${Math.floor(th)}`,color:TH.success,size:20*S,life:1.5,sa:0})
-    setTimeout(()=>{ if(this.eHp<=0) this.victory(); else this.enemyTurn() },1000)
-  }
-
-  getLeaderRate() { const l=this.teamChars[0]; return l&&l.leaderSkill?l.leaderSkill.effectRate:1 }
-
-  enemyTurn() {
-    this.bState='enemyTurn'; this.turn++
-    this.teamChars.forEach(ch=>{ if(ch&&ch.activeSkill&&ch._cd>0) ch._cd-- })
-    this.lockedBead=null; this.healRate=1 // 重置封锁和减回血
-
-    const en=this.lvData.enemy
-    const baseAtk=en.skill&&(this.turn%en.skill.triggerTurn===0)
-    const ai=this.lvData.enemyAI
-
-    setTimeout(()=>{
-      let dmg=0, aiMsg=''
-
-      // 基础攻击
-      if(baseAtk){
-        dmg=en.atk
+    // 棋盘拖拽
+    if (this.bState !== 'playerTurn') return
+    const cs = this.cellSize, bx = this.boardX, by = this.boardY
+    if (type === 'start') {
+      const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
+      if (r>=0 && r<ROWS && c>=0 && c<COLS) {
+        this.dragging = true; this.dragR = r; this.dragC = c
+        this.dragOX = 0; this.dragOY = 0; this.dragTrail = []
       }
-
-      // 困难AI：每2回合释放小技能
-      if(ai&&this.curDiff==='hard'&&this.turn%2===0){
-        const sk=ai.skills[Math.floor(Math.random()*ai.skills.length)]
-        if(sk.type==='reduceHeal'){ this.healRate=0.5; aiMsg='敌方减少我方50%回血！' }
-        else if(sk.type==='lockBead'){ this.lockedBead=BEAD_ATTRS[Math.floor(Math.random()*5)]; aiMsg=`敌方封锁${this.lockedBead}珠1回合！` }
-      }
-
-      // 极难AI：每回合50%释放强力技能
-      if(ai&&this.curDiff==='extreme'&&Math.random()<0.5){
-        const sk=ai.skills[Math.floor(Math.random()*ai.skills.length)]
-        if(sk.type==='aoeAttack'){ dmg=Math.floor(en.atk*1.5); aiMsg='敌方释放全屏伤害！' }
-        else if(sk.type==='convertBead'){
-          for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.beads[r][c].attr===sk.from) this.beads[r][c].attr=sk.to
-          aiMsg='敌方将所有心珠转为暗珠！'
+    } else if (type === 'move' && this.dragging) {
+      const cx = bx+this.dragC*cs+cs/2, cy = by+this.dragR*cs+cs/2
+      this.dragOX = x - cx; this.dragOY = y - cy
+      this.dragTrail.unshift({x,y}); if(this.dragTrail.length>8) this.dragTrail.pop()
+      // 交换判定
+      const dc = Math.round(this.dragOX/cs), dr = Math.round(this.dragOY/cs)
+      if ((Math.abs(dc)===1&&dr===0) || (dc===0&&Math.abs(dr)===1)) {
+        const nr=this.dragR+dr, nc=this.dragC+dc
+        if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS) {
+          this._swapBeads(this.dragR,this.dragC,nr,nc)
+          this.dragR=nr; this.dragC=nc; this.dragOX=0; this.dragOY=0
         }
       }
-
-      if(dmg>0){
-        this.tHp=Math.max(0,this.tHp-dmg)
-        this.dmgFloats.push({x:W/2,y:H*0.28,text:`-${dmg}`,color:'#ff6b6b',size:24*S,life:1.5,sa:0})
-        this.shakeT=15; this.shakeI=8*S; music.playAttack()
-      }
-      if(aiMsg) this.showToast(aiMsg)
-
-      setTimeout(()=>{
-        if(this.tHp<=0) this.bState='defeat'
-        else this.startPT()
-      }, dmg>0||aiMsg?1000:200)
-    },800)
-  }
-
-  startPT() { this.bState='playerTurn'; this.combo=0; this._phc=0; this.elimGroups=[]; this.allElimGroups=[] }
-
-  victory() {
-    this.bState='victory'
-    this.storage.passLevel(this.lvData.levelId, this.lvData.reward, this.curDiff)
-    this.storage.addMaterials(this.curDiff)
-    this.storage.updateBestRecord(this.lvData.levelId, this.curDiff, this.turn, this.combo)
-    // 检查成就
-    const newAch=this.storage.checkAchievements()
-    if(newAch.length>0) setTimeout(()=>this.showToast(`🏆 达成成就: ${newAch[0].name}`),1500)
-  }
-
-  startBattle(lv) {
-    this.lvData=lv; this.sceneStack.push(this.scene); this.scene='battle'; this.ta=1
-    this.teamChars=this.getTeam()
-
-    // 应用养成属性
-    this.teamChars.forEach(ch=>{
-      if(!ch) return
-      const st=this.storage.getCharStats(ch)
-      ch._realAtk=st.atk; ch._realHp=st.hp
-      if(ch.activeSkill) ch._cd=Math.floor(st.cd)
-    })
-
-    this.eMax=lv.enemy.hp; this.eHp=lv.enemy.hp; this.eDisp=lv.enemy.hp
-    this.tMax=this.teamChars.reduce((s,c)=>s+(c?this.storage.getCharStats(c).hp:0),0)
-    this.tHp=this.tMax; this.tDisp=this.tMax
-    this.turn=1; this.combo=0; this.dmgFloats=[]; this.particles=[]
-    this._phc=0; this.allElimGroups=[]; this.lockedBead=null; this.healRate=1
-    this.initBoard(); this.bState='playerTurn'
-    if(!this.storage.firstEnter){ this.showGuide=true; this.guideStep=0 }
-  }
-
-  getTeam() { return this.storage.teamData.map(id=>{ if(!id) return null; const c=CHARACTERS.find(c2=>c2.charId===id); return c?JSON.parse(JSON.stringify(c)):null }) }
-
-  useSkill(i) {
-    const ch=this.teamChars[i]; if(!ch||!ch.activeSkill||ch._cd>0||this.bState!=='playerTurn') return
-    const sk=ch.activeSkill
-    if(sk.effectType==='beadConvert') for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.beads[r][c].attr===sk.param.fromBead) this.beads[r][c].attr=sk.param.toBead
-    const st=this.storage.getCharStats(ch)
-    ch._cd=Math.floor(st.cd); music.playEliminate()
-    const gs=this.checkElim(); if(gs.length>0) this.execElim(gs)
-  }
-
-  // ===== 触摸 =====
-  bindTouch() {
-    wx.onTouchStart(e=>{ const t=e.touches[0]; this.handleTouch(t.clientX*DPR,t.clientY*DPRH) })
-    wx.onTouchMove(e=>{ if(!this.isDrag||this.scene!=='battle') return; const t=e.touches[0]; this.handleMove(t.clientX*DPR,t.clientY*DPRH) })
-    wx.onTouchEnd(()=>{ this.btnP={}; if(this.isDrag&&this.scene==='battle') this.handleEnd(); this.isDrag=false })
-  }
-
-  handleTouch(x,y) {
-    if(this.showGuide){ this.guideStep++; if(this.guideStep>=4){this.showGuide=false;this.storage.setFirstEnter()}; return }
-    switch(this.scene){
-      case 'home': this.tHome(x,y); break
-      case 'levelSelect': this.tLevels(x,y); break
-      case 'teamEdit': this.tTeam(x,y); break
-      case 'battlePrepare': this.tPrep(x,y); break
-      case 'battle': this.tBattle(x,y); break
-      case 'charDetail': this.tCharDetail(x,y); break
-      case 'dailyTask': this.tDailyTask(x,y); break
-      case 'achievement': this.tAchievement(x,y); break
-    }
-  }
-
-  ir(px,py,rx,ry,rw,rh){ return px>=rx&&px<=rx+rw&&py>=ry&&py<=ry+rh }
-
-  tHome(x,y) {
-    const navH=38*S, navY=H-navH-6*S
-    const navBtns=['hs','hl','ht','hg','hd','ha']
-    const navGap=5*S, navPad=14*S
-    const navInnerW=W-navPad*2
-    const navBtnW=(navInnerW-(navBtns.length-1)*navGap)/navBtns.length
-    for(let i=0;i<navBtns.length;i++){
-      const nx=navPad+i*(navBtnW+navGap)
-      if(this.ir(x,y,nx,navY,navBtnW,navH)){
-        const key=navBtns[i]
-        this.btnP[key]=true
-        switch(key){
-          case 'hs': this.lvData=getLevelData(this.storage.currentLevel,this.curDiff)||getLevelData(1,this.curDiff); this.goTo('battlePrepare'); break
-          case 'hl': this.goTo('levelSelect'); break
-          case 'ht': this.goTo('teamEdit'); break
-          case 'hg': this.goTo('charDetail'); break
-          case 'hd': this.storage.checkDailyReset(); this.storage.checkWeeklyReset(); this.goTo('dailyTask'); break
-          case 'ha': this.goTo('achievement'); break
-        }
-        return
+    } else if (type === 'end') {
+      if (this.dragging) {
+        this.dragging = false; this.dragOX=0; this.dragOY=0; this.dragTrail=[]
+        // 检查消除
+        this._checkAndElim()
       }
     }
   }
 
-  tLevels(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-
-    const barH=safeTop+44*S
-    const diffs=['normal','hard','extreme']
-    const tw=W*0.28, th=30*S, tsy=barH+10*S, tgap=6*S
-    const tsx=(W-tw*3-tgap*2)/2
-    for(let i=0;i<3;i++){
-      const tx=tsx+i*(tw+tgap)
-      if(this.ir(x,y,tx,tsy,tw,th)&&this.storage.isDifficultyUnlocked(diffs[i])){
-        this.curDiff=diffs[i]; this.storage.currentDifficulty=diffs[i]; this.storage.save(); return
-      }
-    }
-
-    const sty=tsy+th+28*S, isz=W/4.5, cols=3, gx=(W-cols*isz)/(cols+1), gy=24*S
-    BASE_LEVELS.forEach((lv,i)=>{
-      const col=i%cols, row=Math.floor(i/cols)
-      const cx=gx+col*(isz+gx)+isz/2, cy=sty+row*(isz+gy+24*S)+isz/2
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<=isz/2&&this.storage.isLevelUnlocked(lv.levelId)){
-        this.lvData=getLevelData(lv.levelId,this.curDiff)
-        this.goTo('battlePrepare')
-      }
-    })
+  // --- 每日任务触摸 ---
+  tDailyTask(type,x,y) {
+    if (type !== 'end') return
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
   }
 
-  tPrep(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-    const bw=W*0.38,bh=44*S,byy=H*0.84
-    if(this.ir(x,y,W/2-bw-8*S,byy,bw,bh)){ this.btnP.pt=true; this.goTo('teamEdit'); return }
-    if(this.ir(x,y,W/2+8*S,byy,bw,bh)){ this.btnP.ps=true; this.startBattle(this.lvData); return }
-  }
-
-  tTeam(x,y) {
-    const barH=safeTop+44*S
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-    const tcY=barH+8*S,sy=tcY+45*S,sr=22*S
-    for(let i=0;i<6;i++){ const sx=W/2+(i-2.5)*(sr*2+12*S); if(Math.sqrt((x-sx)**2+(y-sy)**2)<=sr){ if(this.storage.teamData[i]){this.storage.teamData[i]=null;this.storage.save()}; return } }
-    const lY=tcY+110*S+12*S, cdH=62*S, cdW=W-28*S, cdX=14*S
-    this.storage.unlockedChars.forEach((cid,i)=>{ const cy=lY+20*S+i*(cdH+8*S)
-      if(this.ir(x,y,cdX,cy,cdW,cdH)){ if(this.storage.teamData.includes(cid)) return; const es=this.storage.teamData.indexOf(null); if(es!==-1){this.storage.teamData[es]=cid;this.storage.save()} } })
-    if(this.ir(x,y,(W-W*0.5)/2,H-70*S,W*0.5,44*S)){ this.btnP.tc=true; this.goBack() }
-  }
-
-  tCharDetail(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-    const barH=safeTop+44*S, cdH=130*S, cdW=W-28*S, cdX=14*S
-    const chars=this.storage.unlockedChars
-    chars.forEach((cid,i)=>{
-      const ch=CHARACTERS.find(c=>c.charId===cid); if(!ch) return
-      const y2=barH+16*S+i*(cdH+10*S)
-      const bw2=cdW/3-8*S, bh2=28*S, by2=y2+cdH-38*S
-      if(this.ir(x,y,cdX+8*S,by2,bw2,bh2)){ const r=this.storage.levelUp(cid); this.showToast(r.msg); return }
-      if(this.ir(x,y,cdX+8*S+bw2+6*S,by2,bw2,bh2)){ if(!ch.activeSkill){this.showToast('无主动技能');return}; const r=this.storage.skillUpgrade(cid); this.showToast(r.msg); return }
-      if(this.ir(x,y,cdX+8*S+(bw2+6*S)*2,by2,bw2,bh2)){ const r=this.storage.charBreak(cid,ch.attr); this.showToast(r.msg); return }
-    })
-  }
-
-  tDailyTask(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-    const barH=safeTop+44*S, ay=barH+20*S+160*S, bw=W*0.5, bh=42*S
-    if(this.ir(x,y,(W-bw)/2,ay+16*S,bw,bh)){
-      const r=this.storage.claimDailyReward(); if(r.success) this.showToast(r.msg); else this.showToast(r.msg)
-    }
-    const wy=ay+80*S
-    if(this.ir(x,y,(W-bw)/2,wy+56*S,bw,bh)){
-      const wc=this.storage.weeklyChallenge
-      if(wc.count<=0){ this.showToast('今日次数已用完'); return }
-      const lv=getLevelData(wc.weeklyLevelId,this.curDiff)
-      if(lv){ this._isWeekly=true; this.startBattle(lv) }
-    }
-  }
-
-  tAchievement(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
-    const barH=safeTop+44*S, list=this.storage.getAchievementList(), mx=20*S, tw=W-40*S
-    list.forEach((ach,i)=>{
-      const y2=barH+16*S+i*60*S
-      const data=this.storage.achievements[ach.id]
-      if(data&&data.completed&&!data.claimedReward){
-        if(this.ir(x,y,mx+tw-70*S,y2+10*S,60*S,30*S)){
-          this.storage.claimAchievementReward(ach.id); this.showToast('奖励已领取')
+  // --- 成就触摸 ---
+  tAchievement(type,x,y) {
+    if (type !== 'end') return
+    if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
+    const m=14*S, startY=safeTop+56*S
+    Object.entries(this.storage.achievements).forEach(([id,a],i) => {
+      if (a.done && !a.claimed) {
+        if (this._hitRect(x,y,W-m-70*S,startY+i*56*S+10*S,58*S,28*S)) {
+          this.storage.claimAchievement(id)
         }
       }
     })
   }
 
-  tBattle(x,y) {
-    // 退出按钮（任何非弹窗状态下都可以点）
-    const qx=10*S, qy=safeTop+4*S, qw=40*S, qh=20*S
-    if(this.bState!=='victory'&&this.bState!=='defeat'&&this.ir(x,y,qx,qy,qw,qh)){
-      this.goBack(); return
-    }
-
-    if(this.bState==='victory'){
-      const mw=W*0.82,mh=310*S,mx=(W-mw)/2,my=(H-mh)/2,bw2=mw*0.38,bh2=40*S,byy=my+mh-62*S
-      if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){
-        if(this._isWeekly){ this._isWeekly=false; this.storage.useWeeklyChallenge(this.combo) }
-        this.goBack(); return
+  // --- 导航处理 ---
+  _handleNav(x,y) {
+    if (!this._navItems || y < this._navY || y > this._navY+this._navH) return
+    const idx = Math.floor((x-8*S)/this._navIW)
+    if (idx >= 0 && idx < this._navItems.length) {
+      const target = this._navItems[idx].id
+      if (target === 'battle') {
+        this._startBattle(this.storage.currentLevel, this.selDiff)
+      } else {
+        this.goTo(target)
       }
-      const nl=BASE_LEVELS.find(l=>l.levelId===this.lvData.levelId+1)
-      if(nl&&this.ir(x,y,mx+mw-bw2-12*S,byy,bw2,bh2)){
-        this.lvData=getLevelData(nl.levelId,this.curDiff); this.startBattle(this.lvData); return
-      }; return
     }
-    if(this.bState==='defeat'){
-      const mw=W*0.82,mh=230*S,mx=(W-mw)/2,my=(H-mh)/2,bw2=mw*0.38,bh2=40*S,byy=my+mh-60*S
-      if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){ this.goBack(); return }
-      if(this.ir(x,y,mx+mw-bw2-12*S,byy,bw2,bh2)){ this.startBattle(this.lvData); return }; return
-    }
-    if(this.bState!=='playerTurn') return
-
-    const row1Y=safeTop+4*S,qh2=20*S,row2Y=row1Y+qh2+6*S,eiR=20*S
-    const midY=row2Y+eiR*2+22*S, cY=midY+44*S, cR=W/16, cSp=W/(this.teamChars.length+1)
-    for(let i=0;i<this.teamChars.length;i++){ const ch=this.teamChars[i]; if(!ch) continue; if(Math.sqrt((x-cSp*(i+1))**2+(y-cY)**2)<=cR){ this.useSkill(i); return } }
-
-    const col=Math.floor((x-this.bx)/this.bs), row=Math.floor((y-this.by)/this.bs)
-    if(row>=0&&row<this.rows&&col>=0&&col<this.cols){ this.isDrag=true; this.selBead={row,col}; this.lastSwap=null; this.beads[row][col].scale=1.1; this.dragX=x; this.dragY=y; this.dragTrail=[] }
   }
 
-  handleMove(x,y) {
-    if(!this.selBead||this.bState!=='playerTurn') return
-    this.dragX=x; this.dragY=y
-    // 拖尾粒子
-    const sb=this.selBead, a=A[this.beads[sb.row][sb.col].attr]
-    if(this.dragTrail.length<40) this.dragTrail.push({x,y,life:1,color:a.lt})
-    const col=Math.floor((x-this.bx)/this.bs), row=Math.floor((y-this.by)/this.bs)
-    if(row<0||row>=this.rows||col<0||col>=this.cols) return
-    if(row===this.selBead.row&&col===this.selBead.col) return
-    if(Math.abs(row-this.selBead.row)+Math.abs(col-this.selBead.col)!==1) return
-    const sr=this.selBead.row,sc=this.selBead.col, bs=this.bs
-    // 交换弹性偏移（被交换的珠子从目标位弹回）
-    const dx=(sc-col)*bs, dy=(sr-row)*bs
-    const tmp=this.beads[sr][sc]; this.beads[sr][sc]=this.beads[row][col]; this.beads[row][col]=tmp
-    this.beads[sr][sc].offsetX=dx; this.beads[sr][sc].offsetY=dy
-    this.lastSwap={row,col}; this.selBead={row,col}
+  // ===== 战斗逻辑 =====
+  _startBattle(levelId, difficulty) {
+    this.curLevel = getLevelData(levelId, difficulty)
+    if (!this.curLevel) { this.curLevel = getLevelData(ALL_LEVELS[0].levelId, 'normal') }
+    this.goTo('battlePrepare')
   }
 
-  handleEnd() {
-    if(!this.selBead||this.bState!=='playerTurn') return
-    this.beads[this.selBead.row][this.selBead.col].scale=1
-    this.dragTrail=[]
-    const gs=this.checkElim()
-    if(gs.length>0) this.execElim(gs)
-    this.selBead=null; this.lastSwap=null
+  _enterBattle() {
+    const lv = this.curLevel
+    const stats = this.storage.getHeroStats()
+    this.enemyHp = lv.enemy.hp; this.enemyMaxHp = lv.enemy.hp
+    this.heroHp = stats.hp; this.heroMaxHp = stats.hp; this.heroShield = stats.def
+    this.heroBuffs = []; this.enemyBuffs = []
+    this.combo = 0; this.turnCount = 1
+    this.skillTriggers = {}; this.ultReady = {}
+    this.pendingUlt = null; this.tempEquips = []; this.dropPopup = null
+    this.dmgFloats = []; this.skillEffects = []
+    this._initBoard()
+    this.bState = 'playerTurn'
+    this.scene = 'battle'
+  }
+
+  _initBoard() {
+    const weights = this.curLevel?.beadWeights || { fire:17,water:17,wood:17,light:17,dark:16,heart:16 }
+    const pool = []
+    ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
+    this.board = []
+    for (let r=0; r<ROWS; r++) {
+      this.board[r] = []
+      for (let c=0; c<COLS; c++) {
+        let attr
+        do {
+          attr = pool[Math.floor(Math.random()*pool.length)]
+        } while (this._wouldMatch(r,c,attr))
+        this.board[r][c] = attr
+      }
+    }
+  }
+
+  _wouldMatch(r,c,attr) {
+    // 横向
+    if (c>=2 && this.board[r][c-1]===attr && this.board[r][c-2]===attr) return true
+    // 纵向
+    if (r>=2 && this.board[r-1]?.[c]===attr && this.board[r-2]?.[c]===attr) return true
+    return false
+  }
+
+  _swapBeads(r1,c1,r2,c2) {
+    const t = this.board[r1][c1]
+    this.board[r1][c1] = this.board[r2][c2]
+    this.board[r2][c2] = t
+    MusicMgr.playEliminate()
+  }
+
+  _checkAndElim() {
+    const sets = this._findMatches()
+    if (sets.length > 0) {
+      this.combo = 0
+      this.elimSets = sets
+      this.bState = 'eliminating'
+    }
+    // 无消除 = 回合结束
+    else if (this.turnCount > 0) {
+      this._enemyTurn()
+    }
+  }
+
+  _findMatches() {
+    const marks = Array.from({length:ROWS},()=>Array(COLS).fill(false))
+    // 横向
+    for (let r=0;r<ROWS;r++) {
+      for (let c=0;c<=COLS-3;c++) {
+        const a=this.board[r][c]
+        if (a && this.board[r][c+1]===a && this.board[r][c+2]===a) {
+          let end=c+2; while(end+1<COLS && this.board[r][end+1]===a) end++
+          for(let i=c;i<=end;i++) marks[r][i]=true
+        }
+      }
+    }
+    // 纵向
+    for (let c=0;c<COLS;c++) {
+      for (let r=0;r<=ROWS-3;r++) {
+        const a=this.board[r][c]
+        if (a && this.board[r+1]?.[c]===a && this.board[r+2]?.[c]===a) {
+          let end=r+2; while(end+1<ROWS && this.board[end+1]?.[c]===a) end++
+          for(let i=r;i<=end;i++) marks[i][c]=true
+        }
+      }
+    }
+    // 收集消除组（按属性分组）
+    const groups = {}
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+      if(marks[r][c]) {
+        const a=this.board[r][c]
+        if(!groups[a]) groups[a]={attr:a,count:0,cells:[]}
+        groups[a].count++; groups[a].cells.push({r,c})
+      }
+    }
+    return Object.values(groups)
+  }
+
+  _processElim() {
+    if (!this.elimSets || this.elimSets.length === 0) {
+      // 填充 → 再检测
+      this._fillBoard()
+      const newSets = this._findMatches()
+      if (newSets.length > 0) {
+        this.elimSets = newSets
+      } else {
+        // 消除结束 → 结算
+        this._settle()
+      }
+      return
+    }
+    // 清除标记的珠子
+    this.combo++
+    const allElim = {}
+    this.elimSets.forEach(g => {
+      if(!allElim[g.attr]) allElim[g.attr]=0
+      allElim[g.attr] += g.count
+      g.cells.forEach(({r,c}) => this.board[r][c] = null)
+    })
+    // 触发技能
+    this._triggerSkills(allElim)
+    MusicMgr.playEliminate()
+    this.shakeT = 6; this.shakeI = 4*S
+    this.elimSets = []
+  }
+
+  _fillBoard() {
+    const weights = this.curLevel?.beadWeights || { fire:17,water:17,wood:17,light:17,dark:16,heart:16 }
+    const pool = []
+    ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
+    // 下落
+    for(let c=0;c<COLS;c++) {
+      let empty=0
+      for(let r=ROWS-1;r>=0;r--) {
+        if(!this.board[r][c]) empty++
+        else if(empty>0) {
+          this.board[r+empty][c]=this.board[r][c]; this.board[r][c]=null
+        }
+      }
+      for(let r=0;r<empty;r++) {
+        this.board[r][c] = pool[Math.floor(Math.random()*pool.length)]
+      }
+    }
+  }
+
+  _triggerSkills(elimMap) {
+    // elimMap: { attr: count }
+    const equipped = this.storage.equipped
+    Object.entries(elimMap).forEach(([attr,count]) => {
+      if (count < 3) return
+      // 心珠回血
+      if (attr === 'heart') {
+        const healAmt = count * 100
+        this.heroHp = Math.min(this.heroMaxHp, this.heroHp + healAmt)
+        this.dmgFloats.push({ x:W/2, y:H*0.4, text:`+${healAmt}`, color:TH.success, alpha:1, scale:1, t:0 })
+      }
+      // 触发所有同属性装备的普通技能
+      Object.values(equipped).forEach(eq => {
+        if (!eq || eq.attr !== attr) return
+        const sk = eq.skill
+        let dmg = sk.dmg || 0
+        let heal = sk.heal || 0
+        // Combo加成
+        const comboMul = 1 + (this.combo-1)*0.1
+        dmg = Math.round(dmg * comboMul)
+        // 属性克制
+        if (this.curLevel && COUNTER_MAP[attr] === this.curLevel.enemy.attr) {
+          dmg = Math.round(dmg * 1.5)
+          this.skillEffects.push({ x:W/2, y:H*0.3, text:'克制! ×1.5', color:TH.accent, alpha:1, t:0 })
+        }
+        // 造成伤害
+        if (dmg > 0) {
+          this.enemyHp = Math.max(0, this.enemyHp - dmg)
+          this.dmgFloats.push({ x:W/2+Math.random()*40*S-20*S, y:H*0.25, text:`-${dmg}`, color:TH.danger, alpha:1, scale:1.2, t:0 })
+          this.skillEffects.push({ x:W/2, y:H*0.35, text:sk.name, color:ATTR_COLOR[attr].main, alpha:1, t:0 })
+        }
+        // 回血
+        if (heal > 0) {
+          this.heroHp = Math.min(this.heroMaxHp, this.heroHp + heal)
+          this.dmgFloats.push({ x:W/2, y:H*0.5, text:`+${heal}`, color:TH.success, alpha:1, scale:1, t:0 })
+        }
+        // 减伤
+        if (sk.def) this.heroShield += sk.def
+        // debuff
+        if (sk.debuff && this.curLevel) {
+          this.enemyBuffs.push({ type:'atkDown', val:sk.debuff, dur:2 })
+        }
+        // 蓄力
+        if (!this.skillTriggers[attr]) this.skillTriggers[attr] = 0
+        this.skillTriggers[attr]++
+        // 任务计数
+        this.storage.updateTaskProgress('dt2', 1)
+      })
+    })
+    // 检查胜利
+    if (this.enemyHp <= 0) {
+      this.bState = 'victory'
+      this._onVictory()
+    }
+  }
+
+  _triggerUlt(equip) {
+    const sk = equip.ult
+    let dmg = sk.dmg || 0, heal = sk.heal || 0
+    if (COUNTER_MAP[equip.attr] === this.curLevel?.enemy?.attr) dmg = Math.round(dmg*1.5)
+    if (dmg > 0) {
+      this.enemyHp = Math.max(0, this.enemyHp - dmg)
+      this.dmgFloats.push({ x:W/2, y:H*0.2, text:`-${dmg}`, color:TH.accent, alpha:1, scale:1.5, t:0 })
+    }
+    if (heal > 0) this.heroHp = Math.min(this.heroMaxHp, this.heroHp + heal)
+    this.skillEffects.push({ x:W/2, y:H*0.3, text:'★ '+sk.name+'!', color:TH.accent, alpha:1, t:0 })
+    this.shakeT = 12; this.shakeI = 8*S
+    MusicMgr.playAttack()
+    // 重置蓄力
+    this.skillTriggers[equip.attr] = 0
+    if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory() }
+  }
+
+  _settle() {
+    this.bState = 'settling'
+    // 检查胜利
+    if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory(); return }
+    // buff持续时间衰减
+    this.heroBuffs = this.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
+    this.enemyBuffs = this.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
+    // 进入敌方回合
+    setTimeout(() => this._enemyTurn(), 400)
+  }
+
+  _enemyTurn() {
+    this.bState = 'enemyTurn'
+    if (!this.curLevel) { this.bState = 'playerTurn'; this.turnCount++; return }
+    const enemy = this.curLevel.enemy
+    // 基础攻击
+    let atk = enemy.atk
+    // buff减攻
+    this.enemyBuffs.forEach(b => { if(b.type==='atkDown') atk = Math.max(0,atk-b.val) })
+    // 减伤
+    let dmg = Math.max(0, atk - this.heroShield)
+    this.heroHp = Math.max(0, this.heroHp - dmg)
+    if (dmg > 0) {
+      this.dmgFloats.push({ x:W*0.3, y:H*0.45, text:`-${dmg}`, color:TH.danger, alpha:1, scale:1, t:0 })
+      this.shakeT = 4; this.shakeI = 3*S
+      MusicMgr.playAttack()
+    }
+    // 敌方技能
+    if (enemy.skills) {
+      enemy.skills.forEach(sk => {
+        if (this.turnCount % sk.triggerTurn === 0) {
+          this._applyEnemySkill(sk)
+        }
+      })
+    }
+    // 检查失败
+    if (this.heroHp <= 0) { this.bState = 'defeat'; return }
+    // 掉落检查
+    if (this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
+      const drop = randomDrop(this.curLevel.tier)
+      this.dropPopup = drop
+      this.storage.updateTaskProgress('dt3', 1)
+    }
+    this.turnCount++
+    setTimeout(() => { this.bState = 'playerTurn' }, 500)
+  }
+
+  _applyEnemySkill(sk) {
+    switch(sk.type) {
+      case 'buff':
+        this.skillEffects.push({ x:W/2, y:H*0.2, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        break
+      case 'dot':
+        this.heroHp = Math.max(0, this.heroHp - (sk.val||50))
+        this.dmgFloats.push({ x:W*0.5, y:H*0.45, text:`-${sk.val}`, color:'#b366ff', alpha:1, scale:0.9, t:0 })
+        break
+      case 'aoe':
+        this.heroHp = Math.max(0, this.heroHp - (sk.val||100))
+        this.dmgFloats.push({ x:W/2, y:H*0.4, text:`-${sk.val}`, color:TH.danger, alpha:1, scale:1.3, t:0 })
+        this.shakeT = 8; this.shakeI = 6*S
+        break
+      case 'seal':
+        // 随机封印珠子（标记为sealed，本回合不参与消除）
+        this.skillEffects.push({ x:W/2, y:H*0.2, text:'封印!', color:'#b366ff', alpha:1, t:0 })
+        break
+      case 'convert':
+        // 随机转换珠子属性
+        for(let i=0;i<(sk.count||3);i++) {
+          const r=Math.floor(Math.random()*ROWS), c=Math.floor(Math.random()*COLS)
+          this.board[r][c] = ATTRS[Math.floor(Math.random()*ATTRS.length)]
+        }
+        this.skillEffects.push({ x:W/2, y:H*0.2, text:'属性干扰!', color:TH.hard, alpha:1, t:0 })
+        break
+      case 'debuff':
+        this.heroBuffs.push({ type:sk.field, val:sk.rate, dur:sk.dur })
+        this.skillEffects.push({ x:W/2, y:H*0.2, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        break
+    }
+  }
+
+  _onVictory() {
+    const lv = this.curLevel
+    this.storage.passLevel(lv.levelId, lv.difficulty)
+    this.storage.recordBattle(this.combo, this.storage.stats.totalSkills)
+    this.storage.updateTaskProgress('dt1', 1)
+    this.storage.checkAchievements({ combo: this.combo })
+    // 通关奖励金币
+    this.storage.gold += 200
+    // 装备掉落
+    if (Math.random() < (lv.dropRate||0.2)) {
+      const reward = randomDrop(lv.tier)
+      this.storage.addToInventory(reward)
+      this.dropPopup = reward
+    }
+  }
+
+  // ===== 工具方法 =====
+  _hitRect(x,y,rx,ry,rw,rh) {
+    return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh
   }
 }
 
-module.exports = Main
+new Main()

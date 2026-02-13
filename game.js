@@ -1,8 +1,7 @@
 console.log('龙珠战纪开始初始化...')
 try {
-  const Main = require('./js/main')
-  console.log('Main模块加载成功')
-  new Main()
+  require('./js/main')
+  console.log('游戏初始化成功')
 } catch (e) {
   console.error('游戏初始化失败:', e)
   try {
@@ -16,7 +15,7 @@ try {
     ctx.textBaseline = 'top'
     ctx.fillText('游戏初始化失败', 20, 20)
     ctx.fillText(e.message, 20, 50)
-    ctx.fillText(e.stack, 20, 80)
+    ctx.fillText(e.stack?.substring(0,200), 20, 80)
   } catch (e2) {}
   wx.showModal({
     title: '初始化失败',
