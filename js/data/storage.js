@@ -385,25 +385,39 @@ class Storage {
   }
 
   // ===== 云同步 =====
+  // 检查集合是否存在（通过尝试查询）
+  _collectionExists(name) {
+    return this.db.collection(name).count().then(() => true).catch(e => {
+      if (e.errCode === -502005 || (e.message && e.message.indexOf('not exist') !== -1)) {
+        return false
+      }
+      return true // 其他错误当做存在处理
+    })
+  }
+
   _syncToCloud() {
     if (!this.cloudReady || !this.openid) return
-    try {
-      const data = {
-        openid: this.openid,
-        passedLevels: this.passedLevels,
-        currentLevel: this.currentLevel,
-        unlockedChars: this.unlockedChars,
-        gold: this.gold,
-        teamData: this.teamData,
-        levelProgress: this.levelProgress,
-        charGrowth: this.charGrowth,
-        materials: this.materials,
-        dailyTask: this.dailyTask,
-        weeklyChallenge: this.weeklyChallenge,
-        achievements: this.achievements,
-        bestRecords: this.bestRecords,
-        stats: this.stats,
-        updatedAt: this.db.serverDate()
+    const data = {
+      openid: this.openid,
+      passedLevels: this.passedLevels,
+      currentLevel: this.currentLevel,
+      unlockedChars: this.unlockedChars,
+      gold: this.gold,
+      teamData: this.teamData,
+      levelProgress: this.levelProgress,
+      charGrowth: this.charGrowth,
+      materials: this.materials,
+      dailyTask: this.dailyTask,
+      weeklyChallenge: this.weeklyChallenge,
+      achievements: this.achievements,
+      bestRecords: this.bestRecords,
+      stats: this.stats,
+      updatedAt: this.db.serverDate()
+    }
+    this._collectionExists('playerData').then(exists => {
+      if (!exists) {
+        console.warn('云数据库集合 playerData 不存在，跳过云同步。请在云开发控制台手动创建该集合。')
+        return
       }
       this.db.collection('playerData').where({ openid: this.openid }).count().then(res => {
         if (res.total > 0) {
@@ -412,42 +426,51 @@ class Storage {
           this.db.collection('playerData').add({ data })
         }
       }).catch(e => console.warn('云同步失败:', e))
-    } catch (e) { console.warn('云同步异常:', e) }
+    }).catch(e => console.warn('云同步异常:', e))
   }
 
   _syncFromCloud() {
     if (!this.cloudReady || !this.openid) return
-    this.db.collection('playerData').where({ openid: this.openid }).get().then(res => {
-      if (res.data && res.data.length > 0) {
-        const d = res.data[0]
-        // 云端数据合并（取更新的）
-        if (d.passedLevels && d.passedLevels.length > this.passedLevels.length) {
-          this.passedLevels = d.passedLevels
-        }
-        if (d.currentLevel && d.currentLevel > this.currentLevel) {
-          this.currentLevel = d.currentLevel
-        }
-        if (d.unlockedChars && d.unlockedChars.length > this.unlockedChars.length) {
-          this.unlockedChars = d.unlockedChars
-        }
-        if (d.gold && d.gold > this.gold) this.gold = d.gold
-        if (d.levelProgress) this.levelProgress = d.levelProgress
-        if (d.charGrowth) this.charGrowth = d.charGrowth
-        if (d.materials) this.materials = d.materials
-        if (d.dailyTask) this.dailyTask = d.dailyTask
-        if (d.weeklyChallenge) this.weeklyChallenge = d.weeklyChallenge
-        if (d.achievements) this.achievements = d.achievements
-        if (d.bestRecords) this.bestRecords = d.bestRecords
-        if (d.stats) this.stats = d.stats
-        this.save() // 更新本地
-        console.log('云端数据同步成功')
+    this._collectionExists('playerData').then(exists => {
+      if (!exists) {
+        console.warn('云数据库集合 playerData 不存在，使用本地数据。请在云开发控制台创建 playerData 集合。')
+        return
       }
-    }).catch(e => console.warn('云端拉取失败:', e))
+      this.db.collection('playerData').where({ openid: this.openid }).get().then(res => {
+        if (res.data && res.data.length > 0) {
+          const d = res.data[0]
+          if (d.passedLevels && d.passedLevels.length > this.passedLevels.length) {
+            this.passedLevels = d.passedLevels
+          }
+          if (d.currentLevel && d.currentLevel > this.currentLevel) {
+            this.currentLevel = d.currentLevel
+          }
+          if (d.unlockedChars && d.unlockedChars.length > this.unlockedChars.length) {
+            this.unlockedChars = d.unlockedChars
+          }
+          if (d.gold && d.gold > this.gold) this.gold = d.gold
+          if (d.levelProgress) this.levelProgress = d.levelProgress
+          if (d.charGrowth) this.charGrowth = d.charGrowth
+          if (d.materials) this.materials = d.materials
+          if (d.dailyTask) this.dailyTask = d.dailyTask
+          if (d.weeklyChallenge) this.weeklyChallenge = d.weeklyChallenge
+          if (d.achievements) this.achievements = d.achievements
+          if (d.bestRecords) this.bestRecords = d.bestRecords
+          if (d.stats) this.stats = d.stats
+          this.save()
+          console.log('云端数据同步成功')
+        }
+      }).catch(e => console.warn('云端拉取失败:', e))
+    }).catch(e => console.warn('云端拉取异常:', e))
   }
 
   _uploadRecord(levelId, difficulty, turns, combo) {
     if (!this.cloudReady || !this.openid) return
-    try {
+    this._collectionExists('leaderboard').then(exists => {
+      if (!exists) {
+        console.warn('云数据库集合 leaderboard 不存在，跳过排行榜上传。')
+        return
+      }
       this.db.collection('leaderboard').add({
         data: {
           openid: this.openid,
@@ -455,7 +478,7 @@ class Storage {
           createdAt: this.db.serverDate()
         }
       }).catch(() => {})
-    } catch (e) {}
+    }).catch(() => {})
   }
 
   _getDateStr() {

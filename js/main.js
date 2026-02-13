@@ -28,6 +28,7 @@ class Main {
     this.storage.checkDailyReset()
     this.storage.checkWeeklyReset()
     this.scene = 'loading'
+    this.sceneStack = [] // 场景栈，用于返回
     this.af = 0; this.ta = 1
     this.scrollY = 0; this.maxScrollY = 0 // 滚动支持
 
@@ -60,6 +61,10 @@ class Main {
   }
 
   loop() { this.af++; this.update(); this.render(); requestAnimationFrame(()=>this.loop()) }
+
+  // 场景导航
+  goTo(scene) { this.sceneStack.push(this.scene); this.scene=scene; this.ta=1 }
+  goBack() { this.scene=this.sceneStack.length>0?this.sceneStack.pop():'home'; this.ta=1 }
 
   update() {
     if(this.ta>0) this.ta=Math.max(0,this.ta-0.05)
@@ -116,39 +121,145 @@ class Main {
     ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`; ctx.fillText('加载中...',W/2,by2+24*S)
   }
 
-  // ===== 首页 =====
+  // ===== 首页（高度还原设计图） =====
   rHome() {
-    R.drawBg(this.af)
-    ctx.save(); ctx.globalAlpha=0.06
-    const gr=ctx.createRadialGradient(W/2,H*0.3,0,W/2,H*0.3,W*0.6)
-    gr.addColorStop(0,TH.accent); gr.addColorStop(1,'transparent'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); ctx.restore()
+    R.drawHomeBg(this.af)
 
-    const ty=H*0.13
-    ctx.save(); ctx.shadowColor=TH.accent; ctx.shadowBlur=25*S
-    ctx.fillStyle=TH.accent; ctx.font=`bold ${44*S}px "PingFang SC",sans-serif`
+    // ---- 标题区 ----
+    const ty=safeTop+18*S
+    ctx.save(); ctx.shadowColor='rgba(180,80,0,0.6)'; ctx.shadowBlur=20*S
+    ctx.fillStyle='#fff'; ctx.font=`bold ${38*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('龙珠战纪',W/2,ty)
     ctx.shadowBlur=0; ctx.restore()
-    ctx.fillStyle=TH.sub; ctx.font=`${13*S}px "PingFang SC",sans-serif`
-    ctx.fillText('— 转珠消除 × 回合RPG —',W/2,ty+34*S)
+    ctx.fillStyle='rgba(100,50,0,0.7)'; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.fillText('— 转珠消除 × 回合RPG —',W/2,ty+28*S)
 
-    const oy=ty+62*S
+    // ---- 属性珠子行 ----
+    const oy=ty+54*S
     BEAD_ATTRS.forEach((a,i)=>{
-      const x=W/2+(i-2.5)*38*S
-      ctx.globalAlpha=0.85+0.15*Math.sin(this.af*0.04+i*1.2)
-      R.drawBead(x,oy,13*S,a); ctx.globalAlpha=1
+      const x=W/2+(i-2.5)*36*S
+      ctx.globalAlpha=0.9+0.1*Math.sin(this.af*0.04+i*1.2)
+      R.drawBead(x,oy,14*S,a); ctx.globalAlpha=1
     })
 
-    const bw=W*0.62,bh=46*S,bx2=(W-bw)/2
-    let sy=H*0.38
-    R.drawBtn(bx2,sy,bw,bh,'开始战斗',TH.danger,'#c0392b',15,this.btnP.hs)
-    R.drawBtn(bx2,sy+=56*S,bw,bh,'关卡选择',TH.info,'#2471a3',15,this.btnP.hl)
-    R.drawBtn(bx2,sy+=56*S,bw,bh,'编辑队伍',TH.success,'#1e8449',15,this.btnP.ht)
-    R.drawBtn(bx2,sy+=56*S,bw,bh,'角色养成','#8e44ad','#5b2c8e',15,this.btnP.hg)
-    R.drawBtn(bx2,sy+=56*S,bw,bh,'每日任务',TH.hard,'#e67e22',15,this.btnP.hd)
-    R.drawBtn(bx2,sy+=56*S,bw,bh,'成就',TH.accent,'#d4941e',15,this.btnP.ha)
+    // ---- 当前挑战进度条 ----
+    const pbarY=oy+30*S, pbarH=30*S, pbarM=16*S
+    R.drawGlassCard(pbarM,pbarY,W-pbarM*2,pbarH,pbarH/2)
+    ctx.fillStyle='rgba(80,50,0,0.7)'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='middle'
+    ctx.fillText('⚔ 当前挑战进度',pbarM+12*S,pbarY+pbarH/2)
+    ctx.textAlign='right'; ctx.fillStyle='rgba(180,120,0,0.9)'; ctx.font=`bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`💰 ${this.storage.gold}`,W-pbarM-12*S,pbarY+pbarH/2)
 
-    ctx.fillStyle=TH.dim; ctx.font=`${11*S}px "PingFang SC",sans-serif`; ctx.textAlign='center'
-    ctx.fillText(`金币: ${this.storage.gold}  ·  角色: ${this.storage.unlockedChars.length}/${CHARACTERS.length}`,W/2,H-30*S)
+    // ---- 关卡信息卡片 ----
+    const cardM=12*S, cardY=pbarY+pbarH+10*S, cardW=W-cardM*2
+    const curLv=this.storage.currentLevel
+    const curLvData=BASE_LEVELS.find(l=>l.levelId===curLv)||BASE_LEVELS[0]
+    const ea=A[curLvData.enemy.attr]
+    const team=this.getTeam(), validTeam=team.filter(c=>c!==null)
+
+    // 自适应关卡卡片高度
+    const dpContentH=110*S
+    const cardH=dpContentH+40*S
+    R.drawGlassCard(cardM,cardY,cardW,cardH,14*S)
+
+    // 关卡信息标题
+    const infoY=cardY+10*S, infoM=cardM+10*S, infoW=cardW-20*S
+    ctx.fillStyle='rgba(60,50,30,0.85)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText('⭐ 关卡信息',infoM,infoY)
+
+    // 深色面板
+    const dpY=infoY+24*S
+    R.drawDarkPanel(infoM,dpY,infoW,dpContentH,10*S)
+
+    // 左侧：关卡名 + 敌人信息 + 属性条
+    const dpInM=infoM+12*S, dpInY=dpY+10*S
+    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText(`⚔ 第${curLvData.levelId}关`,dpInM,dpInY)
+    ctx.fillStyle=ea.lt; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`${curLvData.enemy.enemyName} · ${curLvData.enemy.attr}属性`,dpInM,dpInY+18*S)
+
+    const barStartY=dpInY+38*S, barW=infoW*0.48, barH2=8*S, barGap=14*S
+    const maxHp=50000, maxAtk=5000
+    const bars=[
+      {label:'HP',val:curLvData.enemy.hp,max:maxHp,color:TH.success},
+      {label:'ATK',val:curLvData.enemy.atk,max:maxAtk,color:TH.info},
+      {label:'防御',val:Math.floor(curLvData.enemy.hp*0.3),max:maxHp,color:'#e67e22'},
+      {label:'速度',val:Math.floor(curLvData.enemy.atk*0.8),max:maxAtk,color:'#f1c40f'}
+    ]
+    bars.forEach((b,i)=>{
+      const by=barStartY+i*barGap
+      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font=`${8*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(b.label,dpInM,by+barH2/2)
+      R.drawAttrBar(dpInM+28*S,by,barW,barH2,b.val/b.max,b.color)
+    })
+
+    // 右侧：我方队伍
+    const teamAreaX=infoM+infoW*0.60, teamY=dpY+12*S
+    const tR=15*S, tGap=tR*2+4*S
+    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font=`bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText('我方队伍',teamAreaX+(infoW*0.40)/2-6*S,teamY)
+    const tCols=Math.min(3,Math.max(1,validTeam.length)), tRows=Math.ceil(validTeam.length/tCols)
+    validTeam.forEach((c,i)=>{
+      if(!c) return
+      const col=i%tCols, row=Math.floor(i/tCols)
+      const tx=teamAreaX+col*tGap+tR, ty2=teamY+16*S+row*(tR*2+8*S)+tR
+      R.drawChar(tx,ty2,tR,c,false,this.af)
+    })
+
+    // ---- 角色信息区 ----
+    const guideY=cardY+cardH+12*S
+    const bottomNavH=48*S
+    const guideH=115*S // 固定较小的高度，不再铺满
+    R.drawDarkPanel(cardM,guideY,cardW,guideH,12*S)
+
+    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText('英雄名录',cardM+14*S,guideY+10*S)
+
+    // 右侧角色解锁统计
+    const unlockCount=this.storage.unlockedChars.length
+    ctx.fillStyle='rgba(255,200,100,0.8)'; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='right'; ctx.fillText(`已收录: ${unlockCount}/${CHARACTERS.length}`,cardM+cardW-14*S,guideY+12*S)
+
+    // 角色格子：更紧凑的矩阵
+    const gcY=guideY+32*S
+    const gcCols=5
+    const gcGap=8*S
+    const gcSize=46*S // 固定尺寸，更精致
+    const gcTotalW=gcCols*gcSize+(gcCols-1)*gcGap
+    const gcStartX=(W-gcTotalW)/2
+
+    CHARACTERS.forEach((ch,i)=>{
+      const col=i%gcCols, row=Math.floor(i/gcCols)
+      const gx=gcStartX+col*(gcSize+gcGap)
+      const gy=gcY+row*(gcSize+gcGap)
+      if(gy+gcSize > guideY+guideH-8*S) return // 超过区域不画
+      const unlocked=this.storage.unlockedChars.includes(ch.charId)
+      R.drawCharGrid(gx,gy,gcSize,ch,unlocked,this.af)
+    })
+
+    // ---- 底部导航栏 ----
+    const navH=38*S, navY=H-navH-6*S
+    // 底部栏背景
+    ctx.fillStyle='rgba(20,18,30,0.75)'
+    R.rr(8*S,navY-4*S,W-16*S,navH+8*S,12*S); ctx.fill()
+
+    const navBtns=[
+      {key:'hs',text:'战斗',icon:'assets/nav_icons/nav_battle.png'},
+      {key:'hl',text:'关卡',icon:'assets/nav_icons/nav_level.png'},
+      {key:'ht',text:'队伍',icon:'assets/nav_icons/nav_team.png'},
+      {key:'hg',text:'养成',icon:'assets/nav_icons/nav_develop.png'},
+      {key:'hd',text:'任务',icon:'assets/nav_icons/nav_quest.png'},
+      {key:'ha',text:'成就',icon:'assets/nav_icons/nav_achievement.png'}
+    ]
+    const navGap=5*S, navPad=14*S
+    const navInnerW=W-navPad*2
+    const navBtnW=(navInnerW-(navBtns.length-1)*navGap)/navBtns.length
+    navBtns.forEach((b,i)=>{
+      const nx=navPad+i*(navBtnW+navGap)
+      R.drawNavBtn(nx,navY,navBtnW,navH,b.text,b.icon,false,this.btnP[b.key])
+    })
   }
 
   // ===== 关卡选择（含难度tab） =====
@@ -697,7 +808,7 @@ class Main {
   }
 
   startBattle(lv) {
-    this.lvData=lv; this.scene='battle'; this.ta=1
+    this.lvData=lv; this.sceneStack.push(this.scene); this.scene='battle'; this.ta=1
     this.teamChars=this.getTeam()
 
     // 应用养成属性
@@ -752,20 +863,32 @@ class Main {
   ir(px,py,rx,ry,rw,rh){ return px>=rx&&px<=rx+rw&&py>=ry&&py<=ry+rh }
 
   tHome(x,y) {
-    const bw=W*0.62,bh=46*S,bx2=(W-bw)/2
-    let sy=H*0.38
-    if(this.ir(x,y,bx2,sy,bw,bh)){ this.btnP.hs=true; this.lvData=getLevelData(this.storage.currentLevel,this.curDiff)||getLevelData(1,this.curDiff); this.scene='battlePrepare'; this.ta=1; return }
-    if(this.ir(x,y,bx2,sy+56*S,bw,bh)){ this.btnP.hl=true; this.scene='levelSelect'; this.ta=1; return }
-    if(this.ir(x,y,bx2,sy+112*S,bw,bh)){ this.btnP.ht=true; this.scene='teamEdit'; this.ta=1; return }
-    if(this.ir(x,y,bx2,sy+168*S,bw,bh)){ this.btnP.hg=true; this.scene='charDetail'; this.ta=1; return }
-    if(this.ir(x,y,bx2,sy+224*S,bw,bh)){ this.btnP.hd=true; this.storage.checkDailyReset(); this.storage.checkWeeklyReset(); this.scene='dailyTask'; this.ta=1; return }
-    if(this.ir(x,y,bx2,sy+280*S,bw,bh)){ this.btnP.ha=true; this.scene='achievement'; this.ta=1; return }
+    const navH=38*S, navY=H-navH-6*S
+    const navBtns=['hs','hl','ht','hg','hd','ha']
+    const navGap=5*S, navPad=14*S
+    const navInnerW=W-navPad*2
+    const navBtnW=(navInnerW-(navBtns.length-1)*navGap)/navBtns.length
+    for(let i=0;i<navBtns.length;i++){
+      const nx=navPad+i*(navBtnW+navGap)
+      if(this.ir(x,y,nx,navY,navBtnW,navH)){
+        const key=navBtns[i]
+        this.btnP[key]=true
+        switch(key){
+          case 'hs': this.lvData=getLevelData(this.storage.currentLevel,this.curDiff)||getLevelData(1,this.curDiff); this.goTo('battlePrepare'); break
+          case 'hl': this.goTo('levelSelect'); break
+          case 'ht': this.goTo('teamEdit'); break
+          case 'hg': this.goTo('charDetail'); break
+          case 'hd': this.storage.checkDailyReset(); this.storage.checkWeeklyReset(); this.goTo('dailyTask'); break
+          case 'ha': this.goTo('achievement'); break
+        }
+        return
+      }
+    }
   }
 
   tLevels(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene='home'; this.ta=1; return }
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
 
-    // 难度tab点击
     const barH=safeTop+44*S
     const diffs=['normal','hard','extreme']
     const tw=W*0.28, th=30*S, tsy=barH+10*S, tgap=6*S
@@ -783,54 +906,49 @@ class Main {
       const cx=gx+col*(isz+gx)+isz/2, cy=sty+row*(isz+gy+24*S)+isz/2
       if(Math.sqrt((x-cx)**2+(y-cy)**2)<=isz/2&&this.storage.isLevelUnlocked(lv.levelId)){
         this.lvData=getLevelData(lv.levelId,this.curDiff)
-        this.scene='battlePrepare'; this.ta=1
+        this.goTo('battlePrepare')
       }
     })
   }
 
   tPrep(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene='levelSelect'; this.ta=1; return }
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
     const bw=W*0.38,bh=44*S,byy=H*0.84
-    if(this.ir(x,y,W/2-bw-8*S,byy,bw,bh)){ this.btnP.pt=true; this.scene='teamEdit'; this.ta=1; return }
+    if(this.ir(x,y,W/2-bw-8*S,byy,bw,bh)){ this.btnP.pt=true; this.goTo('teamEdit'); return }
     if(this.ir(x,y,W/2+8*S,byy,bw,bh)){ this.btnP.ps=true; this.startBattle(this.lvData); return }
   }
 
   tTeam(x,y) {
     const barH=safeTop+44*S
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene=this.lvData?'battlePrepare':'home'; this.ta=1; return }
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
     const tcY=barH+8*S,sy=tcY+45*S,sr=22*S
     for(let i=0;i<6;i++){ const sx=W/2+(i-2.5)*(sr*2+12*S); if(Math.sqrt((x-sx)**2+(y-sy)**2)<=sr){ if(this.storage.teamData[i]){this.storage.teamData[i]=null;this.storage.save()}; return } }
     const lY=tcY+110*S+12*S, cdH=62*S, cdW=W-28*S, cdX=14*S
     this.storage.unlockedChars.forEach((cid,i)=>{ const cy=lY+20*S+i*(cdH+8*S)
       if(this.ir(x,y,cdX,cy,cdW,cdH)){ if(this.storage.teamData.includes(cid)) return; const es=this.storage.teamData.indexOf(null); if(es!==-1){this.storage.teamData[es]=cid;this.storage.save()} } })
-    if(this.ir(x,y,(W-W*0.5)/2,H-70*S,W*0.5,44*S)){ this.btnP.tc=true; this.scene=this.lvData?'battlePrepare':'home'; this.ta=1 }
+    if(this.ir(x,y,(W-W*0.5)/2,H-70*S,W*0.5,44*S)){ this.btnP.tc=true; this.goBack() }
   }
 
   tCharDetail(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene='home'; this.ta=1; return }
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
     const barH=safeTop+44*S, cdH=130*S, cdW=W-28*S, cdX=14*S
     const chars=this.storage.unlockedChars
     chars.forEach((cid,i)=>{
       const ch=CHARACTERS.find(c=>c.charId===cid); if(!ch) return
       const y2=barH+16*S+i*(cdH+10*S)
       const bw2=cdW/3-8*S, bh2=28*S, by2=y2+cdH-38*S
-      // 升级
       if(this.ir(x,y,cdX+8*S,by2,bw2,bh2)){ const r=this.storage.levelUp(cid); this.showToast(r.msg); return }
-      // 强化技能
       if(this.ir(x,y,cdX+8*S+bw2+6*S,by2,bw2,bh2)){ if(!ch.activeSkill){this.showToast('无主动技能');return}; const r=this.storage.skillUpgrade(cid); this.showToast(r.msg); return }
-      // 突破
       if(this.ir(x,y,cdX+8*S+(bw2+6*S)*2,by2,bw2,bh2)){ const r=this.storage.charBreak(cid,ch.attr); this.showToast(r.msg); return }
     })
   }
 
   tDailyTask(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene='home'; this.ta=1; return }
-    // 领取每日奖励
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
     const barH=safeTop+44*S, ay=barH+20*S+160*S, bw=W*0.5, bh=42*S
     if(this.ir(x,y,(W-bw)/2,ay+16*S,bw,bh)){
       const r=this.storage.claimDailyReward(); if(r.success) this.showToast(r.msg); else this.showToast(r.msg)
     }
-    // 周回挑战
     const wy=ay+80*S
     if(this.ir(x,y,(W-bw)/2,wy+56*S,bw,bh)){
       const wc=this.storage.weeklyChallenge
@@ -841,7 +959,7 @@ class Main {
   }
 
   tAchievement(x,y) {
-    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.scene='home'; this.ta=1; return }
+    if(this.ir(x,y,0,safeTop,100*S,44*S)){ this.goBack(); return }
     const barH=safeTop+44*S, list=this.storage.getAchievementList(), mx=20*S, tw=W-40*S
     list.forEach((ach,i)=>{
       const y2=barH+16*S+i*60*S
@@ -859,7 +977,7 @@ class Main {
       const mw=W*0.82,mh=310*S,mx=(W-mw)/2,my=(H-mh)/2,bw2=mw*0.38,bh2=40*S,byy=my+mh-62*S
       if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){
         if(this._isWeekly){ this._isWeekly=false; this.storage.useWeeklyChallenge(this.combo) }
-        this.scene='levelSelect'; this.ta=1; return
+        this.goBack(); return
       }
       const nl=BASE_LEVELS.find(l=>l.levelId===this.lvData.levelId+1)
       if(nl&&this.ir(x,y,mx+mw-bw2-12*S,byy,bw2,bh2)){
@@ -868,7 +986,7 @@ class Main {
     }
     if(this.bState==='defeat'){
       const mw=W*0.82,mh=230*S,mx=(W-mw)/2,my=(H-mh)/2,bw2=mw*0.38,bh2=40*S,byy=my+mh-60*S
-      if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){ this.scene='levelSelect'; this.ta=1; return }
+      if(this.ir(x,y,mx+12*S,byy,bw2,bh2)){ this.goBack(); return }
       if(this.ir(x,y,mx+mw-bw2-12*S,byy,bw2,bh2)){ this.startBattle(this.lvData); return }; return
     }
     if(this.bState!=='playerTurn') return

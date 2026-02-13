@@ -9,6 +9,7 @@ const CHARACTERS = [
     attr: '火',
     baseAtk: 1500,
     baseHp: 8000,
+    avatar: 'assets/avatars/avatar_1.png',
     activeSkill: {
       skillId: 2001,
       skillName: '火焰冲击',
@@ -32,6 +33,7 @@ const CHARACTERS = [
     attr: '水',
     baseAtk: 1400,
     baseHp: 8500,
+    avatar: 'assets/avatars/avatar_2.png',
     activeSkill: {
       skillId: 2002,
       skillName: '冰冻波',
@@ -55,6 +57,7 @@ const CHARACTERS = [
     attr: '木',
     baseAtk: 1300,
     baseHp: 9000,
+    avatar: 'assets/avatars/avatar_3.png',
     activeSkill: {
       skillId: 2003,
       skillName: '藤蔓缠绕',
@@ -78,6 +81,7 @@ const CHARACTERS = [
     attr: '光',
     baseAtk: 1600,
     baseHp: 7500,
+    avatar: 'assets/avatars/avatar_4.png',
     activeSkill: {
       skillId: 2004,
       skillName: '圣光洗礼',
@@ -101,6 +105,7 @@ const CHARACTERS = [
     attr: '暗',
     baseAtk: 1700,
     baseHp: 7000,
+    avatar: 'assets/avatars/avatar_5.png',
     activeSkill: {
       skillId: 2005,
       skillName: '暗影突袭',
@@ -124,6 +129,7 @@ const CHARACTERS = [
     attr: '心',
     baseAtk: 1000,
     baseHp: 12000,
+    avatar: 'assets/avatars/avatar_6.png',
     activeSkill: {
       skillId: 2006,
       skillName: '生命绽放',
@@ -147,6 +153,7 @@ const CHARACTERS = [
     attr: '火',
     baseAtk: 1800,
     baseHp: 7200,
+    avatar: 'assets/avatars/avatar_7.png',
     activeSkill: {
       skillId: 2007,
       skillName: '烈焰风暴',
@@ -164,6 +171,7 @@ const CHARACTERS = [
     attr: '水',
     baseAtk: 1350,
     baseHp: 9500,
+    avatar: 'assets/avatars/avatar_8.png',
     activeSkill: {
       skillId: 2008,
       skillName: '潮汐之力',
