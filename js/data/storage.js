@@ -3,6 +3,7 @@
  * 本地缓存 + 云数据库双重存储
  */
 const { generateEquipment, ATTRS, ATK_KEY, DEF_KEY } = require('./equipment')
+const { ALL_LEVELS } = require('./levels')
 
 const LOCAL_KEY = 'xiuxianXXL_v3'
 const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
@@ -54,6 +55,9 @@ class Storage {
     this._d = null
     this._cloudReady = false
     this._openid = ''
+    this._cloudSyncTimer = null   // 防抖定时器
+    this._cloudInitDone = false   // 云端初始化是否完成
+    this._pendingSync = false     // 初始化期间是否有待同步数据
     this._load()
     this._initCloud()
   }
@@ -146,9 +150,15 @@ class Storage {
 
   passLevel(levelId, difficulty) {
     this._d.levelProgress[`${levelId}_${difficulty}`] = true
+    // 推进 currentLevel：如果通关的是当前关或更高关，推进到下一关
     if (levelId >= this._d.currentLevel) {
-      this._d.currentLevel = levelId + 1
+      const idx = ALL_LEVELS.findIndex(l => l.levelId === levelId)
+      if (idx >= 0 && idx + 1 < ALL_LEVELS.length) {
+        this._d.currentLevel = ALL_LEVELS[idx + 1].levelId
+      }
+      // 最后一关通关则保持不变
     }
+    console.log('[passLevel] levelId:', levelId, 'diff:', difficulty, '-> currentLevel:', this._d.currentLevel)
     this._save()
   }
 
@@ -218,6 +228,22 @@ class Storage {
         Object.keys(def).forEach(k => {
           if (this._d[k] === undefined) this._d[k] = def[k]
         })
+        // 修复无效的 currentLevel（旧版本 bug 可能产生不存在的 levelId）
+        if (!ALL_LEVELS.find(l => l.levelId === this._d.currentLevel)) {
+          console.warn('[Storage] 修复无效 currentLevel:', this._d.currentLevel)
+          // 根据已通关记录找到最高已通关的下一关
+          const passedIds = Object.keys(this._d.levelProgress || {}).map(k => parseInt(k.split('_')[0]))
+          if (passedIds.length > 0) {
+            const maxPassed = Math.max(...passedIds)
+            const idx = ALL_LEVELS.findIndex(l => l.levelId === maxPassed)
+            this._d.currentLevel = (idx >= 0 && idx + 1 < ALL_LEVELS.length) 
+              ? ALL_LEVELS[idx + 1].levelId 
+              : ALL_LEVELS[0].levelId
+          } else {
+            this._d.currentLevel = ALL_LEVELS[0].levelId
+          }
+          console.log('[Storage] 修正后 currentLevel:', this._d.currentLevel)
+        }
       } else {
         this._d = defaultData()
       }
@@ -230,38 +256,66 @@ class Storage {
   _save() {
     try {
       wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
-      this._syncToCloud()
+      this._debounceSyncToCloud()
     } catch(e) {
       console.warn('Storage save error:', e)
     }
+  }
+
+  /** 防抖：2秒内多次_save只触发一次云同步 */
+  _debounceSyncToCloud() {
+    if (!this._cloudInitDone) {
+      this._pendingSync = true
+      return
+    }
+    if (this._cloudSyncTimer) clearTimeout(this._cloudSyncTimer)
+    this._cloudSyncTimer = setTimeout(() => {
+      this._cloudSyncTimer = null
+      this._syncToCloud()
+    }, 2000)
   }
 
   async _initCloud() {
     try {
       wx.cloud.init({ env: CLOUD_ENV, traceUser: true })
       this._cloudReady = true
-      await this._ensureCollections()
-      await this._getOpenid()
-      await this._syncFromCloud()
     } catch(e) {
       console.warn('Cloud init failed:', e)
+      return
+    }
+    try {
+      await this._ensureCollections()
+    } catch(e) { /* ignore */ }
+    try {
+      await this._getOpenid()
+    } catch(e) {
+      console.warn('Get openid failed:', e)
+    }
+    if (this._openid) {
+      await this._syncFromCloud()
+    }
+    this._cloudInitDone = true
+    console.log('[Storage] Cloud init done, openid:', this._openid ? 'OK' : 'EMPTY')
+    // 如果初始化期间有待同步的数据，立即同步
+    if (this._pendingSync) {
+      this._pendingSync = false
+      this._syncToCloud()
     }
   }
 
   async _ensureCollections() {
-    try {
-      const r = await wx.cloud.callFunction({ name:'initCollections' })
-      if (r.result && r.result.errors && r.result.errors.length) {
-        console.warn('创建集合异常:', r.result.errors)
-      }
-    } catch(e) { /* ignore */ }
+    const r = await wx.cloud.callFunction({ name:'initCollections' })
+    if (r.result && r.result.errors && r.result.errors.length) {
+      console.warn('创建集合异常:', r.result.errors)
+    }
   }
 
   async _getOpenid() {
-    try {
-      const r = await wx.cloud.callFunction({ name:'getOpenid' })
-      this._openid = r.result.openid || ''
-    } catch(e) { /* ignore */ }
+    const r = await wx.cloud.callFunction({ name:'getOpenid' })
+    this._openid = (r.result && r.result.openid) || ''
+    if (!this._openid) {
+      console.warn('[Storage] openid 获取为空，云存储将不可用')
+    }
   }
 
   async _syncFromCloud() {
@@ -271,11 +325,17 @@ class Storage {
       const res = await db.collection('playerData').where({ _openid: this._openid }).get()
       if (res.data && res.data.length > 0) {
         const cloud = res.data[0]
-        if (cloud.inventory && cloud.inventory.length > this._d.inventory.length) {
+        // 用云端 _updateTime 判断：如果云端数据更新则同步到本地
+        const cloudTime = cloud._updateTime || 0
+        const localTime = this._d._updateTime || 0
+        if (cloudTime > localTime) {
+          const _id = cloud._id
+          delete cloud._id
+          delete cloud._openid
+          // 合并：保留云端的关键进度数据
           Object.assign(this._d, cloud)
-          delete this._d._id
-          delete this._d._openid
           wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
+          console.log('[Storage] 已从云端同步数据')
         }
       }
     } catch(e) { console.warn('Sync from cloud error:', e) }
@@ -287,13 +347,21 @@ class Storage {
       const db = wx.cloud.database()
       const col = db.collection('playerData')
       const res = await col.where({ _openid: this._openid }).get()
-      const data = { ...this._d, _openid: this._openid, _updateTime: Date.now() }
+      // 构建要同步的数据，排除系统字段
+      const saveData = { ...this._d, _updateTime: Date.now() }
+      delete saveData._id
+      delete saveData._openid
       if (res.data && res.data.length > 0) {
-        await col.doc(res.data[0]._id).update({ data })
+        // update 时 data 内不能包含 _openid/_id 等系统字段
+        await col.doc(res.data[0]._id).update({ data: saveData })
+        console.log('[Storage] 云端数据已更新')
       } else {
-        await col.add({ data })
+        await col.add({ data: saveData })
+        console.log('[Storage] 云端数据已创建')
       }
-    } catch(e) { /* debounce/ignore */ }
+    } catch(e) {
+      console.warn('[Storage] 云同步失败:', e.message || e)
+    }
   }
 }
 
