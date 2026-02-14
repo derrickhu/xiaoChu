@@ -3,8 +3,9 @@
  * 智龙迷城式拖拽转珠 + 五行克制 + 装备品质等级
  * 
  * 属性系统：气力(血量)、五行攻击×5、五行防御×5、回复值(彩珠回血)
- * 伤害公式：Max((自身该五行攻×技能系数 - 敌方该五行防) × 克制倍率 × Combo倍率, 0)
- * 五行克制：金→木→土→水→火→金（克制×1.1，被克×0.9）
+ * 伤害公式：Max((自身该五行攻×消除倍率 - 敌方该五行防) × 克制倍率 × Combo倍率, 0)
+ * 五行克制：金→木→土→水→火→金（克制×1.5，被克×0.6）
+ * 策略优先级：属性克制 > Combo > 消除个数
  */
 const { Render, A, TH } = require('./render')
 const Storage = require('./data/storage')
@@ -15,7 +16,7 @@ const {
   STAT_DEFS, STAT_KEYS,
   randomDrop, generateEquipment,
 } = require('./data/equipment')
-const { DIFFICULTY, ALL_LEVELS, getLevelData } = require('./data/levels')
+const { DIFFICULTY, ALL_LEVELS, getLevelData, TUTORIAL_TIPS } = require('./data/levels')
 const MusicMgr = require('./runtime/music')
 
 // Canvas 初始化
@@ -114,7 +115,12 @@ class Main {
 
   // ===== 场景管理 =====
   goTo(scene) { this.scene = scene; this.scrollY = 0 }
-  goBack() { this.scene = 'home'; this.scrollY = 0 }
+  goBack() {
+    if (this.scene === 'battle' || this.scene === 'battlePrepare') {
+      this._cleanupBattle()
+    }
+    this.scene = 'home'; this.scrollY = 0
+  }
 
   // ===== 更新 =====
   update() {
@@ -449,6 +455,15 @@ class Main {
     ctx.textAlign='center'; ctx.textBaseline='middle'
     const passedTotal = Object.keys(this.storage.levelProgress).length
     ctx.fillText(`已闯 ${passedTotal} 层 · 最高连击 ${this.storage.stats.maxCombo}`, W/2, statY)
+
+    // 重置数据按钮（右下角小按钮）
+    const resetW = 80*S, resetH = 30*S
+    const resetX = W-m-resetW, resetY = statY+20*S
+    ctx.fillStyle='rgba(255,60,60,0.2)'; R.rr(resetX,resetY,resetW,resetH,8*S); ctx.fill()
+    ctx.strokeStyle='rgba(255,60,60,0.4)'; ctx.lineWidth=1; R.rr(resetX,resetY,resetW,resetH,8*S); ctx.stroke()
+    ctx.fillStyle='rgba(255,100,100,0.8)'; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='middle'
+    ctx.fillText('重置数据', resetX+resetW/2, resetY+resetH/2)
   }
 
   // ===== 战斗准备 =====
@@ -524,9 +539,15 @@ class Main {
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign='right'; ctx.fillText(`回合 ${this.turnCount}`, W-12*S, enemyAreaTop+15*S)
     if (this.curLevel) {
-      const d = DIFFICULTY[this.curLevel.difficulty]
-      ctx.fillStyle=d.color; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.fillText(d.name, W/2, enemyAreaTop+15*S)
+      if (this.curLevel.tutorial) {
+        // 新手引导：显示关卡标题
+        ctx.fillStyle='#ffd700'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.textAlign='center'; ctx.fillText(`引导 ${this.curLevel.tutorial}/5`, W/2, enemyAreaTop+15*S)
+      } else {
+        const d = DIFFICULTY[this.curLevel.difficulty]
+        ctx.fillStyle=d.color; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.textAlign='center'; ctx.fillText(d.name, W/2, enemyAreaTop+15*S)
+      }
     }
 
     // 怪物立绘（居中，占满怪物区）
@@ -612,6 +633,11 @@ class Main {
       const btnY = H*0.2+H*0.45-44*S
       R.drawBtn(40*S,btnY,100*S,34*S,'佩戴',TH.success)
       R.drawBtn(W-140*S,btnY,100*S,34*S,'暂存',TH.info)
+    }
+
+    // 新手引导面板
+    if (this._tutorialTip && this._tutorialTip.visible) {
+      this._drawTutorialPanel()
     }
 
     // 胜负
@@ -767,6 +793,19 @@ class Main {
         } else {
           const attr = typeof cell === 'string' ? cell : cell
           R.drawBead(cx,cy,cs*0.48,attr,this.af)
+          // 封灵标记：被封锁的灵珠叠加锁链效果
+          if (this._sealedBeads && this._sealedBeads.some(s => s.r === r && s.c === c)) {
+            ctx.save()
+            ctx.globalAlpha = 0.6 + 0.2 * Math.sin(this.af * 0.1)
+            ctx.fillStyle = 'rgba(80,0,120,0.4)'
+            ctx.beginPath(); ctx.arc(cx, cy, cs*0.48, 0, Math.PI*2); ctx.fill()
+            ctx.strokeStyle = '#b366ff'; ctx.lineWidth = 2*S
+            ctx.beginPath(); ctx.arc(cx, cy, cs*0.48, 0, Math.PI*2); ctx.stroke()
+            ctx.fillStyle = '#fff'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+            ctx.fillText('封', cx, cy)
+            ctx.restore()
+          }
         }
       }
     }
@@ -828,11 +867,22 @@ class Main {
     if (type !== 'end') return
     const m = 16*S
     const cardY = safeTop+60*S, cardH = 80*S
-    const lvY = cardY+cardH+20*S, lvH = 140*S
+    const lvY = cardY+cardH+20*S, lvH = 170*S
     const btnW = 160*S, btnH = 44*S
     const btnX = (W-btnW)/2, btnY = lvY+lvH+20*S
+    // 重置数据按钮（与渲染坐标一致）
+    const statY = btnY+btnH+24*S
+    const resetW = 80*S, resetH = 30*S
+    const resetX = W-m-resetW, resetY = statY+20*S
+    if (this._hitRect(x,y,resetX,resetY,resetW,resetH)) {
+      console.log('[tHome] 重置按钮被点击')
+      this.storage.resetAll()
+      this.scene = 'intro'
+      return
+    }
     if (this._hitRect(x,y,btnX,btnY,btnW,btnH)) {
       this._startBattle(this.storage.currentLevel, 'normal')
+      return
     }
   }
 
@@ -850,6 +900,11 @@ class Main {
 
   // ===== 战斗触摸（新布局版） =====
   tBattle(type,x,y) {
+    // 新手引导面板：点击关闭
+    if (this._tutorialTip && this._tutorialTip.visible) {
+      if (type === 'end') { this._tutorialTip.visible = false }
+      return
+    }
     // 属性面板
     if (this.statPanel && this.statPanel.visible) {
       if (type === 'end') { this.statPanel = null }
@@ -885,7 +940,7 @@ class Main {
         this.bState = 'none'
         this._startBattle(this.storage.currentLevel, 'normal')
       } else if (this._hitRect(x,y, W/2+gap/2, btnY, btnW, 40*S)) {
-        this.bState = 'none'; this.scene = 'home'
+        this._cleanupBattle(); this.scene = 'home'
       }
       return
     }
@@ -893,17 +948,19 @@ class Main {
     if (this.bState === 'defeat') {
       if (type !== 'end') return
       const btnW = 130*S, gap = 16*S, btnY = H*0.65
+      const savedLevelId = this.curLevel ? this.curLevel.levelId : this.storage.currentLevel
+      const savedDiff = this.curLevel ? (this.curLevel.difficulty || 'normal') : 'normal'
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
         this.bState = 'none'
-        this._startBattle(this.curLevel.levelId, this.curLevel.difficulty || 'normal')
+        this._startBattle(savedLevelId, savedDiff)
       } else if (this._hitRect(x,y, W/2+gap/2, btnY, btnW, 40*S)) {
-        this.bState = 'none'; this.scene = 'home'
+        this._cleanupBattle(); this.scene = 'home'
       }
       return
     }
     // 退出按钮
     if (type === 'end' && this._hitRect(x,y,8*S,safeTop+4*S,42*S,22*S)) {
-      this.bState = 'none'; this.scene = 'home'; return
+      this._cleanupBattle(); this.scene = 'home'; return
     }
     // 技能栏区域的绝技点击释放（蓄力满后点击即释放）
     if (this._ultIconArea && this.bState === 'playerTurn') {
@@ -969,6 +1026,8 @@ class Main {
     if (type === 'start') {
       const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
       if (r>=0 && r<ROWS && c>=0 && c<COLS && this.board[r]?.[c]) {
+        // 封灵检查：被封锁的灵珠不能拖动
+        if (this._sealedBeads && this._sealedBeads.some(s => s.r === r && s.c === c)) return
         this.dragging = true
         this.dragR = r; this.dragC = c
         this.dragStartX = x; this.dragStartY = y
@@ -996,7 +1055,35 @@ class Main {
   }
 
   // ===== 战斗逻辑 =====
+  _cleanupBattle() {
+    this.bState = 'none'
+    this.curLevel = null
+    this.dragging = false; this.dragAttr = null; this.dragTimer = 0
+    this.elimQueue = []; this.elimAnimCells = null; this.elimAnimTimer = 0
+    this.dropAnimTimer = 0; this.dropAnimCols = null
+    this.swapAnim = null; this.ultSwipe = null; this._ultIconArea = null
+    this._stateTimer = 0; this._enemyTurnWait = false
+    this._pendingDmgMap = null; this._pendingHeal = 0
+    this.pendingUlt = null; this.dropPopup = null; this.statPanel = null
+    this.dmgFloats = []; this.skillEffects = []
+    this.skillTriggers = {}; this.ultReady = {}
+    this.heroBuffs = []; this.enemyBuffs = []
+    this._sealedBeads = null
+    this._tutorialTip = null
+    this.heroAttackAnim.active = false; this.heroAttackAnim.progress = 0
+    this.enemyHurtAnim.active = false; this.enemyHurtAnim.progress = 0
+    this.heroHurtAnim.active = false; this.heroHurtAnim.progress = 0
+    this.enemyAttackAnim.active = false; this.enemyAttackAnim.progress = 0
+    this.skillCastAnim.active = false; this.skillCastAnim.progress = 0
+    this._enemyHpLoss = null; this._heroHpLoss = null
+    this.shakeT = 0; this.shakeI = 0
+    this.combo = 0; this.turnCount = 0; this.elimSets = []
+    this.board = []; this.tempEquips = []; this.lostEquips = []; this.battleGold = 0
+    this._victoryHandled = false
+  }
+
   _startBattle(levelId, difficulty) {
+    this._cleanupBattle()
     this.curLevel = getLevelData(levelId, difficulty)
     if (!this.curLevel) { this.curLevel = getLevelData(ALL_LEVELS[0].levelId, 'normal') }
     this.goTo('battlePrepare')
@@ -1031,6 +1118,11 @@ class Main {
     this._initBoard()
     this.bState = 'playerTurn'
     this.scene = 'battle'
+    // 新手引导：进入战斗时弹出教学面板
+    this._tutorialTip = null
+    if (lv.tutorial && TUTORIAL_TIPS[lv.tutorial]) {
+      this._tutorialTip = { ...TUTORIAL_TIPS[lv.tutorial], step: lv.tutorial, visible: true }
+    }
     this.dragging = false; this.dragAttr = null
     this.dragTimer = 0; this.dragTimeLimit = 4 * 60  // 4秒（60fps），拖拽时间限制
     this.elimQueue = []; this.elimAnimCells = null; this.elimAnimTimer = 0
@@ -1042,7 +1134,7 @@ class Main {
   _initBoard() {
     const weights = this.curLevel?.beadWeights || { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 }
     const pool = []
-    BEAD_ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
+    BEAD_ATTRS.forEach(a => { const w = (weights[a] != null) ? weights[a] : 10; for(let i=0;i<w;i++) pool.push(a) })
     this.board = []
     for (let r=0; r<ROWS; r++) {
       this.board[r] = []
@@ -1150,7 +1242,7 @@ class Main {
 
     if (group.attr === 'heart') {
       // 心珠回复 = 回复加成 × 消除倍率（与攻击公式一致）
-      const elimMul = 1.0 + (group.count - 3) * 0.1
+      const elimMul = 1.0 + (group.count - 3) * 0.05
       const recovery = heroS.recovery || 10
       const baseHeal = Math.round(recovery * elimMul)
       if (!this._pendingHeal) this._pendingHeal = 0
@@ -1158,8 +1250,8 @@ class Main {
       this.dmgFloats.push({ x: cx, y: cy, text: `回复 +${baseHeal}`, color: attrColor, alpha: 1, scale: 1.1, t: 0 })
     } else {
       // 攻击属性：基础伤害 = 攻击力 × 消除倍率
-      // 消除倍率：3个=1.0，每多1个+0.1
-      const elimMul = 1.0 + (group.count - 3) * 0.1
+      // 消除倍率：3个=1.0，每多1个+0.05（弱化消除个数加成）
+      const elimMul = 1.0 + (group.count - 3) * 0.05
       const atkKey = ATK_KEY[group.attr]
       const selfAtk = heroS[atkKey] || 10
       const baseDmg = Math.round(selfAtk * elimMul)
@@ -1286,10 +1378,11 @@ class Main {
 
   /**
    * 消除等待结束后执行攻击
-   * 新伤害公式：
-   * 1. 消除时：基础伤害 = 攻击力 × 消除倍率（3个=1.0，每多1个+0.1）
-   * 2. 全部消除完成后：combo倍率 = 1 + (combo-1) × 0.3
-   * 3. 每属性最终伤害 = 基础伤害总和 × combo倍率 - 敌方该属性防御
+   * 伤害公式（策略优先级：属性克制 > Combo > 消除个数）：
+   * 1. 消除时：基础伤害 = 攻击力 × 消除倍率（3个=1.0，每多1个+0.05）
+   * 2. 全部消除完成后：combo倍率 = 1 + (combo-1) × 0.08
+   * 3. 克制倍率：克制×1.5，被克×0.6，无关×1.0
+   * 4. 每属性最终伤害 = (基础伤害总和 × combo倍率 - 敌方防御) × 克制倍率
    */
   _executeAttack() {
     const dmgMap = this._pendingDmgMap || {}
@@ -1304,7 +1397,7 @@ class Main {
   _fillBoard() {
     const weights = this.curLevel?.beadWeights || { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 }
     const pool = []
-    BEAD_ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
+    BEAD_ATTRS.forEach(a => { const w = (weights[a] != null) ? weights[a] : 10; for(let i=0;i<w;i++) pool.push(a) })
     for(let c=0;c<COLS;c++) {
       let empty=0
       for(let r=ROWS-1;r>=0;r--) {
@@ -1320,12 +1413,13 @@ class Main {
   }
 
   /**
-   * 最终伤害结算（新公式）
+   * 最终伤害结算（新公式·属性克制优先）
    * dmgMap: { attr: baseDmgTotal } 消除阶段累计的每属性基础伤害
    * heal: 消除阶段累计的回复量
    *
-   * 最终伤害 = Max(baseDmgTotal × comboMul - 敌方防御, 0)
-   * comboMul = 1 + (combo-1) × 0.15
+   * 最终伤害 = Max((baseDmgTotal × comboMul - 敌方防御) × counterMul, 0)
+   * comboMul = 1 + (combo-1) × 0.08
+   * counterMul: 克制=1.5, 被克=0.6, 无关=1.0
    */
   _applyFinalDamage(dmgMap, heal) {
     const eCenterY = this._getEnemyCenterY()
@@ -1333,8 +1427,8 @@ class Main {
     const enemyS = this.enemyStats || {}
     const equipped = this.storage.equipped
 
-    // combo倍率
-    const comboMul = 1 + Math.max(0, this.combo - 1) * 0.15
+    // combo倍率（减弱：0.15 → 0.08）
+    const comboMul = 1 + Math.max(0, this.combo - 1) * 0.08
 
     // 计算每属性最终伤害
     const finalDmgByAttr = {}
@@ -1350,13 +1444,13 @@ class Main {
       const enemyDef = enemyS[defKey] || 0
       dmg -= enemyDef
 
-      // 防御后再算五行克制（克制×1.1，被克×0.9）
+      // 防御后再算五行克制（克制×1.5，被克×0.6，大幅强化属性策略）
       let counterMul = 1.0
       if (COUNTER_MAP[attr] === this.curLevel?.enemy?.attr) {
-        counterMul = 1.1
+        counterMul = 1.5
         hasCounter = attr
       } else if (COUNTER_BY[attr] === this.curLevel?.enemy?.attr) {
-        counterMul = 0.9
+        counterMul = 0.6
         hasCounterBy = attr
       }
       dmg *= counterMul
@@ -1367,28 +1461,11 @@ class Main {
         finalDmgByAttr[attr] = finalDmg
       }
 
-      // 装备技能充能（每有消除就+1）
+      // 装备绝技充能（每有同属性消除就+1）
       Object.values(equipped).forEach(eq => {
         if (!eq || eq.attr !== attr) return
         if (!this.skillTriggers[attr]) this.skillTriggers[attr] = 0
         this.skillTriggers[attr]++
-      })
-
-      // 装备附带效果（buff/debuff/heal）
-      Object.values(equipped).forEach(eq => {
-        if (!eq || eq.attr !== attr) return
-        const sk = eq.skill
-        if (sk.heal > 0) {
-          heal += sk.heal + ((this.heroStats || {}).recovery || 0)
-        }
-        if (sk.def) {
-          this.heroShield += sk.def
-          this.heroBuffs.push({ type:'shield', val:sk.def, dur:sk.buffDur || 1 })
-        }
-        if (sk.debuff && this.curLevel) {
-          this.enemyBuffs.push({ type:'atkDown', val:sk.debuff, dur:sk.buffDur || 1 })
-        }
-        this.storage.updateTaskProgress('dt2', 1)
       })
     })
 
@@ -1429,9 +1506,13 @@ class Main {
       this.dmgFloats.push({ x:W*0.5, y:charY-20*S, text:'被防御抵挡!', color:TH.dim, alpha:1, scale:0.8, t:0 })
     }
 
-    // ===== 回复结算：基础回复 × combo倍率 =====
+    // ===== 回复结算：基础回复 × combo倍率，受噬灵debuff影响 =====
     if (heal > 0) {
-      const finalHeal = Math.round(heal * comboMul)
+      let healMul = 1.0
+      this.heroBuffs.forEach(b => {
+        if (b.type === 'healRate') healMul *= b.val
+      })
+      const finalHeal = Math.round(heal * comboMul * healMul)
       const oldHeroHp = this.heroHp
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + finalHeal)
       const actualHeal = this.heroHp - oldHeroHp
@@ -1462,11 +1543,12 @@ class Main {
       const defKey = DEF_KEY[attr]
       const enemyDef = enemyS[defKey] || 0
       dmg -= enemyDef
+      // 绝技也享受属性克制加成（×1.5/×0.6）
       let counterMul = 1.0
-      if (COUNTER_MAP[attr] === this.curLevel?.enemy?.attr) counterMul = 1.1
-      else if (COUNTER_BY[attr] === this.curLevel?.enemy?.attr) counterMul = 0.9
+      if (COUNTER_MAP[attr] === this.curLevel?.enemy?.attr) counterMul = 1.5
+      else if (COUNTER_BY[attr] === this.curLevel?.enemy?.attr) counterMul = 0.6
       dmg *= counterMul
-      const comboMul = 1 + Math.max(0, this.combo - 1) * 0.15
+      const comboMul = 1 + Math.max(0, this.combo - 1) * 0.08
       dmg *= comboMul
       const finalDmg = Math.max(0, Math.round(dmg))
       if (finalDmg > 0) {
@@ -1518,6 +1600,11 @@ class Main {
     // buff持续时间衰减
     this.heroBuffs = this.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
     this.enemyBuffs = this.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
+    // 封灵持续时间衰减
+    if (this._sealedBeads) {
+      this._sealedBeads = this._sealedBeads.filter(s => { s.dur--; return s.dur > 0 })
+      if (this._sealedBeads.length === 0) this._sealedBeads = null
+    }
     // 重新计算护盾（从剩余buff累计）
     this.heroShield = this.heroBuffs.filter(b => b.type === 'shield').reduce((s,b) => s + b.val, 0)
     this.bState = 'preEnemy'
@@ -1532,10 +1619,22 @@ class Main {
     const heroS = this.heroStats || {}
     const enemyS = this.enemyStats || {}
 
+    // ==== 普通攻击 ====
     const enemyAttr = enemy.attr
     const enemyAtkKey = ATK_KEY[enemyAttr]
     const heroDefKey = DEF_KEY[enemyAttr]
-    let dmg = Math.max(0, (enemyS[enemyAtkKey] || 0) - (heroS[heroDefKey] || 0))
+    let baseAtk = enemyS[enemyAtkKey] || 0
+    // 应用敌方攻击buff（妖气暴涨等）
+    this.enemyBuffs.forEach(b => {
+      if (b.type === 'atkUp') baseAtk = Math.round(baseAtk * (1 + b.val))
+    })
+    let heroDef = heroS[heroDefKey] || 0
+    // 应用英雄防御debuff（破甲爪等）
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'def') heroDef = Math.round(heroDef * (1 - b.val))
+    })
+    let dmg = Math.max(0, baseAtk - heroDef)
+    // 敌人身上的 atkDown debuff 减伤
     this.enemyBuffs.forEach(b => {
       if (b.type === 'atkDown') {
         dmg = Math.max(0, dmg - Math.round(b.val * 0.5))
@@ -1551,17 +1650,39 @@ class Main {
       MusicMgr.playAttack()
       this._playEnemyAttack(enemy.name+'攻击')
     }
-    // 敌方技能
+
+    // ==== DOT持续伤害（毒瘴等） ====
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'dot' && b.val > 0) {
+        const oldPct = this.heroHp / this.heroMaxHp
+        this.heroHp = Math.max(0, this.heroHp - b.val)
+        this._heroHpLoss = { fromPct: oldPct, timer: 0 }
+        this.dmgFloats.push({ x:W*0.5, y:charY+50*S, text:`-${b.val}`, color:'#b366ff', alpha:1, scale:0.9, t:0 })
+        this.skillEffects.push({ x:W/2, y:charY-20*S, text:'毒伤', color:'#b366ff', alpha:1, t:0 })
+      }
+    })
+
+    // ==== 敌方被动技能 ====
     if (enemy.skills) {
       enemy.skills.forEach(sk => {
-        if (this.turnCount % sk.triggerTurn === 0) {
+        if (this.turnCount > 0 && this.turnCount % sk.triggerTurn === 0) {
           this._applyEnemySkill(sk)
         }
       })
     }
+
+    // ==== 敌方绝技（固定回合触发） ====
+    if (enemy.ults) {
+      enemy.ults.forEach(ult => {
+        if (this.turnCount > 0 && this.turnCount % ult.triggerTurn === 0) {
+          this._applyEnemyUlt(ult)
+        }
+      })
+    }
+
     if (this.heroHp <= 0) { this._onDefeat(); return }
-    // 掉落（装备品质和等级受关卡层数限制）
-    if (this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
+    // 掉落（装备品质和等级受关卡层数限制）— 新手引导关不在回合中掉落
+    if (!this.curLevel.tutorial && this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
       const stageIndex = this.curLevel.levelId % 100 || 1  // 层数1-10
       const drop = randomDrop(this.curLevel.tier, stageIndex)
       this.storage.addToInventory(drop)
@@ -1577,15 +1698,17 @@ class Main {
     const charY = this._getEnemyCenterY()
     switch(sk.type) {
       case 'buff':
+        // 妖气暴涨：实际增加敌方攻击力buff
+        this.enemyBuffs.push({ type:'atkUp', val:sk.rate, dur:sk.dur })
         this.skillEffects.push({ x:W*0.5, y:charY-40*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        this._playEnemyAttack(sk.name)
         break
-      case 'dot': {
-        const oldPct = this.heroHp / this.heroMaxHp
-        this.heroHp = Math.max(0, this.heroHp - (sk.val||50))
-        this._heroHpLoss = { fromPct: oldPct, timer: 0 }
-        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`-${sk.val}`, color:'#b366ff', alpha:1, scale:0.9, t:0 })
+      case 'dot':
+        // 毒瘴：给英雄添加持续伤害debuff（每回合结算）
+        this.heroBuffs.push({ type:'dot', val:sk.val||20, dur:sk.dur||3 })
+        this.skillEffects.push({ x:W*0.5, y:charY-40*S, text:sk.name+'!', color:'#b366ff', alpha:1, t:0 })
+        this._playEnemyAttack(sk.name)
         break
-      }
       case 'aoe': {
         const oldPct2 = this.heroHp / this.heroMaxHp
         this.heroHp = Math.max(0, this.heroHp - (sk.val||100))
@@ -1595,9 +1718,18 @@ class Main {
         this._playEnemyAttack(sk.name)
         break
       }
-      case 'seal':
+      case 'seal': {
+        // 封灵：随机封锁灵珠（标记为sealed，玩家无法拖动）
+        const sealCount = sk.count || 2
+        if (!this._sealedBeads) this._sealedBeads = []
+        for (let i = 0; i < sealCount; i++) {
+          const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+          this._sealedBeads.push({ r, c, dur: sk.dur||2 })
+        }
         this.skillEffects.push({ x:W/2, y:charY-30*S, text:'封灵!', color:'#b366ff', alpha:1, t:0 })
+        this._playEnemyAttack(sk.name)
         break
+      }
       case 'convert':
         for(let i=0;i<(sk.count||3);i++) {
           const r=Math.floor(Math.random()*ROWS), c=Math.floor(Math.random()*COLS)
@@ -1608,7 +1740,107 @@ class Main {
       case 'debuff':
         this.heroBuffs.push({ type:sk.field, val:sk.rate, dur:sk.dur })
         this.skillEffects.push({ x:W*0.5, y:charY-30*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        this._playEnemyAttack(sk.name)
         break
+    }
+  }
+
+  /** 怪物绝技执行 */
+  _applyEnemyUlt(ult) {
+    const charY = this._getEnemyCenterY()
+    const enemyS = this.enemyStats || {}
+    const enemyAttr = this.curLevel?.enemy?.attr || 'metal'
+    const selfAtk = enemyS[ATK_KEY[ult.attr === 'neutral' ? enemyAttr : ult.attr]] || enemyS[ATK_KEY[enemyAttr]] || 20
+
+    // 显示绝技名称（大字特效）
+    this.skillEffects.push({ x:W*0.5, y:charY-50*S, text:'【'+ult.name+'】', color:'#ff4466', alpha:1, t:0, scale:1.3 })
+    this._playEnemyAttack(ult.name)
+    this.shakeT = 10; this.shakeI = 8*S
+
+    switch(ult.effect) {
+      case 'dmg': {
+        // 纯伤害绝技
+        const dmg = Math.round(selfAtk * ult.pct / 100)
+        this._dealUltDmgToHero(dmg, charY)
+        break
+      }
+      case 'drain': {
+        // 吸血绝技：造成伤害并回复自身
+        const dmg = Math.round(selfAtk * ult.pct / 100)
+        this._dealUltDmgToHero(dmg, charY)
+        const heal = Math.round(dmg * 0.5)
+        const enemyMaxHp = this.curLevel.enemy.hp
+        this.enemyHp = Math.min(enemyMaxHp, this.enemyHp + heal)
+        this.skillEffects.push({ x:W*0.5, y:charY-20*S, text:`回复+${heal}`, color:'#66ff66', alpha:1, t:0 })
+        break
+      }
+      case 'dmg_convert': {
+        // 伤害 + 转换灵珠
+        const dmg = Math.round(selfAtk * ult.pct / 100)
+        this._dealUltDmgToHero(dmg, charY)
+        for (let i = 0; i < (ult.convertCount||4); i++) {
+          const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+          this.board[r][c] = BEAD_ATTRS[Math.floor(Math.random()*BEAD_ATTRS.length)]
+        }
+        this.skillEffects.push({ x:W/2, y:charY, text:'灵珠紊乱!', color:TH.hard, alpha:1, t:0 })
+        break
+      }
+      case 'dmg_seal': {
+        // 伤害 + 封锁灵珠
+        const dmg = Math.round(selfAtk * ult.pct / 100)
+        this._dealUltDmgToHero(dmg, charY)
+        if (!this._sealedBeads) this._sealedBeads = []
+        for (let i = 0; i < (ult.sealCount||3); i++) {
+          const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+          this._sealedBeads.push({ r, c, dur: ult.sealDur||2 })
+        }
+        this.skillEffects.push({ x:W/2, y:charY, text:'封印!', color:'#b366ff', alpha:1, t:0 })
+        break
+      }
+      case 'dmg_dot': {
+        // 伤害 + 附加持续灼烧
+        const dmg = Math.round(selfAtk * ult.pct / 100)
+        this._dealUltDmgToHero(dmg, charY)
+        const dotVal = Math.round(selfAtk * ult.dotPct / 100)
+        this.heroBuffs.push({ type:'dot', val:dotVal, dur:ult.dotDur||3 })
+        this.skillEffects.push({ x:W/2, y:charY, text:'灼烧!', color:'#ff6622', alpha:1, t:0 })
+        break
+      }
+      case 'selfBuff':
+        // 自我增强
+        this.enemyBuffs.push({ type:'atkUp', val:ult.rate, dur:ult.dur })
+        this.skillEffects.push({ x:W*0.5, y:charY-20*S, text:'攻击强化!', color:'#ff4444', alpha:1, t:0 })
+        break
+      case 'selfHeal': {
+        // 自我回复
+        const enemyMaxHp = this.curLevel.enemy.hp
+        const heal = Math.round(enemyMaxHp * ult.pct / 100)
+        this.enemyHp = Math.min(enemyMaxHp, this.enemyHp + heal)
+        this.skillEffects.push({ x:W*0.5, y:charY-20*S, text:`回复+${heal}`, color:'#66ff66', alpha:1, t:0 })
+        break
+      }
+      case 'chaos': {
+        // 混沌领域：全场灵珠打乱 + 减少回复
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            this.board[r][c] = BEAD_ATTRS[Math.floor(Math.random()*BEAD_ATTRS.length)]
+          }
+        }
+        this.heroBuffs.push({ type:'healRate', val:ult.healRate||0.5, dur:ult.healDur||2 })
+        this.skillEffects.push({ x:W/2, y:charY, text:'混沌领域!', color:'#ff22ff', alpha:1, t:0 })
+        break
+      }
+    }
+  }
+
+  /** 绝技对英雄造成伤害（内部辅助） */
+  _dealUltDmgToHero(dmg, charY) {
+    let totalDmg = Math.max(0, dmg - this.heroShield)
+    if (totalDmg > 0) {
+      const oldPct = this.heroHp / this.heroMaxHp
+      this.heroHp = Math.max(0, this.heroHp - totalDmg)
+      this._heroHpLoss = { fromPct: oldPct, timer: 0 }
+      this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`-${totalDmg}`, color:'#ff2244', alpha:1, scale:1.4, t:0 })
     }
   }
 
@@ -1625,13 +1857,24 @@ class Main {
     this.battleGold = 200
     this.storage.gold += this.battleGold
 
-    // 新手保底：如果背包中没有头盔，胜利时保底掉落一个绿色头盔
-    const hasHelmet = this.storage.inventory.some(e => e.slot === 'helmet')
-    if (!hasHelmet) {
-      const enemyAttr = lv.enemy?.attr || 'metal'
-      const helmet = generateEquipment('helmet', enemyAttr, 'green', 1)
+    // 新手引导关固定掉落
+    if (lv.tutorialDrop === 'helmet_green_no_ult') {
+      // 第4关：绿装头盔，无绝技
+      const enemyAttr = lv.enemy?.attr || 'earth'
+      const helmet = generateEquipment('helmet', enemyAttr, 'green', 2)
+      delete helmet.ult
+      helmet.ultTrigger = 999
       this.storage.addToInventory(helmet)
       this.dropPopup = helmet
+      this.tempEquips.push(helmet)
+      this.storage.updateTaskProgress('dt3', 1)
+    } else if (lv.tutorialDrop === 'trinket_green_with_ult') {
+      // 第5关：绿装项链，带绝技
+      const enemyAttr = lv.enemy?.attr || 'metal'
+      const trinket = generateEquipment('trinket', enemyAttr, 'green', 2)
+      this.storage.addToInventory(trinket)
+      this.dropPopup = trinket
+      this.tempEquips.push(trinket)
       this.storage.updateTaskProgress('dt3', 1)
     }
   }
@@ -1646,6 +1889,47 @@ class Main {
   }
 
   // ===== 属性查看面板 =====
+  _drawTutorialPanel() {
+    const tip = this._tutorialTip
+    if (!tip) return
+    const m = 24*S, panelW = W - m*2
+    const lineH = 20*S
+    const panelH = 36*S + tip.tips.length * lineH + 40*S  // 标题+tips+底部提示
+    const panelX = m, panelY = H*0.25
+
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+
+    // 面板背景
+    R.drawDarkPanel(panelX, panelY, panelW, panelH, 14*S)
+
+    // 步骤标签
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillText(`第 ${tip.step} / 5 关`, panelX + panelW/2, panelY + 10*S)
+
+    // 标题
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    ctx.fillText(tip.title, panelX + panelW/2, panelY + 24*S)
+
+    // tips 内容
+    let cy = panelY + 50*S
+    ctx.textAlign = 'left'
+    tip.tips.forEach((t, i) => {
+      ctx.fillStyle = TH.text; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`• ${t}`, panelX + 16*S, cy)
+      cy += lineH
+    })
+
+    // 底部提示
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    const pulse = 0.5 + 0.5 * Math.abs(Math.sin(this.af * 0.05))
+    ctx.globalAlpha = pulse
+    ctx.fillText('点击任意位置开始战斗', panelX + panelW/2, cy + 10*S)
+    ctx.globalAlpha = 1
+  }
+
   _drawStatPanel() {
     const panel = this.statPanel
     if (!panel || !panel.visible) return

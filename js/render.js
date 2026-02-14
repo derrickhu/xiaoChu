@@ -2,7 +2,7 @@
  * 渲染模块 - 适配修仙消消乐法宝系统
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
-const { QUALITY, EQUIP_SLOT, ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME, COUNTER_MAP, STAT_DEFS, SKILL_TEMPLATES } = require('./data/equipment')
+const { QUALITY, EQUIP_SLOT, ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME, COUNTER_MAP, STAT_DEFS } = require('./data/equipment')
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -433,7 +433,7 @@ class Render {
     const slot = EQUIP_SLOT[equip.slot]
     c.fillStyle=TH.sub; c.font=`${10*S}px "PingFang SC",sans-serif`
     c.textAlign='right'; c.fillText(slot.icon+' '+slot.name, x+w-8*S, y+6*S)
-    // 属性概要（优先显示stats，兼容旧数据）
+    // 属性概要（显示stats，兜底显示绝技名）
     c.fillStyle=TH.sub; c.font=`${9*S}px "PingFang SC",sans-serif`
     c.textAlign='left'
     if (equip.stats && Object.keys(equip.stats).length > 0) {
@@ -443,7 +443,7 @@ class Render {
       }).join(' ')
       c.fillText(statText, x+12*S, y+34*S)
     } else {
-      c.fillText(equip.skill.name, x+12*S, y+34*S)
+      c.fillText(equip.ult ? equip.ult.name : '', x+12*S, y+34*S)
     }
     c.restore()
   }
@@ -465,44 +465,35 @@ class Render {
     c.fillStyle = TH.sub; c.font = `${11*S}px "PingFang SC",sans-serif`
     c.fillText(`${q.name} · ${ATTR_NAME[equip.attr]}属性 · ${EQUIP_SLOT[equip.slot].name}${equip.level ? ' · Lv.'+equip.level : ''}`, x+padX, cy); cy += lineH
 
-    // 五维属性
+    // 属性加成
     if (equip.stats && Object.keys(equip.stats).length > 0) {
       cy += 4*S
       c.fillStyle = TH.accent; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-      c.fillText('▸ 属性:', x+padX, cy); cy += 14*S
-      const statNames = {hp:'气血',pAtk:'物理攻击',mAtk:'魔法攻击',pDef:'物理防御',mDef:'魔法防御',heartHeal:'心珠回血',
-        stamina:'气力',metalAtk:'金攻',woodAtk:'木攻',earthAtk:'土攻',waterAtk:'水攻',fireAtk:'火攻',
-        metalDef:'金防',woodDef:'木防',earthDef:'土防',waterDef:'水防',fireDef:'火防',recovery:'回复'}
-      const statColors = {hp:'#ff5555',pAtk:'#ff8c00',mAtk:'#b366ff',pDef:'#4dabff',mDef:'#4dcc4d',heartHeal:'#ff69b4',
+      c.fillText('▸ 属性加成:', x+padX, cy); cy += 14*S
+      const statColors = {
         stamina:'#ff5555',metalAtk:'#ffd700',woodAtk:'#4dcc4d',earthAtk:'#d4a056',waterAtk:'#4dabff',fireAtk:'#ff4d4d',
         metalDef:'#ffd700',woodDef:'#4dcc4d',earthDef:'#d4a056',waterDef:'#4dabff',fireDef:'#ff4d4d',recovery:'#ff69b4'}
       Object.entries(equip.stats).forEach(([k,v]) => {
+        const sd = STAT_DEFS[k]
         c.fillStyle = statColors[k] || TH.text; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  ${statNames[k]||k} +${v}`, x+padX, cy); cy += 14*S
+        c.fillText(`  ${sd ? sd.name : k} +${v}`, x+padX, cy); cy += 14*S
       })
     }
 
-    // 普通技能
-    cy += 6*S
-    c.fillStyle = a.main; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.fillText('▸ 普通技能: '+equip.skill.name, x+padX, cy); cy += lineH
-    c.fillStyle = TH.sub; c.font = `${10*S}px "PingFang SC",sans-serif`
-    const desc1 = equip.skill.desc.replace(/{(\w+)}/g, (m,k) => equip.skill[k]||m)
-    c.fillText('  '+desc1, x+padX, cy); cy += lineH
-
-    // 仙技
-    c.fillStyle = TH.accent; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.fillText('★ 仙技: '+equip.ult.name+` (需${equip.ultTrigger}次蓄力)`, x+padX, cy); cy += lineH
-    c.fillStyle = TH.sub; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('  倍率 ×'+equip.ult.multi.toFixed(1), x+padX, cy); cy += lineH
-
-    // 被动
-    equip.passives.forEach(p => {
-      c.fillStyle = TH.success; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-      c.fillText('◆ '+p.name, x+padX, cy); cy += 14*S
+    // 绝技
+    if (equip.ult) {
+      cy += 6*S
+      c.fillStyle = TH.accent; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      c.fillText('★ 绝技: '+equip.ult.name+` (需${equip.ultTrigger}次蓄力)`, x+padX, cy); cy += lineH
       c.fillStyle = TH.sub; c.font = `${10*S}px "PingFang SC",sans-serif`
-      c.fillText('  '+p.desc, x+padX, cy); cy += lineH
-    })
+      // 格式化绝技描述
+      const desc = equip.ult.desc.replace(/{(\w+)}/g, (m,k) => {
+        if (k === 'dur') return equip.ult.buffDur || ''
+        return equip.ult[k] || m
+      })
+      c.fillText('  '+desc, x+padX, cy); cy += lineH
+    }
+
     return cy - y  // 返回占用高度
   }
 
@@ -1164,7 +1155,7 @@ class Render {
         skG.addColorStop(0, a.lt); skG.addColorStop(0.7, a.main); skG.addColorStop(1, a.dk)
         c.fillStyle = skG; c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.fill()
         const slotName = EQUIP_SLOT[eq.slot]?.name || ''
-        const skillChar = slotName.charAt(0) || (eq.skill?.name || '').charAt(0) || '?'
+        const skillChar = slotName.charAt(0) || (eq.ult?.name || '').charAt(0) || '?'
         c.fillStyle = '#fff'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
         c.textAlign = 'center'; c.textBaseline = 'middle'
         c.fillText(skillChar, icx, icy)
