@@ -324,8 +324,16 @@ class Main {
     ctx.fillStyle=TH.accent; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'
     ctx.fillText('初始修为', W/2, infoY+16*S)
-    ctx.fillStyle=TH.text; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`气力:${stats.stamina} 金攻:${stats.metalAtk} 回复:${stats.recovery}`, W/2, infoY+40*S)
+    ctx.font=`${12*S}px "PingFang SC",sans-serif`
+    const statsText = `气力:${stats.stamina} 金攻:${stats.metalAtk} 回复:${stats.recovery}`
+    const totalW2 = ctx.measureText(statsText).width
+    let sx = W/2 - totalW2/2
+    ctx.textAlign='left'
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`气力:${stats.stamina}`, sx, infoY+40*S)
+    sx += ctx.measureText(`气力:${stats.stamina} `).width
+    ctx.fillStyle='#ffd43b'; ctx.fillText(`金攻:${stats.metalAtk}`, sx, infoY+40*S)
+    sx += ctx.measureText(`金攻:${stats.metalAtk} `).width
+    ctx.fillStyle='#69db7c'; ctx.fillText(`回复:${stats.recovery}`, sx, infoY+40*S)
 
     const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
     if (eqCount > 0) {
@@ -368,8 +376,13 @@ class Main {
     ctx.fillStyle=TH.text; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='middle'
     ctx.fillText('修仙者', textX, cardY+22*S)
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`气力:${stats.stamina} 金攻:${stats.metalAtk} 回复:${stats.recovery}`, textX, cardY+42*S)
+    ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    let attrX = textX
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`气力:${stats.stamina}`, attrX, cardY+42*S)
+    attrX += ctx.measureText(`气力:${stats.stamina} `).width
+    ctx.fillStyle='#ffd43b'; ctx.fillText(`金攻:${stats.metalAtk}`, attrX, cardY+42*S)
+    attrX += ctx.measureText(`金攻:${stats.metalAtk} `).width
+    ctx.fillStyle='#69db7c'; ctx.fillText(`回复:${stats.recovery}`, attrX, cardY+42*S)
     ctx.fillStyle=TH.accent; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
     ctx.textAlign='right'; ctx.fillText(`💎 ${this.storage.gold}`, W-m-12*S, cardY+22*S)
     const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
@@ -377,20 +390,29 @@ class Main {
     ctx.fillText(`法宝 ${eqCount}/5`, W-m-12*S, cardY+42*S)
 
     const lv = ALL_LEVELS.find(l=>l.levelId===this.storage.currentLevel) || ALL_LEVELS[0]
-    const lvY = cardY+cardH+20*S, lvH = 140*S
+    const lvY = cardY+cardH+20*S, lvH = 170*S
     R.drawDarkPanel(m, lvY, cardW, lvH, 14*S)
     ctx.fillStyle=TH.accent; ctx.font=`bold ${15*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
     ctx.fillText('📍 当前秘境', W/2, lvY+12*S)
     const enemyR = 28*S
     R.drawEnemy(W/2, lvY+60*S, enemyR, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    // 关卡名（显示在怪物名下方）
+    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
+    ctx.fillText(lv.name, W/2, lvY+108*S)
+    // 怪物属性信息
+    ctx.font=`${11*S}px "PingFang SC",sans-serif`
     const enemyMainAtk = lv.enemy[ATK_KEY[lv.enemy.attr]] || 0
     const enemyMainDef = lv.enemy[DEF_KEY[lv.enemy.attr]] || 0
-    ctx.fillText(`HP:${lv.enemy.hp}  ${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}  ${ATTR_NAME[lv.enemy.attr]}防:${enemyMainDef}`, W/2, lvY+100*S)
-    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
-    ctx.fillText(lv.name, W/2, lvY+118*S)
+    const attrColor = ATTR_COLOR[lv.enemy.attr]?.main || TH.sub
+    let infoX = W/2 - 90*S
+    ctx.textAlign='left'
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`HP:${lv.enemy.hp}`, infoX, lvY+128*S)
+    infoX += ctx.measureText(`HP:${lv.enemy.hp}  `).width
+    ctx.fillStyle=attrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}`, infoX, lvY+128*S)
+    infoX += ctx.measureText(`${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}  `).width
+    ctx.fillStyle=TH.sub; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${enemyMainDef}`, infoX, lvY+128*S)
 
     const btnW = 160*S, btnH = 44*S
     const btnX = (W-btnW)/2, btnY = lvY+lvH+20*S
@@ -405,19 +427,20 @@ class Main {
 
   // ===== 战斗准备 =====
   rBattlePrepare() {
-    R.drawLevelBg(this.af); R.drawTopBar('备战',true)
+    R.drawLevelBg(this.af); R.drawTopBar(this.curLevel ? this.curLevel.name : '备战', true)
     if (!this.curLevel) return
     const m=14*S, startY=safeTop+56*S
     const lv = this.curLevel
     R.drawDarkPanel(m,startY,W-m*2,100*S,12*S)
     R.drawEnemy(m+50*S, startY+50*S, 30*S, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
-    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='top'
-    ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
     const eMainAtk = lv.enemy[ATK_KEY[lv.enemy.attr]] || 0
-    ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}`, m+90*S, startY+38*S)
+    const bpAttrColor = ATTR_COLOR[lv.enemy.attr]?.main || TH.accent
+    ctx.fillStyle=bpAttrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}`, m+90*S, startY+38*S)
     const eMainDef = lv.enemy[DEF_KEY[lv.enemy.attr]] || 0
-    ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle='#74c0fc'; ctx.font=`${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${eMainDef}`, m+90*S, startY+56*S)
     if (lv.specialCond) {
       ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+90*S, startY+72*S)
@@ -434,8 +457,13 @@ class Main {
     const stats = this.storage.getHeroStats()
     const totalRows = Math.ceil(Object.keys(EQUIP_SLOT).length / 2)
     const infoY = eqY+20*S + totalRows*(eqH+6*S) + 10*S
-    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`修士 气力:${stats.stamina} 回复:${stats.recovery}`, m, infoY)
+    ctx.font=`${12*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='left'
+    ctx.fillStyle=TH.text; ctx.fillText('修士', m, infoY)
+    let bpX = m + ctx.measureText('修士 ').width
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`气力:${stats.stamina}`, bpX, infoY)
+    bpX += ctx.measureText(`气力:${stats.stamina} `).width
+    ctx.fillStyle='#69db7c'; ctx.fillText(`回复:${stats.recovery}`, bpX, infoY)
     R.drawBtn(W/2-55*S, infoY+30*S, 110*S, 40*S, '出 战', TH.danger)
   }
 
@@ -923,6 +951,7 @@ class Main {
   }
 
   _enterBattle() {
+    this._victoryHandled = false   // 重置胜利标志
     const lv = this.curLevel
     const stats = this.storage.getHeroStats()
     this.enemyHp = lv.enemy.hp; this.enemyMaxHp = lv.enemy.hp
@@ -1503,8 +1532,12 @@ class Main {
   }
 
   _onVictory() {
+    if (this._victoryHandled) return   // 防止重复调用
+    this._victoryHandled = true
     const lv = this.curLevel
+    console.log('[Victory] levelId:', lv.levelId, 'difficulty:', lv.difficulty, 'currentLevel before:', this.storage.currentLevel)
     this.storage.passLevel(lv.levelId, lv.difficulty)
+    console.log('[Victory] currentLevel after:', this.storage.currentLevel)
     this.storage.recordBattle(this.combo, this.storage.stats.totalSkills)
     this.storage.updateTaskProgress('dt1', 1)
     this.storage.checkAchievements({ combo: this.combo })
