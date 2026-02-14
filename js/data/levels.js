@@ -54,6 +54,7 @@ function _genThemeLevels(attr, startId) {
     levels.push({
       levelId: startId + i,
       theme: attr,
+      bg: `theme_${attr}`,   // 战斗背景主题标识
       name: `${an}灵秘境·第${i}层`,
       enemy: {
         name: `${an}灵${i<=3?'妖兵':i<=6?'妖将':i<=9?'妖王':'妖帝'}`,
@@ -112,6 +113,7 @@ function _genMixedLevels() {
     levels.push({
       levelId: 600 + i,
       theme: 'mixed',
+      bg: 'theme_mixed',    // 混沌秘境背景
       name: `混沌秘境·第${i}层`,
       enemy: {
         name: `混沌${i<=5?'妖兽':'魔尊'}`,

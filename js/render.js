@@ -90,8 +90,19 @@ class Render {
     }
   }
 
-  drawBattleBg(frame) {
-    const {ctx:c,W,H} = this
+  // 各主题的背景色调配置
+  static THEME_BG = {
+    theme_metal: { top:'#1a1520', mid:'#2a2035', bot:'#0e0b12', accent:'#c0a060', particle:'#ffd700' },
+    theme_wood:  { top:'#0d1a0d', mid:'#1a2e1a', bot:'#081208', accent:'#5daf5d', particle:'#90ee90' },
+    theme_earth: { top:'#1a1510', mid:'#2e2518', bot:'#120e08', accent:'#c8a060', particle:'#deb887' },
+    theme_water: { top:'#0a1220', mid:'#152535', bot:'#080e18', accent:'#4090d0', particle:'#87ceeb' },
+    theme_fire:  { top:'#200a0a', mid:'#351515', bot:'#180808', accent:'#d05040', particle:'#ff6347' },
+    theme_mixed: { top:'#150a1a', mid:'#251535', bot:'#100818', accent:'#a050c0', particle:'#da70d6' },
+  }
+
+  drawBattleBg(frame, themeBg) {
+    const {ctx:c,W,H,S} = this
+    // 下半部（棋盘区）仍用通用战斗背景
     const img = this.getImg('assets/backgrounds/battle_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
@@ -101,6 +112,45 @@ class Render {
     } else {
       this.drawBg(frame)
     }
+  }
+
+  /** 绘制怪物区主题背景（仅覆盖怪物区域） */
+  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom) {
+    const {ctx:c,W,S} = this
+    const theme = Render.THEME_BG[themeBg] || Render.THEME_BG.theme_metal
+    const areaH = areaBottom - areaTop
+
+    // 渐变背景
+    c.save()
+    const bg = c.createLinearGradient(0, areaTop, 0, areaBottom)
+    bg.addColorStop(0, theme.top)
+    bg.addColorStop(0.5, theme.mid)
+    bg.addColorStop(1, theme.bot)
+    c.fillStyle = bg
+    c.fillRect(0, areaTop, W, areaH)
+
+    // 主题色光晕（从下方散出）
+    const glowG = c.createRadialGradient(W/2, areaBottom, 0, W/2, areaBottom, areaH*0.8)
+    glowG.addColorStop(0, theme.accent+'30')
+    glowG.addColorStop(0.5, theme.accent+'10')
+    glowG.addColorStop(1, 'transparent')
+    c.fillStyle = glowG
+    c.fillRect(0, areaTop, W, areaH)
+
+    // 漂浮粒子
+    const particleCount = 8
+    for (let i = 0; i < particleCount; i++) {
+      const seed = i * 137.5
+      const px = (seed * 2.3 + frame * (0.2 + i*0.05)) % W
+      const py = areaTop + ((seed * 3.7 + frame * (0.15 + i*0.03)) % areaH)
+      const pr = (1 + Math.sin(frame * 0.03 + i)) * 1.5 * S
+      const alpha = 0.15 + 0.1 * Math.sin(frame * 0.05 + i * 0.8)
+      c.globalAlpha = alpha
+      c.fillStyle = theme.particle
+      c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
+    }
+    c.globalAlpha = 1
+    c.restore()
   }
 
   drawLevelBg(frame) {
@@ -1028,14 +1078,15 @@ class Render {
   }
 
   // ===== 技能图标栏（棋盘上方，类似智龙迷城队伍栏） =====
-  drawSkillBar(x, y, w, h, equipped, skillTriggers, frame) {
+  // 左侧大角色头像 | 分隔线 | 右侧技能图标
+  drawSkillBar(x, y, w, h, equipped, skillTriggers, frame, heroAttr) {
     const {ctx:c, S} = this
     // 背景
     c.save()
     const bg = c.createLinearGradient(x, y, x, y+h)
     bg.addColorStop(0, 'rgba(10,10,25,0.95)'); bg.addColorStop(1, 'rgba(20,20,40,0.9)')
     c.fillStyle = bg; c.fillRect(x, y, w, h)
-    // 顶部分割线
+    // 顶部金色分割线
     c.strokeStyle = 'rgba(255,215,0,0.3)'; c.lineWidth = 1
     c.beginPath(); c.moveTo(x, y); c.lineTo(x+w, y); c.stroke()
     // 底部分割线
@@ -1043,22 +1094,43 @@ class Render {
     c.beginPath(); c.moveTo(x, y+h); c.lineTo(x+w, y+h); c.stroke()
 
     const eqList = Object.values(equipped).filter(e => e)
-    const iconSize = 46*S
-    const gap = 4*S
-    const totalW = eqList.length > 0 ? eqList.length * iconSize + (eqList.length-1) * gap : 0
-    const startX = (w - totalW) / 2
+    const iconSize = 40*S          // 技能图标缩小到 40
+    const gap = 5*S
+    const heroSize = h - 6*S       // 角色头像撑满栏高（留3px上下边距）
+    const heroPad = 6*S            // 头像左侧内边距
+    const dividerGap = 8*S         // 分隔线两侧间距
     const iconY = y + (h - iconSize) / 2
 
+    // ===== 绘制角色头像（左侧，更大） =====
+    const heroX = heroPad
+    const heroY = y + (h - heroSize) / 2
+    this._drawHeroIcon(heroX, heroY, heroSize, frame, heroAttr)
+
+    // ===== 竖分隔线 =====
+    const divX = heroX + heroSize + dividerGap
+    c.strokeStyle = 'rgba(255,215,0,0.25)'; c.lineWidth = 1*S
+    c.beginPath(); c.moveTo(divX, y + 6*S); c.lineTo(divX, y + h - 6*S); c.stroke()
+
+    // ===== 绘制技能图标（分隔线右侧） =====
+    const skillStartX = divX + dividerGap
     if (eqList.length === 0) {
       c.fillStyle = TH.dim; c.font = `${11*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('未装备法宝', w/2, y+h/2)
+      c.fillText('未装备法宝', skillStartX + 50*S, y+h/2)
       c.restore()
       return
     }
 
+    // 技能区域可用宽度，图标在其中均匀排列
+    const skillAreaW = w - skillStartX - 6*S
+    const actualGap = eqList.length > 1
+      ? Math.min(gap, (skillAreaW - eqList.length * iconSize) / (eqList.length - 1))
+      : 0
+    const skillsTotalW = eqList.length * iconSize + Math.max(0, eqList.length-1) * actualGap
+    const skillOffsetX = skillStartX + (skillAreaW - skillsTotalW) / 2
+
     eqList.forEach((eq, idx) => {
-      const ix = startX + idx * (iconSize + gap)
+      const ix = skillOffsetX + idx * (iconSize + actualGap)
       const cur = (skillTriggers || {})[eq.attr] || 0
       const ready = cur >= eq.ultTrigger
       const a = ATTR_COLOR[eq.attr]
@@ -1078,31 +1150,37 @@ class Render {
       c.fillStyle = a.main; this.rr(ix, iconY, iconSize, iconSize, 6*S); c.fill()
       c.restore()
 
-      // 技能图标：用技能名首字+属性色渐变作为技能图标
-      const skillName = eq.skill?.name || ''
-      const skillChar = skillName.charAt(0) || EQUIP_SLOT[eq.slot]?.icon || '?'
-      // 技能图标背景圆
+      // 技能图标：优先用装备图标图片，降级用部位名首字+属性色渐变
       const icx = ix + iconSize/2, icy = iconY + iconSize*0.42
-      const icR = iconSize * 0.3
-      const skG = c.createRadialGradient(icx-icR*0.2, icy-icR*0.2, icR*0.1, icx, icy, icR)
-      skG.addColorStop(0, a.lt); skG.addColorStop(0.7, a.main); skG.addColorStop(1, a.dk)
-      c.fillStyle = skG; c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.fill()
-      // 技能文字
-      c.fillStyle = '#fff'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText(skillChar, icx, icy)
+      const icR = iconSize * 0.28
+      const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
+      if (eqImg && eqImg.width > 0) {
+        c.save()
+        c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.clip()
+        c.drawImage(eqImg, icx-icR, icy-icR, icR*2, icR*2)
+        c.restore()
+      } else {
+        const skG = c.createRadialGradient(icx-icR*0.2, icy-icR*0.2, icR*0.1, icx, icy, icR)
+        skG.addColorStop(0, a.lt); skG.addColorStop(0.7, a.main); skG.addColorStop(1, a.dk)
+        c.fillStyle = skG; c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.fill()
+        const slotName = EQUIP_SLOT[eq.slot]?.name || ''
+        const skillChar = slotName.charAt(0) || (eq.skill?.name || '').charAt(0) || '?'
+        c.fillStyle = '#fff'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText(skillChar, icx, icy)
+      }
 
-      // 边框（就绪时金色）
+      // 边框（就绪时金色脉冲）
       if (ready) {
         c.strokeStyle = TH.accent; c.lineWidth = 2*S
         c.save(); c.globalAlpha = 0.2 + 0.15*Math.sin(frame*0.07)
         c.fillStyle = TH.accent; this.rr(ix, iconY, iconSize, iconSize, 6*S); c.fill()
         c.restore()
-        // 闪烁上箭头
-        c.save(); c.globalAlpha = 0.5 + 0.4*Math.sin(frame*0.1)
-        c.fillStyle = TH.accent; c.font = `${8*S}px "PingFang SC",sans-serif`
+        // 闪烁"释放"提示
+        c.save(); c.globalAlpha = 0.6 + 0.35*Math.sin(frame*0.1)
+        c.fillStyle = TH.accent; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
         c.textAlign = 'center'; c.textBaseline = 'bottom'
-        c.fillText('↑', ix+iconSize/2, iconY-1*S)
+        c.fillText('点击释放', ix+iconSize/2, iconY-1*S)
         c.restore()
       } else {
         c.strokeStyle = q.color+'66'; c.lineWidth = 1.5*S
@@ -1110,8 +1188,8 @@ class Render {
       this.rr(ix, iconY, iconSize, iconSize, 6*S); c.stroke()
 
       // 蓄力进度条（底部）
-      const barW2 = iconSize - 6*S, barH2 = 3*S
-      const barX2 = ix + 3*S, barY2 = iconY + iconSize - 7*S
+      const barW2 = iconSize - 4*S, barH2 = 3*S
+      const barX2 = ix + 2*S, barY2 = iconY + iconSize - 6*S
       const pct = Math.min(1, cur / eq.ultTrigger)
       c.fillStyle = 'rgba(0,0,0,0.4)'; this.rr(barX2, barY2, barW2, barH2, barH2/2); c.fill()
       if (pct > 0) {
@@ -1121,13 +1199,63 @@ class Render {
 
       // 属性小标（左上角）
       c.fillStyle = a.main
-      c.beginPath(); c.arc(ix+8*S, iconY+8*S, 5*S, 0, Math.PI*2); c.fill()
+      c.beginPath(); c.arc(ix+7*S, iconY+7*S, 4.5*S, 0, Math.PI*2); c.fill()
       c.fillStyle = '#fff'; c.font = `bold ${5*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText(ATTR_NAME[eq.attr], ix+8*S, iconY+8*S)
+      c.fillText(ATTR_NAME[eq.attr], ix+7*S, iconY+7*S)
     })
 
     c.restore()
+  }
+
+  /** 绘制角色头像（技能栏左侧，大尺寸） */
+  _drawHeroIcon(x, y, size, frame, heroAttr) {
+    const {ctx:c, S} = this
+
+    // 底部阴影
+    c.fillStyle = 'rgba(0,0,0,0.5)'
+    this.rr(x+2*S, y+2*S, size, size, 10*S); c.fill()
+
+    // 背景（比技能图标亮，突出角色）
+    const bg = c.createLinearGradient(x, y, x, y+size)
+    bg.addColorStop(0, 'rgba(50,45,70,0.95)'); bg.addColorStop(1, 'rgba(35,32,50,0.98)')
+    c.fillStyle = bg; this.rr(x, y, size, size, 10*S); c.fill()
+
+    // 角色头像图片（圆角裁切）
+    const imgPad = 2*S
+    c.save()
+    this.rr(x+imgPad, y+imgPad, size-imgPad*2, size-imgPad*2, 8*S); c.clip()
+    const heroImg = this.getImg('assets/hero/hero_avatar.jpg')
+    if (heroImg && heroImg.width > 0) {
+      c.drawImage(heroImg, x+imgPad, y+imgPad, size-imgPad*2, size-imgPad*2)
+    } else {
+      const fg = c.createRadialGradient(x+size/2, y+size*0.4, size*0.1, x+size/2, y+size/2, size*0.4)
+      fg.addColorStop(0, '#9999dd'); fg.addColorStop(1, '#555577')
+      c.fillStyle = fg; c.fillRect(x+imgPad, y+imgPad, size-imgPad*2, size-imgPad*2)
+      c.fillStyle = '#fff'; c.font = `bold ${Math.round(size*0.35)}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText('修', x+size/2, y+size*0.42)
+    }
+    c.restore()
+
+    // 金色边框（呼吸灯）
+    const borderAlpha = 0.7 + 0.2 * Math.sin(frame * 0.04)
+    c.save(); c.globalAlpha = borderAlpha
+    c.strokeStyle = TH.accent; c.lineWidth = 2.5*S
+    this.rr(x, y, size, size, 10*S); c.stroke()
+    c.restore()
+
+    // 属性小标（左上角）
+    if (heroAttr) {
+      const ha = ATTR_COLOR[heroAttr]
+      if (ha) {
+        c.fillStyle = ha.main
+        c.beginPath(); c.arc(x+8*S, y+8*S, 6*S, 0, Math.PI*2); c.fill()
+        c.fillStyle = '#fff'; c.font = `bold ${6*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText(ATTR_NAME[heroAttr], x+8*S, y+8*S)
+      }
+    }
   }
 
   // ===== 人物血条（宽横条，棋盘上方） =====
@@ -1286,6 +1414,70 @@ class Render {
           c.strokeStyle = `rgba(255,77,106,${(1-p)*0.4})`
           c.lineWidth = 2*S
           c.beginPath(); c.moveTo(cx+20*S, ly); c.lineTo(cx+60*S+Math.random()*20*S, ly); c.stroke()
+        }
+        break
+      }
+      case 'shield': {
+        // 护盾特效：六边形护盾展开 + 蓝光脉冲
+        const cx2 = tx, cy2 = ty
+        const shieldR = 50*S * Math.min(1, p*3) // 快速展开
+        const fadeAlpha = p < 0.3 ? p/0.3 : (1-p)*1.4
+        c.globalAlpha = Math.max(0, fadeAlpha) * 0.7
+        // 护盾光圈
+        c.strokeStyle = clr; c.lineWidth = (3 + (1-p)*3)*S
+        c.beginPath()
+        for (let i=0; i<=6; i++) {
+          const ang = (Math.PI*2/6)*i - Math.PI/2
+          const sx = cx2 + Math.cos(ang)*shieldR
+          const sy = cy2 + Math.sin(ang)*shieldR*0.8
+          i===0 ? c.moveTo(sx,sy) : c.lineTo(sx,sy)
+        }
+        c.closePath(); c.stroke()
+        // 护盾内部填充
+        c.globalAlpha = Math.max(0, fadeAlpha) * 0.15
+        c.fillStyle = clr; c.fill()
+        // 向上飘散的护盾粒子
+        c.globalAlpha = Math.max(0, fadeAlpha) * 0.6
+        for (let i=0; i<6; i++) {
+          const seed = i*60
+          const px = cx2 + Math.cos(seed)*shieldR*(0.3+Math.random()*0.5)
+          const py = cy2 - p*40*S - i*8*S
+          const pr = (2+Math.random()*2)*S*(1-p)
+          c.fillStyle = i%2===0 ? '#fff' : clr
+          c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
+        }
+        break
+      }
+      case 'debuff': {
+        // 减攻特效：向下的紫色锁链 + 暗化
+        const cx3 = tx, cy3 = ty
+        const expandP = Math.min(1, p*2.5)
+        const fadeAlpha2 = p < 0.2 ? p/0.2 : (1-p)*1.25
+        c.globalAlpha = Math.max(0, fadeAlpha2) * 0.6
+        // 暗色光环笼罩敌人
+        const debuffR = 60*S * expandP
+        const dg = c.createRadialGradient(cx3, cy3, 0, cx3, cy3, debuffR)
+        dg.addColorStop(0, clr+'66'); dg.addColorStop(0.6, clr+'33'); dg.addColorStop(1, 'transparent')
+        c.fillStyle = dg; c.beginPath(); c.arc(cx3, cy3, debuffR, 0, Math.PI*2); c.fill()
+        // 向下箭头链
+        c.globalAlpha = Math.max(0, fadeAlpha2) * 0.8
+        c.fillStyle = clr; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        for (let i=0; i<3; i++) {
+          const ay = cy3 - 20*S + i*18*S + p*15*S
+          const arrowAlpha = Math.max(0, fadeAlpha2 - i*0.15)
+          c.globalAlpha = arrowAlpha * 0.7
+          c.fillText('▼', cx3 + (i-1)*20*S, ay)
+        }
+        // 锁链粒子
+        for (let i=0; i<5; i++) {
+          const angle2 = (Math.PI*2/5)*i + p*2
+          const dist2 = debuffR * 0.6
+          const px2 = cx3 + Math.cos(angle2)*dist2
+          const py2 = cy3 + Math.sin(angle2)*dist2
+          c.globalAlpha = Math.max(0, fadeAlpha2)*0.5
+          c.fillStyle = '#fff'
+          c.beginPath(); c.arc(px2, py2, (1-p)*3*S, 0, Math.PI*2); c.fill()
         }
         break
       }

@@ -156,21 +156,21 @@ class Main {
     }
     if (this.bState === 'preAttack') {
       this._stateTimer++
-      if (this._stateTimer >= 60) {
+      if (this._stateTimer >= 20) {
         this._stateTimer = 0
         this._executeAttack()
       }
     }
     if (this.bState === 'preEnemy') {
       this._stateTimer++
-      if (this._stateTimer >= 60) {
+      if (this._stateTimer >= 30) {
         this._stateTimer = 0
         this._enemyTurn()
       }
     }
     if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
       this._stateTimer++
-      if (this._stateTimer >= 60) {
+      if (this._stateTimer >= 36) {
         this._stateTimer = 0
         this._enemyTurnWait = false
         this.bState = 'playerTurn'
@@ -253,6 +253,32 @@ class Main {
       type:'heal', color:TH.success,
       skillName: skillName||'',
       targetX: W*0.5, targetY: hpBarTop
+    }
+  }
+
+  _playShieldEffect(skillName, attr) {
+    const padX = 8*S
+    const cellSize = (W - padX*2) / COLS
+    const boardH = ROWS * cellSize
+    const boardTop = H - 10*S - boardH
+    const hpBarTop = boardTop - 28*S
+    const color = ATTR_COLOR[attr]?.main || '#74c0fc'
+    this.skillCastAnim = {
+      active:true, progress:0, duration:30,
+      type:'shield', color,
+      skillName: skillName||'',
+      targetX: W*0.5, targetY: hpBarTop
+    }
+  }
+
+  _playDebuffEffect(skillName, attr) {
+    const eCenterY = this._getEnemyCenterY()
+    const color = ATTR_COLOR[attr]?.main || '#da77f2'
+    this.skillCastAnim = {
+      active:true, progress:0, duration:28,
+      type:'debuff', color,
+      skillName: skillName||'',
+      targetX: W*0.5, targetY: eCenterY
     }
   }
 
@@ -484,13 +510,12 @@ class Main {
     const enemyAreaTop = safeTop        // 怪物区顶部
 
     // ===== 1. 背景 =====
-    R.drawBattleBg(this.af)
+    const themeBg = this.curLevel ? this.curLevel.bg : 'theme_metal'
+    R.drawBattleBg(this.af, themeBg)
 
     // ===== 2. 怪物区（上半部分，占满到技能栏上方） =====
-    // 半透明暗色叠加
-    ctx.save(); ctx.globalAlpha = 0.15
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, enemyAreaBottom)
-    ctx.restore()
+    // 用主题背景覆盖怪物区（不同关卡不同色调）
+    R.drawEnemyAreaBg(this.af, themeBg, 0, enemyAreaBottom)
 
     // 顶部按钮（退出/回合/难度）
     ctx.fillStyle='rgba(0,0,0,0.35)'; R.rr(8*S, enemyAreaTop+4*S, 42*S, 22*S, 11*S); ctx.fill()
@@ -522,8 +547,8 @@ class Main {
       }
     }
 
-    // ===== 3. 技能图标栏（装备技能图标） =====
-    R.drawSkillBar(0, skillBarTop, W, skillBarH, this.storage.equipped, this.skillTriggers, this.af)
+    // ===== 3. 技能图标栏（左侧角色头像 + 右侧装备技能图标） =====
+    R.drawSkillBar(0, skillBarTop, W, skillBarH, this.storage.equipped, this.skillTriggers, this.af, this.curLevel ? this.curLevel.theme : null)
     // 保存技能栏区域用于触摸检测
     this._skillBarArea = { y: skillBarTop, h: skillBarH }
 
@@ -533,7 +558,7 @@ class Main {
     // ===== 5. 棋盘 =====
     this._drawBoard(boardTop)
 
-    // ===== 6. 绝技蓄力（集成在技能图标栏，上滑触发） =====
+    // ===== 6. 绝技蓄力（集成在技能图标栏，点击触发） =====
     const equipped = this.storage.equipped
     const eqList = Object.keys(equipped).map(slot => equipped[slot]).filter(e => e)
     if (eqList.length > 0) {
@@ -548,6 +573,35 @@ class Main {
     // 飘字/特效
     this.dmgFloats.forEach(f => R.drawDmgFloat(f.x,f.y,f.text,f.color,f.alpha,f.scale))
     this.skillEffects.forEach(e => R.drawSkillEffect(e.x,e.y,e.text,e.color,e.alpha))
+
+    // ===== 阶段过渡提示 =====
+    if (this.bState === 'preAttack' || this.bState === 'preEnemy' || (this.bState === 'enemyTurn' && this._enemyTurnWait)) {
+      const t = this._stateTimer || 0
+      let label = '', color = TH.accent
+      if (this.bState === 'preAttack') {
+        label = '⚔️ 攻击!'
+        color = '#ffd700'
+      } else if (this.bState === 'preEnemy') {
+        label = '🛡️ 敌方回合'
+        color = '#ff6b6b'
+      } else {
+        label = '⏳ 你的回合'
+        color = '#4dcc4d'
+      }
+      // 弹入动画：从大到正常，带透明度
+      const maxT = this.bState === 'preAttack' ? 20 : this.bState === 'preEnemy' ? 30 : 36
+      const progress = Math.min(1, t / (maxT * 0.4))   // 前40%的时间做弹入
+      const scale = 1 + (1 - progress) * 0.5
+      const alpha = Math.min(1, t / 8) * (t > maxT * 0.7 ? Math.max(0, 1 - (t - maxT*0.7)/(maxT*0.3)) : 1)
+      ctx.save(); ctx.globalAlpha = alpha
+      ctx.fillStyle = color; ctx.font = `bold ${Math.round(20*S*scale)}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3*S
+      const tipY = enemyAreaBottom - 40*S
+      ctx.strokeText(label, W/2, tipY)
+      ctx.fillText(label, W/2, tipY)
+      ctx.restore()
+    }
 
     // 属性面板
     if (this.statPanel && this.statPanel.visible) this._drawStatPanel()
@@ -851,39 +905,37 @@ class Main {
     if (type === 'end' && this._hitRect(x,y,8*S,safeTop+4*S,42*S,22*S)) {
       this.bState = 'none'; this.scene = 'home'; return
     }
-    // 技能栏区域的绝技上滑（必须在怪物区/血条区点击检测之前，否则end事件被拦截）
+    // 技能栏区域的绝技点击释放（蓄力满后点击即释放）
     if (this._ultIconArea && this.bState === 'playerTurn') {
       const ua = this._ultIconArea
-      const equipped = this.storage.equipped
       const eqList = ua.list
-      const iconSize = 46*S
-      const gap2 = 4*S
-      const totalW2 = eqList.length * iconSize + (eqList.length-1) * gap2
-      const startX2 = (W - totalW2) / 2
+      const iconSize = 40*S
+      const gap2 = 5*S
+      const heroSize = ua.h - 6*S
+      const heroPad = 6*S
+      const dividerGap = 8*S
+      const divX = heroPad + heroSize + dividerGap
+      const skillStartBase = divX + dividerGap
+      const skillAreaW = W - skillStartBase - 6*S
+      const actualGap = eqList.length > 1
+        ? Math.min(gap2, (skillAreaW - eqList.length * iconSize) / (eqList.length - 1))
+        : 0
+      const skillsTotalW = eqList.length * iconSize + Math.max(0, eqList.length-1) * actualGap
+      const skillStartX2 = skillStartBase + (skillAreaW - skillsTotalW) / 2
       const iconY2 = ua.y + (ua.h - iconSize) / 2
 
-      if (type === 'start') {
+      if (type === 'end') {
         for (let i=0; i<eqList.length; i++) {
-          const ix = startX2 + i*(iconSize + gap2)
+          const ix = skillStartX2 + i*(iconSize + actualGap)
           if (this._hitRect(x, y, ix, iconY2, iconSize, iconSize)) {
             const eq = eqList[i]
             const cur = this.skillTriggers[eq.attr] || 0
             if (cur >= eq.ultTrigger) {
-              this.ultSwipe = { idx:i, startX:x, startY:y, progress:0, eq }
+              this._triggerUlt(eq)
             }
             return
           }
         }
-      } else if (type === 'move' && this.ultSwipe) {
-        const dy = this.ultSwipe.startY - y
-        this.ultSwipe.progress = Math.max(0, Math.min(1, dy / (40*S)))
-        return
-      } else if (type === 'end' && this.ultSwipe) {
-        if (this.ultSwipe.progress > 0.6) {
-          this._triggerUlt(this.ultSwipe.eq)
-        }
-        this.ultSwipe = null
-        return
       }
     }
 
@@ -1094,6 +1146,8 @@ class Main {
     const attrColor = BEAD_ATTR_COLOR[group.attr]?.main || TH.accent
     const heroS = this.heroStats || {}
 
+    const attrLabel = BEAD_ATTR_NAME[group.attr] || ''
+
     if (group.attr === 'heart') {
       // 心珠回复 = 回复加成 × 消除倍率（与攻击公式一致）
       const elimMul = 1.0 + (group.count - 3) * 0.1
@@ -1101,7 +1155,7 @@ class Main {
       const baseHeal = Math.round(recovery * elimMul)
       if (!this._pendingHeal) this._pendingHeal = 0
       this._pendingHeal += baseHeal
-      this.dmgFloats.push({ x: cx, y: cy, text: `+${baseHeal}`, color: attrColor, alpha: 1, scale: 1.2, t: 0 })
+      this.dmgFloats.push({ x: cx, y: cy, text: `回复 +${baseHeal}`, color: attrColor, alpha: 1, scale: 1.1, t: 0 })
     } else {
       // 攻击属性：基础伤害 = 攻击力 × 消除倍率
       // 消除倍率：3个=1.0，每多1个+0.1
@@ -1114,8 +1168,8 @@ class Main {
       if (!this._pendingDmgMap[group.attr]) this._pendingDmgMap[group.attr] = 0
       this._pendingDmgMap[group.attr] += baseDmg
 
-      // 在棋盘上飘出：只飘对应颜色的数值
-      this.dmgFloats.push({ x: cx, y: cy, text: `${baseDmg}`, color: attrColor, alpha: 1, scale: 1.2, t: 0 })
+      // 在棋盘上飘出：属性名+数值，让新手看懂
+      this.dmgFloats.push({ x: cx, y: cy, text: `${attrLabel}攻 ${baseDmg}`, color: attrColor, alpha: 1, scale: 1.1, t: 0 })
     }
   }
 
@@ -1349,17 +1403,18 @@ class Main {
       attrKeys.forEach(attr => { totalDmg += finalDmgByAttr[attr] })
       this.enemyHp = Math.max(0, this.enemyHp - totalDmg)
 
-      // 按属性分别飘伤害，Y方向错开，只飘数值不加文字
+      // 按属性分别飘伤害，带属性名说明
       const startY = charY - 30*S
       const yStep = 28*S
       attrKeys.forEach((attr, i) => {
         const attrColor = ATTR_COLOR[attr]?.main || TH.danger
+        const attrLabel = ATTR_NAME[attr] || ''
         const dmg = finalDmgByAttr[attr]
         const offsetX = (Math.random() - 0.5) * 30*S
         this.dmgFloats.push({
           x: W*0.5 + offsetX,
           y: startY - i * yStep,
-          text: `-${dmg}`,
+          text: `${attrLabel}攻 -${dmg}`,
           color: attrColor,
           alpha: 1,
           scale: 1.4,
@@ -1371,7 +1426,7 @@ class Main {
       this.shakeT = 3; this.shakeI = 2*S
     } else if (Object.keys(dmgMap).length > 0) {
       // 有攻击属性但全部不破防
-      this.dmgFloats.push({ x:W*0.5, y:charY-20*S, text:'不破防', color:TH.dim, alpha:1, scale:0.8, t:0 })
+      this.dmgFloats.push({ x:W*0.5, y:charY-20*S, text:'被防御抵挡!', color:TH.dim, alpha:1, scale:0.8, t:0 })
     }
 
     // ===== 回复结算：基础回复 × combo倍率 =====
@@ -1381,7 +1436,7 @@ class Main {
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + finalHeal)
       const actualHeal = this.heroHp - oldHeroHp
       if (actualHeal > 0) {
-        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`+${actualHeal}`, color:TH.success, alpha:1, scale:1.1, t:0 })
+        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`回复 +${actualHeal}`, color:TH.success, alpha:1, scale:1.1, t:0 })
       }
     }
 
@@ -1397,6 +1452,7 @@ class Main {
     const enemyS = this.enemyStats || {}
     const attr = equip.attr
     const charY = this._getEnemyCenterY()
+    let hasEffect = false
 
     if (sk.dmg) {
       const atkKey = ATK_KEY[attr]
@@ -1419,16 +1475,41 @@ class Main {
         this._enemyHpLoss = { fromPct: oldEPct, timer: 0 }
         this.dmgFloats.push({ x:W*0.5, y:charY-30*S, text:`-${finalDmg}`, color:TH.accent, alpha:1, scale:1.5, t:0 })
         this._playHeroAttack(sk.name, attr, 'burst')
+        hasEffect = true
       }
     }
     if (sk.heal) {
       const healAmt = sk.heal + (heroS.recovery || 0)
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + healAmt)
+      this.dmgFloats.push({ x:W*0.3, y:H*0.65, text:`+${healAmt} HP`, color:TH.success, alpha:1, scale:1.2, t:0 })
       this._playHealEffect(sk.name)
+      hasEffect = true
     }
+    if (sk.def) {
+      const shieldAmt = sk.def
+      this.heroShield = (this.heroShield || 0) + shieldAmt
+      this.heroBuffs.push({ type:'shield', val:shieldAmt, dur: 3 })
+      this.dmgFloats.push({ x:W*0.3, y:H*0.6, text:`+${shieldAmt} 护盾`, color:'#74c0fc', alpha:1, scale:1.3, t:0 })
+      this._playShieldEffect(sk.name, attr)
+      hasEffect = true
+    }
+    if (sk.debuff) {
+      const debuffAmt = sk.debuff
+      this.enemyBuffs.push({ type:'atkDown', val:debuffAmt, dur: 3 })
+      this.dmgFloats.push({ x:W*0.5, y:charY+20*S, text:`-${debuffAmt} 攻击`, color:'#da77f2', alpha:1, scale:1.2, t:0 })
+      this._playDebuffEffect(sk.name, attr)
+      hasEffect = true
+    }
+    // 通用反馈：屏幕震动 + 音效
     this.shakeT = 12; this.shakeI = 8*S
     MusicMgr.playAttack()
     this.skillTriggers[equip.attr] = 0
+
+    // 如果没有任何可见效果（理论上不该发生），至少播个通用特效
+    if (!hasEffect) {
+      this._playHeroAttack(sk.name, attr, 'slash')
+    }
+
     if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory() }
   }
 
