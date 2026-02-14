@@ -1,10 +1,20 @@
 /**
- * 修仙消消乐 - 主游戏逻辑
- * 单修士 + 法宝技能体系 + 三消斩妖
+ * 修仙五行转珠 - 主游戏逻辑
+ * 智龙迷城式拖拽转珠 + 五行克制 + 装备品质等级
+ * 
+ * 属性系统：气力(血量)、五行攻击×5、五行防御×5、回复值(彩珠回血)
+ * 伤害公式：Max((自身该五行攻×技能系数 - 敌方该五行防) × 克制倍率 × Combo倍率, 0)
+ * 五行克制：金→木→土→水→火→金（克制×1.1，被克×0.9）
  */
 const { Render, A, TH } = require('./render')
 const Storage = require('./data/storage')
-const { ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP, EQUIP_SLOT, QUALITY, STAT_DEFS, STAT_KEYS, randomDrop, generateEquipment } = require('./data/equipment')
+const {
+  ATTRS, ATTR_NAME, ATTR_COLOR, BEAD_ATTRS, BEAD_ATTR_NAME, BEAD_ATTR_COLOR,
+  COUNTER_MAP, COUNTER_BY, ATK_KEY, DEF_KEY,
+  EQUIP_SLOT, QUALITY, QUALITY_ORDER,
+  STAT_DEFS, STAT_KEYS,
+  randomDrop, generateEquipment,
+} = require('./data/equipment')
 const { DIFFICULTY, ALL_LEVELS, getLevelData } = require('./data/levels')
 const MusicMgr = require('./runtime/music')
 
@@ -12,11 +22,9 @@ const MusicMgr = require('./runtime/music')
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const W = canvas.width, H = canvas.height
-const S = W / 375  // 设计基准375宽
+const S = W / 375
 const safeTop = (wx.getSystemInfoSync().safeArea?.top || 20) * (W / wx.getSystemInfoSync().windowWidth)
 
-// 灵珠属性列表（不含heart的5种用于战斗伤害，heart用于回血）
-const BEAD_ATTRS = ['fire','water','wood','light','dark','heart']
 const COLS = 6, ROWS = 5
 
 const R = new Render(ctx, W, H, S, safeTop)
@@ -26,53 +34,64 @@ class Main {
     this.storage = new Storage()
     this.storage.checkDailyReset()
     this.scene = 'loading'
-    this.af = 0  // 动画帧
+    this.af = 0
     this.scrollY = 0; this.maxScrollY = 0
 
     // 棋盘
     this.board = []; this.cellSize = 0; this.boardX = 0; this.boardY = 0
-    // 交换操作
-    this.selectedR = -1; this.selectedC = -1  // 当前选中的棋子
-    this.swapAnim = null  // 交换动画 { r1,c1,r2,c2, progress, revert, duration }
-    this.dragging = false; this.dragStartX = 0; this.dragStartY = 0
-    this.dragR = -1; this.dragC = -1
+    // ===== 智龙迷城式转珠状态 =====
+    this.dragging = false
+    this.dragR = -1; this.dragC = -1      // 当前拖拽的珠子位置
+    this.dragStartX = 0; this.dragStartY = 0
+    this.dragCurX = 0; this.dragCurY = 0  // 当前手指位置（用于渲染拖拽中的珠子）
+    this.dragAttr = null                   // 被拖拽珠子的属性
+    this.dragTimer = 0                     // 拖拽已用帧数
+    this.dragTimeLimit = 4 * 60            // 拖拽时间限制（4秒 @60fps）
+    // 交换动画
+    this.swapAnim = null
     // 绝技上滑
-    this.ultSwipe = null  // { idx, startX, startY, progress, eq }
-    this._ultIconArea = null  // 绝技图标区域信息
+    this.ultSwipe = null
+    this._ultIconArea = null
     // 战斗状态
-    this.bState = 'none'  // none/playerTurn/eliminating/preAttack/settling/preEnemy/enemyTurn/victory/defeat
-    this._stateTimer = 0  // 状态延迟计时器（帧数）
-    this._enemyTurnWait = false  // 敌方攻击后等待标记
-    this._pendingElimMap = null  // 消除阶段累积的属性消除数据
+    this.bState = 'none'  // none/playerTurn/elimAnim/dropping/preAttack/settling/preEnemy/enemyTurn/victory/defeat
+    this._stateTimer = 0
+    this._enemyTurnWait = false
+    this._pendingDmgMap = null
+    this._pendingHeal = 0
     this.combo = 0; this.turnCount = 0; this.elimSets = []
+    this.elimQueue = []          // 待消除的组队列（逐组消除用）
+    this.elimAnimCells = null    // 当前正在播放消除动画的格子和属性
+    this.elimAnimTimer = 0       // 消除动画计时器
+    this.dropAnimTimer = 0       // 掉落动画计时器
+    this.dropAnimCols = null     // 掉落动画列信息
     this.enemyHp = 0; this.enemyMaxHp = 0; this.heroHp = 0; this.heroMaxHp = 0
-    this.heroShield = 0  // 减伤
+    this.heroShield = 0
     this.heroBuffs = []; this.enemyBuffs = []
-    this.skillTriggers = {}  // 各灵根技能触发次数（用于仙技蓄力）
-    this.ultReady = {}  // 各灵根仙技是否就绪
-    this.pendingUlt = null  // 待使用的仙技
+    this.skillTriggers = {}
+    this.ultReady = {}
+    this.pendingUlt = null
     // 动画
-    this.animQueue = []; this.dmgFloats = []; this.skillEffects = []
+    this.dmgFloats = []; this.skillEffects = []
     this.shakeT = 0; this.shakeI = 0
-    // 战斗角色动画
     this.heroAttackAnim = { active:false, progress:0, duration:24 }
     this.enemyHurtAnim  = { active:false, progress:0, duration:18 }
     this.heroHurtAnim   = { active:false, progress:0, duration:18 }
     this.enemyAttackAnim= { active:false, progress:0, duration:20 }
-    // 技能释放全屏特效
     this.skillCastAnim  = { active:false, progress:0, duration:30, type:'slash', color:TH.accent, skillName:'', targetX:0, targetY:0 }
+    // 血条掉血动画（灰色残影）
+    this._enemyHpLoss = null  // { fromPct, timer }
+    this._heroHpLoss = null   // { fromPct, timer }
     // 掉落
     this.dropPopup = null; this.tempEquips = []
     // 属性查看面板
-    this.statPanel = null  // { type:'hero'|'enemy', visible:true }
+    this.statPanel = null
     // Loading
     this._loadStart = Date.now()
-    // 当前关卡数据
+    // 当前关卡
     this.curLevel = null
-    // 按下态
     this._pressedBtn = null
 
-    // 触摸（兼容 canvas.bindEvent 和 wx 全局事件两种方式）
+    // 触摸
     if (typeof canvas.addEventListener === 'function') {
       canvas.addEventListener('touchstart', e => this.onTouch('start', e))
       canvas.addEventListener('touchmove', e => this.onTouch('move', e))
@@ -100,48 +119,77 @@ class Main {
   // ===== 更新 =====
   update() {
     if (this.shakeT > 0) this.shakeT--
-    // 伤害飘字衰减
-    this.dmgFloats = this.dmgFloats.filter(f => { f.t++; f.y -= 1.5*S; f.alpha -= 0.025; return f.alpha > 0 })
-    // 技能特效
-    this.skillEffects = this.skillEffects.filter(e => { e.t++; e.y -= 1*S; e.alpha -= 0.02; return e.alpha > 0 })
-    // Loading自动跳转 → 进入角色展示（intro）
+    // 伤害飘字：先停顿再缓慢上移消失
+    this.dmgFloats = this.dmgFloats.filter(f => {
+      f.t++
+      if (f.t <= 20) {
+        // 前20帧：停留+轻微放大弹跳
+        f.y -= 0.3*S
+      } else if (f.t <= 50) {
+        // 20-50帧：缓慢上移
+        f.y -= 0.8*S
+        f.alpha -= 0.01
+      } else {
+        // 50帧后：加速消失
+        f.y -= 1.2*S
+        f.alpha -= 0.04
+      }
+      return f.alpha > 0
+    })
+    this.skillEffects = this.skillEffects.filter(e => { e.t++; e.y -= 0.6*S; e.alpha -= 0.012; return e.alpha > 0 })
     if (this.scene === 'loading' && Date.now() - this._loadStart > 1500) {
       this.scene = 'intro'
       MusicMgr.playBgm()
     }
-    // 消除动画
-    if (this.bState === 'eliminating') this._processElim()
-    // 消除后等待→攻击
+    if (this.bState === 'elimAnim') this._processElim()
+    if (this.bState === 'dropping') this._processDropAnim()
+    // 拖拽计时器
+    if (this.dragging && this.bState === 'playerTurn') {
+      this.dragTimer++
+      if (this.dragTimer >= this.dragTimeLimit) {
+        // 时间到，强制松手
+        this.dragging = false
+        this.dragAttr = null
+        this.dragTimer = 0
+        this._checkAndElim()
+      }
+    }
     if (this.bState === 'preAttack') {
       this._stateTimer++
-      if (this._stateTimer >= 60) {  // 约1秒（60帧）
+      if (this._stateTimer >= 60) {
         this._stateTimer = 0
         this._executeAttack()
       }
     }
-    // 攻击后等待→敌方回合
     if (this.bState === 'preEnemy') {
       this._stateTimer++
-      if (this._stateTimer >= 60) {  // 约1秒
+      if (this._stateTimer >= 60) {
         this._stateTimer = 0
         this._enemyTurn()
       }
     }
-    // 敌方攻击后等待→玩家回合
     if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
       this._stateTimer++
-      if (this._stateTimer >= 60) {  // 约1秒
+      if (this._stateTimer >= 60) {
         this._stateTimer = 0
         this._enemyTurnWait = false
         this.bState = 'playerTurn'
-        this.selectedR = -1; this.selectedC = -1
-        this._checkDeadlock()
+        this.dragTimer = 0  // 重置拖拽计时器
       }
     }
-    // 交换动画更新
     this._updateSwapAnim()
-    // 战斗角色动画更新
     this._updateBattleAnims()
+    // 血条掉血灰色残影动画
+    if (this._enemyHpLoss) {
+      this._enemyHpLoss.timer++
+      const totalFrames = 45  // 灰色残影持续45帧
+      if (this._enemyHpLoss.timer >= totalFrames) this._enemyHpLoss = null
+    }
+    if (this._heroHpLoss) {
+      this._heroHpLoss.timer++
+      const totalFrames = 45
+      if (this._heroHpLoss.timer >= totalFrames) this._heroHpLoss = null
+    }
   }
 
   _updateBattleAnims() {
@@ -154,48 +202,57 @@ class Main {
     })
   }
 
-  // 启动角色攻击动画
+  // 计算怪物区中心Y（新布局）
+  _getEnemyCenterY() {
+    const padX = 8*S
+    const cellSize = (W - padX*2) / COLS
+    const boardH = ROWS * cellSize
+    const boardTop = H - 10*S - boardH
+    const skillBarTop = boardTop - 28*S - 54*S
+    const eAreaH = skillBarTop - safeTop - 28*S
+    return safeTop + 28*S + eAreaH * 0.45
+  }
+
   _playHeroAttack(skillName, attr, type) {
     this.heroAttackAnim = { active:true, progress:0, duration:24 }
     this.enemyHurtAnim  = { active:true, progress:0, duration:18 }
     const color = ATTR_COLOR[attr]?.main || TH.accent
-    // 计算妖兽位置用于特效定位
-    const topArea = safeTop + 4*S
-    const arenaH = H * 0.42 - topArea
-    const charY = topArea + arenaH * 0.45
+    const eCenterY = this._getEnemyCenterY()
     this.skillCastAnim = {
       active:true, progress:0, duration:30,
       type: type||'slash', color,
       skillName: skillName||'',
-      targetX: W*0.72, targetY: charY
+      targetX: W*0.5, targetY: eCenterY
     }
   }
 
-  // 启动敌方攻击动画
   _playEnemyAttack(skillName) {
     this.enemyAttackAnim = { active:true, progress:0, duration:20 }
     this.heroHurtAnim    = { active:true, progress:0, duration:18 }
-    const topArea = safeTop + 4*S
-    const arenaH = H * 0.42 - topArea
-    const charY = topArea + arenaH * 0.45
+    const padX = 8*S
+    const cellSize = (W - padX*2) / COLS
+    const boardH = ROWS * cellSize
+    const boardTop = H - 10*S - boardH
+    const hpBarTop = boardTop - 28*S
     this.skillCastAnim = {
       active:true, progress:0, duration:25,
       type:'enemyAtk', color:TH.danger,
       skillName: skillName||'',
-      targetX: W*0.28, targetY: charY
+      targetX: W*0.5, targetY: hpBarTop
     }
   }
 
-  // 启动治疗动画
   _playHealEffect(skillName) {
-    const topArea = safeTop + 4*S
-    const arenaH = H * 0.42 - topArea
-    const charY = topArea + arenaH * 0.45
+    const padX = 8*S
+    const cellSize = (W - padX*2) / COLS
+    const boardH = ROWS * cellSize
+    const boardTop = H - 10*S - boardH
+    const hpBarTop = boardTop - 28*S
     this.skillCastAnim = {
       active:true, progress:0, duration:28,
       type:'heal', color:TH.success,
       skillName: skillName||'',
-      targetX: W*0.28, targetY: charY
+      targetX: W*0.5, targetY: hpBarTop
     }
   }
 
@@ -230,44 +287,37 @@ class Main {
     ctx.fillText('加载中...',W/2,by+24*S)
   }
 
-  // ===== 角色展示（首次进入） =====
+  // ===== 角色展示 =====
   rIntro() {
     R.drawHomeBg(this.af)
     const m = 16*S
-    // 标题
     ctx.save(); ctx.shadowColor=TH.accent; ctx.shadowBlur=20*S
     ctx.fillStyle=TH.accent; ctx.font=`bold ${32*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'
     ctx.fillText('修仙消消乐', W/2, safeTop+50*S)
     ctx.shadowBlur=0; ctx.restore()
 
-    // 角色立绘区域
     const charY = safeTop+100*S, charH = H*0.4
-    // 角色光环
     const pulse = 1 + 0.03*Math.sin(this.af*0.04)
     ctx.save(); ctx.globalAlpha=0.15
     ctx.fillStyle=TH.accent
     ctx.beginPath(); ctx.arc(W/2, charY+charH/2, 80*S*pulse, 0, Math.PI*2); ctx.fill()
     ctx.restore()
-    // 角色图片
     const heroImg = R.getImg('assets/hero/hero_body.jpg')
     const heroSize = 120*S
     if (heroImg && heroImg.width > 0) {
       ctx.drawImage(heroImg, W/2-heroSize/2, charY+charH/2-heroSize/2, heroSize, heroSize)
     } else {
-      // 无图片时画一个占位角色
       ctx.save()
       const g = ctx.createRadialGradient(W/2, charY+charH/2, 10*S, W/2, charY+charH/2, 55*S)
       g.addColorStop(0, '#ffd700'); g.addColorStop(0.6, '#ff6b35'); g.addColorStop(1, 'rgba(255,107,53,0)')
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(W/2, charY+charH/2, 55*S, 0, Math.PI*2); ctx.fill()
-      // 角色剪影
       ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font=`${60*S}px "PingFang SC",sans-serif`
       ctx.textAlign='center'; ctx.textBaseline='middle'
       ctx.fillText('🧙', W/2, charY+charH/2)
       ctx.restore()
     }
 
-    // 角色基础信息
     const stats = this.storage.getHeroStats()
     const infoY = charY+charH+20*S
     R.drawDarkPanel(m, infoY, W-m*2, 60*S, 12*S)
@@ -275,41 +325,33 @@ class Main {
     ctx.textAlign='center'; ctx.textBaseline='middle'
     ctx.fillText('初始修为', W/2, infoY+16*S)
     ctx.fillStyle=TH.text; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`HP:${stats.hp} 物攻:${stats.pAtk} 魔攻:${stats.mAtk}`, W/2, infoY+40*S)
+    ctx.fillText(`气力:${stats.stamina} 金攻:${stats.metalAtk} 回复:${stats.recovery}`, W/2, infoY+40*S)
 
-    // 法宝提示
     const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
     if (eqCount > 0) {
       ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`已佩戴 ${eqCount}/6`, W/2, infoY+60*S+10*S)
+      ctx.fillText(`已佩戴 ${eqCount}/5`, W/2, infoY+60*S+10*S)
     }
 
-    // 开始游戏按钮（大按钮居中）
     const btnW = 180*S, btnH = 48*S
     const btnX = (W-btnW)/2, btnY = H-120*S
     R.drawBtn(btnX, btnY, btnW, btnH, '踏入仙途', TH.danger)
 
-    // 底部提示
     ctx.fillStyle=TH.dim; ctx.font=`${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.fillText('点击开始你的修仙之旅', W/2, btnY+btnH+16*S)
   }
 
-  // ===== 首页（简洁版：角色信息+关卡入口） =====
+  // ===== 首页 =====
   rHome() {
     R.drawHomeBg(this.af)
     const m = 16*S
-
-    // 顶部标题栏
     ctx.fillStyle=TH.accent; ctx.font=`bold ${20*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'
     ctx.fillText('修仙消消乐', W/2, safeTop+30*S)
 
-    // 角色信息卡片
     const stats = this.storage.getHeroStats()
     const cardY = safeTop+60*S, cardW = W-m*2, cardH = 80*S
     R.drawDarkPanel(m, cardY, cardW, cardH, 12*S)
-
-    // 角色小头像
     const avatarSize = 50*S, avatarX = m+14*S, avatarY = cardY+15*S
     ctx.save()
     ctx.beginPath(); ctx.arc(avatarX+avatarSize/2, avatarY+avatarSize/2, avatarSize/2, 0, Math.PI*2); ctx.clip()
@@ -322,50 +364,38 @@ class Main {
       ctx.fillStyle=g; ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize)
     }
     ctx.restore()
-    // 角色名+信息
     const textX = avatarX+avatarSize+12*S
     ctx.fillStyle=TH.text; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='middle'
     ctx.fillText('修仙者', textX, cardY+22*S)
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`物攻:${stats.pAtk} 魔攻:${stats.mAtk} HP:${stats.hp}`, textX, cardY+42*S)
-    // 灵石
+    ctx.fillText(`气力:${stats.stamina} 金攻:${stats.metalAtk} 回复:${stats.recovery}`, textX, cardY+42*S)
     ctx.fillStyle=TH.accent; ctx.font=`bold ${12*S}px "PingFang SC",sans-serif`
     ctx.textAlign='right'; ctx.fillText(`💎 ${this.storage.gold}`, W-m-12*S, cardY+22*S)
-    // 法宝概览
     const eqCount = Object.values(this.storage.equipped).filter(e=>e).length
     ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`法宝 ${eqCount}/6`, W-m-12*S, cardY+42*S)
+    ctx.fillText(`法宝 ${eqCount}/5`, W-m-12*S, cardY+42*S)
 
-    // 当前关卡入口（大卡片）
     const lv = ALL_LEVELS.find(l=>l.levelId===this.storage.currentLevel) || ALL_LEVELS[0]
     const lvY = cardY+cardH+20*S, lvH = 140*S
     R.drawDarkPanel(m, lvY, cardW, lvH, 14*S)
-
-    // 关卡标题
     ctx.fillStyle=TH.accent; ctx.font=`bold ${15*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
     ctx.fillText('📍 当前秘境', W/2, lvY+12*S)
-
-    // 敌人展示
     const enemyR = 28*S
     R.drawEnemy(W/2, lvY+60*S, enemyR, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
-
-    // 敌人信息
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
-    ctx.fillText(`HP:${lv.enemy.hp}  物攻:${lv.enemy.pAtk||0}  魔攻:${lv.enemy.mAtk||0}`, W/2, lvY+100*S)
-
-    // 关卡名
+    const enemyMainAtk = lv.enemy[ATK_KEY[lv.enemy.attr]] || 0
+    const enemyMainDef = lv.enemy[DEF_KEY[lv.enemy.attr]] || 0
+    ctx.fillText(`HP:${lv.enemy.hp}  ${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}  ${ATTR_NAME[lv.enemy.attr]}防:${enemyMainDef}`, W/2, lvY+100*S)
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.fillText(lv.name, W/2, lvY+118*S)
 
-    // 挑战按钮
     const btnW = 160*S, btnH = 44*S
     const btnX = (W-btnW)/2, btnY = lvY+lvH+20*S
     R.drawBtn(btnX, btnY, btnW, btnH, '进入秘境', TH.danger)
 
-    // 统计区
     const statY = btnY+btnH+24*S
     ctx.fillStyle=TH.dim; ctx.font=`${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'
@@ -379,20 +409,20 @@ class Main {
     if (!this.curLevel) return
     const m=14*S, startY=safeTop+56*S
     const lv = this.curLevel
-    const a = ATTR_COLOR[lv.enemy.attr]
-    // 敌人信息
     R.drawDarkPanel(m,startY,W-m*2,100*S,12*S)
     R.drawEnemy(m+50*S, startY+50*S, 30*S, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='top'
     ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
-    ctx.fillText(`物攻:${lv.enemy.pAtk||0} 魔攻:${lv.enemy.mAtk||0}`, m+90*S, startY+38*S)
+    const eMainAtk = lv.enemy[ATK_KEY[lv.enemy.attr]] || 0
+    ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}`, m+90*S, startY+38*S)
+    const eMainDef = lv.enemy[DEF_KEY[lv.enemy.attr]] || 0
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`物防:${lv.enemy.pDef||0} 魔防:${lv.enemy.mDef||0}`, m+90*S, startY+56*S)
+    ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${eMainDef}`, m+90*S, startY+56*S)
     if (lv.specialCond) {
       ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+90*S, startY+72*S)
     }
-    // 法宝概览
+    // 法宝概览（5槽位，3+2布局）
     const eqY = startY+116*S
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.fillText('出战法宝', m, eqY)
@@ -401,112 +431,98 @@ class Main {
       const col=i%2, row=Math.floor(i/2)
       R.drawEquipCard(m+col*(eqW+10*S), eqY+20*S+row*(eqH+6*S), eqW, eqH, this.storage.equipped[slot], false, this.af)
     })
-    // 修士信息
     const stats = this.storage.getHeroStats()
-    const infoY = eqY+20*S + 3*(eqH+6*S) + 10*S
+    const totalRows = Math.ceil(Object.keys(EQUIP_SLOT).length / 2)
+    const infoY = eqY+20*S + totalRows*(eqH+6*S) + 10*S
     ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`修士 HP:${stats.hp} 物攻:${stats.pAtk} 魔攻:${stats.mAtk} 物防:${stats.pDef} 魔防:${stats.mDef}`, m, infoY)
-    // 出战按钮
+    ctx.fillText(`修士 气力:${stats.stamina} 回复:${stats.recovery}`, m, infoY)
     R.drawBtn(W/2-55*S, infoY+30*S, 110*S, 40*S, '出 战', TH.danger)
   }
 
-  // ===== 战斗 =====
+  // ===== 战斗（智龙迷城布局：上怪物 → 技能栏 → 血条 → 棋盘） =====
   rBattle() {
-    R.drawBattleBg(this.af)
-    const topArea = safeTop+4*S
-    const arenaBottom = H * 0.42  // 上半区域底部（42%屏高）
-    const arenaH = arenaBottom - topArea
+    // ===== 布局计算 =====
+    const padX = 8*S
+    const cellSize = (W - padX*2) / COLS
+    const boardH = ROWS * cellSize
+    // 从底部向上排：底部留10*S → 棋盘 → 血条区 → 技能栏 → 怪物区（填满上方空间）
+    const bottomPad = 10*S
+    const boardTop = H - bottomPad - boardH
+    const hpBarH = 28*S       // 血条区高度
+    const skillBarH = 54*S    // 技能图标栏高度
+    const hpBarTop = boardTop - hpBarH
+    const skillBarTop = hpBarTop - skillBarH
+    const enemyAreaBottom = skillBarTop  // 怪物区底部
+    const enemyAreaTop = safeTop        // 怪物区顶部
 
-    // ===== 顶部信息栏 =====
-    // 退出按钮
-    ctx.fillStyle='rgba(255,255,255,0.08)'; R.rr(10*S,topArea,40*S,20*S,10*S); ctx.fill()
-    ctx.fillStyle=TH.sub; ctx.font=`${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('退出',30*S,topArea+10*S)
-    // 回合数
+    // ===== 1. 背景 =====
+    R.drawBattleBg(this.af)
+
+    // ===== 2. 怪物区（上半部分，占满到技能栏上方） =====
+    // 半透明暗色叠加
+    ctx.save(); ctx.globalAlpha = 0.15
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, enemyAreaBottom)
+    ctx.restore()
+
+    // 顶部按钮（退出/回合/难度）
+    ctx.fillStyle='rgba(0,0,0,0.35)'; R.rr(8*S, enemyAreaTop+4*S, 42*S, 22*S, 11*S); ctx.fill()
+    ctx.fillStyle=TH.text; ctx.font=`${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('退出', 29*S, enemyAreaTop+15*S)
     ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='right'; ctx.fillText(`回合 ${this.turnCount}`,W-12*S,topArea+10*S)
-    // 难度
+    ctx.textAlign='right'; ctx.fillText(`回合 ${this.turnCount}`, W-12*S, enemyAreaTop+15*S)
     if (this.curLevel) {
       const d = DIFFICULTY[this.curLevel.difficulty]
       ctx.fillStyle=d.color; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.fillText(d.name, W/2, topArea+10*S)
+      ctx.textAlign='center'; ctx.fillText(d.name, W/2, enemyAreaTop+15*S)
     }
 
-    // ===== 上半部分：对战区 =====
-    // 分隔线（对战区底部）
-    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1
-    ctx.beginPath(); ctx.moveTo(0, arenaBottom); ctx.lineTo(W, arenaBottom); ctx.stroke()
-
-    // 角色位置
-    const charY = topArea + 24*S + arenaH * 0.4
-    const charSize = Math.min(arenaH * 0.65, 120*S)
-    const heroX = W * 0.28
-    const enemyX = W * 0.72
-
-    // 绘制修士立绘
-    R.drawBattleHero(heroX, charY, charSize, this.storage.equipped,
-      this.heroHp, this.heroMaxHp, this.af, this.heroAttackAnim)
-
-    // 绘制妖兽立绘
+    // 怪物立绘（居中，占满怪物区）
     if (this.curLevel) {
-      R.drawBattleEnemy(enemyX, charY, charSize,
-        this.curLevel.enemy.attr, this.enemyHp, this.enemyMaxHp,
-        this.curLevel.enemy.name, this.curLevel.enemy.avatar, this.af, this.enemyHurtAnim)
+      const eAreaH = enemyAreaBottom - enemyAreaTop - 28*S  // 留出顶部按钮空间
+      const eCenterY = enemyAreaTop + 28*S + eAreaH * 0.45
+      const eSize = Math.min(eAreaH * 0.8, 200*S)
+      R.drawBattleEnemyFull(W/2, eCenterY, eSize, this.curLevel.enemy.attr, this.enemyHp, this.enemyMaxHp, this.curLevel.enemy.name, this.curLevel.enemy.avatar, this.af, this.enemyHurtAnim, this._enemyHpLoss)
+      // combo显示在怪物区
+      if (this.combo > 0 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack')) {
+        const comboScale = 1 + 0.08 * Math.sin(this.af * 0.1)
+        const fontSize = Math.min(24, 16 + this.combo) * S * comboScale
+        ctx.fillStyle = TH.accent; ctx.font = `bold ${fontSize}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3*S
+        ctx.strokeText(`${this.combo} Combo!`, 12*S, enemyAreaBottom - 14*S)
+        ctx.fillText(`${this.combo} Combo!`, 12*S, enemyAreaBottom - 14*S)
+      }
     }
 
-    // VS标记
-    R.drawVsBadge(W/2, charY - charSize*0.1, this.af)
+    // ===== 3. 技能图标栏（装备技能图标） =====
+    R.drawSkillBar(0, skillBarTop, W, skillBarH, this.storage.equipped, this.skillTriggers, this.af)
+    // 保存技能栏区域用于触摸检测
+    this._skillBarArea = { y: skillBarTop, h: skillBarH }
 
-    // 技能释放全屏特效
-    R.drawSkillCast(this.skillCastAnim, this.af)
+    // ===== 4. 人物血条 =====
+    R.drawHeroHpBar(0, hpBarTop, W, hpBarH, this.heroHp, this.heroMaxHp, this.af, this._heroHpLoss)
 
-    // ===== 下半部分：消消乐+绝技图标 =====
-    const bottomTop = arenaBottom + 4*S
-
-    // Combo显示
-    if (this.combo > 0) {
-      ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.textBaseline='middle'
-      ctx.fillText(`${this.combo} Combo!`, W/2, bottomTop+6*S)
-    }
-
-    // 棋盘
-    const boardTop = bottomTop + 16*S
+    // ===== 5. 棋盘 =====
     this._drawBoard(boardTop)
 
-    // ===== 棋盘下方：绝技图标区 =====
-    const boardBottom = boardTop + ROWS * this.cellSize + 8*S
-    const ultIconSize = 50*S
+    // ===== 6. 绝技蓄力（集成在技能图标栏，上滑触发） =====
     const equipped = this.storage.equipped
     const eqList = Object.keys(equipped).map(slot => equipped[slot]).filter(e => e)
     if (eqList.length > 0) {
-      const gap = 8*S
-      const totalW = eqList.length * ultIconSize + (eqList.length-1) * gap
-      let ix = (W - totalW) / 2
-      const iy = boardBottom + 6*S
-      eqList.forEach((eq, idx) => {
-        const cur = this.skillTriggers[eq.attr] || 0
-        const ready = cur >= eq.ultTrigger
-        // 检查此图标是否正在被上滑
-        const swipeP = (this.ultSwipe && this.ultSwipe.idx === idx) ? this.ultSwipe.progress : 0
-        R.drawUltSkillIcon(ix, iy, ultIconSize, eq, cur, eq.ultTrigger, ready, this.af, swipeP)
-        ix += ultIconSize + gap
-      })
-      // 保存绝技区域信息供触摸使用
-      this._ultIconArea = { x: (W-totalW)/2, y: iy, iconSize: ultIconSize, gap, count: eqList.length, list: eqList }
+      this._ultIconArea = { y: skillBarTop, h: skillBarH, count: eqList.length, list: eqList }
     } else {
       this._ultIconArea = null
     }
 
-    // 伤害飘字
+    // ===== 7. 技能释放特效 =====
+    R.drawSkillCast(this.skillCastAnim, this.af)
+
+    // 飘字/特效
     this.dmgFloats.forEach(f => R.drawDmgFloat(f.x,f.y,f.text,f.color,f.alpha,f.scale))
-    // 技能特效文字
     this.skillEffects.forEach(e => R.drawSkillEffect(e.x,e.y,e.text,e.color,e.alpha))
 
-    // 属性查看面板
-    if (this.statPanel && this.statPanel.visible) {
-      this._drawStatPanel()
-    }
+    // 属性面板
+    if (this.statPanel && this.statPanel.visible) this._drawStatPanel()
 
     // 掉落弹窗
     if (this.dropPopup) {
@@ -517,129 +533,113 @@ class Main {
     }
 
     // 胜负
-    if (this.bState === 'victory') {
-      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
-      // 标题
-      ctx.fillStyle=TH.accent; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.22)
-      // 回合/连击
-      ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.29)
-      // 奖励标题
-      ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText('── 战利品 ──',W/2,H*0.35)
-      // 灵石奖励
-      ctx.fillStyle='#ffd700'; ctx.font=`bold ${16*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`💰 +${this.battleGold||200} 灵石`,W/2,H*0.41)
-      // 本局获得的装备
-      const drops = this.tempEquips || []
-      if (drops.length > 0) {
-        ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`获得法宝 ×${drops.length}`,W/2,H*0.47)
-        // 装备图标排列
-        const iconSz = 42*S, gap = 8*S
-        const totalW = drops.length * iconSz + (drops.length-1) * gap
-        let startX = (W - totalW) / 2
-        const iconY = H*0.50
-        drops.forEach(eq => {
-          const q = QUALITY[eq.quality]
-          const a = ATTR_COLOR[eq.attr]
-          // 底色背景
-          ctx.fillStyle = 'rgba(20,20,40,0.9)'
-          R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.fill()
-          // 品质边框
-          ctx.strokeStyle = q.color; ctx.lineWidth = 2*S
-          R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.stroke()
-          // 属性色条
-          ctx.fillStyle = a.main
-          R.rr(startX+2*S, iconY+2*S, 3*S, iconSz-4*S, 1.5*S); ctx.fill()
-          // 装备图片
-          const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
-          if (eqIcon && eqIcon.width > 0) {
-            ctx.drawImage(eqIcon, startX+4*S, iconY+4*S, iconSz-8*S, iconSz-8*S)
-          } else {
-            const slot = EQUIP_SLOT[eq.slot]
-            ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-            ctx.fillText(slot.icon, startX+iconSz/2, iconY+iconSz/2)
-          }
-          // 品质标签
-          ctx.fillStyle = q.color; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-          ctx.fillText(q.name, startX+iconSz/2, iconY+iconSz+2*S)
-          startX += iconSz + gap
-        })
-      } else {
-        ctx.fillStyle=TH.dim; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-        ctx.fillText('本局未获得法宝',W/2,H*0.50)
-      }
-      // 按钮
-      const btnW = 130*S, gap2 = 16*S, btnY2 = H*0.68
-      R.drawBtn(W/2-btnW-gap2/2, btnY2, btnW, 40*S, '继续闯关', TH.success)
-      R.drawBtn(W/2+gap2/2, btnY2, btnW, 40*S, '回到首页', TH.info)
-    }
-    if (this.bState === 'defeat') {
-      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
-      ctx.fillStyle=TH.danger; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('💀 失败',W/2,H*0.22)
-      ctx.fillStyle=TH.sub; ctx.font=`${13*S}px "PingFang SC",sans-serif`
-      ctx.fillText('道心不灭，再战！', W/2, H*0.29)
-      // 本局已失去的装备提醒
-      const lost = this.lostEquips || []
-      if (lost.length > 0) {
-        ctx.fillStyle=TH.danger; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
-        ctx.fillText('── 战败失去法宝 ──',W/2,H*0.36)
-        const iconSz = 42*S, gap3 = 8*S
-        const totalW2 = lost.length * iconSz + (lost.length-1) * gap3
-        let sx = (W - totalW2) / 2
-        const iy = H*0.40
-        lost.forEach(eq => {
-          const q = QUALITY[eq.quality]
-          const a = ATTR_COLOR[eq.attr]
-          // 暗色底框（表示已失去）
-          ctx.fillStyle = 'rgba(40,10,10,0.9)'
-          R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.fill()
-          ctx.strokeStyle = TH.danger+'88'; ctx.lineWidth = 2*S
-          R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.stroke()
-          // 装备图片（半透明表示失去）
-          ctx.save(); ctx.globalAlpha = 0.4
-          const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
-          if (eqIcon && eqIcon.width > 0) {
-            ctx.drawImage(eqIcon, sx+4*S, iy+4*S, iconSz-8*S, iconSz-8*S)
-          } else {
-            const slot = EQUIP_SLOT[eq.slot]
-            ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-            ctx.fillText(slot.icon, sx+iconSz/2, iy+iconSz/2)
-          }
-          ctx.restore()
-          // 红色叉号
-          ctx.fillStyle = TH.danger; ctx.font = `bold ${24*S}px "PingFang SC",sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-          ctx.fillText('✕', sx+iconSz/2, iy+iconSz/2)
-          // 品质标签
-          ctx.fillStyle = TH.dim; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-          ctx.fillText(q.name, sx+iconSz/2, iy+iconSz+2*S)
-          sx += iconSz + gap3
-        })
-        // 提示文字
-        ctx.fillStyle=TH.danger; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-        ctx.textAlign='center'
-        ctx.fillText(`战败惩罚：失去本局获得的 ${lost.length} 件法宝`, W/2, H*0.40+iconSz+16*S)
-      }
-      const btnW2 = 130*S, gap4 = 16*S, btnY3 = H*0.65
-      R.drawBtn(W/2-btnW2-gap4/2, btnY3, btnW2, 40*S, '重新挑战', TH.danger)
-      R.drawBtn(W/2+gap4/2, btnY3, btnW2, 40*S, '回到首页', TH.info)
-    }
+    if (this.bState === 'victory') this._drawVictory()
+    if (this.bState === 'defeat') this._drawDefeat()
   }
 
+  _drawVictory() {
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
+    ctx.fillStyle=TH.accent; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.22)
+    ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.29)
+    ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
+    ctx.fillText('── 战利品 ──',W/2,H*0.35)
+    ctx.fillStyle='#ffd700'; ctx.font=`bold ${16*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`💰 +${this.battleGold||200} 灵石`,W/2,H*0.41)
+    const drops = this.tempEquips || []
+    if (drops.length > 0) {
+      ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`获得法宝 ×${drops.length}`,W/2,H*0.47)
+      const iconSz = 42*S, gap = 8*S
+      const totalW = drops.length * iconSz + (drops.length-1) * gap
+      let startX = (W - totalW) / 2
+      const iconY = H*0.50
+      drops.forEach(eq => {
+        const q = QUALITY[eq.quality]
+        const a = ATTR_COLOR[eq.attr] || BEAD_ATTR_COLOR[eq.attr]
+        ctx.fillStyle = 'rgba(20,20,40,0.9)'
+        R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.fill()
+        ctx.strokeStyle = q.color; ctx.lineWidth = 2*S
+        R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.stroke()
+        if (a) { ctx.fillStyle = a.main; R.rr(startX+2*S, iconY+2*S, 3*S, iconSz-4*S, 1.5*S); ctx.fill() }
+        const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
+        if (eqIcon && eqIcon.width > 0) {
+          ctx.drawImage(eqIcon, startX+4*S, iconY+4*S, iconSz-8*S, iconSz-8*S)
+        } else {
+          const slot = EQUIP_SLOT[eq.slot]
+          ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText(slot.icon, startX+iconSz/2, iconY+iconSz/2)
+        }
+        ctx.fillStyle = q.color; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+        ctx.fillText(q.name, startX+iconSz/2, iconY+iconSz+2*S)
+        startX += iconSz + gap
+      })
+    } else {
+      ctx.fillStyle=TH.dim; ctx.font=`${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText('本局未获得法宝',W/2,H*0.50)
+    }
+    const btnW = 130*S, gap2 = 16*S, btnY2 = H*0.68
+    R.drawBtn(W/2-btnW-gap2/2, btnY2, btnW, 40*S, '继续闯关', TH.success)
+    R.drawBtn(W/2+gap2/2, btnY2, btnW, 40*S, '回到首页', TH.info)
+  }
+
+  _drawDefeat() {
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
+    ctx.fillStyle=TH.danger; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('💀 失败',W/2,H*0.22)
+    ctx.fillStyle=TH.sub; ctx.font=`${13*S}px "PingFang SC",sans-serif`
+    ctx.fillText('道心不灭，再战！', W/2, H*0.29)
+    const lost = this.lostEquips || []
+    if (lost.length > 0) {
+      ctx.fillStyle=TH.danger; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText('── 战败失去法宝 ──',W/2,H*0.36)
+      const iconSz = 42*S, gap3 = 8*S
+      const totalW2 = lost.length * iconSz + (lost.length-1) * gap3
+      let sx = (W - totalW2) / 2
+      const iy = H*0.40
+      lost.forEach(eq => {
+        const q = QUALITY[eq.quality]
+        ctx.fillStyle = 'rgba(40,10,10,0.9)'
+        R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.fill()
+        ctx.strokeStyle = TH.danger+'88'; ctx.lineWidth = 2*S
+        R.rr(sx, iy, iconSz, iconSz, 6*S); ctx.stroke()
+        ctx.save(); ctx.globalAlpha = 0.4
+        const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
+        if (eqIcon && eqIcon.width > 0) {
+          ctx.drawImage(eqIcon, sx+4*S, iy+4*S, iconSz-8*S, iconSz-8*S)
+        } else {
+          const slot = EQUIP_SLOT[eq.slot]
+          ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText(slot.icon, sx+iconSz/2, iy+iconSz/2)
+        }
+        ctx.restore()
+        ctx.fillStyle = TH.danger; ctx.font = `bold ${24*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('✕', sx+iconSz/2, iy+iconSz/2)
+        ctx.fillStyle = TH.dim; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+        ctx.fillText(q.name, sx+iconSz/2, iy+iconSz+2*S)
+        sx += iconSz + gap3
+      })
+      ctx.fillStyle=TH.danger; ctx.font=`${11*S}px "PingFang SC",sans-serif`
+      ctx.textAlign='center'
+      ctx.fillText(`战败惩罚：失去本局获得的 ${lost.length} 件法宝`, W/2, H*0.40+iconSz+16*S)
+    }
+    const btnW2 = 130*S, gap4 = 16*S, btnY3 = H*0.65
+    R.drawBtn(W/2-btnW2-gap4/2, btnY3, btnW2, 40*S, '重新挑战', TH.danger)
+    R.drawBtn(W/2+gap4/2, btnY3, btnW2, 40*S, '回到首页', TH.info)
+  }
+
+  // ===== 棋盘绘制（智龙迷城转珠版） =====
   _drawBoard(topY) {
     const padX = 8*S
     this.cellSize = (W-padX*2)/COLS
     this.boardX = padX; this.boardY = topY
     const cs = this.cellSize, bx = this.boardX, by = this.boardY
-    // 棋盘背景
     ctx.fillStyle='rgba(10,10,25,0.7)'
     R.rr(bx-4*S,by-4*S,cs*COLS+8*S,cs*ROWS+8*S,10*S); ctx.fill()
 
@@ -648,40 +648,72 @@ class Main {
     if (this.swapAnim) {
       const sa = this.swapAnim
       const p = sa.progress
-      const ease = sa.revert ? (1 - p) : p  // 归位动画反向
+      const ease = sa.revert ? (1 - p) : p
       const dx = (sa.c2 - sa.c1) * cs * ease
       const dy = (sa.r2 - sa.r1) * cs * ease
       swapOffsets[`${sa.r1}_${sa.c1}`] = { dx, dy }
       swapOffsets[`${sa.r2}_${sa.c2}`] = { dx: -dx, dy: -dy }
     }
 
-    // 珠子
+    // 绘制珠子
     for (let r=0; r<ROWS; r++) {
       for (let c=0; c<COLS; c++) {
         const cell = this.board[r]?.[c]
         if (!cell) continue
+        // 正在被拖拽的珠子不在原位绘制
+        if (this.dragging && r === this.dragR && c === this.dragC) continue
         let cx = bx + c*cs + cs/2
         let cy = by + r*cs + cs/2
-        // 交换动画偏移
         const offset = swapOffsets[`${r}_${c}`]
         if (offset) { cx += offset.dx; cy += offset.dy }
-        // 选中高亮
-        if (r === this.selectedR && c === this.selectedC && !this.swapAnim) {
-          ctx.save()
-          ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S
-          ctx.globalAlpha = 0.6 + 0.3*Math.sin(this.af*0.1)
-          ctx.beginPath(); ctx.arc(cx, cy, cs*0.50, 0, Math.PI*2); ctx.stroke()
-          ctx.restore()
-        }
-        // 消除标记
+        // 消除闪烁动画
         if (cell._elim) {
-          ctx.save(); ctx.globalAlpha = 0.4 + 0.3*Math.sin(this.af*0.15)
-          R.drawBead(cx,cy,cs*0.48,cell._attr||cell,this.af)
+          const flashP = this.elimAnimTimer / 24  // 0→1
+          const flash = Math.sin(flashP * Math.PI * 4)  // 快速闪烁
+          const scale = 1 + 0.15 * flash
+          const alpha = 1 - flashP * 0.6
+          ctx.save()
+          ctx.globalAlpha = Math.max(0.2, alpha)
+          R.drawBead(cx, cy, cs * 0.48 * scale, cell._attr, this.af)
+          // 白色闪光叠加
+          if (flash > 0) {
+            ctx.globalAlpha = flash * 0.5 * alpha
+            ctx.fillStyle = '#fff'
+            ctx.beginPath(); ctx.arc(cx, cy, cs * 0.48 * scale, 0, Math.PI * 2); ctx.fill()
+          }
           ctx.restore()
         } else {
           const attr = typeof cell === 'string' ? cell : cell
           R.drawBead(cx,cy,cs*0.48,attr,this.af)
         }
+      }
+    }
+
+    // ===== 绘制拖拽中的珠子（跟随手指，放大显示） =====
+    if (this.dragging && this.dragAttr) {
+      ctx.save()
+      ctx.globalAlpha = 0.85
+      R.drawBead(this.dragCurX, this.dragCurY, cs*0.55, this.dragAttr, this.af)
+      ctx.restore()
+
+      // ===== 拖拽倒计时进度条（棋盘上方） =====
+      const timeLeft = Math.max(0, 1 - this.dragTimer / this.dragTimeLimit)
+      const barW = cs*COLS, barH = 4*S
+      const barX = bx, barY2 = by - 8*S
+      // 背景
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'
+      R.rr(barX, barY2, barW, barH, barH/2); ctx.fill()
+      // 填充（绿→黄→红）
+      const barColor = timeLeft > 0.5 ? TH.success : timeLeft > 0.2 ? TH.hard : TH.danger
+      ctx.fillStyle = barColor
+      R.rr(barX, barY2, barW * timeLeft, barH, barH/2); ctx.fill()
+      // 时间不足时闪烁警告
+      if (timeLeft < 0.3) {
+        ctx.save()
+        ctx.globalAlpha = 0.3 + 0.3 * Math.sin(this.af * 0.15)
+        ctx.strokeStyle = TH.danger; ctx.lineWidth = 2*S
+        R.rr(bx-4*S, by-4*S, cs*COLS+8*S, cs*ROWS+8*S, 10*S); ctx.stroke()
+        ctx.restore()
       }
     }
   }
@@ -701,22 +733,18 @@ class Main {
     }
   }
 
-  // --- 角色展示触摸 ---
   tIntro(type,x,y) {
     if (type !== 'end') return
     const btnW = 180*S, btnH = 48*S
     const btnX = (W-btnW)/2, btnY = H-120*S
     if (this._hitRect(x,y,btnX,btnY,btnW,btnH)) {
-      // 点击开始游戏 → 直接进入第一关战斗准备
       this._startBattle(this.storage.currentLevel, 'normal')
     }
   }
 
-  // --- 首页触摸 ---
   tHome(type,x,y) {
     if (type !== 'end') return
     const m = 16*S
-    // 挑战按钮
     const cardY = safeTop+60*S, cardH = 80*S
     const lvY = cardY+cardH+20*S, lvH = 140*S
     const btnW = 160*S, btnH = 44*S
@@ -726,22 +754,21 @@ class Main {
     }
   }
 
-  // ===== 战斗准备触摸 =====
   tBattlePrepare(type,x,y) {
     if (type !== 'end') return
     if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
-    const stats = this.storage.getHeroStats()
     const eqH = 46*S, startY=safeTop+56*S
     const eqY = startY+116*S
-    const infoY = eqY+20*S + 3*(eqH+6*S) + 10*S
+    const totalRows = Math.ceil(Object.keys(EQUIP_SLOT).length / 2)
+    const infoY = eqY+20*S + totalRows*(eqH+6*S) + 10*S
     if (this._hitRect(x,y,W/2-55*S,infoY+30*S,110*S,40*S)) {
       this._enterBattle()
     }
   }
 
-  // ===== 战斗触摸 =====
+  // ===== 战斗触摸（新布局版） =====
   tBattle(type,x,y) {
-    // 属性面板显示时，点击任意位置关闭
+    // 属性面板
     if (this.statPanel && this.statPanel.visible) {
       if (type === 'end') { this.statPanel = null }
       return
@@ -751,7 +778,6 @@ class Main {
       if (type !== 'end') return
       const btnY = H*0.2+H*0.45-44*S
       if (this._hitRect(x,y,40*S,btnY,100*S,34*S)) {
-        // 点击"佩戴"：加入背包并立即装备
         const eq = this.dropPopup
         if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
           this.storage.addToInventory(eq)
@@ -760,7 +786,6 @@ class Main {
         this.tempEquips.push(eq)
         this.dropPopup = null
       } else if (this._hitRect(x,y,W-140*S,btnY,100*S,34*S)) {
-        // 点击"暂存"：仅加入背包，不装备
         const eq = this.dropPopup
         if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
           this.storage.addToInventory(eq)
@@ -770,142 +795,123 @@ class Main {
       }
       return
     }
-    // 胜利按钮：继续闯关 / 回到首页
+    // 胜利按钮
     if (this.bState === 'victory') {
       if (type !== 'end') return
       const btnW = 130*S, gap = 16*S, btnY = H*0.68
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
-        // 继续闯关 → 进入下一关
         this.bState = 'none'
         this._startBattle(this.storage.currentLevel, 'normal')
       } else if (this._hitRect(x,y, W/2+gap/2, btnY, btnW, 40*S)) {
-        // 回到首页
         this.bState = 'none'; this.scene = 'home'
       }
       return
     }
-    // 失败按钮：重新挑战 / 回到首页
+    // 失败按钮
     if (this.bState === 'defeat') {
       if (type !== 'end') return
       const btnW = 130*S, gap = 16*S, btnY = H*0.65
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
-        // 重新挑战
         this.bState = 'none'
         this._startBattle(this.curLevel.levelId, this.curLevel.difficulty || 'normal')
       } else if (this._hitRect(x,y, W/2+gap/2, btnY, btnW, 40*S)) {
-        // 回到首页
         this.bState = 'none'; this.scene = 'home'
       }
       return
     }
     // 退出按钮
-    if (type === 'end' && this._hitRect(x,y,10*S,safeTop+4*S,40*S,20*S)) {
+    if (type === 'end' && this._hitRect(x,y,8*S,safeTop+4*S,42*S,22*S)) {
       this.bState = 'none'; this.scene = 'home'; return
     }
-    // 点击角色/怪物区域查看属性（仅在战斗进行中）
-    if (type === 'end' && this.bState !== 'none' && this.bState !== 'victory' && this.bState !== 'defeat') {
-      const topArea = safeTop+4*S
-      const arenaBottom = H * 0.42
-      const arenaH = arenaBottom - topArea
-      const charY = topArea + 24*S + arenaH * 0.4
-      const charSize = Math.min(arenaH * 0.65, 120*S)
-      const heroX = W * 0.28, enemyX = W * 0.72
-      const clickR = charSize * 0.5
-      // 点击修士
-      const dhx = x - heroX, dhy = y - charY
-      if (dhx*dhx + dhy*dhy < clickR*clickR) {
-        this.statPanel = { type:'hero', visible:true }; return
-      }
-      // 点击怪物
-      const dex = x - enemyX, dey = y - charY
-      if (dex*dex + dey*dey < clickR*clickR) {
-        this.statPanel = { type:'enemy', visible:true }; return
-      }
-    }
-    // 绝技图标上滑释放
+    // 技能栏区域的绝技上滑（必须在怪物区/血条区点击检测之前，否则end事件被拦截）
     if (this._ultIconArea && this.bState === 'playerTurn') {
       const ua = this._ultIconArea
+      const equipped = this.storage.equipped
+      const eqList = ua.list
+      const iconSize = 46*S
+      const gap2 = 4*S
+      const totalW2 = eqList.length * iconSize + (eqList.length-1) * gap2
+      const startX2 = (W - totalW2) / 2
+      const iconY2 = ua.y + (ua.h - iconSize) / 2
+
       if (type === 'start') {
-        // 检查是否点击了某个绝技图标
-        for (let i=0; i<ua.count; i++) {
-          const ix = ua.x + i*(ua.iconSize + ua.gap)
-          const iy = ua.y
-          if (this._hitRect(x, y, ix, iy, ua.iconSize, ua.iconSize)) {
-            const eq = ua.list[i]
+        for (let i=0; i<eqList.length; i++) {
+          const ix = startX2 + i*(iconSize + gap2)
+          if (this._hitRect(x, y, ix, iconY2, iconSize, iconSize)) {
+            const eq = eqList[i]
             const cur = this.skillTriggers[eq.attr] || 0
             if (cur >= eq.ultTrigger) {
-              // 仅就绪状态可以上滑
               this.ultSwipe = { idx:i, startX:x, startY:y, progress:0, eq }
             }
-            return  // 拦截触摸，不传递给棋盘
+            return
           }
         }
       } else if (type === 'move' && this.ultSwipe) {
-        const dy = this.ultSwipe.startY - y  // 上滑为正
+        const dy = this.ultSwipe.startY - y
         this.ultSwipe.progress = Math.max(0, Math.min(1, dy / (40*S)))
         return
       } else if (type === 'end' && this.ultSwipe) {
         if (this.ultSwipe.progress > 0.6) {
-          // 上滑成功 → 释放绝技
           this._triggerUlt(this.ultSwipe.eq)
         }
         this.ultSwipe = null
         return
       }
     }
-    // 棋盘交互（相邻交换模式）
+
+    // 点击怪物区查看属性
+    if (type === 'end' && this.bState !== 'none' && this.bState !== 'victory' && this.bState !== 'defeat') {
+      const padX2 = 8*S
+      const cs2 = (W - padX2*2) / COLS
+      const brdH2 = ROWS * cs2
+      const brdTop2 = H - 10*S - brdH2
+      const skillBarTop2 = brdTop2 - 28*S - 54*S
+      if (y < skillBarTop2 && y > safeTop + 30*S) {
+        this.statPanel = { type:'enemy', visible:true }; return
+      }
+    }
+    // 技能栏点击查看人物属性（点击血条区域）
+    if (type === 'end' && this.bState !== 'none' && this.bState !== 'victory' && this.bState !== 'defeat') {
+      const padX2 = 8*S
+      const cs2 = (W - padX2*2) / COLS
+      const brdH2 = ROWS * cs2
+      const brdTop2 = H - 10*S - brdH2
+      const hpTop = brdTop2 - 28*S
+      if (y >= hpTop && y < brdTop2) {
+        this.statPanel = { type:'hero', visible:true }; return
+      }
+    }
+
+    // ===== 智龙迷城式转珠交互 =====
     if (this.bState !== 'playerTurn' || this.swapAnim) return
     const cs = this.cellSize, bx = this.boardX, by = this.boardY
+
     if (type === 'start') {
       const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-      if (r>=0 && r<ROWS && c>=0 && c<COLS) {
+      if (r>=0 && r<ROWS && c>=0 && c<COLS && this.board[r]?.[c]) {
         this.dragging = true
-        this.dragStartX = x; this.dragStartY = y
         this.dragR = r; this.dragC = c
+        this.dragStartX = x; this.dragStartY = y
+        this.dragCurX = x; this.dragCurY = y
+        this.dragAttr = typeof this.board[r][c] === 'string' ? this.board[r][c] : this.board[r][c]
+        this.dragTimer = 0  // 重置拖拽计时器
       }
     } else if (type === 'move' && this.dragging) {
-      // 检测拖拽方向，达到阈值时触发交换
-      const dx = x - this.dragStartX, dy = y - this.dragStartY
-      const threshold = cs * 0.35
-      let dr = 0, dc = 0
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-        dc = dx > 0 ? 1 : -1
-      } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > threshold) {
-        dr = dy > 0 ? 1 : -1
-      }
-      if (dr !== 0 || dc !== 0) {
-        const nr = this.dragR + dr, nc = this.dragC + dc
-        if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS) {
-          this.dragging = false
-          this._trySwap(this.dragR, this.dragC, nr, nc)
+      this.dragCurX = x; this.dragCurY = y
+      const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
+      if (r>=0 && r<ROWS && c>=0 && c<COLS) {
+        if (r !== this.dragR || c !== this.dragC) {
+          const t = this.board[this.dragR][this.dragC]
+          this.board[this.dragR][this.dragC] = this.board[r][c]
+          this.board[r][c] = t
+          this.dragR = r; this.dragC = c
         }
       }
-    } else if (type === 'end') {
-      if (this.dragging) {
-        // 点击选中（未拖拽到足够距离）
-        const c = Math.floor((this.dragStartX-bx)/cs), r = Math.floor((this.dragStartY-by)/cs)
-        if (r>=0 && r<ROWS && c>=0 && c<COLS) {
-          if (this.selectedR >= 0 && this.selectedC >= 0) {
-            // 已有选中棋子，判断是否相邻
-            const diffR = Math.abs(r - this.selectedR), diffC = Math.abs(c - this.selectedC)
-            if ((diffR === 1 && diffC === 0) || (diffR === 0 && diffC === 1)) {
-              // 相邻：尝试交换
-              this._trySwap(this.selectedR, this.selectedC, r, c)
-              this.selectedR = -1; this.selectedC = -1
-            } else if (r === this.selectedR && c === this.selectedC) {
-              // 点击同一个：取消选中
-              this.selectedR = -1; this.selectedC = -1
-            } else {
-              // 不相邻：更换选中
-              this.selectedR = r; this.selectedC = c
-            }
-          } else {
-            // 无选中：选中此棋子
-            this.selectedR = r; this.selectedC = c
-          }
-        }
-        this.dragging = false
-      }
+    } else if (type === 'end' && this.dragging) {
+      this.dragging = false
+      this.dragAttr = null
+      this.dragTimer = 0
+      this._checkAndElim()
     }
   }
 
@@ -920,38 +926,42 @@ class Main {
     const lv = this.curLevel
     const stats = this.storage.getHeroStats()
     this.enemyHp = lv.enemy.hp; this.enemyMaxHp = lv.enemy.hp
-    this.heroHp = stats.hp; this.heroMaxHp = stats.hp; this.heroShield = stats.def
-    // 五维属性存储（战斗中使用）
+    this.heroHp = stats.hp; this.heroMaxHp = stats.hp; this.heroShield = 0
     this.heroStats = { ...stats }
-    this.enemyStats = {
-      hp: lv.enemy.hp, pAtk: lv.enemy.pAtk || 0, mAtk: lv.enemy.mAtk || 0,
-      pDef: lv.enemy.pDef || 0, mDef: lv.enemy.mDef || 0,
-    }
+    // 怪物属性：拷贝五行攻防
+    const es = { hp: lv.enemy.hp, stamina: lv.enemy.stamina || lv.enemy.hp, recovery: lv.enemy.recovery || 0 }
+    ATTRS.forEach(a => {
+      es[ATK_KEY[a]] = lv.enemy[ATK_KEY[a]] || 0
+      es[DEF_KEY[a]] = lv.enemy[DEF_KEY[a]] || 0
+    })
+    this.enemyStats = es
     this.heroBuffs = []; this.enemyBuffs = []
     this.combo = 0; this.turnCount = 1
     this.skillTriggers = {}; this.ultReady = {}
     this.pendingUlt = null; this.tempEquips = []; this.lostEquips = []; this.dropPopup = null; this.battleGold = 0
     this.dmgFloats = []; this.skillEffects = []
     this.statPanel = null
-    // 重置动画
     this.heroAttackAnim = { active:false, progress:0, duration:24 }
     this.enemyHurtAnim  = { active:false, progress:0, duration:18 }
     this.heroHurtAnim   = { active:false, progress:0, duration:18 }
     this.enemyAttackAnim= { active:false, progress:0, duration:20 }
     this.skillCastAnim  = { active:false, progress:0, duration:30, type:'slash', color:TH.accent, skillName:'', targetX:0, targetY:0 }
+    this._enemyHpLoss = null; this._heroHpLoss = null
     this._initBoard()
     this.bState = 'playerTurn'
     this.scene = 'battle'
-    this.selectedR = -1; this.selectedC = -1; this.swapAnim = null; this.ultSwipe = null
-    this._stateTimer = 0; this._enemyTurnWait = false; this._pendingElimMap = null
-    // 检查死局
-    this._checkDeadlock()
+    this.dragging = false; this.dragAttr = null
+    this.dragTimer = 0; this.dragTimeLimit = 4 * 60  // 4秒（60fps），拖拽时间限制
+    this.elimQueue = []; this.elimAnimCells = null; this.elimAnimTimer = 0
+    this.dropAnimTimer = 0; this.dropAnimCols = null
+    this.swapAnim = null; this.ultSwipe = null
+    this._stateTimer = 0; this._enemyTurnWait = false; this._pendingDmgMap = null; this._pendingHeal = 0
   }
 
   _initBoard() {
-    const weights = this.curLevel?.beadWeights || { fire:17,water:17,wood:17,light:17,dark:16,heart:16 }
+    const weights = this.curLevel?.beadWeights || { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 }
     const pool = []
-    ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
+    BEAD_ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
     this.board = []
     for (let r=0; r<ROWS; r++) {
       this.board[r] = []
@@ -966,9 +976,7 @@ class Main {
   }
 
   _wouldMatch(r,c,attr) {
-    // 横向
     if (c>=2 && this.board[r][c-1]===attr && this.board[r][c-2]===attr) return true
-    // 纵向
     if (r>=2 && this.board[r-1]?.[c]===attr && this.board[r-2]?.[c]===attr) return true
     return false
   }
@@ -979,37 +987,17 @@ class Main {
     this.board[r2][c2] = t
   }
 
-  // 尝试交换两个相邻棋子
-  _trySwap(r1, c1, r2, c2) {
-    // 先交换
-    this._swapBeads(r1, c1, r2, c2)
-    // 检查是否产生消除
-    const matches = this._findMatches()
-    if (matches.length > 0) {
-      // 交换成功：播放动画然后消除
-      MusicMgr.playEliminate()
-      this._swapBeads(r1, c1, r2, c2)  // 先换回，动画结束再真正交换
-      this.swapAnim = { r1, c1, r2, c2, progress:0, revert:false, duration:10 }
-    } else {
-      // 交换失败：归位动画，然后进入敌方回合
-      this._swapBeads(r1, c1, r2, c2)  // 换回
-      this.swapAnim = { r1, c1, r2, c2, progress:0, revert:true, duration:14 }
-    }
-  }
-
-  // 在update中更新交换动画
+  // 在update中更新交换动画（仅用于连锁消除后的下落动画等）
   _updateSwapAnim() {
     if (!this.swapAnim) return
     const sa = this.swapAnim
     sa.progress += 1/sa.duration
     if (sa.progress >= 1) {
       if (sa.revert) {
-        // 归位完成 → 等待后进入敌方回合
         this.swapAnim = null
         this.bState = 'preEnemy'
         this._stateTimer = 0
       } else {
-        // 交换完成 → 真正执行交换并消除
         this._swapBeads(sa.r1, sa.c1, sa.r2, sa.c2)
         this.swapAnim = null
         this._checkAndElim()
@@ -1017,134 +1005,223 @@ class Main {
     }
   }
 
+  // 智龙迷城版：松手后检查消除（逐组消除版）
   _checkAndElim() {
-    const sets = this._findMatches()
+    const sets = this._findMatchesSeparate()
     if (sets.length > 0) {
-      this.combo = 0
-      this._pendingElimMap = {}
-      this.elimSets = sets
-      this.bState = 'eliminating'
-    }
-    // 无消除 = 回合结束，等待后进入敌方回合
-    else if (this.turnCount > 0) {
+      // 首次松手时初始化
+      if (this.bState === 'playerTurn') {
+        this.combo = 0
+        this._pendingDmgMap = {}   // { attr: baseDmgTotal } 累计每属性基础伤害
+        this._pendingHeal = 0     // 累计回复量
+      }
+      this.elimQueue = sets
+      this.bState = 'elimAnim'
+      this._startNextElimAnim()
+    } else if (this.combo > 0) {
+      // 连锁结束（掉落后没有新消除了），进入攻击阶段
+      this.bState = 'preAttack'
+      this._stateTimer = 0
+    } else {
+      // 无消除 = 回合结束（没有任何combo）
       this.bState = 'preEnemy'
       this._stateTimer = 0
     }
   }
 
-  // 检查棋盘是否存在任何可以成功交换消除的操作
-  _hasValidSwap() {
-    for (let r=0; r<ROWS; r++) {
-      for (let c=0; c<COLS; c++) {
-        // 检查右邻
-        if (c+1 < COLS) {
-          this._swapBeads(r, c, r, c+1)
-          const m = this._findMatches()
-          this._swapBeads(r, c, r, c+1)
-          if (m.length > 0) return true
-        }
-        // 检查下邻
-        if (r+1 < ROWS) {
-          this._swapBeads(r, c, r+1, c)
-          const m = this._findMatches()
-          this._swapBeads(r, c, r+1, c)
-          if (m.length > 0) return true
-        }
-      }
-    }
-    return false
-  }
-
-  // 检查死局，如果无解则重新生成棋盘
-  _checkDeadlock() {
-    if (!this._hasValidSwap()) {
-      // 死局：显示提示并重新生成
-      this.skillEffects.push({ x:W/2, y:H*0.5, text:'灵珠重排!', color:TH.accent, alpha:1, t:0 })
-      this._initBoard()
-      // 递归检查新棋盘是否也死局
-      if (!this._hasValidSwap()) {
-        this._initBoard()
-      }
-    }
-  }
-
-  _findMatches() {
-    const marks = Array.from({length:ROWS},()=>Array(COLS).fill(false))
-    // 横向
-    for (let r=0;r<ROWS;r++) {
-      for (let c=0;c<=COLS-3;c++) {
-        const a=this.board[r][c]
-        if (a && this.board[r][c+1]===a && this.board[r][c+2]===a) {
-          let end=c+2; while(end+1<COLS && this.board[r][end+1]===a) end++
-          for(let i=c;i<=end;i++) marks[r][i]=true
-        }
-      }
-    }
-    // 纵向
-    for (let c=0;c<COLS;c++) {
-      for (let r=0;r<=ROWS-3;r++) {
-        const a=this.board[r][c]
-        if (a && this.board[r+1]?.[c]===a && this.board[r+2]?.[c]===a) {
-          let end=r+2; while(end+1<ROWS && this.board[end+1]?.[c]===a) end++
-          for(let i=r;i<=end;i++) marks[i][c]=true
-        }
-      }
-    }
-    // 收集消除组（按属性分组）
-    const groups = {}
-    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
-      if(marks[r][c]) {
-        const a=this.board[r][c]
-        if(!groups[a]) groups[a]={attr:a,count:0,cells:[]}
-        groups[a].count++; groups[a].cells.push({r,c})
-      }
-    }
-    return Object.values(groups)
-  }
-
-  _processElim() {
-    if (!this.elimSets || this.elimSets.length === 0) {
-      // 填充 → 再检测
+  // 开始下一组消除动画
+  _startNextElimAnim() {
+    if (this.elimQueue.length === 0) {
+      // 所有组消完，进入掉落阶段
+      this.bState = 'dropping'
+      this.dropAnimTimer = 0
       this._fillBoard()
-      const newSets = this._findMatches()
+      this.dropAnimCols = this._getDropInfo()
+      return
+    }
+    const group = this.elimQueue.shift()
+    this.combo++
+    // 开始闪烁动画
+    this.elimAnimCells = group
+    this.elimAnimTimer = 0
+    // 标记珠子为消除状态
+    group.cells.forEach(({r, c}) => {
+      if (this.board[r] && this.board[r][c]) {
+        this.board[r][c] = { _elim: true, _attr: group.attr }
+      }
+    })
+    MusicMgr.playEliminate()
+    this.shakeT = 4; this.shakeI = 3*S
+
+    // ===== 立即计算本组消除的基础伤害，并在棋盘上飘出 =====
+    const cs = this.cellSize, bx = this.boardX, by = this.boardY
+    let sumX = 0, sumY = 0
+    group.cells.forEach(({r, c}) => {
+      sumX += bx + c * cs + cs / 2
+      sumY += by + r * cs + cs / 2
+    })
+    const cx = sumX / group.cells.length
+    const cy = sumY / group.cells.length
+    const attrColor = BEAD_ATTR_COLOR[group.attr]?.main || TH.accent
+    const heroS = this.heroStats || {}
+
+    if (group.attr === 'heart') {
+      // 心珠回复 = 回复加成 × 消除倍率（与攻击公式一致）
+      const elimMul = 1.0 + (group.count - 3) * 0.1
+      const recovery = heroS.recovery || 10
+      const baseHeal = Math.round(recovery * elimMul)
+      if (!this._pendingHeal) this._pendingHeal = 0
+      this._pendingHeal += baseHeal
+      this.dmgFloats.push({ x: cx, y: cy, text: `+${baseHeal}`, color: attrColor, alpha: 1, scale: 1.2, t: 0 })
+    } else {
+      // 攻击属性：基础伤害 = 攻击力 × 消除倍率
+      // 消除倍率：3个=1.0，每多1个+0.1
+      const elimMul = 1.0 + (group.count - 3) * 0.1
+      const atkKey = ATK_KEY[group.attr]
+      const selfAtk = heroS[atkKey] || 10
+      const baseDmg = Math.round(selfAtk * elimMul)
+
+      if (!this._pendingDmgMap) this._pendingDmgMap = {}
+      if (!this._pendingDmgMap[group.attr]) this._pendingDmgMap[group.attr] = 0
+      this._pendingDmgMap[group.attr] += baseDmg
+
+      // 在棋盘上飘出：只飘对应颜色的数值
+      this.dmgFloats.push({ x: cx, y: cy, text: `${baseDmg}`, color: attrColor, alpha: 1, scale: 1.2, t: 0 })
+    }
+  }
+
+  // 在update中处理消除动画
+  _processElim() {
+    // 逐组消除动画阶段
+    const ELIM_FLASH_FRAMES = 24  // 闪烁持续帧数
+    this.elimAnimTimer++
+    if (this.elimAnimTimer >= ELIM_FLASH_FRAMES) {
+      // 闪烁结束，真正移除珠子
+      if (this.elimAnimCells) {
+        this.elimAnimCells.cells.forEach(({r, c}) => {
+          this.board[r][c] = null
+        })
+        this.elimAnimCells = null
+      }
+      // 继续下一组
+      this._startNextElimAnim()
+    }
+  }
+
+  // 在update中处理掉落动画
+  _processDropAnim() {
+    const DROP_FRAMES = 12  // 掉落动画帧数
+    this.dropAnimTimer++
+    if (this.dropAnimTimer >= DROP_FRAMES) {
+      this.dropAnimCols = null
+      // 掉落完成，检测是否有连锁消除
+      const newSets = this._findMatchesSeparate()
       if (newSets.length > 0) {
-        this.elimSets = newSets
+        this.elimQueue = newSets
+        this.bState = 'elimAnim'
+        this._startNextElimAnim()
       } else {
-        // 消除全部结束 → 等待1s后执行攻击
+        // 没有新消除 → 进入攻击阶段
         this.bState = 'preAttack'
         this._stateTimer = 0
       }
-      return
     }
-    // 清除标记的珠子
-    this.combo++
-    if (!this._pendingElimMap) this._pendingElimMap = {}
-    this.elimSets.forEach(g => {
-      if(!this._pendingElimMap[g.attr]) this._pendingElimMap[g.attr]=0
-      this._pendingElimMap[g.attr] += g.count
-      g.cells.forEach(({r,c}) => this.board[r][c] = null)
-    })
-    MusicMgr.playEliminate()
-    this.shakeT = 6; this.shakeI = 4*S
-    this.elimSets = []
   }
 
-  // 消除等待结束后，统一执行攻击
+  /**
+   * 查找所有可消除的匹配组（每个连续3+相连的同色区域为一个独立组）
+   * 返回数组：[{ attr, count, cells:[{r,c}] }, ...]
+   * 同色不同位置的连通区域算不同combo
+   */
+  _findMatchesSeparate() {
+    // 先标记所有参与3连的格子
+    const marks = Array.from({length:ROWS}, () => Array(COLS).fill(false))
+    // 横向检测
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c <= COLS-3; c++) {
+        const a = this._cellAttr(r, c)
+        if (a && this._cellAttr(r, c+1) === a && this._cellAttr(r, c+2) === a) {
+          let end = c+2
+          while (end+1 < COLS && this._cellAttr(r, end+1) === a) end++
+          for (let i = c; i <= end; i++) marks[r][i] = true
+        }
+      }
+    }
+    // 纵向检测
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r <= ROWS-3; r++) {
+        const a = this._cellAttr(r, c)
+        if (a && this._cellAttr(r+1, c) === a && this._cellAttr(r+2, c) === a) {
+          let end = r+2
+          while (end+1 < ROWS && this._cellAttr(end+1, c) === a) end++
+          for (let i = r; i <= end; i++) marks[i][c] = true
+        }
+      }
+    }
+    // BFS找连通分量（每个同色连通区域是一个combo组）
+    const visited = Array.from({length:ROWS}, () => Array(COLS).fill(false))
+    const groups = []
+    const dirs = [[0,1],[0,-1],[1,0],[-1,0]]
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!marks[r][c] || visited[r][c]) continue
+        const attr = this._cellAttr(r, c)
+        const cells = []
+        const queue = [{r, c}]
+        visited[r][c] = true
+        while (queue.length > 0) {
+          const cur = queue.shift()
+          cells.push(cur)
+          for (const [dr, dc] of dirs) {
+            const nr = cur.r + dr, nc = cur.c + dc
+            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !visited[nr][nc] && marks[nr][nc] && this._cellAttr(nr, nc) === attr) {
+              visited[nr][nc] = true
+              queue.push({r: nr, c: nc})
+            }
+          }
+        }
+        groups.push({ attr, count: cells.length, cells })
+      }
+    }
+    return groups
+  }
+
+  // 获取格子属性（兼容 _elim 标记对象和字符串）
+  _cellAttr(r, c) {
+    const cell = this.board[r]?.[c]
+    if (!cell) return null
+    if (typeof cell === 'object' && cell._elim) return cell._attr
+    return cell
+  }
+
+  // 获取掉落信息（用于掉落动画）
+  _getDropInfo() {
+    // 这个在 _fillBoard 已经执行后调用
+    // 返回 null 简化处理，掉落直接在 _fillBoard 中完成
+    return true
+  }
+
+  /**
+   * 消除等待结束后执行攻击
+   * 新伤害公式：
+   * 1. 消除时：基础伤害 = 攻击力 × 消除倍率（3个=1.0，每多1个+0.1）
+   * 2. 全部消除完成后：combo倍率 = 1 + (combo-1) × 0.3
+   * 3. 每属性最终伤害 = 基础伤害总和 × combo倍率 - 敌方该属性防御
+   */
   _executeAttack() {
-    const elimMap = this._pendingElimMap || {}
-    this._pendingElimMap = null
-    this._triggerSkills(elimMap)
-    // 如果已经胜利，不再进入敌方回合
+    const dmgMap = this._pendingDmgMap || {}
+    const heal = this._pendingHeal || 0
+    this._pendingDmgMap = null
+    this._pendingHeal = 0
+    this._applyFinalDamage(dmgMap, heal)
     if (this.bState === 'victory') return
-    // 进入等待→敌方回合
     this._settle()
   }
 
   _fillBoard() {
-    const weights = this.curLevel?.beadWeights || { fire:17,water:17,wood:17,light:17,dark:16,heart:16 }
+    const weights = this.curLevel?.beadWeights || { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 }
     const pool = []
-    ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
-    // 下落
+    BEAD_ATTRS.forEach(a => { for(let i=0;i<(weights[a]||10);i++) pool.push(a) })
     for(let c=0;c<COLS;c++) {
       let empty=0
       for(let r=ROWS-1;r>=0;r--) {
@@ -1159,68 +1236,126 @@ class Main {
     }
   }
 
-  _triggerSkills(elimMap) {
-    // elimMap: { attr: count }
-    const equipped = this.storage.equipped
-    const arenaBottom = H * 0.42
-    const topArea = safeTop + 4*S
-    const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
-    const heroS = this.heroStats || {}
+  /**
+   * 最终伤害结算（新公式）
+   * dmgMap: { attr: baseDmgTotal } 消除阶段累计的每属性基础伤害
+   * heal: 消除阶段累计的回复量
+   *
+   * 最终伤害 = Max(baseDmgTotal × comboMul - 敌方防御, 0)
+   * comboMul = 1 + (combo-1) × 0.15
+   */
+  _applyFinalDamage(dmgMap, heal) {
+    const eCenterY = this._getEnemyCenterY()
+    const charY = eCenterY
     const enemyS = this.enemyStats || {}
-    Object.entries(elimMap).forEach(([attr,count]) => {
-      if (count < 3) return
-      // 心珠回血
-      if (attr === 'heart') {
-        const healAmt = count * 100
-        this.heroHp = Math.min(this.heroMaxHp, this.heroHp + healAmt)
-        this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`+${healAmt}`, color:TH.success, alpha:1, scale:1, t:0 })
-        this._playHealEffect('回春')
+    const equipped = this.storage.equipped
+
+    // combo倍率
+    const comboMul = 1 + Math.max(0, this.combo - 1) * 0.15
+
+    // 计算每属性最终伤害
+    const finalDmgByAttr = {}
+    let hasCounter = null
+    let hasCounterBy = null
+
+    Object.entries(dmgMap).forEach(([attr, baseDmg]) => {
+      // 基础伤害 × combo倍率
+      let dmg = baseDmg * comboMul
+
+      // 先减去敌方该属性防御
+      const defKey = DEF_KEY[attr]
+      const enemyDef = enemyS[defKey] || 0
+      dmg -= enemyDef
+
+      // 防御后再算五行克制（克制×1.1，被克×0.9）
+      let counterMul = 1.0
+      if (COUNTER_MAP[attr] === this.curLevel?.enemy?.attr) {
+        counterMul = 1.1
+        hasCounter = attr
+      } else if (COUNTER_BY[attr] === this.curLevel?.enemy?.attr) {
+        counterMul = 0.9
+        hasCounterBy = attr
       }
-      // 触发所有同灵根法宝的普通技能
+      dmg *= counterMul
+
+      const finalDmg = Math.max(0, Math.round(dmg))
+
+      if (finalDmg > 0) {
+        finalDmgByAttr[attr] = finalDmg
+      }
+
+      // 装备技能充能（每有消除就+1）
+      Object.values(equipped).forEach(eq => {
+        if (!eq || eq.attr !== attr) return
+        if (!this.skillTriggers[attr]) this.skillTriggers[attr] = 0
+        this.skillTriggers[attr]++
+      })
+
+      // 装备附带效果（buff/debuff/heal）
       Object.values(equipped).forEach(eq => {
         if (!eq || eq.attr !== attr) return
         const sk = eq.skill
-        let dmg = sk.dmg || 0
-        let heal = sk.heal || 0
-        // Combo加成
-        const comboMul = 1 + (this.combo-1)*0.1
-        dmg = Math.round(dmg * comboMul)
-        // 物理/魔法攻击加成（武器类偏物攻，其他类偏魔攻）
-        const isPhysical = (eq.slot === 'weapon' || eq.slot === 'boots')
-        const atkBonus = isPhysical ? (heroS.pAtk || 0) : (heroS.mAtk || 0)
-        const enemyDef = isPhysical ? (enemyS.pDef || 0) : (enemyS.mDef || 0)
-        dmg = Math.max(1, dmg + Math.round(atkBonus * 0.3) - Math.round(enemyDef * 0.5))
-        // 属性克制
-        if (this.curLevel && COUNTER_MAP[attr] === this.curLevel.enemy.attr) {
-          dmg = Math.round(dmg * 1.5)
-          this.skillEffects.push({ x:W/2, y:charY-30*S, text:'克制! ×1.5', color:TH.accent, alpha:1, t:0 })
+        if (sk.heal > 0) {
+          heal += sk.heal + ((this.heroStats || {}).recovery || 0)
         }
-        // 造成伤害
-        if (dmg > 0) {
-          this.enemyHp = Math.max(0, this.enemyHp - dmg)
-          this.dmgFloats.push({ x:W*0.72+Math.random()*20*S-10*S, y:charY-20*S, text:`-${dmg}`, color:TH.danger, alpha:1, scale:1.2, t:0 })
-          this._playHeroAttack(sk.name, attr, 'slash')
+        if (sk.def) {
+          this.heroShield += sk.def
+          this.heroBuffs.push({ type:'shield', val:sk.def, dur:sk.buffDur || 1 })
         }
-        // 回血
-        if (heal > 0) {
-          this.heroHp = Math.min(this.heroMaxHp, this.heroHp + heal)
-          this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`+${heal}`, color:TH.success, alpha:1, scale:1, t:0 })
-          this._playHealEffect(sk.name)
-        }
-        // 减伤
-        if (sk.def) this.heroShield += sk.def
-        // debuff
         if (sk.debuff && this.curLevel) {
-          this.enemyBuffs.push({ type:'atkDown', val:sk.debuff, dur:2 })
+          this.enemyBuffs.push({ type:'atkDown', val:sk.debuff, dur:sk.buffDur || 1 })
         }
-        // 蓄力
-        if (!this.skillTriggers[attr]) this.skillTriggers[attr] = 0
-        this.skillTriggers[attr]++
-        // 任务计数
         this.storage.updateTaskProgress('dt2', 1)
       })
     })
-    // 检查胜利
+
+    // ===== 在怪物头上飘最终伤害数字 =====
+    const attrKeys = Object.keys(finalDmgByAttr)
+    if (attrKeys.length > 0) {
+      // 记录掉血动画
+      if (!this._enemyHpLoss) this._enemyHpLoss = { fromPct: this.enemyHp / this.enemyMaxHp, timer: 0 }
+
+      // 扣血
+      let totalDmg = 0
+      attrKeys.forEach(attr => { totalDmg += finalDmgByAttr[attr] })
+      this.enemyHp = Math.max(0, this.enemyHp - totalDmg)
+
+      // 按属性分别飘伤害，Y方向错开，只飘数值不加文字
+      const startY = charY - 30*S
+      const yStep = 28*S
+      attrKeys.forEach((attr, i) => {
+        const attrColor = ATTR_COLOR[attr]?.main || TH.danger
+        const dmg = finalDmgByAttr[attr]
+        const offsetX = (Math.random() - 0.5) * 30*S
+        this.dmgFloats.push({
+          x: W*0.5 + offsetX,
+          y: startY - i * yStep,
+          text: `-${dmg}`,
+          color: attrColor,
+          alpha: 1,
+          scale: 1.4,
+          t: 0
+        })
+      })
+
+      this.enemyHurtAnim = { active:true, progress:0, duration:18 }
+      this.shakeT = 3; this.shakeI = 2*S
+    } else if (Object.keys(dmgMap).length > 0) {
+      // 有攻击属性但全部不破防
+      this.dmgFloats.push({ x:W*0.5, y:charY-20*S, text:'不破防', color:TH.dim, alpha:1, scale:0.8, t:0 })
+    }
+
+    // ===== 回复结算：基础回复 × combo倍率 =====
+    if (heal > 0) {
+      const finalHeal = Math.round(heal * comboMul)
+      const oldHeroHp = this.heroHp
+      this.heroHp = Math.min(this.heroMaxHp, this.heroHp + finalHeal)
+      const actualHeal = this.heroHp - oldHeroHp
+      if (actualHeal > 0) {
+        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`+${actualHeal}`, color:TH.success, alpha:1, scale:1.1, t:0 })
+      }
+    }
+
     if (this.enemyHp <= 0) {
       this.bState = 'victory'
       this._onVictory()
@@ -1229,34 +1364,52 @@ class Main {
 
   _triggerUlt(equip) {
     const sk = equip.ult
-    let dmg = sk.dmg || 0, heal = sk.heal || 0
-    if (COUNTER_MAP[equip.attr] === this.curLevel?.enemy?.attr) dmg = Math.round(dmg*1.5)
-    const arenaBottom = H * 0.42
-    const topArea = safeTop + 4*S
-    const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
-    if (dmg > 0) {
-      this.enemyHp = Math.max(0, this.enemyHp - dmg)
-      this.dmgFloats.push({ x:W*0.72, y:charY-30*S, text:`-${dmg}`, color:TH.accent, alpha:1, scale:1.5, t:0 })
-      this._playHeroAttack(sk.name, equip.attr, 'burst')
+    const heroS = this.heroStats || {}
+    const enemyS = this.enemyStats || {}
+    const attr = equip.attr
+    const charY = this._getEnemyCenterY()
+
+    if (sk.dmg) {
+      const atkKey = ATK_KEY[attr]
+      const selfAtk = heroS[atkKey] || 10
+      const skillCoeff = sk.dmg / 100
+      let dmg = selfAtk * skillCoeff
+      const defKey = DEF_KEY[attr]
+      const enemyDef = enemyS[defKey] || 0
+      dmg -= enemyDef
+      let counterMul = 1.0
+      if (COUNTER_MAP[attr] === this.curLevel?.enemy?.attr) counterMul = 1.1
+      else if (COUNTER_BY[attr] === this.curLevel?.enemy?.attr) counterMul = 0.9
+      dmg *= counterMul
+      const comboMul = 1 + Math.max(0, this.combo - 1) * 0.15
+      dmg *= comboMul
+      const finalDmg = Math.max(0, Math.round(dmg))
+      if (finalDmg > 0) {
+        const oldEPct = this.enemyHp / this.enemyMaxHp
+        this.enemyHp = Math.max(0, this.enemyHp - finalDmg)
+        this._enemyHpLoss = { fromPct: oldEPct, timer: 0 }
+        this.dmgFloats.push({ x:W*0.5, y:charY-30*S, text:`-${finalDmg}`, color:TH.accent, alpha:1, scale:1.5, t:0 })
+        this._playHeroAttack(sk.name, attr, 'burst')
+      }
     }
-    if (heal > 0) {
-      this.heroHp = Math.min(this.heroMaxHp, this.heroHp + heal)
+    if (sk.heal) {
+      const healAmt = sk.heal + (heroS.recovery || 0)
+      this.heroHp = Math.min(this.heroMaxHp, this.heroHp + healAmt)
       this._playHealEffect(sk.name)
     }
     this.shakeT = 12; this.shakeI = 8*S
     MusicMgr.playAttack()
-    // 重置蓄力
     this.skillTriggers[equip.attr] = 0
     if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory() }
   }
 
   _settle() {
-    // 检查胜利
     if (this.enemyHp <= 0) { this.bState = 'victory'; this._onVictory(); return }
     // buff持续时间衰减
     this.heroBuffs = this.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
     this.enemyBuffs = this.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
-    // 进入等待→敌方回合（1s延迟在update中的preEnemy处理）
+    // 重新计算护盾（从剩余buff累计）
+    this.heroShield = this.heroBuffs.filter(b => b.type === 'shield').reduce((s,b) => s + b.val, 0)
     this.bState = 'preEnemy'
     this._stateTimer = 0
   }
@@ -1265,24 +1418,25 @@ class Main {
     this.bState = 'enemyTurn'
     if (!this.curLevel) { this.bState = 'playerTurn'; this.turnCount++; return }
     const enemy = this.curLevel.enemy
-    const arenaBottom = H * 0.42
-    const topArea = safeTop + 4*S
-    const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
+    const charY = this._getEnemyCenterY()
     const heroS = this.heroStats || {}
     const enemyS = this.enemyStats || {}
-    // 物理攻击伤害 = 敌pAtk - 己pDef*0.5
-    let pDmg = Math.max(0, (enemyS.pAtk || enemy.pAtk || 0) - Math.round((heroS.pDef || 0) * 0.5))
-    // 魔法攻击伤害 = 敌mAtk - 己mDef*0.5
-    let mDmg = Math.max(0, (enemyS.mAtk || enemy.mAtk || 0) - Math.round((heroS.mDef || 0) * 0.5))
-    // buff减攻
+
+    const enemyAttr = enemy.attr
+    const enemyAtkKey = ATK_KEY[enemyAttr]
+    const heroDefKey = DEF_KEY[enemyAttr]
+    let dmg = Math.max(0, (enemyS[enemyAtkKey] || 0) - (heroS[heroDefKey] || 0))
     this.enemyBuffs.forEach(b => {
-      if (b.type === 'atkDown') { pDmg = Math.max(0, pDmg - Math.round(b.val * 0.5)); mDmg = Math.max(0, mDmg - Math.round(b.val * 0.5)) }
+      if (b.type === 'atkDown') {
+        dmg = Math.max(0, dmg - Math.round(b.val * 0.5))
+      }
     })
-    // 总伤害 - 护盾
-    let totalDmg = Math.max(0, pDmg + mDmg - this.heroShield)
-    this.heroHp = Math.max(0, this.heroHp - totalDmg)
+    let totalDmg = Math.max(0, dmg - this.heroShield)
     if (totalDmg > 0) {
-      this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`-${totalDmg}`, color:TH.danger, alpha:1, scale:1, t:0 })
+      const oldPct = this.heroHp / this.heroMaxHp
+      this.heroHp = Math.max(0, this.heroHp - totalDmg)
+      this._heroHpLoss = { fromPct: oldPct, timer: 0 }
+      this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`-${totalDmg}`, color:TH.danger, alpha:1, scale:1, t:0 })
       this.shakeT = 4; this.shakeI = 3*S
       MusicMgr.playAttack()
       this._playEnemyAttack(enemy.name+'攻击')
@@ -1295,55 +1449,55 @@ class Main {
         }
       })
     }
-    // 检查失败
-    if (this.heroHp <= 0) {
-      this._onDefeat()
-      return
-    }
-    // 掉落检查
+    if (this.heroHp <= 0) { this._onDefeat(); return }
+    // 掉落（装备品质和等级受关卡层数限制）
     if (this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
-      const drop = randomDrop(this.curLevel.tier)
+      const stageIndex = this.curLevel.levelId % 100 || 1  // 层数1-10
+      const drop = randomDrop(this.curLevel.tier, stageIndex)
       this.storage.addToInventory(drop)
       this.dropPopup = drop
       this.storage.updateTaskProgress('dt3', 1)
     }
     this.turnCount++
-    // 敌方攻击动画播放后回到玩家回合（约1s后）
     this._stateTimer = 0
     this._enemyTurnWait = true
   }
 
   _applyEnemySkill(sk) {
-    const arenaBottom = H * 0.42
-    const topArea = safeTop + 4*S
-    const charY = topArea + 24*S + (arenaBottom-topArea) * 0.4
+    const charY = this._getEnemyCenterY()
     switch(sk.type) {
       case 'buff':
-        this.skillEffects.push({ x:W*0.72, y:charY-40*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        this.skillEffects.push({ x:W*0.5, y:charY-40*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
         break
-      case 'dot':
+      case 'dot': {
+        const oldPct = this.heroHp / this.heroMaxHp
         this.heroHp = Math.max(0, this.heroHp - (sk.val||50))
-        this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`-${sk.val}`, color:'#b366ff', alpha:1, scale:0.9, t:0 })
+        this._heroHpLoss = { fromPct: oldPct, timer: 0 }
+        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`-${sk.val}`, color:'#b366ff', alpha:1, scale:0.9, t:0 })
         break
-      case 'aoe':
+      }
+      case 'aoe': {
+        const oldPct2 = this.heroHp / this.heroMaxHp
         this.heroHp = Math.max(0, this.heroHp - (sk.val||100))
-        this.dmgFloats.push({ x:W*0.28, y:charY-20*S, text:`-${sk.val}`, color:TH.danger, alpha:1, scale:1.3, t:0 })
+        this._heroHpLoss = { fromPct: oldPct2, timer: 0 }
+        this.dmgFloats.push({ x:W*0.5, y:charY+40*S, text:`-${sk.val}`, color:TH.danger, alpha:1, scale:1.3, t:0 })
         this.shakeT = 8; this.shakeI = 6*S
         this._playEnemyAttack(sk.name)
         break
+      }
       case 'seal':
         this.skillEffects.push({ x:W/2, y:charY-30*S, text:'封灵!', color:'#b366ff', alpha:1, t:0 })
         break
       case 'convert':
         for(let i=0;i<(sk.count||3);i++) {
           const r=Math.floor(Math.random()*ROWS), c=Math.floor(Math.random()*COLS)
-          this.board[r][c] = ATTRS[Math.floor(Math.random()*ATTRS.length)]
+          this.board[r][c] = BEAD_ATTRS[Math.floor(Math.random()*BEAD_ATTRS.length)]
         }
         this.skillEffects.push({ x:W/2, y:charY-30*S, text:'灵气紊乱!', color:TH.hard, alpha:1, t:0 })
         break
       case 'debuff':
         this.heroBuffs.push({ type:sk.field, val:sk.rate, dur:sk.dur })
-        this.skillEffects.push({ x:W*0.28, y:charY-30*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
+        this.skillEffects.push({ x:W*0.5, y:charY-30*S, text:sk.name, color:TH.danger, alpha:1, t:0 })
         break
     }
   }
@@ -1354,17 +1508,23 @@ class Main {
     this.storage.recordBattle(this.combo, this.storage.stats.totalSkills)
     this.storage.updateTaskProgress('dt1', 1)
     this.storage.checkAchievements({ combo: this.combo })
-    // 通关奖励灵石
     this.battleGold = 200
     this.storage.gold += this.battleGold
-    // 装备只在战斗过程中通过消除掉落，通关不再额外掉落
+
+    // 新手保底：如果背包中没有头盔，胜利时保底掉落一个绿色头盔
+    const hasHelmet = this.storage.inventory.some(e => e.slot === 'helmet')
+    if (!hasHelmet) {
+      const enemyAttr = lv.enemy?.attr || 'metal'
+      const helmet = generateEquipment('helmet', enemyAttr, 'green', 1)
+      this.storage.addToInventory(helmet)
+      this.dropPopup = helmet
+      this.storage.updateTaskProgress('dt3', 1)
+    }
   }
 
   _onDefeat() {
     this.bState = 'defeat'
-    // 记录本局获得的装备（用于结算画面展示）
     this.lostEquips = [...(this.tempEquips || [])]
-    // 移除本局获得的所有装备（从背包和已佩戴中清除）
     this.lostEquips.forEach(eq => {
       this.storage.removeFromInventory(eq.uid)
     })
@@ -1375,108 +1535,102 @@ class Main {
   _drawStatPanel() {
     const panel = this.statPanel
     if (!panel || !panel.visible) return
-    const m = 30*S, panelW = W - m*2
-    const panelH = 200*S
-    const panelX = m, panelY = H*0.25
-
-    // 遮罩
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'
-    ctx.fillRect(0, 0, W, H)
-
-    // 面板背景
+    const m = 20*S, panelW = W - m*2, panelH = 320*S
+    const panelX = m, panelY = H*0.15
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H)
     R.drawDarkPanel(panelX, panelY, panelW, panelH, 14*S)
-
     const padX = 14*S
     let cy = panelY + 14*S
 
     if (panel.type === 'hero') {
       const s = this.heroStats || this.storage.getHeroStats()
-      // 标题
       ctx.fillStyle = TH.accent; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'top'
       ctx.fillText('修仙者 · 属性', panelX + panelW/2, cy); cy += 24*S
-
-      // 当前HP
       ctx.fillStyle = TH.text; ctx.font = `${12*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
-      ctx.fillText(`当前气血: ${this.heroHp} / ${this.heroMaxHp}`, panelX + padX, cy); cy += 20*S
-
-      // 五维属性
-      const stats = [
-        { key:'hp',   label:'气血上限', val:s.hp,   color:STAT_DEFS.hp.color },
-        { key:'pAtk', label:'物理攻击', val:s.pAtk, color:STAT_DEFS.pAtk.color },
-        { key:'mAtk', label:'魔法攻击', val:s.mAtk, color:STAT_DEFS.mAtk.color },
-        { key:'pDef', label:'物理防御', val:s.pDef, color:STAT_DEFS.pDef.color },
-        { key:'mDef', label:'魔法防御', val:s.mDef, color:STAT_DEFS.mDef.color },
-      ]
-      const colW = (panelW - padX*2) / 2
-      stats.forEach((st, i) => {
-        const col = i % 2, row = Math.floor(i / 2)
+      ctx.fillText(`当前气血: ${this.heroHp} / ${this.heroMaxHp}`, panelX + padX, cy); cy += 18*S
+      // 气力
+      ctx.fillStyle = STAT_DEFS.stamina.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`${STAT_DEFS.stamina.icon} 气力: ${s.stamina}`, panelX + padX, cy); cy += 16*S
+      // 五行攻击
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText('▸ 五行攻击', panelX + padX, cy); cy += 14*S
+      const colW = (panelW - padX*2) / 3
+      ATTRS.forEach((a, i) => {
+        const atkKey = ATK_KEY[a]
+        const col = i % 3, row = Math.floor(i / 3)
         const sx = panelX + padX + col * colW
-        const sy = cy + row * 22*S
-        ctx.fillStyle = st.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
-        ctx.fillText(`${STAT_DEFS[st.key].icon} ${st.label}`, sx, sy)
-        ctx.fillStyle = TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`${st.val}`, sx + 75*S, sy)
+        const sy = cy + row * 16*S
+        ctx.fillStyle = ATTR_COLOR[a].main; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${ATTR_NAME[a]}攻:${s[atkKey]||0}`, sx, sy)
       })
-      cy += Math.ceil(stats.length/2) * 22*S + 10*S
-
-      // 护盾
-      ctx.fillStyle = TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'left'
-      ctx.fillText(`护盾: ${this.heroShield}`, panelX + padX, cy)
+      cy += Math.ceil(ATTRS.length/3) * 16*S + 6*S
+      // 五行防御
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText('▸ 五行防御', panelX + padX, cy); cy += 14*S
+      ATTRS.forEach((a, i) => {
+        const defKey = DEF_KEY[a]
+        const col = i % 3, row = Math.floor(i / 3)
+        const sx = panelX + padX + col * colW
+        const sy = cy + row * 16*S
+        ctx.fillStyle = ATTR_COLOR[a].main; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${ATTR_NAME[a]}防:${s[defKey]||0}`, sx, sy)
+      })
+      cy += Math.ceil(ATTRS.length/3) * 16*S + 6*S
+      // 回复+护盾
+      ctx.fillStyle = STAT_DEFS.recovery.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`${STAT_DEFS.recovery.icon} 回复: ${s.recovery||0}`, panelX + padX, cy)
+      ctx.fillStyle = TH.sub; ctx.fillText(`  护盾: ${this.heroShield}`, panelX + padX + 100*S, cy)
     } else {
-      // 怪物属性
       const enemy = this.curLevel?.enemy
       if (!enemy) return
       const es = this.enemyStats || {}
-      // 标题
       ctx.fillStyle = ATTR_COLOR[enemy.attr]?.main || TH.danger
       ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'top'
       ctx.fillText(`${enemy.name} · 属性`, panelX + panelW/2, cy); cy += 24*S
-
-      // 当前HP
       ctx.fillStyle = TH.text; ctx.font = `${12*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
-      ctx.fillText(`当前气血: ${this.enemyHp} / ${this.enemyMaxHp}`, panelX + padX, cy); cy += 20*S
-
-      // 五维属性
-      const stats = [
-        { key:'hp',   label:'气血上限', val:es.hp   || enemy.hp,   color:STAT_DEFS.hp.color },
-        { key:'pAtk', label:'物理攻击', val:es.pAtk || enemy.pAtk || 0, color:STAT_DEFS.pAtk.color },
-        { key:'mAtk', label:'魔法攻击', val:es.mAtk || enemy.mAtk || 0, color:STAT_DEFS.mAtk.color },
-        { key:'pDef', label:'物理防御', val:es.pDef || enemy.pDef || 0, color:STAT_DEFS.pDef.color },
-        { key:'mDef', label:'魔法防御', val:es.mDef || enemy.mDef || 0, color:STAT_DEFS.mDef.color },
-      ]
-      const colW = (panelW - padX*2) / 2
-      stats.forEach((st, i) => {
-        const col = i % 2, row = Math.floor(i / 2)
+      ctx.fillText(`当前气血: ${this.enemyHp} / ${this.enemyMaxHp}`, panelX + padX, cy); cy += 18*S
+      // 气力
+      ctx.fillStyle = STAT_DEFS.stamina.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`${STAT_DEFS.stamina.icon} 气力: ${es.stamina||enemy.hp}`, panelX + padX, cy); cy += 16*S
+      // 五行攻击
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText('▸ 五行攻击', panelX + padX, cy); cy += 14*S
+      const colW = (panelW - padX*2) / 3
+      ATTRS.forEach((a, i) => {
+        const atkKey = ATK_KEY[a]
+        const col = i % 3, row = Math.floor(i / 3)
         const sx = panelX + padX + col * colW
-        const sy = cy + row * 22*S
-        ctx.fillStyle = st.color; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
-        ctx.fillText(`${STAT_DEFS[st.key].icon} ${st.label}`, sx, sy)
-        ctx.fillStyle = TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`${st.val}`, sx + 75*S, sy)
+        const sy = cy + row * 16*S
+        ctx.fillStyle = ATTR_COLOR[a].main; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${ATTR_NAME[a]}攻:${es[atkKey]||0}`, sx, sy)
       })
-      cy += Math.ceil(stats.length/2) * 22*S + 10*S
-
-      // 属性标签
+      cy += Math.ceil(ATTRS.length/3) * 16*S + 6*S
+      // 五行防御
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText('▸ 五行防御', panelX + padX, cy); cy += 14*S
+      ATTRS.forEach((a, i) => {
+        const defKey = DEF_KEY[a]
+        const col = i % 3, row = Math.floor(i / 3)
+        const sx = panelX + padX + col * colW
+        const sy = cy + row * 16*S
+        ctx.fillStyle = ATTR_COLOR[a].main; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${ATTR_NAME[a]}防:${es[defKey]||0}`, sx, sy)
+      })
+      cy += Math.ceil(ATTRS.length/3) * 16*S + 6*S
       ctx.fillStyle = ATTR_COLOR[enemy.attr]?.main || TH.sub
       ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'left'
       ctx.fillText(`${ATTR_NAME[enemy.attr]}属性`, panelX + padX, cy)
     }
 
-    // 关闭提示
     ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
     ctx.fillText('点击任意位置关闭', panelX + panelW/2, panelY + panelH + 10*S)
   }
 
-  // ===== 工具方法 =====
   _hitRect(x,y,rx,ry,rw,rh) {
     return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh
   }

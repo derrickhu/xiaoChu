@@ -1,25 +1,25 @@
 /**
- * 存储管理 - 适配修仙消消乐法宝系统
+ * 存储管理 - 适配五行转珠战斗系统
  * 本地缓存 + 云数据库双重存储
  */
-const { generateEquipment } = require('./equipment')
+const { generateEquipment, ATTRS, ATK_KEY, DEF_KEY } = require('./equipment')
 
-const LOCAL_KEY = 'xiuxianXXL_v1'
+const LOCAL_KEY = 'xiuxianXXL_v3'
 const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
 
 // 默认玩家数据
 function defaultData() {
-  // 初始法宝：一把凡品赤焰飞剑 Lv1 + 一件凡品碧水道袍 Lv1
-  const starterWeapon = generateEquipment('weapon', 'fire', 'N', 1)
-  const starterArmor  = generateEquipment('armor', 'water', 'N', 1)
+  // 初始装备：一把凡阶火灵飞剑 Lv1 + 一件凡阶水灵衣服 Lv1
+  const starterWeapon = generateEquipment('weapon', 'fire', 'white', 1)
+  const starterArmor  = generateEquipment('armor', 'water', 'white', 1)
   return {
-    // 当前佩戴法宝（6槽位）- 人物属性完全由装备提供
-    equipped: { weapon:starterWeapon, armor:starterArmor, boots:null, cloak:null, helmet:null, trinket:null },
-    // 乾坤袋（永久法宝列表）
+    // 当前佩戴装备（5槽位）
+    equipped: { weapon:starterWeapon, armor:starterArmor, helmet:null, cloak:null, trinket:null },
+    // 乾坤袋（永久装备列表）
     inventory: [starterWeapon, starterArmor],
     // 关卡进度
-    levelProgress: {}, // { levelId_difficulty: true }
-    currentTheme: 'fire',
+    levelProgress: {},
+    currentTheme: 'metal',
     currentLevel: 101,
     // 灵石
     gold: 1000,
@@ -31,21 +31,20 @@ function defaultData() {
         { id:'dt3', name:'获得1件法宝', target:1, progress:0, done:false, reward:{ gold:150 } },
       ],
       allClaimed: false,
-      allReward: { equipTier:'R' },
+      allReward: { equipTier:'green' },
       lastReset: '',
     },
-    // 成就（修仙成就）
+    // 成就
     achievements: {
-      ach_clear_normal:  { name:'初入仙途',    desc:'练气难度通关所有秘境', done:false, claimed:false },
-      ach_clear_hard:    { name:'筑基有成',    desc:'筑基难度通关所有秘境', done:false, claimed:false },
-      ach_clear_extreme: { name:'金丹大成',    desc:'金丹难度通关所有秘境', done:false, claimed:false },
-      ach_combo8:        { name:'天机连珠',    desc:'单次达成8连消', done:false, claimed:false },
-      ach_equip_ssr:     { name:'神兵入手',    desc:'拥有1件神品法宝', done:false, claimed:false },
-      ach_full_equip:    { name:'法宝齐备',    desc:'同时佩戴6件法宝', done:false, claimed:false },
+      ach_clear_normal:  { name:'初入仙途', desc:'练气难度通关所有秘境', done:false, claimed:false },
+      ach_clear_hard:    { name:'筑基有成', desc:'筑基难度通关所有秘境', done:false, claimed:false },
+      ach_clear_extreme: { name:'金丹大成', desc:'金丹难度通关所有秘境', done:false, claimed:false },
+      ach_combo8:        { name:'天机连珠', desc:'单次达成8连消', done:false, claimed:false },
+      ach_equip_ssr:     { name:'神兵入手', desc:'拥有1件神阶法宝', done:false, claimed:false },
+      ach_full_equip:    { name:'法宝齐备', desc:'同时佩戴5件法宝', done:false, claimed:false },
     },
     // 统计
     stats: { totalBattles:0, totalCombos:0, maxCombo:0, totalSkills:0 },
-    // 排行
     bestRecords: {},
   }
 }
@@ -59,7 +58,6 @@ class Storage {
     this._initCloud()
   }
 
-  // ===== 数据访问快捷属性 =====
   get equipped()     { return this._d.equipped }
   get inventory()    { return this._d.inventory }
   get gold()         { return this._d.gold }
@@ -74,42 +72,49 @@ class Storage {
   get bestRecords()  { return this._d.bestRecords }
   get levelProgress(){ return this._d.levelProgress }
 
-  // ===== 计算修士最终五维属性（纯由装备提供） =====
-  // 返回 { hp, pAtk, mAtk, pDef, mDef, atk(兼容), def(兼容) }
+  // 计算修士最终属性（气力+五行攻防+回复）
   getHeroStats() {
-    let hp = 500    // 基础裸体血量（保底值）
-    let pAtk = 10   // 基础裸体物攻
-    let mAtk = 10   // 基础裸体魔攻
-    let pDef = 5    // 基础裸体物防
-    let mDef = 5    // 基础裸体魔防
+    // 基础值
+    const s = {
+      stamina: 800,  // 气力值（影响血量）
+      metalAtk: 50, woodAtk: 50, earthAtk: 50, waterAtk: 50, fireAtk: 50,
+      metalDef: 15,  woodDef: 15,  earthDef: 15,  waterDef: 15,  fireDef: 15,
+      recovery: 30,  // 回复值（心珠回血基础）
+    }
     const eq = this._d.equipped
     Object.values(eq).forEach(e => {
       if (!e) return
-      // 装备的五维属性
+      // 装备属性直接叠加
       if (e.stats) {
-        if (e.stats.hp)   hp   += e.stats.hp
-        if (e.stats.pAtk) pAtk += e.stats.pAtk
-        if (e.stats.mAtk) mAtk += e.stats.mAtk
-        if (e.stats.pDef) pDef += e.stats.pDef
-        if (e.stats.mDef) mDef += e.stats.mDef
+        Object.entries(e.stats).forEach(([k, v]) => {
+          if (s[k] !== undefined) s[k] += v
+        })
       }
-      // 被动技能加成（兼容旧数据）
+      // 被动技能加成
       if (e.passives) {
         e.passives.forEach(p => {
-          if (p.field === 'atk') { pAtk += Math.round(p.val * 0.5); mAtk += Math.round(p.val * 0.5) }
-          if (p.field === 'hp')  hp  += p.val
-          if (p.field === 'def') { pDef += Math.round(p.val * 0.5); mDef += Math.round(p.val * 0.5) }
+          if (p.field === 'stamina') s.stamina += p.val
+          if (p.field === 'recovery') s.recovery += p.val
+          if (p.field === 'atk') {
+            // 提升对应装备五行的攻击
+            const atkKey = ATK_KEY[e.attr]
+            if (atkKey && s[atkKey] !== undefined) s[atkKey] += p.val
+          }
+          if (p.field === 'def') {
+            const defKey = DEF_KEY[e.attr]
+            if (defKey && s[defKey] !== undefined) s[defKey] += p.val
+          }
         })
       }
     })
-    return { hp, pAtk, mAtk, pDef, mDef, atk: pAtk + mAtk, def: pDef + mDef }
+    // hp = 气力值（直接作为血量上限）
+    s.hp = s.stamina
+    return s
   }
 
-  // ===== 法宝操作 =====
   equipItem(uid) {
     const item = this._d.inventory.find(e => e.uid === uid)
     if (!item) return false
-    // 卸下同槽位旧法宝
     this._d.equipped[item.slot] = item
     this._save()
     return true
@@ -127,7 +132,6 @@ class Storage {
 
   removeFromInventory(uid) {
     this._d.inventory = this._d.inventory.filter(e => e.uid !== uid)
-    // 如果正在佩戴则卸下
     Object.keys(this._d.equipped).forEach(slot => {
       if (this._d.equipped[slot] && this._d.equipped[slot].uid === uid) {
         this._d.equipped[slot] = null
@@ -136,14 +140,12 @@ class Storage {
     this._save()
   }
 
-  // ===== 关卡进度 =====
   isLevelPassed(levelId, difficulty) {
     return !!this._d.levelProgress[`${levelId}_${difficulty}`]
   }
 
   passLevel(levelId, difficulty) {
     this._d.levelProgress[`${levelId}_${difficulty}`] = true
-    // 自动推进
     if (levelId >= this._d.currentLevel) {
       this._d.currentLevel = levelId + 1
     }
@@ -154,7 +156,6 @@ class Storage {
     return Object.keys(this._d.levelProgress).filter(k => k.endsWith('_'+difficulty)).length
   }
 
-  // ===== 每日任务 =====
   updateTaskProgress(taskId, amount) {
     const t = this._d.dailyTask.tasks.find(t => t.id === taskId)
     if (!t || t.done) return
@@ -167,7 +168,6 @@ class Storage {
     const t = this._d.dailyTask.tasks.find(t => t.id === taskId)
     if (!t || !t.done) return null
     if (t.reward.gold) this._d.gold += t.reward.gold
-    // 标记已领取(用done+reward清空)
     t.reward = {}
     this._save()
     return true
@@ -181,25 +181,14 @@ class Storage {
     this._save()
   }
 
-  // ===== 成就 =====
   checkAchievements(extra) {
     const a = this._d.achievements
-    // 天机连珠
-    if (extra && extra.combo >= 8 && !a.ach_combo8.done) {
-      a.ach_combo8.done = true
-    }
-    // 神兵入手
-    if (this._d.inventory.some(e => e.quality === 'SSR') && !a.ach_equip_ssr.done) {
-      a.ach_equip_ssr.done = true
-    }
-    // 法宝齐备
-    if (Object.values(this._d.equipped).every(e => e !== null) && !a.ach_full_equip.done) {
-      a.ach_full_equip.done = true
-    }
-    // 通关成就
-    if (this.getPassedCount('normal') >= 70 && !a.ach_clear_normal.done) a.ach_clear_normal.done = true
-    if (this.getPassedCount('hard') >= 70 && !a.ach_clear_hard.done)     a.ach_clear_hard.done = true
-    if (this.getPassedCount('extreme') >= 70 && !a.ach_clear_extreme.done) a.ach_clear_extreme.done = true
+    if (extra && extra.combo >= 8 && !a.ach_combo8.done) a.ach_combo8.done = true
+    if (this._d.inventory.some(e => e.quality === 'orange') && !a.ach_equip_ssr.done) a.ach_equip_ssr.done = true
+    if (Object.values(this._d.equipped).every(e => e !== null) && !a.ach_full_equip.done) a.ach_full_equip.done = true
+    if (this.getPassedCount('normal') >= 60 && !a.ach_clear_normal.done) a.ach_clear_normal.done = true
+    if (this.getPassedCount('hard') >= 60 && !a.ach_clear_hard.done) a.ach_clear_hard.done = true
+    if (this.getPassedCount('extreme') >= 60 && !a.ach_clear_extreme.done) a.ach_clear_extreme.done = true
     this._save()
   }
 
@@ -212,7 +201,6 @@ class Storage {
     return true
   }
 
-  // ===== 统计 =====
   recordBattle(combo, skillCount) {
     this._d.stats.totalBattles++
     this._d.stats.totalCombos += combo
@@ -221,13 +209,11 @@ class Storage {
     this._save()
   }
 
-  // ===== 持久化 =====
   _load() {
     try {
       const raw = wx.getStorageSync(LOCAL_KEY)
       if (raw) {
         this._d = JSON.parse(raw)
-        // 补全新字段
         const def = defaultData()
         Object.keys(def).forEach(k => {
           if (this._d[k] === undefined) this._d[k] = def[k]
@@ -250,7 +236,6 @@ class Storage {
     }
   }
 
-  // ===== 云同步 =====
   async _initCloud() {
     try {
       wx.cloud.init({ env: CLOUD_ENV, traceUser: true })
@@ -286,7 +271,6 @@ class Storage {
       const res = await db.collection('playerData').where({ _openid: this._openid }).get()
       if (res.data && res.data.length > 0) {
         const cloud = res.data[0]
-        // 云端数据较新时合并（以背包物品数量为简单判断）
         if (cloud.inventory && cloud.inventory.length > this._d.inventory.length) {
           Object.assign(this._d, cloud)
           delete this._d._id

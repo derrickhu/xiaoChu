@@ -1,247 +1,266 @@
 /**
- * 法宝系统数据定义
- * 6类法宝 × 6灵根 = 36种基础法宝
- * 4个品质等级：凡品(N)/灵品(R)/仙品(SR)/神品(SSR)
+ * 装备系统数据定义（五行攻防版）
  * 
- * 五维属性系统：hp(血量) pAtk(物理攻击) mAtk(魔法攻击) pDef(物理防御) mDef(魔法防御)
- * 品质决定属性条目数：N=1条 R=2条 SR=3条 SSR=4条（从五维中随机选）
- * 等级决定数值浮动范围：等级越高数值越高，有随机浮动
+ * 五行属性：金(metal) / 木(wood) / 土(earth) / 水(water) / 火(fire)
+ * 克制关系：金→木→土→水→火→金（克制×1.5，被克×0.7）
+ * 
+ * 装备部位：头盔 / 衣服 / 披风 / 饰品 / 武器（共5个）
+ * 品质等级：白品·凡阶 / 绿品·良阶 / 蓝品·优阶 / 紫品·臻阶 / 橙品·神阶
+ * 
+ * 角色/怪物属性：
+ *   气力值（=血量上限）、五种五行攻击值、五种五行防御值、回复值（彩珠回血加成）
+ * 
+ * 品质决定：属性条数(1/2/3/4/5)、技能解锁消除次数(5/8/12/18/25)、buff持续回合
+ * 唯一规则：仅衣服可出现"回复"属性
  */
 
-// 品质定义
-const QUALITY = {
-  N:   { id:'N',   name:'凡品', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', triggerCount:3, ultMulti:3, passiveRange:[100,200], statSlots:1 },
-  R:   { id:'R',   name:'灵品', color:'#4a9eff', glow:'rgba(74,158,255,0.4)',  triggerCount:3, ultMulti:3.5, passiveRange:[200,350], statSlots:2 },
-  SR:  { id:'SR',  name:'仙品', color:'#b44aff', glow:'rgba(180,74,255,0.5)',  triggerCount:4, ultMulti:4, passiveRange:[350,550], statSlots:3 },
-  SSR: { id:'SSR', name:'神品', color:'#ff8c00', glow:'rgba(255,140,0,0.6)',   triggerCount:5, ultMulti:5, passiveRange:[500,800], statSlots:4 },
+// ===== 五行属性 =====
+const ATTRS = ['metal','wood','earth','water','fire']
+const ATTR_NAME = { metal:'金', wood:'木', earth:'土', water:'水', fire:'火' }
+const ATTR_COLOR = {
+  metal: { main:'#ffd700', bg:'#353520', lt:'#ffed80', dk:'#cca800' },
+  wood:  { main:'#4dcc4d', bg:'#153515', lt:'#80ff80', dk:'#20a020' },
+  earth: { main:'#d4a056', bg:'#2a2015', lt:'#e8c080', dk:'#a07030' },
+  water: { main:'#4dabff', bg:'#152535', lt:'#80ccff', dk:'#2080cc' },
+  fire:  { main:'#ff4d4d', bg:'#3a1515', lt:'#ff8080', dk:'#cc2020' },
 }
 
-// 最大等级
+// 克制关系：金→木→土→水→火→金
+const COUNTER_MAP = { metal:'wood', wood:'earth', earth:'water', water:'fire', fire:'metal' }
+// 被克关系（反查）
+const COUNTER_BY = { wood:'metal', earth:'wood', water:'earth', fire:'water', metal:'fire' }
+
+// 棋盘用灵珠属性（含彩珠用于回血，对应衣服彩灵珠回血）
+const BEAD_ATTRS = ['metal','wood','earth','water','fire','heart']
+const BEAD_ATTR_NAME = { ...ATTR_NAME, heart:'心' }
+const BEAD_ATTR_COLOR = {
+  ...ATTR_COLOR,
+  heart: { main:'#ff69b4', bg:'#351525', lt:'#ff99cc', dk:'#cc3080' },
+}
+
+// ===== 品质定义 =====
+// 白品·凡阶 / 绿品·良阶 / 蓝品·优阶 / 紫品·臻阶 / 橙品·神阶
+const QUALITY = {
+  white:  { id:'white',  name:'凡阶', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', statSlots:1, triggerCount:3,  buffDur:1, ultMulti:2.5 },
+  green:  { id:'green',  name:'良阶', color:'#4dcc4d', glow:'rgba(77,204,77,0.4)',   statSlots:2, triggerCount:4,  buffDur:1, ultMulti:3 },
+  blue:   { id:'blue',   name:'优阶', color:'#4a9eff', glow:'rgba(74,158,255,0.5)',  statSlots:3, triggerCount:5,  buffDur:2, ultMulti:3.5 },
+  purple: { id:'purple', name:'臻阶', color:'#b44aff', glow:'rgba(180,74,255,0.6)',  statSlots:4, triggerCount:7,  buffDur:2, ultMulti:4 },
+  orange: { id:'orange', name:'神阶', color:'#ff8c00', glow:'rgba(255,140,0,0.7)',   statSlots:5, triggerCount:10, buffDur:3, ultMulti:5 },
+}
+const QUALITY_ORDER = ['white','green','blue','purple','orange']
+
+// ===== 装备部位 =====
+const EQUIP_SLOT = {
+  helmet:  { id:'helmet',  name:'头盔', icon:'⛑️',  desc:'凝神固本之冠', role:'防御、减伤、全队防御' },
+  armor:   { id:'armor',   name:'衣服', icon:'🛡️',  desc:'回血、血量上限、唯一续航', role:'回血、血量上限、唯一续航' },
+  cloak:   { id:'cloak',   name:'披风', icon:'🧣',  desc:'转珠强化、棋盘操作', role:'转珠强化、棋盘操作、洗牌、生成珠子' },
+  trinket: { id:'trinket', name:'饰品', icon:'💎',  desc:'减防、无视防御、封印禁招', role:'减防、无视防御、封印禁招' },
+  weapon:  { id:'weapon',  name:'武器', icon:'⚔️',  desc:'五行伤害、转色、真实伤害', role:'五行伤害、转色、真实伤害' },
+}
+
+// ===== 属性定义 =====
+// 气力值（血量加成）、五行攻击×5、五行防御×5、回复值（彩珠回血加成）
+const STAT_DEFS = {
+  stamina:  { id:'stamina',  name:'气力',   icon:'❤️', color:'#ff5555' },
+  metalAtk: { id:'metalAtk', name:'金攻',   icon:'⚔️', color:'#ffd700' },
+  woodAtk:  { id:'woodAtk',  name:'木攻',   icon:'⚔️', color:'#4dcc4d' },
+  earthAtk: { id:'earthAtk', name:'土攻',   icon:'⚔️', color:'#d4a056' },
+  waterAtk: { id:'waterAtk', name:'水攻',   icon:'⚔️', color:'#4dabff' },
+  fireAtk:  { id:'fireAtk',  name:'火攻',   icon:'⚔️', color:'#ff4d4d' },
+  metalDef: { id:'metalDef', name:'金防',   icon:'🛡️', color:'#ffd700' },
+  woodDef:  { id:'woodDef',  name:'木防',   icon:'🛡️', color:'#4dcc4d' },
+  earthDef: { id:'earthDef', name:'土防',   icon:'🛡️', color:'#d4a056' },
+  waterDef: { id:'waterDef', name:'水防',   icon:'🛡️', color:'#4dabff' },
+  fireDef:  { id:'fireDef',  name:'火防',   icon:'🛡️', color:'#ff4d4d' },
+  recovery: { id:'recovery', name:'回复',   icon:'💚', color:'#ff69b4' },
+}
+const STAT_KEYS = ['stamina','metalAtk','woodAtk','earthAtk','waterAtk','fireAtk','metalDef','woodDef','earthDef','waterDef','fireDef','recovery']
+// 五行攻/防键名映射
+const ATK_KEY = { metal:'metalAtk', wood:'woodAtk', earth:'earthAtk', water:'waterAtk', fire:'fireAtk' }
+const DEF_KEY = { metal:'metalDef', wood:'woodDef', earth:'earthDef', water:'waterDef', fire:'fireDef' }
+
+// ===== 部位属性池（严格锁定） =====
+// 每个部位可出现的属性类型：
+// 头盔：气力、对应五行攻、对应五行防
+// 衣服：气力、对应五行防、回复（唯一续航）
+// 披风：气力、对应五行攻、对应五行防
+// 饰品：对应五行攻、气力
+// 武器：对应五行攻、气力
+// "对应五行攻/防"在生成时根据装备五行属性动态映射
+const SLOT_STAT_POOL = {
+  helmet:  ['stamina','atkByAttr','defByAttr'],
+  armor:   ['stamina','defByAttr','recovery'],  // recovery仅衣服
+  cloak:   ['stamina','atkByAttr','defByAttr'],
+  trinket: ['atkByAttr','stamina'],
+  weapon:  ['atkByAttr','stamina'],
+}
+
+// 等级→属性基础值表
+const STAT_BASE_PER_LEVEL = {
+  stamina:  { base:60,  growth:40 },    // 气力值（血量加成）Lv1≈100, Lv30≈1260
+  atk:      { base:8,   growth:6 },     // 五行攻击（通用基础） Lv1≈14, Lv30≈188
+  def:      { base:5,   growth:4 },     // 五行防御（通用基础） Lv1≈9, Lv30≈125
+  recovery: { base:15,  growth:8 },     // 回复值（心珠回血加成）Lv1≈23, Lv30≈255
+}
+
 const MAX_LEVEL = 30
 
-// 五维属性定义
-const STAT_DEFS = {
-  hp:   { id:'hp',   name:'气血', icon:'❤️', color:'#ff5555' },
-  pAtk: { id:'pAtk', name:'物攻', icon:'⚔️', color:'#ff8c00' },
-  mAtk: { id:'mAtk', name:'魔攻', icon:'🔮', color:'#b366ff' },
-  pDef: { id:'pDef', name:'物防', icon:'🛡️', color:'#4dabff' },
-  mDef: { id:'mDef', name:'魔防', icon:'🔰', color:'#4dcc4d' },
-}
-const STAT_KEYS = ['hp','pAtk','mAtk','pDef','mDef']
-
-// 各槽位主属性倾向（权重高的更容易出现）
-const SLOT_STAT_WEIGHTS = {
-  weapon:  { hp:5,  pAtk:40, mAtk:40, pDef:5,  mDef:10 },
-  armor:   { hp:20, pAtk:5,  mAtk:5,  pDef:35, mDef:35 },
-  boots:   { hp:15, pAtk:20, mAtk:10, pDef:25, mDef:30 },
-  cloak:   { hp:10, pAtk:10, mAtk:30, pDef:15, mDef:35 },
-  helmet:  { hp:40, pAtk:5,  mAtk:10, pDef:20, mDef:25 },
-  trinket: { hp:15, pAtk:20, mAtk:30, pDef:15, mDef:20 },
+// ===== 技能触发规则 =====
+// 触发类型枚举（可扩展）
+const TRIGGER_TYPE = {
+  NONE: 0,            // 无（仅主动点击）
+  ELIM_COUNT: 1,      // 同属性消除次数累计（当前默认）
+  HP_BELOW: 2,        // 自身血量低于%
+  ENEMY_HP_BELOW: 3,  // 敌方血量低于%
+  TURN_REACH: 4,      // 回合数达到
+  COMBO_REACH: 5,     // 连续Combo达到
+  HEART_ELIM: 6,      // 消除彩珠数量
 }
 
-// 等级→属性基础值表（每等级的基础值，乘以浮动系数）
-// hp基数较大，攻防基数较小
-const STAT_BASE_PER_LEVEL = {
-  hp:   { base:50,  growth:35 },   // Lv1=50~85, Lv30=50+35*30=1100
-  pAtk: { base:5,   growth:4 },    // Lv1=5~9,   Lv30=5+4*30=125
-  mAtk: { base:5,   growth:4 },
-  pDef: { base:3,   growth:3 },    // Lv1=3~6,   Lv30=3+3*30=93
-  mDef: { base:3,   growth:3 },
+// ===== 技能模板池 =====
+// 按部位×五行的技能效果
+const SKILL_TEMPLATES = {
+  // 武器：五行伤害为主
+  weapon: {
+    metal: { name:'金光斩', desc:'金灵之力造成{dmg}点伤害', baseDmg:[200,300,450,600,900] },
+    wood:  { name:'青木剑气', desc:'木灵剑气造成{dmg}点伤害', baseDmg:[200,300,450,600,900] },
+    earth: { name:'裂地击', desc:'土灵之力造成{dmg}点伤害', baseDmg:[200,300,450,600,900] },
+    water: { name:'寒冰诀', desc:'水灵之力造成{dmg}点伤害', baseDmg:[200,300,450,600,900] },
+    fire:  { name:'三昧真火', desc:'火灵之力造成{dmg}点伤害', baseDmg:[200,300,450,600,900] },
+  },
+  // 头盔：防御为主
+  helmet: {
+    metal: { name:'金钟罩', desc:'提升防御{def}点,持续{dur}回合', baseDef:[40,65,100,150,220] },
+    wood:  { name:'翠灵宝冠', desc:'提升防御{def}点,持续{dur}回合', baseDef:[40,65,100,150,220] },
+    earth: { name:'厚土护顶', desc:'提升防御{def}点,持续{dur}回合', baseDef:[40,65,100,150,220] },
+    water: { name:'冰晶发冠', desc:'提升防御{def}点,持续{dur}回合', baseDef:[40,65,100,150,220] },
+    fire:  { name:'炎灵聚顶', desc:'提升防御{def}点,持续{dur}回合', baseDef:[40,65,100,150,220] },
+  },
+  // 衣服：回血为主（唯一续航）
+  armor: {
+    metal: { name:'金丝甲', desc:'回复气血{heal}点', baseHeal:[60,100,150,220,320] },
+    wood:  { name:'生机道袍', desc:'回复气血{heal}点', baseHeal:[60,100,150,220,320] },
+    earth: { name:'厚土灵衣', desc:'回复气血{heal}点', baseHeal:[60,100,150,220,320] },
+    water: { name:'碧水仙衣', desc:'回复气血{heal}点', baseHeal:[60,100,150,220,320] },
+    fire:  { name:'赤焰道袍', desc:'回复气血{heal}点', baseHeal:[60,100,150,220,320] },
+  },
+  // 披风：棋盘操作
+  cloak: {
+    metal: { name:'金风披', desc:'造成{dmg}点伤害并增强转珠', baseDmg:[150,220,320,450,650] },
+    wood:  { name:'翠竹仙衣', desc:'造成{dmg}点伤害并增强转珠', baseDmg:[150,220,320,450,650] },
+    earth: { name:'厚土仙披', desc:'造成{dmg}点伤害并增强转珠', baseDmg:[150,220,320,450,650] },
+    water: { name:'碧水仙纱', desc:'造成{dmg}点伤害并增强转珠', baseDmg:[150,220,320,450,650] },
+    fire:  { name:'赤焰仙披', desc:'造成{dmg}点伤害并增强转珠', baseDmg:[150,220,320,450,650] },
+  },
+  // 饰品：减防/debuff
+  trinket: {
+    metal: { name:'金灵珠', desc:'降低敌方攻击{debuff}点,持续{dur}回合', baseDebuff:[30,50,80,120,180] },
+    wood:  { name:'青木灵佩', desc:'降低敌方攻击{debuff}点,持续{dur}回合', baseDebuff:[30,50,80,120,180] },
+    earth: { name:'厚土灵佩', desc:'降低敌方攻击{debuff}点,持续{dur}回合', baseDebuff:[30,50,80,120,180] },
+    water: { name:'碧海灵玉', desc:'降低敌方攻击{debuff}点,持续{dur}回合', baseDebuff:[30,50,80,120,180] },
+    fire:  { name:'赤炎灵珠', desc:'降低敌方攻击{debuff}点,持续{dur}回合', baseDebuff:[30,50,80,120,180] },
+  },
 }
+
+// 法宝命名
+const EQUIP_NAMES = {
+  weapon:  { metal:'金光飞剑', wood:'青木法杖', earth:'厚土重锤', water:'碧水灵剑', fire:'赤焰飞剑' },
+  helmet:  { metal:'金钟法冠', wood:'翠灵宝冠', earth:'厚土灵冠', water:'碧水灵冠', fire:'赤焰法冠' },
+  armor:   { metal:'金丝道袍', wood:'生机灵衣', earth:'厚土战袍', water:'碧水仙衣', fire:'赤焰道袍' },
+  cloak:   { metal:'金风仙披', wood:'翠竹仙衣', earth:'厚土仙披', water:'碧水仙纱', fire:'赤焰仙披' },
+  trinket: { metal:'金灵法珠', wood:'青木灵佩', earth:'厚土灵佩', water:'碧海灵玉', fire:'赤炎灵珠' },
+}
+
+// 被动技能模板
+const PASSIVE_TYPES = [
+  { id:'staminaUp', name:'固本培元', desc:'提升气力 {val}点',       field:'stamina' },
+  { id:'atkUp',     name:'灵力增幅', desc:'提升对应五行攻击 {val}点', field:'atk' },
+  { id:'defUp',     name:'金刚不坏', desc:'提升对应五行防御 {val}点', field:'def' },
+  { id:'cdDown',    name:'灵台清明', desc:'技能蓄力次数-{val}',      field:'cd' },
+  { id:'recUp',     name:'生机不息', desc:'提升回复 {val}点',        field:'recovery' },
+]
 
 /**
- * 根据等级计算某条属性的数值范围
- * @param {string} statKey - hp/pAtk/mAtk/pDef/mDef
- * @param {number} level - 装备等级 1~30
- * @returns {{ min:number, max:number }}
+ * 为装备生成属性条目
+ * 品质决定条数(1/2/3/4/5)，从部位属性池中随机选取
+ * "atkByAttr" 和 "defByAttr" 根据装备五行属性动态映射为具体的五行攻/防
  */
-function _getStatRange(statKey, level) {
-  const def = STAT_BASE_PER_LEVEL[statKey]
-  const baseVal = def.base + def.growth * level
-  // 浮动范围：±15% 
-  const min = Math.round(baseVal * 0.85)
-  const max = Math.round(baseVal * 1.15)
-  return { min, max }
-}
-
-/**
- * 为装备随机生成属性条目
- * @param {string} slot - 槽位
- * @param {string} qualityId - 品质
- * @param {number} level - 等级
- * @returns {object} { hp:123, pAtk:45, ... } 只有被选中的属性有值
- */
-function _genEquipStats(slot, qualityId, level) {
+function _genEquipStats(slot, attr, qualityId, level) {
   const q = QUALITY[qualityId]
-  const slotCount = q.statSlots  // 品质决定条目数
-  const weights = SLOT_STAT_WEIGHTS[slot]
-  // 按权重随机选择不重复的属性
-  const selected = _weightedPick(STAT_KEYS, weights, slotCount)
+  const pool = SLOT_STAT_POOL[slot]
+  const count = Math.min(q.statSlots, pool.length)
+  // 将抽象key映射为具体key
+  const resolvedPool = pool.map(k => {
+    if (k === 'atkByAttr') return ATK_KEY[attr]  // e.g. metalAtk
+    if (k === 'defByAttr') return DEF_KEY[attr]   // e.g. metalDef
+    return k  // stamina / recovery
+  })
+  // 随机选取不重复
+  const shuffled = resolvedPool.slice().sort(() => Math.random() - 0.5)
+  const selected = shuffled.slice(0, count)
   const stats = {}
   selected.forEach(key => {
-    const range = _getStatRange(key, level)
-    stats[key] = _randRange(range.min, range.max)
+    let baseDef
+    if (key === 'stamina') baseDef = STAT_BASE_PER_LEVEL.stamina
+    else if (key === 'recovery') baseDef = STAT_BASE_PER_LEVEL.recovery
+    else if (key.endsWith('Atk')) baseDef = STAT_BASE_PER_LEVEL.atk
+    else if (key.endsWith('Def')) baseDef = STAT_BASE_PER_LEVEL.def
+    if (baseDef) {
+      const baseVal = baseDef.base + baseDef.growth * level
+      const min = Math.round(baseVal * 0.85)
+      const max = Math.round(baseVal * 1.15)
+      stats[key] = _randRange(min, max)
+    }
   })
   return stats
 }
 
 /**
- * 带权重的不重复随机选取
- */
-function _weightedPick(keys, weights, count) {
-  const pool = keys.slice()
-  const result = []
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const totalW = pool.reduce((s, k) => s + (weights[k] || 1), 0)
-    let r = Math.random() * totalW
-    for (let j = 0; j < pool.length; j++) {
-      r -= (weights[pool[j]] || 1)
-      if (r <= 0) {
-        result.push(pool[j])
-        pool.splice(j, 1)
-        break
-      }
-    }
-  }
-  return result
-}
-
-// 法宝类别（仙侠法宝）
-const EQUIP_SLOT = {
-  weapon:  { id:'weapon',  name:'法剑', icon:'⚔️',  desc:'斩妖除魔之器' },
-  armor:   { id:'armor',   name:'道袍', icon:'🛡️',  desc:'护体灵衣' },
-  boots:   { id:'boots',   name:'步云靴', icon:'👢',  desc:'御风踏云之履' },
-  cloak:   { id:'cloak',   name:'仙披', icon:'🧣',  desc:'聚灵护体之纱' },
-  helmet:  { id:'helmet',  name:'发冠', icon:'⛑️',  desc:'凝神固本之冠' },
-  trinket: { id:'trinket', name:'灵佩', icon:'💎',  desc:'蕴灵增益之饰' },
-}
-
-// 灵根属性定义
-const ATTRS = ['fire','water','wood','light','dark','heart']
-const ATTR_NAME = { fire:'火', water:'水', wood:'木', light:'光', dark:'暗', heart:'心' }
-const ATTR_COLOR = {
-  fire:  { main:'#ff4d4d', bg:'#3a1515', lt:'#ff8080', dk:'#cc2020' },
-  water: { main:'#4dabff', bg:'#152535', lt:'#80ccff', dk:'#2080cc' },
-  wood:  { main:'#4dcc4d', bg:'#153515', lt:'#80ff80', dk:'#20a020' },
-  light: { main:'#ffd700', bg:'#353520', lt:'#ffed80', dk:'#cca800' },
-  dark:  { main:'#b366ff', bg:'#251535', lt:'#cc99ff', dk:'#8030cc' },
-  heart: { main:'#ff69b4', bg:'#351525', lt:'#ff99cc', dk:'#cc3080' },
-}
-
-// 克制关系
-const COUNTER_MAP = { fire:'wood', wood:'water', water:'fire', light:'dark', dark:'light' }
-
-// ===== 普通技能模板池（仙侠风格） =====
-const SKILL_TEMPLATES = {
-  weapon: {
-    fire:  [{name:'三昧真火剑', desc:'以真火之力斩出{dmg}点火灵伤害', baseDmg:[100,150,200,280]}],
-    water: [{name:'寒冰诀', desc:'凝聚寒冰之力造成{dmg}点水灵伤害', baseDmg:[100,150,200,280]}],
-    wood:  [{name:'青木剑气', desc:'木灵剑气横扫造成{dmg}点伤害', baseDmg:[100,150,200,280]}],
-    light: [{name:'天罡剑意', desc:'天罡正气造成{dmg}点光灵伤害', baseDmg:[100,150,200,280]}],
-    dark:  [{name:'幽冥一击', desc:'幽冥之力侵蚀造成{dmg}点暗灵伤害', baseDmg:[100,150,200,280]}],
-    heart: [{name:'回春诀', desc:'运转心法恢复{heal}点气血', baseHeal:[80,120,160,220]}],
-  },
-  armor: {
-    fire:  [{name:'火灵护体', desc:'凝聚火灵护罩减少{def}点伤害,持续2回合', baseDef:[50,80,120,180]}],
-    water: [{name:'水遁护身', desc:'水灵结界减少{def}点伤害,持续2回合', baseDef:[50,80,120,180]}],
-    wood:  [{name:'藤甲术', desc:'木灵藤甲减少{def}点伤害,持续2回合', baseDef:[50,80,120,180]}],
-    light: [{name:'金光护体', desc:'金光大阵减少{def}点伤害,持续2回合', baseDef:[50,80,120,180]}],
-    dark:  [{name:'玄阴护体', desc:'玄阴之气减少{def}点伤害,持续2回合', baseDef:[50,80,120,180]}],
-    heart: [{name:'天蚕宝衣', desc:'灵力回转恢复{heal}点气血', baseHeal:[60,100,140,200]}],
-  },
-  boots: {
-    fire:  [{name:'踏火步', desc:'踏火而行造成{dmg}伤害并提升闪避10%', baseDmg:[60,100,140,200]}],
-    water: [{name:'凌波微步', desc:'踏水而行造成{dmg}伤害并提升闪避10%', baseDmg:[60,100,140,200]}],
-    wood:  [{name:'御风步', desc:'御风而行造成{dmg}伤害并提升闪避10%', baseDmg:[60,100,140,200]}],
-    light: [{name:'金光纵', desc:'金光遁术造成{dmg}伤害并提升闪避10%', baseDmg:[60,100,140,200]}],
-    dark:  [{name:'暗影遁', desc:'暗影遁术造成{dmg}伤害并提升闪避10%', baseDmg:[60,100,140,200]}],
-    heart: [{name:'逍遥步', desc:'逍遥身法恢复{heal}点气血', baseHeal:[50,80,110,160]}],
-  },
-  cloak: {
-    fire:  [{name:'赤焰仙披', desc:'赤焰灵力造成{dmg}伤害并提升暴击5%', baseDmg:[70,110,150,210]}],
-    water: [{name:'碧水仙纱', desc:'碧水灵力造成{dmg}伤害并提升暴击5%', baseDmg:[70,110,150,210]}],
-    wood:  [{name:'翠竹仙衣', desc:'翠竹灵力造成{dmg}伤害并提升暴击5%', baseDmg:[70,110,150,210]}],
-    light: [{name:'天光仙披', desc:'天光灵力造成{dmg}伤害并提升暴击5%', baseDmg:[70,110,150,210]}],
-    dark:  [{name:'幽冥斗篷', desc:'幽冥灵力造成{dmg}伤害并提升暴击5%', baseDmg:[70,110,150,210]}],
-    heart: [{name:'慈悲仙纱', desc:'慈悲心法恢复{heal}点气血', baseHeal:[60,90,130,180]}],
-  },
-  helmet: {
-    fire:  [{name:'炎灵聚顶', desc:'炎灵聚顶提升{hp}点气血上限,持续3回合', baseHp:[100,160,240,350]}],
-    water: [{name:'冰晶发冠', desc:'冰晶凝神提升{hp}点气血上限,持续3回合', baseHp:[100,160,240,350]}],
-    wood:  [{name:'翠灵宝冠', desc:'翠灵固本提升{hp}点气血上限,持续3回合', baseHp:[100,160,240,350]}],
-    light: [{name:'天辉法冠', desc:'天辉照顶提升{hp}点气血上限,持续3回合', baseHp:[100,160,240,350]}],
-    dark:  [{name:'幽冥宝冠', desc:'幽冥凝神提升{hp}点气血上限,持续3回合', baseHp:[100,160,240,350]}],
-    heart: [{name:'紫金法冠', desc:'法冠灵力恢复{heal}点气血', baseHeal:[70,110,150,220]}],
-  },
-  trinket: {
-    fire:  [{name:'赤炎灵珠', desc:'火灵侵蚀降低妖物攻击{debuff}点,持续2回合', baseDebuff:[30,50,80,120]}],
-    water: [{name:'碧海灵玉', desc:'水灵封印降低妖物攻击{debuff}点,持续2回合', baseDebuff:[30,50,80,120]}],
-    wood:  [{name:'青木灵佩', desc:'木灵缠缚降低妖物攻击{debuff}点,持续2回合', baseDebuff:[30,50,80,120]}],
-    light: [{name:'天罡令牌', desc:'天罡之力降低妖物攻击{debuff}点,持续2回合', baseDebuff:[30,50,80,120]}],
-    dark:  [{name:'幽冥玉坠', desc:'幽冥之力降低妖物攻击{debuff}点,持续2回合', baseDebuff:[30,50,80,120]}],
-    heart: [{name:'养心玉佩', desc:'灵玉之力恢复{heal}点气血并清除1个负面状态', baseHeal:[50,80,120,170]}],
-  },
-}
-
-// ===== 被动技能模板池 =====
-const PASSIVE_TYPES = [
-  { id:'hpUp',       name:'固本培元', desc:'提升修士气血 {val}点',       field:'hp' },
-  { id:'atkUp',      name:'灵力增幅', desc:'提升修士攻击 {val}点',      field:'atk' },
-  { id:'defUp',      name:'金刚不坏', desc:'提升修士防御 {val}点',     field:'def' },
-  { id:'cdDown',     name:'灵台清明', desc:'对应灵根技能蓄力次数-{val}', field:'cd' },
-]
-
-// ===== 法宝模板（每个类别×灵根 = 1种基础法宝名） =====
-const EQUIP_NAMES = {
-  weapon:  { fire:'赤焰飞剑', water:'碧水灵剑', wood:'青木法杖', light:'天罡宝剑', dark:'幽冥魔剑', heart:'慈航仙剑' },
-  armor:   { fire:'赤焰道袍', water:'碧水仙衣', wood:'青木灵衣', light:'天罡战袍', dark:'幽冥玄袍', heart:'慈航道袍' },
-  boots:   { fire:'踏火云靴', water:'凌波仙靴', wood:'御风灵靴', light:'天罡步云', dark:'幽冥暗靴', heart:'逍遥仙靴' },
-  cloak:   { fire:'赤焰仙披', water:'碧水仙纱', wood:'翠竹仙衣', light:'天光仙披', dark:'幽冥斗篷', heart:'慈悲仙纱' },
-  helmet:  { fire:'赤焰法冠', water:'碧水灵冠', wood:'翠灵宝冠', light:'天辉法冠', dark:'幽冥宝冠', heart:'紫金法冠' },
-  trinket: { fire:'赤炎灵珠', water:'碧海灵玉', wood:'青木灵佩', light:'天罡令牌', dark:'幽冥玉坠', heart:'养心玉佩' },
-}
-
-/**
- * 随机生成一件法宝
- * @param {string} slot - 法宝类别 weapon/armor/...
- * @param {string} attr - 灵根 fire/water/...
- * @param {string} qualityId - 品质 N/R/SR/SSR
- * @param {number} [level=1] - 装备等级 1~30
- * @returns {object} 完整法宝对象
+ * 生成一件装备
  */
 function generateEquipment(slot, attr, qualityId, level) {
   const q = QUALITY[qualityId]
-  const qi = ['N','R','SR','SSR'].indexOf(qualityId)
+  const qi = QUALITY_ORDER.indexOf(qualityId)
   const lv = Math.max(1, Math.min(MAX_LEVEL, level || 1))
-  const name = EQUIP_NAMES[slot][attr]
+  const name = EQUIP_NAMES[slot]?.[attr] || `${ATTR_NAME[attr]}${EQUIP_SLOT[slot]?.name||''}`
 
-  // 五维属性（品质决定条目数，等级决定数值范围）
-  const stats = _genEquipStats(slot, qualityId, lv)
+  // 属性（气力+五行攻防+回复）
+  const stats = _genEquipStats(slot, attr, qualityId, lv)
 
-  // 普通技能
-  const skillTpl = SKILL_TEMPLATES[slot][attr][0]
-  const skill = { name: skillTpl.name, desc: skillTpl.desc, attr }
-  if (skillTpl.baseDmg)    skill.dmg  = _randRange(skillTpl.baseDmg[qi]*0.9, skillTpl.baseDmg[qi]*1.1)
-  if (skillTpl.baseHeal)   skill.heal = _randRange(skillTpl.baseHeal[qi]*0.9, skillTpl.baseHeal[qi]*1.1)
-  if (skillTpl.baseDef)    skill.def  = _randRange(skillTpl.baseDef[qi]*0.9, skillTpl.baseDef[qi]*1.1)
-  if (skillTpl.baseHp)     skill.hp   = _randRange(skillTpl.baseHp[qi]*0.9, skillTpl.baseHp[qi]*1.1)
-  if (skillTpl.baseDebuff) skill.debuff = _randRange(skillTpl.baseDebuff[qi]*0.9, skillTpl.baseDebuff[qi]*1.1)
+  // 普通技能（绑定装备自身五行）
+  const skillTpl = SKILL_TEMPLATES[slot]?.[attr]
+  const skill = { name: skillTpl?.name || '普通攻击', desc: skillTpl?.desc || '造成伤害', attr }
+  skill.triggerType = TRIGGER_TYPE.ELIM_COUNT  // 默认：同属性消除次数
+  skill.triggerCount = q.triggerCount           // 品质决定解锁次数
+
+  if (skillTpl) {
+    if (skillTpl.baseDmg)    skill.dmg    = _randRange(skillTpl.baseDmg[qi]*0.9, skillTpl.baseDmg[qi]*1.1)
+    if (skillTpl.baseHeal)   skill.heal   = _randRange(skillTpl.baseHeal[qi]*0.9, skillTpl.baseHeal[qi]*1.1)
+    if (skillTpl.baseDef)    skill.def    = _randRange(skillTpl.baseDef[qi]*0.9, skillTpl.baseDef[qi]*1.1)
+    if (skillTpl.baseDebuff) skill.debuff = _randRange(skillTpl.baseDebuff[qi]*0.9, skillTpl.baseDebuff[qi]*1.1)
+  }
+  skill.buffDur = q.buffDur  // buff持续回合数由品质决定
 
   // 仙技（普通技能 × 倍率）
   const ultMulti = q.ultMulti + (Math.random()-0.5)*0.4
-  const ult = { name: '天·'+skillTpl.name, desc: '(仙技)'+skillTpl.desc.replace(/{(\w+)}/g,'强化'), attr, multi: ultMulti }
-  if (skill.dmg)    ult.dmg  = Math.round(skill.dmg * ultMulti)
-  if (skill.heal)   ult.heal = Math.round(skill.heal * ultMulti)
-  if (skill.def)    ult.def  = Math.round(skill.def * ultMulti)
-  if (skill.hp)     ult.hp   = Math.round(skill.hp * ultMulti)
+  const ult = {
+    name: '天·'+(skillTpl?.name || '奥义'),
+    desc: '(仙技)'+(skillTpl?.desc || '强力攻击').replace(/{(\w+)}/g,'强化'),
+    attr, multi: ultMulti,
+  }
+  if (skill.dmg)    ult.dmg    = Math.round(skill.dmg * ultMulti)
+  if (skill.heal)   ult.heal   = Math.round(skill.heal * ultMulti)
+  if (skill.def)    ult.def    = Math.round(skill.def * ultMulti)
   if (skill.debuff) ult.debuff = Math.round(skill.debuff * ultMulti)
 
   // 被动技能（随机2个不同类型）
-  const shuffled = PASSIVE_TYPES.slice().sort(()=>Math.random()-0.5)
-  const passives = shuffled.slice(0,2).map(pt => {
-    const val = pt.field==='cd' 
-      ? (qi>=2 ? 2 : 1)
-      : _randRange(q.passiveRange[0], q.passiveRange[1])
+  const passiveRange = { white:[80,150], green:[150,280], blue:[280,450], purple:[450,650], orange:[650,1000] }
+  const pRange = passiveRange[qualityId] || [100,200]
+  const shuffledP = PASSIVE_TYPES.slice().sort(() => Math.random()-0.5)
+  const passives = shuffledP.slice(0,2).map(pt => {
+    const val = pt.field === 'cd'
+      ? (qi >= 3 ? 2 : 1)
+      : _randRange(pRange[0], pRange[1])
     return { id:pt.id, name:pt.name, desc:pt.desc.replace('{val}',val), val, field:pt.field }
   })
 
@@ -255,48 +274,62 @@ function generateEquipment(slot, attr, qualityId, level) {
     stats,
     skill,
     ult,
-    ultTrigger: q.triggerCount,
+    ultTrigger: q.triggerCount,  // 技能解锁消除次数
     passives,
   }
 }
 
 /**
- * 随机品质（按权重）
- * @param {string} tier - 'low'|'mid'|'high' 掉落档次
+ * 随机品质（按权重，最高蓝装）
  */
 function randomQuality(tier) {
+  // 最多掉落蓝装（white/green/blue），不出紫/橙
   const weights = {
-    low:  [60, 30, 8, 2],   // 普通关
-    mid:  [30, 40, 22, 8],  // 困难关
-    high: [10, 25, 40, 25], // 极难关
+    low:  [50, 35, 15],    // white/green/blue
+    mid:  [20, 40, 40],
+    high: [10, 35, 55],
   }
+  const maxQualities = ['white', 'green', 'blue']
   const w = weights[tier] || weights.low
   const r = Math.random()*100
   let sum = 0
-  const qs = ['N','R','SR','SSR']
-  for (let i=0; i<4; i++) { sum += w[i]; if (r < sum) return qs[i] }
-  return 'N'
+  for (let i=0; i<maxQualities.length; i++) {
+    sum += w[i]
+    if (r < sum) return maxQualities[i]
+  }
+  return 'white'
 }
 
 /**
- * 随机生成掉落法宝
- * @param {string} tier - 掉落档次
- * @param {number} [levelHint] - 基准等级（默认按档次: low=1~8, mid=6~18, high=14~30）
+ * 随机生成掉落装备
+ * @param {string} tier - 难度档位 low/mid/high
+ * @param {number} stageIndex - 关卡层数(1-10)，用于限制装备等级范围
  */
-function randomDrop(tier, levelHint) {
-  const slots = Object.keys(EQUIP_SLOT)
-  const slot = slots[Math.floor(Math.random()*slots.length)]
+function randomDrop(tier, stageIndex) {
+  // 槽位掉落权重：头盔/衣服最高，披风次之，武器再次，饰品最低
+  const slotWeights = { helmet:30, armor:30, cloak:18, weapon:14, trinket:8 }
+  const slotEntries = Object.entries(slotWeights)
+  const totalW = slotEntries.reduce((s, e) => s + e[1], 0)
+  let r = Math.random() * totalW, slot = slotEntries[0][0]
+  for (const [s, w] of slotEntries) { r -= w; if (r <= 0) { slot = s; break } }
   const attr = ATTRS[Math.floor(Math.random()*ATTRS.length)]
   const quality = randomQuality(tier)
-  // 等级范围
+
+  // 装备等级受关卡层数限制
   let minLv, maxLv
-  if (levelHint) {
-    minLv = Math.max(1, levelHint - 3)
-    maxLv = Math.min(MAX_LEVEL, levelHint + 3)
+  const si = stageIndex || 1
+  if (tier === 'high') {
+    // 金丹难度：等级稍高
+    minLv = Math.max(1, si)
+    maxLv = Math.min(MAX_LEVEL, si * 2 + 3)
+  } else if (tier === 'mid') {
+    // 筑基难度
+    minLv = Math.max(1, si - 1)
+    maxLv = Math.min(MAX_LEVEL, si * 2)
   } else {
-    const ranges = { low:[1,8], mid:[6,18], high:[14,30] }
-    const r = ranges[tier] || ranges.low
-    minLv = r[0]; maxLv = r[1]
+    // 练气难度
+    minLv = Math.max(1, si - 1)
+    maxLv = Math.min(MAX_LEVEL, si + 3)
   }
   const level = _randRange(minLv, maxLv)
   return generateEquipment(slot, attr, quality, level)
@@ -307,8 +340,14 @@ function _randRange(min, max) { return Math.round(min + Math.random()*(max-min))
 function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8) }
 
 module.exports = {
-  QUALITY, EQUIP_SLOT, ATTRS, ATTR_NAME, ATTR_COLOR, COUNTER_MAP,
+  ATTRS, ATTR_NAME, ATTR_COLOR,
+  BEAD_ATTRS, BEAD_ATTR_NAME, BEAD_ATTR_COLOR,
+  COUNTER_MAP, COUNTER_BY,
+  QUALITY, QUALITY_ORDER,
+  EQUIP_SLOT,
+  STAT_DEFS, STAT_KEYS, ATK_KEY, DEF_KEY, MAX_LEVEL,
+  SLOT_STAT_POOL, STAT_BASE_PER_LEVEL,
+  TRIGGER_TYPE,
   SKILL_TEMPLATES, PASSIVE_TYPES, EQUIP_NAMES,
-  STAT_DEFS, STAT_KEYS, MAX_LEVEL, SLOT_STAT_WEIGHTS,
   generateEquipment, randomQuality, randomDrop,
 }
