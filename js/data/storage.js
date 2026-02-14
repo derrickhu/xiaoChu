@@ -2,7 +2,7 @@
  * 存储管理 - 适配五行转珠战斗系统
  * 本地缓存 + 云数据库双重存储
  */
-const { generateEquipment, ATTRS, ATK_KEY, DEF_KEY } = require('./equipment')
+const { generateEquipment } = require('./equipment')
 const { ALL_LEVELS } = require('./levels')
 
 const LOCAL_KEY = 'xiuxianXXL_v3'
@@ -10,9 +10,13 @@ const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
 
 // 默认玩家数据
 function defaultData() {
-  // 初始装备：一把凡阶火灵飞剑 Lv1 + 一件凡阶水灵衣服 Lv1
+  // 初始装备：一把凡阶火灵飞剑 Lv1 + 一件凡阶水灵衣服 Lv1（均无绝技）
   const starterWeapon = generateEquipment('weapon', 'fire', 'white', 1)
+  delete starterWeapon.ult          // 新手初始白装无绝技
+  starterWeapon.ultTrigger = 999    // 不可触发
   const starterArmor  = generateEquipment('armor', 'water', 'white', 1)
+  delete starterArmor.ult
+  starterArmor.ultTrigger = 999
   return {
     // 当前佩戴装备（5槽位）
     equipped: { weapon:starterWeapon, armor:starterArmor, helmet:null, cloak:null, trinket:null },
@@ -20,10 +24,10 @@ function defaultData() {
     inventory: [starterWeapon, starterArmor],
     // 关卡进度
     levelProgress: {},
-    currentTheme: 'metal',
-    currentLevel: 101,
+    currentTheme: 'tutorial',
+    currentLevel: 1,   // 从新手引导第1关开始
     // 灵石
-    gold: 1000,
+    gold: 200,
     // 每日修炼
     dailyTask: {
       tasks: [
@@ -80,10 +84,10 @@ class Storage {
   getHeroStats() {
     // 基础值
     const s = {
-      stamina: 800,  // 气力值（影响血量）
-      metalAtk: 50, woodAtk: 50, earthAtk: 50, waterAtk: 50, fireAtk: 50,
-      metalDef: 15,  woodDef: 15,  earthDef: 15,  waterDef: 15,  fireDef: 15,
-      recovery: 30,  // 回复值（心珠回血基础）
+      stamina: 200,  // 气力值（影响血量）
+      metalAtk: 18, woodAtk: 18, earthAtk: 18, waterAtk: 18, fireAtk: 18,
+      metalDef: 5,   woodDef: 5,  earthDef: 5,  waterDef: 5,  fireDef: 5,
+      recovery: 8,   // 回复值（心珠回血基础）
     }
     const eq = this._d.equipped
     Object.values(eq).forEach(e => {
@@ -92,22 +96,6 @@ class Storage {
       if (e.stats) {
         Object.entries(e.stats).forEach(([k, v]) => {
           if (s[k] !== undefined) s[k] += v
-        })
-      }
-      // 被动技能加成
-      if (e.passives) {
-        e.passives.forEach(p => {
-          if (p.field === 'stamina') s.stamina += p.val
-          if (p.field === 'recovery') s.recovery += p.val
-          if (p.field === 'atk') {
-            // 提升对应装备五行的攻击
-            const atkKey = ATK_KEY[e.attr]
-            if (atkKey && s[atkKey] !== undefined) s[atkKey] += p.val
-          }
-          if (p.field === 'def') {
-            const defKey = DEF_KEY[e.attr]
-            if (defKey && s[defKey] !== undefined) s[defKey] += p.val
-          }
         })
       }
     })
@@ -208,6 +196,26 @@ class Storage {
     a.claimed = true
     this._d.gold += 500
     this._save()
+    return true
+  }
+
+  /** 彻底重置所有数据（本地+云端） */
+  async resetAll() {
+    this._d = defaultData()
+    try { wx.removeStorageSync(LOCAL_KEY) } catch(e) {}
+    this._save()
+    // 同时清空云端
+    if (this._cloudReady && this._openid) {
+      try {
+        const db = wx.cloud.database()
+        const res = await db.collection('playerData').where({ _openid: this._openid }).get()
+        if (res.data && res.data.length > 0) {
+          await db.collection('playerData').doc(res.data[0]._id).remove()
+          console.log('[Storage] 云端数据已删除')
+        }
+      } catch(e) { console.warn('[Storage] 云端重置失败:', e) }
+    }
+    console.log('[Storage] 数据已彻底重置')
     return true
   }
 
