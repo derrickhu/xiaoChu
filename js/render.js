@@ -154,17 +154,21 @@ class Render {
     const {ctx:c,S} = this
     const a = A[attr]
     if (!a) return
-    const sz = r * 2  // 直径即为绘制尺寸
-    // 尝试用图片（方形绘制，占满格子）
-    const img = this.getImg(`assets/orbs/orb_${attr}.jpg`)
+    const img = this.getImg(`assets/orbs/orb_${attr}.png`)
     if (img && img.width > 0) {
-      c.drawImage(img, x-r, y-r, sz, sz)
+      // 圆形裁剪：只显示球体，隐藏背景色
+      c.save()
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.clip()
+      // 放大1.5倍绘制，使球体内容占满圆形区域（图片中球体约占65-90%）
+      const scale = 1.5
+      const sz = r * 2 * scale
+      c.drawImage(img, x - sz/2, y - sz/2, sz, sz)
+      c.restore()
     } else {
       // 降级渐变球体
       const g = c.createRadialGradient(x-r*0.25,y-r*0.3,r*0.1,x,y,r)
       g.addColorStop(0,a.lt); g.addColorStop(0.7,a.main); g.addColorStop(1,a.dk)
       c.fillStyle = g; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
-      // 高光
       c.fillStyle='rgba(255,255,255,0.35)'
       c.beginPath(); c.ellipse(x-r*0.15,y-r*0.25,r*0.45,r*0.3,0,0,Math.PI*2); c.fill()
     }
