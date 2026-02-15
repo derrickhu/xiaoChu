@@ -23,14 +23,15 @@ const MusicMgr = require('./runtime/music')
 // Canvas 初始化（高DPI适配：用物理像素渲染，确保清晰度）
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
-const sysInfo = wx.getSystemInfoSync()
-const dpr = sysInfo.pixelRatio || 2
-canvas.width = sysInfo.windowWidth * dpr
-canvas.height = sysInfo.windowHeight * dpr
+const _winInfo = wx.getWindowInfo()
+const _devInfo = wx.getDeviceInfo()
+const dpr = _winInfo.pixelRatio || 2
+canvas.width = _winInfo.windowWidth * dpr
+canvas.height = _winInfo.windowHeight * dpr
 const W = canvas.width, H = canvas.height
 const S = W / 375
-console.log(`[Canvas] ${W}x${H}, dpr=${dpr}, S=${S.toFixed(2)}`)
-const safeTop = (sysInfo.safeArea?.top || 20) * dpr
+console.log(`[Canvas] ${W}x${H}, dpr=${dpr}, S=${S.toFixed(2)}, platform=${_devInfo.platform}`)
+const safeTop = (_winInfo.safeArea?.top || 20) * dpr
 
 const COLS = 6, ROWS = 5
 
@@ -393,8 +394,12 @@ class Main {
   rHome() {
     R.drawHomeBg(this.af)
     const m = 16*S
-    ctx.fillStyle=TH.accent; ctx.font=`bold ${20*S}px "PingFang SC",sans-serif`
+    ctx.font=`bold ${20*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='middle'
+    // 标题描边（增强可读性）
+    ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=3*S
+    ctx.strokeText('修仙消消乐', W/2, safeTop+30*S)
+    ctx.fillStyle=TH.accent
     ctx.fillText('修仙消消乐', W/2, safeTop+30*S)
 
     const stats = this.storage.getHeroStats()
@@ -430,16 +435,19 @@ class Main {
     ctx.fillText(`法宝 ${eqCount}/5`, W-m-12*S, cardY+42*S)
 
     const lv = ALL_LEVELS.find(l=>l.levelId===this.storage.currentLevel) || ALL_LEVELS[0]
-    const lvY = cardY+cardH+20*S, lvH = 170*S
+    const lvY = cardY+cardH+20*S, lvH = 190*S
     R.drawDarkPanel(m, lvY, cardW, lvH, 14*S)
     ctx.fillStyle=TH.accent; ctx.font=`bold ${15*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
     ctx.fillText('📍 当前秘境', W/2, lvY+12*S)
     const enemyR = 28*S
-    R.drawEnemy(W/2, lvY+60*S, enemyR, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
-    // 关卡名（显示在怪物名下方）
+    R.drawEnemy(W/2, lvY+55*S, enemyR, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af, {hideLabel:true})
+    // 怪物名
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='center'; ctx.textBaseline='top'
+    ctx.fillText(lv.enemy.name||'敌人', W/2, lvY+90*S)
+    // 关卡名
+    ctx.fillStyle=TH.sub; ctx.font=`${12*S}px "PingFang SC",sans-serif`
     ctx.fillText(lv.name, W/2, lvY+108*S)
     // 怪物属性信息
     ctx.font=`${11*S}px "PingFang SC",sans-serif`
@@ -448,11 +456,11 @@ class Main {
     const attrColor = ATTR_COLOR[lv.enemy.attr]?.main || TH.sub
     let infoX = W/2 - 90*S
     ctx.textAlign='left'
-    ctx.fillStyle='#ff6b6b'; ctx.fillText(`HP:${lv.enemy.hp}`, infoX, lvY+128*S)
+    ctx.fillStyle='#ff6b6b'; ctx.fillText(`HP:${lv.enemy.hp}`, infoX, lvY+130*S)
     infoX += ctx.measureText(`HP:${lv.enemy.hp}  `).width
-    ctx.fillStyle=attrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}`, infoX, lvY+128*S)
+    ctx.fillStyle=attrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}`, infoX, lvY+130*S)
     infoX += ctx.measureText(`${ATTR_NAME[lv.enemy.attr]}攻:${enemyMainAtk}  `).width
-    ctx.fillStyle=TH.sub; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${enemyMainDef}`, infoX, lvY+128*S)
+    ctx.fillStyle=TH.sub; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${enemyMainDef}`, infoX, lvY+130*S)
 
     const btnW = 160*S, btnH = 44*S
     const btnX = (W-btnW)/2, btnY = lvY+lvH+20*S
@@ -480,40 +488,61 @@ class Main {
     if (!this.curLevel) return
     const m=14*S, startY=safeTop+56*S
     const lv = this.curLevel
-    R.drawDarkPanel(m,startY,W-m*2,100*S,12*S)
-    R.drawEnemy(m+50*S, startY+50*S, 30*S, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af)
-    ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
+    // 按钮固定在底部，往上倒推可用空间
+    const btnH2 = 40*S, btnBot = H - 20*S
+    const btnY2 = btnBot - btnH2
+
+    // === 怪物信息面板（紧凑横排：左边图标 | 右边属性文字） ===
+    const enemyPanelH = 80*S
+    R.drawDarkPanel(m, startY, W-m*2, enemyPanelH, 12*S)
+    const eR = 24*S
+    R.drawEnemy(m+40*S, startY+enemyPanelH/2, eR, lv.enemy.attr, lv.enemy.hp, lv.enemy.hp, lv.enemy.name, lv.enemy.avatar, this.af, {hideLabel:true})
+    // 怪物名
+    ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign='left'; ctx.textBaseline='top'
-    ctx.fillStyle='#ff6b6b'; ctx.fillText(`HP: ${lv.enemy.hp}`, m+90*S, startY+20*S)
+    ctx.fillText(lv.enemy.name||'敌人', m+72*S, startY+10*S)
+    // HP
+    ctx.fillStyle='#ff6b6b'; ctx.font=`${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`HP: ${lv.enemy.hp}`, m+72*S, startY+28*S)
+    // 攻防
     const eMainAtk = lv.enemy[ATK_KEY[lv.enemy.attr]] || 0
     const bpAttrColor = ATTR_COLOR[lv.enemy.attr]?.main || TH.accent
-    ctx.fillStyle=bpAttrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}`, m+90*S, startY+38*S)
     const eMainDef = lv.enemy[DEF_KEY[lv.enemy.attr]] || 0
-    ctx.fillStyle='#74c0fc'; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${eMainDef}`, m+90*S, startY+56*S)
+    ctx.font=`${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle=bpAttrColor; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}`, m+72*S, startY+46*S)
+    let atkW = ctx.measureText(`${ATTR_NAME[lv.enemy.attr]}攻:${eMainAtk}  `).width
+    ctx.fillStyle='#74c0fc'; ctx.fillText(`${ATTR_NAME[lv.enemy.attr]}防:${eMainDef}`, m+72*S+atkW, startY+46*S)
     if (lv.specialCond) {
-      ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+90*S, startY+72*S)
+      ctx.fillStyle=TH.accent; ctx.fillText('特殊: '+lv.specialCond.type, m+72*S, startY+62*S)
     }
-    // 法宝概览（5槽位，3+2布局）
-    const eqY = startY+116*S
+
+    // === 法宝概览（5槽位，3+2布局） ===
+    const eqY = startY + enemyPanelH + 12*S
     ctx.fillStyle=TH.text; ctx.font=`bold ${13*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='left'; ctx.fillText('出战法宝', m, eqY)
-    const eqW = (W-m*2-10*S)/2, eqH = 46*S
+    ctx.textAlign='left'; ctx.textBaseline='top'
+    ctx.fillText('出战法宝', m, eqY)
+    const eqW = (W-m*2-10*S)/2, eqH = 42*S
+    const eqGap = 5*S
     Object.keys(EQUIP_SLOT).forEach((slot,i) => {
       const col=i%2, row=Math.floor(i/2)
-      R.drawEquipCard(m+col*(eqW+10*S), eqY+20*S+row*(eqH+6*S), eqW, eqH, this.storage.equipped[slot], false, this.af)
+      R.drawEquipCard(m+col*(eqW+10*S), eqY+18*S+row*(eqH+eqGap), eqW, eqH, this.storage.equipped[slot], false, this.af)
     })
+
+    // === 修士属性 ===
     const stats = this.storage.getHeroStats()
     const totalRows = Math.ceil(Object.keys(EQUIP_SLOT).length / 2)
-    const infoY = eqY+20*S + totalRows*(eqH+6*S) + 10*S
+    const infoY = eqY+18*S + totalRows*(eqH+eqGap) + 8*S
     ctx.font=`${12*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='left'
+    ctx.textAlign='left'; ctx.textBaseline='top'
     ctx.fillStyle=TH.text; ctx.fillText('修士', m, infoY)
     let bpX = m + ctx.measureText('修士 ').width
     ctx.fillStyle='#ff6b6b'; ctx.fillText(`气力:${stats.stamina}`, bpX, infoY)
     bpX += ctx.measureText(`气力:${stats.stamina} `).width
     ctx.fillStyle='#69db7c'; ctx.fillText(`回复:${stats.recovery}`, bpX, infoY)
-    R.drawBtn(W/2-55*S, infoY+30*S, 110*S, 40*S, '出 战', TH.danger)
+
+    // === 出战按钮（固定底部） ===
+    const btnW2 = 110*S
+    R.drawBtn(W/2-btnW2/2, btnY2, btnW2, btnH2, '出 战', TH.danger)
   }
 
   // ===== 战斗（智龙迷城布局：上怪物 → 技能栏 → 血条 → 棋盘） =====
@@ -860,8 +889,8 @@ class Main {
     R.rr(bx-boardPad, by-boardPad, boardW, boardH2, boardRad); ctx.fill()
 
     // 棋盘格子：深浅纹理交替（智龙迷城风格）
-    const darkTile = R.getImg('assets/backgrounds/board_bg_dark.png')
-    const lightTile = R.getImg('assets/backgrounds/board_bg_light.png')
+    const darkTile = R.getImg('assets/backgrounds/board_bg_dark.jpg')
+    const lightTile = R.getImg('assets/backgrounds/board_bg_light.jpg')
     ctx.save()
     R.rr(bx-boardPad, by-boardPad, boardW, boardH2, boardRad); ctx.clip()
     for (let r=0; r<ROWS; r++) {
@@ -1016,11 +1045,11 @@ class Main {
   tBattlePrepare(type,x,y) {
     if (type !== 'end') return
     if (y < safeTop+44*S && x < 80*S) { this.goBack(); return }
-    const eqH = 46*S, startY=safeTop+56*S
-    const eqY = startY+116*S
-    const totalRows = Math.ceil(Object.keys(EQUIP_SLOT).length / 2)
-    const infoY = eqY+20*S + totalRows*(eqH+6*S) + 10*S
-    if (this._hitRect(x,y,W/2-55*S,infoY+30*S,110*S,40*S)) {
+    // 出战按钮（固定底部）
+    const btnH2 = 40*S, btnBot = H - 20*S
+    const btnY2 = btnBot - btnH2
+    const btnW2 = 110*S
+    if (this._hitRect(x,y,W/2-btnW2/2,btnY2,btnW2,btnH2)) {
       this._enterBattle()
     }
   }

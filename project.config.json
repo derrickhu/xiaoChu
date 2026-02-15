@@ -51,7 +51,9 @@
   },
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "folder", "value": "cloudfunctions" }
+    ],
     "include": []
   },
   "isGameTourist": false,
