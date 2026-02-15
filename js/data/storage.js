@@ -62,6 +62,7 @@ class Storage {
     this._cloudSyncTimer = null   // 防抖定时器
     this._cloudInitDone = false   // 云端初始化是否完成
     this._pendingSync = false     // 初始化期间是否有待同步数据
+    this.onCloudReady = null      // 云初始化完成回调（用于通知render预加载云资源）
     this._load()
     this._initCloud()
   }
@@ -304,6 +305,10 @@ class Storage {
     }
     this._cloudInitDone = true
     console.log('[Storage] Cloud init done, openid:', this._openid ? 'OK' : 'EMPTY')
+    // 通知外部云已就绪（用于预加载云存储资源）
+    if (typeof this.onCloudReady === 'function') {
+      try { this.onCloudReady() } catch(e) { console.warn('[Storage] onCloudReady callback error:', e) }
+    }
     // 如果初始化期间有待同步的数据，立即同步
     if (this._pendingSync) {
       this._pendingSync = false
