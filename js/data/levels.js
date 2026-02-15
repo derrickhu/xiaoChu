@@ -9,18 +9,18 @@ const { ATTRS, ATTR_NAME, BEAD_ATTRS, ATK_KEY, DEF_KEY } = require('./equipment'
 const DIFFICULTY = {
   normal:  { id:'normal',  name:'练气', hpMul:1,   atkMul:1,   defMul:1,   color:'#4dcc4d', tier:'low' },
   hard:    { id:'hard',    name:'筑基', hpMul:1.6, atkMul:1.5, defMul:1.3, color:'#ff8c00', tier:'mid' },
-  extreme: { id:'extreme', name:'金丹', hpMul:2.5, atkMul:2.2, defMul:1.8, color:'#ff4d6a', tier:'high' },
+  extreme: { id:'extreme', name:'元婴', hpMul:2.5, atkMul:2.2, defMul:1.8, color:'#ff4d6a', tier:'high' },
 }
 
 // 妖兽技能池（被动/周期技能）
 const ENEMY_SKILLS = {
   atkBuff:   { name:'妖气暴涨', desc:'攻击提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
-  poison:    { name:'毒瘴', desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
-  seal:      { name:'封灵', desc:'随机封锁2颗灵珠,持续2回合', type:'seal', count:2, dur:2 },
-  convert:   { name:'灵气紊乱', desc:'随机转换3颗灵珠属性', type:'convert', count:3 },
+  poison:    { name:'瘴毒', desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
+  seal:      { name:'禁珠咒', desc:'随机封锁2颗灵珠,持续2回合', type:'seal', count:2, dur:2 },
+  convert:   { name:'灵脉紊乱', desc:'随机转换3颗灵珠属性', type:'convert', count:3 },
   aoe:       { name:'妖力横扫', desc:'对修士造成{val}点伤害', type:'aoe' },
-  defDown:   { name:'破甲爪', desc:'降低修士防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
-  healBlock: { name:'噬灵', desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
+  defDown:   { name:'碎甲爪', desc:'降低修士防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
+  healBlock: { name:'噬灵术', desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
 }
 
 // ===== 怪物绝技库（主动大招，固定回合释放） =====
@@ -42,8 +42,8 @@ const ENEMY_ULTS = {
     effect:'dmg_convert', pct:150, convertCount:4, triggerType:'turn',
   },
   water_prison: {
-    id:'water_prison', name:'寒冰牢笼', attr:'water',
-    desc:'冰灵禁锢，造成{pct}%伤害并封锁3颗灵珠2回合',
+    id:'water_prison', name:'玄冰牢笼', attr:'water',
+    desc:'玄冰禁锢，造成{pct}%伤害并封锁3颗灵珠2回合',
     effect:'dmg_seal', pct:130, sealCount:3, sealDur:2, triggerType:'turn',
   },
   fire_inferno: {
@@ -64,7 +64,7 @@ const ENEMY_ULTS = {
   },
   // --- 控制类绝技 ---
   chaos_field: {
-    id:'chaos_field', name:'混沌领域', attr:'neutral',
+    id:'chaos_field', name:'混沌法域', attr:'neutral',
     desc:'全场灵珠随机打乱，并降低回复50%持续2回合',
     effect:'chaos', healRate:0.5, healDur:2, triggerType:'turn',
   },
@@ -100,7 +100,7 @@ const TUTORIAL_TIPS = {
   4: {
     title: '装备强化',
     tips: [
-      '上一关获得了新头盔，已在结算时佩戴',
+      '上一关获得了新法冠，已在结算时佩戴',
       '装备会增加属性（攻/防/气力/回复）',
       '注意观察佩戴新装备后属性变化',
       '更好的装备让你的修士更强大',
@@ -109,7 +109,7 @@ const TUTORIAL_TIPS = {
   5: {
     title: '绝技释放',
     tips: [
-      '上一关获得的项链附带绝技（仙术）',
+      '上一关获得的法珠附带绝技（仙术）',
       '消除对应属性灵珠为绝技蓄力',
       '蓄力满后点击绝技图标即可释放',
       '善用绝技可大幅提升战斗效率',
@@ -128,7 +128,7 @@ function _genTutorialLevels() {
     name: '新手引导·转珠入门',
     tutorial: 1,
     enemy: {
-      name: '木灵小妖',
+      name: '木灵野鬼',
       attr: 'wood',
       hp: 60,
       stamina: 60,
@@ -153,7 +153,7 @@ function _genTutorialLevels() {
     name: '新手引导·连击Combo',
     tutorial: 2,
     enemy: {
-      name: '火灵小妖',
+      name: '火灵野鬼',
       attr: 'fire',
       hp: 80,
       stamina: 80,
@@ -170,7 +170,7 @@ function _genTutorialLevels() {
   })
 
   // 第3关：心珠回复教学 — 怪攻击很高，让玩家感受到回血的必要性
-  // 胜利后掉落绿装头盔（无绝技），供第4关换装教学使用
+  // 胜利后掉落灵器法冠（无绝技），供第4关换装教学使用
   levels.push({
     levelId: 3,
     theme: 'tutorial',
@@ -178,7 +178,7 @@ function _genTutorialLevels() {
     name: '新手引导·气血回复',
     tutorial: 3,
     enemy: {
-      name: '水灵小妖',
+      name: '水灵野鬼',
       attr: 'water',
       hp: 100,
       stamina: 100,
@@ -192,12 +192,12 @@ function _genTutorialLevels() {
     // 加入心珠
     beadWeights: { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 },
     dropConfig: null,
-    tutorialDrop: 'helmet_green_no_ult',  // 第3关胜利掉绿装头盔（无绝技）→第4关换装
+    tutorialDrop: 'helmet_green_no_ult',  // 第3关胜利掉灵器法冠（无绝技）→第4关换装
     specialCond: null,
   })
 
-  // 第4关：装备教学 — 玩家已从第3关获得绿装头盔，本关教换装
-  // 胜利后掉落绿装项链（带绝技），供第5关绝技教学使用
+  // 第4关：装备教学 — 玩家已从第3关获得灵器法冠，本关教换装
+  // 胜利后掉落灵器法珠（带绝技），供第5关绝技教学使用
   levels.push({
     levelId: 4,
     theme: 'tutorial',
@@ -205,7 +205,7 @@ function _genTutorialLevels() {
     name: '新手引导·装备强化',
     tutorial: 4,
     enemy: {
-      name: '土灵妖兵',
+      name: '土灵游魂',
       attr: 'earth',
       hp: 140,
       stamina: 140,
@@ -230,7 +230,7 @@ function _genTutorialLevels() {
     name: '新手引导·仙术释放',
     tutorial: 5,
     enemy: {
-      name: '金灵妖兵',
+      name: '金灵游魂',
       attr: 'metal',
       hp: 180,
       stamina: 180,
@@ -260,6 +260,8 @@ const ATTR_ULT_MAP = {
 
 function _genThemeLevels(attr, startId) {
   const an = ATTR_NAME[attr]
+  const themeNames = { metal:'白虎矿脉', wood:'青龙古林', earth:'玄武山岳', water:'蛟龙深渊', fire:'朱雀火域' }
+  const tn = themeNames[attr]
   const levels = []
   for (let i = 1; i <= 10; i++) {
     const isMiniBoss = (i === 5)   // 小精英：第5层
@@ -316,11 +318,13 @@ function _genThemeLevels(attr, startId) {
       }
     }
 
-    // 怪物名称：精英怪用特殊名称
+    // 怪物名称：低层朴素→高层威严，精英怪用专属称号
     let enemyName
-    if (isBigBoss)  enemyName = `${an}灵妖帝`
-    else if (isMiniBoss) enemyName = `${an}灵精英`
-    else enemyName = `${an}灵${i<=3?'妖兵':i<=6?'妖将':'妖王'}`
+    if (isBigBoss)  enemyName = `${an}灵·妖帝`
+    else if (isMiniBoss) enemyName = `${an}灵·守山大妖`
+    else if (i <= 3) enemyName = `${an}灵散妖`
+    else if (i <= 6) enemyName = `${an}灵妖将`
+    else enemyName = `${an}灵妖王`
 
     // 掉落配置：精英关使用特殊掉落
     let dropConfig, eliteDrop = null
@@ -374,9 +378,9 @@ function _genThemeLevels(attr, startId) {
       levelId: startId + i,
       theme: attr,
       bg: `theme_${attr}`,
-      name: isMiniBoss ? `${an}灵秘境·精英守卫`
-           : isBigBoss ? `${an}灵秘境·妖帝降临`
-           : `${an}灵秘境·第${i}层`,
+      name: isMiniBoss ? `${tn}·守山大妖`
+           : isBigBoss ? `${tn}·妖帝降临`
+           : `${tn}·第${i}层`,
       elite: isMiniBoss ? 'mini' : isBigBoss ? 'boss' : null,  // 精英标记
       enemy: {
         name: enemyName,
@@ -470,11 +474,13 @@ function _genMixedLevels() {
       }
     }
 
-    // 怪物命名
+    // 怪物命名：低层→高层递进，精英用专属称号
     let enemyName
-    if (isBigBoss) enemyName = '混沌魔神'
-    else if (isMiniBoss) enemyName = '混沌精英'
-    else enemyName = `混沌${i<=5?'妖兽':'魔尊'}`
+    if (isBigBoss) enemyName = '混沌·太古魔神'
+    else if (isMiniBoss) enemyName = '混沌·噬灵魔将'
+    else if (i <= 3) enemyName = '混沌妖兽'
+    else if (i <= 6) enemyName = '混沌魔兵'
+    else enemyName = '混沌魔尊'
 
     // 掉落配置
     let dropConfig, eliteDrop = null
@@ -523,8 +529,8 @@ function _genMixedLevels() {
       levelId: 600 + i,
       theme: 'mixed',
       bg: 'theme_mixed',
-      name: isMiniBoss ? '混沌秘境·精英试炼'
-           : isBigBoss ? '混沌秘境·魔神降临'
+      name: isMiniBoss ? '混沌秘境·噬灵魔将'
+           : isBigBoss ? '混沌秘境·太古魔神'
            : `混沌秘境·第${i}层`,
       elite: isMiniBoss ? 'mini' : isBigBoss ? 'boss' : null,
       enemy: {
@@ -579,7 +585,7 @@ function getLevelData(levelId, difficulty) {
   scaled.skills = diff.id === 'normal' ? e.skills.filter(s => s.triggerTurn >= 4) :
                   diff.id === 'hard' ? e.skills :
                   [...e.skills, { ...ENEMY_SKILLS.aoe, val: Math.round((e[ATK_KEY[e.attr]]||50)*0.8), triggerTurn: 2 }]
-  // 绝技：练气只保留第一个，筑基全部，金丹绝技冷却-1
+  // 绝技：练气只保留第一个，筑基全部，元婴绝技冷却-1
   const rawUlts = e.ults || []
   scaled.ults = diff.id === 'normal' ? rawUlts.slice(0, 1) :
                 diff.id === 'hard' ? rawUlts :
@@ -592,8 +598,9 @@ function getThemeLevels(theme) {
 }
 
 function getAllThemes() {
+  const themeNames = { metal:'白虎矿脉', wood:'青龙古林', earth:'玄武山岳', water:'蛟龙深渊', fire:'朱雀火域' }
   return [
-    ...ATTRS.map(a => ({ id: a, name: ATTR_NAME[a]+'灵秘境', levels: 10 })),
+    ...ATTRS.map(a => ({ id: a, name: themeNames[a], levels: 10 })),
     { id: 'mixed', name: '混沌秘境', levels: 10 },
   ]
 }

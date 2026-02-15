@@ -4,8 +4,8 @@
  * 五行属性：金(metal) / 木(wood) / 土(earth) / 水(water) / 火(fire)
  * 克制关系：金→木→土→水→火→金（克制×1.5，被克×0.6）
  * 
- * 装备部位：头盔 / 衣服 / 披风 / 饰品 / 武器（共5个）
- * 品质等级：白品·凡阶 / 绿品·良阶 / 蓝品·优阶 / 紫品·臻阶 / 橙品·神阶
+ * 装备部位：法冠 / 道袍 / 灵披 / 法珠 / 法剑（共5个）
+ * 品质等级：白品·凡器 / 绿品·灵器 / 蓝品·宝器 / 紫品·仙器 / 橙品·神器
  * 
  * 装备只保留：属性加成 + 绝技
  * - 品质决定属性加成的条数(1/2/3/4/5)
@@ -41,21 +41,21 @@ const BEAD_ATTR_COLOR = {
 
 // ===== 品质定义 =====
 const QUALITY = {
-  white:  { id:'white',  name:'凡阶', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', statSlots:1, triggerCount:3,  buffDur:1 },
-  green:  { id:'green',  name:'良阶', color:'#4dcc4d', glow:'rgba(77,204,77,0.4)',   statSlots:2, triggerCount:4,  buffDur:1 },
-  blue:   { id:'blue',   name:'优阶', color:'#4a9eff', glow:'rgba(74,158,255,0.5)',  statSlots:3, triggerCount:5,  buffDur:2 },
-  purple: { id:'purple', name:'臻阶', color:'#b44aff', glow:'rgba(180,74,255,0.6)',  statSlots:4, triggerCount:7,  buffDur:2 },
-  orange: { id:'orange', name:'神阶', color:'#ff8c00', glow:'rgba(255,140,0,0.7)',   statSlots:5, triggerCount:10, buffDur:3 },
+  white:  { id:'white',  name:'凡器', color:'#b0b0b0', glow:'rgba(176,176,176,0.3)', statSlots:1, triggerCount:3,  buffDur:1 },
+  green:  { id:'green',  name:'灵器', color:'#4dcc4d', glow:'rgba(77,204,77,0.4)',   statSlots:2, triggerCount:4,  buffDur:1 },
+  blue:   { id:'blue',   name:'宝器', color:'#4a9eff', glow:'rgba(74,158,255,0.5)',  statSlots:3, triggerCount:5,  buffDur:2 },
+  purple: { id:'purple', name:'仙器', color:'#b44aff', glow:'rgba(180,74,255,0.6)',  statSlots:4, triggerCount:7,  buffDur:2 },
+  orange: { id:'orange', name:'神器', color:'#ff8c00', glow:'rgba(255,140,0,0.7)',   statSlots:5, triggerCount:10, buffDur:3 },
 }
 const QUALITY_ORDER = ['white','green','blue','purple','orange']
 
 // ===== 装备部位 =====
 const EQUIP_SLOT = {
-  helmet:  { id:'helmet',  name:'头盔', icon:'⛑️',  desc:'凝神固本之冠' },
-  armor:   { id:'armor',   name:'衣服', icon:'🛡️',  desc:'回血、血量上限、唯一续航' },
-  cloak:   { id:'cloak',   name:'披风', icon:'🧣',  desc:'转珠强化、棋盘操作' },
-  trinket: { id:'trinket', name:'饰品', icon:'💎',  desc:'减防、无视防御、封印禁招' },
-  weapon:  { id:'weapon',  name:'武器', icon:'⚔️',  desc:'五行伤害、转色、真实伤害' },
+  helmet:  { id:'helmet',  name:'法冠', icon:'⛑️',  desc:'凝神固本之冠' },
+  armor:   { id:'armor',   name:'道袍', icon:'🛡️',  desc:'护体续命之衣' },
+  cloak:   { id:'cloak',   name:'灵披', icon:'🧣',  desc:'御风增法之披' },
+  trinket: { id:'trinket', name:'法珠', icon:'💎',  desc:'破障封魔之宝' },
+  weapon:  { id:'weapon',  name:'法剑', icon:'⚔️',  desc:'斩妖除魔之刃' },
 }
 
 // ===== 属性定义 =====
@@ -81,7 +81,7 @@ const DEF_KEY = { metal:'metalDef', wood:'woodDef', earth:'earthDef', water:'wat
 // ===== 部位属性池（严格锁定） =====
 const SLOT_STAT_POOL = {
   helmet:  ['stamina','atkByAttr','defByAttr'],
-  armor:   ['stamina','defByAttr','recovery'],  // recovery仅衣服
+  armor:   ['stamina','defByAttr','recovery'],  // recovery仅道袍
   cloak:   ['stamina','atkByAttr','defByAttr'],
   trinket: ['atkByAttr','stamina'],
   weapon:  ['atkByAttr','stamina'],
@@ -247,40 +247,40 @@ const ULT_LIBRARY = {
 // ultPool 可以是单个绝技id（固定绝技），也可以是数组（随机选取）
 
 const EQUIP_TEMPLATES = {
-  // ===== 武器 =====
-  weapon_metal_1: { name:'金光飞剑', slot:'weapon', attr:'metal', ultPool:['golden_slash','wind_blade'] },
-  weapon_wood_1:  { name:'青木法杖', slot:'weapon', attr:'wood',  ultPool:['wood_sword','thorns'] },
-  weapon_earth_1: { name:'厚土重锤', slot:'weapon', attr:'earth', ultPool:['earth_slam'] },
-  weapon_water_1: { name:'碧水灵剑', slot:'weapon', attr:'water', ultPool:['ice_blast','tidal_wave'] },
-  weapon_fire_1:  { name:'赤焰飞剑', slot:'weapon', attr:'fire',  ultPool:['true_fire','lava_burst'] },
+  // ===== 武器（凡器级：朴素命名） =====
+  weapon_metal_1: { name:'铁剑', slot:'weapon', attr:'metal', ultPool:['golden_slash','wind_blade'] },
+  weapon_wood_1:  { name:'青竹杖', slot:'weapon', attr:'wood',  ultPool:['wood_sword','thorns'] },
+  weapon_earth_1: { name:'石锤', slot:'weapon', attr:'earth', ultPool:['earth_slam'] },
+  weapon_water_1: { name:'流水剑', slot:'weapon', attr:'water', ultPool:['ice_blast','tidal_wave'] },
+  weapon_fire_1:  { name:'赤铜刀', slot:'weapon', attr:'fire',  ultPool:['true_fire','lava_burst'] },
 
-  // ===== 头盔 =====
-  helmet_metal_1: { name:'金钟法冠', slot:'helmet', attr:'metal', ultPool:['golden_bell','metal_seal'] },
-  helmet_wood_1:  { name:'翠灵宝冠', slot:'helmet', attr:'wood',  ultPool:['wood_barrier','poison_mist'] },
-  helmet_earth_1: { name:'厚土灵冠', slot:'helmet', attr:'earth', ultPool:['earth_wall'] },
-  helmet_water_1: { name:'碧水灵冠', slot:'helmet', attr:'water', ultPool:['ice_shield','frost_slow'] },
-  helmet_fire_1:  { name:'赤焰法冠', slot:'helmet', attr:'fire',  ultPool:['flame_shield','fire_weaken'] },
+  // ===== 法冠（凡器级） =====
+  helmet_metal_1: { name:'铜箍冠', slot:'helmet', attr:'metal', ultPool:['golden_bell','metal_seal'] },
+  helmet_wood_1:  { name:'藤编帽', slot:'helmet', attr:'wood',  ultPool:['wood_barrier','poison_mist'] },
+  helmet_earth_1: { name:'黄泥冠', slot:'helmet', attr:'earth', ultPool:['earth_wall'] },
+  helmet_water_1: { name:'蓝绸巾', slot:'helmet', attr:'water', ultPool:['ice_shield','frost_slow'] },
+  helmet_fire_1:  { name:'火纹冠', slot:'helmet', attr:'fire',  ultPool:['flame_shield','fire_weaken'] },
 
-  // ===== 衣服 =====
-  armor_metal_1: { name:'金丝道袍', slot:'armor', attr:'metal', ultPool:['golden_armor_heal','golden_bell'] },
-  armor_wood_1:  { name:'生机灵衣', slot:'armor', attr:'wood',  ultPool:['life_spring'] },
-  armor_earth_1: { name:'厚土战袍', slot:'armor', attr:'earth', ultPool:['earth_nurture','earth_wall'] },
-  armor_water_1: { name:'碧水仙衣', slot:'armor', attr:'water', ultPool:['water_heal','ice_shield'] },
-  armor_fire_1:  { name:'赤焰道袍', slot:'armor', attr:'fire',  ultPool:['fire_rebirth','flame_shield'] },
+  // ===== 道袍（凡器级） =====
+  armor_metal_1: { name:'粗布道衣', slot:'armor', attr:'metal', ultPool:['golden_armor_heal','golden_bell'] },
+  armor_wood_1:  { name:'草编衣', slot:'armor', attr:'wood',  ultPool:['life_spring'] },
+  armor_earth_1: { name:'土黄短褂', slot:'armor', attr:'earth', ultPool:['earth_nurture','earth_wall'] },
+  armor_water_1: { name:'青衫', slot:'armor', attr:'water', ultPool:['water_heal','ice_shield'] },
+  armor_fire_1:  { name:'赤练衣', slot:'armor', attr:'fire',  ultPool:['fire_rebirth','flame_shield'] },
 
-  // ===== 披风 =====
-  cloak_metal_1: { name:'金风仙披', slot:'cloak', attr:'metal', ultPool:['golden_slash','golden_bell'] },
-  cloak_wood_1:  { name:'翠竹仙衣', slot:'cloak', attr:'wood',  ultPool:['wood_sword','life_spring'] },
-  cloak_earth_1: { name:'厚土仙披', slot:'cloak', attr:'earth', ultPool:['earth_slam','earth_wall'] },
-  cloak_water_1: { name:'碧水仙纱', slot:'cloak', attr:'water', ultPool:['ice_blast','water_heal'] },
-  cloak_fire_1:  { name:'赤焰仙披', slot:'cloak', attr:'fire',  ultPool:['true_fire','fire_rebirth'] },
+  // ===== 灵披（凡器级） =====
+  cloak_metal_1: { name:'旧棉披', slot:'cloak', attr:'metal', ultPool:['golden_slash','golden_bell'] },
+  cloak_wood_1:  { name:'竹叶披', slot:'cloak', attr:'wood',  ultPool:['wood_sword','life_spring'] },
+  cloak_earth_1: { name:'泥纹斗篷', slot:'cloak', attr:'earth', ultPool:['earth_slam','earth_wall'] },
+  cloak_water_1: { name:'水纹纱', slot:'cloak', attr:'water', ultPool:['ice_blast','water_heal'] },
+  cloak_fire_1:  { name:'火尾披', slot:'cloak', attr:'fire',  ultPool:['true_fire','fire_rebirth'] },
 
-  // ===== 饰品 =====
-  trinket_metal_1: { name:'金灵法珠', slot:'trinket', attr:'metal', ultPool:['metal_seal','wind_blade'] },
-  trinket_wood_1:  { name:'青木灵佩', slot:'trinket', attr:'wood',  ultPool:['poison_mist','thorns'] },
-  trinket_earth_1: { name:'厚土灵佩', slot:'trinket', attr:'earth', ultPool:['quicksand','earth_wall'] },
-  trinket_water_1: { name:'碧海灵玉', slot:'trinket', attr:'water', ultPool:['frost_slow','tidal_wave'] },
-  trinket_fire_1:  { name:'赤炎灵珠', slot:'trinket', attr:'fire',  ultPool:['fire_weaken','lava_burst'] },
+  // ===== 法珠（凡器级） =====
+  trinket_metal_1: { name:'铜珠', slot:'trinket', attr:'metal', ultPool:['metal_seal','wind_blade'] },
+  trinket_wood_1:  { name:'木灵珠', slot:'trinket', attr:'wood',  ultPool:['poison_mist','thorns'] },
+  trinket_earth_1: { name:'泥丸', slot:'trinket', attr:'earth', ultPool:['quicksand','earth_wall'] },
+  trinket_water_1: { name:'水滴石', slot:'trinket', attr:'water', ultPool:['frost_slow','tidal_wave'] },
+  trinket_fire_1:  { name:'火晶珠', slot:'trinket', attr:'fire',  ultPool:['fire_weaken','lava_burst'] },
 }
 
 // ========================================
@@ -322,31 +322,31 @@ const ELITE_ULT_LIBRARY = {
   },
   // --- 大精英套装绝技（套装装备可能附带，百分比最高） ---
   boss_metal_storm: {
-    id:'boss_metal_storm', name:'万剑归宗', attr:'metal',
+    id:'boss_metal_storm', name:'太白剑雨', attr:'metal',
     desc:'剑气风暴造成{dmg}点伤害（{pct}%攻击力）',
     effect:'dmg', baseDmgPct:[360,500,700,950,1350],
     exclusive:true,
   },
   boss_wood_domain: {
-    id:'boss_wood_domain', name:'森罗万象', attr:'wood',
-    desc:'森灵领域回复{heal}点气血（{pct}%回复力）',
+    id:'boss_wood_domain', name:'万木归元', attr:'wood',
+    desc:'仙庭灵力回复{heal}点气血（{pct}%回复力）',
     effect:'heal', baseHealPct:[500,700,1000,1400,2000],
     exclusive:true,
   },
   boss_earth_titan: {
-    id:'boss_earth_titan', name:'泰山压顶', attr:'earth',
-    desc:'泰坦之力造成{dmg}点伤害（{pct}%攻击力）',
+    id:'boss_earth_titan', name:'昆仑压顶', attr:'earth',
+    desc:'昆仑之力造成{dmg}点伤害（{pct}%攻击力）',
     effect:'dmg', baseDmgPct:[340,480,670,920,1300],
     exclusive:true,
   },
   boss_water_abyss: {
-    id:'boss_water_abyss', name:'深渊漩涡', attr:'water',
+    id:'boss_water_abyss', name:'龙宫漩涡', attr:'water',
     desc:'深渊之力造成{dmg}点伤害（{pct}%攻击力）',
     effect:'dmg', baseDmgPct:[330,460,650,900,1280],
     exclusive:true,
   },
   boss_fire_phoenix: {
-    id:'boss_fire_phoenix', name:'凤凰涅槃', attr:'fire',
+    id:'boss_fire_phoenix', name:'九天凤焰', attr:'fire',
     desc:'凤凰之火造成{dmg}点伤害（{pct}%攻击力）',
     effect:'dmg', baseDmgPct:[350,490,680,940,1320],
     exclusive:true,
@@ -358,11 +358,11 @@ const ELITE_ULT_LIBRARY = {
 // ========================================
 // 精英装备：属性上限更高（×1.35倍）、必定有绝技、可能附带专属绝技
 
-// 小精英专属装备（每个属性1件标志性装备）
+// 小精英专属装备（每个属性1件标志性装备，宝器级命名）
 const ELITE_EQUIP_TEMPLATES = {
   elite_weapon_metal: { name:'破军·金鸾剑', slot:'weapon', attr:'metal', ultPool:['elite_metal_blade','golden_slash','wind_blade'], statMul:1.35 },
   elite_weapon_wood:  { name:'回春·青藤杖', slot:'weapon', attr:'wood',  ultPool:['elite_wood_life','wood_sword','thorns'], statMul:1.35 },
-  elite_weapon_earth: { name:'磐岩·厚土锤', slot:'weapon', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
+  elite_weapon_earth: { name:'磐岩·碎山锤', slot:'weapon', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
   elite_weapon_water: { name:'怒涛·碧波剑', slot:'weapon', attr:'water', ultPool:['elite_water_torrent','ice_blast','tidal_wave'], statMul:1.35 },
   elite_weapon_fire:  { name:'天火·赤炎刀', slot:'weapon', attr:'fire',  ultPool:['elite_fire_annihilation','true_fire','lava_burst'], statMul:1.35 },
   elite_helmet_metal: { name:'破军·金鸾冠', slot:'helmet', attr:'metal', ultPool:['elite_metal_blade','golden_bell'], statMul:1.35 },
@@ -371,7 +371,7 @@ const ELITE_EQUIP_TEMPLATES = {
   elite_helmet_water: { name:'怒涛·碧水冠', slot:'helmet', attr:'water', ultPool:['elite_water_torrent','ice_shield'], statMul:1.35 },
   elite_helmet_fire:  { name:'天火·赤焰冠', slot:'helmet', attr:'fire',  ultPool:['elite_fire_annihilation','flame_shield'], statMul:1.35 },
   elite_armor_metal:  { name:'破军·金鸾袍', slot:'armor', attr:'metal', ultPool:['golden_armor_heal','golden_bell'], statMul:1.35 },
-  elite_armor_wood:   { name:'回春·生机衣', slot:'armor', attr:'wood',  ultPool:['elite_wood_life','life_spring'], statMul:1.35 },
+  elite_armor_wood:   { name:'回春·灵木衣', slot:'armor', attr:'wood',  ultPool:['elite_wood_life','life_spring'], statMul:1.35 },
   elite_armor_earth:  { name:'磐岩·厚土袍', slot:'armor', attr:'earth', ultPool:['elite_earth_fortress','earth_nurture'], statMul:1.35 },
   elite_armor_water:  { name:'怒涛·碧水衣', slot:'armor', attr:'water', ultPool:['elite_water_torrent','water_heal'], statMul:1.35 },
   elite_armor_fire:   { name:'天火·赤焰袍', slot:'armor', attr:'fire',  ultPool:['elite_fire_annihilation','fire_rebirth'], statMul:1.35 },
@@ -382,55 +382,55 @@ const ELITE_EQUIP_TEMPLATES = {
   elite_trinket_fire: { name:'天火·赤炎珠', slot:'trinket', attr:'fire',  ultPool:['elite_fire_annihilation','fire_weaken'], statMul:1.35 },
   elite_cloak_metal:  { name:'破军·金风披', slot:'cloak', attr:'metal', ultPool:['elite_metal_blade','golden_slash'], statMul:1.35 },
   elite_cloak_wood:   { name:'回春·翠竹披', slot:'cloak', attr:'wood',  ultPool:['elite_wood_life','wood_sword'], statMul:1.35 },
-  elite_cloak_earth:  { name:'磐岩·厚土披', slot:'cloak', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
+  elite_cloak_earth:  { name:'磐岩·山岩披', slot:'cloak', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
   elite_cloak_water:  { name:'怒涛·碧水纱', slot:'cloak', attr:'water', ultPool:['elite_water_torrent','ice_blast'], statMul:1.35 },
   elite_cloak_fire:   { name:'天火·赤焰披', slot:'cloak', attr:'fire',  ultPool:['elite_fire_annihilation','true_fire'], statMul:1.35 },
 }
 
-// 大精英套装名（每属性一套，5件套）
+// 大精英套装名（每属性一套，5件套，神器级命名）
 const BOSS_SET_NAMES = {
-  metal: '万剑宗',
-  wood:  '森罗界',
-  earth: '泰山府',
-  water: '深渊殿',
-  fire:  '凤凰台',
+  metal: '太白剑宗',
+  wood:  '万木仙庭',
+  earth: '昆仑地府',
+  water: '龙宫深渊',
+  fire:  '九天凤台',
 }
 // 大精英套装模板（5件套，stat倍率更高×1.5）
 const BOSS_SET_TEMPLATES = {
   metal: [
-    { name:'万剑宗·破天剑', slot:'weapon', ultPool:['boss_metal_storm','elite_metal_blade'], statMul:1.5 },
-    { name:'万剑宗·金鸾冠', slot:'helmet', ultPool:['golden_bell','elite_metal_blade'], statMul:1.5 },
-    { name:'万剑宗·护心铠', slot:'armor',  ultPool:['golden_armor_heal','golden_bell'], statMul:1.5 },
-    { name:'万剑宗·风灵披', slot:'cloak',  ultPool:['boss_metal_storm','wind_blade'], statMul:1.5 },
-    { name:'万剑宗·剑心珠', slot:'trinket',ultPool:['boss_metal_storm','metal_seal'], statMul:1.5 },
+    { name:'太白剑宗·诛仙剑', slot:'weapon', ultPool:['boss_metal_storm','elite_metal_blade'], statMul:1.5 },
+    { name:'太白剑宗·紫金冠', slot:'helmet', ultPool:['golden_bell','elite_metal_blade'], statMul:1.5 },
+    { name:'太白剑宗·护心铠', slot:'armor',  ultPool:['golden_armor_heal','golden_bell'], statMul:1.5 },
+    { name:'太白剑宗·御风披', slot:'cloak',  ultPool:['boss_metal_storm','wind_blade'], statMul:1.5 },
+    { name:'太白剑宗·剑心珠', slot:'trinket',ultPool:['boss_metal_storm','metal_seal'], statMul:1.5 },
   ],
   wood: [
-    { name:'森罗界·万木杖', slot:'weapon', ultPool:['boss_wood_domain','elite_wood_life'], statMul:1.5 },
-    { name:'森罗界·翠灵冠', slot:'helmet', ultPool:['wood_barrier','elite_wood_life'], statMul:1.5 },
-    { name:'森罗界·生机袍', slot:'armor',  ultPool:['boss_wood_domain','life_spring'], statMul:1.5 },
-    { name:'森罗界·藤蔓披', slot:'cloak',  ultPool:['boss_wood_domain','thorns'], statMul:1.5 },
-    { name:'森罗界·灵木佩', slot:'trinket',ultPool:['boss_wood_domain','poison_mist'], statMul:1.5 },
+    { name:'万木仙庭·通天杖', slot:'weapon', ultPool:['boss_wood_domain','elite_wood_life'], statMul:1.5 },
+    { name:'万木仙庭·翠灵冠', slot:'helmet', ultPool:['wood_barrier','elite_wood_life'], statMul:1.5 },
+    { name:'万木仙庭·长生袍', slot:'armor',  ultPool:['boss_wood_domain','life_spring'], statMul:1.5 },
+    { name:'万木仙庭·藤蔓披', slot:'cloak',  ultPool:['boss_wood_domain','thorns'], statMul:1.5 },
+    { name:'万木仙庭·灵木佩', slot:'trinket',ultPool:['boss_wood_domain','poison_mist'], statMul:1.5 },
   ],
   earth: [
-    { name:'泰山府·开山锤', slot:'weapon', ultPool:['boss_earth_titan','elite_earth_fortress'], statMul:1.5 },
-    { name:'泰山府·磐石冠', slot:'helmet', ultPool:['earth_wall','elite_earth_fortress'], statMul:1.5 },
-    { name:'泰山府·厚土袍', slot:'armor',  ultPool:['boss_earth_titan','earth_nurture'], statMul:1.5 },
-    { name:'泰山府·山岩披', slot:'cloak',  ultPool:['boss_earth_titan','earth_slam'], statMul:1.5 },
-    { name:'泰山府·地灵佩', slot:'trinket',ultPool:['boss_earth_titan','quicksand'], statMul:1.5 },
+    { name:'昆仑地府·开山斧', slot:'weapon', ultPool:['boss_earth_titan','elite_earth_fortress'], statMul:1.5 },
+    { name:'昆仑地府·磐石冠', slot:'helmet', ultPool:['earth_wall','elite_earth_fortress'], statMul:1.5 },
+    { name:'昆仑地府·玄武袍', slot:'armor',  ultPool:['boss_earth_titan','earth_nurture'], statMul:1.5 },
+    { name:'昆仑地府·山岳披', slot:'cloak',  ultPool:['boss_earth_titan','earth_slam'], statMul:1.5 },
+    { name:'昆仑地府·地灵佩', slot:'trinket',ultPool:['boss_earth_titan','quicksand'], statMul:1.5 },
   ],
   water: [
-    { name:'深渊殿·沧海剑', slot:'weapon', ultPool:['boss_water_abyss','elite_water_torrent'], statMul:1.5 },
-    { name:'深渊殿·碧波冠', slot:'helmet', ultPool:['ice_shield','elite_water_torrent'], statMul:1.5 },
-    { name:'深渊殿·潮汐衣', slot:'armor',  ultPool:['boss_water_abyss','water_heal'], statMul:1.5 },
-    { name:'深渊殿·寒冰纱', slot:'cloak',  ultPool:['boss_water_abyss','tidal_wave'], statMul:1.5 },
-    { name:'深渊殿·渊灵玉', slot:'trinket',ultPool:['boss_water_abyss','frost_slow'], statMul:1.5 },
+    { name:'龙宫深渊·定海针', slot:'weapon', ultPool:['boss_water_abyss','elite_water_torrent'], statMul:1.5 },
+    { name:'龙宫深渊·蛟龙冠', slot:'helmet', ultPool:['ice_shield','elite_water_torrent'], statMul:1.5 },
+    { name:'龙宫深渊·潮汐衣', slot:'armor',  ultPool:['boss_water_abyss','water_heal'], statMul:1.5 },
+    { name:'龙宫深渊·寒冰纱', slot:'cloak',  ultPool:['boss_water_abyss','tidal_wave'], statMul:1.5 },
+    { name:'龙宫深渊·渊灵玉', slot:'trinket',ultPool:['boss_water_abyss','frost_slow'], statMul:1.5 },
   ],
   fire: [
-    { name:'凤凰台·涅槃刀', slot:'weapon', ultPool:['boss_fire_phoenix','elite_fire_annihilation'], statMul:1.5 },
-    { name:'凤凰台·赤焰冠', slot:'helmet', ultPool:['flame_shield','elite_fire_annihilation'], statMul:1.5 },
-    { name:'凤凰台·浴火袍', slot:'armor',  ultPool:['boss_fire_phoenix','fire_rebirth'], statMul:1.5 },
-    { name:'凤凰台·凤羽披', slot:'cloak',  ultPool:['boss_fire_phoenix','lava_burst'], statMul:1.5 },
-    { name:'凤凰台·凤灵珠', slot:'trinket',ultPool:['boss_fire_phoenix','fire_weaken'], statMul:1.5 },
+    { name:'九天凤台·涅槃刀', slot:'weapon', ultPool:['boss_fire_phoenix','elite_fire_annihilation'], statMul:1.5 },
+    { name:'九天凤台·朱雀冠', slot:'helmet', ultPool:['flame_shield','elite_fire_annihilation'], statMul:1.5 },
+    { name:'九天凤台·浴火袍', slot:'armor',  ultPool:['boss_fire_phoenix','fire_rebirth'], statMul:1.5 },
+    { name:'九天凤台·凤羽披', slot:'cloak',  ultPool:['boss_fire_phoenix','lava_burst'], statMul:1.5 },
+    { name:'九天凤台·凤灵珠', slot:'trinket',ultPool:['boss_fire_phoenix','fire_weaken'], statMul:1.5 },
   ],
 }
 

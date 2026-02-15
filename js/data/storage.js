@@ -10,7 +10,7 @@ const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
 
 // 默认玩家数据
 function defaultData() {
-  // 初始装备：一把凡阶火灵飞剑 Lv1 + 一件凡阶水灵衣服 Lv1（均无绝技）
+  // 初始装备：一把凡器火灵铜刀 Lv1 + 一件凡器水灵青衫 Lv1（均无绝技）
   const starterWeapon = generateEquipment('weapon', 'fire', 'white', 1)
   delete starterWeapon.ult          // 新手初始白装无绝技
   starterWeapon.ultTrigger = 999    // 不可触发
@@ -43,9 +43,9 @@ function defaultData() {
     achievements: {
       ach_clear_normal:  { name:'初入仙途', desc:'练气难度通关所有秘境', done:false, claimed:false },
       ach_clear_hard:    { name:'筑基有成', desc:'筑基难度通关所有秘境', done:false, claimed:false },
-      ach_clear_extreme: { name:'金丹大成', desc:'金丹难度通关所有秘境', done:false, claimed:false },
+      ach_clear_extreme: { name:'元婴化神', desc:'元婴难度通关所有秘境', done:false, claimed:false },
       ach_combo8:        { name:'天机连珠', desc:'单次达成8连消', done:false, claimed:false },
-      ach_equip_ssr:     { name:'神兵入手', desc:'拥有1件神阶法宝', done:false, claimed:false },
+      ach_equip_ssr:     { name:'神兵天降', desc:'获得1件神器品质法宝', done:false, claimed:false },
       ach_full_equip:    { name:'法宝齐备', desc:'同时佩戴5件法宝', done:false, claimed:false },
     },
     // 统计

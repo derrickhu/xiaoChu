@@ -232,30 +232,33 @@ class Render {
   }
 
   /** 绘制怪物区主题背景（仅覆盖怪物区域） */
-  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom, levelId) {
+  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom, battleTheme) {
     const {ctx:c,W,S} = this
     const theme = Render.THEME_BG[themeBg] || Render.THEME_BG.theme_metal
     const areaH = areaBottom - areaTop
 
-    // 优先使用关卡专属背景 battle_{levelId}.png，没有则用默认 battle_top_bg.jpg
+    // 按属性匹配背景图：battle_{属性}.jpg，默认用 metal
     let bgImg = null
-    if (levelId) {
-      bgImg = this.getImg(`assets/battle/battle_${levelId}.jpg`)
+    if (battleTheme) {
+      bgImg = this.getImg(`assets/battle/battle_${battleTheme}.jpg`)
       if (!bgImg || !bgImg.width) bgImg = null
     }
-    if (!bgImg) bgImg = this.getImg('assets/battle/battle_1.jpg')
+    if (!bgImg) bgImg = this.getImg('assets/battle/battle_metal.jpg')
     if (bgImg && bgImg.width > 0) {
       c.save()
       c.beginPath(); c.rect(0, areaTop, W, areaH); c.clip()
-      // 图片从顶部对齐，按宽度铺满，高度按比例缩放
+      // 图片底部对齐技能栏上方，顶部向上延伸（上方可留空显示关卡信息）
       const imgScale = W / bgImg.width
       const drawH = bgImg.height * imgScale
-      c.drawImage(bgImg, 0, areaTop, W, drawH)
-      // 底部渐变过渡（让图片底边自然融入下方区域）
-      const fadeH = areaH * 0.3
+      const drawY = areaBottom - drawH  // 底部对齐 areaBottom
+      c.drawImage(bgImg, 0, drawY, W, drawH)
+      // 轻微暗化遮罩，让怪物和UI更清晰
+      c.fillStyle = 'rgba(0,0,0,0.15)'; c.fillRect(0, areaTop, W, areaH)
+      // 底部渐变过渡（让图片底边自然融入技能栏）
+      const fadeH = areaH * 0.2
       const fadeG = c.createLinearGradient(0, areaBottom - fadeH, 0, areaBottom)
       fadeG.addColorStop(0, 'transparent')
-      fadeG.addColorStop(1, 'rgba(0,0,0,0.6)')
+      fadeG.addColorStop(1, 'rgba(0,0,0,0.5)')
       c.fillStyle = fadeG
       c.fillRect(0, areaBottom - fadeH, W, fadeH)
       c.restore()
@@ -268,31 +271,8 @@ class Render {
       bg.addColorStop(1, theme.bot)
       c.fillStyle = bg
       c.fillRect(0, areaTop, W, areaH)
+      c.restore()
     }
-
-    // 主题色光晕（从下方散出）
-    c.save()
-    const glowG = c.createRadialGradient(W/2, areaBottom, 0, W/2, areaBottom, areaH*0.8)
-    glowG.addColorStop(0, theme.accent+'30')
-    glowG.addColorStop(0.5, theme.accent+'10')
-    glowG.addColorStop(1, 'transparent')
-    c.fillStyle = glowG
-    c.fillRect(0, areaTop, W, areaH)
-
-    // 漂浮粒子
-    const particleCount = 8
-    for (let i = 0; i < particleCount; i++) {
-      const seed = i * 137.5
-      const px = (seed * 2.3 + frame * (0.2 + i*0.05)) % W
-      const py = areaTop + ((seed * 3.7 + frame * (0.15 + i*0.03)) % areaH)
-      const pr = (1 + Math.sin(frame * 0.03 + i)) * 1.5 * S
-      const alpha = 0.15 + 0.1 * Math.sin(frame * 0.05 + i * 0.8)
-      c.globalAlpha = alpha
-      c.fillStyle = theme.particle
-      c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
-    }
-    c.globalAlpha = 1
-    c.restore()
   }
 
   drawLevelBg(frame) {
