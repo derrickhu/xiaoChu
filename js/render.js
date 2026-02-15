@@ -226,26 +226,25 @@ class Render {
 
   drawBattleBg(frame, themeBg) {
     const {ctx:c,W,H,S} = this
-    // 下半部（棋盘区）仍用通用战斗背景
-    const img = this.getImg('assets/backgrounds/battle_bg.jpg')
-    if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      const dw=iw*scale, dh=ih*scale
-      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
-      c.save(); c.globalAlpha=0.2; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
-    } else {
-      this.drawBg(frame)
-    }
+    // 下半部（棋盘区）纯暗色背景，不用背景图
+    const bg = c.createLinearGradient(0,0,0,H)
+    bg.addColorStop(0,'#0e0b15'); bg.addColorStop(0.5,'#161220'); bg.addColorStop(1,'#0a0810')
+    c.fillStyle = bg; c.fillRect(0,0,W,H)
   }
 
   /** 绘制怪物区主题背景（仅覆盖怪物区域） */
-  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom) {
+  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom, levelId) {
     const {ctx:c,W,S} = this
     const theme = Render.THEME_BG[themeBg] || Render.THEME_BG.theme_metal
     const areaH = areaBottom - areaTop
 
-    // 优先使用森林背景图
-    const bgImg = this.getImg('assets/backgrounds/battle_top_bg.jpg')
+    // 优先使用关卡专属背景 battle_{levelId}.png，没有则用默认 battle_top_bg.jpg
+    let bgImg = null
+    if (levelId) {
+      bgImg = this.getImg(`assets/battle/battle_${levelId}.jpg`)
+      if (!bgImg || !bgImg.width) bgImg = null
+    }
+    if (!bgImg) bgImg = this.getImg('assets/battle/battle_1.jpg')
     if (bgImg && bgImg.width > 0) {
       c.save()
       c.beginPath(); c.rect(0, areaTop, W, areaH); c.clip()
