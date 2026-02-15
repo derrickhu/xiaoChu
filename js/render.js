@@ -26,7 +26,6 @@ const CLOUD_FILE_PREFIX = 'cloud://cloud1-9glro17fb6f566a8.636c-cloud1-9glro17fb
 // 需要从云存储加载的资源映射：本地路径 → 云存储相对路径
 // 将大体积资源放在云端，突破4MB包体限制
 const CLOUD_ASSETS = {
-  'assets/backgrounds/home_bg.png': 'assets/backgrounds/home_bg.png',
   // 灵珠图片（云端加载）
   'assets/orbs/orb_metal.png': 'assets/orbs/orb_metal.png',
   'assets/orbs/orb_wood.png': 'assets/orbs/orb_wood.png',
@@ -182,7 +181,7 @@ class Render {
 
   drawHomeBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/home_bg.png')
+    const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       const dw=iw*scale, dh=ih*scale
@@ -204,7 +203,7 @@ class Render {
 
   drawLoadingBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/loading_bg.jpg')
+    const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
@@ -298,7 +297,7 @@ class Render {
 
   drawLevelBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/level_bg.jpg')
+    const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       const dw=iw*scale, dh=ih*scale
@@ -311,7 +310,7 @@ class Render {
 
   drawEquipBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/equip_bg.jpg')
+    const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       const dw=iw*scale, dh=ih*scale
