@@ -567,7 +567,8 @@ class Main {
 
     // ===== 2. 怪物区（上半部分，占满到技能栏上方） =====
     // 用主题背景覆盖怪物区（不同关卡不同色调）
-    R.drawEnemyAreaBg(this.af, themeBg, 0, enemyAreaBottom)
+    const battleLevelId = this.curLevel ? this.curLevel.levelId : null
+    R.drawEnemyAreaBg(this.af, themeBg, 0, enemyAreaBottom, battleLevelId)
 
     // 顶部按钮（退出/回合/难度）
     ctx.fillStyle='rgba(0,0,0,0.35)'; R.rr(8*S, enemyAreaTop+4*S, 42*S, 22*S, 11*S); ctx.fill()
