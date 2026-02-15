@@ -192,10 +192,14 @@ class Render {
       g.addColorStop(0,'#1a1035'); g.addColorStop(0.5,'#0d0d2a'); g.addColorStop(1,'#050510')
       c.fillStyle = g; c.fillRect(0,0,W,H)
     }
-    c.save(); c.globalAlpha=0.35
-    const bg = c.createLinearGradient(0,H*0.5,0,H)
-    bg.addColorStop(0,'transparent'); bg.addColorStop(1,'rgba(0,0,0,0.6)')
-    c.fillStyle = bg; c.fillRect(0,0,W,H); c.restore()
+    // 全屏暗化遮罩（让背景图不抢文字）
+    c.save()
+    const overlay = c.createLinearGradient(0,0,0,H)
+    overlay.addColorStop(0,'rgba(0,0,0,0.35)')
+    overlay.addColorStop(0.4,'rgba(0,0,0,0.5)')
+    overlay.addColorStop(1,'rgba(0,0,0,0.7)')
+    c.fillStyle = overlay; c.fillRect(0,0,W,H)
+    c.restore()
   }
 
   drawLoadingBg(frame) {
@@ -241,7 +245,7 @@ class Render {
     const areaH = areaBottom - areaTop
 
     // 优先使用森林背景图
-    const bgImg = this.getImg('assets/backgrounds/battle_top_bg.png')
+    const bgImg = this.getImg('assets/backgrounds/battle_top_bg.jpg')
     if (bgImg && bgImg.width > 0) {
       c.save()
       c.beginPath(); c.rect(0, areaTop, W, areaH); c.clip()
@@ -373,9 +377,10 @@ class Render {
   }
 
   // ===== 敌人 =====
-  drawEnemy(x,y,r,attr,hp,maxHp,name,avatar,frame) {
+  drawEnemy(x,y,r,attr,hp,maxHp,name,avatar,frame,opts) {
     const {ctx:c,S} = this
     const a = A[attr]
+    const hideLabel = opts && opts.hideLabel  // 隐藏名字和HP条
     // 脉冲光环
     const pulse = 1 + 0.04*Math.sin((frame||0)*0.05)
     c.save(); c.globalAlpha=0.25
@@ -392,11 +397,13 @@ class Render {
       g.addColorStop(0,a.lt); g.addColorStop(1,a.dk)
       c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
     }
-    // 名字
-    c.fillStyle=TH.text; c.font=`bold ${12*S}px "PingFang SC",sans-serif`
-    c.textAlign='center'; c.textBaseline='top'; c.fillText(name||'敌人',x,y+r+6*S)
-    // HP条
-    this.drawHp(x-r,y+r+22*S,r*2,5*S,hp,maxHp,a.main)
+    if (!hideLabel) {
+      // 名字
+      c.fillStyle=TH.text; c.font=`bold ${12*S}px "PingFang SC",sans-serif`
+      c.textAlign='center'; c.textBaseline='top'; c.fillText(name||'敌人',x,y+r+6*S)
+      // HP条
+      this.drawHp(x-r,y+r+22*S,r*2,5*S,hp,maxHp,a.main)
+    }
   }
 
   // ===== HP条（立体槽+发光填充+掉血灰色残影） =====
