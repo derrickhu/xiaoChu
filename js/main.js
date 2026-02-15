@@ -567,8 +567,9 @@ class Main {
 
     // ===== 2. 怪物区（上半部分，占满到技能栏上方） =====
     // 用主题背景覆盖怪物区（不同关卡不同色调）
-    const battleLevelId = this.curLevel ? this.curLevel.levelId : null
-    R.drawEnemyAreaBg(this.af, themeBg, 0, enemyAreaBottom, battleLevelId)
+    // 从 bg 字段提取属性名（如 theme_metal → metal）
+    const battleTheme = themeBg.replace('theme_', '')
+    R.drawEnemyAreaBg(this.af, themeBg, 0, enemyAreaBottom, battleTheme)
 
     // 顶部按钮（退出/回合/难度）
     ctx.fillStyle='rgba(0,0,0,0.35)'; R.rr(8*S, enemyAreaTop+4*S, 42*S, 22*S, 11*S); ctx.fill()
@@ -816,8 +817,8 @@ class Main {
     if (this.curLevel && this.curLevel.tutorial) {
       const tip = this.curLevel.tutorial
       let hintText = ''
-      if (tip === 3) hintText = '💡 获得了新头盔！建议佩戴后进入下一关体验换装'
-      else if (tip === 4) hintText = '💡 获得了带绝技的项链！佩戴后下一关试试释放绝技'
+      if (tip === 3) hintText = '💡 获得了新法冠！建议佩戴后进入下一关体验换装'
+      else if (tip === 4) hintText = '💡 获得了带绝技的法珠！佩戴后下一关试试释放绝技'
       if (hintText) {
         ctx.fillStyle = '#ffd700'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
@@ -1880,7 +1881,7 @@ class Main {
           const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
           this._sealedBeads.push({ r, c, dur: sk.dur||2 })
         }
-        this.skillEffects.push({ x:W/2, y:charY-30*S, text:'封灵!', color:'#b366ff', alpha:1, t:0 })
+        this.skillEffects.push({ x:W/2, y:charY-30*S, text:'禁珠咒!', color:'#b366ff', alpha:1, t:0 })
         this._playEnemyAttack(sk.name)
         break
       }
@@ -1981,7 +1982,7 @@ class Main {
           }
         }
         this.heroBuffs.push({ type:'healRate', val:ult.healRate||0.5, dur:ult.healDur||2 })
-        this.skillEffects.push({ x:W/2, y:charY, text:'混沌领域!', color:'#ff22ff', alpha:1, t:0 })
+        this.skillEffects.push({ x:W/2, y:charY, text:'混沌法域!', color:'#ff22ff', alpha:1, t:0 })
         break
       }
     }
