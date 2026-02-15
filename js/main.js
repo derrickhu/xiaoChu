@@ -20,12 +20,17 @@ const {
 const { DIFFICULTY, ALL_LEVELS, getLevelData, TUTORIAL_TIPS } = require('./data/levels')
 const MusicMgr = require('./runtime/music')
 
-// Canvas 初始化
+// Canvas 初始化（高DPI适配：用物理像素渲染，确保清晰度）
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
+const sysInfo = wx.getSystemInfoSync()
+const dpr = sysInfo.pixelRatio || 2
+canvas.width = sysInfo.windowWidth * dpr
+canvas.height = sysInfo.windowHeight * dpr
 const W = canvas.width, H = canvas.height
 const S = W / 375
-const safeTop = (wx.getSystemInfoSync().safeArea?.top || 20) * (W / wx.getSystemInfoSync().windowWidth)
+console.log(`[Canvas] ${W}x${H}, dpr=${dpr}, S=${S.toFixed(2)}`)
+const safeTop = (sysInfo.safeArea?.top || 20) * dpr
 
 const COLS = 6, ROWS = 5
 
@@ -35,6 +40,8 @@ class Main {
   constructor() {
     this.storage = new Storage()
     this.storage.checkDailyReset()
+    // 云初始化完成后，预加载云存储资源
+    this.storage.onCloudReady = () => R.preloadCloudAssets()
     this.scene = 'loading'
     this.af = 0
     this.scrollY = 0; this.maxScrollY = 0
@@ -941,8 +948,8 @@ class Main {
   onTouch(type, e) {
     const t = e.touches[0] || e.changedTouches[0]
     if (!t) return
-    const x = t.clientX * (W/wx.getSystemInfoSync().windowWidth)
-    const y = t.clientY * (H/wx.getSystemInfoSync().windowHeight)
+    const x = t.clientX * dpr
+    const y = t.clientY * dpr
 
     switch(this.scene) {
       case 'intro':         this.tIntro(type,x,y); break

@@ -20,15 +20,75 @@ const TH = {
   hard:'#ff8c00', extreme:'#ff4d6a',
 }
 
+// 云存储文件ID前缀
+const CLOUD_FILE_PREFIX = 'cloud://cloud1-9glro17fb6f566a8.636c-cloud1-9glro17fb6f566a8-1404581587/'
+
+// 需要从云存储加载的资源映射：本地路径 → 云存储相对路径
+// 将大体积资源放在云端，突破4MB包体限制
+const CLOUD_ASSETS = {
+  'assets/backgrounds/home_bg.png': 'assets/backgrounds/home_bg.png',
+  // 灵珠图片（云端加载）
+  'assets/orbs/orb_metal.png': 'assets/orbs/orb_metal.png',
+  'assets/orbs/orb_wood.png': 'assets/orbs/orb_wood.png',
+  'assets/orbs/orb_earth.png': 'assets/orbs/orb_earth.png',
+  'assets/orbs/orb_water.png': 'assets/orbs/orb_water.png',
+  'assets/orbs/orb_fire.png': 'assets/orbs/orb_fire.png',
+  'assets/orbs/orb_heart.png': 'assets/orbs/orb_heart.png',
+}
+
 class Render {
   constructor(ctx, W, H, S, safeTop) {
     this.ctx = ctx; this.W = W; this.H = H; this.S = S; this.safeTop = safeTop
     this._imgCache = {}
+    this._cloudUrlCache = {}   // fileID → tempURL 缓存
+    this._cloudLoading = {}    // 正在加载的云资源标记（防重复请求）
     // 背景星点
     this.bgStars = Array.from({length:40}, () => ({
       x: Math.random()*W, y: Math.random()*H,
       r: 0.5+Math.random()*1.5, sp: 0.3+Math.random()*0.7, ph: Math.random()*6.28
     }))
+  }
+
+  // ===== 云存储预加载 =====
+  // 在wx.cloud初始化完成后调用，批量获取云资源临时链接
+  preloadCloudAssets() {
+    const fileList = Object.values(CLOUD_ASSETS).map(p => CLOUD_FILE_PREFIX + p)
+    if (fileList.length === 0) return
+    console.log('[Cloud] 开始预加载云资源, 数量:', fileList.length)
+    wx.cloud.getTempFileURL({
+      fileList,
+      success: (res) => {
+        if (!res.fileList) return
+        res.fileList.forEach(item => {
+          if (item.status === 0 && item.tempFileURL) {
+            this._cloudUrlCache[item.fileID] = item.tempFileURL
+            console.log('[Cloud] 获取临时链接成功:', item.fileID.split('/').pop())
+            // 立即预加载图片到缓存
+            const localPath = this._fileIdToLocalPath(item.fileID)
+            if (localPath && !this._imgCache[localPath]) {
+              const img = wx.createImage()
+              img.onload = () => console.log('[Cloud] 图片加载完成:', localPath, '尺寸:', img.width, 'x', img.height)
+              img.onerror = (e) => console.warn('[Cloud] 图片加载失败:', localPath, e)
+              img.src = item.tempFileURL
+              this._imgCache[localPath] = img
+            }
+          } else {
+            console.warn('[Cloud] 获取临时链接失败:', item.fileID, item.status, item.errMsg)
+          }
+        })
+      },
+      fail: (err) => {
+        console.warn('[Cloud] getTempFileURL 失败:', err)
+      }
+    })
+  }
+
+  // fileID → 本地路径的反向映射
+  _fileIdToLocalPath(fileID) {
+    for (const [local, cloud] of Object.entries(CLOUD_ASSETS)) {
+      if (fileID === CLOUD_FILE_PREFIX + cloud) return local
+    }
+    return null
   }
 
   // ===== 基础绘制 =====
@@ -40,11 +100,71 @@ class Render {
   }
 
   getImg(path) {
+    // 已有缓存直接返回（无论是本地还是云端加载的）
     if (this._imgCache[path]) return this._imgCache[path]
+    // 如果是云存储资源，走异步加载
+    if (CLOUD_ASSETS[path]) {
+      this._loadCloudImg(path)
+      // 返回一个空占位，等云端加载完毕后下一帧自动渲染
+      return null
+    }
+    // 本地资源
     const img = wx.createImage()
     img.src = path
     this._imgCache[path] = img
     return img
+  }
+
+  // 异步加载云存储图片
+  _loadCloudImg(localPath) {
+    if (this._cloudLoading[localPath]) return  // 已在加载中
+    this._cloudLoading[localPath] = true
+    const fileID = CLOUD_FILE_PREFIX + CLOUD_ASSETS[localPath]
+    // 优先使用已缓存的临时链接
+    if (this._cloudUrlCache[fileID]) {
+      const img = wx.createImage()
+      img.onload = () => {
+        console.log('[Cloud] 图片就绪:', localPath)
+        delete this._cloudLoading[localPath]
+      }
+      img.onerror = () => {
+        console.warn('[Cloud] 图片加载失败，清除缓存重试:', localPath)
+        delete this._cloudLoading[localPath]
+        delete this._cloudUrlCache[fileID]
+      }
+      img.src = this._cloudUrlCache[fileID]
+      this._imgCache[localPath] = img
+      return
+    }
+    // 没有临时链接，实时获取
+    console.log('[Cloud] 实时获取临时链接:', localPath)
+    wx.cloud.getTempFileURL({
+      fileList: [fileID],
+      success: (res) => {
+        const item = res.fileList && res.fileList[0]
+        if (item && item.status === 0 && item.tempFileURL) {
+          this._cloudUrlCache[fileID] = item.tempFileURL
+          const img = wx.createImage()
+          img.onload = () => {
+            console.log('[Cloud] 图片就绪:', localPath)
+            delete this._cloudLoading[localPath]
+          }
+          img.onerror = () => {
+            console.warn('[Cloud] 图片加载失败:', localPath)
+            delete this._cloudLoading[localPath]
+          }
+          img.src = item.tempFileURL
+          this._imgCache[localPath] = img
+        } else {
+          console.warn('[Cloud] 获取链接失败:', localPath, item?.errMsg)
+          delete this._cloudLoading[localPath]
+        }
+      },
+      fail: (err) => {
+        console.warn('[Cloud] getTempFileURL失败:', localPath, err)
+        delete this._cloudLoading[localPath]
+      }
+    })
   }
 
   // ===== 背景 =====
@@ -62,7 +182,7 @@ class Render {
 
   drawHomeBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/home_bg.jpg')
+    const img = this.getImg('assets/backgrounds/home_bg.png')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       const dw=iw*scale, dh=ih*scale
@@ -208,10 +328,11 @@ class Render {
     if (img && img.width > 0) {
       // 圆形裁剪：只显示球体，隐藏背景色
       c.save()
+      c.imageSmoothingEnabled = true
+      c.imageSmoothingQuality = 'high'
       c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.clip()
-      // 放大1.5倍绘制，使球体内容占满圆形区域（图片中球体约占65-90%）
-      const scale = 1.5
-      const sz = r * 2 * scale
+      // 1:1绘制，珠子图案刚好填满圆形裁剪区域
+      const sz = r * 2
       c.drawImage(img, x - sz/2, y - sz/2, sz, sz)
       c.restore()
     } else {
