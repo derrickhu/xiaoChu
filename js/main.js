@@ -14,7 +14,8 @@ const {
   COUNTER_MAP, COUNTER_BY, ATK_KEY, DEF_KEY,
   EQUIP_SLOT, QUALITY, QUALITY_ORDER,
   STAT_DEFS, STAT_KEYS,
-  randomDrop, generateEquipment,
+  generateEquipment, generateEliteEquipment, generateBossSetDrop,
+  settlementDrop, randomQuality,
 } = require('./data/equipment')
 const { DIFFICULTY, ALL_LEVELS, getLevelData, TUTORIAL_TIPS } = require('./data/levels')
 const MusicMgr = require('./runtime/music')
@@ -543,6 +544,11 @@ class Main {
         // 新手引导：显示关卡标题
         ctx.fillStyle='#ffd700'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
         ctx.textAlign='center'; ctx.fillText(`引导 ${this.curLevel.tutorial}/5`, W/2, enemyAreaTop+15*S)
+      } else if (this.curLevel.elite) {
+        // 精英标记
+        const eliteLabel = this.curLevel.elite === 'boss' ? '⭐ 大精英' : '⭐ 精英'
+        ctx.fillStyle='#ffd700'; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.textAlign='center'; ctx.fillText(eliteLabel, W/2, enemyAreaTop+15*S)
       } else {
         const d = DIFFICULTY[this.curLevel.difficulty]
         ctx.fillStyle=d.color; ctx.font=`bold ${10*S}px "PingFang SC",sans-serif`
@@ -579,11 +585,11 @@ class Main {
     // ===== 5. 棋盘 =====
     this._drawBoard(boardTop)
 
-    // ===== 6. 绝技蓄力（集成在技能图标栏，点击触发） =====
+    // ===== 6. 绝技蓄力（集成在技能图标栏，点击触发，只包含有绝技的装备） =====
     const equipped = this.storage.equipped
-    const eqList = Object.keys(equipped).map(slot => equipped[slot]).filter(e => e)
-    if (eqList.length > 0) {
-      this._ultIconArea = { y: skillBarTop, h: skillBarH, count: eqList.length, list: eqList }
+    const ultList = Object.keys(equipped).map(slot => equipped[slot]).filter(e => e && e.ult)
+    if (ultList.length > 0) {
+      this._ultIconArea = { y: skillBarTop, h: skillBarH, count: ultList.length, list: ultList }
     } else {
       this._ultIconArea = null
     }
@@ -627,14 +633,6 @@ class Main {
     // 属性面板
     if (this.statPanel && this.statPanel.visible) this._drawStatPanel()
 
-    // 掉落弹窗
-    if (this.dropPopup) {
-      R.drawDropPopup(30*S,H*0.2,W-60*S,H*0.45,this.dropPopup,this.af)
-      const btnY = H*0.2+H*0.45-44*S
-      R.drawBtn(40*S,btnY,100*S,34*S,'佩戴',TH.success)
-      R.drawBtn(W-140*S,btnY,100*S,34*S,'暂存',TH.info)
-    }
-
     // 新手引导面板
     if (this._tutorialTip && this._tutorialTip.visible) {
       this._drawTutorialPanel()
@@ -648,48 +646,148 @@ class Main {
   _drawVictory() {
     ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
     ctx.fillStyle=TH.accent; ctx.font=`bold ${36*S}px "PingFang SC",sans-serif`
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.22)
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎉 胜利!',W/2,H*0.15)
     ctx.fillStyle=TH.text; ctx.font=`${14*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.29)
+    ctx.fillText(`回合: ${this.turnCount}  Combo: ${this.combo}`,W/2,H*0.21)
+    // 精英标记
+    if (this.curLevel && this.curLevel.elite) {
+      const eliteLabel = this.curLevel.elite === 'boss' ? '⭐ 大精英讨伐成功!' : '⭐ 精英讨伐成功!'
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText(eliteLabel, W/2, H*0.25)
+    }
     ctx.fillStyle=TH.accent; ctx.font=`bold ${14*S}px "PingFang SC",sans-serif`
-    ctx.fillText('── 战利品 ──',W/2,H*0.35)
+    ctx.fillText('── 战利品 ──',W/2,H*0.27)
     ctx.fillStyle='#ffd700'; ctx.font=`bold ${16*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`💰 +${this.battleGold||200} 灵石`,W/2,H*0.41)
+    ctx.fillText(`💰 +${this.battleGold||200} 灵石`,W/2,H*0.32)
     const drops = this.tempEquips || []
     if (drops.length > 0) {
       ctx.fillStyle=TH.sub; ctx.font=`${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`获得法宝 ×${drops.length}`,W/2,H*0.47)
-      const iconSz = 42*S, gap = 8*S
-      const totalW = drops.length * iconSz + (drops.length-1) * gap
-      let startX = (W - totalW) / 2
-      const iconY = H*0.50
-      drops.forEach(eq => {
+      ctx.fillText(`获得法宝 ×${drops.length}`,W/2,H*0.37)
+
+      // 展示每件掉落装备的详细信息
+      let detailY = H*0.40
+      drops.forEach((eq, idx) => {
         const q = QUALITY[eq.quality]
         const a = ATTR_COLOR[eq.attr] || BEAD_ATTR_COLOR[eq.attr]
-        ctx.fillStyle = 'rgba(20,20,40,0.9)'
-        R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.fill()
-        ctx.strokeStyle = q.color; ctx.lineWidth = 2*S
-        R.rr(startX, iconY, iconSz, iconSz, 6*S); ctx.stroke()
-        if (a) { ctx.fillStyle = a.main; R.rr(startX+2*S, iconY+2*S, 3*S, iconSz-4*S, 1.5*S); ctx.fill() }
-        const eqIcon = R.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
-        if (eqIcon && eqIcon.width > 0) {
-          ctx.drawImage(eqIcon, startX+4*S, iconY+4*S, iconSz-8*S, iconSz-8*S)
+        const cardX = 24*S, cardW = W - 48*S, cardH = eq.ult ? 90*S : 65*S
+        // 卡片背景（精英装备用更亮的边框）
+        if (eq.elite || eq.setName) {
+          ctx.fillStyle = 'rgba(40,30,15,0.95)'
         } else {
-          const slot = EQUIP_SLOT[eq.slot]
-          ctx.fillStyle = '#fff'; ctx.font = `${20*S}px "PingFang SC",sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-          ctx.fillText(slot.icon, startX+iconSz/2, iconY+iconSz/2)
+          ctx.fillStyle = 'rgba(20,20,40,0.9)'
         }
-        ctx.fillStyle = q.color; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-        ctx.fillText(q.name, startX+iconSz/2, iconY+iconSz+2*S)
-        startX += iconSz + gap
+        R.rr(cardX, detailY, cardW, cardH, 8*S); ctx.fill()
+        ctx.strokeStyle = (eq.elite || eq.setName) ? '#ffd700' : q.color
+        ctx.lineWidth = (eq.elite || eq.setName) ? 2*S : 1.5*S
+        R.rr(cardX, detailY, cardW, cardH, 8*S); ctx.stroke()
+        // 属性色条
+        if (a) { ctx.fillStyle = a.main; R.rr(cardX+3*S, detailY+3*S, 3*S, cardH-6*S, 1.5*S); ctx.fill() }
+        // 精英/套装标签
+        let nameOffsetX = cardX+14*S
+        if (eq.setName) {
+          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.fillText(`【${eq.setName}套装】`, nameOffsetX, detailY+6*S)
+          nameOffsetX += ctx.measureText(`【${eq.setName}套装】`).width + 4*S
+        } else if (eq.elite) {
+          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.fillText('【精英】', nameOffsetX, detailY+6*S)
+          nameOffsetX += ctx.measureText('【精英】').width + 4*S
+        }
+        // 名称
+        ctx.fillStyle = q.color; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.fillText(eq.name, nameOffsetX, detailY+6*S)
+        // 品质+属性+槽位
+        ctx.fillStyle = TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`${q.name} · ${ATTR_NAME[eq.attr]}属性 · ${EQUIP_SLOT[eq.slot].name}`, cardX+14*S, detailY+22*S)
+        // 属性加成
+        if (eq.stats) {
+          let sx = cardX+14*S, sy = detailY+36*S
+          Object.entries(eq.stats).forEach(([k,v]) => {
+            const sd = STAT_DEFS[k]
+            if (!sd) return
+            ctx.fillStyle = TH.text; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+            const txt = `${sd.name}+${v}`
+            ctx.fillText(txt, sx, sy)
+            sx += ctx.measureText(txt).width + 8*S
+            if (sx > cardX + cardW - 30*S) { sx = cardX+14*S; sy += 13*S }
+          })
+        }
+        // 绝技
+        if (eq.ult) {
+          const ultLabel = eq.ult.exclusive ? '★ 专属绝技: ' : '★ 绝技: '
+          ctx.fillStyle = eq.ult.exclusive ? '#ffd700' : TH.accent
+          ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`${ultLabel}${eq.ult.name}`, cardX+14*S, detailY+52*S)
+          ctx.fillStyle = TH.sub; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          // 动态计算绝技实际数值（基于人物属性）
+          const heroS = this.heroStats || this.storage.getHeroStats()
+          const desc = eq.ult.desc.replace(/{(\w+)}/g, (m,k) => {
+            if (k === 'dur') return eq.ult.buffDur || ''
+            if (k === 'pct') {
+              return eq.ult.dmgPct || eq.ult.healPct || eq.ult.defPct || eq.ult.debuffPct || ''
+            }
+            if (k === 'dmg' && eq.ult.dmgPct) {
+              const atkKey = ATK_KEY[eq.attr]
+              const selfAtk = heroS[atkKey] || 10
+              return Math.round(selfAtk * eq.ult.dmgPct / 100)
+            }
+            if (k === 'heal' && eq.ult.healPct) {
+              const recovery = heroS.recovery || 8
+              return Math.round(recovery * eq.ult.healPct / 100)
+            }
+            if (k === 'def' && eq.ult.defPct) {
+              const stamina = heroS.stamina || 60
+              return Math.round(stamina * eq.ult.defPct / 100)
+            }
+            if (k === 'debuff' && eq.ult.debuffPct) {
+              const atkKey = ATK_KEY[eq.attr]
+              const selfAtk = heroS[atkKey] || 10
+              return Math.round(selfAtk * eq.ult.debuffPct / 100)
+            }
+            return eq.ult[k] || m
+          })
+          ctx.fillText(desc, cardX+14*S, detailY+65*S)
+        }
+        // 佩戴/暂存按钮
+        const btnW2 = 52*S, btnH2 = 22*S
+        const equipBtnX = cardX + cardW - btnW2*2 - 12*S, storeBtnX = cardX + cardW - btnW2 - 6*S
+        const btnY2 = detailY + 4*S
+        if (eq._equipped) {
+          ctx.fillStyle = TH.success; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'right'; ctx.textBaseline = 'top'
+          ctx.fillText('✓ 已佩戴', cardX + cardW - 8*S, detailY + 8*S)
+        } else if (eq._stored) {
+          ctx.fillStyle = TH.dim; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'right'; ctx.textBaseline = 'top'
+          ctx.fillText('已暂存', cardX + cardW - 8*S, detailY + 8*S)
+        } else {
+          R.drawBtn(equipBtnX, btnY2, btnW2, btnH2, '佩戴', TH.success)
+          R.drawBtn(storeBtnX, btnY2, btnW2, btnH2, '暂存', TH.info)
+          eq._btnRect = { equipX:equipBtnX, storeX:storeBtnX, y:btnY2, w:btnW2, h:btnH2 }
+        }
+
+        detailY += cardH + 6*S
       })
     } else {
       ctx.fillStyle=TH.dim; ctx.font=`${12*S}px "PingFang SC",sans-serif`
-      ctx.fillText('本局未获得法宝',W/2,H*0.50)
+      ctx.fillText('本局未获得法宝',W/2,H*0.42)
     }
-    const btnW = 130*S, gap2 = 16*S, btnY2 = H*0.68
+    // 新手引导提示
+    if (this.curLevel && this.curLevel.tutorial) {
+      const tip = this.curLevel.tutorial
+      let hintText = ''
+      if (tip === 3) hintText = '💡 获得了新头盔！建议佩戴后进入下一关体验换装'
+      else if (tip === 4) hintText = '💡 获得了带绝技的项链！佩戴后下一关试试释放绝技'
+      if (hintText) {
+        ctx.fillStyle = '#ffd700'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(hintText, W/2, H*0.82)
+      }
+    }
+    const btnW = 130*S, gap2 = 16*S, btnY2 = H*0.87
     R.drawBtn(W/2-btnW-gap2/2, btnY2, btnW, 40*S, '继续闯关', TH.success)
     R.drawBtn(W/2+gap2/2, btnY2, btnW, 40*S, '回到首页', TH.info)
   }
@@ -910,35 +1008,32 @@ class Main {
       if (type === 'end') { this.statPanel = null }
       return
     }
-    // 掉落弹窗
-    if (this.dropPopup) {
-      if (type !== 'end') return
-      const btnY = H*0.2+H*0.45-44*S
-      if (this._hitRect(x,y,40*S,btnY,100*S,34*S)) {
-        const eq = this.dropPopup
-        if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
-          this.storage.addToInventory(eq)
-        }
-        this.storage.equipItem(eq.uid)
-        this.tempEquips.push(eq)
-        this.dropPopup = null
-      } else if (this._hitRect(x,y,W-140*S,btnY,100*S,34*S)) {
-        const eq = this.dropPopup
-        if (!this.storage.inventory.find(e => e.uid === eq.uid)) {
-          this.storage.addToInventory(eq)
-        }
-        this.tempEquips.push(eq)
-        this.dropPopup = null
-      }
-      return
-    }
     // 胜利按钮
     if (this.bState === 'victory') {
       if (type !== 'end') return
-      const btnW = 130*S, gap = 16*S, btnY = H*0.68
+      // 先检查掉落装备上的佩戴/暂存按钮
+      const drops = this.tempEquips || []
+      for (const eq of drops) {
+        if (!eq._btnRect) continue
+        const r = eq._btnRect
+        if (this._hitRect(x,y, r.equipX, r.y, r.w, r.h)) {
+          // 佩戴
+          this.storage.equipItem(eq.uid)
+          eq._equipped = true
+          return
+        } else if (this._hitRect(x,y, r.storeX, r.y, r.w, r.h)) {
+          // 暂存（已在 _onVictory 时 addToInventory 了，无需再操作）
+          eq._stored = true
+          return
+        }
+      }
+      const btnW = 130*S, gap = 16*S, btnY = H*0.87
       if (this._hitRect(x,y, W/2-btnW-gap/2, btnY, btnW, 40*S)) {
-        this.bState = 'none'
-        this._startBattle(this.storage.currentLevel, 'normal')
+        // 继续闯关：直接进入下一关战斗，跳过准备页面
+        this._cleanupBattle()
+        this.curLevel = getLevelData(this.storage.currentLevel, 'normal')
+        if (!this.curLevel) { this.curLevel = getLevelData(ALL_LEVELS[0].levelId, 'normal') }
+        this._enterBattle()
       } else if (this._hitRect(x,y, W/2+gap/2, btnY, btnW, 40*S)) {
         this._cleanupBattle(); this.scene = 'home'
       }
@@ -1535,11 +1630,12 @@ class Main {
     const charY = this._getEnemyCenterY()
     let hasEffect = false
 
-    if (sk.dmg) {
+    if (sk.dmgPct) {
+      // 伤害 = 人物对应五行攻击力 × dmgPct%
       const atkKey = ATK_KEY[attr]
       const selfAtk = heroS[atkKey] || 10
-      const skillCoeff = sk.dmg / 100
-      let dmg = selfAtk * skillCoeff
+      let dmg = Math.round(selfAtk * sk.dmgPct / 100)
+      // 减去敌方防御
       const defKey = DEF_KEY[attr]
       const enemyDef = enemyS[defKey] || 0
       dmg -= enemyDef
@@ -1560,23 +1656,30 @@ class Main {
         hasEffect = true
       }
     }
-    if (sk.heal) {
-      const healAmt = sk.heal + (heroS.recovery || 0)
+    if (sk.healPct) {
+      // 回复 = 人物回复值 × healPct%
+      const recovery = heroS.recovery || 8
+      const healAmt = Math.round(recovery * sk.healPct / 100)
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + healAmt)
       this.dmgFloats.push({ x:W*0.3, y:H*0.65, text:`+${healAmt} HP`, color:TH.success, alpha:1, scale:1.2, t:0 })
       this._playHealEffect(sk.name)
       hasEffect = true
     }
-    if (sk.def) {
-      const shieldAmt = sk.def
+    if (sk.defPct) {
+      // 护盾 = 人物气力(血量) × defPct%
+      const stamina = heroS.stamina || 60
+      const shieldAmt = Math.round(stamina * sk.defPct / 100)
       this.heroShield = (this.heroShield || 0) + shieldAmt
       this.heroBuffs.push({ type:'shield', val:shieldAmt, dur: 3 })
       this.dmgFloats.push({ x:W*0.3, y:H*0.6, text:`+${shieldAmt} 护盾`, color:'#74c0fc', alpha:1, scale:1.3, t:0 })
       this._playShieldEffect(sk.name, attr)
       hasEffect = true
     }
-    if (sk.debuff) {
-      const debuffAmt = sk.debuff
+    if (sk.debuffPct) {
+      // 减益 = 人物对应五行攻击力 × debuffPct%
+      const atkKey = ATK_KEY[attr]
+      const selfAtk = heroS[atkKey] || 10
+      const debuffAmt = Math.round(selfAtk * sk.debuffPct / 100)
       this.enemyBuffs.push({ type:'atkDown', val:debuffAmt, dur: 3 })
       this.dmgFloats.push({ x:W*0.5, y:charY+20*S, text:`-${debuffAmt} 攻击`, color:'#da77f2', alpha:1, scale:1.2, t:0 })
       this._playDebuffEffect(sk.name, attr)
@@ -1681,14 +1784,6 @@ class Main {
     }
 
     if (this.heroHp <= 0) { this._onDefeat(); return }
-    // 掉落（装备品质和等级受关卡层数限制）— 新手引导关不在回合中掉落
-    if (!this.curLevel.tutorial && this.curLevel.dropRate && Math.random() < this.curLevel.dropRate * 0.3) {
-      const stageIndex = this.curLevel.levelId % 100 || 1  // 层数1-10
-      const drop = randomDrop(this.curLevel.tier, stageIndex)
-      this.storage.addToInventory(drop)
-      this.dropPopup = drop
-      this.storage.updateTaskProgress('dt3', 1)
-    }
     this.turnCount++
     this._stateTimer = 0
     this._enemyTurnWait = true
@@ -1857,25 +1952,60 @@ class Main {
     this.battleGold = 200
     this.storage.gold += this.battleGold
 
-    // 新手引导关固定掉落
+    // 新手引导关固定掉落（放入 tempEquips，在结算画面统一展示）
     if (lv.tutorialDrop === 'helmet_green_no_ult') {
-      // 第4关：绿装头盔，无绝技
-      const enemyAttr = lv.enemy?.attr || 'earth'
+      const enemyAttr = lv.enemy?.attr || 'water'
       const helmet = generateEquipment('helmet', enemyAttr, 'green', 2)
       delete helmet.ult
       helmet.ultTrigger = 999
       this.storage.addToInventory(helmet)
-      this.dropPopup = helmet
       this.tempEquips.push(helmet)
       this.storage.updateTaskProgress('dt3', 1)
     } else if (lv.tutorialDrop === 'trinket_green_with_ult') {
-      // 第5关：绿装项链，带绝技
-      const enemyAttr = lv.enemy?.attr || 'metal'
+      const enemyAttr = lv.enemy?.attr || 'earth'
       const trinket = generateEquipment('trinket', enemyAttr, 'green', 2)
       this.storage.addToInventory(trinket)
-      this.dropPopup = trinket
       this.tempEquips.push(trinket)
       this.storage.updateTaskProgress('dt3', 1)
+    }
+
+    // 通用结算掉落：根据关卡 dropConfig 生成装备
+    if (lv.dropConfig) {
+      const drops = settlementDrop(lv.dropConfig)
+      drops.forEach(eq => {
+        this.storage.addToInventory(eq)
+        this.tempEquips.push(eq)
+        this.storage.updateTaskProgress('dt3', 1)
+      })
+    }
+
+    // 精英专属掉落：小精英掉专属装备，大精英掉套装
+    if (lv.eliteDrop) {
+      const ed = lv.eliteDrop
+      if (Math.random() < ed.dropRate) {
+        const quality = randomQuality(ed.qualityWeights)
+        const [minLv, maxLv] = ed.levelRange || [1, 10]
+        const eqLv = Math.round(minLv + Math.random() * (maxLv - minLv))
+
+        if (ed.type === 'mini_elite') {
+          // 小精英：掉1件精英专属装备
+          const slots = ['weapon','helmet','armor','cloak','trinket']
+          const slot = slots[Math.floor(Math.random() * slots.length)]
+          const eliteEq = generateEliteEquipment(slot, ed.attr, quality, eqLv)
+          this.storage.addToInventory(eliteEq)
+          this.tempEquips.push(eliteEq)
+          this.storage.updateTaskProgress('dt3', 1)
+        } else if (ed.type === 'big_boss') {
+          // 大精英：掉1件套装（30%概率2件）
+          const setCount = ed.setCount || (Math.random() < 0.3 ? 2 : 1)
+          const setDrops = generateBossSetDrop(ed.attr, quality, eqLv, setCount)
+          setDrops.forEach(eq => {
+            this.storage.addToInventory(eq)
+            this.tempEquips.push(eq)
+            this.storage.updateTaskProgress('dt3', 1)
+          })
+        }
+      }
     }
   }
 

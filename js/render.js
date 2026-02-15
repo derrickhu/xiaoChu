@@ -1084,8 +1084,9 @@ class Render {
     c.strokeStyle = 'rgba(255,255,255,0.08)'; c.lineWidth = 1
     c.beginPath(); c.moveTo(x, y+h); c.lineTo(x+w, y+h); c.stroke()
 
-    const eqList = Object.values(equipped).filter(e => e)
-    const iconSize = 40*S          // 技能图标缩小到 40
+    // 只展示有绝技的装备（无绝技的不展示）
+    const ultList = Object.values(equipped).filter(e => e && e.ult)
+    const iconSize = 40*S          // 绝技图标尺寸
     const gap = 5*S
     const heroSize = h - 6*S       // 角色头像撑满栏高（留3px上下边距）
     const heroPad = 6*S            // 头像左侧内边距
@@ -1102,30 +1103,31 @@ class Render {
     c.strokeStyle = 'rgba(255,215,0,0.25)'; c.lineWidth = 1*S
     c.beginPath(); c.moveTo(divX, y + 6*S); c.lineTo(divX, y + h - 6*S); c.stroke()
 
-    // ===== 绘制技能图标（分隔线右侧） =====
+    // ===== 绘制绝技图标（分隔线右侧，只展示有绝技的装备） =====
     const skillStartX = divX + dividerGap
-    if (eqList.length === 0) {
+    if (ultList.length === 0) {
       c.fillStyle = TH.dim; c.font = `${11*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('未装备法宝', skillStartX + 50*S, y+h/2)
+      c.fillText('无绝技', skillStartX + 50*S, y+h/2)
       c.restore()
       return
     }
 
-    // 技能区域可用宽度，图标在其中均匀排列
+    // 绝技区域可用宽度，图标在其中均匀排列
     const skillAreaW = w - skillStartX - 6*S
-    const actualGap = eqList.length > 1
-      ? Math.min(gap, (skillAreaW - eqList.length * iconSize) / (eqList.length - 1))
+    const actualGap = ultList.length > 1
+      ? Math.min(gap, (skillAreaW - ultList.length * iconSize) / (ultList.length - 1))
       : 0
-    const skillsTotalW = eqList.length * iconSize + Math.max(0, eqList.length-1) * actualGap
+    const skillsTotalW = ultList.length * iconSize + Math.max(0, ultList.length-1) * actualGap
     const skillOffsetX = skillStartX + (skillAreaW - skillsTotalW) / 2
 
-    eqList.forEach((eq, idx) => {
+    ultList.forEach((eq, idx) => {
       const ix = skillOffsetX + idx * (iconSize + actualGap)
       const cur = (skillTriggers || {})[eq.attr] || 0
       const ready = cur >= eq.ultTrigger
       const a = ATTR_COLOR[eq.attr]
       const q = QUALITY[eq.quality]
+      const ult = eq.ult
 
       // 底部阴影
       c.fillStyle = 'rgba(0,0,0,0.3)'
@@ -1137,29 +1139,26 @@ class Render {
       c.fillStyle = ibg; this.rr(ix, iconY, iconSize, iconSize, 6*S); c.fill()
 
       // 属性色叠加
-      c.save(); c.globalAlpha = 0.1
+      c.save(); c.globalAlpha = 0.15
       c.fillStyle = a.main; this.rr(ix, iconY, iconSize, iconSize, 6*S); c.fill()
       c.restore()
 
-      // 技能图标：优先用装备图标图片，降级用部位名首字+属性色渐变
-      const icx = ix + iconSize/2, icy = iconY + iconSize*0.42
+      // 绝技图标：用绝技名首字 + 属性色渐变圆形
+      const icx = ix + iconSize/2, icy = iconY + iconSize*0.38
       const icR = iconSize * 0.28
-      const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
-      if (eqImg && eqImg.width > 0) {
-        c.save()
-        c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.clip()
-        c.drawImage(eqImg, icx-icR, icy-icR, icR*2, icR*2)
-        c.restore()
-      } else {
-        const skG = c.createRadialGradient(icx-icR*0.2, icy-icR*0.2, icR*0.1, icx, icy, icR)
-        skG.addColorStop(0, a.lt); skG.addColorStop(0.7, a.main); skG.addColorStop(1, a.dk)
-        c.fillStyle = skG; c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.fill()
-        const slotName = EQUIP_SLOT[eq.slot]?.name || ''
-        const skillChar = slotName.charAt(0) || (eq.ult?.name || '').charAt(0) || '?'
-        c.fillStyle = '#fff'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-        c.textAlign = 'center'; c.textBaseline = 'middle'
-        c.fillText(skillChar, icx, icy)
-      }
+      const skG = c.createRadialGradient(icx-icR*0.2, icy-icR*0.2, icR*0.1, icx, icy, icR)
+      skG.addColorStop(0, a.lt); skG.addColorStop(0.7, a.main); skG.addColorStop(1, a.dk)
+      c.fillStyle = skG; c.beginPath(); c.arc(icx, icy, icR, 0, Math.PI*2); c.fill()
+      // 绝技名首字
+      const ultChar = (ult.name || '').charAt(0) || '技'
+      c.fillStyle = '#fff'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText(ultChar, icx, icy)
+
+      // 绝技名（图标下方小字）
+      c.fillStyle = TH.sub; c.font = `${6*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'top'
+      c.fillText(ult.name, ix+iconSize/2, iconY+iconSize*0.7)
 
       // 边框（就绪时金色脉冲）
       if (ready) {
