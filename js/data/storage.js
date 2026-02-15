@@ -84,7 +84,7 @@ class Storage {
   getHeroStats() {
     // 基础值
     const s = {
-      stamina: 200,  // 气力值（影响血量）
+      stamina: 60,   // 气力值（影响血量）— 低基础值增加战斗紧张感
       metalAtk: 18, woodAtk: 18, earthAtk: 18, waterAtk: 18, fireAtk: 18,
       metalDef: 5,   woodDef: 5,  earthDef: 5,  waterDef: 5,  fireDef: 5,
       recovery: 8,   // 回复值（心珠回血基础）

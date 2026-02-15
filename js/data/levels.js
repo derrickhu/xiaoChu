@@ -100,16 +100,16 @@ const TUTORIAL_TIPS = {
   4: {
     title: '装备强化',
     tips: [
-      '击败妖兽可获得法宝装备',
+      '上一关获得了新头盔，已在结算时佩戴',
       '装备会增加属性（攻/防/气力/回复）',
+      '注意观察佩戴新装备后属性变化',
       '更好的装备让你的修士更强大',
-      '尝试佩戴新法宝替换旧装备',
     ],
   },
   5: {
     title: '绝技释放',
     tips: [
-      '部分装备附带绝技（仙术）',
+      '上一关获得的项链附带绝技（仙术）',
       '消除对应属性灵珠为绝技蓄力',
       '蓄力满后点击绝技图标即可释放',
       '善用绝技可大幅提升战斗效率',
@@ -132,7 +132,7 @@ function _genTutorialLevels() {
       attr: 'wood',
       hp: 60,
       stamina: 60,
-      metalAtk:3, woodAtk:6, earthAtk:3, waterAtk:3, fireAtk:3,
+      metalAtk:2, woodAtk:5, earthAtk:2, waterAtk:2, fireAtk:2,
       metalDef:1, woodDef:2, earthDef:1, waterDef:1, fireDef:1,
       recovery: 0,
       skills: [],
@@ -141,7 +141,7 @@ function _genTutorialLevels() {
     },
     // 无心珠，只有五行珠
     beadWeights: { metal:20, wood:20, earth:20, water:20, fire:20, heart:0 },
-    dropRate: 0,
+    dropConfig: null,
     specialCond: null,
   })
 
@@ -165,11 +165,12 @@ function _genTutorialLevels() {
       avatar: 'assets/enemies/enemy_fire_1.jpg',
     },
     beadWeights: { metal:20, wood:20, earth:20, water:20, fire:20, heart:0 },
-    dropRate: 0,
+    dropConfig: null,
     specialCond: null,
   })
 
-  // 第3关：心珠回复教学
+  // 第3关：心珠回复教学 — 怪攻击很高，让玩家感受到回血的必要性
+  // 胜利后掉落绿装头盔（无绝技），供第4关换装教学使用
   levels.push({
     levelId: 3,
     theme: 'tutorial',
@@ -181,7 +182,7 @@ function _genTutorialLevels() {
       attr: 'water',
       hp: 100,
       stamina: 100,
-      metalAtk:3, woodAtk:3, earthAtk:3, waterAtk:10, fireAtk:3,
+      metalAtk:8, woodAtk:8, earthAtk:8, waterAtk:25, fireAtk:8,
       metalDef:1, woodDef:1, earthDef:1, waterDef:2, fireDef:1,
       recovery: 0,
       skills: [],
@@ -190,11 +191,13 @@ function _genTutorialLevels() {
     },
     // 加入心珠
     beadWeights: { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 },
-    dropRate: 0,
+    dropConfig: null,
+    tutorialDrop: 'helmet_green_no_ult',  // 第3关胜利掉绿装头盔（无绝技）→第4关换装
     specialCond: null,
   })
 
-  // 第4关：装备教学，怪稍强（前两回合打血慢），必掉绿装头盔（无绝技）
+  // 第4关：装备教学 — 玩家已从第3关获得绿装头盔，本关教换装
+  // 胜利后掉落绿装项链（带绝技），供第5关绝技教学使用
   levels.push({
     levelId: 4,
     theme: 'tutorial',
@@ -204,9 +207,9 @@ function _genTutorialLevels() {
     enemy: {
       name: '土灵妖兵',
       attr: 'earth',
-      hp: 150,
-      stamina: 150,
-      metalAtk:4, woodAtk:4, earthAtk:14, waterAtk:4, fireAtk:4,
+      hp: 140,
+      stamina: 140,
+      metalAtk:6, woodAtk:6, earthAtk:18, waterAtk:6, fireAtk:6,
       metalDef:2, woodDef:2, earthDef:4, waterDef:2, fireDef:2,
       recovery: 0,
       skills: [],
@@ -214,12 +217,12 @@ function _genTutorialLevels() {
       avatar: 'assets/enemies/enemy_earth_1.jpg',
     },
     beadWeights: { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 },
-    dropRate: 1.0,  // 100%掉落
-    tutorialDrop: 'helmet_green_no_ult',  // 标记：固定掉落绿装头盔无绝技
+    dropConfig: null,
+    tutorialDrop: 'trinket_green_with_ult',  // 第4关胜利掉绿装项链（带绝技）→第5关用
     specialCond: null,
   })
 
-  // 第5关：绝技教学，掉落绿装项链带绝技
+  // 第5关：绝技教学 — 玩家已从第4关获得带绝技的项链，本关教释放绝技
   levels.push({
     levelId: 5,
     theme: 'tutorial',
@@ -231,7 +234,7 @@ function _genTutorialLevels() {
       attr: 'metal',
       hp: 180,
       stamina: 180,
-      metalAtk:5, woodAtk:4, earthAtk:4, waterAtk:4, fireAtk:16,
+      metalAtk:8, woodAtk:6, earthAtk:6, waterAtk:6, fireAtk:20,
       metalDef:3, woodDef:2, earthDef:2, waterDef:2, fireDef:2,
       recovery: 0,
       skills: [],
@@ -239,8 +242,7 @@ function _genTutorialLevels() {
       avatar: 'assets/enemies/enemy_metal_1.jpg',
     },
     beadWeights: { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 },
-    dropRate: 1.0,  // 100%掉落
-    tutorialDrop: 'trinket_green_with_ult',  // 标记：固定掉落绿装项链带绝技
+    dropConfig: null,
     specialCond: null,
   })
 
@@ -260,10 +262,16 @@ function _genThemeLevels(attr, startId) {
   const an = ATTR_NAME[attr]
   const levels = []
   for (let i = 1; i <= 10; i++) {
-    const baseHp = 120 + i * 65
-    // 怪物攻击力提升：让战斗更有压力
-    const baseAtk = 12 + i * 5
-    const baseDef = 2 + i * 1
+    const isMiniBoss = (i === 5)   // 小精英：第5层
+    const isBigBoss  = (i === 10)  // 大精英：第10层
+
+    // 精英怪血量倍率：小精英×1.6，大精英×2.2
+    const hpMul = isBigBoss ? 2.2 : isMiniBoss ? 1.6 : 1.0
+    const baseHp = Math.round((200 + i * 90) * hpMul)
+    // 精英怪攻防倍率：小精英×1.3，大精英×1.6
+    const statMul = isBigBoss ? 1.6 : isMiniBoss ? 1.3 : 1.0
+    const baseAtk = Math.round((12 + i * 5) * statMul)
+    const baseDef = Math.round((2 + i * 1) * statMul)
     const atkStats = {}; const defStats = {}
     ATTRS.forEach(a => {
       const atkKey = ATK_KEY[a], defKey = DEF_KEY[a]
@@ -279,40 +287,113 @@ function _genThemeLevels(attr, startId) {
     if (i >= 4) skills.push({ ...ENEMY_SKILLS.atkBuff, triggerTurn: 3 })
     if (i >= 6) skills.push({ ...ENEMY_SKILLS.seal, triggerTurn: 4 })
     if (i >= 8) skills.push({ ...ENEMY_SKILLS.poison, val: 15 + i*4, triggerTurn: 2 })
-    if (i === 10) skills.push({ ...ENEMY_SKILLS.aoe, val: 50 + i*10, triggerTurn: 5 })
+    if (isBigBoss) skills.push({ ...ENEMY_SKILLS.aoe, val: 50 + i*10, triggerTurn: 5 })
+    // 精英怪额外技能
+    if (isMiniBoss) {
+      skills.push({ ...ENEMY_SKILLS.defDown, triggerTurn: 3 })
+      skills.push({ ...ENEMY_SKILLS.convert, triggerTurn: 4 })
+    }
+    if (isBigBoss) {
+      skills.push({ ...ENEMY_SKILLS.healBlock, triggerTurn: 3 })
+      skills.push({ ...ENEMY_SKILLS.seal, triggerTurn: 3 })
+    }
 
-    // 怪物绝技：第3层开始拥有绝技，回合越高触发越快
+    // 怪物绝技：精英怪更早拥有绝技且更频繁
     const ults = []
-    if (i >= 3) {
-      ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[attr]], triggerTurn: i <= 5 ? 5 : i <= 8 ? 4 : 3 })
+    if (isMiniBoss || isBigBoss) {
+      // 精英必定拥有属性绝技，触发更快
+      ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[attr]], triggerTurn: isBigBoss ? 3 : 4 })
+      ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: isBigBoss ? 4 : 5 })
+      if (isBigBoss) {
+        ults.push({ ...ENEMY_ULTS.regen, triggerTurn: 5 })
+      }
+    } else {
+      if (i >= 3) {
+        ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[attr]], triggerTurn: i <= 5 ? 5 : i <= 8 ? 4 : 3 })
+      }
+      if (i >= 7) {
+        ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: 6 })
+      }
     }
-    if (i >= 7) {
-      ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: 6 })
-    }
-    if (i === 10) {
-      ults.push({ ...ENEMY_ULTS.regen, triggerTurn: 5 })
+
+    // 怪物名称：精英怪用特殊名称
+    let enemyName
+    if (isBigBoss)  enemyName = `${an}灵妖帝`
+    else if (isMiniBoss) enemyName = `${an}灵精英`
+    else enemyName = `${an}灵${i<=3?'妖兵':i<=6?'妖将':'妖王'}`
+
+    // 掉落配置：精英关使用特殊掉落
+    let dropConfig, eliteDrop = null
+    if (isMiniBoss) {
+      // 小精英：普通掉落 + 专属精英装备掉落（概率60%）
+      dropConfig = {
+        qualityWeights: { white:30, green:40, blue:25, purple:5 },
+        levelRange: [Math.max(1, i - 1), Math.min(30, i + 3)],
+        attr: attr,
+        count: 1,
+      }
+      eliteDrop = {
+        type: 'mini_elite',
+        dropRate: 0.6,           // 60%概率掉专属装备
+        attr: attr,
+        qualityWeights: { green:40, blue:40, purple:18, orange:2 },  // 品质更好
+        levelRange: [Math.max(1, i), Math.min(30, i + 4)],
+      }
+    } else if (isBigBoss) {
+      // 大精英：普通掉落 + 专属套装掉落（概率50%）
+      dropConfig = {
+        qualityWeights: { white:10, green:30, blue:35, purple:20, orange:5 },
+        levelRange: [Math.max(1, i - 1), Math.min(30, i + 3)],
+        attr: attr,
+        count: 1,
+      }
+      eliteDrop = {
+        type: 'big_boss',
+        dropRate: 0.5,           // 50%概率掉套装件
+        attr: attr,
+        qualityWeights: { blue:35, purple:40, orange:25 },  // 高品质
+        levelRange: [Math.max(1, i), Math.min(30, i + 5)],
+        setCount: 1,             // 每次掉落1件套装（30%概率2件）
+      }
+    } else {
+      dropConfig = {
+        qualityWeights: i <= 3
+          ? { white:60, green:35, blue:5 }
+          : i <= 6
+            ? { white:40, green:40, blue:18, purple:2 }
+            : i <= 9
+              ? { white:20, green:40, blue:30, purple:10 }
+              : { white:10, green:30, blue:35, purple:20, orange:5 },
+        levelRange: [Math.max(1, i - 1), Math.min(30, i + 3)],
+        attr: attr,
+        count: 1,
+      }
     }
 
     levels.push({
       levelId: startId + i,
       theme: attr,
-      bg: `theme_${attr}`,   // 战斗背景主题标识
-      name: `${an}灵秘境·第${i}层`,
+      bg: `theme_${attr}`,
+      name: isMiniBoss ? `${an}灵秘境·精英守卫`
+           : isBigBoss ? `${an}灵秘境·妖帝降临`
+           : `${an}灵秘境·第${i}层`,
+      elite: isMiniBoss ? 'mini' : isBigBoss ? 'boss' : null,  // 精英标记
       enemy: {
-        name: `${an}灵${i<=3?'妖兵':i<=6?'妖将':i<=9?'妖王':'妖帝'}`,
+        name: enemyName,
         attr,
         hp: baseHp,
-        stamina: baseHp,  // 怪物气力=血量
+        stamina: baseHp,
         ...atkStats,
         ...defStats,
-        recovery: 0,
+        recovery: isBigBoss ? Math.round(baseHp * 0.02) : 0,  // 大精英有少量回复
         skills,
-        ults,  // 怪物绝技
-        avatar: `assets/enemies/enemy_${attr}_${i<=3?1:i<=6?2:3}.jpg`,
+        ults,
+        avatar: `assets/enemies/enemy_${attr}_${isMiniBoss?2:isBigBoss?3:i<=3?1:i<=6?2:3}.jpg`,
       },
       beadWeights: _themeWeights(attr),
-      dropRate: 0.15 + i * 0.03,
-      specialCond: i === 10 ? { type:'turnLimit', turns:15, reward:'extraEquip' } : null,
+      dropConfig,
+      eliteDrop,    // 精英专属掉落配置
+      specialCond: isBigBoss ? { type:'turnLimit', turns:15, reward:'extraEquip' } : null,
     })
   }
   return levels
@@ -332,9 +413,14 @@ function _themeWeights(attr) {
 function _genMixedLevels() {
   const levels = []
   for (let i = 1; i <= 10; i++) {
-    const baseHp = 280 + i * 110
-    const baseAtk = 18 + i * 7
-    const baseDef = 3 + i * 2
+    const isMiniBoss = (i === 5)
+    const isBigBoss  = (i === 10)
+
+    const hpMul = isBigBoss ? 2.2 : isMiniBoss ? 1.6 : 1.0
+    const baseHp = Math.round((400 + i * 160) * hpMul)
+    const statMul = isBigBoss ? 1.6 : isMiniBoss ? 1.3 : 1.0
+    const baseAtk = Math.round((18 + i * 7) * statMul)
+    const baseDef = Math.round((3 + i * 2) * statMul)
     const enemyAttr = ATTRS[(i - 1) % 5]
     // 混沌怪物：所有五行攻防均衡偏高
     const atkStats = {}; const defStats = {}
@@ -352,42 +438,112 @@ function _genMixedLevels() {
     ]
     if (i >= 4) skills.push({ ...ENEMY_SKILLS.healBlock, triggerTurn: 4 })
     if (i >= 7) skills.push({ ...ENEMY_SKILLS.aoe, val: 70 + i*12, triggerTurn: 3 })
+    // 精英额外技能
+    if (isMiniBoss) {
+      skills.push({ ...ENEMY_SKILLS.seal, triggerTurn: 3 })
+    }
+    if (isBigBoss) {
+      skills.push({ ...ENEMY_SKILLS.poison, val: 30 + i*5, triggerTurn: 2 })
+    }
 
-    // 混沌秘境绝技：更早出现，更多绝技
+    // 混沌秘境绝技
     const ults = []
-    if (i >= 2) {
-      ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[enemyAttr]], triggerTurn: i <= 4 ? 5 : 4 })
+    if (isMiniBoss || isBigBoss) {
+      ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[enemyAttr]], triggerTurn: isBigBoss ? 3 : 4 })
+      ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: isBigBoss ? 4 : 5 })
+      if (isBigBoss) {
+        ults.push({ ...ENEMY_ULTS.chaos_field, triggerTurn: 5 })
+        ults.push({ ...ENEMY_ULTS.regen, triggerTurn: 4 })
+      }
+    } else {
+      if (i >= 2) {
+        ults.push({ ...ENEMY_ULTS[ATTR_ULT_MAP[enemyAttr]], triggerTurn: i <= 4 ? 5 : 4 })
+      }
+      if (i >= 5) {
+        ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: 5 })
+      }
+      if (i >= 7) {
+        ults.push({ ...ENEMY_ULTS.chaos_field, triggerTurn: 6 })
+      }
+      if (i >= 9) {
+        ults.push({ ...ENEMY_ULTS.regen, triggerTurn: 4 })
+      }
     }
-    if (i >= 5) {
-      ults.push({ ...ENEMY_ULTS.berserk, triggerTurn: 5 })
-    }
-    if (i >= 7) {
-      ults.push({ ...ENEMY_ULTS.chaos_field, triggerTurn: 6 })
-    }
-    if (i >= 9) {
-      ults.push({ ...ENEMY_ULTS.regen, triggerTurn: 4 })
+
+    // 怪物命名
+    let enemyName
+    if (isBigBoss) enemyName = '混沌魔神'
+    else if (isMiniBoss) enemyName = '混沌精英'
+    else enemyName = `混沌${i<=5?'妖兽':'魔尊'}`
+
+    // 掉落配置
+    let dropConfig, eliteDrop = null
+    if (isMiniBoss) {
+      dropConfig = {
+        qualityWeights: { white:10, green:35, blue:35, purple:18, orange:2 },
+        levelRange: [Math.max(1, i + 2), Math.min(30, i * 2 + 5)],
+        count: 1,
+      }
+      eliteDrop = {
+        type: 'mini_elite',
+        dropRate: 0.65,
+        attr: enemyAttr,
+        qualityWeights: { green:25, blue:40, purple:28, orange:7 },
+        levelRange: [Math.max(1, i + 2), Math.min(30, i * 2 + 5)],
+      }
+    } else if (isBigBoss) {
+      dropConfig = {
+        qualityWeights: { white:0, green:15, blue:35, purple:35, orange:15 },
+        levelRange: [Math.max(1, i + 2), Math.min(30, i * 2 + 5)],
+        count: 1,
+      }
+      eliteDrop = {
+        type: 'big_boss',
+        dropRate: 0.55,
+        attr: enemyAttr,
+        qualityWeights: { blue:25, purple:45, orange:30 },
+        levelRange: [Math.max(1, i + 3), Math.min(30, i * 2 + 8)],
+        setCount: 1,
+      }
+    } else {
+      dropConfig = {
+        qualityWeights: i <= 3
+          ? { white:30, green:40, blue:25, purple:5 }
+          : i <= 6
+            ? { white:15, green:35, blue:35, purple:13, orange:2 }
+            : i <= 9
+              ? { white:5, green:25, blue:40, purple:25, orange:5 }
+              : { white:0, green:15, blue:35, purple:35, orange:15 },
+        levelRange: [Math.max(1, i + 2), Math.min(30, i * 2 + 5)],
+        count: 1,
+      }
     }
 
     levels.push({
       levelId: 600 + i,
       theme: 'mixed',
-      bg: 'theme_mixed',    // 混沌秘境背景
-      name: `混沌秘境·第${i}层`,
+      bg: 'theme_mixed',
+      name: isMiniBoss ? '混沌秘境·精英试炼'
+           : isBigBoss ? '混沌秘境·魔神降临'
+           : `混沌秘境·第${i}层`,
+      elite: isMiniBoss ? 'mini' : isBigBoss ? 'boss' : null,
       enemy: {
-        name: `混沌${i<=5?'妖兽':'魔尊'}`,
+        name: enemyName,
         attr: enemyAttr,
         hp: baseHp,
         stamina: baseHp,
         ...atkStats,
         ...defStats,
-        recovery: 0,
+        recovery: isBigBoss ? Math.round(baseHp * 0.02) : 0,
         skills,
-        ults,  // 怪物绝技
-        avatar: `assets/enemies/enemy_mixed_${i<=5?1:2}.jpg`,
+        ults,
+        avatar: `assets/enemies/enemy_mixed_${isMiniBoss?2:isBigBoss?2:i<=5?1:2}.jpg`,
       },
       beadWeights: { metal:16, wood:16, earth:16, water:16, fire:16, heart:20 },
-      dropRate: 0.25 + i * 0.03,
-      specialCond: i >= 8 ? { type:'comboReq', count:5, reward:'extraEquip' } : null,
+      dropConfig,
+      eliteDrop,
+      specialCond: isBigBoss ? { type:'comboReq', count:5, reward:'extraEquip' } :
+                   (i >= 8 ? { type:'comboReq', count:5, reward:'extraEquip' } : null),
     })
   }
   return levels

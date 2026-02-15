@@ -103,133 +103,139 @@ const MAX_LEVEL = 30
 // 每个绝技有唯一id，包含名称、描述、效果类型和按品质分档的数值
 // 装备模板通过 ultPool 指定可选绝技列表
 
+// 绝技数值说明（属性百分比系统）：
+// - dmgPct: 伤害 = 人物对应五行攻击力 × dmgPct%  (如250 = 2.5倍攻击力)
+// - healPct: 回复 = 人物回复值 × healPct%  (如300 = 3倍回复值)
+// - defPct: 护盾 = 人物气力(血量) × defPct%  (如25 = 25%血量)
+// - debuffPct: 减益 = 人物对应五行攻击力 × debuffPct%  (如60 = 0.6倍攻击力降攻)
+
 const ULT_LIBRARY = {
   // ===== 伤害类绝技 =====
   golden_slash: {
     id: 'golden_slash', name: '金光斩', attr: 'metal',
-    desc: '金灵之力造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [50, 80, 120, 170, 250],
+    desc: '金灵之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [200, 280, 380, 500, 700],
   },
   wood_sword: {
     id: 'wood_sword', name: '青木剑气', attr: 'wood',
-    desc: '木灵剑气造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [50, 80, 120, 170, 250],
+    desc: '木灵剑气造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [200, 280, 380, 500, 700],
   },
   earth_slam: {
     id: 'earth_slam', name: '裂地击', attr: 'earth',
-    desc: '土灵之力造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [50, 80, 120, 170, 250],
+    desc: '土灵之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [200, 280, 380, 500, 700],
   },
   ice_blast: {
     id: 'ice_blast', name: '寒冰诀', attr: 'water',
-    desc: '水灵之力造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [50, 80, 120, 170, 250],
+    desc: '水灵之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [200, 280, 380, 500, 700],
   },
   true_fire: {
     id: 'true_fire', name: '三昧真火', attr: 'fire',
-    desc: '火灵之力造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [60, 95, 140, 200, 280],
+    desc: '火灵之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [240, 320, 440, 580, 800],
   },
   wind_blade: {
     id: 'wind_blade', name: '疾风斩', attr: 'metal',
-    desc: '高速金风造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [45, 75, 110, 160, 230],
+    desc: '高速金风造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [180, 250, 340, 460, 650],
   },
   thorns: {
     id: 'thorns', name: '荆棘缠绕', attr: 'wood',
-    desc: '木灵荆棘造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [45, 70, 105, 150, 220],
+    desc: '木灵荆棘造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [180, 250, 340, 460, 650],
   },
   lava_burst: {
     id: 'lava_burst', name: '熔岩爆发', attr: 'fire',
-    desc: '烈焰喷发造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [55, 85, 130, 180, 260],
+    desc: '烈焰喷发造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [220, 300, 400, 540, 750],
   },
   tidal_wave: {
     id: 'tidal_wave', name: '潮汐之力', attr: 'water',
-    desc: '汹涌水灵造成{dmg}点伤害',
-    effect: 'dmg', baseDmg: [50, 80, 120, 170, 250],
+    desc: '汹涌水灵造成{dmg}点伤害（{pct}%攻击力）',
+    effect: 'dmg', baseDmgPct: [200, 280, 380, 500, 700],
   },
 
   // ===== 回复类绝技 =====
   golden_armor_heal: {
     id: 'golden_armor_heal', name: '金丝回元', attr: 'metal',
-    desc: '金灵护体回复{heal}点气血',
-    effect: 'heal', baseHeal: [15, 25, 40, 60, 90],
+    desc: '金灵护体回复{heal}点气血（{pct}%回复力）',
+    effect: 'heal', baseHealPct: [250, 350, 500, 700, 1000],
   },
   life_spring: {
     id: 'life_spring', name: '生机涌泉', attr: 'wood',
-    desc: '木灵生机回复{heal}点气血',
-    effect: 'heal', baseHeal: [20, 35, 50, 75, 110],
+    desc: '木灵生机回复{heal}点气血（{pct}%回复力）',
+    effect: 'heal', baseHealPct: [300, 420, 600, 850, 1200],
   },
   earth_nurture: {
     id: 'earth_nurture', name: '厚土培元', attr: 'earth',
-    desc: '土灵滋养回复{heal}点气血',
-    effect: 'heal', baseHeal: [15, 25, 40, 60, 90],
+    desc: '土灵滋养回复{heal}点气血（{pct}%回复力）',
+    effect: 'heal', baseHealPct: [250, 350, 500, 700, 1000],
   },
   water_heal: {
     id: 'water_heal', name: '碧水仙诀', attr: 'water',
-    desc: '水灵治愈回复{heal}点气血',
-    effect: 'heal', baseHeal: [18, 30, 45, 65, 100],
+    desc: '水灵治愈回复{heal}点气血（{pct}%回复力）',
+    effect: 'heal', baseHealPct: [280, 400, 560, 780, 1100],
   },
   fire_rebirth: {
     id: 'fire_rebirth', name: '浴火重生', attr: 'fire',
-    desc: '火灵焚烧后回复{heal}点气血',
-    effect: 'heal', baseHeal: [12, 22, 35, 55, 80],
+    desc: '火灵焚烧后回复{heal}点气血（{pct}%回复力）',
+    effect: 'heal', baseHealPct: [200, 300, 420, 600, 880],
   },
 
   // ===== 护盾类绝技 =====
   golden_bell: {
     id: 'golden_bell', name: '金钟罩', attr: 'metal',
-    desc: '金灵护体获得{def}点护盾,持续{dur}回合',
-    effect: 'def', baseDef: [10, 18, 30, 45, 65],
+    desc: '金灵护体获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect: 'def', baseDefPct: [15, 25, 38, 55, 80],
   },
   earth_wall: {
     id: 'earth_wall', name: '厚土壁垒', attr: 'earth',
-    desc: '厚土之力获得{def}点护盾,持续{dur}回合',
-    effect: 'def', baseDef: [12, 22, 35, 55, 80],
+    desc: '厚土之力获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect: 'def', baseDefPct: [18, 30, 45, 65, 95],
   },
   ice_shield: {
     id: 'ice_shield', name: '冰晶护体', attr: 'water',
-    desc: '冰灵结晶获得{def}点护盾,持续{dur}回合',
-    effect: 'def', baseDef: [10, 18, 30, 45, 65],
+    desc: '冰灵结晶获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect: 'def', baseDefPct: [15, 25, 38, 55, 80],
   },
   wood_barrier: {
     id: 'wood_barrier', name: '翠灵结界', attr: 'wood',
-    desc: '木灵结界获得{def}点护盾,持续{dur}回合',
-    effect: 'def', baseDef: [8, 15, 25, 40, 58],
+    desc: '木灵结界获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect: 'def', baseDefPct: [12, 20, 32, 48, 70],
   },
   flame_shield: {
     id: 'flame_shield', name: '炎灵护壁', attr: 'fire',
-    desc: '火灵结界获得{def}点护盾,持续{dur}回合',
-    effect: 'def', baseDef: [8, 14, 22, 35, 52],
+    desc: '火灵结界获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect: 'def', baseDefPct: [12, 20, 30, 45, 65],
   },
 
   // ===== 减益类绝技 =====
   metal_seal: {
     id: 'metal_seal', name: '金灵封印', attr: 'metal',
-    desc: '封印敌方降低攻击{debuff}点,持续{dur}回合',
-    effect: 'debuff', baseDebuff: [8, 14, 22, 35, 50],
+    desc: '封印敌方降低攻击{debuff}点,持续{dur}回合（{pct}%攻击力）',
+    effect: 'debuff', baseDebuffPct: [40, 60, 85, 120, 170],
   },
   poison_mist: {
     id: 'poison_mist', name: '毒雾弥漫', attr: 'wood',
-    desc: '毒灵弥漫降低敌方攻击{debuff}点,持续{dur}回合',
-    effect: 'debuff', baseDebuff: [10, 16, 25, 38, 55],
+    desc: '毒灵弥漫降低敌方攻击{debuff}点,持续{dur}回合（{pct}%攻击力）',
+    effect: 'debuff', baseDebuffPct: [50, 70, 100, 140, 200],
   },
   quicksand: {
     id: 'quicksand', name: '流沙陷阱', attr: 'earth',
-    desc: '流沙困敌降低攻击{debuff}点,持续{dur}回合',
-    effect: 'debuff', baseDebuff: [8, 14, 22, 35, 50],
+    desc: '流沙困敌降低攻击{debuff}点,持续{dur}回合（{pct}%攻击力）',
+    effect: 'debuff', baseDebuffPct: [40, 60, 85, 120, 170],
   },
   frost_slow: {
     id: 'frost_slow', name: '霜寒减速', attr: 'water',
-    desc: '寒冰侵袭降低敌方攻击{debuff}点,持续{dur}回合',
-    effect: 'debuff', baseDebuff: [8, 14, 22, 35, 50],
+    desc: '寒冰侵袭降低敌方攻击{debuff}点,持续{dur}回合（{pct}%攻击力）',
+    effect: 'debuff', baseDebuffPct: [40, 60, 85, 120, 170],
   },
   fire_weaken: {
     id: 'fire_weaken', name: '灼热削弱', attr: 'fire',
-    desc: '灼热降低敌方攻击{debuff}点,持续{dur}回合',
-    effect: 'debuff', baseDebuff: [7, 12, 20, 30, 45],
+    desc: '灼热降低敌方攻击{debuff}点,持续{dur}回合（{pct}%攻击力）',
+    effect: 'debuff', baseDebuffPct: [35, 55, 78, 110, 155],
   },
 }
 
@@ -277,6 +283,157 @@ const EQUIP_TEMPLATES = {
   trinket_fire_1:  { name:'赤炎灵珠', slot:'trinket', attr:'fire',  ultPool:['fire_weaken','lava_burst'] },
 }
 
+// ========================================
+// ===== 精英专属绝技库 =====
+// ========================================
+// 精英专属绝技比普通绝技数值更高，且拥有独特效果
+
+const ELITE_ULT_LIBRARY = {
+  // --- 小精英专属绝技（单件装备附带，百分比更高） ---
+  elite_metal_blade: {
+    id:'elite_metal_blade', name:'破军金刃', attr:'metal',
+    desc:'精英之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[280,400,550,750,1050],
+    exclusive:true,
+  },
+  elite_wood_life: {
+    id:'elite_wood_life', name:'万木回春', attr:'wood',
+    desc:'精英灵力回复{heal}点气血（{pct}%回复力）',
+    effect:'heal', baseHealPct:[400,560,800,1100,1600],
+    exclusive:true,
+  },
+  elite_earth_fortress: {
+    id:'elite_earth_fortress', name:'磐石金身', attr:'earth',
+    desc:'厚土精英之力获得{def}点护盾,持续{dur}回合（{pct}%气力）',
+    effect:'def', baseDefPct:[25,40,60,90,130],
+    exclusive:true,
+  },
+  elite_water_torrent: {
+    id:'elite_water_torrent', name:'怒涛灭世', attr:'water',
+    desc:'精英水灵造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[270,380,530,720,1000],
+    exclusive:true,
+  },
+  elite_fire_annihilation: {
+    id:'elite_fire_annihilation', name:'天火焚城', attr:'fire',
+    desc:'精英火灵造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[300,420,580,800,1100],
+    exclusive:true,
+  },
+  // --- 大精英套装绝技（套装装备可能附带，百分比最高） ---
+  boss_metal_storm: {
+    id:'boss_metal_storm', name:'万剑归宗', attr:'metal',
+    desc:'剑气风暴造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[360,500,700,950,1350],
+    exclusive:true,
+  },
+  boss_wood_domain: {
+    id:'boss_wood_domain', name:'森罗万象', attr:'wood',
+    desc:'森灵领域回复{heal}点气血（{pct}%回复力）',
+    effect:'heal', baseHealPct:[500,700,1000,1400,2000],
+    exclusive:true,
+  },
+  boss_earth_titan: {
+    id:'boss_earth_titan', name:'泰山压顶', attr:'earth',
+    desc:'泰坦之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[340,480,670,920,1300],
+    exclusive:true,
+  },
+  boss_water_abyss: {
+    id:'boss_water_abyss', name:'深渊漩涡', attr:'water',
+    desc:'深渊之力造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[330,460,650,900,1280],
+    exclusive:true,
+  },
+  boss_fire_phoenix: {
+    id:'boss_fire_phoenix', name:'凤凰涅槃', attr:'fire',
+    desc:'凤凰之火造成{dmg}点伤害（{pct}%攻击力）',
+    effect:'dmg', baseDmgPct:[350,490,680,940,1320],
+    exclusive:true,
+  },
+}
+
+// ========================================
+// ===== 精英装备模板库 =====
+// ========================================
+// 精英装备：属性上限更高（×1.35倍）、必定有绝技、可能附带专属绝技
+
+// 小精英专属装备（每个属性1件标志性装备）
+const ELITE_EQUIP_TEMPLATES = {
+  elite_weapon_metal: { name:'破军·金鸾剑', slot:'weapon', attr:'metal', ultPool:['elite_metal_blade','golden_slash','wind_blade'], statMul:1.35 },
+  elite_weapon_wood:  { name:'回春·青藤杖', slot:'weapon', attr:'wood',  ultPool:['elite_wood_life','wood_sword','thorns'], statMul:1.35 },
+  elite_weapon_earth: { name:'磐岩·厚土锤', slot:'weapon', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
+  elite_weapon_water: { name:'怒涛·碧波剑', slot:'weapon', attr:'water', ultPool:['elite_water_torrent','ice_blast','tidal_wave'], statMul:1.35 },
+  elite_weapon_fire:  { name:'天火·赤炎刀', slot:'weapon', attr:'fire',  ultPool:['elite_fire_annihilation','true_fire','lava_burst'], statMul:1.35 },
+  elite_helmet_metal: { name:'破军·金鸾冠', slot:'helmet', attr:'metal', ultPool:['elite_metal_blade','golden_bell'], statMul:1.35 },
+  elite_helmet_wood:  { name:'回春·翠灵冠', slot:'helmet', attr:'wood',  ultPool:['elite_wood_life','wood_barrier'], statMul:1.35 },
+  elite_helmet_earth: { name:'磐岩·厚土冠', slot:'helmet', attr:'earth', ultPool:['elite_earth_fortress','earth_wall'], statMul:1.35 },
+  elite_helmet_water: { name:'怒涛·碧水冠', slot:'helmet', attr:'water', ultPool:['elite_water_torrent','ice_shield'], statMul:1.35 },
+  elite_helmet_fire:  { name:'天火·赤焰冠', slot:'helmet', attr:'fire',  ultPool:['elite_fire_annihilation','flame_shield'], statMul:1.35 },
+  elite_armor_metal:  { name:'破军·金鸾袍', slot:'armor', attr:'metal', ultPool:['golden_armor_heal','golden_bell'], statMul:1.35 },
+  elite_armor_wood:   { name:'回春·生机衣', slot:'armor', attr:'wood',  ultPool:['elite_wood_life','life_spring'], statMul:1.35 },
+  elite_armor_earth:  { name:'磐岩·厚土袍', slot:'armor', attr:'earth', ultPool:['elite_earth_fortress','earth_nurture'], statMul:1.35 },
+  elite_armor_water:  { name:'怒涛·碧水衣', slot:'armor', attr:'water', ultPool:['elite_water_torrent','water_heal'], statMul:1.35 },
+  elite_armor_fire:   { name:'天火·赤焰袍', slot:'armor', attr:'fire',  ultPool:['elite_fire_annihilation','fire_rebirth'], statMul:1.35 },
+  elite_trinket_metal:{ name:'破军·金灵珠', slot:'trinket', attr:'metal', ultPool:['elite_metal_blade','metal_seal'], statMul:1.35 },
+  elite_trinket_wood: { name:'回春·青木佩', slot:'trinket', attr:'wood',  ultPool:['elite_wood_life','poison_mist'], statMul:1.35 },
+  elite_trinket_earth:{ name:'磐岩·厚土佩', slot:'trinket', attr:'earth', ultPool:['elite_earth_fortress','quicksand'], statMul:1.35 },
+  elite_trinket_water:{ name:'怒涛·碧海玉', slot:'trinket', attr:'water', ultPool:['elite_water_torrent','frost_slow'], statMul:1.35 },
+  elite_trinket_fire: { name:'天火·赤炎珠', slot:'trinket', attr:'fire',  ultPool:['elite_fire_annihilation','fire_weaken'], statMul:1.35 },
+  elite_cloak_metal:  { name:'破军·金风披', slot:'cloak', attr:'metal', ultPool:['elite_metal_blade','golden_slash'], statMul:1.35 },
+  elite_cloak_wood:   { name:'回春·翠竹披', slot:'cloak', attr:'wood',  ultPool:['elite_wood_life','wood_sword'], statMul:1.35 },
+  elite_cloak_earth:  { name:'磐岩·厚土披', slot:'cloak', attr:'earth', ultPool:['elite_earth_fortress','earth_slam'], statMul:1.35 },
+  elite_cloak_water:  { name:'怒涛·碧水纱', slot:'cloak', attr:'water', ultPool:['elite_water_torrent','ice_blast'], statMul:1.35 },
+  elite_cloak_fire:   { name:'天火·赤焰披', slot:'cloak', attr:'fire',  ultPool:['elite_fire_annihilation','true_fire'], statMul:1.35 },
+}
+
+// 大精英套装名（每属性一套，5件套）
+const BOSS_SET_NAMES = {
+  metal: '万剑宗',
+  wood:  '森罗界',
+  earth: '泰山府',
+  water: '深渊殿',
+  fire:  '凤凰台',
+}
+// 大精英套装模板（5件套，stat倍率更高×1.5）
+const BOSS_SET_TEMPLATES = {
+  metal: [
+    { name:'万剑宗·破天剑', slot:'weapon', ultPool:['boss_metal_storm','elite_metal_blade'], statMul:1.5 },
+    { name:'万剑宗·金鸾冠', slot:'helmet', ultPool:['golden_bell','elite_metal_blade'], statMul:1.5 },
+    { name:'万剑宗·护心铠', slot:'armor',  ultPool:['golden_armor_heal','golden_bell'], statMul:1.5 },
+    { name:'万剑宗·风灵披', slot:'cloak',  ultPool:['boss_metal_storm','wind_blade'], statMul:1.5 },
+    { name:'万剑宗·剑心珠', slot:'trinket',ultPool:['boss_metal_storm','metal_seal'], statMul:1.5 },
+  ],
+  wood: [
+    { name:'森罗界·万木杖', slot:'weapon', ultPool:['boss_wood_domain','elite_wood_life'], statMul:1.5 },
+    { name:'森罗界·翠灵冠', slot:'helmet', ultPool:['wood_barrier','elite_wood_life'], statMul:1.5 },
+    { name:'森罗界·生机袍', slot:'armor',  ultPool:['boss_wood_domain','life_spring'], statMul:1.5 },
+    { name:'森罗界·藤蔓披', slot:'cloak',  ultPool:['boss_wood_domain','thorns'], statMul:1.5 },
+    { name:'森罗界·灵木佩', slot:'trinket',ultPool:['boss_wood_domain','poison_mist'], statMul:1.5 },
+  ],
+  earth: [
+    { name:'泰山府·开山锤', slot:'weapon', ultPool:['boss_earth_titan','elite_earth_fortress'], statMul:1.5 },
+    { name:'泰山府·磐石冠', slot:'helmet', ultPool:['earth_wall','elite_earth_fortress'], statMul:1.5 },
+    { name:'泰山府·厚土袍', slot:'armor',  ultPool:['boss_earth_titan','earth_nurture'], statMul:1.5 },
+    { name:'泰山府·山岩披', slot:'cloak',  ultPool:['boss_earth_titan','earth_slam'], statMul:1.5 },
+    { name:'泰山府·地灵佩', slot:'trinket',ultPool:['boss_earth_titan','quicksand'], statMul:1.5 },
+  ],
+  water: [
+    { name:'深渊殿·沧海剑', slot:'weapon', ultPool:['boss_water_abyss','elite_water_torrent'], statMul:1.5 },
+    { name:'深渊殿·碧波冠', slot:'helmet', ultPool:['ice_shield','elite_water_torrent'], statMul:1.5 },
+    { name:'深渊殿·潮汐衣', slot:'armor',  ultPool:['boss_water_abyss','water_heal'], statMul:1.5 },
+    { name:'深渊殿·寒冰纱', slot:'cloak',  ultPool:['boss_water_abyss','tidal_wave'], statMul:1.5 },
+    { name:'深渊殿·渊灵玉', slot:'trinket',ultPool:['boss_water_abyss','frost_slow'], statMul:1.5 },
+  ],
+  fire: [
+    { name:'凤凰台·涅槃刀', slot:'weapon', ultPool:['boss_fire_phoenix','elite_fire_annihilation'], statMul:1.5 },
+    { name:'凤凰台·赤焰冠', slot:'helmet', ultPool:['flame_shield','elite_fire_annihilation'], statMul:1.5 },
+    { name:'凤凰台·浴火袍', slot:'armor',  ultPool:['boss_fire_phoenix','fire_rebirth'], statMul:1.5 },
+    { name:'凤凰台·凤羽披', slot:'cloak',  ultPool:['boss_fire_phoenix','lava_burst'], statMul:1.5 },
+    { name:'凤凰台·凤灵珠', slot:'trinket',ultPool:['boss_fire_phoenix','fire_weaken'], statMul:1.5 },
+  ],
+}
+
 // ===== 技能触发规则 =====
 const TRIGGER_TYPE = {
   NONE: 0,
@@ -321,10 +478,17 @@ function _genEquipStats(slot, attr, qualityId, level) {
 
 /**
  * 根据绝技id和品质生成具体的绝技数据
+ * 同时支持普通绝技库和精英绝技库
+ * 
+ * 新版百分比系统：存储的是百分比系数(pct)，实际数值在战斗中根据人物属性动态计算
+ * - dmgPct: 伤害 = 人物对应五行攻击力 × dmgPct / 100
+ * - healPct: 回复 = 人物回复值 × healPct / 100
+ * - defPct: 护盾 = 人物气力(血量) × defPct / 100
+ * - debuffPct: 减益 = 人物对应五行攻击力 × debuffPct / 100
  */
 function _buildUlt(ultId, qualityId, buffDur) {
-  const tpl = ULT_LIBRARY[ultId]
-  if (!tpl) return { name:'奥义', desc:'强力攻击', attr:'metal', effect:'dmg', dmg:100 }
+  const tpl = ULT_LIBRARY[ultId] || ELITE_ULT_LIBRARY[ultId]
+  if (!tpl) return { name:'奥义', desc:'强力攻击', attr:'metal', effect:'dmg', dmgPct:200 }
   const qi = QUALITY_ORDER.indexOf(qualityId)
   const ult = {
     name: tpl.name,
@@ -333,11 +497,12 @@ function _buildUlt(ultId, qualityId, buffDur) {
     effect: tpl.effect,
     ultId: tpl.id,
   }
-  // 按品质取对应档位数值，带±10%随机浮动
-  if (tpl.baseDmg)    ult.dmg    = _randRange(tpl.baseDmg[qi]*0.9, tpl.baseDmg[qi]*1.1)
-  if (tpl.baseHeal)   ult.heal   = _randRange(tpl.baseHeal[qi]*0.9, tpl.baseHeal[qi]*1.1)
-  if (tpl.baseDef)    ult.def    = _randRange(tpl.baseDef[qi]*0.9, tpl.baseDef[qi]*1.1)
-  if (tpl.baseDebuff) ult.debuff = _randRange(tpl.baseDebuff[qi]*0.9, tpl.baseDebuff[qi]*1.1)
+  if (tpl.exclusive) ult.exclusive = true
+  // 按品质取对应档位百分比，带±10%随机浮动
+  if (tpl.baseDmgPct)    ult.dmgPct    = _randRange(tpl.baseDmgPct[qi]*0.9, tpl.baseDmgPct[qi]*1.1)
+  if (tpl.baseHealPct)   ult.healPct   = _randRange(tpl.baseHealPct[qi]*0.9, tpl.baseHealPct[qi]*1.1)
+  if (tpl.baseDefPct)    ult.defPct    = _randRange(tpl.baseDefPct[qi]*0.9, tpl.baseDefPct[qi]*1.1)
+  if (tpl.baseDebuffPct) ult.debuffPct = _randRange(tpl.baseDebuffPct[qi]*0.9, tpl.baseDebuffPct[qi]*1.1)
   ult.buffDur = buffDur
   return ult
 }
@@ -398,55 +563,193 @@ function generateEquipment(slot, attr, qualityId, level, forcedUltId) {
 }
 
 /**
- * 随机品质（按权重）
+ * 按自定义权重随机品质
+ * @param {Object} qualityWeights - 品质权重对象，如 { white:60, green:35, blue:5 }
  */
-function randomQuality(tier) {
-  const weights = {
-    low:  [50, 35, 15],
-    mid:  [20, 40, 40],
-    high: [10, 35, 55],
+function randomQuality(qualityWeights) {
+  if (!qualityWeights || typeof qualityWeights !== 'object') {
+    qualityWeights = { white:50, green:35, blue:15 }
   }
-  const maxQualities = ['white', 'green', 'blue']
-  const w = weights[tier] || weights.low
-  const r = Math.random()*100
+  const entries = Object.entries(qualityWeights)
+  const totalW = entries.reduce((s, e) => s + e[1], 0)
+  const r = Math.random() * totalW
   let sum = 0
-  for (let i=0; i<maxQualities.length; i++) {
-    sum += w[i]
-    if (r < sum) return maxQualities[i]
+  for (const [q, w] of entries) {
+    sum += w
+    if (r < sum) return q
   }
-  return 'white'
+  return entries[0][0]
 }
 
 /**
- * 随机生成掉落装备
- * @param {string} tier - 难度档位 low/mid/high
- * @param {number} stageIndex - 关卡层数(1-10)
+ * 生成精英装备属性（属性上限更高）
+ * statMul: 属性倍率，精英×1.35，大精英×1.5
  */
-function randomDrop(tier, stageIndex) {
-  // 槽位掉落权重
-  const slotWeights = { helmet:30, armor:30, cloak:18, weapon:14, trinket:8 }
-  const slotEntries = Object.entries(slotWeights)
-  const totalW = slotEntries.reduce((s, e) => s + e[1], 0)
-  let r = Math.random() * totalW, slot = slotEntries[0][0]
-  for (const [s, w] of slotEntries) { r -= w; if (r <= 0) { slot = s; break } }
-  const attr = ATTRS[Math.floor(Math.random()*ATTRS.length)]
-  const quality = randomQuality(tier)
+function _genEliteEquipStats(slot, attr, qualityId, level, statMul) {
+  const q = QUALITY[qualityId]
+  const pool = SLOT_STAT_POOL[slot]
+  const count = Math.min(q.statSlots, pool.length)
+  const resolvedPool = pool.map(k => {
+    if (k === 'atkByAttr') return ATK_KEY[attr]
+    if (k === 'defByAttr') return DEF_KEY[attr]
+    return k
+  })
+  const shuffled = resolvedPool.slice().sort(() => Math.random() - 0.5)
+  const selected = shuffled.slice(0, count)
+  const stats = {}
+  selected.forEach(key => {
+    let baseDef
+    if (key === 'stamina') baseDef = STAT_BASE_PER_LEVEL.stamina
+    else if (key === 'recovery') baseDef = STAT_BASE_PER_LEVEL.recovery
+    else if (key.endsWith('Atk')) baseDef = STAT_BASE_PER_LEVEL.atk
+    else if (key.endsWith('Def')) baseDef = STAT_BASE_PER_LEVEL.def
+    if (baseDef) {
+      const baseVal = baseDef.base + baseDef.growth * level
+      // 精英装备：更高的浮动上限
+      const min = Math.round(baseVal * 0.95 * statMul)
+      const max = Math.round(baseVal * 1.25 * statMul)
+      stats[key] = _randRange(min, max)
+    }
+  })
+  return stats
+}
 
-  // 装备等级受关卡层数限制
-  let minLv, maxLv
-  const si = stageIndex || 1
-  if (tier === 'high') {
-    minLv = Math.max(1, si)
-    maxLv = Math.min(MAX_LEVEL, si * 2 + 3)
-  } else if (tier === 'mid') {
-    minLv = Math.max(1, si - 1)
-    maxLv = Math.min(MAX_LEVEL, si * 2)
-  } else {
-    minLv = Math.max(1, si - 1)
-    maxLv = Math.min(MAX_LEVEL, si + 3)
+/**
+ * 生成小精英专属装备
+ * @param {string} slot - 部位
+ * @param {string} attr - 五行属性
+ * @param {string} qualityId - 品质
+ * @param {number} level - 等级
+ * @returns {Object} 精英装备对象
+ */
+function generateEliteEquipment(slot, attr, qualityId, level) {
+  const q = QUALITY[qualityId]
+  const lv = Math.max(1, Math.min(MAX_LEVEL, level || 1))
+
+  // 查找精英模板
+  const templateKey = Object.keys(ELITE_EQUIP_TEMPLATES).find(k => {
+    const t = ELITE_EQUIP_TEMPLATES[k]
+    return t.slot === slot && t.attr === attr
+  })
+  const template = templateKey ? ELITE_EQUIP_TEMPLATES[templateKey] : null
+  const statMul = template ? template.statMul : 1.35
+  const name = template ? template.name : `精英·${ATTR_NAME[attr]}${EQUIP_SLOT[slot]?.name||''}`
+
+  const stats = _genEliteEquipStats(slot, attr, qualityId, lv, statMul)
+
+  // 绝技：从精英模板池中选取（高概率选到专属绝技）
+  let ultId = null
+  if (template && template.ultPool && template.ultPool.length > 0) {
+    ultId = template.ultPool[Math.floor(Math.random() * template.ultPool.length)]
   }
-  const level = _randRange(minLv, maxLv)
-  return generateEquipment(slot, attr, quality, level)
+  if (!ultId) ultId = `elite_${attr}_blade`
+  const ult = _buildUlt(ultId, qualityId, q.buffDur)
+
+  return {
+    uid: _uid(),
+    slot,
+    attr,
+    quality: qualityId,
+    level: lv,
+    name,
+    stats,
+    ult,
+    ultTrigger: Math.max(2, q.triggerCount - 1),  // 精英装备绝技更易触发
+    elite: true,   // 标记为精英装备
+  }
+}
+
+/**
+ * 生成大精英套装掉落（从5件套中随机掉落1-N件）
+ * @param {string} attr - 五行属性
+ * @param {string} qualityId - 品质
+ * @param {number} level - 等级
+ * @param {number} count - 掉落件数（默认1-2件）
+ * @returns {Array} 套装装备数组
+ */
+function generateBossSetDrop(attr, qualityId, level, count) {
+  const q = QUALITY[qualityId]
+  const lv = Math.max(1, Math.min(MAX_LEVEL, level || 1))
+  const setTemplates = BOSS_SET_TEMPLATES[attr]
+  if (!setTemplates) return []
+
+  const dropCount = count || (Math.random() < 0.3 ? 2 : 1)
+  // 随机不重复地从5件套中选取
+  const shuffled = setTemplates.slice().sort(() => Math.random() - 0.5)
+  const selected = shuffled.slice(0, Math.min(dropCount, setTemplates.length))
+
+  return selected.map(tpl => {
+    const statMul = tpl.statMul || 1.5
+    const stats = _genEliteEquipStats(tpl.slot, attr, qualityId, lv, statMul)
+
+    let ultId = null
+    if (tpl.ultPool && tpl.ultPool.length > 0) {
+      ultId = tpl.ultPool[Math.floor(Math.random() * tpl.ultPool.length)]
+    }
+    const ult = _buildUlt(ultId || `boss_${attr}_storm`, qualityId, q.buffDur)
+
+    return {
+      uid: _uid(),
+      slot: tpl.slot,
+      attr,
+      quality: qualityId,
+      level: lv,
+      name: tpl.name,
+      stats,
+      ult,
+      ultTrigger: Math.max(2, q.triggerCount - 1),
+      elite: true,
+      setName: BOSS_SET_NAMES[attr],  // 套装标识
+    }
+  })
+}
+
+/**
+ * 结算掉落：根据关卡 dropConfig 生成装备
+ * @param {Object} dropConfig - 关卡掉落配置
+ *   dropConfig.qualityWeights  {Object}  品质概率 如 { white:60, green:35, blue:5 }
+ *   dropConfig.levelRange      {Array}   [minLv, maxLv] 装备等级范围
+ *   dropConfig.slots           {Array?}  可选，限定可掉落的槽位，默认全部
+ *   dropConfig.slotWeights     {Object?} 可选，槽位权重，默认 helmet:30,armor:30,cloak:18,weapon:14,trinket:8
+ *   dropConfig.count           {number?} 掉落数量，默认1
+ *   dropConfig.attr            {string?} 可选，限定属性（如关卡主题属性）
+ * @returns {Array} 掉落的装备数组
+ */
+function settlementDrop(dropConfig) {
+  if (!dropConfig) return []
+  const count = dropConfig.count || 1
+  const results = []
+
+  const defaultSlotWeights = { helmet:30, armor:30, cloak:18, weapon:14, trinket:8 }
+  const slotWeights = dropConfig.slotWeights || defaultSlotWeights
+
+  // 如果指定了可掉落槽位，过滤权重
+  let validSlots = slotWeights
+  if (dropConfig.slots && dropConfig.slots.length > 0) {
+    validSlots = {}
+    dropConfig.slots.forEach(s => { validSlots[s] = slotWeights[s] || 10 })
+  }
+
+  for (let n = 0; n < count; n++) {
+    // 随机槽位
+    const slotEntries = Object.entries(validSlots)
+    const totalSW = slotEntries.reduce((s, e) => s + e[1], 0)
+    let r = Math.random() * totalSW, slot = slotEntries[0][0]
+    for (const [s, w] of slotEntries) { r -= w; if (r <= 0) { slot = s; break } }
+
+    // 随机属性
+    const attr = dropConfig.attr || ATTRS[Math.floor(Math.random() * ATTRS.length)]
+
+    // 随机品质
+    const quality = randomQuality(dropConfig.qualityWeights)
+
+    // 随机等级
+    const [minLv, maxLv] = dropConfig.levelRange || [1, 5]
+    const level = _randRange(Math.max(1, minLv), Math.min(MAX_LEVEL, maxLv))
+
+    results.push(generateEquipment(slot, attr, quality, level))
+  }
+  return results
 }
 
 // 工具函数
@@ -462,6 +765,8 @@ module.exports = {
   STAT_DEFS, STAT_KEYS, ATK_KEY, DEF_KEY, MAX_LEVEL,
   SLOT_STAT_POOL, STAT_BASE_PER_LEVEL,
   TRIGGER_TYPE,
-  ULT_LIBRARY, EQUIP_TEMPLATES,
-  generateEquipment, randomQuality, randomDrop,
+  ULT_LIBRARY, ELITE_ULT_LIBRARY, EQUIP_TEMPLATES,
+  ELITE_EQUIP_TEMPLATES, BOSS_SET_TEMPLATES, BOSS_SET_NAMES,
+  generateEquipment, generateEliteEquipment, generateBossSetDrop,
+  randomQuality, settlementDrop,
 }
