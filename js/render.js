@@ -240,16 +240,36 @@ class Render {
     const theme = Render.THEME_BG[themeBg] || Render.THEME_BG.theme_metal
     const areaH = areaBottom - areaTop
 
-    // 渐变背景
-    c.save()
-    const bg = c.createLinearGradient(0, areaTop, 0, areaBottom)
-    bg.addColorStop(0, theme.top)
-    bg.addColorStop(0.5, theme.mid)
-    bg.addColorStop(1, theme.bot)
-    c.fillStyle = bg
-    c.fillRect(0, areaTop, W, areaH)
+    // 优先使用森林背景图
+    const bgImg = this.getImg('assets/backgrounds/battle_top_bg.png')
+    if (bgImg && bgImg.width > 0) {
+      c.save()
+      c.beginPath(); c.rect(0, areaTop, W, areaH); c.clip()
+      // 图片从顶部对齐，按宽度铺满，高度按比例缩放
+      const imgScale = W / bgImg.width
+      const drawH = bgImg.height * imgScale
+      c.drawImage(bgImg, 0, areaTop, W, drawH)
+      // 底部渐变过渡（让图片底边自然融入下方区域）
+      const fadeH = areaH * 0.3
+      const fadeG = c.createLinearGradient(0, areaBottom - fadeH, 0, areaBottom)
+      fadeG.addColorStop(0, 'transparent')
+      fadeG.addColorStop(1, 'rgba(0,0,0,0.6)')
+      c.fillStyle = fadeG
+      c.fillRect(0, areaBottom - fadeH, W, fadeH)
+      c.restore()
+    } else {
+      // 降级：渐变背景
+      c.save()
+      const bg = c.createLinearGradient(0, areaTop, 0, areaBottom)
+      bg.addColorStop(0, theme.top)
+      bg.addColorStop(0.5, theme.mid)
+      bg.addColorStop(1, theme.bot)
+      c.fillStyle = bg
+      c.fillRect(0, areaTop, W, areaH)
+    }
 
     // 主题色光晕（从下方散出）
+    c.save()
     const glowG = c.createRadialGradient(W/2, areaBottom, 0, W/2, areaBottom, areaH*0.8)
     glowG.addColorStop(0, theme.accent+'30')
     glowG.addColorStop(0.5, theme.accent+'10')

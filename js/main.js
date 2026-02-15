@@ -853,8 +853,30 @@ class Main {
     this.cellSize = (W-padX*2)/COLS
     this.boardX = padX; this.boardY = topY
     const cs = this.cellSize, bx = this.boardX, by = this.boardY
+    // 棋盘底板：半透明深色背景
+    const boardPad = 4*S, boardW = cs*COLS+8*S, boardH2 = cs*ROWS+8*S
+    const boardRad = 10*S
     ctx.fillStyle='rgba(10,10,25,0.7)'
-    R.rr(bx-4*S,by-4*S,cs*COLS+8*S,cs*ROWS+8*S,10*S); ctx.fill()
+    R.rr(bx-boardPad, by-boardPad, boardW, boardH2, boardRad); ctx.fill()
+
+    // 棋盘格子：深浅纹理交替（智龙迷城风格）
+    const darkTile = R.getImg('assets/backgrounds/board_bg_dark.png')
+    const lightTile = R.getImg('assets/backgrounds/board_bg_light.png')
+    ctx.save()
+    R.rr(bx-boardPad, by-boardPad, boardW, boardH2, boardRad); ctx.clip()
+    for (let r=0; r<ROWS; r++) {
+      for (let c=0; c<COLS; c++) {
+        const tileImg = (r + c) % 2 === 0 ? darkTile : lightTile
+        if (tileImg && tileImg.width > 0) {
+          ctx.drawImage(tileImg, bx + c*cs, by + r*cs, cs, cs)
+        } else {
+          // 降级：纯色交替
+          ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(20,20,40,0.8)' : 'rgba(40,40,60,0.6)'
+          ctx.fillRect(bx + c*cs, by + r*cs, cs, cs)
+        }
+      }
+    }
+    ctx.restore()
 
     // 计算交换动画偏移
     const swapOffsets = {}
