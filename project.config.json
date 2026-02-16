@@ -52,7 +52,12 @@
   "simulatorPluginLibVersion": {},
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "cloudfunctions" }
+      { "type": "folder", "value": "cloudfunctions" },
+      { "type": "suffix", "value": ".md" },
+      { "type": "file", "value": "《五行通天塔》加成奖励" },
+      { "type": "file", "value": ".DS_Store" },
+      { "type": "file", "value": ".gitignore" },
+      { "type": "file", "value": ".eslintrc.js" }
     ],
     "include": []
   },

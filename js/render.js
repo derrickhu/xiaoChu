@@ -2,7 +2,9 @@
  * 渲染模块 - 适配修仙消消乐法宝系统
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
-const { QUALITY, EQUIP_SLOT, ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME, COUNTER_MAP, STAT_DEFS } = require('./data/equipment')
+const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
+// 旧装备系统兼容常量（渲染方法中仍有引用，提供空默认值）
+const QUALITY = {}, EQUIP_SLOT = {}, STAT_DEFS = {}
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -384,8 +386,9 @@ class Render {
     }
   }
 
-  // ===== HP条（立体槽+发光填充+掉血灰色残影） =====
-  drawHp(x,y,w,h,hp,maxHp,color,hpLoss) {
+  // ===== HP条（立体槽+发光填充+掉血灰色残影+数值） =====
+  // showNum: 是否在条上显示 hp/maxHp 数值
+  drawHp(x,y,w,h,hp,maxHp,color,hpLoss,showNum) {
     const {ctx:c,S} = this
     const pct = Math.max(0,Math.min(1,hp/maxHp))
     // 凹槽背景
@@ -432,6 +435,17 @@ class Render {
     }
     // 槽边框
     c.strokeStyle='rgba(0,0,0,0.3)'; c.lineWidth=1; this.rr(x,y,w,h,h/2); c.stroke()
+    // HP数值（条上居中）
+    if (showNum) {
+      const fontSize = Math.max(8*S, h * 0.7)
+      c.font = `bold ${fontSize}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2*S
+      const txt = `${Math.round(hp)}/${Math.round(maxHp)}`
+      c.strokeText(txt, x + w/2, y + h/2)
+      c.fillStyle = '#fff'
+      c.fillText(txt, x + w/2, y + h/2)
+    }
     c.restore()
   }
 
@@ -1631,25 +1645,70 @@ class Render {
   }
 
   // ===== 技能触发特效 =====
-  drawSkillEffect(x,y,text,color,alpha) {
+  drawSkillEffect(f) {
     const {ctx:c,S} = this
+    const {x,y,text,color,alpha} = f
     c.save(); c.globalAlpha=alpha
     c.fillStyle=color||TH.accent; c.font=`bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
-    // 描边
     c.strokeStyle='rgba(0,0,0,0.5)'; c.lineWidth=3*S; c.strokeText(text,x,y)
     c.fillText(text,x,y)
     c.restore()
   }
 
   // ===== 伤害飘字 =====
-  drawDmgFloat(x,y,text,color,alpha,scale) {
+  drawDmgFloat(f) {
     const {ctx:c,S} = this
+    const {x,y,text,color,alpha,scale} = f
     c.save(); c.globalAlpha=alpha||1
     c.fillStyle=color||TH.danger; c.font=`bold ${(18*(scale||1))*S}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
     c.strokeStyle='rgba(0,0,0,0.6)'; c.lineWidth=2*S; c.strokeText(text,x,y)
     c.fillText(text,x,y)
+    c.restore()
+  }
+
+  // ===== 消除数值飘字（棋子处） =====
+  drawElimFloat(f) {
+    const {ctx:c,S} = this
+    const {x,y,text,color,alpha,scale,subText} = f
+    c.save(); c.globalAlpha = alpha || 1
+    // 主数值（伤害/回复值）
+    const sz = (14*(scale||1))*S
+    c.font = `bold ${sz}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
+    c.strokeText(text, x, y)
+    c.fillStyle = color || '#fff'
+    c.fillText(text, x, y)
+    // 副文字（Combo N）
+    if (subText) {
+      const subSz = 10*S
+      c.font = `bold ${subSz}px "PingFang SC",sans-serif`
+      c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2*S
+      c.strokeText(subText, x, y + sz*0.7)
+      c.fillStyle = '#ffd700'
+      c.fillText(subText, x, y + sz*0.7)
+    }
+    c.restore()
+  }
+
+  // ===== 宠物头像攻击数值（翻滚效果） =====
+  drawPetAtkNum(f) {
+    const {ctx:c,S} = this
+    const {x, y, text, color, alpha, scale} = f
+    c.save(); c.globalAlpha = alpha || 1
+    const sz = (16 * (scale || 1)) * S
+    c.font = `bold ${sz}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'bottom'
+    // 发光效果
+    c.shadowColor = color || '#ffd700'
+    c.shadowBlur = 6 * S
+    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3*S
+    c.strokeText(text, x, y)
+    c.fillStyle = color || '#ffd700'
+    c.fillText(text, x, y)
+    c.shadowBlur = 0
     c.restore()
   }
 
