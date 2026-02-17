@@ -51,6 +51,30 @@ class MusicManager {
     this._playSfx('audio/skill.wav')
   }
 
+  /** 怪物攻击：沉闷打击感 */
+  playEnemyAttack() {
+    if (!this.enabled) return
+    this._playSfx('audio/attack.wav', 0.5)
+  }
+
+  /** 英雄受击：短促碰撞声 */
+  playHeroHurt() {
+    if (!this.enabled) return
+    this._playSfx('audio/eliminate.wav', 0.4)
+  }
+
+  /** 格挡成功：清脆格挡声 */
+  playBlock() {
+    if (!this.enabled) return
+    this._playSfx('audio/combo.wav', 0.5)
+  }
+
+  /** 敌方技能：威压法阵声 */
+  playEnemySkill() {
+    if (!this.enabled) return
+    this._playSfx('audio/skill.wav', 0.4)
+  }
+
   /** 数值翻滚：竹简翻动短促音（带200ms防抖） */
   playRolling() {
     if (!this.enabled) return
@@ -76,6 +100,12 @@ class MusicManager {
   playLevelUp() {
     if (!this.enabled) return
     this._playSfx('audio/levelup.wav')
+  }
+
+  /** 战斗胜利：上行五声琶音+钟磬余韵（1.8秒） */
+  playVictory() {
+    if (!this.enabled) return
+    this._playSfx('audio/victory.wav', 0.6)
   }
 
   /** 奖励/奇遇：灵光闪现 */
@@ -106,9 +136,10 @@ class MusicManager {
 
   // ============ 内部方法 ============
 
-  _playSfx(src) {
+  _playSfx(src, volume) {
     const a = wx.createInnerAudioContext()
     a.src = src
+    if (volume !== undefined) a.volume = volume
     a.play()
     a.onEnded(() => a.destroy())
   }

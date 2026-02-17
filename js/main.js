@@ -3215,7 +3215,7 @@ class Main {
         this._restoreBattleHpMax()
         this.heroBuffs = []; this.enemyBuffs = []
         this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill); this.selectedReward = -1; this.rewardPetSlot = -1
-        this.scene = 'reward'; this.bState = 'none'; MusicMgr.playReward(); return
+        this.scene = 'reward'; this.bState = 'none'; return
       }
     }
     if (this.bState === 'defeat' && type === 'end') {
@@ -3995,6 +3995,7 @@ class Main {
       this.lastTurnCount = this.turnCount
       this.lastSpeedKill = this.turnCount <= 5
       this.bState = 'victory'
+      MusicMgr.playVictory()
       // 法宝onKillHeal
       if (this.weapon && this.weapon.type === 'onKillHeal') {
         this.heroHp = Math.min(this.heroMaxHp, this.heroHp + Math.round(this.heroMaxHp * this.weapon.pct / 100))
@@ -4054,6 +4055,7 @@ class Main {
     if (this.weapon && this.weapon.type === 'blockChance' && Math.random()*100 < this.weapon.chance) {
       atkDmg = 0
       this.skillEffects.push({ x:W*0.5, y:H*0.6, text:'格挡！', color:TH.info, t:0, alpha:1 })
+      MusicMgr.playBlock()
     }
     // dmgImmune
     const immune = this.heroBuffs.find(b => b.type === 'dmgImmune')
@@ -4075,6 +4077,7 @@ class Main {
     if (atkDmg > 0) {
       this._dealDmgToHero(atkDmg)
       this._playEnemyAttack()
+      MusicMgr.playEnemyAttack()
       this.shakeT = 6; this.shakeI = 3
     }
     // DOT伤害
@@ -4087,6 +4090,7 @@ class Main {
     // 敌方技能
     if (this.enemy.skills && this.turnCount > 0 && this.turnCount % 3 === 0) {
       const sk = this.enemy.skills[Math.floor(Math.random()*this.enemy.skills.length)]
+      MusicMgr.playEnemySkill()
       this._applyEnemySkill(sk)
     }
     // 敌方DOT
@@ -4104,7 +4108,7 @@ class Main {
       }
     })
     // 检查敌方死亡（反弹/DOT）
-    if (this.enemy.hp <= 0) { this.lastTurnCount = this.turnCount; this.lastSpeedKill = this.turnCount <= 5; this.bState = 'victory'; return }
+    if (this.enemy.hp <= 0) { this.lastTurnCount = this.turnCount; this.lastSpeedKill = this.turnCount <= 5; MusicMgr.playVictory(); this.bState = 'victory'; return }
     // 检查己方死亡
     if (this.heroHp <= 0) { this._onDefeat(); return }
     this.turnCount++
@@ -4238,7 +4242,7 @@ class Main {
           this.enemy.hp = Math.max(0, this.enemy.hp - dmg)
           this.dmgFloats.push({ x:W*0.5, y:this._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||TH.danger, t:0, alpha:1 })
           this._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
-          if (this.enemy.hp <= 0) { this.lastTurnCount = this.turnCount; this.lastSpeedKill = this.turnCount <= 5; this.bState = 'victory'; return }
+          if (this.enemy.hp <= 0) { this.lastTurnCount = this.turnCount; this.lastSpeedKill = this.turnCount <= 5; MusicMgr.playVictory(); this.bState = 'victory'; return }
         }
         break
       case 'hpMaxUp': {
@@ -4478,17 +4482,20 @@ class Main {
     if (this.tempRevive) {
       this.tempRevive = false; this.heroHp = Math.round(this.heroMaxHp * 0.3)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'天护复活！', color:TH.accent, t:0, alpha:1 })
+      MusicMgr.playReward()
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     // runBuffs额外复活次数
     if (this.runBuffs.extraRevive > 0) {
       this.runBuffs.extraRevive--; this.heroHp = Math.round(this.heroMaxHp * 0.25)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'奇迹复活！', color:TH.accent, t:0, alpha:1 })
+      MusicMgr.playReward()
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     if (this.weapon && this.weapon.type === 'revive' && !this.weaponReviveUsed) {
       this.weaponReviveUsed = true; this.heroHp = Math.round(this.heroMaxHp * 0.2)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'不灭金身！', color:TH.accent, t:0, alpha:1 })
+      MusicMgr.playReward()
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     // 广告复活机会（每轮通关首次死亡）
