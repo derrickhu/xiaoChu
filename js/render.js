@@ -35,6 +35,184 @@ const CLOUD_ASSETS = {
   'assets/orbs/orb_water.png': 'assets/orbs/orb_water.png',
   'assets/orbs/orb_fire.png': 'assets/orbs/orb_fire.png',
   'assets/orbs/orb_heart.png': 'assets/orbs/orb_heart.png',
+  // 法宝图片（50件，云端加载）
+  'assets/equipment/fabao_w1.png': 'assets/equipment/fabao_w1.png',
+  'assets/equipment/fabao_w2.png': 'assets/equipment/fabao_w2.png',
+  'assets/equipment/fabao_w3.png': 'assets/equipment/fabao_w3.png',
+  'assets/equipment/fabao_w4.png': 'assets/equipment/fabao_w4.png',
+  'assets/equipment/fabao_w5.png': 'assets/equipment/fabao_w5.png',
+  'assets/equipment/fabao_w6.png': 'assets/equipment/fabao_w6.png',
+  'assets/equipment/fabao_w7.png': 'assets/equipment/fabao_w7.png',
+  'assets/equipment/fabao_w8.png': 'assets/equipment/fabao_w8.png',
+  'assets/equipment/fabao_w9.png': 'assets/equipment/fabao_w9.png',
+  'assets/equipment/fabao_w10.png': 'assets/equipment/fabao_w10.png',
+  'assets/equipment/fabao_w11.png': 'assets/equipment/fabao_w11.png',
+  'assets/equipment/fabao_w12.png': 'assets/equipment/fabao_w12.png',
+  'assets/equipment/fabao_w13.png': 'assets/equipment/fabao_w13.png',
+  'assets/equipment/fabao_w14.png': 'assets/equipment/fabao_w14.png',
+  'assets/equipment/fabao_w15.png': 'assets/equipment/fabao_w15.png',
+  'assets/equipment/fabao_w16.png': 'assets/equipment/fabao_w16.png',
+  'assets/equipment/fabao_w17.png': 'assets/equipment/fabao_w17.png',
+  'assets/equipment/fabao_w18.png': 'assets/equipment/fabao_w18.png',
+  'assets/equipment/fabao_w19.png': 'assets/equipment/fabao_w19.png',
+  'assets/equipment/fabao_w20.png': 'assets/equipment/fabao_w20.png',
+  'assets/equipment/fabao_w21.png': 'assets/equipment/fabao_w21.png',
+  'assets/equipment/fabao_w22.png': 'assets/equipment/fabao_w22.png',
+  'assets/equipment/fabao_w23.png': 'assets/equipment/fabao_w23.png',
+  'assets/equipment/fabao_w24.png': 'assets/equipment/fabao_w24.png',
+  'assets/equipment/fabao_w25.png': 'assets/equipment/fabao_w25.png',
+  'assets/equipment/fabao_w26.png': 'assets/equipment/fabao_w26.png',
+  'assets/equipment/fabao_w27.png': 'assets/equipment/fabao_w27.png',
+  'assets/equipment/fabao_w28.png': 'assets/equipment/fabao_w28.png',
+  'assets/equipment/fabao_w29.png': 'assets/equipment/fabao_w29.png',
+  'assets/equipment/fabao_w30.png': 'assets/equipment/fabao_w30.png',
+  'assets/equipment/fabao_w31.png': 'assets/equipment/fabao_w31.png',
+  'assets/equipment/fabao_w32.png': 'assets/equipment/fabao_w32.png',
+  'assets/equipment/fabao_w33.png': 'assets/equipment/fabao_w33.png',
+  'assets/equipment/fabao_w34.png': 'assets/equipment/fabao_w34.png',
+  'assets/equipment/fabao_w35.png': 'assets/equipment/fabao_w35.png',
+  'assets/equipment/fabao_w36.png': 'assets/equipment/fabao_w36.png',
+  'assets/equipment/fabao_w37.png': 'assets/equipment/fabao_w37.png',
+  'assets/equipment/fabao_w38.png': 'assets/equipment/fabao_w38.png',
+  'assets/equipment/fabao_w39.png': 'assets/equipment/fabao_w39.png',
+  'assets/equipment/fabao_w40.png': 'assets/equipment/fabao_w40.png',
+  'assets/equipment/fabao_w41.png': 'assets/equipment/fabao_w41.png',
+  'assets/equipment/fabao_w42.png': 'assets/equipment/fabao_w42.png',
+  'assets/equipment/fabao_w43.png': 'assets/equipment/fabao_w43.png',
+  'assets/equipment/fabao_w44.png': 'assets/equipment/fabao_w44.png',
+  'assets/equipment/fabao_w45.png': 'assets/equipment/fabao_w45.png',
+  'assets/equipment/fabao_w46.png': 'assets/equipment/fabao_w46.png',
+  'assets/equipment/fabao_w47.png': 'assets/equipment/fabao_w47.png',
+  'assets/equipment/fabao_w48.png': 'assets/equipment/fabao_w48.png',
+  'assets/equipment/fabao_w49.png': 'assets/equipment/fabao_w49.png',
+  'assets/equipment/fabao_w50.png': 'assets/equipment/fabao_w50.png',
+  // 宠物头像（99张，云端加载）
+  'assets/pets/pet_e1.png': 'assets/pets/pet_e1.png',
+  'assets/pets/pet_e2.png': 'assets/pets/pet_e2.png',
+  'assets/pets/pet_e3.png': 'assets/pets/pet_e3.png',
+  'assets/pets/pet_e4.png': 'assets/pets/pet_e4.png',
+  'assets/pets/pet_e5.png': 'assets/pets/pet_e5.png',
+  'assets/pets/pet_e6.png': 'assets/pets/pet_e6.png',
+  'assets/pets/pet_e7.png': 'assets/pets/pet_e7.png',
+  'assets/pets/pet_e8.png': 'assets/pets/pet_e8.png',
+  'assets/pets/pet_e9.png': 'assets/pets/pet_e9.png',
+  'assets/pets/pet_e10.png': 'assets/pets/pet_e10.png',
+  'assets/pets/pet_e11.png': 'assets/pets/pet_e11.png',
+  'assets/pets/pet_e12.png': 'assets/pets/pet_e12.png',
+  'assets/pets/pet_e13.png': 'assets/pets/pet_e13.png',
+  'assets/pets/pet_e14.png': 'assets/pets/pet_e14.png',
+  'assets/pets/pet_e15.png': 'assets/pets/pet_e15.png',
+  'assets/pets/pet_e16.png': 'assets/pets/pet_e16.png',
+  'assets/pets/pet_e17.png': 'assets/pets/pet_e17.png',
+  'assets/pets/pet_e18.png': 'assets/pets/pet_e18.png',
+  'assets/pets/pet_e19.png': 'assets/pets/pet_e19.png',
+  'assets/pets/pet_e20.png': 'assets/pets/pet_e20.png',
+  'assets/pets/pet_f1.png': 'assets/pets/pet_f1.png',
+  'assets/pets/pet_f2.png': 'assets/pets/pet_f2.png',
+  'assets/pets/pet_f3.png': 'assets/pets/pet_f3.png',
+  'assets/pets/pet_f4.png': 'assets/pets/pet_f4.png',
+  'assets/pets/pet_f5.png': 'assets/pets/pet_f5.png',
+  'assets/pets/pet_f6.png': 'assets/pets/pet_f6.png',
+  'assets/pets/pet_f7.png': 'assets/pets/pet_f7.png',
+  'assets/pets/pet_f8.png': 'assets/pets/pet_f8.png',
+  'assets/pets/pet_f9.png': 'assets/pets/pet_f9.png',
+  'assets/pets/pet_f10.png': 'assets/pets/pet_f10.png',
+  'assets/pets/pet_f11.png': 'assets/pets/pet_f11.png',
+  'assets/pets/pet_f12.png': 'assets/pets/pet_f12.png',
+  'assets/pets/pet_f13.png': 'assets/pets/pet_f13.png',
+  'assets/pets/pet_f14.png': 'assets/pets/pet_f14.png',
+  'assets/pets/pet_f15.png': 'assets/pets/pet_f15.png',
+  'assets/pets/pet_f16.png': 'assets/pets/pet_f16.png',
+  'assets/pets/pet_f17.png': 'assets/pets/pet_f17.png',
+  'assets/pets/pet_f18.png': 'assets/pets/pet_f18.png',
+  'assets/pets/pet_f19.png': 'assets/pets/pet_f19.png',
+  'assets/pets/pet_f20.png': 'assets/pets/pet_f20.png',
+  'assets/pets/pet_m1.png': 'assets/pets/pet_m1.png',
+  'assets/pets/pet_m2.png': 'assets/pets/pet_m2.png',
+  'assets/pets/pet_m3.png': 'assets/pets/pet_m3.png',
+  'assets/pets/pet_m5.png': 'assets/pets/pet_m5.png',
+  'assets/pets/pet_m6.png': 'assets/pets/pet_m6.png',
+  'assets/pets/pet_m7.png': 'assets/pets/pet_m7.png',
+  'assets/pets/pet_m8.png': 'assets/pets/pet_m8.png',
+  'assets/pets/pet_m9.png': 'assets/pets/pet_m9.png',
+  'assets/pets/pet_m10.png': 'assets/pets/pet_m10.png',
+  'assets/pets/pet_m11.png': 'assets/pets/pet_m11.png',
+  'assets/pets/pet_m12.png': 'assets/pets/pet_m12.png',
+  'assets/pets/pet_m13.png': 'assets/pets/pet_m13.png',
+  'assets/pets/pet_m14.png': 'assets/pets/pet_m14.png',
+  'assets/pets/pet_m15.png': 'assets/pets/pet_m15.png',
+  'assets/pets/pet_m16.png': 'assets/pets/pet_m16.png',
+  'assets/pets/pet_m17.png': 'assets/pets/pet_m17.png',
+  'assets/pets/pet_m18.png': 'assets/pets/pet_m18.png',
+  'assets/pets/pet_m19.png': 'assets/pets/pet_m19.png',
+  'assets/pets/pet_m20.png': 'assets/pets/pet_m20.png',
+  'assets/pets/pet_s1.png': 'assets/pets/pet_s1.png',
+  'assets/pets/pet_s2.png': 'assets/pets/pet_s2.png',
+  'assets/pets/pet_s3.png': 'assets/pets/pet_s3.png',
+  'assets/pets/pet_s4.png': 'assets/pets/pet_s4.png',
+  'assets/pets/pet_s5.png': 'assets/pets/pet_s5.png',
+  'assets/pets/pet_s6.png': 'assets/pets/pet_s6.png',
+  'assets/pets/pet_s7.png': 'assets/pets/pet_s7.png',
+  'assets/pets/pet_s8.png': 'assets/pets/pet_s8.png',
+  'assets/pets/pet_s9.png': 'assets/pets/pet_s9.png',
+  'assets/pets/pet_s10.png': 'assets/pets/pet_s10.png',
+  'assets/pets/pet_s11.png': 'assets/pets/pet_s11.png',
+  'assets/pets/pet_s12.png': 'assets/pets/pet_s12.png',
+  'assets/pets/pet_s13.png': 'assets/pets/pet_s13.png',
+  'assets/pets/pet_s14.png': 'assets/pets/pet_s14.png',
+  'assets/pets/pet_s15.png': 'assets/pets/pet_s15.png',
+  'assets/pets/pet_s16.png': 'assets/pets/pet_s16.png',
+  'assets/pets/pet_s17.png': 'assets/pets/pet_s17.png',
+  'assets/pets/pet_s18.png': 'assets/pets/pet_s18.png',
+  'assets/pets/pet_s19.png': 'assets/pets/pet_s19.png',
+  'assets/pets/pet_s20.png': 'assets/pets/pet_s20.png',
+  'assets/pets/pet_w1.png': 'assets/pets/pet_w1.png',
+  'assets/pets/pet_w2.png': 'assets/pets/pet_w2.png',
+  'assets/pets/pet_w3.png': 'assets/pets/pet_w3.png',
+  'assets/pets/pet_w4.png': 'assets/pets/pet_w4.png',
+  'assets/pets/pet_w5.png': 'assets/pets/pet_w5.png',
+  'assets/pets/pet_w6.png': 'assets/pets/pet_w6.png',
+  'assets/pets/pet_w7.png': 'assets/pets/pet_w7.png',
+  'assets/pets/pet_w8.png': 'assets/pets/pet_w8.png',
+  'assets/pets/pet_w9.png': 'assets/pets/pet_w9.png',
+  'assets/pets/pet_w10.png': 'assets/pets/pet_w10.png',
+  'assets/pets/pet_w11.png': 'assets/pets/pet_w11.png',
+  'assets/pets/pet_w12.png': 'assets/pets/pet_w12.png',
+  'assets/pets/pet_w13.png': 'assets/pets/pet_w13.png',
+  'assets/pets/pet_w14.png': 'assets/pets/pet_w14.png',
+  'assets/pets/pet_w15.png': 'assets/pets/pet_w15.png',
+  'assets/pets/pet_w16.png': 'assets/pets/pet_w16.png',
+  'assets/pets/pet_w17.png': 'assets/pets/pet_w17.png',
+  'assets/pets/pet_w18.png': 'assets/pets/pet_w18.png',
+  'assets/pets/pet_w19.png': 'assets/pets/pet_w19.png',
+  'assets/pets/pet_w20.png': 'assets/pets/pet_w20.png',
+  // 敌人图片（26张，云端加载）
+  'assets/enemies/enemy_metal_1.jpg': 'assets/enemies/enemy_metal_1.jpg',
+  'assets/enemies/enemy_metal_2.jpg': 'assets/enemies/enemy_metal_2.jpg',
+  'assets/enemies/enemy_metal_3.jpg': 'assets/enemies/enemy_metal_3.jpg',
+  'assets/enemies/enemy_wood_1.jpg': 'assets/enemies/enemy_wood_1.jpg',
+  'assets/enemies/enemy_wood_2.jpg': 'assets/enemies/enemy_wood_2.jpg',
+  'assets/enemies/enemy_wood_3.jpg': 'assets/enemies/enemy_wood_3.jpg',
+  'assets/enemies/enemy_earth_1.jpg': 'assets/enemies/enemy_earth_1.jpg',
+  'assets/enemies/enemy_earth_2.jpg': 'assets/enemies/enemy_earth_2.jpg',
+  'assets/enemies/enemy_earth_3.jpg': 'assets/enemies/enemy_earth_3.jpg',
+  'assets/enemies/enemy_water_1.jpg': 'assets/enemies/enemy_water_1.jpg',
+  'assets/enemies/enemy_water_2.jpg': 'assets/enemies/enemy_water_2.jpg',
+  'assets/enemies/enemy_water_3.jpg': 'assets/enemies/enemy_water_3.jpg',
+  'assets/enemies/enemy_fire_1.jpg': 'assets/enemies/enemy_fire_1.jpg',
+  'assets/enemies/enemy_fire_2.jpg': 'assets/enemies/enemy_fire_2.jpg',
+  'assets/enemies/enemy_fire_3.jpg': 'assets/enemies/enemy_fire_3.jpg',
+  'assets/enemies/enemy_dark_1.jpg': 'assets/enemies/enemy_dark_1.jpg',
+  'assets/enemies/enemy_dark_2.jpg': 'assets/enemies/enemy_dark_2.jpg',
+  'assets/enemies/enemy_dark_3.jpg': 'assets/enemies/enemy_dark_3.jpg',
+  'assets/enemies/enemy_light_1.jpg': 'assets/enemies/enemy_light_1.jpg',
+  'assets/enemies/enemy_light_2.jpg': 'assets/enemies/enemy_light_2.jpg',
+  'assets/enemies/enemy_light_3.jpg': 'assets/enemies/enemy_light_3.jpg',
+  'assets/enemies/enemy_heart_1.jpg': 'assets/enemies/enemy_heart_1.jpg',
+  'assets/enemies/enemy_heart_2.jpg': 'assets/enemies/enemy_heart_2.jpg',
+  'assets/enemies/enemy_heart_3.jpg': 'assets/enemies/enemy_heart_3.jpg',
+  'assets/enemies/enemy_mixed_1.jpg': 'assets/enemies/enemy_mixed_1.jpg',
+  'assets/enemies/enemy_mixed_2.jpg': 'assets/enemies/enemy_mixed_2.jpg',
 }
 
 class Render {
@@ -387,8 +565,8 @@ class Render {
   }
 
   // ===== HP条（立体槽+发光填充+掉血灰色残影+数值） =====
-  // showNum: 是否在条上显示 hp/maxHp 数值
-  drawHp(x,y,w,h,hp,maxHp,color,hpLoss,showNum) {
+  // showNum: 是否在条上显示 hp/maxHp 数值; shield: 护盾值; hpGain: 加血动画
+  drawHp(x,y,w,h,hp,maxHp,color,hpLoss,showNum,numColor,shield,hpGain) {
     const {ctx:c,S} = this
     const pct = Math.max(0,Math.min(1,hp/maxHp))
     // 凹槽背景
@@ -404,15 +582,13 @@ class Render {
     // 掉血灰色残影（在当前血量之前绘制）
     if (hpLoss && hpLoss.fromPct > pct) {
       const totalFrames = 45
-      const t = hpLoss.timer / totalFrames  // 0→1
-      // 前15帧保持不动，后面缓慢缩短到当前血量
-      const holdPhase = Math.min(1, hpLoss.timer / 15)  // 0→1 in 15 frames
+      const t = hpLoss.timer / totalFrames
       let lossPct
       if (hpLoss.timer <= 15) {
-        lossPct = hpLoss.fromPct  // 保持原来的宽度
+        lossPct = hpLoss.fromPct
       } else {
-        const shrinkT = (hpLoss.timer - 15) / (totalFrames - 15)  // 0→1
-        const ease = shrinkT * shrinkT  // ease-in
+        const shrinkT = (hpLoss.timer - 15) / (totalFrames - 15)
+        const ease = shrinkT * shrinkT
         lossPct = hpLoss.fromPct + (pct - hpLoss.fromPct) * ease
       }
       const alpha = t < 0.7 ? 0.6 : 0.6 * (1 - (t-0.7)/0.3)
@@ -422,16 +598,57 @@ class Render {
       c.restore()
     }
 
+    // 加血绿色底层（先画绿色增量，再画粉色血条覆盖到旧血量位置，增量部分露出绿色）
+    const gainActive = hpGain && hpGain.fromPct < pct
+    if (gainActive) {
+      const greenAlpha = hpGain.timer <= 15 ? 1 : Math.max(0, 1 - (hpGain.timer - 15) / 25)
+      // 绿色增量条（fromPct → pct）
+      c.save(); c.globalAlpha = greenAlpha
+      const gg = c.createLinearGradient(x, y, x, y+h)
+      gg.addColorStop(0, '#6eff6e'); gg.addColorStop(0.5, '#4dcc4d'); gg.addColorStop(1, '#2d9a2d')
+      c.fillStyle = gg
+      this.rr(x, y, w*pct, h, h/2); c.fill()
+      // 绿色高光
+      c.globalAlpha = greenAlpha * 0.4
+      c.fillStyle = '#fff'
+      this.rr(x+2*S, y+1, w*pct-4*S, h*0.35, h/4); c.fill()
+      c.restore()
+    }
+
     if (pct > 0) {
       const barColor = color || (pct>0.5?TH.success:pct>0.2?TH.hard:TH.danger)
-      // 填充渐变
       const fg=c.createLinearGradient(x,y,x,y+h)
       fg.addColorStop(0,this._lighten(barColor,0.15)); fg.addColorStop(0.5,barColor); fg.addColorStop(1,this._darken(barColor))
-      c.fillStyle=fg; this.rr(x,y,w*pct,h,h/2); c.fill()
+      // 加血动画中：粉色只画到旧血量(fromPct)，增量部分露出下面的绿色
+      const drawPct = gainActive ? hpGain.fromPct : pct
+      if (drawPct > 0) {
+        c.fillStyle=fg; this.rr(x,y,w*drawPct,h,h/2); c.fill()
+      }
+      // 绿色渐隐后，粉色逐渐扩展覆盖增量部分
+      if (gainActive && hpGain.timer > 15) {
+        const expandT = (hpGain.timer - 15) / 25
+        const coverPct = hpGain.fromPct + (pct - hpGain.fromPct) * expandT
+        c.fillStyle=fg; this.rr(x,y,w*coverPct,h,h/2); c.fill()
+      }
       // 顶部高光条
       c.save(); c.globalAlpha=0.35
       c.fillStyle='#fff'; this.rr(x+2*S,y+1,w*pct-4*S,h*0.35,h/4); c.fill()
       c.restore()
+    }
+    // 护盾层（在血条右侧紧接着，用青色显示）
+    if (shield && shield > 0) {
+      const shieldPct = Math.min(shield / maxHp, 1 - pct) // 护盾占比，不超过剩余槽
+      const shieldStartX = x + w * pct
+      const shieldW = w * shieldPct
+      if (shieldW > 0) {
+        const sg = c.createLinearGradient(shieldStartX, y, shieldStartX, y+h)
+        sg.addColorStop(0, '#7ddfff'); sg.addColorStop(0.5, '#40b8e0'); sg.addColorStop(1, '#2891b5')
+        c.fillStyle = sg; this.rr(shieldStartX, y, shieldW, h, h/2); c.fill()
+        // 护盾高光
+        c.save(); c.globalAlpha = 0.4
+        c.fillStyle = '#fff'; this.rr(shieldStartX+1*S, y+1, shieldW-2*S, h*0.35, h/4); c.fill()
+        c.restore()
+      }
     }
     // 槽边框
     c.strokeStyle='rgba(0,0,0,0.3)'; c.lineWidth=1; this.rr(x,y,w,h,h/2); c.stroke()
@@ -441,10 +658,28 @@ class Render {
       c.font = `bold ${fontSize}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2*S
-      const txt = `${Math.round(hp)}/${Math.round(maxHp)}`
-      c.strokeText(txt, x + w/2, y + h/2)
-      c.fillStyle = '#fff'
-      c.fillText(txt, x + w/2, y + h/2)
+      const hpTxt = `${Math.round(hp)}/${Math.round(maxHp)}`
+      if (shield && shield > 0) {
+        // HP数值 + 护盾数值（分颜色绘制）
+        const shieldTxt = `+${Math.round(shield)}`
+        const fullTxt = hpTxt + ' ' + shieldTxt
+        const fullW = c.measureText(fullTxt).width
+        const hpW = c.measureText(hpTxt + ' ').width
+        const startX = x + w/2 - fullW/2
+        c.textAlign = 'left'
+        // 绘制HP部分
+        c.strokeText(hpTxt, startX, y + h/2)
+        c.fillStyle = numColor || '#fff'
+        c.fillText(hpTxt, startX, y + h/2)
+        // 绘制护盾部分（青色）
+        c.strokeText(shieldTxt, startX + hpW, y + h/2)
+        c.fillStyle = '#7ddfff'
+        c.fillText(shieldTxt, startX + hpW, y + h/2)
+      } else {
+        c.strokeText(hpTxt, x + w/2, y + h/2)
+        c.fillStyle = numColor || '#fff'
+        c.fillText(hpTxt, x + w/2, y + h/2)
+      }
     }
     c.restore()
   }
@@ -1011,54 +1246,7 @@ class Render {
       c.restore()
     }
 
-    // 盔甲外观叠加
-    const armorEquip = equipped.armor
-    if (armorEquip) {
-      const armorImg = this.getImg(`assets/hero/armor/armor_${armorEquip.attr}.jpg`)
-      if (armorImg && armorImg.width > 0) {
-        c.drawImage(armorImg, x-imgSize/2, y-imgSize*0.4, imgSize, imgSize)
-      }
-    }
-    // 武器外观叠加
-    const weaponEquip = equipped.weapon
-    if (weaponEquip) {
-      const wpnImg = this.getImg(`assets/hero/weapon/weapon_${weaponEquip.attr}.jpg`)
-      if (wpnImg && wpnImg.width > 0) {
-        const wpnSize = imgSize * 0.6
-        c.drawImage(wpnImg, x+imgSize*0.1, y-imgSize*0.35, wpnSize, wpnSize)
-      }
-    }
-
-    // 已装备法宝小图标（角色脚下一排）
-    const eqSlots = Object.values(equipped).filter(e => e)
-    if (eqSlots.length > 0) {
-      const iconS = 14*S
-      const totalW = eqSlots.length * (iconS + 2*S)
-      let ix = x - totalW/2
-      eqSlots.forEach(eq => {
-        const ac = ATTR_COLOR[eq.attr]
-        const q = QUALITY[eq.quality]
-        // 小方块底色
-        c.fillStyle = 'rgba(0,0,0,0.4)'
-        this.rr(ix, y+size*0.35, iconS, iconS, 3*S); c.fill()
-        c.fillStyle = ac.main+'88'
-        this.rr(ix, y+size*0.35, iconS, iconS, 3*S); c.fill()
-        // 品质边框
-        c.strokeStyle = q.color+'99'; c.lineWidth = 1
-        this.rr(ix, y+size*0.35, iconS, iconS, 3*S); c.stroke()
-        // 槽位图标（优先图片）
-        const eqImg = this.getImg(`assets/equipment/icon_${eq.slot}_${eq.attr}.jpg`)
-        if (eqImg && eqImg.width > 0) {
-          c.drawImage(eqImg, ix+1*S, y+size*0.35+1*S, iconS-2*S, iconS-2*S)
-        } else {
-          const slot = EQUIP_SLOT[eq.slot]
-          c.fillStyle = '#fff'; c.font = `${8*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText(slot.icon, ix+iconS/2, y+size*0.35+iconS/2)
-        }
-        ix += iconS + 2*S
-      })
-    }
+    // 已装备法宝小图标（角色脚下）— 当前法宝系统不使用此块
 
     // HP条
     const hpW = size*0.9, hpH = 6*S
@@ -1513,11 +1701,12 @@ class Render {
       case 'heal': {
         const cx = tx, cy = ty
         c.globalAlpha = (1-p)*0.6
+        const healClr = clr || TH.success
         const pillarG = c.createLinearGradient(cx, cy+60*S, cx, cy-80*S)
         pillarG.addColorStop(0, 'transparent')
-        pillarG.addColorStop(0.3, TH.success+'66')
-        pillarG.addColorStop(0.5, TH.success+'cc')
-        pillarG.addColorStop(0.8, TH.success+'66')
+        pillarG.addColorStop(0.3, healClr+'66')
+        pillarG.addColorStop(0.5, healClr+'cc')
+        pillarG.addColorStop(0.8, healClr+'66')
         pillarG.addColorStop(1, 'transparent')
         c.fillStyle = pillarG
         c.fillRect(cx-15*S, cy-80*S, 30*S, 140*S)
@@ -1526,7 +1715,7 @@ class Render {
           const py = cy + 40*S - p*120*S - i*15*S
           const pr = 2*S + Math.random()*2*S
           c.globalAlpha = Math.max(0, (1-p)*0.7 - i*0.08)
-          c.fillStyle = i%2===0 ? TH.success : '#aaffaa'
+          c.fillStyle = i%2===0 ? healClr : '#f09ab0'
           c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
         break
@@ -1696,11 +1885,12 @@ class Render {
   // ===== 宠物头像攻击数值（翻滚效果） =====
   drawPetAtkNum(f) {
     const {ctx:c,S} = this
-    const {x, y, text, color, alpha, scale} = f
+    const {x, y, text, color, alpha, scale, isHeal} = f
     c.save(); c.globalAlpha = alpha || 1
     const sz = (16 * (scale || 1)) * S
     c.font = `bold ${sz}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'bottom'
+    c.textAlign = isHeal ? 'right' : 'center'
+    c.textBaseline = isHeal ? 'middle' : 'bottom'
     // 发光效果
     c.shadowColor = color || '#ffd700'
     c.shadowBlur = 6 * S

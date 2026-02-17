@@ -64,6 +64,7 @@ class Main {
     this.dmgFloats = []; this.skillEffects = []
     this.elimFloats = []   // 消除时棋子处的数值飘字
     this.petAtkNums = []   // 宠物头像处攻击数值翻滚
+    this._comboAnim = { num: 0, timer: 0, scale: 1 } // Combo弹出动画
     this._petFinalDmg = {} // preAttack阶段各宠物最终伤害（含combo等加成）
     this._petAtkRollTimer = 0 // 头像数值翻滚计时
     this.shakeT = 0; this.shakeI = 0
@@ -72,14 +73,14 @@ class Main {
     this.heroHurtAnim   = { active:false, progress:0, duration:18 }
     this.enemyAttackAnim= { active:false, progress:0, duration:20 }
     this.skillCastAnim  = { active:false, progress:0, duration:30, type:'slash', color:TH.accent, skillName:'', targetX:0, targetY:0 }
-    this._enemyHpLoss = null; this._heroHpLoss = null
+    this._enemyHpLoss = null; this._heroHpLoss = null; this._heroHpGain = null
 
     // Run state (Roguelike)
     this.floor = 0
     this.pets = []          // [{...petData, attr, currentCd}] — 上场5只
-    this.weapon = null      // 当前装备武器
+    this.weapon = null      // 当前装备法宝
     this.petBag = []        // 宠物背包，最多8只
-    this.weaponBag = []     // 武器背包，最多4把
+    this.weaponBag = []     // 法宝背包，最多4件
     this.heroHp = 0; this.heroMaxHp = 60
     this.heroShield = 0
     this.heroBuffs = []; this.enemyBuffs = []
@@ -96,8 +97,14 @@ class Main {
     this.prepareTab = 'pets'   // 'pets' | 'weapon'
     this.prepareSelBagIdx = -1 // 背包选中的下标
     this.prepareSelSlotIdx = -1 // 上场槽位选中的下标
-    this.prepareTip = null     // 详情Tips: {type:'pet'|'weapon', data, x, y}
+    this.prepareTip = null     // 详情Tips: {type:'pet'|'weapon', data, x, y}  (weapon=法宝)
     this._eventPetDetail = null // 事件页灵兽详情弹窗索引
+    this.showRunBuffDetail = false // 全局增益详情弹窗
+    this.showWeaponDetail = false  // 战斗中法宝详情弹窗
+    this.showBattlePetDetail = null // 战斗中宠物详情弹窗（宠物索引）
+    this._runBuffIconRects = []   // 全局增益图标点击区域
+    // 局内BUFF日志（用于左侧图标列显示）
+    this.runBuffLog = []
     // 局内BUFF累积（全队全局生效，更换宠物不影响）
     this.runBuffs = {
       allAtkPct: 0, allDmgPct: 0,
@@ -143,6 +150,9 @@ class Main {
     this._pressedBtn = null
     this.showExitDialog = false
     this.showNewRunConfirm = false  // 首页"开始挑战"确认弹窗
+    // 排行榜
+    this.rankTab = 'all'
+    this.rankScrollY = 0
 
     // 触摸
     if (typeof canvas.addEventListener === 'function') {
@@ -165,7 +175,7 @@ class Main {
     this.pets = generateStarterPets()
     this.weapon = null
     this.petBag = []        // 宠物背包清空
-    this.weaponBag = []     // 武器背包清空
+    this.weaponBag = []     // 法宝背包清空
     this.heroHp = 60; this.heroMaxHp = 60; this.heroShield = 0
     this.heroBuffs = []; this.enemyBuffs = []
     this.runBuffs = {
@@ -178,17 +188,26 @@ class Main {
       eliteAtkReducePct:0, eliteHpReducePct:0, bossAtkReducePct:0, bossHpReducePct:0,
       nextDmgReducePct:0, postBattleHealPct:0, extraRevive:0,
     }
+    this.runBuffLog = []
     this.skipNextBattle = false; this.nextStunEnemy = false; this.nextDmgDouble = false
     this.tempRevive = false; this.immuneOnce = false; this.comboNeverBreak = false
     this.weaponReviveUsed = false; this.goodBeadsNextTurn = false
+    this.adReviveUsed = false // 广告复活（每轮通关仅一次机会）
     this.turnCount = 0; this.combo = 0
     this.storage._d.totalRuns++; this.storage._save()
     this._nextFloor()
   }
 
   _nextFloor() {
+    // 还原宠物技能/法宝在上一场战斗中临时增加的血量上限
+    this._restoreBattleHpMax()
+    // 清除战斗中产生的临时buff（宠物技能/法宝buff仅当前层有效）
+    this.heroBuffs = []
+    this.enemyBuffs = []
+    // 清除上一层战斗中获得的护盾（宠物技能护盾不跨层）
+    this.heroShield = 0
     this.floor++
-    // 武器perFloorBuff
+    // 法宝perFloorBuff
     if (this.weapon && this.weapon.type === 'perFloorBuff' && this.floor > 1 && (this.floor - 1) % this.weapon.per === 0) {
       if (this.weapon.field === 'atk') this.runBuffs.allAtkPct += this.weapon.pct
       else if (this.weapon.field === 'hpMax') {
@@ -202,21 +221,39 @@ class Main {
       this.skipNextBattle = false
       this.curEvent = { type: EVENT_TYPE.ADVENTURE, data: ADVENTURES[Math.floor(Math.random()*ADVENTURES.length)] }
     }
-    // 进入战前编辑/预览场景
+    // 进入事件预览页面
     this.prepareTab = 'pets'
     this.prepareSelBagIdx = -1
     this.prepareSelSlotIdx = -1
-    this.scene = 'prepare'
+    this._eventPetDetail = null
+    this.scene = 'event'
+  }
+
+  // 还原战斗中宠物技能/法宝临时增加的血量上限
+  _restoreBattleHpMax() {
+    if (this._baseHeroMaxHp != null && this._baseHeroMaxHp !== this.heroMaxHp) {
+      const base = this._baseHeroMaxHp
+      // 按比例缩减当前血量（不超过恢复后的上限）
+      this.heroHp = Math.min(this.heroHp, base)
+      this.heroMaxHp = base
+    }
+    this._baseHeroMaxHp = null
   }
 
   _endRun() {
     this.storage.updateBestFloor(this.floor, this.pets, this.weapon)
     this.storage.clearRunState()
+    // 提交排行榜（已授权时自动提交）
+    if (this.storage.userAuthorized) {
+      this.storage.submitScore(this.floor, this.pets, this.weapon)
+    }
     this.scene = 'gameover'
   }
 
   // 暂存退出：保存当前局内所有状态，回到标题页
   _saveAndExit() {
+    // 还原战斗中临时增加的血量上限，确保存档的是基础值
+    this._restoreBattleHpMax()
     const runState = {
       floor: this.floor,
       pets: JSON.parse(JSON.stringify(this.pets)),
@@ -226,6 +263,7 @@ class Main {
       heroHp: this.heroHp, heroMaxHp: this.heroMaxHp, heroShield: this.heroShield,
       heroBuffs: JSON.parse(JSON.stringify(this.heroBuffs)),
       runBuffs: JSON.parse(JSON.stringify(this.runBuffs)),
+      runBuffLog: JSON.parse(JSON.stringify(this.runBuffLog || [])),
       skipNextBattle: this.skipNextBattle, nextStunEnemy: this.nextStunEnemy, nextDmgDouble: this.nextDmgDouble,
       tempRevive: this.tempRevive, immuneOnce: this.immuneOnce, comboNeverBreak: this.comboNeverBreak,
       weaponReviveUsed: this.weaponReviveUsed, goodBeadsNextTurn: this.goodBeadsNextTurn,
@@ -266,6 +304,7 @@ class Main {
       eliteAtkReducePct:0, eliteHpReducePct:0, bossAtkReducePct:0, bossHpReducePct:0,
       nextDmgReducePct:0, postBattleHealPct:0, extraRevive:0 }
     for (const k in rbDefaults) { if (this.runBuffs[k] === undefined) this.runBuffs[k] = rbDefaults[k] }
+    this.runBuffLog = s.runBuffLog || []
     this.skipNextBattle = s.skipNextBattle || false
     this.nextStunEnemy = s.nextStunEnemy || false
     this.nextDmgDouble = s.nextDmgDouble || false
@@ -277,11 +316,12 @@ class Main {
     this.turnCount = 0; this.combo = 0
     this.curEvent = s.curEvent
     this.storage.clearRunState()
-    // 进入 prepare 页面
+    // 进入事件预览页面
     this.prepareTab = 'pets'
     this.prepareSelBagIdx = -1
     this.prepareSelSlotIdx = -1
-    this.scene = 'prepare'
+    this._eventPetDetail = null
+    this.scene = 'event'
   }
 
   // ===== 更新 =====
@@ -303,20 +343,28 @@ class Main {
       if (f.t > 30) f.alpha -= 0.04
       return f.alpha > 0 && f.t < 60
     })
+    // Combo弹出动画（弹性缩放回1.0）
+    if (this._comboAnim && this._comboAnim.timer < 20) {
+      this._comboAnim.timer++
+      const t = this._comboAnim.timer / 20
+      // 弹性ease-out: 从1.8缩回1.0，略微过冲到0.95再回1.0
+      if (t < 0.5) this._comboAnim.scale = 1.8 - 1.6 * (t / 0.5)
+      else if (t < 0.75) this._comboAnim.scale = 0.95 + 0.05 * ((t - 0.5) / 0.25)
+      else this._comboAnim.scale = 1.0
+    }
     // 宠物头像攻击数值动画
     this.petAtkNums = this.petAtkNums.filter(f => {
       f.t++
+      const prefix = f.isHeal ? '+' : ''
       if (f.t <= f.rollFrames) {
-        // 翻滚阶段：数值快速递增到最终值
         const progress = f.t / f.rollFrames
         const ease = 1 - Math.pow(1 - progress, 3)
         f.displayVal = Math.round(f.finalVal * ease)
-        f.text = `${f.displayVal}`
+        f.text = `${prefix}${f.displayVal}`
         f.scale = 1.0 + 0.2 * Math.sin(f.t * 0.8)
         if (f.t % 4 === 0) MusicMgr.playRolling()
       } else {
-        // 翻滚结束：保持显示
-        f.text = `${f.finalVal}`
+        f.text = `${prefix}${f.finalVal}`
         f.scale = 1.0
         if (f.t > f.rollFrames + 20) f.alpha -= 0.05
       }
@@ -356,6 +404,11 @@ class Main {
     this._updateBattleAnims()
     if (this._enemyHpLoss) { this._enemyHpLoss.timer++; if (this._enemyHpLoss.timer >= 45) this._enemyHpLoss = null }
     if (this._heroHpLoss) { this._heroHpLoss.timer++; if (this._heroHpLoss.timer >= 45) this._heroHpLoss = null }
+    if (this._heroHpGain) { this._heroHpGain.timer++; if (this._heroHpGain.timer >= 40) this._heroHpGain = null }
+    // 排行榜自动刷新（每60秒）
+    if (this.scene === 'ranking' && this.af % 3600 === 0) {
+      this.storage.fetchRanking(this.rankTab, true)
+    }
   }
 
   _updateBattleAnims() {
@@ -387,6 +440,8 @@ class Main {
       case 'rest': this._rRest(); break
       case 'adventure': this._rAdventure(); break
       case 'gameover': this._rGameover(); break
+      case 'ranking': this._rRanking(); break
+      case 'stats': this._rStats(); break
     }
     // 飘字&特效
     this.dmgFloats.forEach(f => R.drawDmgFloat(f))
@@ -423,20 +478,26 @@ class Main {
       const bx = W*0.25, by = H*0.60, bw = W*0.5, bh = 44*S
       R.drawBtn(bx, by, bw, bh, '开始挑战', TH.info, 15)
       this._titleBtnRect = [bx, by, bw, bh]
-      // 统计按钮
-      const sx = W*0.3, sy = H*0.72, sw = W*0.4, sh = 40*S
-      R.drawBtn(sx, sy, sw, sh, '历史统计', TH.info, 14)
-      this._statBtnRect = [sx, sy, sw, sh]
+      // 统计 + 排行榜并排
+      const rowY = H*0.72, btnH2 = 40*S, gap = 8*S
+      const halfW = (W*0.7 - gap) / 2, startX = W*0.15
+      R.drawBtn(startX, rowY, halfW, btnH2, '历史统计', TH.info, 14)
+      this._statBtnRect = [startX, rowY, halfW, btnH2]
+      R.drawBtn(startX + halfW + gap, rowY, halfW, btnH2, '🏆 排行榜', '#e6a817', 14)
+      this._rankBtnRect = [startX + halfW + gap, rowY, halfW, btnH2]
     } else {
       this._titleContinueRect = null
       // 开始按钮
       const bx = W*0.25, by = H*0.55, bw = W*0.5, bh = 50*S
       R.drawBtn(bx, by, bw, bh, '开始挑战', TH.accent, 18)
       this._titleBtnRect = [bx, by, bw, bh]
-      // 统计按钮
-      const sx = W*0.3, sy = H*0.67, sw = W*0.4, sh = 40*S
-      R.drawBtn(sx, sy, sw, sh, '历史统计', TH.info, 14)
-      this._statBtnRect = [sx, sy, sw, sh]
+      // 统计 + 排行榜并排
+      const rowY = H*0.67, btnH2 = 40*S, gap = 8*S
+      const halfW = (W*0.7 - gap) / 2, startX = W*0.15
+      R.drawBtn(startX, rowY, halfW, btnH2, '历史统计', TH.info, 14)
+      this._statBtnRect = [startX, rowY, halfW, btnH2]
+      R.drawBtn(startX + halfW + gap, rowY, halfW, btnH2, '🏆 排行榜', '#e6a817', 14)
+      this._rankBtnRect = [startX + halfW + gap, rowY, halfW, btnH2]
     }
 
     // 开始挑战确认弹窗（覆盖在最上层）
@@ -446,25 +507,13 @@ class Main {
   _rPrepare() {
     R.drawBg(this.af)
     const padX = 12*S
-    // 标题：下一层信息
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText(`第 ${this.floor} 层`, W*0.5, safeTop + 36*S)
-    // 事件类型
-    const ev = this.curEvent
-    if (ev) {
-      const typeName = { battle:'普通战斗', elite:'精英战斗', boss:'BOSS挑战', adventure:'奇遇', shop:'神秘商店', rest:'休息之地' }
-      ctx.fillStyle = TH.text; ctx.font = `bold ${16*S}px sans-serif`
-      ctx.fillText(typeName[ev.type] || '未知事件', W*0.5, safeTop + 60*S)
-      // 战斗类事件显示怪物属性
-      if (ev.type === 'battle' || ev.type === 'elite' || ev.type === 'boss') {
-        const e = ev.data
-        const ac = ATTR_COLOR[e.attr]
-        ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
-        ctx.fillText(`${e.name}  [${ATTR_NAME[e.attr]}属性]  HP:${e.hp}  ATK:${e.atk}`, W*0.5, safeTop + 82*S)
-      }
-    }
-    // Tab切换：宠物 / 武器
-    const tabY = safeTop + 98*S, tabH = 32*S, tabW = W*0.35
+    // 标题：阵容编辑
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText(`── 阵容编辑 ──`, W*0.5, safeTop + 36*S)
+    ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
+    ctx.fillText(`第 ${this.floor} 层`, W*0.5, safeTop + 56*S)
+    // Tab切换：宠物 / 法宝
+    const tabY = safeTop + 72*S, tabH = 32*S, tabW = W*0.35
     const petTabX = W*0.1, wpnTabX = W*0.55
     ctx.fillStyle = this.prepareTab === 'pets' ? TH.accent : TH.card
     R.rr(petTabX, tabY, tabW, tabH, 6*S); ctx.fill()
@@ -474,7 +523,7 @@ class Main {
     ctx.fillStyle = this.prepareTab === 'weapon' ? TH.accent : TH.card
     R.rr(wpnTabX, tabY, tabW, tabH, 6*S); ctx.fill()
     ctx.fillStyle = this.prepareTab === 'weapon' ? '#fff' : TH.sub
-    ctx.fillText('武器切换', wpnTabX+tabW*0.5, tabY+tabH*0.65)
+    ctx.fillText('法宝切换', wpnTabX+tabW*0.5, tabY+tabH*0.65)
     this._prepWpnTabRect = [wpnTabX, tabY, tabW, tabH]
 
     const contentY = tabY + tabH + 12*S
@@ -568,9 +617,9 @@ class Main {
       }
       // 背包宠物
       ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
-      const bagLabelY = slotY + slotH + 16*S
+      const bagLabelY = slotY + slotH + 30*S
       ctx.fillText(`灵兽背包（${this.petBag.length}/8）：`, padX, bagLabelY)
-      const bagY = bagLabelY + 8*S
+      const bagY = bagLabelY + 16*S
       const bagGap = 4*S
       const bagIcon = Math.floor((W - padX*2 - bagGap*3) / 4)
       const bagTextH = 28*S
@@ -657,43 +706,59 @@ class Main {
         this._prepSwapBtnRect = null
       }
     } else {
-      // 武器切换Tab
+      // 法宝切换Tab
       ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
-      ctx.fillText('当前武器：', padX, contentY + 12*S)
+      ctx.fillText('当前法宝：', padX, contentY + 12*S)
       const curWpnY = contentY + 20*S
       if (this.weapon) {
-        const ac = ATTR_COLOR[this.weapon.attr]
-        ctx.fillStyle = ac ? ac.bg : TH.card
+        ctx.fillStyle = 'rgba(30,25,18,0.85)'
         R.rr(padX, curWpnY, W-padX*2, 50*S, 8*S); ctx.fill()
         ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S; ctx.stroke()
-        ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText(`⚔ ${this.weapon.name} [${ATTR_NAME[this.weapon.attr]}]`, W*0.5, curWpnY+22*S)
+        // 法宝图标
+        const curWpnImg = R.getImg(`assets/equipment/fabao_${this.weapon.id}.png`)
+        const cwImgSz = 40*S
+        if (curWpnImg && curWpnImg.width > 0) {
+          ctx.save(); R.rr(padX + 5*S, curWpnY + 5*S, cwImgSz, cwImgSz, 6*S); ctx.clip()
+          ctx.drawImage(curWpnImg, padX + 5*S, curWpnY + 5*S, cwImgSz, cwImgSz)
+          ctx.restore()
+        }
+        const cwTextX = curWpnImg && curWpnImg.width > 0 ? padX + 5*S + cwImgSz + 8*S : padX + 10*S
+        ctx.fillStyle = TH.accent; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'left'
+        ctx.fillText(this.weapon.name, cwTextX, curWpnY+22*S)
         ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
-        ctx.fillText(this.weapon.desc, W*0.5, curWpnY+40*S)
+        ctx.fillText(this.weapon.desc, cwTextX, curWpnY+40*S)
         this._prepCurWpnRect = [padX, curWpnY, W-padX*2, 50*S]
       } else {
         ctx.fillStyle = TH.card; R.rr(padX, curWpnY, W-padX*2, 50*S, 8*S); ctx.fill()
         ctx.fillStyle = TH.dim; ctx.font = `${13*S}px sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText('无武器', W*0.5, curWpnY+30*S)
+        ctx.fillText('无法宝', W*0.5, curWpnY+30*S)
         this._prepCurWpnRect = null
       }
-      // 武器背包
+      // 法宝背包
       ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
       const wBagLabelY = curWpnY + 60*S
-      ctx.fillText(`武器背包（${this.weaponBag.length}/4）：`, padX, wBagLabelY)
+      ctx.fillText(`法宝背包（${this.weaponBag.length}/4）：`, padX, wBagLabelY)
       const wBagY = wBagLabelY + 8*S
       const wCardH = 50*S, wGap = 6*S
       this._prepWpnBagRects = []
       for (let i = 0; i < this.weaponBag.length; i++) {
         const wy = wBagY + i*(wCardH+wGap)
         const wp = this.weaponBag[i]
-        const ac = ATTR_COLOR[wp.attr]
-        ctx.fillStyle = ac ? ac.bg : TH.card
+        ctx.fillStyle = 'rgba(30,25,18,0.85)'
         R.rr(padX, wy, W-padX*2, wCardH, 8*S); ctx.fill()
-        ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText(`⚔ ${wp.name} [${ATTR_NAME[wp.attr]}]`, W*0.5, wy+20*S)
+        // 法宝图标
+        const bagWpnImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
+        const bwImgSz = 40*S
+        if (bagWpnImg && bagWpnImg.width > 0) {
+          ctx.save(); R.rr(padX + 5*S, wy + 5*S, bwImgSz, bwImgSz, 6*S); ctx.clip()
+          ctx.drawImage(bagWpnImg, padX + 5*S, wy + 5*S, bwImgSz, bwImgSz)
+          ctx.restore()
+        }
+        const bwTextX = bagWpnImg && bagWpnImg.width > 0 ? padX + 5*S + bwImgSz + 8*S : padX + 10*S
+        ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'left'
+        ctx.fillText(wp.name, bwTextX, wy+20*S)
         ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
-        ctx.fillText(wp.desc, W*0.5, wy+38*S)
+        ctx.fillText(wp.desc, bwTextX, wy+38*S)
         // 装备按钮
         const eqBtnW = 60*S, eqBtnH = 26*S, eqBtnX = W - padX - eqBtnW - 4*S, eqBtnY = wy + 10*S
         R.drawBtn(eqBtnX, eqBtnY, eqBtnW, eqBtnH, '装备', TH.info, 11)
@@ -707,10 +772,10 @@ class Main {
     // 底部：英雄HP条（出发按钮上方）
     const prepHpBarH = 18*S
     const prepHpBarY = H - 60*S - prepHpBarH - 12*S
-    R.drawHp(padX, prepHpBarY, W - padX*2, prepHpBarH, this.heroHp, this.heroMaxHp, TH.success, null, true)
+    R.drawHp(padX, prepHpBarY, W - padX*2, prepHpBarH, this.heroHp, this.heroMaxHp, '#d4607a', null, true, '#4dcc4d', this.heroShield)
     // 底部：出发按钮
     const goBtnX = W*0.2, goBtnY = H - 60*S, goBtnW = W*0.6, goBtnH = 46*S
-    R.drawBtn(goBtnX, goBtnY, goBtnW, goBtnH, '出发', TH.accent, 18)
+    R.drawBtn(goBtnX, goBtnY, goBtnW, goBtnH, '查看事件', TH.accent, 18)
     this._prepGoBtnRect = [goBtnX, goBtnY, goBtnW, goBtnH]
 
     // ===== 详情Tips浮层 =====
@@ -746,9 +811,8 @@ class Main {
         }
       }
     } else if (tip.type === 'weapon') {
-      const ac = ATTR_COLOR[d.attr]
-      lines.push({ text: `⚔ ${d.name}`, color: ac ? ac.main : TH.text, bold: true, size: 15 })
-      lines.push({ text: `属性：${ATTR_NAME[d.attr] || '?'}`, color: TH.sub, size: 11 })
+      lines.push({ text: d.name, color: TH.accent, bold: true, size: 15 })
+      lines.push({ text: '被动效果', color: TH.sub, size: 11 })
       if (d.desc) {
         lines.push({ text: '', size: 6 }) // 分隔
         const descLines = this._wrapText(d.desc, tipW - padX*2, 11)
@@ -936,7 +1000,11 @@ class Main {
       curY += 50*S
     }
 
-    // ===== 我的阵容区域 =====
+    // ===== 战斗层：显示我的阵容区域 =====
+    this._eventPetRects = []
+    this._eventEditPetRect = null
+    this._eventEditWpnRect = null
+    if (isBattle) {
     ctx.textAlign = 'center'
     ctx.fillStyle = TH.dim; ctx.font = `bold ${12*S}px sans-serif`
     ctx.fillText('── 我的阵容 ──', W*0.5, curY + 4*S)
@@ -944,45 +1012,52 @@ class Main {
 
     // 血条
     const hpBarH = 16*S
-    R.drawHp(padX, curY, W - padX*2, hpBarH, this.heroHp, this.heroMaxHp, TH.success, null, true)
+    R.drawHp(padX, curY, W - padX*2, hpBarH, this.heroHp, this.heroMaxHp, '#d4607a', null, true, '#4dcc4d', this.heroShield)
     curY += hpBarH + 12*S
 
-    // 武器行
+    // 法宝行
     ctx.textAlign = 'left'
     ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
-    ctx.fillText('武器：', padX, curY)
+    ctx.fillText('法宝：', padX, curY)
     curY += 6*S
     const wpnH = 36*S
     const wpnCardX = padX, wpnCardW = W - padX*2
     ctx.fillStyle = 'rgba(15,15,30,0.6)'
     R.rr(wpnCardX, curY, wpnCardW, wpnH, 6*S); ctx.fill()
     if (this.weapon) {
-      const wac = ATTR_COLOR[this.weapon.attr]
       // 小图标
       const wIconSz = 28*S
       const wIconX = wpnCardX + 8*S
       const wIconY = curY + (wpnH - wIconSz)/2
-      ctx.fillStyle = wac ? wac.bg : '#1a1510'
+      ctx.fillStyle = '#1a1510'
       R.rr(wIconX, wIconY, wIconSz, wIconSz, 4*S); ctx.fill()
-      ctx.fillStyle = wac ? wac.main : '#ddd'; ctx.font = `bold ${16*S}px sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('⚔', wIconX + wIconSz/2, wIconY + wIconSz/2)
-      ctx.textBaseline = 'alphabetic'
-      // 武器边框
+      // 法宝图片（优先），回退到emoji
+      const wImg = R.getImg(`assets/equipment/fabao_${this.weapon.id}.png`)
+      if (wImg && wImg.width > 0) {
+        ctx.save(); R.rr(wIconX, wIconY, wIconSz, wIconSz, 4*S); ctx.clip()
+        ctx.drawImage(wImg, wIconX, wIconY, wIconSz, wIconSz)
+        ctx.restore()
+      } else {
+        ctx.fillStyle = TH.accent; ctx.font = `bold ${16*S}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('⚔', wIconX + wIconSz/2, wIconY + wIconSz/2)
+        ctx.textBaseline = 'alphabetic'
+      }
+      // 法宝边框
       const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
       if (frameWeapon && frameWeapon.width > 0) {
         const fScale = 1.12, fSz = wIconSz * fScale, fOff = (fSz - wIconSz)/2
         ctx.drawImage(frameWeapon, wIconX - fOff, wIconY - fOff, fSz, fSz)
       }
-      // 武器名+描述
+      // 法宝名+描述
       ctx.textAlign = 'left'
-      ctx.fillStyle = wac ? wac.main : TH.text; ctx.font = `bold ${12*S}px sans-serif`
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${12*S}px sans-serif`
       ctx.fillText(this.weapon.name, wIconX + wIconSz + 10*S, curY + wpnH*0.38)
       ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
       ctx.fillText(this.weapon.desc, wIconX + wIconSz + 10*S, curY + wpnH*0.72)
     } else {
       ctx.textAlign = 'center'; ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`
-      ctx.fillText('无武器', W*0.5, curY + wpnH*0.58)
+      ctx.fillText('无法宝', W*0.5, curY + wpnH*0.58)
     }
     curY += wpnH + 12*S
 
@@ -996,7 +1071,6 @@ class Main {
     const petSidePad = padX
     const petIconSize = (W - petSidePad*2 - petGap*(petSlots-1)) / petSlots
     const petIconY = curY
-    this._eventPetRects = []
     const framePetMap = {
       metal: R.getImg('assets/ui/frame_pet_metal.png'),
       wood:  R.getImg('assets/ui/frame_pet_wood.png'),
@@ -1084,10 +1158,11 @@ class Main {
     const btn2X = W*0.5 + btnGap/2
     const btnY = curY
     R.drawBtn(btn1X, btnY, btnW, btnH, '灵兽编辑', TH.info, 12)
-    R.drawBtn(btn2X, btnY, btnW, btnH, '武器切换', TH.info, 12)
+    R.drawBtn(btn2X, btnY, btnW, btnH, '法宝切换', TH.info, 12)
     this._eventEditPetRect = [btn1X, btnY, btnW, btnH]
     this._eventEditWpnRect = [btn2X, btnY, btnW, btnH]
     curY += btnH + 16*S
+    } // end isBattle
 
     // 出发按钮
     const goBtnW = W*0.55, goBtnH = 44*S
@@ -1195,7 +1270,7 @@ class Main {
     // 队伍栏图标：占满整行，间距足够避免边框遮挡
     const sidePad = 8*S          // 两侧留白
     const petGap = 8*S           // 宠物之间间距（边框溢出约6%，需留足空间）
-    const wpnGap = 12*S          // 武器与第一个宠物间距
+    const wpnGap = 12*S          // 法宝与第一个宠物间距
     const totalGapW = wpnGap + petGap * 4 + sidePad * 2
     const iconSize = (W - totalGapW) / 6
     const teamBarH = iconSize + 6*S
@@ -1274,26 +1349,30 @@ class Main {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${16*S}px sans-serif`
       ctx.textAlign = 'center'
       ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-      ctx.strokeText(this.enemy.name, W*0.5, eAreaBottom - 48*S)
-      ctx.fillText(this.enemy.name, W*0.5, eAreaBottom - 48*S)
+      ctx.strokeText(this.enemy.name, W*0.5, eAreaBottom - 58*S)
+      ctx.fillText(this.enemy.name, W*0.5, eAreaBottom - 58*S)
       // 弱点属性提示（怪物名下方）
       const weakAttr = COUNTER_BY[this.enemy.attr]
       if (weakAttr) {
         const wc = ATTR_COLOR[weakAttr]
         ctx.fillStyle = wc ? wc.main : TH.accent; ctx.font = `bold ${11*S}px sans-serif`
         ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-        ctx.strokeText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 34*S)
-        ctx.fillText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 34*S)
+        ctx.strokeText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 44*S)
+        ctx.fillText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 44*S)
       }
       // 怪物HP（显示数值）
-      R.drawHp(padX+40*S, eAreaBottom - 28*S, W-padX*2-80*S, 16*S, this.enemy.hp, this.enemy.maxHp, ac ? ac.main : TH.danger, this._enemyHpLoss, true)
-      // 怪物buffs（HP条下方）
-      this._drawBuffIconsLabeled(this.enemyBuffs, padX+40*S, eAreaBottom - 6*S, '敌方', true)
-      // 英雄buffs（队伍栏上方）
-      this._drawBuffIconsLabeled(this.heroBuffs, padX, teamBarY - 18*S, '己方', false)
+      R.drawHp(padX+40*S, eAreaBottom - 36*S, W-padX*2-80*S, 16*S, this.enemy.hp, this.enemy.maxHp, ac ? ac.main : TH.danger, this._enemyHpLoss, true)
+      // 怪物buffs（HP条上方）
+      this._drawBuffIconsLabeled(this.enemyBuffs, padX+8*S, eAreaBottom - 60*S, '敌方', true)
       // 记录敌人区域用于点击查看详情
       this._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]
     }
+
+    // ===== 己方buffs（队伍栏上方，与敌方分开）=====
+    this._drawBuffIconsLabeled(this.heroBuffs, W*0.3, teamBarY - 16*S, '己方', false)
+
+    // ===== 左侧全局增益图标列 =====
+    this._drawRunBuffIcons(eAreaTop + 42*S, eAreaBottom - 54*S)
 
     // ===== 左上角退出按钮（在怪物区背景之后绘制，避免被覆盖）=====
     ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -1305,11 +1384,11 @@ class Main {
     ctx.textBaseline = 'alphabetic'
     this._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
 
-    // ===== 宠物+武器栏（一排，血条上方）=====
+    // ===== 宠物+法宝栏（一排，血条上方）=====
     this._drawTeamBar(teamBarY, teamBarH, iconSize)
 
     // ===== 英雄血条（队伍栏下方，棋盘上方，显示数值）=====
-    R.drawHp(padX, hpBarY, W - padX*2, hpBarH, this.heroHp, this.heroMaxHp, TH.success, this._heroHpLoss, true)
+    R.drawHp(padX, hpBarY, W - padX*2, hpBarH, this.heroHp, this.heroMaxHp, '#d4607a', this._heroHpLoss, true, '#4dcc4d', this.heroShield, this._heroHpGain)
 
     // ===== 棋盘（带格子背景）=====
     this._drawBoard()
@@ -1317,39 +1396,98 @@ class Main {
     // ===== 消除棋子处数值飘字 =====
     this.elimFloats.forEach(f => R.drawElimFloat(f))
 
-    // ===== Combo显示 =====
+    // ===== Combo显示（智龙迷城风格：大数字+COMBO文字，弹性缩放）=====
     if (this.combo > 0 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow')) {
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${22*S}px sans-serif`; ctx.textAlign = 'center'
-      ctx.fillText(`${this.combo} Combo!`, W*0.5, teamBarY - 12*S)
+      const ca = this._comboAnim || { num: this.combo, scale: 1 }
+      const comboScale = ca.scale || 1
+      const comboCx = W * 0.85
+      const comboCy = teamBarY - 36*S
+      ctx.save()
+      ctx.translate(comboCx, comboCy)
+      ctx.scale(comboScale, comboScale)
+      // 大数字
+      const numSz = 32*S
+      ctx.font = `bold ${numSz}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3*S
+      ctx.strokeText(`${this.combo}`, 0, 0)
+      // 数字颜色：低combo金色，高combo渐变到红色
+      ctx.fillStyle = this.combo >= 8 ? '#ff4d6a' : this.combo >= 5 ? '#ff8c00' : '#ffd700'
+      ctx.fillText(`${this.combo}`, 0, 0)
+      // COMBO文字（数字下方）
+      const comboTxtSz = 10*S
+      ctx.font = `bold ${comboTxtSz}px "PingFang SC",sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+      ctx.strokeText('COMBO', 0, numSz*0.55)
+      ctx.fillStyle = '#fff'
+      ctx.fillText('COMBO', 0, numSz*0.55)
+      ctx.restore()
     }
 
     // ===== 宠物头像攻击数值翻滚 =====
     this.petAtkNums.forEach(f => R.drawPetAtkNum(f))
 
-    // 拖拽计时
+    // 拖拽倒计时进度环（围绕拖拽中的珠子）
     if (this.dragging && this.bState === 'playerTurn') {
       const remain = Math.max(0, (this.dragTimeLimit - this.dragTimer) / 60)
-      ctx.fillStyle = remain < 2 ? TH.danger : TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
-      ctx.fillText(`⏱${remain.toFixed(1)}s`, padX, teamBarY - 14*S)
+      const pct = Math.max(0, Math.min(1, (this.dragTimeLimit - this.dragTimer) / this.dragTimeLimit))
+      const ringR = (this.cellSize - this.cellSize*0.08*2) * 0.5 + 6*S
+      const cx = this.dragCurX, cy = this.dragCurY
+      // 背景环（暗色）
+      ctx.save()
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'
+      ctx.lineWidth = 3*S
+      ctx.beginPath()
+      ctx.arc(cx, cy, ringR, 0, Math.PI*2)
+      ctx.stroke()
+      // 进度环（从顶部顺时针减少）
+      const startAngle = -Math.PI/2
+      const endAngle = startAngle + Math.PI*2 * pct
+      ctx.strokeStyle = pct < 0.25 ? '#ff4d6a' : pct < 0.5 ? '#ff8c00' : '#4dcc4d'
+      ctx.lineWidth = 3*S
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.arc(cx, cy, ringR, startAngle, endAngle)
+      ctx.stroke()
+      // 剩余秒数小字（珠子上方）
+      ctx.fillStyle = pct < 0.25 ? '#ff4d6a' : '#fff'
+      ctx.font = `bold ${9*S}px sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2*S
+      ctx.strokeText(`${remain.toFixed(1)}`, cx, cy - ringR - 2*S)
+      ctx.fillText(`${remain.toFixed(1)}`, cx, cy - ringR - 2*S)
+      ctx.restore()
     }
     // 胜利/失败覆盖
     if (this.bState === 'victory') this._drawVictoryOverlay()
     if (this.bState === 'defeat') this._drawDefeatOverlay()
+    if (this.bState === 'adReviveOffer') this._drawAdReviveOverlay()
     // 敌人详情弹窗
     if (this.showEnemyDetail) this._drawEnemyDetailDialog()
     // 退出确认弹窗
     if (this.showExitDialog) this._drawExitDialog()
+    // 法宝详情弹窗
+    if (this.showWeaponDetail) this._drawWeaponDetailDialog()
+    // 宠物详情弹窗
+    if (this.showBattlePetDetail != null) this._drawBattlePetDetailDialog()
+    // 全局增益详情弹窗（最顶层）
+    if (this.showRunBuffDetail) this._drawRunBuffDetailDialog()
   }
 
   _rReward() {
     R.drawBg(this.af)
     ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText('战斗胜利 - 选择奖励', W*0.5, safeTop + 40*S)
+    // 根据奖励类型显示不同标题
+    const evtType = this.curEvent ? this.curEvent.type : ''
+    let title = '战斗胜利 - 选择奖励'
+    if (evtType === 'elite') title = '精英击败 - 选择灵兽'
+    else if (evtType === 'boss') title = 'BOSS击败 - 选择法宝'
+    ctx.fillText(title, W*0.5, safeTop + 40*S)
     // 速通达成提示
     let headerOffset = 0
     if (this.lastSpeedKill) {
       ctx.fillStyle = '#ffd700'; ctx.font = `bold ${13*S}px sans-serif`
-      ctx.fillText(`⚡ 速通达成 (${this.lastTurnCount}回合) — 额外奖励已追加！`, W*0.5, safeTop + 60*S)
+      ctx.fillText(`⚡ 速通达成 (${this.lastTurnCount}回合) — 额外选项已解锁！`, W*0.5, safeTop + 60*S)
       headerOffset = 22*S
     }
     if (!this.rewards) return
@@ -1365,7 +1503,7 @@ class Main {
       const cy = startY + i*(cardH+gap)
       const selected = this.selectedReward === i
       // 速通奖励用金色底
-      const isSpeedBuff = rw.data && rw.data.id && rw.data.id.startsWith('s')
+      const isSpeedBuff = rw.isSpeed === true
       let bgColor = TH.card
       if (isSpeedBuff) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
       else if (rw.type === REWARD_TYPES.NEW_PET) bgColor = selected ? 'rgba(77,204,77,0.2)' : 'rgba(77,204,77,0.08)'
@@ -1379,7 +1517,7 @@ class Main {
       let tagColor = TH.dim
       if (isSpeedBuff) { typeTag = '【速通】'; tagColor = '#ffd700' }
       else if (rw.type === REWARD_TYPES.NEW_PET) { typeTag = '【灵兽】'; tagColor = '#4dcc4d' }
-      else if (rw.type === REWARD_TYPES.NEW_WEAPON) { typeTag = '【武器】'; tagColor = '#ffd700' }
+      else if (rw.type === REWARD_TYPES.NEW_WEAPON) { typeTag = '【法宝】'; tagColor = '#ffd700' }
       else if (rw.type === REWARD_TYPES.BUFF) { typeTag = '【加成】'; tagColor = '#4dabff' }
       ctx.fillStyle = tagColor; ctx.font = `bold ${11*S}px sans-serif`; ctx.textAlign = 'center'
       ctx.fillText(typeTag, W*0.5, cy + 16*S)
@@ -1392,10 +1530,7 @@ class Main {
         ctx.fillText(`→ 进入灵兽背包 (${this.petBag.length}/8)`, W*0.5, cy + cardH*0.78)
       } else if (rw.type === REWARD_TYPES.NEW_WEAPON) {
         ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
-        ctx.fillText(`→ 进入武器背包 (${this.weaponBag.length}/4)`, W*0.5, cy + cardH*0.78)
-      } else if (isSpeedBuff) {
-        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
-        ctx.fillText('速通额外奖励·自动生效', W*0.5, cy + cardH*0.78)
+        ctx.fillText(`→ 进入法宝背包 (${this.weaponBag.length}/4)`, W*0.5, cy + cardH*0.78)
       } else if (rw.type === REWARD_TYPES.BUFF) {
         ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
         ctx.fillText('全队永久生效', W*0.5, cy + cardH*0.78)
@@ -1491,10 +1626,10 @@ class Main {
     })
     if (this.weapon) {
       ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'
-      ctx.fillText(`武器：${this.weapon.name}`, W*0.5, H*0.62)
+      ctx.fillText(`法宝：${this.weapon.name}`, W*0.5, H*0.62)
     }
     ctx.fillStyle = TH.dim; ctx.font = `${11*S}px sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText(`灵兽背包：${this.petBag.length}只  武器背包：${this.weaponBag.length}把`, W*0.5, H*0.68)
+    ctx.fillText(`灵兽背包：${this.petBag.length}只  法宝背包：${this.weaponBag.length}件`, W*0.5, H*0.68)
     const bx = W*0.25, by = H*0.75, bw = W*0.5, bh = 48*S
     R.drawBtn(bx, by, bw, bh, '重新挑战', TH.accent, 18)
     this._goBtnRect = [bx, by, bw, bh]
@@ -1502,7 +1637,322 @@ class Main {
     this._drawBackBtn()
   }
 
-  // ===== 辅助渲染 =====
+  // ===== 排行榜场景 =====
+  _openRanking() {
+    if (!this.storage.userAuthorized) {
+      // 首次点击需要授权
+      this.storage.requestUserInfo((ok, info) => {
+        if (ok) {
+          // 授权成功，提交当前最高分后进入排行榜
+          if (this.storage.bestFloor > 0) {
+            this.storage.submitScore(
+              this.storage.bestFloor,
+              this.storage.stats.bestFloorPets,
+              this.storage.stats.bestFloorWeapon
+            )
+          }
+          this.rankTab = 'all'
+          this.rankScrollY = 0
+          this.storage.fetchRanking('all', true)
+          this.storage.fetchRanking('daily', true)
+          this.scene = 'ranking'
+        }
+      })
+      return
+    }
+    this.rankTab = 'all'
+    this.rankScrollY = 0
+    this.storage.fetchRanking('all')
+    this.storage.fetchRanking('daily')
+    this.scene = 'ranking'
+  }
+
+  _rRanking() {
+    R.drawHomeBg(this.af)
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+
+    const padX = 12*S
+    // 标题
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('🏆 排行榜', W*0.5, safeTop + 40*S)
+
+    // Tab切换
+    const tabY = safeTop + 56*S, tabH = 34*S, tabW = W*0.35
+    const tabAllX = W*0.08, tabDailyX = W*0.57
+    // 总排行 tab
+    ctx.fillStyle = this.rankTab === 'all' ? '#e6a817' : 'rgba(255,255,255,0.08)'
+    R.rr(tabAllX, tabY, tabW, tabH, 8*S); ctx.fill()
+    ctx.fillStyle = this.rankTab === 'all' ? '#1a1a2e' : TH.sub
+    ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('总排行', tabAllX + tabW*0.5, tabY + tabH*0.65)
+    this._rankTabAllRect = [tabAllX, tabY, tabW, tabH]
+    // 今日排行 tab
+    ctx.fillStyle = this.rankTab === 'daily' ? '#e6a817' : 'rgba(255,255,255,0.08)'
+    R.rr(tabDailyX, tabY, tabW, tabH, 8*S); ctx.fill()
+    ctx.fillStyle = this.rankTab === 'daily' ? '#1a1a2e' : TH.sub
+    ctx.fillText('今日排行', tabDailyX + tabW*0.5, tabY + tabH*0.65)
+    this._rankTabDailyRect = [tabDailyX, tabY, tabW, tabH]
+
+    // 列表区域
+    const listTop = tabY + tabH + 12*S
+    const listBottom = H - 70*S
+    const rowH = 62*S
+    const list = this.rankTab === 'all' ? this.storage.rankAllList : this.storage.rankDailyList
+    const myRank = this.rankTab === 'all' ? this.storage.rankAllMyRank : this.storage.rankDailyMyRank
+
+    // 表头
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'
+    ctx.fillRect(padX, listTop, W - padX*2, 24*S)
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'left'
+    ctx.fillText('排名', padX + 8*S, listTop + 16*S)
+    ctx.fillText('玩家', padX + 50*S, listTop + 16*S)
+    ctx.textAlign = 'right'
+    ctx.fillText('最高层', W - padX - 8*S, listTop + 16*S)
+
+    // 裁剪列表区
+    const contentTop = listTop + 26*S
+    ctx.save()
+    ctx.beginPath(); ctx.rect(0, contentTop, W, listBottom - contentTop); ctx.clip()
+
+    if (this.storage.rankLoading && list.length === 0) {
+      ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText('加载中...', W*0.5, contentTop + 60*S)
+    } else if (list.length === 0) {
+      ctx.fillStyle = TH.dim; ctx.font = `${14*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText('暂无数据', W*0.5, contentTop + 60*S)
+    } else {
+      for (let i = 0; i < list.length; i++) {
+        const item = list[i]
+        const ry = contentTop + i * rowH + this.rankScrollY
+        if (ry + rowH < contentTop || ry > listBottom) continue
+
+        // 行背景（前三名特殊）
+        if (i < 3) {
+          const medalColors = ['rgba(255,215,0,0.12)', 'rgba(192,192,192,0.10)', 'rgba(205,127,50,0.10)']
+          ctx.fillStyle = medalColors[i]
+        } else {
+          ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.1)'
+        }
+        ctx.fillRect(padX, ry, W - padX*2, rowH - 2*S)
+
+        // 排名
+        ctx.textAlign = 'left'
+        if (i < 3) {
+          const medals = ['🥇', '🥈', '🥉']
+          ctx.font = `${18*S}px sans-serif`
+          ctx.fillText(medals[i], padX + 8*S, ry + 28*S)
+        } else {
+          ctx.fillStyle = TH.sub; ctx.font = `bold ${14*S}px sans-serif`
+          ctx.fillText(`${i + 1}`, padX + 12*S, ry + 28*S)
+        }
+
+        // 头像
+        const avatarX = padX + 44*S, avatarY = ry + 6*S, avatarSz = 32*S
+        if (item.avatarUrl) {
+          const avatarImg = R.getImg(item.avatarUrl)
+          if (avatarImg && avatarImg.width > 0) {
+            ctx.save()
+            ctx.beginPath()
+            ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2)
+            ctx.clip()
+            ctx.drawImage(avatarImg, avatarX, avatarY, avatarSz, avatarSz)
+            ctx.restore()
+          } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.1)'
+            ctx.beginPath(); ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2); ctx.fill()
+          }
+        } else {
+          ctx.fillStyle = 'rgba(255,255,255,0.1)'
+          ctx.beginPath(); ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2); ctx.fill()
+          ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.fillText('?', avatarX + avatarSz/2, avatarY + avatarSz/2 + 4*S)
+        }
+
+        // 昵称
+        ctx.textAlign = 'left'
+        ctx.fillStyle = i < 3 ? '#ffd700' : TH.text; ctx.font = `bold ${13*S}px sans-serif`
+        const nick = (item.nickName || '修士').substring(0, 8)
+        ctx.fillText(nick, avatarX + avatarSz + 8*S, ry + 22*S)
+
+        // 宠物+法宝信息（第二行小字）
+        const petNames = (item.pets || []).map(p => {
+          const ac = ATTR_COLOR[p.attr]
+          return p.name ? p.name.substring(0, 2) : '?'
+        }).join(' ')
+        const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0,3)}` : ''
+        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`
+        ctx.fillText(`${petNames} ${wpnName}`, avatarX + avatarSz + 8*S, ry + 40*S)
+
+        // 层数（右侧大字）
+        ctx.textAlign = 'right'
+        ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+        ctx.fillText(`${item.floor}`, W - padX - 10*S, ry + 24*S)
+        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+        ctx.fillText('层', W - padX - 10*S, ry + 40*S)
+      }
+    }
+    ctx.restore()
+
+    // 我的排名（底部固定栏）
+    const myBarY = listBottom + 4*S, myBarH = 40*S
+    ctx.fillStyle = 'rgba(230,168,23,0.12)'
+    ctx.fillRect(padX, myBarY, W - padX*2, myBarH)
+    ctx.strokeStyle = '#e6a81744'; ctx.lineWidth = 1*S
+    R.rr(padX, myBarY, W - padX*2, myBarH, 6*S); ctx.stroke()
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${12*S}px sans-serif`; ctx.textAlign = 'left'
+    const myNick = this.storage.userInfo ? this.storage.userInfo.nickName : '我'
+    ctx.fillText(`我：${myNick}`, padX + 12*S, myBarY + myBarH*0.6)
+    ctx.textAlign = 'right'
+    if (myRank > 0) {
+      ctx.fillText(`第 ${myRank} 名`, W*0.6, myBarY + myBarH*0.6)
+    } else {
+      ctx.fillStyle = TH.dim
+      ctx.fillText('未上榜', W*0.6, myBarY + myBarH*0.6)
+    }
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${14*S}px sans-serif`
+    ctx.fillText(`${this.storage.bestFloor} 层`, W - padX - 10*S, myBarY + myBarH*0.6)
+
+    // 刷新提示
+    if (this.storage.rankLoading) {
+      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText('刷新中...', W*0.5, myBarY + myBarH + 14*S)
+    }
+
+    // 左上角返回按钮
+    this._drawBackBtn()
+    // 右上角刷新按钮
+    const rfX = W - 68*S, rfY = safeTop + 6*S, rfW = 60*S, rfH = 30*S
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    R.rr(rfX, rfY, rfW, rfH, 6*S); ctx.fill()
+    ctx.fillStyle = this.storage.rankLoading ? TH.dim : TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('刷新', rfX + rfW/2, rfY + rfH*0.65)
+    this._rankRefreshRect = [rfX, rfY, rfW, rfH]
+  }
+
+  _tRanking(type, x, y) {
+    // 滚动支持
+    if (type === 'start') {
+      this._rankTouchStartY = y
+      this._rankScrollStart = this.rankScrollY || 0
+      return
+    }
+    if (type === 'move') {
+      const dy = y - (this._rankTouchStartY || y)
+      const list = this.rankTab === 'all' ? this.storage.rankAllList : this.storage.rankDailyList
+      const rowH = 62*S
+      const maxScroll = 0
+      const minScroll = -Math.max(0, list.length * rowH - (H - 70*S - safeTop - 130*S))
+      this.rankScrollY = Math.max(minScroll, Math.min(maxScroll, this._rankScrollStart + dy))
+      return
+    }
+    if (type !== 'end') return
+
+    // 如果滑动距离大于阈值，不触发点击
+    const dy = Math.abs(y - (this._rankTouchStartY || y))
+    if (dy > 10*S) return
+
+    // 返回按钮
+    if (this._backBtnRect && this._hitRect(x, y, ...this._backBtnRect)) {
+      this.scene = 'title'; return
+    }
+    // 刷新按钮
+    if (this._rankRefreshRect && this._hitRect(x, y, ...this._rankRefreshRect)) {
+      this.storage.fetchRanking(this.rankTab, true)
+      return
+    }
+    // Tab切换
+    if (this._rankTabAllRect && this._hitRect(x, y, ...this._rankTabAllRect)) {
+      this.rankTab = 'all'; this.rankScrollY = 0
+      this.storage.fetchRanking('all')
+      return
+    }
+    if (this._rankTabDailyRect && this._hitRect(x, y, ...this._rankTabDailyRect)) {
+      this.rankTab = 'daily'; this.rankScrollY = 0
+      this.storage.fetchRanking('daily')
+      return
+    }
+  }
+
+  // ===== 历史统计场景 =====
+  _rStats() {
+    R.drawHomeBg(this.af)
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+
+    const padX = 16*S
+    // 标题
+    ctx.fillStyle = '#7ec8f0'; ctx.font = `bold ${22*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('📊 历史统计', W*0.5, safeTop + 40*S)
+
+    const st = this.storage.stats
+    const startY = safeTop + 70*S
+    const lineH = 38*S
+
+    // 统计面板背景
+    const panelH = lineH * 8 + 20*S
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'
+    R.rr(padX, startY - 10*S, W - padX*2, panelH, 10*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(126,200,240,0.2)'; ctx.lineWidth = 1*S
+    R.rr(padX, startY - 10*S, W - padX*2, panelH, 10*S); ctx.stroke()
+
+    const items = [
+      { label: '历史最高层数', value: `第 ${this.storage.bestFloor} 层`, color: '#ffd700' },
+      { label: '总挑战次数', value: `${this.storage.totalRuns} 次`, color: TH.accent },
+      { label: '总战斗场次', value: `${st.totalBattles} 场`, color: TH.text },
+      { label: '总消除Combo', value: `${st.totalCombos} 次`, color: TH.text },
+      { label: '最高单次Combo', value: `${st.maxCombo} 连`, color: '#ff6b6b' },
+      { label: '平均每场Combo', value: st.totalBattles > 0 ? `${(st.totalCombos / st.totalBattles).toFixed(1)} 次` : '-', color: TH.text },
+    ]
+
+    items.forEach((item, i) => {
+      const y = startY + i * lineH + 16*S
+      // 偶数行微亮背景
+      if (i % 2 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.03)'
+        ctx.fillRect(padX + 4*S, y - 14*S, W - padX*2 - 8*S, lineH - 2*S)
+      }
+      // 标签
+      ctx.textAlign = 'left'
+      ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
+      ctx.fillText(item.label, padX + 16*S, y)
+      // 值
+      ctx.textAlign = 'right'
+      ctx.fillStyle = item.color; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText(item.value, W - padX - 16*S, y)
+    })
+
+    // 最高记录阵容
+    const teamY = startY + 6 * lineH + 16*S
+    ctx.textAlign = 'left'
+    ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
+    ctx.fillText('最高记录阵容：', padX + 16*S, teamY)
+
+    const bfPets = st.bestFloorPets || []
+    const bfWeapon = st.bestFloorWeapon
+    if (bfPets.length > 0) {
+      const petStr = bfPets.map(p => p.name).join('、')
+      ctx.fillStyle = TH.text; ctx.font = `${11*S}px sans-serif`
+      ctx.fillText(petStr, padX + 16*S, teamY + 20*S)
+      if (bfWeapon) {
+        ctx.fillStyle = '#ffd700'; ctx.font = `${11*S}px sans-serif`
+        ctx.fillText(`法宝：${bfWeapon.name}`, padX + 16*S, teamY + 38*S)
+      }
+    } else {
+      ctx.fillStyle = TH.dim; ctx.font = `${11*S}px sans-serif`
+      ctx.fillText('暂无记录', padX + 16*S, teamY + 20*S)
+    }
+
+    // 左上角返回按钮
+    this._drawBackBtn()
+  }
+
+  _tStats(type, x, y) {
+    if (type !== 'end') return
+    if (this._backBtnRect && this._hitRect(x, y, ...this._backBtnRect)) {
+      this.scene = 'title'; return
+    }
+  }
+
   _drawPetBar(topY) {
     const pw = W*0.17, ph = 44*S, gap = (W - 5*pw) / 6
     this.pets.forEach((p, i) => {
@@ -1516,7 +1966,7 @@ class Main {
     })
   }
 
-  // 队伍栏：武器1 + 宠物5 = 6个1:1正方形头像框
+  // 队伍栏：法宝1 + 宠物5 = 6个1:1正方形头像框
   _drawTeamBar(topY, barH, iconSize) {
     ctx.save()
     // 重置关键状态，避免被前面绘制代码影响
@@ -1526,7 +1976,7 @@ class Main {
     ctx.fillStyle = 'rgba(8,8,20,0.88)'
     ctx.fillRect(0, topY, W, barH)
 
-    // 加载边框图片（武器 + 五行宠物）
+    // 加载边框图片（法宝 + 五行宠物）
     const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
     const framePetMap = {
       metal: R.getImg('assets/ui/frame_pet_metal.png'),
@@ -1536,7 +1986,7 @@ class Main {
       earth: R.getImg('assets/ui/frame_pet_earth.png'),
     }
 
-    // 6个1:1方格，武器与宠物间距稍大，宠物之间间距紧凑
+    // 6个1:1方格，法宝与宠物间距稍大，宠物之间间距紧凑
     const totalSlots = 6
     const sidePad = 8*S
     const petGap = 8*S
@@ -1550,7 +2000,7 @@ class Main {
     this._petBtnRects = []
 
     for (let i = 0; i < totalSlots; i++) {
-      // 武器在第0格，宠物在1~5格
+      // 法宝在第0格，宠物在1~5格
       let ix
       if (i === 0) {
         ix = sidePad
@@ -1561,26 +2011,33 @@ class Main {
       const cy = iconY + iconSize * 0.5
 
       if (i === 0) {
-        // ===== 第1格：武器 =====
-        const ac = this.weapon ? ATTR_COLOR[this.weapon.attr] : null
-        ctx.fillStyle = this.weapon ? (ac ? ac.bg : '#1a1510') : 'rgba(25,22,18,0.8)'
+        // ===== 第1格：法宝 =====
+        ctx.fillStyle = this.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
         ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
 
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         if (this.weapon) {
-          // 武器属性色光晕
-          ctx.save()
-          const grd = ctx.createRadialGradient(cx, cy - iconSize*0.08, 0, cx, cy - iconSize*0.08, iconSize*0.35)
-          grd.addColorStop(0, (ac ? ac.main : '#ccc') + '44')
-          grd.addColorStop(1, 'transparent')
-          ctx.fillStyle = grd
-          ctx.fillRect(ix, iconY, iconSize, iconSize)
-          ctx.restore()
-          // 武器emoji
-          ctx.fillStyle = ac ? ac.main : '#ddd'
-          ctx.font = `bold ${iconSize*0.32}px sans-serif`
-          ctx.fillText('⚔', cx, cy - iconSize*0.08)
-          // 武器名（描边）
+          // 法宝图片（优先），回退到光晕+emoji
+          const wpnImg = R.getImg(`assets/equipment/fabao_${this.weapon.id}.png`)
+          if (wpnImg && wpnImg.width > 0) {
+            ctx.save()
+            ctx.beginPath(); ctx.rect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2); ctx.clip()
+            ctx.drawImage(wpnImg, ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
+            ctx.restore()
+          } else {
+            // 金色光晕
+            ctx.save()
+            const grd = ctx.createRadialGradient(cx, cy - iconSize*0.08, 0, cx, cy - iconSize*0.08, iconSize*0.35)
+            grd.addColorStop(0, TH.accent + '44')
+            grd.addColorStop(1, 'transparent')
+            ctx.fillStyle = grd
+            ctx.fillRect(ix, iconY, iconSize, iconSize)
+            ctx.restore()
+            ctx.fillStyle = TH.accent
+            ctx.font = `bold ${iconSize*0.32}px sans-serif`
+            ctx.fillText('⚔', cx, cy - iconSize*0.08)
+          }
+          // 法宝名（描边）
           ctx.font = `bold ${iconSize*0.14}px sans-serif`
           ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2*S
           ctx.strokeText(this.weapon.name.substring(0,3), cx, cy + iconSize*0.28)
@@ -1591,10 +2048,12 @@ class Main {
           ctx.font = `${iconSize*0.22}px sans-serif`
           ctx.fillText('⚔', cx, cy)
         }
-        // 武器边框图片（上层，中间透明露出内容）
+        // 法宝边框图片（上层，中间透明露出内容）
         if (frameWeapon && frameWeapon.width > 0) {
           ctx.drawImage(frameWeapon, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
+        // 记录法宝点击区域
+        this._weaponBtnRect = [ix, iconY, iconSize, iconSize]
       } else {
         // ===== 第2~6格：宠物 =====
         const petIdx = i - 1
@@ -1829,6 +2288,61 @@ class Main {
     this._defeatBtnRect = [bx, by, bw, bh]
   }
 
+  // ===== 广告复活弹窗 =====
+  _drawAdReviveOverlay() {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
+
+    // 弹窗面板
+    const panelW = W * 0.78, panelH = 240*S
+    const panelX = (W - panelW) / 2, panelY = H * 0.28
+    ctx.fillStyle = 'rgba(16,16,32,0.96)'
+    R.rr(panelX, panelY, panelW, panelH, 14*S); ctx.fill()
+    ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
+    R.rr(panelX, panelY, panelW, panelH, 14*S); ctx.stroke()
+    // 顶部金色装饰条
+    ctx.save()
+    ctx.beginPath()
+    R.rr(panelX, panelY, panelW, 4*S, 14*S); ctx.clip()
+    ctx.fillStyle = '#ffd700'
+    ctx.fillRect(panelX, panelY, panelW, 4*S)
+    ctx.restore()
+
+    // 标题
+    ctx.textAlign = 'center'
+    ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px sans-serif`
+    ctx.fillText('修士陨落', W*0.5, panelY + 40*S)
+
+    // 副标题
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px sans-serif`
+    ctx.fillText('🎬 观看广告，满血复活！', W*0.5, panelY + 72*S)
+
+    // 说明文字
+    ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
+    ctx.fillText(`当前第 ${this.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+    ctx.fillText('每轮通关仅有一次复活机会', W*0.5, panelY + 116*S)
+
+    // 复活按钮（金色醒目）
+    const btnW = panelW * 0.7, btnH = 44*S
+    const btnX = (W - btnW) / 2, btnY = panelY + 140*S
+    ctx.fillStyle = '#ffd700'
+    R.rr(btnX, btnY, btnW, btnH, 10*S); ctx.fill()
+    ctx.fillStyle = '#1a1a2e'; ctx.font = `bold ${16*S}px sans-serif`
+    ctx.fillText('▶ 观看广告复活', W*0.5, btnY + btnH*0.5 + 6*S)
+    this._adReviveBtnRect = [btnX, btnY, btnW, btnH]
+
+    // 放弃按钮
+    const skipW = panelW * 0.5, skipH = 36*S
+    const skipX = (W - skipW) / 2, skipY = panelY + 196*S
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    R.rr(skipX, skipY, skipW, skipH, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1*S
+    R.rr(skipX, skipY, skipW, skipH, 8*S); ctx.stroke()
+    ctx.fillStyle = TH.dim; ctx.font = `${13*S}px sans-serif`
+    ctx.fillText('放弃治疗', W*0.5, skipY + skipH*0.5 + 5*S)
+    this._adReviveSkipRect = [skipX, skipY, skipW, skipH]
+  }
+
   // 通用左上角返回首页按钮
   _drawBackBtn() {
     const btnW = 60*S, btnH = 30*S
@@ -1846,7 +2360,7 @@ class Main {
 
   // 处理返回首页按钮点击（暂存进度后回首页）
   _handleBackToTitle() {
-    if (this.scene === 'gameover') {
+    if (this.scene === 'gameover' || this.scene === 'ranking' || this.scene === 'stats') {
       this.scene = 'title'
     } else {
       this._saveAndExit()
@@ -1954,7 +2468,148 @@ class Main {
     })
   }
 
-  // ===== 敌人详情弹窗 =====
+  // ===== 左侧全局增益图标列 =====
+  _drawRunBuffIcons(topY, bottomY) {
+    this._runBuffIconRects = []
+    const log = this.runBuffLog
+    if (!log || log.length === 0) return
+
+    // 合并同类buff：按buff字段聚合，显示累计值
+    const merged = {}
+    const BUFF_LABELS = {
+      allAtkPct:'攻', allDmgPct:'伤', heartBoostPct:'回', weaponBoostPct:'武',
+      extraTimeSec:'时', hpMaxPct:'血', comboDmgPct:'连', elim3DmgPct:'3消',
+      elim4DmgPct:'4消', elim5DmgPct:'5消', counterDmgPct:'克', skillDmgPct:'技',
+      skillCdReducePct:'CD', regenPerTurn:'生', dmgReducePct:'防', bonusCombo:'C+',
+      stunDurBonus:'晕', enemyAtkReducePct:'弱攻', enemyHpReducePct:'弱血',
+      enemyDefReducePct:'弱防', eliteAtkReducePct:'E攻', eliteHpReducePct:'E血',
+      bossAtkReducePct:'B攻', bossHpReducePct:'B血',
+      nextDmgReducePct:'减伤', postBattleHealPct:'战回', extraRevive:'复活',
+    }
+    // 是否是减益类（对敌人生效的减益，用不同颜色区分）
+    const DEBUFF_KEYS = ['enemyAtkReducePct','enemyHpReducePct','enemyDefReducePct',
+      'eliteAtkReducePct','eliteHpReducePct','bossAtkReducePct','bossHpReducePct']
+
+    for (const entry of log) {
+      const k = entry.buff
+      if (!merged[k]) merged[k] = { buff: k, val: 0, label: BUFF_LABELS[k] || k, entries: [] }
+      merged[k].val += entry.val
+      merged[k].entries.push(entry)
+    }
+    const items = Object.values(merged)
+    if (items.length === 0) return
+
+    const iconSz = 24*S
+    const gap = 4*S
+    const maxShow = Math.floor((bottomY - topY) / (iconSz + gap))
+    const showItems = items.slice(0, maxShow)
+    const leftX = 4*S
+
+    for (let i = 0; i < showItems.length; i++) {
+      const it = showItems[i]
+      const iy = topY + i * (iconSz + gap)
+      const isDebuff = DEBUFF_KEYS.includes(it.buff)
+      // 背景
+      ctx.fillStyle = isDebuff ? 'rgba(180,60,60,0.7)' : 'rgba(30,100,60,0.7)'
+      R.rr(leftX, iy, iconSz, iconSz, 4*S); ctx.fill()
+      // 边框
+      ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
+      ctx.lineWidth = 1*S
+      R.rr(leftX, iy, iconSz, iconSz, 4*S); ctx.stroke()
+      // 图标文字（缩写）
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(it.label, leftX + iconSz/2, iy + iconSz*0.38)
+      ctx.textBaseline = 'alphabetic'
+      // 数值（下方小字）
+      const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
+                     it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
+                     `${it.val > 0 ? '+' : ''}${it.val}%`
+      ctx.fillStyle = '#ffd700'; ctx.font = `${6*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText(valTxt, leftX + iconSz/2, iy + iconSz*0.78)
+      // 记录点击区域
+      this._runBuffIconRects.push({ rect: [leftX, iy, iconSz, iconSz], data: it })
+    }
+    // 若有更多未显示，底部显示 +N
+    if (items.length > maxShow) {
+      ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText(`+${items.length - maxShow}`, leftX + iconSz/2, topY + maxShow * (iconSz + gap) + 8*S)
+    }
+  }
+
+  // ===== 全局增益详情弹窗 =====
+  _drawRunBuffDetailDialog() {
+    const log = this.runBuffLog
+    if (!log || log.length === 0) { this.showRunBuffDetail = false; return }
+
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(0, 0, W, H)
+
+    const padX = 16*S, padY = 14*S
+    const tipW = W * 0.88
+    const lineH = 18*S
+    const titleH = 24*S
+
+    // 合并同类
+    const merged = {}
+    const BUFF_FULL_LABELS = {
+      allAtkPct:'全队攻击', allDmgPct:'全属性伤害', heartBoostPct:'心珠回复', weaponBoostPct:'法宝效果',
+      extraTimeSec:'转珠时间', hpMaxPct:'血量上限', comboDmgPct:'Combo伤害', elim3DmgPct:'3消伤害',
+      elim4DmgPct:'4消伤害', elim5DmgPct:'5消伤害', counterDmgPct:'克制伤害', skillDmgPct:'技能伤害',
+      skillCdReducePct:'技能CD缩短', regenPerTurn:'每回合回血', dmgReducePct:'受伤减少',
+      bonusCombo:'额外连击', stunDurBonus:'眩晕延长', enemyAtkReducePct:'怪物攻击降低',
+      enemyHpReducePct:'怪物血量降低', enemyDefReducePct:'怪物防御降低',
+      eliteAtkReducePct:'精英攻击降低', eliteHpReducePct:'精英血量降低',
+      bossAtkReducePct:'BOSS攻击降低', bossHpReducePct:'BOSS血量降低',
+      nextDmgReducePct:'下场受伤减少', postBattleHealPct:'战后回血', extraRevive:'额外复活',
+    }
+    for (const entry of log) {
+      const k = entry.buff
+      if (!merged[k]) merged[k] = { buff: k, val: 0, count: 0 }
+      merged[k].val += entry.val
+      merged[k].count++
+    }
+    const items = Object.values(merged)
+    const totalLines = items.length
+    const contentH = titleH + totalLines * lineH + padY * 2 + 10*S
+    const tipH = Math.min(contentH, H * 0.7)
+    const tipX = (W - tipW) / 2
+    const tipY = (H - tipH) / 2
+
+    // 弹窗背景
+    ctx.fillStyle = 'rgba(10,10,30,0.95)'
+    R.rr(tipX, tipY, tipW, tipH, 10*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,215,0,0.4)'; ctx.lineWidth = 1*S
+    R.rr(tipX, tipY, tipW, tipH, 10*S); ctx.stroke()
+
+    // 标题
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('全局增益一览', W*0.5, tipY + padY + 12*S)
+
+    // 列表
+    let ly = tipY + padY + titleH + 4*S
+    ctx.textAlign = 'left'
+    for (const it of items) {
+      if (ly + lineH > tipY + tipH - padY) break
+      const name = BUFF_FULL_LABELS[it.buff] || it.buff
+      const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}s` :
+                     it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
+                     `${it.val > 0 ? '+' : ''}${it.val}%`
+      const countTxt = it.count > 1 ? ` (x${it.count})` : ''
+      ctx.fillStyle = '#ddd'; ctx.font = `${11*S}px sans-serif`
+      ctx.fillText(`· ${name}`, tipX + padX, ly + 12*S)
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`${valTxt}${countTxt}`, tipX + tipW - padX, ly + 12*S)
+      ctx.textAlign = 'left'
+      ly += lineH
+    }
+
+    // 底部提示
+    ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + tipH - 8*S)
+  }
   _drawEnemyDetailDialog() {
     if (!this.enemy) return
     const e = this.enemy
@@ -2069,6 +2724,166 @@ class Main {
     ctx.restore()
   }
 
+  // ===== 法宝详情弹窗 =====
+  _drawWeaponDetailDialog() {
+    if (!this.weapon) { this.showWeaponDetail = false; return }
+    const w = this.weapon
+    const padX = 16*S, padY = 14*S
+    const lineH = 20*S, smallLineH = 16*S
+    const tipW = W * 0.82
+
+    let lines = []
+    lines.push({ text: w.name, color: TH.accent, bold: true, size: 16, h: lineH + 4*S })
+    lines.push({ text: '', size: 0, h: 6*S })
+    lines.push({ text: '法宝效果：', color: '#ffd700', bold: true, size: 12, h: smallLineH })
+    // 法宝描述自动换行
+    const descLines = this._wrapText(w.desc || '无', tipW - padX*2 - 10*S, 11)
+    descLines.forEach(dl => {
+      lines.push({ text: dl, color: '#ddd', size: 11, h: smallLineH })
+    })
+    lines.push({ text: '', size: 0, h: 6*S })
+    lines.push({ text: '提示：法宝为被动效果，全程自动生效', color: TH.dim, size: 10, h: smallLineH })
+
+    let totalH = padY * 2
+    lines.forEach(l => { totalH += l.h })
+    totalH += 20*S
+    // 如果有法宝图片，增加图片区域高度
+    const _wdImgPre = R.getImg(`assets/equipment/fabao_${w.id}.png`)
+    if (_wdImgPre && _wdImgPre.width > 0) totalH += 64*S + 8*S
+
+    const tipX = (W - tipW) / 2
+    const tipY = (H - totalH) / 2
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillRect(0, 0, W, H)
+
+    ctx.fillStyle = 'rgba(16,16,32,0.96)'
+    R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.fill()
+    ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 2*S
+    R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.stroke()
+    // 顶部装饰条
+    ctx.save()
+    ctx.beginPath()
+    R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
+    ctx.fillStyle = TH.accent
+    ctx.fillRect(tipX, tipY, tipW, 4*S)
+    ctx.restore()
+
+    // 法宝大图
+    const wdImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
+    const wdImgSz = 64*S
+    if (wdImg && wdImg.width > 0) {
+      const wdImgX = tipX + (tipW - wdImgSz) / 2
+      const wdImgY = tipY + padY
+      ctx.save(); R.rr(wdImgX, wdImgY, wdImgSz, wdImgSz, 8*S); ctx.clip()
+      ctx.drawImage(wdImg, wdImgX, wdImgY, wdImgSz, wdImgSz)
+      ctx.restore()
+      ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 1.5*S
+      R.rr(wdImgX, wdImgY, wdImgSz, wdImgSz, 8*S); ctx.stroke()
+    }
+
+    let curY = tipY + padY + (wdImg && wdImg.width > 0 ? wdImgSz + 8*S : 0)
+    ctx.textAlign = 'left'
+    lines.forEach(l => {
+      if (l.size === 0) { curY += l.h; return }
+      curY += l.h
+      ctx.fillStyle = l.color || TH.text
+      ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
+      ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    })
+
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
+    ctx.restore()
+  }
+
+  // ===== 宠物详情弹窗（战斗中）=====
+  _drawBattlePetDetailDialog() {
+    const idx = this.showBattlePetDetail
+    if (idx == null || idx >= this.pets.length) { this.showBattlePetDetail = null; return }
+    const p = this.pets[idx]
+    const ac = ATTR_COLOR[p.attr]
+    const sk = p.skill
+    const padX = 16*S, padY = 14*S
+    const lineH = 20*S, smallLineH = 16*S
+    const tipW = W * 0.82
+
+    let lines = []
+    lines.push({ text: p.name, color: ac ? ac.main : TH.accent, bold: true, size: 16, h: lineH + 4*S })
+    lines.push({ text: `属性：${ATTR_NAME[p.attr] || '?'}　　攻击力：${p.atk}`, color: TH.sub, size: 11, h: smallLineH })
+    lines.push({ text: '', size: 0, h: 6*S })
+
+    // 技能信息
+    if (sk) {
+      lines.push({ text: `技能：${sk.name}`, color: '#ffd700', bold: true, size: 13, h: lineH })
+      const descLines = this._wrapText(sk.desc || '无描述', tipW - padX*2 - 10*S, 11)
+      descLines.forEach(dl => {
+        lines.push({ text: dl, color: '#ddd', size: 11, h: smallLineH })
+      })
+      lines.push({ text: '', size: 0, h: 4*S })
+      // CD信息
+      let cdBase = p.cd
+      let cdActual = cdBase
+      if (this.runBuffs && this.runBuffs.skillCdReducePct > 0) {
+        cdActual = Math.max(1, Math.round(cdBase * (1 - this.runBuffs.skillCdReducePct / 100)))
+      }
+      const cdReduced = cdActual < cdBase
+      const cdText = cdReduced ? `冷却：${cdActual}回合（原${cdBase}，CD缩短${this.runBuffs.skillCdReducePct}%）` : `冷却：${cdBase}回合`
+      lines.push({ text: cdText, color: TH.sub, size: 10, h: smallLineH })
+      // 当前CD状态
+      const ready = p.currentCd <= 0
+      if (ready) {
+        lines.push({ text: '✦ 技能已就绪，可点击头像释放！', color: '#4dcc4d', bold: true, size: 11, h: smallLineH })
+      } else {
+        lines.push({ text: `◈ 冷却中：还需 ${p.currentCd} 回合`, color: '#ff8c00', size: 11, h: smallLineH })
+      }
+    } else {
+      lines.push({ text: '该宠物没有主动技能', color: TH.dim, size: 11, h: smallLineH })
+    }
+
+    lines.push({ text: '', size: 0, h: 6*S })
+    lines.push({ text: '提示：消除对应属性珠时该宠物发动攻击', color: TH.dim, size: 10, h: smallLineH })
+
+    let totalH = padY * 2
+    lines.forEach(l => { totalH += l.h })
+    totalH += 20*S
+
+    const tipX = (W - tipW) / 2
+    const tipY = (H - totalH) / 2
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillRect(0, 0, W, H)
+
+    ctx.fillStyle = 'rgba(16,16,32,0.96)'
+    R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.fill()
+    ctx.strokeStyle = ac ? ac.main + '88' : TH.accent + '66'; ctx.lineWidth = 2*S
+    R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.stroke()
+    // 顶部属性色装饰条
+    ctx.save()
+    ctx.beginPath()
+    R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
+    ctx.fillStyle = ac ? ac.main : TH.accent
+    ctx.fillRect(tipX, tipY, tipW, 4*S)
+    ctx.restore()
+
+    let curY = tipY + padY
+    ctx.textAlign = 'left'
+    lines.forEach(l => {
+      if (l.size === 0) { curY += l.h; return }
+      curY += l.h
+      if (curY > tipY + totalH - 24*S) return
+      ctx.fillStyle = l.color || TH.text
+      ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
+      ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    })
+
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
+    ctx.restore()
+  }
+
   // 布局辅助：计算队伍栏和HP条位置
   _getBattleLayout() {
     const boardPad = 6*S, cellSize = (W-boardPad*2)/COLS, boardH = ROWS*cellSize
@@ -2108,7 +2923,7 @@ class Main {
 
   _playHealEffect() {
     const L = this._getBattleLayout()
-    this.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:TH.success, skillName:'', targetX:W*0.5, targetY:L.hpBarY }
+    this.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:'#d4607a', skillName:'', targetX:W*0.5, targetY:L.hpBarY }
   }
 
   // ===== 触摸入口 =====
@@ -2126,6 +2941,8 @@ class Main {
       case 'rest': this._tRest(type,x,y); break
       case 'adventure': this._tAdventure(type,x,y); break
       case 'gameover': this._tGameover(type,x,y); break
+      case 'ranking': this._tRanking(type,x,y); break
+      case 'stats': this._tStats(type,x,y); break
     }
   }
 
@@ -2152,13 +2969,21 @@ class Main {
       }
       this._startRun(); return  // 无存档直接开始
     }
+    // 历史统计
+    if (this._statBtnRect && this._hitRect(x,y,...this._statBtnRect)) {
+      this.scene = 'stats'; return
+    }
+    // 排行榜
+    if (this._rankBtnRect && this._hitRect(x,y,...this._rankBtnRect)) {
+      this._openRanking(); return
+    }
   }
 
   _tPrepare(type,x,y) {
     if (type !== 'end') return
 
-    // 返回首页按钮
-    if (this._backBtnRect && this._hitRect(x,y,...this._backBtnRect)) { this._handleBackToTitle(); return }
+    // 返回事件页
+    if (this._backBtnRect && this._hitRect(x,y,...this._backBtnRect)) { this.scene = 'event'; return }
 
     // 如果Tips正在显示，点击任意位置关闭
     if (this.prepareTip) { this.prepareTip = null; return }
@@ -2201,18 +3026,22 @@ class Main {
           const tmp = this.pets[si]
           this.pets[si] = this.petBag[bi]
           this.pets[si].currentCd = 0
-          this.petBag[bi] = tmp
+          if (tmp) {
+            this.petBag[bi] = tmp  // 上场有宠物 → 换到背包原位
+          } else {
+            this.petBag.splice(bi, 1)  // 上场是空槽 → 从背包移除（不留null）
+          }
           this.prepareSelSlotIdx = -1; this.prepareSelBagIdx = -1
         }
         return
       }
     } else {
-      // 武器Tab：点击当前武器卡片 → 显示详情
+      // 法宝Tab：点击当前法宝卡片 → 显示详情
       if (this.weapon && this._prepCurWpnRect && this._hitRect(x,y,...this._prepCurWpnRect)) {
         this.prepareTip = { type:'weapon', data: this.weapon, x, y }
         return
       }
-      // 武器背包：点击卡片区域 → 显示详情；点击装备按钮 → 装备
+      // 法宝背包：点击卡片区域 → 显示详情；点击装备按钮 → 装备
       if (this._prepWpnBagRects) {
         for (let i = 0; i < this._prepWpnBagRects.length; i++) {
           const [cx,cy,cw,ch,ebx,eby,ebw,ebh] = this._prepWpnBagRects[i]
@@ -2239,7 +3068,7 @@ class Main {
     }
   }
 
-  // 从prepare进入事件预览页面
+  // 从prepare返回事件预览页面
   _enterEvent() {
     this._eventPetDetail = null
     this.scene = 'event'
@@ -2263,7 +3092,7 @@ class Main {
     if (this._eventEditPetRect && this._hitRect(x,y,...this._eventEditPetRect)) {
       this.prepareTab = 'pets'; this.scene = 'prepare'; return
     }
-    // 武器切换按钮
+    // 法宝切换按钮
     if (this._eventEditWpnRect && this._hitRect(x,y,...this._eventEditWpnRect)) {
       this.prepareTab = 'weapon'; this.scene = 'prepare'; return
     }
@@ -2316,6 +3145,21 @@ class Main {
       if (type === 'end') this.showEnemyDetail = false
       return
     }
+    // ===== 全局增益详情弹窗处理 =====
+    if (this.showRunBuffDetail) {
+      if (type === 'end') this.showRunBuffDetail = false
+      return
+    }
+    // ===== 法宝详情弹窗处理 =====
+    if (this.showWeaponDetail) {
+      if (type === 'end') this.showWeaponDetail = false
+      return
+    }
+    // ===== 宠物详情弹窗处理 =====
+    if (this.showBattlePetDetail != null) {
+      if (type === 'end') this.showBattlePetDetail = null
+      return
+    }
     // ===== 退出按钮 =====
     if (type === 'end' && this._exitBtnRect && this._hitRect(x,y,...this._exitBtnRect)) {
       this.showExitDialog = true; return
@@ -2323,12 +3167,35 @@ class Main {
     // 胜利/失败按钮
     if (this.bState === 'victory' && type === 'end') {
       if (this._victoryBtnRect && this._hitRect(x,y,...this._victoryBtnRect)) {
+        // 离开战斗：还原宠物技能/法宝临时血量上限加成
+        this._restoreBattleHpMax()
+        this.heroBuffs = []; this.enemyBuffs = []
         this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill); this.selectedReward = -1; this.rewardPetSlot = -1
         this.scene = 'reward'; this.bState = 'none'; return
       }
     }
     if (this.bState === 'defeat' && type === 'end') {
       if (this._defeatBtnRect && this._hitRect(x,y,...this._defeatBtnRect)) { this._endRun(); return }
+    }
+    // ===== 广告复活弹窗 =====
+    if (this.bState === 'adReviveOffer' && type === 'end') {
+      // 观看广告复活
+      if (this._adReviveBtnRect && this._hitRect(x,y,...this._adReviveBtnRect)) {
+        this._doAdRevive(); return
+      }
+      // 放弃
+      if (this._adReviveSkipRect && this._hitRect(x,y,...this._adReviveSkipRect)) {
+        this.adReviveUsed = true; this.bState = 'defeat'; return
+      }
+      return // 弹窗打开时拦截其他触摸
+    }
+    // ===== 点击左侧全局增益图标 =====
+    if (type === 'end' && this.bState !== 'victory' && this.bState !== 'defeat' && this._runBuffIconRects) {
+      for (const item of this._runBuffIconRects) {
+        if (this._hitRect(x, y, ...item.rect)) {
+          this.showRunBuffDetail = true; return
+        }
+      }
     }
     // ===== 点击敌人区域查看详情（胜利/失败状态下不允许）=====
     if (type === 'end' && this.bState !== 'victory' && this.bState !== 'defeat'
@@ -2338,11 +3205,21 @@ class Main {
         this.showEnemyDetail = true; return
       }
     }
-    // 宠物技能释放（仅playerTurn且非拖拽中）
-    if (this.bState === 'playerTurn' && !this.dragging && type === 'end' && this._petBtnRects) {
+    // 法宝点击查看详情
+    if (type === 'end' && this.bState !== 'victory' && this.bState !== 'defeat'
+        && this.weapon && this._weaponBtnRect && this._hitRect(x,y,...this._weaponBtnRect)) {
+      this.showWeaponDetail = true; return
+    }
+    // 宠物点击：CD就绪+playerTurn→释放技能；否则→查看详情
+    if (type === 'end' && this._petBtnRects && this.bState !== 'victory' && this.bState !== 'defeat') {
       for (let i = 0; i < this._petBtnRects.length; i++) {
-        if (this._hitRect(x,y,...this._petBtnRects[i]) && this.pets[i].currentCd <= 0) {
-          this._triggerPetSkill(this.pets[i], i); return
+        if (i < this.pets.length && this._hitRect(x,y,...this._petBtnRects[i])) {
+          if (this.bState === 'playerTurn' && !this.dragging && this.pets[i].currentCd <= 0) {
+            this._triggerPetSkill(this.pets[i], i)
+          } else {
+            this.showBattlePetDetail = i
+          }
+          return
         }
       }
     }
@@ -2385,14 +3262,6 @@ class Main {
     }
     if (this._rewardConfirmRect && this.selectedReward >= 0 && this._hitRect(x,y,...this._rewardConfirmRect)) {
       this._applyReward(this.rewards[this.selectedReward])
-      // 速通奖励自动生效（不需要选择）
-      if (this.rewards) {
-        this.rewards.forEach((rw, i) => {
-          if (i !== this.selectedReward && rw.data && rw.data.id && rw.data.id.startsWith('s')) {
-            this._applyBuffReward(rw.data)
-          }
-        })
-      }
       this._nextFloor()
     }
   }
@@ -2441,6 +3310,13 @@ class Main {
   // ===== 战斗进入 =====
   _enterBattle(enemyData) {
     this.enemy = { ...enemyData }
+    // 记录进入本层时的基础血量上限（用于战斗结束后还原）
+    this._baseHeroMaxHp = this.heroMaxHp
+    // 法宝 hpMaxUp 临时加成（仅当前战斗有效）
+    if (this.weapon && this.weapon.type === 'hpMaxUp') {
+      const inc = Math.round(this.heroMaxHp * this.weapon.pct / 100)
+      this.heroMaxHp += inc; this.heroHp += inc
+    }
     // 应用runBuffs中的敌方减益
     const rb = this.runBuffs
     let hpReduce = rb.enemyHpReducePct
@@ -2463,9 +3339,11 @@ class Main {
     this.elimQueue = []; this.elimAnimCells = null
     this.elimFloats = []; this.petAtkNums = []
     this._elimSkipCombo = false
-    this._enemyHpLoss = null; this._heroHpLoss = null
+    this._enemyHpLoss = null; this._heroHpLoss = null; this._heroHpGain = null
     this.showEnemyDetail = false
-    // 奇遇BUFF：下次战斗敌人眩晕
+    this.showRunBuffDetail = false
+    this.showWeaponDetail = false
+    this.showBattlePetDetail = null
     if (this.nextStunEnemy) {
       this.nextStunEnemy = false
       this.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
@@ -2474,7 +3352,7 @@ class Main {
     // 每场战斗开始时设置灵兽技能CD（降低为基础CD的60%，更容易释放）
     this.pets.forEach(p => { p.currentCd = Math.ceil(p.cd * 0.6) })
     this._initBoard()
-    // 武器额外转珠时间
+    // 法宝额外转珠时间
     let extraTime = this.runBuffs.extraTimeSec
     if (this.weapon && this.weapon.type === 'extraTime') extraTime += this.weapon.sec
     this.dragTimeLimit = (8 + extraTime) * 60
@@ -2546,6 +3424,8 @@ class Main {
       return
     }
     this.combo++
+    // Combo弹出动画
+    this._comboAnim = { num: this.combo, timer: 0, scale: 1.8 }
     // runBuffs额外连击
     if (this.runBuffs.bonusCombo > 0 && this.combo === 1) {
       this.combo += this.runBuffs.bonusCombo
@@ -2575,7 +3455,7 @@ class Main {
       if (this.weapon && this.weapon.type === 'heartBoost') heal *= 1 + this.weapon.pct / 100
       this._pendingHeal += heal
       elimDisplayVal = Math.round(heal)
-      elimDisplayColor = TH.success
+      elimDisplayColor = '#d4607a'  // 粉色与心珠对应
     } else {
       // 属性伤害
       const pet = this.pets.find(p => p.attr === attr)
@@ -2607,14 +3487,26 @@ class Main {
       // 播放消除音效
       MusicMgr.playEliminate()
     }
-    // 武器healOnElim效果
+    // 法宝healOnElim效果
     if (this.weapon && this.weapon.type === 'healOnElim' && this.weapon.attr === attr) {
       this._pendingHeal += this.heroMaxHp * this.weapon.pct / 100
     }
-    // 武器shieldOnElim效果
+    // 宠物buff healOnElim效果
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'healOnElim' && b.attr === attr) {
+        this._pendingHeal += this.heroMaxHp * b.pct / 100
+      }
+    })
+    // 法宝shieldOnElim效果
     if (this.weapon && this.weapon.type === 'shieldOnElim' && this.weapon.attr === attr) {
-      this.heroShield += this.weapon.val || 15
+      this._addShield(this.weapon.val || 15)
     }
+    // 宠物buff shieldOnElim效果
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'shieldOnElim' && b.attr === attr) {
+        this._addShield(b.val || 30)
+      }
+    })
     this.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
     this.elimAnimTimer = 0
     this.bState = 'elimAnim'
@@ -2724,6 +3616,12 @@ class Main {
     const dmgMap = this._pendingDmgMap || {}
     const comboMul = 1 + (this.combo - 1) * 0.25
     const comboBonusMul = 1 + this.runBuffs.comboDmgPct / 100
+    // 提前判定暴击（结果缓存供 _applyFinalDamage 使用）
+    const { critRate, critDmg } = this._calcCrit()
+    const isCrit = critRate > 0 && (critRate >= 100 || Math.random() * 100 < critRate)
+    const critMul = isCrit ? (1 + critDmg / 100) : 1
+    this._pendingCrit = isCrit
+    this._pendingCritMul = critMul
     const L = this._getBattleLayout()
     const sidePad = 8*S, petGap = 8*S, wpnGap = 12*S
     const totalGapW = wpnGap + petGap * 4 + sidePad * 2
@@ -2750,6 +3648,7 @@ class Main {
           dmg *= COUNTERED_MUL
         }
       }
+      dmg *= critMul
       dmg = Math.round(dmg)
       if (dmg <= 0) continue
       hasAny = true
@@ -2757,31 +3656,43 @@ class Main {
       const ix = sidePad + iconSize + wpnGap + (slotIdx - 1) * (iconSize + petGap)
       const cx = ix + iconSize * 0.5
       const ac = ATTR_COLOR[pet.attr]
+      const critColor = '#ffdd00'
       this.petAtkNums.push({
         x: cx, y: iconY - 4*S,
         finalVal: dmg, displayVal: 0,
         text: '0',
-        color: ac ? ac.main : '#ffd700',
-        t: 0, alpha: 1, scale: 1.0,
+        color: isCrit ? critColor : (ac ? ac.main : '#ffd700'),
+        t: 0, alpha: 1, scale: isCrit ? 1.3 : 1.0,
         rollFrames: 30,
-        petIdx: i
+        petIdx: i,
+        isCrit: isCrit
       })
     }
-    // 心珠回复显示在血条上方
+    // 心珠回复显示在血条最右侧（提前应用血量，动画与飘字同步）
     const pendingHeal = this._pendingHeal || 0
     if (pendingHeal > 0) {
       const heal = Math.round(pendingHeal * comboMul)
       if (heal > 0) {
         hasAny = true
+        const padX = 12*S
         this.petAtkNums.push({
-          x: W * 0.5, y: L.hpBarY - 2*S,
+          x: W - padX, y: L.hpBarY + 9*S,
           finalVal: heal, displayVal: 0,
           text: '0',
-          color: TH.success,
+          color: '#4dcc4d',
           t: 0, alpha: 1, scale: 1.0,
           rollFrames: 30,
           isHeal: true
         })
+        // 提前应用回血 + 启动血条动画（与飘字同步）
+        const oldHp = this.heroHp
+        const oldPct = oldHp / this.heroMaxHp
+        this.heroHp = Math.min(this.heroMaxHp, oldHp + heal)
+        if (this.heroHp > oldHp) {
+          this._heroHpGain = { fromPct: oldPct, timer: 0 }
+          this._playHealEffect()
+        }
+        this._pendingHealApplied = true  // 标记已提前结算
       }
     }
     if (hasAny) {
@@ -2799,10 +3710,55 @@ class Main {
     this.storage.recordBattle(this.combo)
   }
 
+  // 计算当前暴击率和暴击倍率
+  _calcCrit() {
+    let critRate = 0    // 暴击率 %
+    let critDmg = 50    // 暴击额外伤害 %（基础1.5倍 = 50%额外）
+    // 宠物buff: critBoost（暴击率提升）
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'critBoost') critRate += b.pct
+    })
+    // 宠物buff: critDmgUp（暴击伤害提升）
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'critDmgUp') critDmg += b.pct
+    })
+    // 法宝: critAll（暴击率+暴击伤害）
+    if (this.weapon && this.weapon.type === 'critAll') {
+      critRate += this.weapon.critRate || 0
+      critDmg += this.weapon.critDmg || 0
+    }
+    // 法宝: comboToCrit（每段Combo暴击率+X%）
+    if (this.weapon && this.weapon.type === 'comboToCrit') {
+      critRate += (this.weapon.pct || 5) * this.combo
+    }
+    // 法宝: guaranteeCrit（满足条件时必定暴击）
+    if (this.weapon && this.weapon.type === 'guaranteeCrit') {
+      const wAttr = this.weapon.attr
+      const minC = this.weapon.minCount || 5
+      // 检查本回合是否消除了足够数量的指定属性珠
+      const dmgMap = this._pendingDmgMap || {}
+      if (wAttr && dmgMap[wAttr] > 0) critRate = 100
+    }
+    critRate = Math.min(critRate, 100)
+    return { critRate, critDmg }
+  }
+
   _applyFinalDamage(dmgMap, heal) {
     const comboMul = 1 + (this.combo - 1) * 0.25
     // runBuffs: Combo伤害加成
     const comboBonusMul = 1 + this.runBuffs.comboDmgPct / 100
+    // 使用 _enterPetAtkShow 中预判定的暴击结果（如有），否则现场判定
+    let isCrit, critMul
+    if (this._pendingCrit != null) {
+      isCrit = this._pendingCrit
+      critMul = this._pendingCritMul || 1
+      this._pendingCrit = null; this._pendingCritMul = null
+    } else {
+      const cc = this._calcCrit()
+      isCrit = cc.critRate > 0 && (cc.critRate >= 100 || Math.random() * 100 < cc.critRate)
+      critMul = isCrit ? (1 + cc.critDmg / 100) : 1
+    }
+    this._lastCrit = isCrit  // 记录用于UI展示
     let totalDmg = 0
     // 属性伤害结算
     for (const [attr, baseDmg] of Object.entries(dmgMap)) {
@@ -2811,17 +3767,17 @@ class Main {
       dmg *= 1 + this.runBuffs.allDmgPct / 100
       // 属性专属增伤
       dmg *= 1 + (this.runBuffs.attrDmgPct[attr] || 0) / 100
-      // 武器属性增伤
+      // 法宝属性增伤
       if (this.weapon && this.weapon.type === 'attrDmgUp' && this.weapon.attr === attr) dmg *= 1 + this.weapon.pct / 100
-      // 武器全队攻击增伤
+      // 法宝全队攻击增伤
       if (this.weapon && this.weapon.type === 'allAtkUp') dmg *= 1 + this.weapon.pct / 100
-      // 武器Combo增伤
+      // 法宝Combo增伤
       if (this.weapon && this.weapon.type === 'comboDmgUp') dmg *= 1 + this.weapon.pct / 100 * (this.combo > 1 ? 1 : 0)
-      // 武器残血增伤
+      // 法宝残血增伤
       if (this.weapon && this.weapon.type === 'lowHpDmgUp' && this.heroHp / this.heroMaxHp <= (this.weapon.threshold || 30) / 100) dmg *= 1 + this.weapon.pct / 100
-      // 武器stunBonusDmg
+      // 法宝stunBonusDmg
       if (this.weapon && this.weapon.type === 'stunBonusDmg' && this.enemyBuffs.some(b => b.type === 'stun')) dmg *= 1 + this.weapon.pct / 100
-      // 武器增效
+      // 法宝增效
       if (this.runBuffs.weaponBoostPct > 0) dmg *= 1 + this.runBuffs.weaponBoostPct / 100
       // 下层伤害翻倍
       if (this.nextDmgDouble) dmg *= 2
@@ -2837,15 +3793,18 @@ class Main {
       }
       // 减去敌方防御
       if (this.enemy) dmg = Math.max(0, dmg - (this.enemy.def || 0))
-      // 武器ignoreDefPct
+      // 法宝ignoreDefPct
       if (this.weapon && this.weapon.type === 'ignoreDefPct' && this.weapon.attr === attr && this.enemy) {
         dmg += (this.enemy.def || 0) * this.weapon.pct / 100
       }
+      // 暴击倍率
+      dmg *= critMul
       dmg = Math.round(dmg)
       if (dmg > 0) {
         totalDmg += dmg
         const ac = ATTR_COLOR[attr]
-        this.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:this._getEnemyCenterY()-20*S, text:`-${dmg}`, color:ac?ac.main:TH.danger, t:0, alpha:1 })
+        const critColor = '#ffdd00' // 暴击用金色
+        this.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:this._getEnemyCenterY()-20*S, text:`-${dmg}`, color: isCrit ? critColor : (ac?ac.main:TH.danger), t:0, alpha:1, scale: isCrit ? 1.4 : 1.0 })
       }
     }
     if (this.nextDmgDouble) this.nextDmgDouble = false
@@ -2855,24 +3814,30 @@ class Main {
       this.enemy.hp = Math.max(0, this.enemy.hp - totalDmg)
       this._enemyHpLoss = { fromPct: oldPct, timer: 0 }
       this._playHeroAttack('', Object.keys(dmgMap)[0] || 'metal')
-      this.shakeT = 8; this.shakeI = 4
-      // 武器poisonChance
+      this.shakeT = isCrit ? 12 : 8; this.shakeI = isCrit ? 6 : 4
+      // 暴击特效飘字
+      if (isCrit) {
+        this.skillEffects.push({ x:W*0.5, y:this._getEnemyCenterY()-40*S, text:'暴击！', color:'#ffdd00', t:0, alpha:1 })
+      }
+      // 法宝poisonChance
       if (this.weapon && this.weapon.type === 'poisonChance' && Math.random()*100 < this.weapon.chance) {
         this.enemyBuffs.push({ type:'dot', name:'中毒', dmg:this.weapon.dmg, dur:this.weapon.dur, bad:true })
       }
     }
-    // 回复结算
-    if (heal > 0) {
+    // 回复结算（如果在petAtkShow阶段已提前结算则跳过）
+    if (heal > 0 && !this._pendingHealApplied) {
       heal *= comboMul
       heal = Math.round(heal)
       const oldHp = this.heroHp
+      const oldPct = oldHp / this.heroMaxHp
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + heal)
       if (this.heroHp > oldHp) {
-        this.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${Math.round(this.heroHp-oldHp)}`, color:TH.success, t:0, alpha:1 })
+        this._heroHpGain = { fromPct: oldPct, timer: 0 }
         this._playHealEffect()
       }
     }
-    // 武器regenPct (每回合回血)
+    this._pendingHealApplied = false
+    // 法宝regenPct (每回合回血)
     if (this.weapon && this.weapon.type === 'regenPct') {
       const regen = Math.round(this.heroMaxHp * this.weapon.pct / 100)
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + regen)
@@ -2881,7 +3846,14 @@ class Main {
     if (this.runBuffs.regenPerTurn > 0) {
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + this.runBuffs.regenPerTurn)
     }
-    // 武器comboHeal
+    // 宠物buff regen（持续回血，如"回春"）
+    this.heroBuffs.forEach(b => {
+      if (b.type === 'regen' && b.heal > 0) {
+        this.heroHp = Math.min(this.heroMaxHp, this.heroHp + b.heal)
+        this.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${b.heal}`, color:'#88ff88', t:0, alpha:1 })
+      }
+    })
+    // 法宝comboHeal
     if (this.weapon && this.weapon.type === 'comboHeal' && this.combo > 0) {
       const ch = Math.round(this.heroMaxHp * this.weapon.pct / 100 * this.combo)
       this.heroHp = Math.min(this.heroMaxHp, this.heroHp + ch)
@@ -2891,7 +3863,7 @@ class Main {
       this.lastTurnCount = this.turnCount
       this.lastSpeedKill = this.turnCount <= 5
       this.bState = 'victory'
-      // 武器onKillHeal
+      // 法宝onKillHeal
       if (this.weapon && this.weapon.type === 'onKillHeal') {
         this.heroHp = Math.min(this.heroMaxHp, this.heroHp + Math.round(this.heroMaxHp * this.weapon.pct / 100))
       }
@@ -2901,6 +3873,8 @@ class Main {
       }
       // 清除下一场临时减伤buff
       this.runBuffs.nextDmgReducePct = 0
+      // 从日志中移除已失效的临时buff
+      if (this.runBuffLog) this.runBuffLog = this.runBuffLog.filter(e => e.buff !== 'nextDmgReduce')
       return
     }
     // 进入结算→敌方回合
@@ -2944,7 +3918,7 @@ class Main {
     if (this.runBuffs.nextDmgReducePct > 0) reducePct += this.runBuffs.nextDmgReducePct
     atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
     atkDmg = Math.max(0, atkDmg)
-    // 武器blockChance
+    // 法宝blockChance
     if (this.weapon && this.weapon.type === 'blockChance' && Math.random()*100 < this.weapon.chance) {
       atkDmg = 0
       this.skillEffects.push({ x:W*0.5, y:H*0.6, text:'格挡！', color:TH.info, t:0, alpha:1 })
@@ -2961,7 +3935,7 @@ class Main {
       this.enemy.hp = Math.max(0, this.enemy.hp - refDmg)
       this.dmgFloats.push({ x:W*0.5, y:this._getEnemyCenterY(), text:`反弹-${refDmg}`, color:TH.info, t:0, alpha:1 })
     }
-    // 武器counterStun
+    // 法宝counterStun
     if (this.weapon && this.weapon.type === 'counterStun' && Math.random()*100 < this.weapon.chance) {
       this.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
     }
@@ -3005,10 +3979,27 @@ class Main {
     this._enemyTurnWait = true; this.bState = 'enemyTurn'; this._stateTimer = 0
   }
 
+  // 统一添加护盾（自动应用法宝shieldBoost加成）
+  _addShield(val) {
+    if (this.weapon && this.weapon.type === 'shieldBoost') {
+      val = Math.round(val * (1 + (this.weapon.pct || 50) / 100))
+    }
+    this.heroShield += val
+    // 护盾飘字
+    this.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${val}盾`, color:'#7ddfff', t:0, alpha:1 })
+  }
+
   _dealDmgToHero(dmg) {
     if (this.heroShield > 0) {
-      if (dmg <= this.heroShield) { this.heroShield -= dmg; return }
+      if (dmg <= this.heroShield) {
+        this.heroShield -= dmg
+        // 护盾吸收飘字
+        this.dmgFloats.push({ x:W*0.5, y:H*0.7, text:`盾-${dmg}`, color:'#40b8e0', t:0, alpha:1 })
+        return
+      }
+      const shieldAbs = this.heroShield
       dmg -= this.heroShield; this.heroShield = 0
+      this.dmgFloats.push({ x:W*0.45, y:H*0.7, text:`盾-${shieldAbs}`, color:'#40b8e0', t:0, alpha:1 })
     }
     const oldPct = this.heroHp / this.heroMaxHp
     this.heroHp = Math.max(0, this.heroHp - dmg)
@@ -3078,8 +4069,11 @@ class Main {
         }
         break
       }
-      case 'shield':
-        this.heroShield += sk.val || 50; break
+      case 'shield': {
+        let shieldVal = sk.val || 50
+        if (sk.bonusPct) shieldVal = Math.round(shieldVal * (1 + sk.bonusPct / 100))
+        this._addShield(shieldVal); break
+      }
       case 'reduceDmg':
         this.heroBuffs.push({ type:'reduceDmg', pct:sk.pct, dur:2, bad:false, name:sk.name }); break
       case 'stun':
@@ -3198,6 +4192,12 @@ class Main {
   // 应用加成奖励到runBuffs
   _applyBuffReward(b) {
     if (!b || !b.buff) return
+    // 记录到日志（用于战斗界面左侧图标显示）
+    const isInstant = (b.buff === 'healNow' || b.buff === 'spawnHeart' || b.buff === 'nextComboNeverBreak')
+    if (!isInstant) {
+      this.runBuffLog = this.runBuffLog || []
+      this.runBuffLog.push({ id: b.id || b.buff, label: b.label || b.buff, buff: b.buff, val: b.val, floor: this.floor })
+    }
     const rb = this.runBuffs
     switch(b.buff) {
       // 全队永久增益
@@ -3245,6 +4245,16 @@ class Main {
       case 'postBattleHeal':    rb.postBattleHealPct += b.val; break
       case 'extraRevive':       rb.extraRevive += b.val; break
       case 'nextComboNeverBreak': this.comboNeverBreak = true; break
+      // 速通独特效果
+      case 'nextFirstTurnDouble': this.nextDmgDouble = true; break
+      case 'nextStunEnemy':       this.nextStunEnemy = true; break
+      case 'grantShield':        this._addShield(b.val); break
+      case 'resetAllCd':
+        this.pets.forEach(p => { if (p) p.currentCd = 0 })
+        this.petBag.forEach(p => { if (p) p.currentCd = 0 })
+        break
+      case 'skipNextBattle':      this.skipNextBattle = true; break
+      case 'immuneOnce':          this.immuneOnce = true; break
     }
   }
 
@@ -3310,7 +4320,7 @@ class Main {
       case 'fullHeal':       this.heroHp = this.heroMaxHp; break
       case 'extraTime':      this.runBuffs.extraTimeSec += adv.sec; break
       case 'upgradePet':     { const i = Math.floor(Math.random()*this.pets.length); this.pets[i].atk = Math.round(this.pets[i].atk*1.2); break }
-      case 'shield':         this.heroShield += adv.val || 50; break
+      case 'shield':         this._addShield(adv.val || 50); break
       case 'nextStun':       this.nextStunEnemy = true; break
       case 'attrDmgUp':      this.runBuffs.attrDmgPct[adv.attr] = (this.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
       case 'multiAttrUp':    adv.attrs.forEach(a => { this.runBuffs.attrDmgPct[a] = (this.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
@@ -3348,7 +4358,41 @@ class Main {
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'不灭金身！', color:TH.accent, t:0, alpha:1 })
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
+    // 广告复活机会（每轮通关首次死亡）
+    if (!this.adReviveUsed) {
+      this.bState = 'adReviveOffer'; return
+    }
     this.bState = 'defeat'
+  }
+
+  // ===== 广告复活执行（预留广告接入位）=====
+  _doAdRevive() {
+    // TODO: 接入广告SDK，播放激励视频广告
+    // wx.createRewardedVideoAd / 其他广告平台
+    // 广告播放成功回调中执行以下逻辑：
+    this._adReviveCallback()
+
+    // 实际接入时替换为：
+    // if (!this._rewardedVideoAd) {
+    //   this._rewardedVideoAd = wx.createRewardedVideoAd({ adUnitId: 'YOUR_AD_UNIT_ID' })
+    //   this._rewardedVideoAd.onClose(res => {
+    //     if (res && res.isEnded) this._adReviveCallback()
+    //     else { /* 广告未看完，不复活 */ }
+    //   })
+    // }
+    // this._rewardedVideoAd.show().catch(() => {
+    //   this._rewardedVideoAd.load().then(() => this._rewardedVideoAd.show())
+    // })
+  }
+
+  _adReviveCallback() {
+    this.adReviveUsed = true
+    this.heroHp = this.heroMaxHp // 满血复活
+    this.heroShield = 0
+    // 清除不利buff
+    this.heroBuffs = this.heroBuffs.filter(b => !b.bad)
+    this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'浴火重生！', color:'#ffd700', t:0, alpha:1 })
+    this.bState = 'playerTurn'; this.dragTimer = 0
   }
 
   _hitRect(x,y,rx,ry,rw,rh) { return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh }

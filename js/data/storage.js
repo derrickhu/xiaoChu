@@ -18,7 +18,7 @@ function defaultPersist() {
       totalCombos: 0,
       maxCombo: 0,
       bestFloorPets: [],  // 最高层时的宠物阵容
-      bestFloorWeapon: null,
+      bestFloorWeapon: null, // 最高层时的法宝
     },
     settings: {
       bgmOn: true,
@@ -36,7 +36,18 @@ class Storage {
     this._cloudInitDone = false
     this._pendingSync = false
     this.onCloudReady = null
+    // 用户信息（微信授权）
+    this.userInfo = null      // { nickName, avatarUrl }
+    this.userAuthorized = false
+    // 排行榜缓存
+    this.rankAllList = []
+    this.rankDailyList = []
+    this.rankAllMyRank = -1
+    this.rankDailyMyRank = -1
+    this.rankLoading = false
+    this.rankLastFetch = 0    // 上次拉取时间戳
     this._load()
+    this._loadUserInfo()
     this._initCloud()
   }
 
@@ -51,7 +62,7 @@ class Storage {
     if (floor > this._d.bestFloor) {
       this._d.bestFloor = floor
       this._d.stats.bestFloorPets = (pets || []).map(p => ({ name: p.name, attr: p.attr, atk: p.atk }))
-      this._d.stats.bestFloorWeapon = weapon ? { name: weapon.name, attr: weapon.attr } : null
+      this._d.stats.bestFloorWeapon = weapon ? { name: weapon.name } : null
     }
     this._d.totalRuns++
     this._save()
@@ -114,6 +125,105 @@ class Storage {
   }
 
   // ===== 本地存储 =====
+  _loadUserInfo() {
+    try {
+      const raw = wx.getStorageSync('wxtower_userinfo')
+      if (raw) {
+        this.userInfo = JSON.parse(raw)
+        this.userAuthorized = true
+      }
+    } catch(e) {}
+  }
+
+  _saveUserInfo(info) {
+    this.userInfo = info
+    this.userAuthorized = true
+    try { wx.setStorageSync('wxtower_userinfo', JSON.stringify(info)) } catch(e) {}
+  }
+
+  // 微信用户信息授权（头像+昵称）
+  requestUserInfo(callback) {
+    // 微信小游戏使用 wx.getUserInfo（需用户主动触发）
+    // 这里通过 wx.createUserInfoButton 实现
+    // 但 canvas 游戏中无法直接用 button，所以用 getUserProfile
+    wx.getUserProfile({
+      desc: '用于排行榜展示',
+      success: (res) => {
+        const info = {
+          nickName: res.userInfo.nickName,
+          avatarUrl: res.userInfo.avatarUrl,
+        }
+        this._saveUserInfo(info)
+        if (callback) callback(true, info)
+      },
+      fail: (err) => {
+        console.warn('用户拒绝授权:', err)
+        // getUserProfile 不支持时，尝试 getUserInfo
+        wx.getUserInfo({
+          success: (res2) => {
+            const info = {
+              nickName: res2.userInfo.nickName,
+              avatarUrl: res2.userInfo.avatarUrl,
+            }
+            this._saveUserInfo(info)
+            if (callback) callback(true, info)
+          },
+          fail: () => {
+            if (callback) callback(false, null)
+          }
+        })
+      }
+    })
+  }
+
+  // ===== 排行榜 =====
+  // 提交分数到排行榜
+  async submitScore(floor, pets, weapon) {
+    if (!this._cloudReady || !this.userAuthorized) return
+    try {
+      await wx.cloud.callFunction({
+        name: 'ranking',
+        data: {
+          action: 'submit',
+          nickName: this.userInfo.nickName,
+          avatarUrl: this.userInfo.avatarUrl,
+          floor,
+          pets: (pets || []).map(p => ({ name: p.name, attr: p.attr })),
+          weapon: weapon ? { name: weapon.name } : null,
+        }
+      })
+    } catch(e) {
+      console.warn('[Ranking] 提交失败:', e)
+    }
+  }
+
+  // 拉取排行榜（带30秒缓存）
+  async fetchRanking(tab, force) {
+    const now = Date.now()
+    if (!force && now - this.rankLastFetch < 30000 && (tab === 'all' ? this.rankAllList.length : this.rankDailyList.length) > 0) {
+      return // 30秒内不重复拉取
+    }
+    if (this.rankLoading) return
+    this.rankLoading = true
+    try {
+      const action = tab === 'all' ? 'getAll' : 'getDaily'
+      const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
+      if (r.result && r.result.code === 0) {
+        if (tab === 'all') {
+          this.rankAllList = r.result.list || []
+          this.rankAllMyRank = r.result.myRank || -1
+        } else {
+          this.rankDailyList = r.result.list || []
+          this.rankDailyMyRank = r.result.myRank || -1
+        }
+        this.rankLastFetch = now
+      }
+    } catch(e) {
+      console.warn('[Ranking] 拉取失败:', e)
+    }
+    this.rankLoading = false
+  }
+
   _load() {
     try {
       const raw = wx.getStorageSync(LOCAL_KEY)

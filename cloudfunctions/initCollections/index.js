@@ -2,7 +2,7 @@
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
-const COLLECTIONS = ['playerData', 'leaderboard']
+const COLLECTIONS = ['playerData', 'leaderboard', 'rankAll', 'rankDaily']
 
 exports.main = async (event, context) => {
   const db = cloud.database()
