@@ -360,14 +360,74 @@ class Main {
       if (f.t > 30) f.alpha -= 0.04
       return f.alpha > 0 && f.t < 60
     })
-    // Combo弹出动画（弹性缩放回1.0）
-    if (this._comboAnim && this._comboAnim.timer < 20) {
+    // Combo弹出动画（弹性缩放 + 上浮淡出 + 伤害二级延迟弹入 + 百分比三级飞入）
+    if (this._comboAnim && this._comboAnim.timer < 60) {
       this._comboAnim.timer++
-      const t = this._comboAnim.timer / 20
-      // 弹性ease-out: 从1.8缩回1.0，略微过冲到0.95再回1.0
-      if (t < 0.5) this._comboAnim.scale = 1.8 - 1.6 * (t / 0.5)
-      else if (t < 0.75) this._comboAnim.scale = 0.95 + 0.05 * ((t - 0.5) / 0.25)
-      else this._comboAnim.scale = 1.0
+      const t = this._comboAnim.timer
+      // 前10帧：Combo数字弹性缩放（从2.5弹到1.0）
+      if (t <= 10) {
+        const p = t / 10
+        if (p < 0.4) this._comboAnim.scale = 2.5 - 3.0 * (p / 0.4)
+        else if (p < 0.7) this._comboAnim.scale = 0.88 + 0.12 * ((p - 0.4) / 0.3)
+        else this._comboAnim.scale = 1.0
+        this._comboAnim.alpha = 1
+        this._comboAnim.offsetY = 0
+      }
+      // 11~40帧：稳定展示
+      else if (t <= 40) {
+        this._comboAnim.scale = 1.0
+        this._comboAnim.alpha = 1
+        this._comboAnim.offsetY = 0
+      }
+      // 41~60帧：上浮淡出
+      else {
+        const fadeP = (t - 40) / 20
+        this._comboAnim.scale = 1.0 - 0.12 * fadeP
+        this._comboAnim.alpha = 1 - fadeP
+        this._comboAnim.offsetY = -fadeP * 25 * S
+      }
+      // 伤害部分延迟5帧后弹入（独立二级动画）
+      const dt = t - 5
+      if (dt > 0 && dt <= 8) {
+        const dp = dt / 8
+        if (dp < 0.5) this._comboAnim.dmgScale = 2.0 - 2.0 * (dp / 0.5)
+        else if (dp < 0.8) this._comboAnim.dmgScale = 0.9 + 0.1 * ((dp - 0.5) / 0.3)
+        else this._comboAnim.dmgScale = 1.0
+        this._comboAnim.dmgAlpha = Math.min(1, dt / 4)
+      } else if (dt > 8) {
+        this._comboAnim.dmgScale = 1.0
+        this._comboAnim.dmgAlpha = 1
+      } else {
+        this._comboAnim.dmgScale = 0
+        this._comboAnim.dmgAlpha = 0
+      }
+      // 百分比标签延迟10帧后从右侧弹射飞入（三级动画）
+      const pt = t - 10
+      if (pt > 0 && pt <= 10) {
+        const pp = pt / 10
+        // 从右侧80px飞入，带弹性
+        if (pp < 0.5) this._comboAnim.pctOffX = (1 - pp / 0.5) * 80 * S
+        else if (pp < 0.8) this._comboAnim.pctOffX = -8 * S * ((pp - 0.5) / 0.3)
+        else this._comboAnim.pctOffX = 0
+        // 缩放弹跳
+        if (pp < 0.3) this._comboAnim.pctScale = 0.5 + 1.5 * (pp / 0.3)
+        else if (pp < 0.6) this._comboAnim.pctScale = 2.0 - 1.2 * ((pp - 0.3) / 0.3)
+        else if (pp < 0.85) this._comboAnim.pctScale = 0.8 + 0.3 * ((pp - 0.6) / 0.25)
+        else this._comboAnim.pctScale = 1.1
+        this._comboAnim.pctAlpha = Math.min(1, pt / 5)
+      } else if (pt > 10 && pt <= 30) {
+        this._comboAnim.pctOffX = 0
+        this._comboAnim.pctScale = 1.1 - 0.1 * Math.min(1, (pt - 10) / 5)
+        this._comboAnim.pctAlpha = 1
+      } else if (pt > 30) {
+        this._comboAnim.pctOffX = 0
+        this._comboAnim.pctScale = 1.0
+        this._comboAnim.pctAlpha = 1
+      } else {
+        this._comboAnim.pctOffX = 80 * S
+        this._comboAnim.pctScale = 0
+        this._comboAnim.pctAlpha = 0
+      }
     }
     // 宠物头像攻击数值动画
     this.petAtkNums = this.petAtkNums.filter(f => {
@@ -1085,12 +1145,15 @@ class Main {
         ctx.fillText('⚔', wIconX + wIconSz/2, wIconY + wIconSz/2)
         ctx.textBaseline = 'alphabetic'
       }
-      // 法宝边框
-      const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
-      if (frameWeapon && frameWeapon.width > 0) {
-        const fScale = 1.12, fSz = wIconSz * fScale, fOff = (fSz - wIconSz)/2
-        ctx.drawImage(frameWeapon, wIconX - fOff, wIconY - fOff, fSz, fSz)
-      }
+      // 法宝金色边框（代码绘制）
+      ctx.save()
+      const fPad = 1*S
+      const fX = wIconX - fPad, fY = wIconY - fPad, fSz = wIconSz + fPad*2, fRd = 5*S
+      const wGrd = ctx.createLinearGradient(fX, fY, fX + fSz, fY + fSz)
+      wGrd.addColorStop(0, '#ffd700'); wGrd.addColorStop(0.5, '#ffec80'); wGrd.addColorStop(1, '#c8a200')
+      ctx.strokeStyle = wGrd; ctx.lineWidth = 2*S
+      R.rr(fX, fY, fSz, fSz, fRd); ctx.stroke()
+      ctx.restore()
       // 法宝名+描述
       ctx.textAlign = 'left'
       ctx.fillStyle = TH.accent; ctx.font = `bold ${12*S}px sans-serif`
@@ -1438,66 +1501,335 @@ class Main {
     // ===== 消除棋子处数值飘字 =====
     this.elimFloats.forEach(f => R.drawElimFloat(f))
 
-    // ===== Combo显示（智龙迷城风格：大数字+COMBO文字，弹性缩放）=====
-    if (this.combo > 0 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow')) {
-      const ca = this._comboAnim || { num: this.combo, scale: 1 }
+    // ===== Combo显示（2连击起展示，两行紧凑布局）=====
+    if (this.combo >= 2 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow')) {
+      const ca = this._comboAnim || { num: this.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
       const comboScale = ca.scale || 1
-      const comboCx = W * 0.85
-      const comboCy = teamBarY - 36*S
+      const comboAlpha = ca.alpha != null ? ca.alpha : 1
+      const comboOffY = ca.offsetY || 0
+      const dmgScale = ca.dmgScale || 0
+      const dmgAlpha = ca.dmgAlpha || 0
+      const pctScale = ca.pctScale || 0
+      const pctAlpha = ca.pctAlpha || 0
+      const pctOffX = ca.pctOffX || 0
+      // 居中显示
+      const comboCx = W * 0.5
+      const comboCy = this.boardY + (ROWS * this.cellSize) * 0.32 + comboOffY
+      // Combo分级
+      const isHigh = this.combo >= 5
+      const isSuper = this.combo >= 8
+      const isMega = this.combo >= 12
+      // 全暖色系：金→橙→红→烈焰红
+      const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
+      const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
+      // 超大字号
+      const baseSz = isMega ? 84*S : isSuper ? 72*S : isHigh ? 62*S : 54*S
+
+      // 预算伤害数据
+      const comboMulVal = 1 + (this.combo - 1) * 0.25
+      const comboBonusPct = this.runBuffs.comboDmgPct || 0
+      const totalMul = comboMulVal * (1 + comboBonusPct / 100)
+      const extraPct = Math.round((totalMul - 1) * 100)
+      let estTotalDmg = 0
+      const pdm = this._pendingDmgMap || {}
+      for (const attr in pdm) {
+        let d = pdm[attr] * totalMul
+        d *= 1 + (this.runBuffs.allDmgPct || 0) / 100
+        d *= 1 + ((this.runBuffs.attrDmgPct && this.runBuffs.attrDmgPct[attr]) || 0) / 100
+        if (this.weapon && this.weapon.type === 'attrDmgUp' && this.weapon.attr === attr) d *= 1 + this.weapon.pct / 100
+        if (this.weapon && this.weapon.type === 'allAtkUp') d *= 1 + this.weapon.pct / 100
+        if (this.enemy) {
+          if (COUNTER_MAP[attr] === this.enemy.attr) d *= COUNTER_MUL
+          else if (COUNTER_BY[attr] === this.enemy.attr) d *= COUNTERED_MUL
+        }
+        estTotalDmg += d
+      }
+      estTotalDmg = Math.round(estTotalDmg)
+
+      ctx.save()
+      ctx.globalAlpha = comboAlpha
+
+      // 半透明背景遮罩
+      const maskH = baseSz * 3.2
+      const maskCy = comboCy + baseSz * 0.35
+      const maskGrd = ctx.createLinearGradient(0, maskCy - maskH*0.5, 0, maskCy + maskH*0.5)
+      maskGrd.addColorStop(0, 'transparent')
+      maskGrd.addColorStop(0.15, 'rgba(0,0,0,0.4)')
+      maskGrd.addColorStop(0.5, 'rgba(0,0,0,0.55)')
+      maskGrd.addColorStop(0.85, 'rgba(0,0,0,0.4)')
+      maskGrd.addColorStop(1, 'transparent')
+      ctx.fillStyle = maskGrd
+      ctx.fillRect(0, maskCy - maskH*0.5, W, maskH)
+
+      // 背景光晕爆炸
+      if (this.combo >= 3) {
+        const burstR = baseSz * (isSuper ? 2.2 : 1.5) * (ca.timer < 10 ? (2.0 - ca.timer / 10) : 1.0)
+        const burstGrd = ctx.createRadialGradient(comboCx, comboCy, 0, comboCx, comboCy, burstR)
+        burstGrd.addColorStop(0, glowColor + (isSuper ? '66' : '44'))
+        burstGrd.addColorStop(0.5, glowColor + '18')
+        burstGrd.addColorStop(1, 'transparent')
+        ctx.fillStyle = burstGrd
+        ctx.fillRect(comboCx - burstR, comboCy - burstR, burstR*2, burstR*2)
+      }
+
+      // 放射线条（超高连击）
+      if (isSuper && ca.timer < 20) {
+        ctx.save()
+        ctx.translate(comboCx, comboCy)
+        const rayCount = isMega ? 18 : 12
+        const rayLen = baseSz * 2.0 * Math.min(1, ca.timer / 8)
+        const rayAlpha = Math.max(0, 1 - ca.timer / 20) * 0.7
+        ctx.globalAlpha = comboAlpha * rayAlpha
+        for (let r = 0; r < rayCount; r++) {
+          const angle = (r / rayCount) * Math.PI * 2 + ca.timer * 0.08
+          ctx.beginPath()
+          ctx.moveTo(Math.cos(angle) * baseSz * 0.25, Math.sin(angle) * baseSz * 0.25)
+          ctx.lineTo(Math.cos(angle) * rayLen, Math.sin(angle) * rayLen)
+          ctx.strokeStyle = glowColor
+          ctx.lineWidth = (isMega ? 4 : 2.5) * S
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
+
+      // ===== 第一行："N 连击"（超大斜体）=====
       ctx.save()
       ctx.translate(comboCx, comboCy)
       ctx.scale(comboScale, comboScale)
-      // 大数字
-      const numSz = 32*S
-      ctx.font = `bold ${numSz}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3*S
-      ctx.strokeText(`${this.combo}`, 0, 0)
-      // 数字颜色：低combo金色，高combo渐变到红色
-      ctx.fillStyle = this.combo >= 8 ? '#ff4d6a' : this.combo >= 5 ? '#ff8c00' : '#ffd700'
-      ctx.fillText(`${this.combo}`, 0, 0)
-      // COMBO文字（数字下方）
-      const comboTxtSz = 10*S
-      ctx.font = `bold ${comboTxtSz}px "PingFang SC",sans-serif`
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-      ctx.strokeText('COMBO', 0, numSz*0.55)
-      ctx.fillStyle = '#fff'
-      ctx.fillText('COMBO', 0, numSz*0.55)
+
+      const comboFont = `italic 900 ${baseSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+      const comboText = `${this.combo} 连击`
+      ctx.font = comboFont
+      // 黑色外描边
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 8*S
+      ctx.strokeText(comboText, 0, 0)
+      // 主色填充
+      ctx.fillStyle = mainColor
+      ctx.fillText(comboText, 0, 0)
+      // 斜切高光
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(-baseSz*2, -baseSz*0.5)
+      ctx.lineTo(baseSz*1.5, -baseSz*0.5)
+      ctx.lineTo(baseSz*1.2, baseSz*0.05)
+      ctx.lineTo(-baseSz*2.3, baseSz*0.05)
+      ctx.clip()
+      ctx.fillStyle = glowColor
+      ctx.globalAlpha = 0.55
+      ctx.fillText(comboText, 0, 0)
+      ctx.restore()
+      // 发光
+      if (isHigh) {
+        ctx.font = comboFont
+        ctx.shadowColor = mainColor
+        ctx.shadowBlur = (isMega ? 30 : isSuper ? 20 : 12) * S
+        ctx.fillStyle = mainColor
+        ctx.globalAlpha = 0.3
+        ctx.fillText(comboText, 0, 0)
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
+      ctx.restore()
+
+      // ===== 第二行："额外伤害 N"（统一红色，延迟弹入）=====
+      if (dmgAlpha > 0) {
+        ctx.save()
+        ctx.globalAlpha = comboAlpha * dmgAlpha
+        const dmgCy = comboCy + baseSz * 0.72
+        ctx.translate(comboCx, dmgCy)
+        ctx.scale(dmgScale, dmgScale)
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+
+        const dmgSz = baseSz * 0.7
+        const dmgFont = `italic 900 ${dmgSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+        const dmgText = estTotalDmg > 0 ? `额外伤害 ${estTotalDmg}` : `额外伤害 ${extraPct}%`
+        ctx.font = dmgFont
+
+        // 红色渐变（统一红色，倍率越高越猛）
+        const dmgGrd = ctx.createLinearGradient(0, -dmgSz*0.45, 0, dmgSz*0.4)
+        if (extraPct >= 300) {
+          dmgGrd.addColorStop(0, '#ff6666'); dmgGrd.addColorStop(0.4, '#ff1030'); dmgGrd.addColorStop(1, '#990018')
+        } else if (extraPct >= 200) {
+          dmgGrd.addColorStop(0, '#ff8080'); dmgGrd.addColorStop(0.4, '#ff2040'); dmgGrd.addColorStop(1, '#aa0020')
+        } else if (extraPct >= 100) {
+          dmgGrd.addColorStop(0, '#ff9999'); dmgGrd.addColorStop(0.4, '#ff3350'); dmgGrd.addColorStop(1, '#bb1530')
+        } else {
+          dmgGrd.addColorStop(0, '#ffaaaa'); dmgGrd.addColorStop(0.4, '#ff4d60'); dmgGrd.addColorStop(1, '#cc2040')
+        }
+
+        // 黑色粗描边
+        ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 7*S
+        ctx.strokeText(dmgText, 0, 0)
+        // 红色渐变填充
+        ctx.fillStyle = dmgGrd
+        ctx.fillText(dmgText, 0, 0)
+        // 斜切高光
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(-dmgSz*3, -dmgSz*0.45)
+        ctx.lineTo(dmgSz*3, -dmgSz*0.45)
+        ctx.lineTo(dmgSz*2.7, -dmgSz*0.05)
+        ctx.lineTo(-dmgSz*3.3, -dmgSz*0.05)
+        ctx.clip()
+        ctx.font = dmgFont
+        ctx.fillStyle = '#fff'
+        ctx.globalAlpha = 0.35
+        ctx.fillText(dmgText, 0, 0)
+        ctx.restore()
+        // 红色外发光
+        ctx.save()
+        const glowStr = extraPct >= 200 ? 28 : extraPct >= 100 ? 20 : 12
+        ctx.shadowColor = '#ff2040'
+        ctx.shadowBlur = glowStr * S
+        ctx.font = dmgFont
+        ctx.fillStyle = '#ff2040'
+        ctx.globalAlpha = 0.3
+        ctx.fillText(dmgText, 0, 0)
+        ctx.restore()
+
+        // ===== 百分比标签（从右侧弹射飞入，大字红色，爽感冲击）=====
+        if (pctAlpha > 0 && extraPct > 0) {
+          ctx.save()
+          const pctSz = baseSz * 0.72
+          const pctFont = `italic 900 ${pctSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+          const pctText = `${extraPct}%`
+
+          // 定位在伤害行下方偏右，弹射飞入
+          const pctY = dmgSz * 0.6 + pctSz * 0.3
+          const pctBaseX = baseSz * 0.3 + pctOffX
+          ctx.translate(pctBaseX, pctY)
+          ctx.scale(pctScale, pctScale)
+
+          ctx.globalAlpha = comboAlpha * dmgAlpha * pctAlpha
+          ctx.font = pctFont
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+
+          // 红色渐变（比主伤害更亮，冲击感）
+          const pctGrd = ctx.createLinearGradient(0, -pctSz*0.4, 0, pctSz*0.35)
+          if (extraPct >= 200) {
+            pctGrd.addColorStop(0, '#ff8888'); pctGrd.addColorStop(0.4, '#ff2244'); pctGrd.addColorStop(1, '#bb0020')
+          } else if (extraPct >= 100) {
+            pctGrd.addColorStop(0, '#ffaaaa'); pctGrd.addColorStop(0.4, '#ff4466'); pctGrd.addColorStop(1, '#cc2040')
+          } else {
+            pctGrd.addColorStop(0, '#ffbbbb'); pctGrd.addColorStop(0.4, '#ff5577'); pctGrd.addColorStop(1, '#dd3355')
+          }
+
+          // 黑色描边
+          ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5*S
+          ctx.strokeText(pctText, 0, 0)
+          // 红色渐变填充
+          ctx.fillStyle = pctGrd
+          ctx.fillText(pctText, 0, 0)
+          // 高光
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(-pctSz*1.5, -pctSz*0.4)
+          ctx.lineTo(pctSz*1.5, -pctSz*0.4)
+          ctx.lineTo(pctSz*1.3, -pctSz*0.05)
+          ctx.lineTo(-pctSz*1.7, -pctSz*0.05)
+          ctx.clip()
+          ctx.font = pctFont; ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.4
+          ctx.fillText(pctText, 0, 0)
+          ctx.restore()
+          // 外发光
+          ctx.save()
+          ctx.shadowColor = '#ff3060'; ctx.shadowBlur = (extraPct >= 200 ? 24 : 14) * S
+          ctx.font = pctFont; ctx.fillStyle = '#ff3060'; ctx.globalAlpha = 0.35
+          ctx.fillText(pctText, 0, 0)
+          ctx.restore()
+
+          ctx.restore()
+        }
+
+        // --- 倍率说明（小字辅助）---
+        const tipSz = baseSz * 0.17
+        const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.17 * 0.5 : tipSz * 1.0)
+        ctx.font = `bold ${tipSz}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.5*S
+        const tipText = comboBonusPct > 0
+          ? `x${totalMul.toFixed(2)}倍率 (含Combo加成${comboBonusPct}%)`
+          : `x${totalMul.toFixed(2)}倍率`
+        ctx.strokeText(tipText, 0, tipY)
+        ctx.fillStyle = 'rgba(255,200,200,0.75)'
+        ctx.fillText(tipText, 0, tipY)
+
+        ctx.restore()
+      }
+
       ctx.restore()
     }
 
     // ===== 宠物头像攻击数值翻滚 =====
     this.petAtkNums.forEach(f => R.drawPetAtkNum(f))
 
-    // 拖拽倒计时进度环（围绕拖拽中的珠子）
+    // 拖拽倒计时（棋盘上方醒目进度条 + 珠子进度环）
     if (this.dragging && this.bState === 'playerTurn') {
       const remain = Math.max(0, (this.dragTimeLimit - this.dragTimer) / 60)
       const pct = Math.max(0, Math.min(1, (this.dragTimeLimit - this.dragTimer) / this.dragTimeLimit))
+      const barColor = pct < 0.25 ? '#ff4d6a' : pct < 0.5 ? '#ff8c00' : '#4dcc4d'
+      const isUrgent = pct < 0.25
+      // 低于25%时闪烁效果（每0.3秒切换）
+      const urgentShow = !isUrgent || (Math.floor(this.dragTimer / 9) % 2 === 0)
+
+      // ===== 1. 棋盘上方固定进度条 =====
+      ctx.save()
+      const barH = 8*S
+      const barY = this.boardY - barH - 3*S
+      const barX = this.boardX
+      const barW = COLS * this.cellSize
+      const barR = barH / 2  // 圆角半径
+      // 进度条背景槽
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      R.rr(barX, barY, barW, barH, barR); ctx.fill()
+      // 进度条填充（从右往左减少）
+      if (pct > 0 && urgentShow) {
+        const fillW = barW * pct
+        ctx.fillStyle = barColor
+        R.rr(barX, barY, fillW, barH, barR); ctx.fill()
+        // 发光效果
+        ctx.shadowColor = barColor
+        ctx.shadowBlur = 6*S
+        R.rr(barX, barY, fillW, barH, barR); ctx.fill()
+        ctx.shadowBlur = 0
+      }
+      // 进度条边框
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1*S
+      R.rr(barX, barY, barW, barH, barR); ctx.stroke()
+
+      // ===== 2. 进度条上方显示秒数 =====
+      const numY = barY - 2*S
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+      // 大号秒数
+      const fontSize = isUrgent ? 18*S : 15*S
+      ctx.font = `bold ${fontSize}px sans-serif`
+      const timeText = remain.toFixed(1) + 's'
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3*S
+      ctx.strokeText(timeText, barX + barW * 0.5, numY)
+      ctx.fillStyle = urgentShow ? barColor : 'rgba(255,77,106,0.3)'
+      ctx.fillText(timeText, barX + barW * 0.5, numY)
+      ctx.restore()
+
+      // ===== 3. 珠子周围进度环（辅助提示）=====
       const ringR = (this.cellSize - this.cellSize*0.08*2) * 0.5 + 6*S
       const cx = this.dragCurX, cy = this.dragCurY
-      // 背景环（暗色）
       ctx.save()
+      // 背景环
       ctx.strokeStyle = 'rgba(0,0,0,0.4)'
-      ctx.lineWidth = 3*S
+      ctx.lineWidth = 4*S
       ctx.beginPath()
       ctx.arc(cx, cy, ringR, 0, Math.PI*2)
       ctx.stroke()
-      // 进度环（从顶部顺时针减少）
+      // 进度环
       const startAngle = -Math.PI/2
       const endAngle = startAngle + Math.PI*2 * pct
-      ctx.strokeStyle = pct < 0.25 ? '#ff4d6a' : pct < 0.5 ? '#ff8c00' : '#4dcc4d'
-      ctx.lineWidth = 3*S
+      ctx.strokeStyle = barColor
+      ctx.lineWidth = 4*S
       ctx.lineCap = 'round'
       ctx.beginPath()
       ctx.arc(cx, cy, ringR, startAngle, endAngle)
       ctx.stroke()
-      // 剩余秒数小字（珠子上方）
-      ctx.fillStyle = pct < 0.25 ? '#ff4d6a' : '#fff'
-      ctx.font = `bold ${9*S}px sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2*S
-      ctx.strokeText(`${remain.toFixed(1)}`, cx, cy - ringR - 2*S)
-      ctx.fillText(`${remain.toFixed(1)}`, cx, cy - ringR - 2*S)
       ctx.restore()
     }
     // 胜利/失败覆盖
@@ -2020,8 +2352,7 @@ class Main {
     ctx.fillStyle = 'rgba(8,8,20,0.88)'
     ctx.fillRect(0, topY, W, barH)
 
-    // 加载边框图片（法宝 + 五行宠物）
-    const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
+    // 加载边框图片（五行宠物；法宝使用代码绘制的金色边框）
     const framePetMap = {
       metal: R.getImg('assets/ui/frame_pet_metal.png'),
       wood:  R.getImg('assets/ui/frame_pet_wood.png'),
@@ -2055,46 +2386,84 @@ class Main {
       const cy = iconY + iconSize * 0.5
 
       if (i === 0) {
-        // ===== 第1格：法宝 =====
-        // 先绘制边框底层
-        if (frameWeapon && frameWeapon.width > 0) {
-          ctx.drawImage(frameWeapon, ix - frameOff, iconY - frameOff, frameSize, frameSize)
-        }
-        // 在边框之上绘制法宝内容（裁剪到格子内部）
-        ctx.save()
-        ctx.beginPath(); ctx.rect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2); ctx.clip()
+        // ===== 第1格：法宝（金色边框，与宠物属性边框区分）=====
+        // 底色
         ctx.fillStyle = this.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
         ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
 
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         if (this.weapon) {
-          // 法宝图片（优先），回退到光晕+emoji
+          // 法宝图片（裁剪到格子内，无文字覆盖）
           const wpnImg = R.getImg(`assets/equipment/fabao_${this.weapon.id}.png`)
+          ctx.save()
+          ctx.beginPath(); ctx.rect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2); ctx.clip()
           if (wpnImg && wpnImg.width > 0) {
             ctx.drawImage(wpnImg, ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
           } else {
-            // 金色光晕
-            const grd = ctx.createRadialGradient(cx, cy - iconSize*0.08, 0, cx, cy - iconSize*0.08, iconSize*0.35)
-            grd.addColorStop(0, TH.accent + '44')
+            // 金色光晕回退
+            const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, iconSize*0.38)
+            grd.addColorStop(0, '#ffd70044')
             grd.addColorStop(1, 'transparent')
             ctx.fillStyle = grd
             ctx.fillRect(ix, iconY, iconSize, iconSize)
-            ctx.fillStyle = TH.accent
-            ctx.font = `bold ${iconSize*0.32}px sans-serif`
-            ctx.fillText('⚔', cx, cy - iconSize*0.08)
+            ctx.fillStyle = '#ffd700'
+            ctx.font = `bold ${iconSize*0.38}px sans-serif`
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+            ctx.fillText('⚔', cx, cy)
           }
-          // 法宝名（描边）
-          ctx.font = `bold ${iconSize*0.14}px sans-serif`
-          ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2*S
-          ctx.strokeText(this.weapon.name.substring(0,3), cx, cy + iconSize*0.28)
-          ctx.fillStyle = '#fff'
-          ctx.fillText(this.weapon.name.substring(0,3), cx, cy + iconSize*0.28)
+          ctx.restore()
         } else {
+          // 无法宝：淡色⚔
           ctx.fillStyle = 'rgba(80,70,60,0.3)'
-          ctx.font = `${iconSize*0.22}px sans-serif`
+          ctx.font = `${iconSize*0.26}px sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText('⚔', cx, cy)
         }
+
+        // ===== 法宝专属金色边框（代码绘制，圆角+金色渐变，区别于宠物属性边框）=====
+        ctx.save()
+        const bPad = 2*S  // 边框内缩
+        const bx2 = ix - bPad, by2 = iconY - bPad, bsz = iconSize + bPad*2, brd = 6*S
+        // 外层金色描边（粗）
+        const goldGrd = ctx.createLinearGradient(bx2, by2, bx2 + bsz, by2 + bsz)
+        goldGrd.addColorStop(0, '#ffd700')
+        goldGrd.addColorStop(0.3, '#ffec80')
+        goldGrd.addColorStop(0.5, '#ffd700')
+        goldGrd.addColorStop(0.7, '#c8a200')
+        goldGrd.addColorStop(1, '#ffd700')
+        ctx.strokeStyle = goldGrd
+        ctx.lineWidth = 3*S
+        R.rr(bx2, by2, bsz, bsz, brd); ctx.stroke()
+        // 内层亮线
+        ctx.strokeStyle = 'rgba(255,236,128,0.5)'
+        ctx.lineWidth = 1*S
+        R.rr(bx2 + 2*S, by2 + 2*S, bsz - 4*S, bsz - 4*S, 4*S); ctx.stroke()
+        // 四角金色小钻石装饰
+        const cornerOff = 3*S, cornerR = 3.5*S
+        const corners = [
+          [bx2 + cornerOff, by2 + cornerOff],
+          [bx2 + bsz - cornerOff, by2 + cornerOff],
+          [bx2 + cornerOff, by2 + bsz - cornerOff],
+          [bx2 + bsz - cornerOff, by2 + bsz - cornerOff],
+        ]
+        corners.forEach(([ccx, ccy]) => {
+          ctx.save()
+          ctx.translate(ccx, ccy)
+          ctx.rotate(Math.PI/4)
+          ctx.fillStyle = '#ffd700'
+          ctx.fillRect(-cornerR, -cornerR, cornerR*2, cornerR*2)
+          ctx.strokeStyle = '#fff8'
+          ctx.lineWidth = 0.5*S
+          ctx.strokeRect(-cornerR, -cornerR, cornerR*2, cornerR*2)
+          ctx.restore()
+        })
+        // 微发光
+        ctx.shadowColor = '#ffd700'
+        ctx.shadowBlur = 6*S
+        ctx.strokeStyle = 'rgba(255,215,0,0.3)'
+        ctx.lineWidth = 1*S
+        R.rr(bx2, by2, bsz, bsz, brd); ctx.stroke()
         ctx.restore()
+
         // 记录法宝点击区域
         this._weaponBtnRect = [ix, iconY, iconSize, iconSize]
       } else {
@@ -3554,8 +3923,12 @@ class Main {
     }
     this.combo++
     // Combo弹出动画
-    this._comboAnim = { num: this.combo, timer: 0, scale: 1.8 }
+    this._comboAnim = { num: this.combo, timer: 0, scale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
     MusicMgr.playCombo()
+    // 高连击震屏：5连+轻震，8连+中震，12连+强震
+    if (this.combo >= 12) { this.shakeT = 10; this.shakeI = 6*S }
+    else if (this.combo >= 8) { this.shakeT = 7; this.shakeI = 4*S }
+    else if (this.combo >= 5) { this.shakeT = 5; this.shakeI = 2.5*S }
     // runBuffs额外连击
     if (this.runBuffs.bonusCombo > 0 && this.combo === 1) {
       this.combo += this.runBuffs.bonusCombo
