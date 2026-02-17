@@ -373,7 +373,9 @@ class Main {
     })
     // Combo弹出动画（弹性缩放 + 上浮淡出 + 伤害二级延迟弹入 + 百分比三级飞入）
     if (this._comboAnim && this._comboAnim.timer < 60) {
-      this._comboAnim.timer++
+      // 在攻击展示阶段冻结计时器，防止combo显示淡出消失
+      const freezeTimer = (this.bState === 'preAttack' || this.bState === 'petAtkShow') && this._comboAnim.timer >= 40
+      if (!freezeTimer) this._comboAnim.timer++
       const t = this._comboAnim.timer
       // 前10帧：Combo数字弹性缩放（从初始scale弹到1.0）
       if (t <= 10) {
@@ -392,12 +394,20 @@ class Main {
         this._comboAnim.alpha = 1
         this._comboAnim.offsetY = 0
       }
-      // 41~60帧：上浮淡出
+      // 41~60帧：上浮淡出（仅在消除/下落阶段淡出，攻击展示阶段保持可见）
       else {
-        const fadeP = (t - 40) / 20
-        this._comboAnim.scale = 1.0 - 0.12 * fadeP
-        this._comboAnim.alpha = 1 - fadeP
-        this._comboAnim.offsetY = -fadeP * 25 * S
+        const inCombat = this.bState === 'preAttack' || this.bState === 'petAtkShow'
+        if (inCombat) {
+          // 攻击阶段保持Combo可见，不淡出
+          this._comboAnim.scale = 1.0
+          this._comboAnim.alpha = 1
+          this._comboAnim.offsetY = 0
+        } else {
+          const fadeP = (t - 40) / 20
+          this._comboAnim.scale = 1.0 - 0.12 * fadeP
+          this._comboAnim.alpha = 1 - fadeP
+          this._comboAnim.offsetY = -fadeP * 25 * S
+        }
       }
       // 伤害部分延迟5帧后弹入（独立二级动画）
       const dt = t - 5
@@ -1519,8 +1529,8 @@ class Main {
     if (this.combo >= 2 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow')) {
       const ca = this._comboAnim || { num: this.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
       const comboScale = ca.scale || 1
-      // 如果动画已播完但仍在消除/下落阶段，保持可见（防止连击中途消失）
-      const stillActive = this.bState === 'elimAnim' || this.bState === 'dropping'
+      // 如果动画已播完但仍在消除/下落/攻击阶段，保持可见（防止连击中途消失）
+      const stillActive = this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow'
       const comboAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.alpha != null ? ca.alpha : 1)
       const comboOffY = (ca.timer >= 60 && stillActive) ? 0 : (ca.offsetY || 0)
       const dmgScale = (ca.timer >= 60 && stillActive) ? 1 : (ca.dmgScale || 0)
