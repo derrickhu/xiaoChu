@@ -130,6 +130,7 @@ const CLOUD_ASSETS = {
   'assets/pets/pet_m1.png': 'assets/pets/pet_m1.png',
   'assets/pets/pet_m2.png': 'assets/pets/pet_m2.png',
   'assets/pets/pet_m3.png': 'assets/pets/pet_m3.png',
+  'assets/pets/pet_m4.png': 'assets/pets/pet_m4.png',
   'assets/pets/pet_m5.png': 'assets/pets/pet_m5.png',
   'assets/pets/pet_m6.png': 'assets/pets/pet_m6.png',
   'assets/pets/pet_m7.png': 'assets/pets/pet_m7.png',
