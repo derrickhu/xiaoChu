@@ -34,7 +34,17 @@ const R = new Render(ctx, W, H, S, safeTop)
 class Main {
   constructor() {
     this.storage = new Storage()
-    this.storage.onCloudReady = () => R.preloadCloudAssets()
+    this.storage.onCloudReady = () => R.preloadCloudAssets(
+      (loaded, failed, total) => {
+        this._cloudLoadProgress = { loaded, failed, total }
+      },
+      (loaded, failed) => {
+        this._cloudAssetsReady = true
+        console.log(`[Main] 云资源加载完毕, 成功:${loaded}, 失败:${failed}`)
+      }
+    )
+    this._cloudAssetsReady = false
+    this._cloudLoadProgress = { loaded: 0, failed: 0, total: 0 }
     this.scene = 'loading'
     this.af = 0
 
@@ -377,8 +387,13 @@ class Main {
       }
       return f.alpha > 0
     })
-    if (this.scene === 'loading' && Date.now() - this._loadStart > 1500) {
-      this.scene = 'title'; MusicMgr.playBgm()
+    if (this.scene === 'loading') {
+      const elapsed = Date.now() - this._loadStart
+      const minWait = elapsed > 1500
+      const maxWait = elapsed > 15000 // 超时保底15秒
+      if ((minWait && this._cloudAssetsReady) || maxWait) {
+        this.scene = 'title'; MusicMgr.playBgm()
+      }
     }
     if (this.bState === 'elimAnim') this._processElim()
     if (this.bState === 'dropping') this._processDropAnim()
@@ -470,7 +485,20 @@ class Main {
     ctx.fillStyle = TH.accent; ctx.font = `bold ${28*S}px sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('五行通天塔', W*0.5, H*0.4)
     ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
-    ctx.fillText('正在加载...', W*0.5, H*0.5)
+    const p = this._cloudLoadProgress
+    if (p.total > 0) {
+      const done = p.loaded + p.failed
+      const pct = Math.floor(done / p.total * 100)
+      ctx.fillText(`加载资源中... ${pct}%`, W*0.5, H*0.5)
+      // 进度条
+      const barW = W * 0.5, barH = 6 * S, barX = W * 0.25, barY = H * 0.54
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'
+      ctx.fillRect(barX, barY, barW, barH)
+      ctx.fillStyle = TH.accent
+      ctx.fillRect(barX, barY, barW * (done / p.total), barH)
+    } else {
+      ctx.fillText('正在连接...', W*0.5, H*0.5)
+    }
   }
 
   _rTitle() {
