@@ -474,6 +474,7 @@ class Main {
       this.dragTimer++
       if (this.dragTimer >= this.dragTimeLimit) {
         this.dragging = false; this.dragAttr = null; this.dragTimer = 0
+        MusicMgr.playDragEnd()  // 时间到松手音效
         this._checkAndElim()
       }
     }
@@ -3441,6 +3442,7 @@ class Main {
   _playHealEffect() {
     const L = this._getBattleLayout()
     this.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:'#d4607a', skillName:'', targetX:W*0.5, targetY:L.hpBarY }
+    MusicMgr.playHeal()  // 回血治愈音效
   }
 
   // ===== 触摸入口 =====
@@ -3797,6 +3799,7 @@ class Main {
         const cell = this.board[r][c]
         this.dragAttr = typeof cell === 'string' ? cell : cell.attr
         this.dragTimer = 0
+        MusicMgr.playPickUp()  // 珠子拾起音效
       }
     } else if (type === 'move' && this.dragging) {
       this.dragCurX = x; this.dragCurY = y
@@ -3807,9 +3810,11 @@ class Main {
         const tmp = this.board[or][oc]; this.board[or][oc] = this.board[r][c]; this.board[r][c] = tmp
         this.swapAnim = { r1:or, c1:oc, r2:r, c2:c, t:0, dur:6 }
         this.dragR = r; this.dragC = c
+        MusicMgr.playSwap()  // 珠子交换音效
       }
     } else if (type === 'end' && this.dragging) {
       this.dragging = false; this.dragAttr = null; this.dragTimer = 0
+      MusicMgr.playDragEnd()  // 松手确认音效
       this._checkAndElim()
     }
   }
@@ -4022,7 +4027,7 @@ class Main {
       this.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
       this.elimAnimTimer = 0
       this._elimSkipCombo = true  // 标记此次消除不加combo
-      MusicMgr.playEliminate()
+      MusicMgr.playEliminate(count)  // 根据消除数量调整音效
       this.bState = 'elimAnim'
       return
     }
@@ -4078,7 +4083,9 @@ class Main {
         })
       }
     }
-    MusicMgr.playCombo()
+    MusicMgr.playComboHit(this.combo)  // 递进式连击音效（音高+音量递增）
+    // 里程碑突破音效：5/8/12连击播放特殊升阶音效
+    if (isTierBreak) MusicMgr.playComboMilestone(this.combo)
     // 高连击震屏：5连+轻震，8连+中震，12连+强震；层级突破额外加强
     if (this.combo >= 12) { this.shakeT = isTierBreak ? 14 : 10; this.shakeI = (isTierBreak ? 8 : 6)*S }
     else if (this.combo >= 8) { this.shakeT = isTierBreak ? 10 : 7; this.shakeI = (isTierBreak ? 5.5 : 4)*S }
@@ -4141,8 +4148,8 @@ class Main {
         color: elimDisplayColor,
         t: 0, alpha: 1, scale: count >= 5 ? 1.3 : count === 4 ? 1.15 : 1.0
       })
-      // 播放消除音效
-      MusicMgr.playEliminate()
+      // 播放消除音效（根据消除数量层次化）
+      MusicMgr.playEliminate(count)
     }
     // 法宝healOnElim效果
     if (this.weapon && this.weapon.type === 'healOnElim' && this.weapon.attr === attr) {
@@ -4354,7 +4361,11 @@ class Main {
     }
     if (hasAny) {
       this.bState = 'petAtkShow'
-      MusicMgr.playAttack()
+      if (isCrit) {
+        MusicMgr.playAttackCrit()  // 暴击版攻击音效
+      } else {
+        MusicMgr.playAttack()
+      }
       MusicMgr.playRolling()
     } else {
       this.bState = 'preAttack'
@@ -4473,9 +4484,10 @@ class Main {
       this._enemyHpLoss = { fromPct: oldPct, timer: 0 }
       this._playHeroAttack('', Object.keys(dmgMap)[0] || 'metal')
       this.shakeT = isCrit ? 12 : 8; this.shakeI = isCrit ? 6 : 4
-      // 暴击特效飘字
+      // 暴击特效飘字 + 暴击专属音效
       if (isCrit) {
         this.skillEffects.push({ x:W*0.5, y:this._getEnemyCenterY()-40*S, text:'暴击！', color:'#ffdd00', t:0, alpha:1 })
+        MusicMgr.playCritHit()  // 暴击命中音效
       }
       // 法宝poisonChance
       if (this.weapon && this.weapon.type === 'poisonChance' && Math.random()*100 < this.weapon.chance) {
@@ -4601,10 +4613,11 @@ class Main {
     }
     // 扣血（护盾优先）
     if (atkDmg > 0) {
+      const dmgRatio = atkDmg / this.heroMaxHp  // 伤害占比，用于音效强度
       this._dealDmgToHero(atkDmg)
       this._playEnemyAttack()
-      MusicMgr.playEnemyAttack()
-      setTimeout(() => MusicMgr.playHeroHurt(), 80)
+      MusicMgr.playEnemyAttack(dmgRatio)  // 根据伤害占比调整音量
+      setTimeout(() => MusicMgr.playHeroHurt(dmgRatio), 100)  // 延迟100ms播放受击音（时序更清晰）
       this.shakeT = 6; this.shakeI = 3
     }
     // DOT伤害
@@ -4648,6 +4661,7 @@ class Main {
       val = Math.round(val * (1 + (this.weapon.pct || 50) / 100))
     }
     this.heroShield += val
+    MusicMgr.playShieldGain()  // 护盾获得音效
     // 护盾飘字
     this.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${val}盾`, color:'#7ddfff', t:0, alpha:1 })
   }
@@ -5009,20 +5023,20 @@ class Main {
     if (this.tempRevive) {
       this.tempRevive = false; this.heroHp = Math.round(this.heroMaxHp * 0.3)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'天护复活！', color:TH.accent, t:0, alpha:1 })
-      MusicMgr.playReward()
+      MusicMgr.playRevive()  // 复活专属音效
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     // runBuffs额外复活次数
     if (this.runBuffs.extraRevive > 0) {
       this.runBuffs.extraRevive--; this.heroHp = Math.round(this.heroMaxHp * 0.25)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'奇迹复活！', color:TH.accent, t:0, alpha:1 })
-      MusicMgr.playReward()
+      MusicMgr.playRevive()  // 复活专属音效
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     if (this.weapon && this.weapon.type === 'revive' && !this.weaponReviveUsed) {
       this.weaponReviveUsed = true; this.heroHp = Math.round(this.heroMaxHp * 0.2)
       this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'不灭金身！', color:TH.accent, t:0, alpha:1 })
-      MusicMgr.playReward()
+      MusicMgr.playRevive()  // 复活专属音效
       this.bState = 'playerTurn'; this.dragTimer = 0; return
     }
     // 广告复活机会（每轮通关首次死亡）
@@ -5059,6 +5073,7 @@ class Main {
     // 清除不利buff
     this.heroBuffs = this.heroBuffs.filter(b => !b.bad)
     this.skillEffects.push({ x:W*0.5, y:H*0.5, text:'浴火重生！', color:'#ffd700', t:0, alpha:1 })
+    MusicMgr.playRevive()  // 复活专属音效
     this.bState = 'playerTurn'; this.dragTimer = 0
   }
 
