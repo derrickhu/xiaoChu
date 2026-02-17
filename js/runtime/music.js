@@ -51,28 +51,28 @@ class MusicManager {
     this._playSfx('audio/skill.wav')
   }
 
-  /** 怪物攻击：沉闷打击感 */
+  /** 怪物攻击：沉重铁锤砸击 */
   playEnemyAttack() {
     if (!this.enabled) return
-    this._playSfx('audio/attack.wav', 0.5)
+    this._playSfx('audio/enemy_attack.wav')
   }
 
-  /** 英雄受击：短促碰撞声 */
+  /** 英雄受击：肉感打击+痛感反馈 */
   playHeroHurt() {
     if (!this.enabled) return
-    this._playSfx('audio/eliminate.wav', 0.4)
+    this._playSfx('audio/hero_hurt.wav')
   }
 
-  /** 格挡成功：清脆格挡声 */
+  /** 格挡成功：金属盾牌碰撞+火花弹开 */
   playBlock() {
     if (!this.enabled) return
-    this._playSfx('audio/combo.wav', 0.5)
+    this._playSfx('audio/block.wav')
   }
 
-  /** 敌方技能：威压法阵声 */
+  /** 敌方技能：暗黑能量涌动+爆裂 */
   playEnemySkill() {
     if (!this.enabled) return
-    this._playSfx('audio/skill.wav', 0.4)
+    this._playSfx('audio/enemy_skill.wav')
   }
 
   /** 数值翻滚：竹简翻动短促音（带200ms防抖） */
@@ -102,10 +102,10 @@ class MusicManager {
     this._playSfx('audio/levelup.wav')
   }
 
-  /** 战斗胜利：上行五声琶音+钟磬余韵（1.8秒） */
+  /** 战斗胜利：号角+胜利鼓点+华丽琶音（2.2秒） */
   playVictory() {
     if (!this.enabled) return
-    this._playSfx('audio/victory.wav', 0.6)
+    this._playSfx('audio/victory.wav')
   }
 
   /** 奖励/奇遇：灵光闪现 */

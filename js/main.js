@@ -2056,6 +2056,13 @@ class Main {
 
       if (i === 0) {
         // ===== 第1格：法宝 =====
+        // 先绘制边框底层
+        if (frameWeapon && frameWeapon.width > 0) {
+          ctx.drawImage(frameWeapon, ix - frameOff, iconY - frameOff, frameSize, frameSize)
+        }
+        // 在边框之上绘制法宝内容（裁剪到格子内部）
+        ctx.save()
+        ctx.beginPath(); ctx.rect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2); ctx.clip()
         ctx.fillStyle = this.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
         ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
 
@@ -2064,19 +2071,14 @@ class Main {
           // 法宝图片（优先），回退到光晕+emoji
           const wpnImg = R.getImg(`assets/equipment/fabao_${this.weapon.id}.png`)
           if (wpnImg && wpnImg.width > 0) {
-            ctx.save()
-            ctx.beginPath(); ctx.rect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2); ctx.clip()
             ctx.drawImage(wpnImg, ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
-            ctx.restore()
           } else {
             // 金色光晕
-            ctx.save()
             const grd = ctx.createRadialGradient(cx, cy - iconSize*0.08, 0, cx, cy - iconSize*0.08, iconSize*0.35)
             grd.addColorStop(0, TH.accent + '44')
             grd.addColorStop(1, 'transparent')
             ctx.fillStyle = grd
             ctx.fillRect(ix, iconY, iconSize, iconSize)
-            ctx.restore()
             ctx.fillStyle = TH.accent
             ctx.font = `bold ${iconSize*0.32}px sans-serif`
             ctx.fillText('⚔', cx, cy - iconSize*0.08)
@@ -2092,10 +2094,7 @@ class Main {
           ctx.font = `${iconSize*0.22}px sans-serif`
           ctx.fillText('⚔', cx, cy)
         }
-        // 法宝边框图片（上层，中间透明露出内容）
-        if (frameWeapon && frameWeapon.width > 0) {
-          ctx.drawImage(frameWeapon, ix - frameOff, iconY - frameOff, frameSize, frameSize)
-        }
+        ctx.restore()
         // 记录法宝点击区域
         this._weaponBtnRect = [ix, iconY, iconSize, iconSize]
       } else {
@@ -4078,6 +4077,7 @@ class Main {
       this._dealDmgToHero(atkDmg)
       this._playEnemyAttack()
       MusicMgr.playEnemyAttack()
+      setTimeout(() => MusicMgr.playHeroHurt(), 80)
       this.shakeT = 6; this.shakeI = 3
     }
     // DOT伤害
