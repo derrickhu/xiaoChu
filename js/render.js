@@ -230,54 +230,62 @@ class Render {
 
   // ===== 云存储预加载 =====
   // 在wx.cloud初始化完成后调用，批量获取云资源临时链接
-  preloadCloudAssets() {
+  // onDone(successCount, failCount) 全部完成后回调
+  preloadCloudAssets(onProgress, onDone) {
+    this._cloudAssetsReady = false
+    const total = Object.keys(CLOUD_ASSETS).length
     const fileList = Object.values(CLOUD_ASSETS).map(p => CLOUD_FILE_PREFIX + p)
-    if (fileList.length === 0) return
-    console.log('[Cloud] 开始预加载云资源, 数量:', fileList.length)
+    if (fileList.length === 0) { this._cloudAssetsReady = true; onDone && onDone(0,0); return }
+    console.log('[Cloud] 开始预加载云资源, 数量:', total)
     
     const MAX_BATCH_SIZE = 50
-    let processedCount = 0
-    let failedCount = 0
-    let batchIndex = 0
+    let urlCount = 0, failedCount = 0, loadedCount = 0, batchIndex = 0
+    
+    const checkAllLoaded = () => {
+      if (loadedCount + failedCount >= total) {
+        this._cloudAssetsReady = true
+        console.log(`[Cloud] 全部图片加载完成, 成功:${loadedCount}, 失败:${failedCount}`)
+        onDone && onDone(loadedCount, failedCount)
+      }
+      onProgress && onProgress(loadedCount, failedCount, total)
+    }
     
     const processNextBatch = () => {
       const start = batchIndex * MAX_BATCH_SIZE
       const end = Math.min(start + MAX_BATCH_SIZE, fileList.length)
       const batch = fileList.slice(start, end)
       
-      if (batch.length === 0) {
-        console.log(`[Cloud] 全部预加载完成, 成功:${processedCount}, 失败:${failedCount}`)
-        return
-      }
+      if (batch.length === 0) return
       
       wx.cloud.getTempFileURL({
         fileList: batch,
         success: (res) => {
           if (!res.fileList) return
-          let batchOk = 0, batchFail = 0
           res.fileList.forEach(item => {
             if (item.status === 0 && item.tempFileURL) {
               this._cloudUrlCache[item.fileID] = item.tempFileURL
               const localPath = this._fileIdToLocalPath(item.fileID)
               if (localPath && !this._imgCache[localPath]) {
                 const img = wx.createImage()
+                img.onload = () => { this._imgCache[localPath] = img; loadedCount++; checkAllLoaded() }
+                img.onerror = () => { failedCount++; checkAllLoaded() }
                 img.src = item.tempFileURL
-                this._imgCache[localPath] = img
+              } else {
+                loadedCount++; checkAllLoaded()
               }
-              processedCount++
-              batchOk++
+              urlCount++
             } else {
               console.warn('[Cloud] 文件不存在:', item.fileID.split('/').pop(), item.errMsg)
-              failedCount++
-              batchFail++
+              failedCount++; checkAllLoaded()
             }
           })
-          console.log(`[Cloud] 批次${batchIndex + 1}完成: 成功${batchOk}, 失败${batchFail}`)
           batchIndex++
           processNextBatch()
         },
         fail: (err) => {
           console.warn(`[Cloud] 批次${batchIndex + 1}请求失败:`, err)
+          const batchSize = batch.length
+          failedCount += batchSize; checkAllLoaded()
           batchIndex++
           processNextBatch()
         }
@@ -326,13 +334,12 @@ class Render {
     const fileID = CLOUD_FILE_PREFIX + CLOUD_ASSETS[localPath]
     if (this._cloudUrlCache[fileID]) {
       const img = wx.createImage()
-      img.onload = () => { delete this._cloudLoading[localPath] }
+      img.onload = () => { this._imgCache[localPath] = img; delete this._cloudLoading[localPath] }
       img.onerror = () => {
         delete this._cloudLoading[localPath]
         delete this._cloudUrlCache[fileID]
       }
       img.src = this._cloudUrlCache[fileID]
-      this._imgCache[localPath] = img
       return
     }
     wx.cloud.getTempFileURL({
@@ -342,13 +349,12 @@ class Render {
         if (item && item.status === 0 && item.tempFileURL) {
           this._cloudUrlCache[fileID] = item.tempFileURL
           const img = wx.createImage()
-          img.onload = () => { delete this._cloudLoading[localPath] }
+          img.onload = () => { this._imgCache[localPath] = img; delete this._cloudLoading[localPath] }
           img.onerror = () => {
             console.warn('[Cloud] 图片加载失败:', localPath)
             delete this._cloudLoading[localPath]
           }
           img.src = item.tempFileURL
-          this._imgCache[localPath] = img
         } else {
           console.warn('[Cloud] 获取链接失败:', localPath, item?.errMsg)
           delete this._cloudLoading[localPath]
