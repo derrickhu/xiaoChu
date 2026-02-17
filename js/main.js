@@ -75,6 +75,8 @@ class Main {
     this.elimFloats = []   // 消除时棋子处的数值飘字
     this.petAtkNums = []   // 宠物头像处攻击数值翻滚
     this._comboAnim = { num: 0, timer: 0, scale: 1 } // Combo弹出动画
+    this._comboParticles = [] // Combo粒子特效
+    this._comboFlash = 0     // 连击触发白色闪光
     this._petFinalDmg = {} // preAttack阶段各宠物最终伤害（含combo等加成）
     this._petAtkRollTimer = 0 // 头像数值翻滚计时
     this.shakeT = 0; this.shakeI = 0
@@ -344,6 +346,15 @@ class Main {
   // ===== 更新 =====
   update() {
     if (this.shakeT > 0) this.shakeT--
+    if (this._comboFlash > 0) this._comboFlash--
+    // 粒子更新
+    this._comboParticles = this._comboParticles.filter(p => {
+      p.t++
+      p.x += p.vx; p.y += p.vy
+      p.vy += p.gravity
+      p.vx *= 0.98
+      return p.t < p.life
+    })
     this.dmgFloats = this.dmgFloats.filter(f => {
       f.t++
       if (f.t <= 20) f.y -= 0.3*S
@@ -364,18 +375,20 @@ class Main {
     if (this._comboAnim && this._comboAnim.timer < 60) {
       this._comboAnim.timer++
       const t = this._comboAnim.timer
-      // 前10帧：Combo数字弹性缩放（从2.5弹到1.0）
+      // 前10帧：Combo数字弹性缩放（从初始scale弹到1.0）
       if (t <= 10) {
         const p = t / 10
-        if (p < 0.4) this._comboAnim.scale = 2.5 - 3.0 * (p / 0.4)
+        const initScale = this._comboAnim._initScale || 2.5
+        if (p < 0.4) this._comboAnim.scale = initScale - (initScale - 0.7) * (p / 0.4)
         else if (p < 0.7) this._comboAnim.scale = 0.88 + 0.12 * ((p - 0.4) / 0.3)
         else this._comboAnim.scale = 1.0
         this._comboAnim.alpha = 1
         this._comboAnim.offsetY = 0
       }
-      // 11~40帧：稳定展示
+      // 11~40帧：稳定展示 + 呼吸脉冲
       else if (t <= 40) {
-        this._comboAnim.scale = 1.0
+        const breathP = Math.sin((t - 10) * 0.2) * 0.04 // 微弱呼吸缩放
+        this._comboAnim.scale = 1.0 + breathP
         this._comboAnim.alpha = 1
         this._comboAnim.offsetY = 0
       }
@@ -1505,13 +1518,15 @@ class Main {
     if (this.combo >= 2 && (this.bState === 'elimAnim' || this.bState === 'dropping' || this.bState === 'preAttack' || this.bState === 'petAtkShow')) {
       const ca = this._comboAnim || { num: this.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
       const comboScale = ca.scale || 1
-      const comboAlpha = ca.alpha != null ? ca.alpha : 1
-      const comboOffY = ca.offsetY || 0
-      const dmgScale = ca.dmgScale || 0
-      const dmgAlpha = ca.dmgAlpha || 0
-      const pctScale = ca.pctScale || 0
-      const pctAlpha = ca.pctAlpha || 0
-      const pctOffX = ca.pctOffX || 0
+      // 如果动画已播完但仍在消除/下落阶段，保持可见（防止连击中途消失）
+      const stillActive = this.bState === 'elimAnim' || this.bState === 'dropping'
+      const comboAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.alpha != null ? ca.alpha : 1)
+      const comboOffY = (ca.timer >= 60 && stillActive) ? 0 : (ca.offsetY || 0)
+      const dmgScale = (ca.timer >= 60 && stillActive) ? 1 : (ca.dmgScale || 0)
+      const dmgAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.dmgAlpha || 0)
+      const pctScale = (ca.timer >= 60 && stillActive) ? 1 : (ca.pctScale || 0)
+      const pctAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.pctAlpha || 0)
+      const pctOffX = (ca.timer >= 60 && stillActive) ? 0 : (ca.pctOffX || 0)
       // 居中显示
       const comboCx = W * 0.5
       const comboCy = this.boardY + (ROWS * this.cellSize) * 0.32 + comboOffY
@@ -1592,6 +1607,33 @@ class Main {
         ctx.restore()
       }
 
+      // 层级突破扩散环（5/8/12连击首次出现时）
+      if ((this.combo === 5 || this.combo === 8 || this.combo === 12) && ca.timer < 18) {
+        ctx.save()
+        const ringP = ca.timer / 18
+        const ringR = baseSz * (0.5 + ringP * 3.5)
+        const ringAlpha = (1 - ringP) * 0.8
+        ctx.globalAlpha = comboAlpha * ringAlpha
+        ctx.beginPath()
+        ctx.arc(comboCx, comboCy, ringR, 0, Math.PI * 2)
+        ctx.strokeStyle = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : '#ffd700'
+        ctx.lineWidth = (6 - ringP * 4) * S
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 15 * S
+        ctx.stroke()
+        // 第二圈略延迟
+        if (ca.timer > 3) {
+          const ringP2 = (ca.timer - 3) / 18
+          const ringR2 = baseSz * (0.3 + ringP2 * 3)
+          ctx.globalAlpha = comboAlpha * (1 - ringP2) * 0.5
+          ctx.beginPath()
+          ctx.arc(comboCx, comboCy, ringR2, 0, Math.PI * 2)
+          ctx.lineWidth = (4 - ringP2 * 3) * S
+          ctx.stroke()
+        }
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
+
       // ===== 第一行："N 连击"（超大斜体）=====
       ctx.save()
       ctx.translate(comboCx, comboCy)
@@ -1629,6 +1671,22 @@ class Main {
         ctx.fillText(comboText, 0, 0)
         ctx.shadowBlur = 0
         ctx.globalAlpha = 1
+      }
+      // 超高连击火焰摇曳描边（8连击+）
+      if (isSuper) {
+        ctx.save()
+        const flameTime = ca.timer * 0.15
+        const flameW = isMega ? 5 : 3.5
+        for (let fl = 0; fl < (isMega ? 3 : 2); fl++) {
+          const flOff = fl * 0.7
+          ctx.font = comboFont
+          ctx.strokeStyle = isMega
+            ? `rgba(255,${80 + Math.sin(flameTime + flOff) * 40},${20 + Math.sin(flameTime * 1.3 + flOff) * 20},${0.25 - fl * 0.08})`
+            : `rgba(255,${120 + Math.sin(flameTime + flOff) * 40},${60 + Math.sin(flameTime * 1.3 + flOff) * 30},${0.2 - fl * 0.06})`
+          ctx.lineWidth = (flameW + fl * 3) * S
+          ctx.strokeText(comboText, Math.sin(flameTime * 2 + fl) * 1.5*S, Math.cos(flameTime * 1.5 + fl) * 1.5*S - fl * 1.5*S)
+        }
+        ctx.restore()
       }
       ctx.restore()
 
@@ -1758,6 +1816,53 @@ class Main {
         ctx.restore()
       }
 
+      ctx.restore()
+    }
+
+    // ===== Combo粒子特效 =====
+    if (this._comboParticles.length > 0) {
+      ctx.save()
+      this._comboParticles.forEach(p => {
+        const lifeP = p.t / p.life
+        const alpha = lifeP < 0.3 ? 1 : 1 - (lifeP - 0.3) / 0.7
+        const sz = p.size * (lifeP < 0.2 ? 0.5 + lifeP / 0.2 * 0.5 : 1 - (lifeP - 0.2) * 0.4)
+        ctx.globalAlpha = alpha * 0.9
+        ctx.fillStyle = p.color
+        if (p.type === 'star') {
+          // 星形粒子
+          ctx.save()
+          ctx.translate(p.x, p.y)
+          ctx.rotate(p.t * 0.15)
+          ctx.beginPath()
+          for (let i = 0; i < 10; i++) {
+            const a = (i * Math.PI) / 5 - Math.PI / 2
+            const r = i % 2 === 0 ? sz * 1.2 : sz * 0.5
+            i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
+          }
+          ctx.closePath(); ctx.fill()
+          ctx.restore()
+        } else {
+          // 圆形粒子 + 发光拖尾
+          ctx.shadowColor = p.color; ctx.shadowBlur = sz * 2
+          ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, Math.PI * 2); ctx.fill()
+          ctx.shadowBlur = 0
+        }
+      })
+      ctx.restore()
+    }
+
+    // ===== Combo白色闪光冲击 =====
+    if (this._comboFlash > 0 && this.combo >= 2) {
+      ctx.save()
+      const flashAlpha = (this._comboFlash / 8) * (this.combo >= 12 ? 0.4 : this.combo >= 8 ? 0.3 : 0.2)
+      const flashCy = this.boardY + (ROWS * this.cellSize) * 0.32
+      const flashR = (this.combo >= 12 ? 180 : this.combo >= 8 ? 140 : this.combo >= 5 ? 110 : 80) * S
+      const flashGrd = ctx.createRadialGradient(W*0.5, flashCy, 0, W*0.5, flashCy, flashR)
+      flashGrd.addColorStop(0, `rgba(255,255,255,${flashAlpha})`)
+      flashGrd.addColorStop(0.5, `rgba(255,255,240,${flashAlpha * 0.5})`)
+      flashGrd.addColorStop(1, 'transparent')
+      ctx.fillStyle = flashGrd
+      ctx.fillRect(W*0.5 - flashR, flashCy - flashR, flashR * 2, flashR * 2)
       ctx.restore()
     }
 
@@ -3923,12 +4028,61 @@ class Main {
     }
     this.combo++
     // Combo弹出动画
-    this._comboAnim = { num: this.combo, timer: 0, scale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
+    this._comboAnim = { num: this.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
+    this._comboFlash = this.combo >= 5 ? 8 : 5 // 白色闪光帧数
+    // 层级突破特效：恰好到达5/8/12连击时，更强的闪光和粒子环
+    const isTierBreak = this.combo === 5 || this.combo === 8 || this.combo === 12
+    if (isTierBreak) {
+      this._comboFlash = 12 // 更持久的闪光
+      this._comboAnim.scale = 3.5  // 更夸张的初始缩放
+      this._comboAnim._initScale = 3.5
+    }
+    // 粒子爆炸：连击越高粒子越多越猛
+    const pCount = (this.combo >= 12 ? 40 : this.combo >= 8 ? 28 : this.combo >= 5 ? 18 : 10) + (isTierBreak ? 20 : 0)
+    const pCx = W * 0.5, pCy = this.boardY + (ROWS * this.cellSize) * 0.32
+    const pColors = this.combo >= 12 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
+      : this.combo >= 8 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
+      : this.combo >= 5 ? ['#ff8c00','#ffd700','#fff','#ffcc66']
+      : ['#ffd700','#ffe066','#fff']
+    for (let i = 0; i < pCount; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const speed = (2 + Math.random() * 4) * S * (this.combo >= 8 ? 1.5 : 1)
+      this._comboParticles.push({
+        x: pCx, y: pCy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - (1 + Math.random() * 2) * S,
+        size: (2 + Math.random() * 3) * S * (this.combo >= 8 ? 1.3 : 1),
+        color: pColors[Math.floor(Math.random() * pColors.length)],
+        life: 20 + Math.floor(Math.random() * 20),
+        t: 0,
+        gravity: 0.15 * S,
+        type: Math.random() < 0.3 ? 'star' : 'circle'
+      })
+    }
+    // 层级突破：额外环形粒子爆射（从圆心均匀扩散）
+    if (isTierBreak) {
+      const ringCount = this.combo >= 12 ? 24 : this.combo >= 8 ? 18 : 12
+      const ringColors = this.combo >= 12 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : this.combo >= 8 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#ffd700','#ffcc66']
+      for (let i = 0; i < ringCount; i++) {
+        const angle = (i / ringCount) * Math.PI * 2
+        const spd = (4 + Math.random() * 2) * S
+        this._comboParticles.push({
+          x: pCx, y: pCy,
+          vx: Math.cos(angle) * spd,
+          vy: Math.sin(angle) * spd,
+          size: (3 + Math.random() * 2) * S,
+          color: ringColors[Math.floor(Math.random() * ringColors.length)],
+          life: 25 + Math.floor(Math.random() * 10),
+          t: 0, gravity: 0.05 * S,
+          type: 'circle'
+        })
+      }
+    }
     MusicMgr.playCombo()
-    // 高连击震屏：5连+轻震，8连+中震，12连+强震
-    if (this.combo >= 12) { this.shakeT = 10; this.shakeI = 6*S }
-    else if (this.combo >= 8) { this.shakeT = 7; this.shakeI = 4*S }
-    else if (this.combo >= 5) { this.shakeT = 5; this.shakeI = 2.5*S }
+    // 高连击震屏：5连+轻震，8连+中震，12连+强震；层级突破额外加强
+    if (this.combo >= 12) { this.shakeT = isTierBreak ? 14 : 10; this.shakeI = (isTierBreak ? 8 : 6)*S }
+    else if (this.combo >= 8) { this.shakeT = isTierBreak ? 10 : 7; this.shakeI = (isTierBreak ? 5.5 : 4)*S }
+    else if (this.combo >= 5) { this.shakeT = isTierBreak ? 7 : 5; this.shakeI = (isTierBreak ? 3.5 : 2.5)*S }
     // runBuffs额外连击
     if (this.runBuffs.bonusCombo > 0 && this.combo === 1) {
       this.combo += this.runBuffs.bonusCombo
