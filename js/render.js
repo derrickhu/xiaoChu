@@ -35,7 +35,7 @@ const CLOUD_ASSETS = {
   'assets/orbs/orb_water.png': 'assets/orbs/orb_water.png',
   'assets/orbs/orb_fire.png': 'assets/orbs/orb_fire.png',
   'assets/orbs/orb_heart.png': 'assets/orbs/orb_heart.png',
-  // 法宝图片（44件，云端加载，w45-w50云端暂未上传）
+  // 法宝图片（50件，云端加载，已压缩至512x512）
   'assets/equipment/fabao_w1.png': 'assets/equipment/fabao_w1.png',
   'assets/equipment/fabao_w2.png': 'assets/equipment/fabao_w2.png',
   'assets/equipment/fabao_w3.png': 'assets/equipment/fabao_w3.png',
@@ -80,6 +80,12 @@ const CLOUD_ASSETS = {
   'assets/equipment/fabao_w42.png': 'assets/equipment/fabao_w42.png',
   'assets/equipment/fabao_w43.png': 'assets/equipment/fabao_w43.png',
   'assets/equipment/fabao_w44.png': 'assets/equipment/fabao_w44.png',
+  'assets/equipment/fabao_w45.png': 'assets/equipment/fabao_w45.png',
+  'assets/equipment/fabao_w46.png': 'assets/equipment/fabao_w46.png',
+  'assets/equipment/fabao_w47.png': 'assets/equipment/fabao_w47.png',
+  'assets/equipment/fabao_w48.png': 'assets/equipment/fabao_w48.png',
+  'assets/equipment/fabao_w49.png': 'assets/equipment/fabao_w49.png',
+  'assets/equipment/fabao_w50.png': 'assets/equipment/fabao_w50.png',
   // 宠物头像（99张，云端加载）
   'assets/pets/pet_e1.png': 'assets/pets/pet_e1.png',
   'assets/pets/pet_e2.png': 'assets/pets/pet_e2.png',
