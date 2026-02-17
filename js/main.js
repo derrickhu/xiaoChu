@@ -212,6 +212,7 @@ class Main {
     // 清除上一层战斗中获得的护盾（宠物技能护盾不跨层）
     this.heroShield = 0
     this.floor++
+    if (this.floor > 1) MusicMgr.playLevelUp()
     // 法宝perFloorBuff
     if (this.weapon && this.weapon.type === 'perFloorBuff' && this.floor > 1 && (this.floor - 1) % this.weapon.per === 0) {
       if (this.weapon.field === 'atk') this.runBuffs.allAtkPct += this.weapon.pct
@@ -252,6 +253,7 @@ class Main {
     if (this.storage.userAuthorized) {
       this.storage.submitScore(this.floor, this.pets, this.weapon)
     }
+    MusicMgr.playGameOver()
     this.scene = 'gameover'
   }
 
@@ -3125,9 +3127,9 @@ class Main {
         case 'battle': case 'elite': case 'boss':
           this._enterBattle(ev.data); break
         case 'adventure':
-          this.adventureData = ev.data; this._applyAdventure(ev.data); this.scene = 'adventure'; break
+          this.adventureData = ev.data; this._applyAdventure(ev.data); this.scene = 'adventure'; MusicMgr.playReward(); break
         case 'shop':
-          this.shopItems = ev.data; this.shopUsed = false; this.scene = 'shop'; break
+          this.shopItems = ev.data; this.shopUsed = false; this.scene = 'shop'; MusicMgr.playReward(); break
         case 'rest':
           this.restOpts = ev.data; this.scene = 'rest'; break
       }
@@ -3185,7 +3187,7 @@ class Main {
         this._restoreBattleHpMax()
         this.heroBuffs = []; this.enemyBuffs = []
         this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill); this.selectedReward = -1; this.rewardPetSlot = -1
-        this.scene = 'reward'; this.bState = 'none'; return
+        this.scene = 'reward'; this.bState = 'none'; MusicMgr.playReward(); return
       }
     }
     if (this.bState === 'defeat' && type === 'end') {
@@ -3447,6 +3449,8 @@ class Main {
       this.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
     }
     this.scene = 'battle'
+    // BOSS出场音效
+    if (this.enemy && this.enemy.isBoss) MusicMgr.playBoss()
     // 每场战斗开始时设置灵兽技能CD（降低为基础CD的60%，更容易释放）
     this.pets.forEach(p => { p.currentCd = Math.ceil(p.cd * 0.6) })
     this._initBoard()
@@ -3524,6 +3528,7 @@ class Main {
     this.combo++
     // Combo弹出动画
     this._comboAnim = { num: this.combo, timer: 0, scale: 1.8 }
+    MusicMgr.playCombo()
     // runBuffs额外连击
     if (this.runBuffs.bonusCombo > 0 && this.combo === 1) {
       this.combo += this.runBuffs.bonusCombo
@@ -3795,6 +3800,7 @@ class Main {
     }
     if (hasAny) {
       this.bState = 'petAtkShow'
+      MusicMgr.playAttack()
       MusicMgr.playRolling()
     } else {
       this.bState = 'preAttack'
@@ -4151,6 +4157,7 @@ class Main {
   // ===== 宠物技能 =====
   _triggerPetSkill(pet, idx) {
     const sk = pet.skill; if (!sk) return
+    MusicMgr.playSkill()
     // 应用技能CD（含runBuffs CD缩短）
     let cd = pet.cd
     if (this.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - this.runBuffs.skillCdReducePct / 100)))
