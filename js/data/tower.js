@@ -114,7 +114,7 @@ const ADVENTURES = [
   { id:'adv1',  name:'误入灵脉',   desc:'全队攻击+3%',              effect:'allAtkUp',    pct:3 },
   { id:'adv2',  name:'捡到仙丹',   desc:'立即回血50%',              effect:'healPct',     pct:50 },
   { id:'adv3',  name:'上古洞府',   desc:'血量上限+10%',             effect:'hpMaxUp',     pct:10 },
-  { id:'adv4',  name:'天降灵物',   desc:'随机获得一把武器',          effect:'getWeapon' },
+  { id:'adv4',  name:'天降灵物',   desc:'随机获得一件法宝',          effect:'getWeapon' },
   { id:'adv5',  name:'仙兽引路',   desc:'下一层必定不遇怪',          effect:'skipBattle' },
   { id:'adv6',  name:'秘境泉水',   desc:'满血回复',                  effect:'fullHeal' },
   { id:'adv7',  name:'道骨仙风',   desc:'转珠时间+0.5秒',           effect:'extraTime',   sec:0.5 },
@@ -129,7 +129,7 @@ const ADVENTURES = [
   { id:'adv16', name:'仙人点化',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv17', name:'无尘之地',   desc:'清除所有负面状态',          effect:'clearDebuff' },
   { id:'adv18', name:'灵泉洗礼',   desc:'心珠效果+20%',             effect:'heartBoost',  pct:20 },
-  { id:'adv19', name:'神兵残影',   desc:'武器效果临时提升20%',       effect:'weaponBoost', pct:20 },
+  { id:'adv19', name:'神兵残影',   desc:'法宝效果临时提升20%',       effect:'weaponBoost', pct:20 },
   { id:'adv20', name:'五行调和',   desc:'全属性伤害+3%',            effect:'allDmgUp',    pct:3 },
   { id:'adv21', name:'山神赐福',   desc:'血量上限+8%',              effect:'hpMaxUp',     pct:8 },
   { id:'adv22', name:'妖巢空寂',   desc:'直接跳过一层',              effect:'skipFloor' },
@@ -146,7 +146,7 @@ const ADVENTURES = [
 // ===== 商店物品池（免费兑换） =====
 const SHOP_ITEMS = [
   { id:'shop1', name:'随机新灵兽一只', effect:'getPet' },
-  { id:'shop2', name:'随机武器一把',   effect:'getWeapon' },
+  { id:'shop2', name:'随机法宝一件',   effect:'getWeapon' },
   { id:'shop3', name:'满血回复',       effect:'fullHeal' },
   { id:'shop4', name:'随机强化一只灵兽（攻击+20%）', effect:'upgradePet', pct:20 },
   { id:'shop5', name:'移除所有负面状态', effect:'clearDebuff' },
@@ -224,16 +224,26 @@ const BUFF_POOL_MAJOR = [
   { id:'M17', label:'下一场受到伤害降低30%',  buff:'nextDmgReduce',   val:30 },
   { id:'M18', label:'本局额外1次复活机会',    buff:'extraRevive',     val:1 },
 ]
-// 速通奖励池（5回合内击败敌人的额外奖励，小而甜）
+// 速通奖励池（5回合内击败敌人的额外奖励，数值略高于小档 + 独特效果）
 const BUFF_POOL_SPEEDKILL = [
-  { id:'s1',  label:'[速通] 回复10%血量',     buff:'healNow',         val:10 },
-  { id:'s2',  label:'[速通] 全队攻击 +1%',    buff:'allAtkPct',       val:1 },
-  { id:'s3',  label:'[速通] 血量上限 +2%',    buff:'hpMaxPct',        val:2 },
-  { id:'s4',  label:'[速通] 心珠效果 +3%',    buff:'heartBoostPct',   val:3 },
-  { id:'s5',  label:'[速通] 怪物血量 -1%',    buff:'enemyHpReducePct',val:1 },
-  { id:'s6',  label:'[速通] 转珠时间 +0.1秒', buff:'extraTimeSec',    val:0.1 },
-  { id:'s7',  label:'[速通] 回血 +1/回合',    buff:'regenPerTurn',    val:1 },
-  { id:'s8',  label:'[速通] 受伤 -1%',        buff:'dmgReducePct',    val:1 },
+  // 数值型（略高于小档）
+  { id:'s1',  label:'[速通] 回复20%血量',       buff:'healNow',           val:20 },
+  { id:'s2',  label:'[速通] 全队攻击 +4%',      buff:'allAtkPct',         val:4 },
+  { id:'s3',  label:'[速通] 血量上限 +6%',      buff:'hpMaxPct',          val:6 },
+  { id:'s4',  label:'[速通] 心珠效果 +8%',      buff:'heartBoostPct',     val:8 },
+  { id:'s5',  label:'[速通] 怪物血量 -3%',      buff:'enemyHpReducePct',  val:3 },
+  { id:'s6',  label:'[速通] 转珠时间 +0.3秒',   buff:'extraTimeSec',      val:0.3 },
+  { id:'s7',  label:'[速通] 回血 +2/回合',      buff:'regenPerTurn',      val:2 },
+  { id:'s8',  label:'[速通] 受伤 -3%',          buff:'dmgReducePct',      val:3 },
+  { id:'s9',  label:'[速通] Combo伤害 +4%',     buff:'comboDmgPct',       val:4 },
+  { id:'s10', label:'[速通] 宠物技能伤害 +4%',  buff:'skillDmgPct',       val:4 },
+  // 独特效果（仅速通池拥有）
+  { id:'s11', label:'[速通] 下场战斗首回合伤害翻倍', buff:'nextFirstTurnDouble', val:1 },
+  { id:'s12', label:'[速通] 下场战斗敌人眩晕1回合', buff:'nextStunEnemy',      val:1 },
+  { id:'s13', label:'[速通] 获得30点护盾',          buff:'grantShield',        val:30 },
+  { id:'s14', label:'[速通] 宠物技能CD全部重置',    buff:'resetAllCd',         val:1 },
+  { id:'s15', label:'[速通] 跳过下一场普通战斗',    buff:'skipNextBattle',     val:1 },
+  { id:'s16', label:'[速通] 下场战斗免疫一次伤害',  buff:'immuneOnce',         val:1 },
 ]
 // 合并所有（兼容旧引用）
 const ALL_BUFF_REWARDS = [...BUFF_POOL_MINOR, ...BUFF_POOL_MEDIUM, ...BUFF_POOL_MAJOR]
@@ -316,11 +326,18 @@ function generateBoss(floor) {
   const base = generateMonster(floor)
   const bossIdx = Math.min(Math.floor(floor / 10) - 1, BOSS_NAMES.length - 1)
 
-  // BOSS = 普通×5血 ×2.5攻
-  base.hp    = Math.round(base.hp * 5)
+  // BOSS倍率随层数递增：第10层温和，后续逐步变强
+  // 血量倍率：2.5 → 5（10层=2.5, 20层=3.0, 30层=3.5 ... 60层+=5）
+  // 攻击倍率：1.5 → 2.5（10层=1.5, 20层=1.7, 30层=1.9 ... 60层+=2.5）
+  const bossLevel = Math.floor(floor / 10)  // 1,2,3...
+  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.5, 5)
+  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.2, 2.5)
+  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.16, 2)
+
+  base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp
-  base.atk   = Math.round(base.atk * 2.5)
-  base.def   = Math.round(base.def * 2)
+  base.atk   = Math.round(base.atk * atkMul)
+  base.def   = Math.round(base.def * defMul)
 
   base.name    = BOSS_NAMES[Math.max(0, bossIdx)]
   base.isBoss  = true
@@ -412,21 +429,25 @@ function generateRewards(floor, eventType, speedKill) {
   }
 
   if (eventType === 'boss') {
-    // BOSS战斗：必出1武器 + 2个大档加成
-    const newWeapon = randomWeapon()
-    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新武器：${newWeapon.name}`, data: newWeapon })
-    rewards.push(pickFrom(BUFF_POOL_MAJOR))
-    rewards.push(pickFrom(BUFF_POOL_MAJOR))
-  } else if (eventType === 'elite') {
-    // 精英战斗：50%概率出宠物，否则中档加成；另外2个中档加成
-    if (Math.random() < 0.5) {
-      const newPet = randomPet()
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
-    } else {
-      rewards.push(pickFrom(BUFF_POOL_MEDIUM))
+    // BOSS战斗：法宝3选1（速通4选1）
+    const wpnIds = new Set()
+    for (let i = 0; i < 3; i++) {
+      let w = randomWeapon()
+      let tries = 0
+      while (wpnIds.has(w.id) && tries < 20) { w = randomWeapon(); tries++ }
+      wpnIds.add(w.id)
+      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     }
-    rewards.push(pickFrom(BUFF_POOL_MEDIUM))
-    rewards.push(pickFrom(BUFF_POOL_MEDIUM))
+  } else if (eventType === 'elite') {
+    // 精英战斗：灵宠3选1（速通4选1）
+    const petIds = new Set()
+    for (let i = 0; i < 3; i++) {
+      let p = randomPet()
+      let tries = 0
+      while (petIds.has(p.id) && tries < 20) { p = randomPet(); tries++ }
+      petIds.add(p.id)
+      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
+    }
   } else {
     // 普通战斗：小概率掉落宠物（15%），其余为小档加成
     if (Math.random() < 0.15) {
@@ -441,10 +462,24 @@ function generateRewards(floor, eventType, speedKill) {
     }
   }
 
-  // 速通额外奖励：追加1个速通buff
+  // 速通额外奖励：精英/boss追加同类型第4个选项，普通战追加速通buff
   if (speedKill) {
-    const bonus = pickFrom(BUFF_POOL_SPEEDKILL)
-    if (bonus) rewards.push(bonus)
+    if (eventType === 'boss') {
+      let w = randomWeapon()
+      let tries = 0
+      const existIds = new Set(rewards.map(r => r.data && r.data.id))
+      while (existIds.has(w.id) && tries < 20) { w = randomWeapon(); tries++ }
+      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
+    } else if (eventType === 'elite') {
+      let p = randomPet()
+      let tries = 0
+      const existIds = new Set(rewards.map(r => r.data && r.data.id))
+      while (existIds.has(p.id) && tries < 20) { p = randomPet(); tries++ }
+      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
+    } else {
+      const bonus = pickFrom(BUFF_POOL_SPEEDKILL)
+      if (bonus) { bonus.isSpeed = true; rewards.push(bonus) }
+    }
   }
 
   // 安全过滤null（池子耗尽情况）
@@ -460,7 +495,7 @@ function getBeadWeights(floorAttr, weapon) {
   if (floorAttr && weights[floorAttr] !== undefined) {
     weights[floorAttr] = 1.4
   }
-  // 武器beadRateUp效果
+  // 法宝beadRateUp效果
   if (weapon && weapon.type === 'beadRateUp' && weapon.attr) {
     weights[weapon.attr] = (weights[weapon.attr] || 1) * 1.5
   }
