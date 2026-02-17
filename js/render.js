@@ -234,32 +234,59 @@ class Render {
     const fileList = Object.values(CLOUD_ASSETS).map(p => CLOUD_FILE_PREFIX + p)
     if (fileList.length === 0) return
     console.log('[Cloud] 开始预加载云资源, 数量:', fileList.length)
-    wx.cloud.getTempFileURL({
-      fileList,
-      success: (res) => {
-        if (!res.fileList) return
-        res.fileList.forEach(item => {
-          if (item.status === 0 && item.tempFileURL) {
-            this._cloudUrlCache[item.fileID] = item.tempFileURL
-            console.log('[Cloud] 获取临时链接成功:', item.fileID.split('/').pop())
-            // 立即预加载图片到缓存
-            const localPath = this._fileIdToLocalPath(item.fileID)
-            if (localPath && !this._imgCache[localPath]) {
-              const img = wx.createImage()
-              img.onload = () => console.log('[Cloud] 图片加载完成:', localPath, '尺寸:', img.width, 'x', img.height)
-              img.onerror = (e) => console.warn('[Cloud] 图片加载失败:', localPath, e)
-              img.src = item.tempFileURL
-              this._imgCache[localPath] = img
-            }
-          } else {
-            console.warn('[Cloud] 获取临时链接失败:', item.fileID, item.status, item.errMsg)
-          }
-        })
-      },
-      fail: (err) => {
-        console.warn('[Cloud] getTempFileURL 失败:', err)
+    
+    const MAX_BATCH_SIZE = 50
+    let processedCount = 0
+    let batchIndex = 0
+    
+    const processNextBatch = () => {
+      const start = batchIndex * MAX_BATCH_SIZE
+      const end = Math.min(start + MAX_BATCH_SIZE, fileList.length)
+      const batch = fileList.slice(start, end)
+      
+      if (batch.length === 0) {
+        console.log('[Cloud] 全部预加载完成，总计:', processedCount, '个文件')
+        return
       }
-    })
+      
+      console.log(`[Cloud] 批次 ${batchIndex + 1} (${batch.length} 个文件)`)
+      wx.cloud.getTempFileURL({
+        fileList: batch,
+        success: (res) => {
+          if (!res.fileList) return
+          res.fileList.forEach(item => {
+            if (item.status === 0 && item.tempFileURL) {
+              this._cloudUrlCache[item.fileID] = item.tempFileURL
+              console.log('[Cloud] 获取临时链接成功:', item.fileID.split('/').pop())
+              // 立即预加载图片到缓存
+              const localPath = this._fileIdToLocalPath(item.fileID)
+              if (localPath && !this._imgCache[localPath]) {
+                const img = wx.createImage()
+                img.onload = () => console.log('[Cloud] 图片加载完成:', localPath, '尺寸:', img.width, 'x', img.height)
+                img.onerror = (e) => console.warn('[Cloud] 图片加载失败:', localPath, e)
+                img.src = item.tempFileURL
+                this._imgCache[localPath] = img
+              }
+              processedCount++
+            } else {
+              console.warn('[Cloud] 获取临时链接失败:', item.fileID, item.status, item.errMsg)
+            }
+          })
+          // 处理下一个批次
+          batchIndex++
+          processNextBatch()
+        },
+        fail: (err) => {
+          console.warn(`[Cloud] 批次 ${batchIndex + 1} getTempFileURL 失败:`, err)
+          // 即使失败也继续下一个批次，避免卡死
+          batchIndex++
+          processNextBatch()
+        }
+      })
+    }
+    
+    // 开始处理第一个批次
+    processNextBatch()
   }
 
   // fileID → 本地路径的反向映射
