@@ -148,6 +148,11 @@ class Main {
 
     this._loadStart = Date.now()
     this._pressedBtn = null
+    // 长按预览
+    this._petLongPressTimer = null
+    this._petLongPressIndex = -1
+    this._petLongPressTriggered = false
+    this.skillPreview = null  // {pet, index, timer, x, y}
     this.showExitDialog = false
     this.showNewRunConfirm = false  // 首页"开始挑战"确认弹窗
     // 排行榜
@@ -405,6 +410,13 @@ class Main {
     if (this._enemyHpLoss) { this._enemyHpLoss.timer++; if (this._enemyHpLoss.timer >= 45) this._enemyHpLoss = null }
     if (this._heroHpLoss) { this._heroHpLoss.timer++; if (this._heroHpLoss.timer >= 45) this._heroHpLoss = null }
     if (this._heroHpGain) { this._heroHpGain.timer++; if (this._heroHpGain.timer >= 40) this._heroHpGain = null }
+    // 技能预览计时器
+    if (this.skillPreview) {
+      this.skillPreview.timer++
+      if (this.skillPreview.timer >= this.skillPreview.duration) {
+        this.skillPreview = null
+      }
+    }
     // 排行榜自动刷新（每60秒）
     if (this.scene === 'ranking' && this.af % 3600 === 0) {
       this.storage.fetchRanking(this.rankTab, true)
@@ -1470,8 +1482,10 @@ class Main {
     if (this.showWeaponDetail) this._drawWeaponDetailDialog()
     // 宠物详情弹窗
     if (this.showBattlePetDetail != null) this._drawBattlePetDetailDialog()
+    // 技能预览弹窗（长按触发）
+    if (this.skillPreview) this._drawSkillPreviewDialog()
     // 全局增益详情弹窗（最顶层）
-    if (this.showRunBuffDetail) this._drawRunBuffDetailDialog()
+    if (this.runBuffDetail) this._drawRunBuffDetailDialog()
   }
 
   _rReward() {
@@ -3210,16 +3224,62 @@ class Main {
         && this.weapon && this._weaponBtnRect && this._hitRect(x,y,...this._weaponBtnRect)) {
       this.showWeaponDetail = true; return
     }
-    // 宠物点击：CD就绪+playerTurn→释放技能；否则→查看详情
-    if (type === 'end' && this._petBtnRects && this.bState !== 'victory' && this.bState !== 'defeat') {
+    // 宠物点击：CD就绪+playerTurn→长按预览/点击释放；否则→查看详情
+    if (this._petBtnRects && this.bState !== 'victory' && this.bState !== 'defeat') {
       for (let i = 0; i < this._petBtnRects.length; i++) {
         if (i < this.pets.length && this._hitRect(x,y,...this._petBtnRects[i])) {
-          if (this.bState === 'playerTurn' && !this.dragging && this.pets[i].currentCd <= 0) {
-            this._triggerPetSkill(this.pets[i], i)
-          } else {
-            this.showBattlePetDetail = i
+          const pet = this.pets[i]
+          const skillReady = this.bState === 'playerTurn' && !this.dragging && pet.currentCd <= 0
+          
+          if (type === 'start') {
+            // 触摸开始：技能就绪时启动长按计时器
+            if (skillReady) {
+              this._petLongPressIndex = i
+              this._petLongPressTriggered = false
+              // 清除之前的计时器
+              if (this._petLongPressTimer) {
+                clearTimeout(this._petLongPressTimer)
+              }
+              // 设置长按计时器（500ms）
+              this._petLongPressTimer = setTimeout(() => {
+                this._petLongPressTriggered = true
+                // 显示技能预览
+                this._showSkillPreview(pet, i)
+              }, 500)
+            }
+            return
           }
-          return
+          else if (type === 'move') {
+            // 手指移动：取消长按计时器
+            if (this._petLongPressIndex === i && this._petLongPressTimer) {
+              clearTimeout(this._petLongPressTimer)
+              this._petLongPressTimer = null
+              this._petLongPressIndex = -1
+            }
+            return
+          }
+          else if (type === 'end') {
+            // 触摸结束：清除长按计时器
+            if (this._petLongPressTimer) {
+              clearTimeout(this._petLongPressTimer)
+              this._petLongPressTimer = null
+            }
+            // 如果长按已触发，显示预览后不执行其他操作
+            if (this._petLongPressTriggered && this._petLongPressIndex === i) {
+              this._petLongPressIndex = -1
+              this._petLongPressTriggered = false
+              return
+            }
+            this._petLongPressIndex = -1
+            
+            // 正常点击逻辑
+            if (skillReady) {
+              this._triggerPetSkill(pet, i)
+            } else {
+              this.showBattlePetDetail = i
+            }
+            return
+          }
         }
       }
     }
@@ -3248,6 +3308,44 @@ class Main {
     } else if (type === 'end' && this.dragging) {
       this.dragging = false; this.dragAttr = null; this.dragTimer = 0
       this._checkAndElim()
+    }
+  }
+
+  // 显示技能预览（长按触发）
+  _showSkillPreview(pet, index) {
+    const sk = pet.skill
+    if (!sk) return
+    
+    // 计算弹窗位置（在宠物头像附近）
+    const L = this._getBattleLayout()
+    const iconSize = L.iconSize
+    const iconY = L.teamBarY + (L.teamBarH - iconSize) / 2
+    const sidePad = 8*S
+    const wpnGap = 12*S
+    const petGap = 8*S
+    
+    // 计算宠物头像位置（与_drawTeamBar中一致）
+    let ix
+    if (index === 0) {  // 法宝
+      ix = sidePad
+    } else {
+      ix = sidePad + iconSize + wpnGap + (index - 1) * (iconSize + petGap)
+    }
+    
+    // 弹窗居中在头像下方
+    const popupX = ix + iconSize/2
+    const popupY = iconY + iconSize + 10*S
+    
+    this.skillPreview = {
+      pet: pet,
+      index: index,
+      timer: 0,
+      x: popupX,
+      y: popupY,
+      skillName: sk.name,
+      skillDesc: sk.desc || '无描述',
+      // 自动关闭计时（3秒）
+      duration: 180 // 180帧 @60fps = 3秒
     }
   }
 
