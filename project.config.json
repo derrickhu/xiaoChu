@@ -28,7 +28,7 @@
   },
   "cloudfunctionRoot": "cloudfunctions/",
   "compileType": "game",
-  "libVersion": "latest",
+  "libVersion": "3.14.1",
   "appid": "wx0066a17086e2422f",
   "projectname": "xiuxian-xxl",
   "condition": {
@@ -52,12 +52,30 @@
   "simulatorPluginLibVersion": {},
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "cloudfunctions" },
-      { "type": "suffix", "value": ".md" },
-      { "type": "file", "value": "《五行通天塔》加成奖励" },
-      { "type": "file", "value": ".DS_Store" },
-      { "type": "file", "value": ".gitignore" },
-      { "type": "file", "value": ".eslintrc.js" }
+      {
+        "value": "cloudfunctions",
+        "type": "folder"
+      },
+      {
+        "value": ".md",
+        "type": "suffix"
+      },
+      {
+        "value": "《五行通天塔》加成奖励",
+        "type": "file"
+      },
+      {
+        "value": ".DS_Store",
+        "type": "file"
+      },
+      {
+        "value": ".gitignore",
+        "type": "file"
+      },
+      {
+        "value": ".eslintrc.js",
+        "type": "file"
+      }
     ],
     "include": []
   },
