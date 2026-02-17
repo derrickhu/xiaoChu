@@ -35,7 +35,7 @@ const CLOUD_ASSETS = {
   'assets/orbs/orb_water.png': 'assets/orbs/orb_water.png',
   'assets/orbs/orb_fire.png': 'assets/orbs/orb_fire.png',
   'assets/orbs/orb_heart.png': 'assets/orbs/orb_heart.png',
-  // 法宝图片（50件，云端加载）
+  // 法宝图片（44件，云端加载，w45-w50云端暂未上传）
   'assets/equipment/fabao_w1.png': 'assets/equipment/fabao_w1.png',
   'assets/equipment/fabao_w2.png': 'assets/equipment/fabao_w2.png',
   'assets/equipment/fabao_w3.png': 'assets/equipment/fabao_w3.png',
@@ -80,12 +80,6 @@ const CLOUD_ASSETS = {
   'assets/equipment/fabao_w42.png': 'assets/equipment/fabao_w42.png',
   'assets/equipment/fabao_w43.png': 'assets/equipment/fabao_w43.png',
   'assets/equipment/fabao_w44.png': 'assets/equipment/fabao_w44.png',
-  'assets/equipment/fabao_w45.png': 'assets/equipment/fabao_w45.png',
-  'assets/equipment/fabao_w46.png': 'assets/equipment/fabao_w46.png',
-  'assets/equipment/fabao_w47.png': 'assets/equipment/fabao_w47.png',
-  'assets/equipment/fabao_w48.png': 'assets/equipment/fabao_w48.png',
-  'assets/equipment/fabao_w49.png': 'assets/equipment/fabao_w49.png',
-  'assets/equipment/fabao_w50.png': 'assets/equipment/fabao_w50.png',
   // 宠物头像（99张，云端加载）
   'assets/pets/pet_e1.png': 'assets/pets/pet_e1.png',
   'assets/pets/pet_e2.png': 'assets/pets/pet_e2.png',
@@ -237,6 +231,7 @@ class Render {
     
     const MAX_BATCH_SIZE = 50
     let processedCount = 0
+    let failedCount = 0
     let batchIndex = 0
     
     const processNextBatch = () => {
@@ -245,47 +240,44 @@ class Render {
       const batch = fileList.slice(start, end)
       
       if (batch.length === 0) {
-        console.log('[Cloud] 全部预加载完成，总计:', processedCount, '个文件')
+        console.log(`[Cloud] 全部预加载完成, 成功:${processedCount}, 失败:${failedCount}`)
         return
       }
       
-      console.log(`[Cloud] 批次 ${batchIndex + 1} (${batch.length} 个文件)`)
       wx.cloud.getTempFileURL({
         fileList: batch,
         success: (res) => {
           if (!res.fileList) return
+          let batchOk = 0, batchFail = 0
           res.fileList.forEach(item => {
             if (item.status === 0 && item.tempFileURL) {
               this._cloudUrlCache[item.fileID] = item.tempFileURL
-              console.log('[Cloud] 获取临时链接成功:', item.fileID.split('/').pop())
-              // 立即预加载图片到缓存
               const localPath = this._fileIdToLocalPath(item.fileID)
               if (localPath && !this._imgCache[localPath]) {
                 const img = wx.createImage()
-                img.onload = () => console.log('[Cloud] 图片加载完成:', localPath, '尺寸:', img.width, 'x', img.height)
-                img.onerror = (e) => console.warn('[Cloud] 图片加载失败:', localPath, e)
                 img.src = item.tempFileURL
                 this._imgCache[localPath] = img
               }
               processedCount++
+              batchOk++
             } else {
-              console.warn('[Cloud] 获取临时链接失败:', item.fileID, item.status, item.errMsg)
+              console.warn('[Cloud] 文件不存在:', item.fileID.split('/').pop(), item.errMsg)
+              failedCount++
+              batchFail++
             }
           })
-          // 处理下一个批次
+          console.log(`[Cloud] 批次${batchIndex + 1}完成: 成功${batchOk}, 失败${batchFail}`)
           batchIndex++
           processNextBatch()
         },
         fail: (err) => {
-          console.warn(`[Cloud] 批次 ${batchIndex + 1} getTempFileURL 失败:`, err)
-          // 即使失败也继续下一个批次，避免卡死
+          console.warn(`[Cloud] 批次${batchIndex + 1}请求失败:`, err)
           batchIndex++
           processNextBatch()
         }
       })
     }
     
-    // 开始处理第一个批次
     processNextBatch()
   }
 
@@ -323,18 +315,13 @@ class Render {
 
   // 异步加载云存储图片
   _loadCloudImg(localPath) {
-    if (this._cloudLoading[localPath]) return  // 已在加载中
+    if (this._cloudLoading[localPath]) return
     this._cloudLoading[localPath] = true
     const fileID = CLOUD_FILE_PREFIX + CLOUD_ASSETS[localPath]
-    // 优先使用已缓存的临时链接
     if (this._cloudUrlCache[fileID]) {
       const img = wx.createImage()
-      img.onload = () => {
-        console.log('[Cloud] 图片就绪:', localPath)
-        delete this._cloudLoading[localPath]
-      }
+      img.onload = () => { delete this._cloudLoading[localPath] }
       img.onerror = () => {
-        console.warn('[Cloud] 图片加载失败，清除缓存重试:', localPath)
         delete this._cloudLoading[localPath]
         delete this._cloudUrlCache[fileID]
       }
@@ -342,8 +329,6 @@ class Render {
       this._imgCache[localPath] = img
       return
     }
-    // 没有临时链接，实时获取
-    console.log('[Cloud] 实时获取临时链接:', localPath)
     wx.cloud.getTempFileURL({
       fileList: [fileID],
       success: (res) => {
@@ -351,10 +336,7 @@ class Render {
         if (item && item.status === 0 && item.tempFileURL) {
           this._cloudUrlCache[fileID] = item.tempFileURL
           const img = wx.createImage()
-          img.onload = () => {
-            console.log('[Cloud] 图片就绪:', localPath)
-            delete this._cloudLoading[localPath]
-          }
+          img.onload = () => { delete this._cloudLoading[localPath] }
           img.onerror = () => {
             console.warn('[Cloud] 图片加载失败:', localPath)
             delete this._cloudLoading[localPath]
