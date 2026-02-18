@@ -166,9 +166,12 @@ function startNextElimAnim(g) {
     elimDisplayVal = Math.round(heal)
     elimDisplayColor = '#d4607a'
   } else {
-    const pet = g.pets.find(p => p.attr === attr)
-    if (pet) {
-      let baseDmg = pet.atk * elimMul
+    // 同属性所有宠物的攻击力都参与计算
+    const matchPets = g.pets.filter(p => p.attr === attr)
+    if (matchPets.length > 0) {
+      let totalAtk = 0
+      matchPets.forEach(p => { totalAtk += p.atk })
+      let baseDmg = totalAtk * elimMul
       baseDmg *= 1 + g.runBuffs.allAtkPct / 100
       if (!g._pendingDmgMap[attr]) g._pendingDmgMap[attr] = 0
       g._pendingDmgMap[attr] += baseDmg
@@ -302,14 +305,41 @@ function enterPetAtkShow(g) {
   const teamBarH = iconSize + 6*S
   const iconY = L.teamBarY + (teamBarH - iconSize) / 2
 
+  // 汇总 heroBuffs 中的临时攻击加成（用于展示数值）
+  let buffAllDmgPct = 0, buffAllAtkPct = 0, buffComboDmgPct = 0, buffLowHpDmgPct = 0
+  const buffAttrDmgPct = {}
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'dmgBoost') buffAttrDmgPct[b.attr] = (buffAttrDmgPct[b.attr] || 0) + b.pct
+    else if (b.type === 'allDmgUp') buffAllDmgPct += b.pct
+    else if (b.type === 'allAtkUp') buffAllAtkPct += b.pct
+    else if (b.type === 'comboDmgUp') buffComboDmgPct += b.pct
+    else if (b.type === 'lowHpDmgUp') buffLowHpDmgPct += b.pct
+  })
+
+  // 统计每个属性有多少个宠物，用于按比例分配展示数值
+  const attrPetCount = {}
+  g.pets.forEach(p => { attrPetCount[p.attr] = (attrPetCount[p.attr] || 0) + 1 })
+
   let hasAny = false
   for (let i = 0; i < g.pets.length; i++) {
     const pet = g.pets[i]
-    const baseDmg = dmgMap[pet.attr] || 0
-    if (baseDmg <= 0) continue
+    const totalBaseDmg = dmgMap[pet.attr] || 0
+    if (totalBaseDmg <= 0) continue
+    // 按该宠物攻击力占同属性宠物总攻击力的比例分配
+    const sameAttrPets = g.pets.filter(p => p.attr === pet.attr)
+    const totalAtk = sameAttrPets.reduce((sum, p) => sum + p.atk, 0)
+    const ratio = totalAtk > 0 ? pet.atk / totalAtk : 1 / attrPetCount[pet.attr]
+    const baseDmg = totalBaseDmg * ratio
     let dmg = baseDmg * comboMul * comboBonusMul
     dmg *= 1 + g.runBuffs.allDmgPct / 100
     dmg *= 1 + (g.runBuffs.attrDmgPct[pet.attr] || 0) / 100
+    // 宠物技能临时buff加成
+    dmg *= 1 + buffAllDmgPct / 100
+    dmg *= 1 + buffAllAtkPct / 100
+    dmg *= 1 + (buffAttrDmgPct[pet.attr] || 0) / 100
+    if (buffComboDmgPct > 0 && g.combo > 1) dmg *= 1 + buffComboDmgPct / 100
+    if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
+    // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === pet.attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
     if (g.enemy) {
@@ -401,11 +431,30 @@ function applyFinalDamage(g, dmgMap, heal) {
     critMul = isCrit ? (1 + cc.critDmg / 100) : 1
   }
   g._lastCrit = isCrit
+
+  // 汇总 heroBuffs 中的临时攻击加成
+  let buffAllDmgPct = 0, buffAllAtkPct = 0, buffComboDmgPct = 0, buffLowHpDmgPct = 0
+  const buffAttrDmgPct = {}
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'dmgBoost') buffAttrDmgPct[b.attr] = (buffAttrDmgPct[b.attr] || 0) + b.pct
+    else if (b.type === 'allDmgUp') buffAllDmgPct += b.pct
+    else if (b.type === 'allAtkUp') buffAllAtkPct += b.pct
+    else if (b.type === 'comboDmgUp') buffComboDmgPct += b.pct
+    else if (b.type === 'lowHpDmgUp') buffLowHpDmgPct += b.pct
+  })
+
   let totalDmg = 0
   for (const [attr, baseDmg] of Object.entries(dmgMap)) {
     let dmg = baseDmg * comboMul * comboBonusMul
     dmg *= 1 + g.runBuffs.allDmgPct / 100
     dmg *= 1 + (g.runBuffs.attrDmgPct[attr] || 0) / 100
+    // 宠物技能临时buff加成
+    dmg *= 1 + buffAllDmgPct / 100
+    dmg *= 1 + buffAllAtkPct / 100
+    dmg *= 1 + (buffAttrDmgPct[attr] || 0) / 100
+    if (buffComboDmgPct > 0 && g.combo > 1) dmg *= 1 + buffComboDmgPct / 100
+    if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
+    // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'comboDmgUp') dmg *= 1 + g.weapon.pct / 100 * (g.combo > 1 ? 1 : 0)
