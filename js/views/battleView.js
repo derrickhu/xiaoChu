@@ -38,19 +38,64 @@ function rBattle(g) {
     const ac = ATTR_COLOR[g.enemy.attr]
     const themeBg = 'theme_' + (g.enemy.attr || 'metal')
     R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
+
+    // --- 血条 ---
+    const hpY = eAreaBottom - 22*S
+    const hpBarW = W - padX*2 - 80*S
+    R.drawHp(padX+40*S, hpY, hpBarW, 16*S, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
+
+    // --- 弱点 & 抵抗（血条下方一行） ---
+    const weakAttr = COUNTER_BY[g.enemy.attr]
+    const resistAttr = COUNTER_MAP[g.enemy.attr]
+    const orbR = 7*S  // 属性球半径
+    const infoY = hpY + 16*S + 14*S  // 血条底部 + 间距
+    ctx.textAlign = 'center'
+    // 弱点 在左侧
+    if (weakAttr) {
+      const wc = ATTR_COLOR[weakAttr]
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+      const weakLabelX = W*0.5 - 40*S
+      ctx.strokeText('弱点:', weakLabelX, infoY)
+      ctx.fillText('弱点:', weakLabelX, infoY)
+      R.drawBead(weakLabelX + 30*S, infoY - 4*S, orbR, weakAttr, g.af)
+    }
+    // 抵抗 在右侧
+    if (resistAttr) {
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+      const resistLabelX = W*0.5 + 30*S
+      ctx.strokeText('抵抗:', resistLabelX, infoY)
+      ctx.fillText('抵抗:', resistLabelX, infoY)
+      R.drawBead(resistLabelX + 30*S, infoY - 4*S, orbR, resistAttr, g.af)
+    }
+
+    // --- 怪物名（在怪物图片头顶显示） ---
+    // 先计算怪物图片位置：底部贴近血条上方
     const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
+    const nameY_offset = 18*S  // 名字占用的高度
+    const imgBottom = hpY - 6*S  // 图片底部贴近血条上方
+    let imgDrawY = eAreaTop  // 默认值
     if (enemyImg && enemyImg.width > 0) {
-      const maxImgH = eAreaH * 0.6
-      const maxImgW = W * 0.45
+      const maxImgH = eAreaH * 0.58
+      const maxImgW = W * 0.5
       const imgRatio = enemyImg.width / enemyImg.height
       let imgW = maxImgH * imgRatio, imgH = maxImgH
       if (imgW > maxImgW) { imgW = maxImgW; imgH = imgW / imgRatio }
       const imgX = (W - imgW) / 2
-      const imgY = eAreaTop + (eAreaH - imgH) * 0.5
-      ctx.drawImage(enemyImg, imgX, imgY, imgW, imgH)
+      imgDrawY = imgBottom - imgH
+      ctx.drawImage(enemyImg, imgX, imgDrawY, imgW, imgH)
     }
-    // 层数标记
+    // 怪物名字绘制在怪物图片顶部
+    const nameY = imgDrawY - 4*S
+    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${16*S}px sans-serif`
+    ctx.textAlign = 'center'
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+    ctx.strokeText(g.enemy.name, W*0.5, nameY)
+    ctx.fillText(g.enemy.name, W*0.5, nameY)
+
+    // --- 层数标记（最顶部） ---
     ctx.textAlign = 'center'
     const evType = g.curEvent ? g.curEvent.type : 'battle'
     if (evType === 'boss') {
@@ -74,22 +119,9 @@ function rBattle(g) {
       ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`
       ctx.fillText(`第 ${g.floor} 层`, W*0.5, eAreaTop + 14*S)
     }
-    // 怪物名
-    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${16*S}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-    ctx.strokeText(g.enemy.name, W*0.5, eAreaBottom - 58*S)
-    ctx.fillText(g.enemy.name, W*0.5, eAreaBottom - 58*S)
-    const weakAttr = COUNTER_BY[g.enemy.attr]
-    if (weakAttr) {
-      const wc = ATTR_COLOR[weakAttr]
-      ctx.fillStyle = wc ? wc.main : TH.accent; ctx.font = `bold ${11*S}px sans-serif`
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-      ctx.strokeText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 44*S)
-      ctx.fillText(`弱点：${ATTR_NAME[weakAttr]}`, W*0.5, eAreaBottom - 44*S)
-    }
-    R.drawHp(padX+40*S, eAreaBottom - 36*S, W-padX*2-80*S, 16*S, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
-    drawBuffIconsLabeled(g.enemyBuffs, padX+8*S, eAreaBottom - 60*S, '敌方', true)
+
+    // 敌方Buff
+    drawBuffIconsLabeled(g.enemyBuffs, padX+8*S, nameY - 18*S, '敌方', true)
     g._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]
   }
 
@@ -107,6 +139,18 @@ function rBattle(g) {
   ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
   ctx.textBaseline = 'alphabetic'
   g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
+
+  // [DEV] 一键过关调试按钮
+  if (g.enemy && g.bState !== 'victory' && g.bState !== 'defeat') {
+    const dbgX = exitBtnX + exitBtnSize + 6*S, dbgY = exitBtnY
+    const dbgW = 44*S, dbgH = exitBtnSize
+    ctx.fillStyle = 'rgba(200,50,50,0.6)'
+    R.rr(dbgX, dbgY, dbgW, dbgH, 6*S); ctx.fill()
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${10*S}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('秒杀', dbgX + dbgW*0.5, dbgY + dbgH*0.5)
+    ctx.textBaseline = 'alphabetic'
+    g._devKillRect = [dbgX, dbgY, dbgW, dbgH]
+  }
 
   // 队伍栏
   drawTeamBar(g, teamBarY, teamBarH, iconSize)
@@ -1074,28 +1118,52 @@ function drawRunBuffIcons(g, topY, bottomY) {
 // ===== 胜利/失败/复活覆盖 =====
 function drawVictoryOverlay(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
-  ctx.fillStyle = TH.success; ctx.font = `bold ${28*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('战斗胜利！', W*0.5, H*0.32)
-  if (g.lastSpeedKill) {
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${16*S}px sans-serif`
-    ctx.fillText(`⚡ 速通达成！(${g.lastTurnCount}回合击败)`, W*0.5, H*0.40)
-    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`
-    ctx.fillText('额外获得速通奖励', W*0.5, H*0.44)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
+
+  const hasSpeed = g.lastSpeedKill
+  const panelH = hasSpeed ? 150*S : 120*S
+  const panelW = W * 0.72
+  const panelX = (W - panelW) / 2
+  const panelY = (H - panelH) / 2
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+
+  ctx.textAlign = 'center'
+  // 标题 — 与首页弹窗风格一致：米色
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('战斗胜利', W*0.5, panelY + 42*S)
+
+  if (hasSpeed) {
+    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`⚡ 速通达成！(${g.lastTurnCount}回合击败)`, W*0.5, panelY + 64*S)
+    ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('额外获得速通奖励', W*0.5, panelY + 80*S)
   }
-  const bx = W*0.25, by = H*0.52, bw = W*0.5, bh = 46*S
-  R.drawDialogBtn(bx, by, bw, bh, '选择奖励', 'confirm')
-  g._victoryBtnRect = [bx, by, bw, bh]
+
+  const btnW = panelW * 0.7, btnH = 40*S
+  const btnX = (W - btnW) / 2, btnY = panelY + panelH - btnH - 14*S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '选择奖励', 'confirm')
+  g._victoryBtnRect = [btnX, btnY, btnW, btnH]
 }
 
 function drawDefeatOverlay(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H)
-  ctx.fillStyle = TH.danger; ctx.font = `bold ${28*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('修士陨落...', W*0.5, H*0.35)
-  const bx = W*0.25, by = H*0.5, bw = W*0.5, bh = 46*S
-  R.drawDialogBtn(bx, by, bw, bh, '结算', 'cancel')
-  g._defeatBtnRect = [bx, by, bw, bh]
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
+
+  const panelW = W * 0.72, panelH = 120*S
+  const panelX = (W - panelW) / 2, panelY = (H - panelH) / 2
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('修士陨落...', W*0.5, panelY + 42*S)
+
+  ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`止步第 ${g.floor} 层`, W*0.5, panelY + 62*S)
+
+  const btnW = panelW * 0.7, btnH = 40*S
+  const btnX = (W - btnW) / 2, btnY = panelY + panelH - btnH - 14*S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '结算', 'cancel')
+  g._defeatBtnRect = [btnX, btnY, btnW, btnH]
 }
 
 function drawAdReviveOverlay(g) {
