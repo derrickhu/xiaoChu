@@ -66,7 +66,9 @@ function updateAnimations(g) {
 
 function _updateComboAnim(g, S) {
   if (!(g._comboAnim && g._comboAnim.timer < 60)) return
-  const freezeTimer = (g.bState === 'preAttack' || g.bState === 'petAtkShow') && g._comboAnim.timer >= 40
+  // 消除/掉落/攻击展示阶段都冻结timer，避免combo文字在连锁过程中提前淡出
+  const inBattle = g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow'
+  const freezeTimer = inBattle && g._comboAnim.timer >= 40
   if (!freezeTimer) g._comboAnim.timer++
   const t = g._comboAnim.timer
   if (t <= 10) {
@@ -83,8 +85,7 @@ function _updateComboAnim(g, S) {
     g._comboAnim.alpha = 1
     g._comboAnim.offsetY = 0
   } else {
-    const inCombat = g.bState === 'preAttack' || g.bState === 'petAtkShow'
-    if (inCombat) {
+    if (inBattle) {
       g._comboAnim.scale = 1.0
       g._comboAnim.alpha = 1
       g._comboAnim.offsetY = 0
