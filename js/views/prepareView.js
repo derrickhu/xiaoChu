@@ -274,7 +274,7 @@ function drawPrepareTip(g) {
   if (tip.type === 'pet') {
     const ac = ATTR_COLOR[d.attr]
     lines.push({ text: d.name, color: ac ? ac.main : TH.text, bold: true, size: 15 })
-    lines.push({ text: `属性：${ATTR_NAME[d.attr] || '?'}　　ATK：${d.atk}`, color: TH.sub, size: 11 })
+    lines.push({ text: `__ATTR_ORB__${d.attr}　　ATK：${d.atk}`, color: TH.sub, size: 11, attrOrb: d.attr })
     lines.push({ text: `冷却：${d.cd} 回合`, color: TH.dim, size: 11 })
     if (d.skill) {
       lines.push({ text: '', size: 6 })
@@ -315,7 +315,16 @@ function drawPrepareTip(g) {
     curY += lineH
     ctx.fillStyle = l.color || TH.text
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
-    ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    if (l.attrOrb) {
+      const orbR = 6*S
+      const orbX = tipX + padX + orbR
+      const orbY = curY - 4*S - orbR*0.4
+      R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
+      const restText = l.text.replace(`__ATTR_ORB__${l.attrOrb}`, '')
+      ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
+    } else {
+      ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    }
   }
 
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'

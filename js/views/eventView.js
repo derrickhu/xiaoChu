@@ -3,7 +3,7 @@
  * 战斗层：整合法宝切换 + 灵宠替换，支持点击快速交换，无需跳转prepare页面
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_BY } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
 
@@ -121,29 +121,27 @@ function rEvent(g) {
   ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
   ctx.fillText(e.name, infoX, infoY)
   infoY += 20*S
-  // 属性标签
-  ctx.fillStyle = ac ? ac.bg : '#333'
-  const tagW2 = 60*S, tagH2 = 18*S
-  R.rr(infoX, infoY - 12*S, tagW2, tagH2, 3*S); ctx.fill()
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${10*S}px sans-serif`
-  ctx.textAlign = 'center'
-  ctx.fillText(`${ATTR_NAME[e.attr]}属性`, infoX + tagW2/2, infoY)
-  ctx.textAlign = 'left'
-  // 弱点
+  // 属性文字
+  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillText(`${ATTR_NAME[e.attr]}属性`, infoX, infoY)
+  // 弱点 & 抵抗（下一行，用属性球）
+  infoY += 18*S
+  const orbR2 = 6*S
+  let bx = infoX
   const weakAttr = COUNTER_BY[e.attr]
   if (weakAttr) {
-    const wc = ATTR_COLOR[weakAttr]
-    const weakX = infoX + tagW2 + 8*S
-    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
-    ctx.fillText('弱点:', weakX, infoY)
-    const wLabelX = weakX + 32*S
-    ctx.fillStyle = wc ? wc.bg : '#333'
-    const wTagW = 52*S
-    R.rr(wLabelX, infoY - 11*S, wTagW, 16*S, 3*S); ctx.fill()
-    ctx.fillStyle = wc ? wc.main : TH.accent; ctx.font = `bold ${10*S}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.fillText(`${ATTR_NAME[weakAttr]}属性`, wLabelX + wTagW/2, infoY)
-    ctx.textAlign = 'left'
+    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px sans-serif`
+    ctx.fillText('弱:', bx, infoY)
+    bx += ctx.measureText('弱:').width + 4*S
+    R.drawBead(bx + orbR2, infoY - 3*S, orbR2, weakAttr, 0)
+    bx += orbR2*2 + 10*S
+  }
+  const resistAttr = COUNTER_MAP[e.attr]
+  if (resistAttr) {
+    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px sans-serif`
+    ctx.fillText('抗:', bx, infoY)
+    bx += ctx.measureText('抗:').width + 4*S
+    R.drawBead(bx + orbR2, infoY - 3*S, orbR2, resistAttr, 0)
   }
   curY = cardTop + cardH + 8*S
 
@@ -429,12 +427,16 @@ function drawEventPetDetail(g) {
 
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
 
-  const cardW = W * 0.75, cardH = 200*S
+  const cardW = W * 0.78
+  // 预计算内容高度
+  const descLines = wrapText(p.skill.desc, cardW - 60*S, 10)
+  const cardH = Math.max(180*S, 80*S + descLines.length * 14*S + 80*S)
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
   R.drawDialogPanel(cardX, cardY, cardW, cardH)
 
-  const avSz = 64*S
-  const avX = cardX + 16*S, avY = cardY + 18*S
+  // 头像（无头像框，纯圆角小图）
+  const avSz = 40*S
+  const avX = cardX + 24*S, avY = cardY + 24*S
   ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
   R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
   const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
@@ -446,35 +448,37 @@ function drawEventPetDetail(g) {
     ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
     ctx.restore()
   }
-  const petFrame = R.getImg(`assets/ui/frame_pet_${p.attr}.png`)
-  if (petFrame && petFrame.width > 0) {
-    const fScale = 1.12, fSz = avSz * fScale, fOff = (fSz - avSz)/2
-    ctx.drawImage(petFrame, avX - fOff, avY - fOff, fSz, fSz)
-  }
+  // 属性色细边框（代替头像框）
+  ctx.strokeStyle = ac ? ac.main : '#666'; ctx.lineWidth = 1.5*S
+  R.rr(avX, avY, avSz, avSz, 6*S); ctx.stroke()
 
-  const infoX = avX + avSz + 14*S
-  let iy = cardY + 36*S
+  // 右侧信息（整体右移下移）
+  const infoX = avX + avSz + 16*S
+  let iy = cardY + 40*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${15*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
   ctx.fillText(p.name, infoX, iy)
-  iy += 22*S
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
-  ctx.fillText(`${ATTR_NAME[p.attr]}属性   ATK: ${p.atk}`, infoX, iy)
-
-  iy = avY + avSz + 18*S
-  ctx.textAlign = 'left'
-  ctx.fillStyle = TH.text; ctx.font = `bold ${13*S}px sans-serif`
-  ctx.fillText(`技能：${p.skill.name}`, cardX + 20*S, iy)
+  // 属性球 + ATK
   iy += 20*S
-  ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
-  const descLines = wrapText(p.skill.desc, cardW - 40*S, 11)
+  const orbR = 6*S
+  R.drawBead(infoX + orbR, iy - 3*S, orbR, p.attr, 0)
+  ctx.fillStyle = '#ccc'; ctx.font = `${11*S}px sans-serif`
+  ctx.fillText(`ATK: ${p.atk}`, infoX + orbR*2 + 8*S, iy)
+
+  // 技能区域（整体下移，字号缩小）
+  iy = avY + avSz + 12*S
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillText(`技能：${p.skill.name}`, cardX + 28*S, iy)
+  iy += 16*S
+  ctx.fillStyle = '#bbb'; ctx.font = `${10*S}px sans-serif`
   descLines.forEach(line => {
-    ctx.fillText(line, cardX + 20*S, iy)
-    iy += 16*S
+    ctx.fillText(line, cardX + 28*S, iy)
+    iy += 14*S
   })
-  iy += 4*S
-  ctx.fillStyle = TH.dim; ctx.font = `${11*S}px sans-serif`
-  ctx.fillText(`CD：${p.cd} 回合`, cardX + 20*S, iy)
+  iy += 2*S
+  ctx.fillStyle = '#999'; ctx.font = `${10*S}px sans-serif`
+  ctx.fillText(`CD：${p.cd} 回合`, cardX + 28*S, iy)
 
   const closeBtnW = 80*S, closeBtnH = 32*S
   const closeBtnX = cardX + (cardW - closeBtnW)/2

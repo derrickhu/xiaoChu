@@ -98,15 +98,15 @@ function drawEnemyDetailDialog(g) {
   if (!g.enemy) return
   const e = g.enemy
   const ac = ATTR_COLOR[e.attr]
-  const padX = 16*S, padY = 14*S
+  const padX = 36*S, padY = 32*S
   const tipW = W * 0.84
   const lineH = 20*S
   const smallLineH = 16*S
 
   let lines = []
   const typeTag = e.isBoss ? '【BOSS】' : (e.isElite ? '【精英】' : '')
-  lines.push({ text: `${typeTag}${e.name}`, color: ac ? ac.main : TH.text, bold: true, size: 16, h: lineH + 4*S })
-  lines.push({ text: `属性：${ATTR_NAME[e.attr] || '?'}　　第 ${g.floor} 层`, color: TH.sub, size: 11, h: smallLineH })
+  lines.push({ text: `${typeTag}${e.name}`, color: ac ? ac.main : TH.text, bold: true, size: 15, h: lineH + 4*S })
+  lines.push({ text: `__ATTR_ORB__${e.attr}　　第 ${g.floor} 层`, color: TH.sub, size: 11, h: smallLineH, attrOrb: e.attr })
   lines.push({ text: `HP：${Math.round(e.hp)} / ${Math.round(e.maxHp)}　ATK：${e.atk}　DEF：${e.def || 0}`, color: TH.text, size: 11, h: smallLineH })
 
   if (e.skills && e.skills.length > 0) {
@@ -161,12 +161,6 @@ function drawEnemyDetailDialog(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
   R.drawDialogPanel(tipX, tipY, tipW, totalH)
-  ctx.save()
-  ctx.beginPath()
-  R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
-  ctx.fillStyle = ac ? ac.main : TH.accent
-  ctx.fillRect(tipX, tipY, tipW, 4*S)
-  ctx.restore()
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
@@ -175,8 +169,17 @@ function drawEnemyDetailDialog(g) {
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
     ctx.fillStyle = l.color || TH.text
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
-    ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    if (l.attrOrb) {
+      const orbR = 6*S
+      const orbX = tipX + padX + orbR
+      const orbY = curY - 4*S - orbR*0.4
+      R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
+      const restText = l.text.replace(`__ATTR_ORB__${l.attrOrb}`, '')
+      ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
+    } else {
+      ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    }
   })
 
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
@@ -189,12 +192,12 @@ function drawWeaponDetailDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   if (!g.weapon) { g.showWeaponDetail = false; return }
   const w = g.weapon
-  const padX = 16*S, padY = 14*S
+  const padX = 36*S, padY = 32*S
   const lineH = 20*S, smallLineH = 16*S
   const tipW = W * 0.82
 
   let lines = []
-  lines.push({ text: w.name, color: TH.accent, bold: true, size: 16, h: lineH + 4*S })
+  lines.push({ text: w.name, color: TH.accent, bold: true, size: 15, h: lineH + 4*S })
   lines.push({ text: '', size: 0, h: 6*S })
   lines.push({ text: '法宝效果：', color: '#ffd700', bold: true, size: 12, h: smallLineH })
   const descLines = wrapText(w.desc || '无', tipW - padX*2 - 10*S, 11)
@@ -216,12 +219,6 @@ function drawWeaponDetailDialog(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
   R.drawDialogPanel(tipX, tipY, tipW, totalH)
-  ctx.save()
-  ctx.beginPath()
-  R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
-  ctx.fillStyle = TH.accent
-  ctx.fillRect(tipX, tipY, tipW, 4*S)
-  ctx.restore()
 
   const wdImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
   const wdImgSz = 64*S
@@ -241,7 +238,7 @@ function drawWeaponDetailDialog(g) {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
     ctx.fillStyle = l.color || TH.text
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
     ctx.fillText(l.text, tipX + padX, curY - 4*S)
   })
 
@@ -258,17 +255,17 @@ function drawBattlePetDetailDialog(g) {
   const p = g.pets[idx]
   const ac = ATTR_COLOR[p.attr]
   const sk = p.skill
-  const padX = 16*S, padY = 14*S
+  const padX = 36*S, padY = 32*S
   const lineH = 20*S, smallLineH = 16*S
   const tipW = W * 0.82
 
   let lines = []
-  lines.push({ text: p.name, color: ac ? ac.main : TH.accent, bold: true, size: 16, h: lineH + 4*S })
-  lines.push({ text: `属性：${ATTR_NAME[p.attr] || '?'}　　攻击力：${p.atk}`, color: TH.sub, size: 11, h: smallLineH })
+  lines.push({ text: p.name, color: ac ? ac.main : TH.accent, bold: true, size: 15, h: lineH + 4*S })
+  lines.push({ text: `__ATTR_ORB__${p.attr}　　攻击力：${p.atk}`, color: '#ccc', size: 11, h: smallLineH, attrOrb: p.attr })
   lines.push({ text: '', size: 0, h: 6*S })
 
   if (sk) {
-    lines.push({ text: `技能：${sk.name}`, color: '#ffd700', bold: true, size: 13, h: lineH })
+    lines.push({ text: `技能：${sk.name}`, color: '#e0c070', bold: true, size: 12, h: lineH })
     const descLines = wrapText(sk.desc || '无描述', tipW - padX*2 - 10*S, 11)
     descLines.forEach(dl => {
       lines.push({ text: dl, color: '#ddd', size: 11, h: smallLineH })
@@ -305,12 +302,6 @@ function drawBattlePetDetailDialog(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
   R.drawDialogPanel(tipX, tipY, tipW, totalH)
-  ctx.save()
-  ctx.beginPath()
-  R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
-  ctx.fillStyle = ac ? ac.main : TH.accent
-  ctx.fillRect(tipX, tipY, tipW, 4*S)
-  ctx.restore()
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
@@ -319,8 +310,17 @@ function drawBattlePetDetailDialog(g) {
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
     ctx.fillStyle = l.color || TH.text
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
-    ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    if (l.attrOrb) {
+      const orbR = 6*S
+      const orbX = tipX + padX + orbR
+      const orbY = curY - 4*S - orbR*0.4
+      R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
+      const restText = l.text.replace(`__ATTR_ORB__${l.attrOrb}`, '')
+      ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
+    } else {
+      ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    }
   })
 
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
