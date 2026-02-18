@@ -125,6 +125,9 @@ function rBattle(g) {
   // Combo显示
   _drawCombo(g, cellSize, boardTop)
 
+  // 技能释放横幅
+  if (g._skillBanner) _drawSkillBanner(g)
+
   // 宠物头像攻击数值翻滚
   g.petAtkNums.forEach(f => R.drawPetAtkNum(f))
 
@@ -141,8 +144,167 @@ function rBattle(g) {
   if (g.showExitDialog) g._drawExitDialog()
   if (g.showWeaponDetail) g._drawWeaponDetailDialog()
   if (g.showBattlePetDetail != null) g._drawBattlePetDetailDialog()
-  if (g.skillPreview) g._drawSkillPreviewDialog()
+  if (g.skillPreview) _drawSkillPreviewPopup(g)
   if (g.runBuffDetail) g._drawRunBuffDetailDialog()
+}
+
+// ===== 技能释放横幅动画 =====
+function _drawSkillBanner(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const b = g._skillBanner
+  if (!b) return
+  b.timer++
+  if (b.timer > b.duration) { g._skillBanner = null; return }
+
+  const t = b.timer
+  const dur = b.duration
+  // 动画阶段：入场(0-12帧) → 持续(12-dur-15帧) → 退场(dur-15~dur帧)
+  let alpha, slideX
+  if (t <= 12) {
+    const p = t / 12
+    alpha = p
+    slideX = (1 - p) * W * 0.3  // 从右侧滑入
+  } else if (t >= dur - 15) {
+    const p = (t - (dur - 15)) / 15
+    alpha = 1 - p
+    slideX = -p * W * 0.3  // 向左侧滑出
+  } else {
+    alpha = 1
+    slideX = 0
+  }
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+
+  // 半透明背景条（全宽）
+  const bannerH = 80 * S
+  const bannerY = H * 0.33
+  const bgGrd = ctx.createLinearGradient(0, bannerY, 0, bannerY + bannerH)
+  bgGrd.addColorStop(0, 'transparent')
+  bgGrd.addColorStop(0.15, (b.bgColor || '#1a1a2e') + 'dd')
+  bgGrd.addColorStop(0.5, (b.bgColor || '#1a1a2e') + 'ee')
+  bgGrd.addColorStop(0.85, (b.bgColor || '#1a1a2e') + 'dd')
+  bgGrd.addColorStop(1, 'transparent')
+  ctx.fillStyle = bgGrd
+  ctx.fillRect(0, bannerY, W, bannerH)
+
+  // 属性色上边线 + 下边线
+  ctx.fillStyle = b.color
+  ctx.globalAlpha = alpha * 0.8
+  ctx.fillRect(0, bannerY + 2*S, W, 2*S)
+  ctx.fillRect(0, bannerY + bannerH - 4*S, W, 2*S)
+  ctx.globalAlpha = alpha
+
+  const cx = W * 0.5 + slideX
+
+  // 宠物名称（小字，技能名上方）
+  ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = b.color
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+  ctx.strokeText(b.petName, cx, bannerY + 20*S)
+  ctx.fillText(b.petName, cx, bannerY + 20*S)
+
+  // 技能名称（大字，居中）
+  const nameScale = t <= 12 ? 1 + (1 - t/12) * 0.5 : 1
+  ctx.save()
+  ctx.translate(cx, bannerY + 42*S)
+  ctx.scale(nameScale, nameScale)
+  ctx.font = `italic 900 ${22*S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  ctx.fillStyle = '#fff'
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3*S
+  ctx.shadowColor = b.color; ctx.shadowBlur = 15*S
+  ctx.strokeText(b.skillName, 0, 0)
+  ctx.fillText(b.skillName, 0, 0)
+  ctx.shadowBlur = 0
+  ctx.restore()
+
+  // 技能描述（小字，技能名下方）
+  if (b.skillDesc) {
+    ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#ddd'
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2*S
+    ctx.strokeText(b.skillDesc, cx, bannerY + 62*S)
+    ctx.fillText(b.skillDesc, cx, bannerY + 62*S)
+  }
+
+  // 两侧装饰光点
+  if (t <= 20) {
+    const sparkAlpha = Math.min(1, t / 6) * (1 - Math.max(0, (t - 12)) / 8)
+    ctx.globalAlpha = alpha * sparkAlpha * 0.7
+    for (let i = 0; i < 6; i++) {
+      const sx = cx + (i - 2.5) * 30*S + Math.sin(t * 0.5 + i) * 5*S
+      const sy = bannerY + bannerH * 0.5 + Math.cos(t * 0.3 + i * 2) * 10*S
+      const sr = (2 + Math.random()) * S
+      ctx.fillStyle = i % 2 === 0 ? '#fff' : b.color
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill()
+    }
+  }
+
+  ctx.restore()
+}
+
+// ===== 技能预览弹窗（长按宠物显示） =====
+function _drawSkillPreviewPopup(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const sp = g.skillPreview
+  if (!sp) return
+  const pet = sp.pet
+  const sk = pet.skill
+  if (!sk) return
+
+  const popW = W * 0.6, popH = 80*S
+  const popX = Math.max(4*S, Math.min(W - popW - 4*S, sp.x - popW/2))
+  const popY = sp.y
+
+  // 入场动画
+  const fadeIn = Math.min(1, sp.timer / 8)
+  const scale = 0.8 + 0.2 * fadeIn
+
+  ctx.save()
+  ctx.globalAlpha = fadeIn
+  ctx.translate(popX + popW/2, popY)
+  ctx.scale(scale, scale)
+  ctx.translate(-(popX + popW/2), -popY)
+
+  // 背景
+  ctx.fillStyle = 'rgba(16,16,32,0.95)'
+  R.rr(popX, popY, popW, popH, 10*S); ctx.fill()
+  // 属性色上边条
+  const attrColor = ATTR_COLOR[pet.attr]?.main || TH.accent
+  ctx.fillStyle = attrColor
+  ctx.save()
+  ctx.beginPath(); R.rr(popX, popY, popW, 4*S, 10*S); ctx.clip()
+  ctx.fillRect(popX, popY, popW, 4*S)
+  ctx.restore()
+  // 边框
+  ctx.strokeStyle = attrColor + '88'; ctx.lineWidth = 1.5*S
+  R.rr(popX, popY, popW, popH, 10*S); ctx.stroke()
+
+  // 宠物名 + 技能名
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = attrColor; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText(pet.name, popX + 10*S, popY + 20*S)
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText(sk.name, popX + 10*S, popY + 40*S)
+  // 技能描述
+  ctx.fillStyle = '#bbb'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(sk.desc || '无描述', popX + 10*S, popY + 58*S)
+  // CD
+  ctx.textAlign = 'right'
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`CD: ${pet.cd}回合`, popX + popW - 10*S, popY + 20*S)
+
+  // 三角箭头指向头像
+  ctx.fillStyle = 'rgba(16,16,32,0.95)'
+  const triX = Math.max(popX + 15*S, Math.min(popX + popW - 15*S, sp.x))
+  ctx.beginPath()
+  ctx.moveTo(triX - 8*S, popY)
+  ctx.lineTo(triX, popY - 8*S)
+  ctx.lineTo(triX + 8*S, popY)
+  ctx.fill()
+
+  ctx.restore()
 }
 
 function _drawCombo(g, cellSize, boardTop) {
@@ -721,21 +883,36 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
         if (!ready) {
+          // 半透明遮罩表示冷却中
           ctx.save()
-          const cdR = iconSize * 0.18
+          ctx.fillStyle = 'rgba(0,0,0,0.4)'
+          ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
+          // CD 圆形标签（右下角）
+          const cdR = iconSize * 0.2
           const cdX = ix + iconSize - cdR - 2*S
           const cdY = iconY + iconSize - cdR - 2*S
-          ctx.fillStyle = 'rgba(0,0,0,0.65)'
+          ctx.fillStyle = 'rgba(0,0,0,0.75)'
           ctx.beginPath(); ctx.arc(cdX + cdR, cdY + cdR, cdR, 0, Math.PI*2); ctx.fill()
-          ctx.fillStyle = '#ddd'; ctx.font = `bold ${iconSize*0.2}px sans-serif`
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1*S
+          ctx.beginPath(); ctx.arc(cdX + cdR, cdY + cdR, cdR, 0, Math.PI*2); ctx.stroke()
+          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${iconSize*0.22}px sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText(`${p.currentCd}`, cdX + cdR, cdY + cdR)
+          // "CD" 小标签（右上角）
+          ctx.fillStyle = 'rgba(0,0,0,0.7)'
+          const cdLabelW = iconSize * 0.38, cdLabelH = iconSize * 0.18
+          const cdLabelX = ix + iconSize - cdLabelW - 1*S, cdLabelY = iconY + 1*S
+          R.rr(cdLabelX, cdLabelY, cdLabelW, cdLabelH, 3*S); ctx.fill()
+          ctx.fillStyle = '#aaa'; ctx.font = `bold ${iconSize*0.12}px sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText('冷却', cdLabelX + cdLabelW/2, cdLabelY + cdLabelH/2)
           ctx.restore()
         }
-        if (ready) {
+        if (ready && g.bState === 'playerTurn' && !g.dragging) {
           ctx.save()
           const glowColor2 = ac ? ac.main : TH.accent
           const glowAlpha = 0.5 + 0.4 * Math.sin(g.af * 0.1)
+          // 旋转弧线光环
           ctx.save()
           ctx.translate(cx, cy)
           ctx.rotate(g.af * 0.04)
@@ -751,6 +928,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
             ctx.stroke()
           }
           ctx.restore()
+          // 脉冲发光边框
           ctx.shadowColor = glowColor2
           ctx.shadowBlur = 12*S
           ctx.strokeStyle = glowColor2
@@ -764,6 +942,26 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.shadowBlur = 0
           ctx.globalAlpha = glowAlpha * 0.6
           ctx.fillRect(ix, iconY, iconSize, iconSize)
+          // "技能就绪" 提示标签（头像上方）
+          ctx.globalAlpha = glowAlpha
+          const tagW = iconSize * 0.9, tagH = iconSize * 0.22
+          const tagX = cx - tagW/2, tagY = iconY - tagH - 4*S
+          ctx.fillStyle = glowColor2 + 'cc'
+          R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.fill()
+          ctx.fillStyle = '#fff'; ctx.font = `bold ${iconSize*0.14}px sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
+          ctx.fillText('点击放技能', tagX + tagW/2, tagY + tagH/2)
+          ctx.shadowBlur = 0
+          ctx.restore()
+        } else if (ready) {
+          // 技能就绪但不在玩家回合或正在拖拽：只显示静态发光
+          ctx.save()
+          const glowColor2 = ac ? ac.main : TH.accent
+          ctx.strokeStyle = glowColor2
+          ctx.lineWidth = 2*S
+          ctx.globalAlpha = 0.5
+          ctx.strokeRect(ix - 1, iconY - 1, iconSize + 2, iconSize + 2)
           ctx.restore()
         }
         g._petBtnRects.push([ix, iconY, iconSize, iconSize])
