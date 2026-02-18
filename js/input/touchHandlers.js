@@ -96,35 +96,151 @@ function tPrepare(g, type, x, y) {
 }
 
 function tEvent(g, type, x, y) {
-  if (type !== 'end') return
-  if (g._eventPetDetail != null) {
-    g._eventPetDetail = null; return
+  // === 弹窗层：只处理 end ===
+  if (type === 'end') {
+    if (g._eventPetDetail != null) {
+      g._eventPetDetail = null; g._eventPetDetailData = null; return
+    }
+    if (g._eventWpnDetail != null) {
+      g._eventWpnDetail = null; g._eventWpnDetailData = null; return
+    }
   }
-  if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
-  if (g._eventEditPetRect && g._hitRect(x,y,...g._eventEditPetRect)) {
-    g.prepareTab = 'pets'; g.scene = 'prepare'; return
+
+  // === 拖拽灵宠 ===
+  const drag = g._eventDragPet
+  if (type === 'start') {
+    // 检测是否按在灵宠上开始拖拽
+    if (g._eventPetSlots) {
+      for (const slot of g._eventPetSlots) {
+        if (g._hitRect(x, y, ...slot.rect)) {
+          let pet = null
+          if (slot.type === 'team' && slot.index < g.pets.length) pet = g.pets[slot.index]
+          else if (slot.type === 'bag' && slot.index < g.petBag.length) pet = g.petBag[slot.index]
+          if (pet) {
+            g._eventDragPet = { source: slot.type, index: slot.index, pet, x, y, startX: x, startY: y, moved: false }
+          }
+          return
+        }
+      }
+    }
+    return
   }
-  if (g._eventEditWpnRect && g._hitRect(x,y,...g._eventEditWpnRect)) {
-    g.prepareTab = 'weapon'; g.scene = 'prepare'; return
+
+  if (type === 'move') {
+    if (drag) {
+      drag.x = x; drag.y = y
+      const dx = x - drag.startX, dy = y - drag.startY
+      if (dx*dx + dy*dy > 100) drag.moved = true
+    }
+    return
   }
-  if (g._eventPetRects) {
-    for (let i = 0; i < g._eventPetRects.length; i++) {
-      if (i < g.pets.length && g._hitRect(x,y,...g._eventPetRects[i])) {
-        g._eventPetDetail = i; return
+
+  if (type === 'end') {
+    // 拖拽结束 — 检测落点
+    if (drag) {
+      if (drag.moved) {
+        // 查找落点目标
+        let dropSlot = null
+        if (g._eventPetSlots) {
+          for (const slot of g._eventPetSlots) {
+            if (g._hitRect(x, y, ...slot.rect)) { dropSlot = slot; break }
+          }
+        }
+        if (dropSlot) {
+          _doEventPetSwap(g, drag, dropSlot)
+        }
+      } else {
+        // 没有移动 = 单击 → 查看详情
+        const pet = drag.source === 'team' ? g.pets[drag.index] : g.petBag[drag.index]
+        if (pet) {
+          g._eventPetDetail = drag.index
+          g._eventPetDetailData = pet
+        }
+      }
+      g._eventDragPet = null
+      return
+    }
+
+    // === 非拖拽的 end 事件 ===
+    if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
+
+    // 法宝操作
+    if (g._eventWpnSlots) {
+      for (const slot of g._eventWpnSlots) {
+        if (slot.action === 'equip' && g._hitRect(x,y,...slot.rect)) {
+          const old = g.weapon
+          g.weapon = g.weaponBag[slot.index]
+          if (old) { g.weaponBag[slot.index] = old }
+          else { g.weaponBag.splice(slot.index, 1) }
+          return
+        }
+      }
+      for (const slot of g._eventWpnSlots) {
+        if (slot.action === 'detail' && g._hitRect(x,y,...slot.rect)) {
+          const wp = slot.type === 'equipped' ? g.weapon : g.weaponBag[slot.index]
+          if (wp) {
+            g._eventWpnDetail = true
+            g._eventWpnDetailData = wp
+          }
+          return
+        }
+      }
+    }
+
+    // 进入战斗 / 进入事件
+    if (g._eventBtnRect && g._hitRect(x,y,...g._eventBtnRect)) {
+      const ev = g.curEvent; if (!ev) return
+      switch(ev.type) {
+        case 'battle': case 'elite': case 'boss':
+          g._enterBattle(ev.data); break
+        case 'adventure':
+          g.adventureData = ev.data; g._applyAdventure(ev.data); g.scene = 'adventure'; MusicMgr.playReward(); break
+        case 'shop':
+          g.shopItems = ev.data; g.shopUsed = false; g.scene = 'shop'; MusicMgr.playReward(); break
+        case 'rest':
+          g.restOpts = ev.data; g.scene = 'rest'; break
       }
     }
   }
-  if (g._eventBtnRect && g._hitRect(x,y,...g._eventBtnRect)) {
-    const ev = g.curEvent; if (!ev) return
-    switch(ev.type) {
-      case 'battle': case 'elite': case 'boss':
-        g._enterBattle(ev.data); break
-      case 'adventure':
-        g.adventureData = ev.data; g._applyAdventure(ev.data); g.scene = 'adventure'; MusicMgr.playReward(); break
-      case 'shop':
-        g.shopItems = ev.data; g.shopUsed = false; g.scene = 'shop'; MusicMgr.playReward(); break
-      case 'rest':
-        g.restOpts = ev.data; g.scene = 'rest'; break
+}
+
+// 灵宠拖拽交换：只允许队伍↔背包
+function _doEventPetSwap(g, drag, drop) {
+  // 同区域不允许交换
+  if (drag.source === drop.type) return
+  const si = drag.source === 'team' ? drag.index : drop.index  // 队伍索引
+  const bi = drag.source === 'bag' ? drag.index : drop.index   // 背包索引
+
+  if (drag.source === 'team') {
+    // 队伍 → 背包位置
+    if (bi < g.petBag.length) {
+      // 交换
+      const tmp = g.pets[si]
+      g.pets[si] = g.petBag[bi]
+      g.pets[si].currentCd = 0
+      g.petBag[bi] = tmp
+    } else {
+      // 拖到背包空白区 → 下场（队伍至少保留1只）
+      if (g.pets.length > 1) {
+        g.petBag.push(g.pets[si])
+        g.pets.splice(si, 1)
+      }
+    }
+  } else {
+    // 背包 → 队伍位置
+    if (si < g.pets.length) {
+      // 交换
+      const tmp = g.pets[si]
+      g.pets[si] = g.petBag[bi]
+      g.pets[si].currentCd = 0
+      g.petBag[bi] = tmp
+    } else {
+      // 拖到队伍空位 → 上场（最多5只）
+      if (g.pets.length < 5) {
+        const pet = g.petBag.splice(bi, 1)[0]
+        pet.currentCd = 0
+        g.pets.push(pet)
+      }
     }
   }
 }
@@ -146,6 +262,10 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
+  // [DEV] 一键秒杀
+  if (type === 'end' && g._devKillRect && g._hitRect(x,y,...g._devKillRect) && g.enemy) {
+    g.enemy.hp = 0; g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.bState = 'victory'; return
+  }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     if (g._victoryBtnRect && g._hitRect(x,y,...g._victoryBtnRect)) {

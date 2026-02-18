@@ -104,6 +104,10 @@ class Main {
     this.prepareSelSlotIdx = -1 // 上场槽位选中的下标
     this.prepareTip = null     // 详情Tips: {type:'pet'|'weapon', data, x, y}  (weapon=法宝)
     this._eventPetDetail = null // 事件页灵兽详情弹窗索引
+    this._eventPetDetailData = null // 事件页灵兽详情弹窗数据
+    this._eventWpnDetail = null // 事件页法宝详情弹窗
+    this._eventWpnDetailData = null // 事件页法宝详情数据
+    this._eventDragPet = null    // 事件页灵宠拖拽状态 {source:'team'|'bag', index, pet, x, y}
     this.showRunBuffDetail = false // 全局增益详情弹窗
     this.showWeaponDetail = false  // 战斗中法宝详情弹窗
     this.showBattlePetDetail = null // 战斗中宠物详情弹窗（宠物索引）
@@ -367,7 +371,7 @@ class Main {
   _tGameover(type,x,y) { touchH.tGameover(this,type,x,y) }
   _tRanking(type,x,y) { touchH.tRanking(this,type,x,y) }
   _tStats(type,x,y) { touchH.tStats(this,type,x,y) }
-  _enterEvent() { this._eventPetDetail = null; this.scene = 'event' }
+  _enterEvent() { this._eventPetDetail = null; this._eventPetDetailData = null; this._eventWpnDetail = null; this._eventWpnDetailData = null; this._eventDragPet = null; this.scene = 'event' }
   _showSkillPreview(pet, index) { skillEngine.showSkillPreview(this, pet, index) }
   // ===== 战斗进入 =====
   _enterBattle(enemyData) { battleEngine.enterBattle(this, enemyData) }
