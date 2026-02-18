@@ -423,13 +423,19 @@ class Main {
     if (this.heroShield > 0) {
       if (dmg <= this.heroShield) {
         this.heroShield -= dmg
-        // 护盾吸收飘字
-        this.dmgFloats.push({ x:W*0.5, y:H*0.7, text:`盾-${dmg}`, color:'#40b8e0', t:0, alpha:1 })
+        // 护盾完全吸收 — 大字特效
+        this.skillEffects.push({ x:W*0.5, y:H*0.52, text:'完美抵挡！', color:'#40e8ff', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
+        this.dmgFloats.push({ x:W*0.5, y:H*0.6, text:`护盾吸收 ${dmg}`, color:'#7ddfff', t:0, alpha:1, scale:1.6 })
+        this.shakeT = 4; this.shakeI = 2
+        this._blockFlash = 8
+        MusicMgr.playBlock()
         return
       }
       const shieldAbs = this.heroShield
       dmg -= this.heroShield; this.heroShield = 0
-      this.dmgFloats.push({ x:W*0.45, y:H*0.7, text:`盾-${shieldAbs}`, color:'#40b8e0', t:0, alpha:1 })
+      // 护盾击碎 — 显示吸收了多少
+      this.skillEffects.push({ x:W*0.5, y:H*0.52, text:'护盾击碎！', color:'#ff9040', t:0, alpha:1, scale:2.0, _initScale:2.0 })
+      this.dmgFloats.push({ x:W*0.45, y:H*0.6, text:`盾挡 ${shieldAbs}`, color:'#40b8e0', t:0, alpha:1, scale:1.4 })
     }
     const oldPct = this.heroHp / this.heroMaxHp
     this.heroHp = Math.max(0, this.heroHp - dmg)

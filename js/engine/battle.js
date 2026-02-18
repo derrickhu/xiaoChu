@@ -515,8 +515,13 @@ function enemyTurn(g) {
   atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
   atkDmg = Math.max(0, atkDmg)
   if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
+    const blocked = atkDmg
     atkDmg = 0
-    g.skillEffects.push({ x:W*0.5, y:H*0.6, text:'格挡！', color:TH.info, t:0, alpha:1 })
+    // 大字格挡特效：缩放弹跳 + 显示抵挡伤害数值
+    g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'格 挡 ！', color:'#40e8ff', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
+    g.skillEffects.push({ x:W*0.5, y:H*0.57, text:`抵挡 ${blocked} 伤害`, color:'#7ddfff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
+    g.shakeT = 8; g.shakeI = 5  // 格挡震屏
+    g._blockFlash = 12  // 格挡闪白
     MusicMgr.playBlock()
   }
   const immune = g.heroBuffs.find(b => b.type === 'dmgImmune')

@@ -24,7 +24,16 @@ function updateAnimations(g) {
     else { f.y -= 1.2*S; f.alpha -= 0.04 }
     return f.alpha > 0
   })
-  g.skillEffects = g.skillEffects.filter(e => { e.t++; e.y -= 0.6*S; e.alpha -= 0.012; return e.alpha > 0 })
+  g.skillEffects = g.skillEffects.filter(e => {
+    e.t++; e.y -= 0.6*S; e.alpha -= 0.012
+    // 缩放弹跳动画：从大到1.0快速收缩
+    if (e._initScale && e.t < 15) {
+      e.scale = 1.0 + (e._initScale - 1.0) * Math.max(0, 1 - e.t / 12) * (1 + 0.2 * Math.sin(e.t * 0.8))
+    } else if (e._initScale) {
+      e.scale = 1.0
+    }
+    return e.alpha > 0
+  })
   // 消除棋子处飘字动画
   g.elimFloats = g.elimFloats.filter(f => {
     f.t++
