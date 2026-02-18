@@ -76,16 +76,13 @@ function tPrepare(g, type, x, y) {
     }
     if (g._prepWpnBagRects) {
       for (let i = 0; i < g._prepWpnBagRects.length; i++) {
-        const [cx,cy,cw,ch,ebx,eby,ebw,ebh] = g._prepWpnBagRects[i]
-        if (g._hitRect(x,y,ebx,eby,ebw,ebh)) {
+        const [bx,by,bw,bh] = g._prepWpnBagRects[i]
+        if (g._hitRect(x,y,bx,by,bw,bh) && g.weaponBag[i]) {
           const old = g.weapon
           g.weapon = g.weaponBag[i]
           if (old) { g.weaponBag[i] = old }
           else { g.weaponBag.splice(i, 1) }
           return
-        }
-        if (g._hitRect(x,y,cx,cy,cw,ch) && g.weaponBag[i]) {
-          g.prepareTip = { type:'weapon', data: g.weaponBag[i], x, y }; return
         }
       }
     }
@@ -187,18 +184,37 @@ function tEvent(g, type, x, y) {
       }
     }
 
-    // 进入战斗 / 进入事件
+    // 进入战斗 / 非战斗事件内联交互
     if (g._eventBtnRect && g._hitRect(x,y,...g._eventBtnRect)) {
       const ev = g.curEvent; if (!ev) return
       switch(ev.type) {
         case 'battle': case 'elite': case 'boss':
           g._enterBattle(ev.data); break
         case 'adventure':
-          g.adventureData = ev.data; g._applyAdventure(ev.data); g.scene = 'adventure'; MusicMgr.playReward(); break
+          // 效果已在渲染时自动应用，直接进入下一层
+          g._nextFloor(); break
         case 'shop':
-          g.shopItems = ev.data; g.shopUsed = false; g.scene = 'shop'; MusicMgr.playReward(); break
-        case 'rest':
-          g.restOpts = ev.data; g.scene = 'rest'; break
+          // "离开"按钮
+          g._nextFloor(); break
+      }
+    }
+
+    // 商店商品点击（内联在 event 页面）
+    const ev = g.curEvent
+    if (ev && ev.type === 'shop' && !g._eventShopUsed && g._eventShopRects) {
+      for (let i = 0; i < g._eventShopRects.length; i++) {
+        if (g._hitRect(x,y,...g._eventShopRects[i])) {
+          g._applyShopItem(ev.data[i]); g._eventShopUsed = true; return
+        }
+      }
+    }
+
+    // 休息选项点击（内联在 event 页面）
+    if (ev && ev.type === 'rest' && g._eventRestRects) {
+      for (let i = 0; i < g._eventRestRects.length; i++) {
+        if (g._hitRect(x,y,...g._eventRestRects[i])) {
+          g._applyRestOption(ev.data[i]); g._nextFloor(); return
+        }
       }
     }
   }

@@ -556,7 +556,7 @@ function rReward(g) {
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
       // 法宝图标（尝试加载图片）
-      const wpnImg = R.getImg(`assets/weapons/weapon_${w.id}.png`)
+      const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
       if (wpnImg && wpnImg.width > 0) {
         ctx.save()
         ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()

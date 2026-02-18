@@ -200,59 +200,88 @@ function _drawPetTab(g, padX, contentY) {
 
 function _drawWeaponTab(g, padX, contentY) {
   const { ctx, R, TH, W, H, S } = V
+  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
+  const frameScale = 1.12
+
+  // 当前装备法宝（单个大图标）
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
   ctx.fillText('当前法宝：', padX, contentY + 12*S)
   const curWpnY = contentY + 20*S
+  const curIconSz = Math.floor((W - padX*2 - 4*S*4) / 5)
+  const curTextH = 28*S
   if (g.weapon) {
+    const sx = padX, sy = curWpnY
+    const cx = sx + curIconSz*0.5, cy = sy + curIconSz*0.5
     ctx.fillStyle = 'rgba(30,25,18,0.85)'
-    R.rr(padX, curWpnY, W-padX*2, 50*S, 8*S); ctx.fill()
-    ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S; ctx.stroke()
+    ctx.fillRect(sx+1, sy+1, curIconSz-2, curIconSz-2)
     const curWpnImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
-    const cwImgSz = 40*S
     if (curWpnImg && curWpnImg.width > 0) {
-      ctx.save(); R.rr(padX + 5*S, curWpnY + 5*S, cwImgSz, cwImgSz, 6*S); ctx.clip()
-      ctx.drawImage(curWpnImg, padX + 5*S, curWpnY + 5*S, cwImgSz, cwImgSz)
+      ctx.save(); ctx.beginPath(); ctx.rect(sx+1, sy+1, curIconSz-2, curIconSz-2); ctx.clip()
+      const aw = curWpnImg.width, ah = curWpnImg.height
+      const dw = curIconSz - 2, dh = dw * (ah / aw)
+      ctx.drawImage(curWpnImg, sx+1, sy+1+(curIconSz-2-dh), dw, dh)
       ctx.restore()
     }
-    const cwTextX = curWpnImg && curWpnImg.width > 0 ? padX + 5*S + cwImgSz + 8*S : padX + 10*S
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText(g.weapon.name, cwTextX, curWpnY+22*S)
-    ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
-    ctx.fillText(g.weapon.desc, cwTextX, curWpnY+40*S)
-    g._prepCurWpnRect = [padX, curWpnY, W-padX*2, 50*S]
+    if (frameWeapon && frameWeapon.width > 0) {
+      const fSz = curIconSz * frameScale, fOff = (fSz - curIconSz)/2
+      ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
+    }
+    ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S
+    ctx.strokeRect(sx-1, sy-1, curIconSz+2, curIconSz+2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
+    ctx.fillText(g.weapon.name.substring(0,5), cx, sy+curIconSz+3*S)
+    ctx.textBaseline = 'alphabetic'
+    g._prepCurWpnRect = [sx, sy, curIconSz, curIconSz + curTextH]
   } else {
-    ctx.fillStyle = TH.card; R.rr(padX, curWpnY, W-padX*2, 50*S, 8*S); ctx.fill()
-    ctx.fillStyle = TH.dim; ctx.font = `${13*S}px sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText('无法宝', W*0.5, curWpnY+30*S)
+    ctx.fillStyle = TH.card
+    R.rr(padX, curWpnY, curIconSz, curIconSz, 6*S); ctx.fill()
+    if (frameWeapon && frameWeapon.width > 0) {
+      ctx.save(); ctx.globalAlpha = 0.35
+      const fSz = curIconSz * frameScale, fOff = (fSz - curIconSz)/2
+      ctx.drawImage(frameWeapon, padX - fOff, curWpnY - fOff, fSz, fSz)
+      ctx.restore()
+    }
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('无', padX + curIconSz*0.5, curWpnY + curIconSz*0.5)
+    ctx.textBaseline = 'alphabetic'
     g._prepCurWpnRect = null
   }
-  // 法宝背包
+
+  // 法宝背包（网格布局，参照灵宠背包）
+  const wBagLabelY = curWpnY + curIconSz + curTextH + 14*S
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
-  const wBagLabelY = curWpnY + 60*S
-  ctx.fillText(`法宝背包（${g.weaponBag.length}/4）：`, padX, wBagLabelY)
-  const wBagY = wBagLabelY + 8*S
-  const wCardH = 50*S, wGap = 6*S
+  ctx.fillText(`背包法宝（${g.weaponBag.length}/4）：`, padX, wBagLabelY)
+  const wBagY = wBagLabelY + 16*S
+  const bagGap = 4*S
+  const bagIcon = Math.floor((W - padX*2 - bagGap*3) / 4)
+  const bagTextH = 28*S
+  const bFrameSz = bagIcon * frameScale
+  const bfOff = (bFrameSz - bagIcon) / 2
   g._prepWpnBagRects = []
   for (let i = 0; i < g.weaponBag.length; i++) {
-    const wy = wBagY + i*(wCardH+wGap)
+    const bx = padX + (i%4)*(bagIcon+bagGap), by = wBagY + Math.floor(i/4)*(bagIcon+bagTextH+bagGap)
     const wp = g.weaponBag[i]
+    const bcx = bx + bagIcon*0.5, bcy = by + bagIcon*0.5
     ctx.fillStyle = 'rgba(30,25,18,0.85)'
-    R.rr(padX, wy, W-padX*2, wCardH, 8*S); ctx.fill()
+    ctx.fillRect(bx+1, by+1, bagIcon-2, bagIcon-2)
     const bagWpnImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
-    const bwImgSz = 40*S
     if (bagWpnImg && bagWpnImg.width > 0) {
-      ctx.save(); R.rr(padX + 5*S, wy + 5*S, bwImgSz, bwImgSz, 6*S); ctx.clip()
-      ctx.drawImage(bagWpnImg, padX + 5*S, wy + 5*S, bwImgSz, bwImgSz)
+      ctx.save(); ctx.beginPath(); ctx.rect(bx+1, by+1, bagIcon-2, bagIcon-2); ctx.clip()
+      const baw = bagWpnImg.width, bah = bagWpnImg.height
+      const bdW = bagIcon - 2, bdH = bdW * (bah / baw)
+      ctx.drawImage(bagWpnImg, bx+1, by+1+(bagIcon-2-bdH), bdW, bdH)
       ctx.restore()
     }
-    const bwTextX = bagWpnImg && bagWpnImg.width > 0 ? padX + 5*S + bwImgSz + 8*S : padX + 10*S
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText(wp.name, bwTextX, wy+20*S)
-    ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
-    ctx.fillText(wp.desc, bwTextX, wy+38*S)
-    const eqBtnW = 60*S, eqBtnH = 26*S, eqBtnX = W - padX - eqBtnW - 4*S, eqBtnY = wy + 10*S
-    R.drawBtn(eqBtnX, eqBtnY, eqBtnW, eqBtnH, '装备', TH.info, 11)
-    g._prepWpnBagRects.push([padX, wy, W-padX*2, wCardH, eqBtnX, eqBtnY, eqBtnW, eqBtnH])
+    if (frameWeapon && frameWeapon.width > 0) {
+      ctx.drawImage(frameWeapon, bx - bfOff, by - bfOff, bFrameSz, bFrameSz)
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
+    ctx.fillText(wp.name.substring(0,5), bcx, by+bagIcon+3*S)
+    ctx.textBaseline = 'alphabetic'
+    g._prepWpnBagRects.push([bx, by, bagIcon, bagIcon + bagTextH])
   }
   if (g.weaponBag.length === 0) {
     ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'

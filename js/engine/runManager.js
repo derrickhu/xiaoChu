@@ -68,6 +68,8 @@ function nextFloor(g) {
   g.prepareSelBagIdx = -1
   g.prepareSelSlotIdx = -1
   g._eventPetDetail = null
+  g._adventureApplied = false
+  g._eventShopUsed = false
   g.scene = 'event'
 }
 
@@ -144,6 +146,8 @@ function resumeRun(g) {
   g.prepareSelBagIdx = -1
   g.prepareSelSlotIdx = -1
   g._eventPetDetail = null
+  g._adventureApplied = false
+  g._eventShopUsed = false
   g.scene = 'event'
 }
 
