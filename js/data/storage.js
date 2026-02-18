@@ -35,7 +35,6 @@ class Storage {
     this._cloudSyncTimer = null
     this._cloudInitDone = false
     this._pendingSync = false
-    this.onCloudReady = null
     // 用户信息（微信授权）
     this.userInfo = null      // { nickName, avatarUrl }
     this.userAuthorized = false
@@ -276,9 +275,6 @@ class Storage {
     try { await this._getOpenid() } catch(e) { console.warn('Get openid failed:', e) }
     if (this._openid) await this._syncFromCloud()
     this._cloudInitDone = true
-    if (typeof this.onCloudReady === 'function') {
-      try { this.onCloudReady() } catch(e) {}
-    }
     if (this._pendingSync) {
       this._pendingSync = false
       this._syncToCloud()

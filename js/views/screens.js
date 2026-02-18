@@ -10,13 +10,9 @@ function rLoading(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawLoadingBg(g.af)
 
-  // 进度计算
-  const p = g._cloudLoadProgress
-  let pct = 0
-  if (p.total > 0) {
-    const done = p.loaded + p.failed
-    pct = done / p.total
-  }
+  // 简单的加载动画进度条（基于时间流逝）
+  const elapsed = Date.now() - g._loadStart
+  const pct = Math.min(1, elapsed / 1000)
 
   // 进度条参数 — 位于画面底部
   const barW = W * 0.6
