@@ -318,6 +318,10 @@ function generateElite(floor) {
   base.skills = [s1, s2]
 
   base.avatar = `enemies/enemy_${attr}_2`
+  // 精英专属战斗背景（每属性3张随机选1张）
+  const eliteAttrMap = { metal:'m', wood:'w', water:'s', fire:'f', earth:'e' }
+  const eliteKey = eliteAttrMap[attr] || 'm'
+  base.battleBg = `enemies/bg_elite_${eliteKey}_${_rand(1,3)}`
   return base
 }
 
@@ -349,6 +353,9 @@ function generateBoss(floor) {
   base.skills = [_pick(ctrlSkills), _pick(defSkills)]
 
   base.avatar = `enemies/enemy_${base.attr}_3`
+  // BOSS专属战斗背景（10个Boss层对应10张背景）
+  const bossNum = Math.min(Math.max(1, bossIdx + 1), 10)
+  base.battleBg = `enemies/bg_boss_${bossNum}`
   return base
 }
 
