@@ -53,7 +53,7 @@ function rEvent(g) {
     const avatarY = cardTop + (cardH - avatarSize) / 2
     ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); ctx.fill()
-    const avatarPath = e.avatar ? e.avatar + '.jpg' : null
+    const avatarPath = e.avatar ? e.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     if (enemyImg && enemyImg.width > 0) {
       ctx.save()
@@ -296,10 +296,7 @@ function drawEventPetDetail(g) {
 
   const cardW = W * 0.75, cardH = 200*S
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
-  ctx.fillStyle = 'rgba(20,20,40,0.95)'
-  R.rr(cardX, cardY, cardW, cardH, 12*S); ctx.fill()
-  ctx.strokeStyle = ac ? ac.main + '88' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5*S
-  R.rr(cardX, cardY, cardW, cardH, 12*S); ctx.stroke()
+  R.drawDialogPanel(cardX, cardY, cardW, cardH)
 
   const avSz = 64*S
   const avX = cardX + 16*S, avY = cardY + 18*S
@@ -347,7 +344,7 @@ function drawEventPetDetail(g) {
   const closeBtnW = 80*S, closeBtnH = 32*S
   const closeBtnX = cardX + (cardW - closeBtnW)/2
   const closeBtnY = cardY + cardH - closeBtnH - 12*S
-  R.drawBtn(closeBtnX, closeBtnY, closeBtnW, closeBtnH, '关闭', TH.info, 12)
+  R.drawDialogBtn(closeBtnX, closeBtnY, closeBtnW, closeBtnH, '关闭', 'cancel')
   g._eventPetDetailCloseRect = [closeBtnX, closeBtnY, closeBtnW, closeBtnH]
 }
 

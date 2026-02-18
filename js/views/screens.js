@@ -55,6 +55,17 @@ function rLoading(g) {
     ctx.fill()
     ctx.shadowBlur = 0
   }
+
+  // 百分比数字（进度条右侧，带描边）
+  const pctText = `${Math.round(pct * 100)}%`
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3*S; ctx.lineJoin = 'round'
+  ctx.strokeText(pctText, barX + barW, barY - 10*S)
+  ctx.fillStyle = '#ffd700'
+  ctx.fillText(pctText, barX + barW, barY - 10*S)
+  ctx.textBaseline = 'alphabetic'
+
   ctx.restore()
 }
 
@@ -700,25 +711,28 @@ function drawBackBtn(g) {
 function drawNewRunConfirm(g) {
   const { ctx, R, TH, W, H, S } = V
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.78, ph = 180*S
+  const pw = W * 0.78, ph = 200*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  ctx.fillStyle = 'rgba(20,20,40,0.95)'
-  R.rr(px, py, pw, ph, 12*S); ctx.fill()
-  ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 2*S
-  R.rr(px, py, pw, ph, 12*S); ctx.stroke()
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('开始新挑战', px + pw*0.5, py + 36*S)
-  ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
-  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 62*S)
-  ctx.fillStyle = '#ffaa44'; ctx.font = `bold ${13*S}px sans-serif`
-  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 82*S)
-  const btnW = pw * 0.38, btnH = 42*S, gap = 12*S
+  R.drawDialogPanel(px, py, pw, ph)
+
+  // 标题
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('开始新挑战', px + pw*0.5, py + 48*S)
+
+  // 说明文字
+  ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 72*S)
+  ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 92*S)
+
+  // 按钮
+  const btnW = pw * 0.38, btnH = 44*S, gap = 14*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 105*S
-  R.drawBtn(btn1X, btnY, btnW, btnH, '取消', TH.info, 14)
+  const btnY = py + 118*S
+  R.drawDialogBtn(btn1X, btnY, btnW, btnH, '取消', 'cancel')
   g._newRunCancelRect = [btn1X, btnY, btnW, btnH]
-  R.drawBtn(btn2X, btnY, btnW, btnH, '确认开始', TH.danger, 14)
+  R.drawDialogBtn(btn2X, btnY, btnW, btnH, '确认开始', 'confirm')
   g._newRunConfirmRect = [btn2X, btnY, btnW, btnH]
 }
 
