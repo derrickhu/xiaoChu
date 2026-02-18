@@ -61,25 +61,101 @@ function rEvent(g) {
   g._eventBagPetRects = []     // 背包灵宠区域
 
   if (!isBattle) {
-    // 非战斗事件的原有渲染逻辑
+    // === 奇遇：直接显示背景+效果+继续按钮 ===
     if (ev.type === 'adventure') {
+      // 自动应用效果（仅首次）
+      if (!g._adventureApplied) {
+        g._applyAdventure(ev.data)
+        g._adventureApplied = true
+      }
+      R.drawAdventureBg(g.af)
+      // 重绘顶部信息（被背景覆盖）
+      let ty = safeTop + 32*S
       ctx.textAlign = 'center'
-      ctx.fillStyle = TH.text; ctx.font = `bold ${16*S}px sans-serif`
-      ctx.fillText(ev.data.name, W*0.5, curY + 20*S)
-      ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
-      ctx.fillText(ev.data.desc, W*0.5, curY + 44*S)
-      curY += 70*S
-    } else if (ev.type === 'shop') {
-      ctx.textAlign = 'center'
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
+      ty += 22*S
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText('奇遇', W*0.5, ty)
+
+      ctx.fillStyle = TH.text; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillText(ev.data.name, W*0.5, H*0.35)
       ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
-      ctx.fillText('可免费选择一件物品', W*0.5, curY + 20*S)
-      curY += 50*S
-    } else if (ev.type === 'rest') {
-      ctx.textAlign = 'center'
-      ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
-      ctx.fillText('选择一项休息效果', W*0.5, curY + 20*S)
-      curY += 50*S
+      ctx.fillText(ev.data.desc, W*0.5, H*0.43)
+      ctx.fillStyle = TH.success; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText('效果已生效！', W*0.5, H*0.52)
+      const bx = W*0.3, by = H*0.65, bw = W*0.4, bh = 44*S
+      R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
+      g._eventBtnRect = [bx, by, bw, bh]
+      drawBackBtn(g)
+      return
     }
+
+    // === 商店：直接显示商品列表 ===
+    if (ev.type === 'shop') {
+      R.drawShopBg(g.af)
+      // 重绘顶部
+      let ty = safeTop + 32*S
+      ctx.textAlign = 'center'
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
+      ty += 22*S
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText('神秘商店', W*0.5, ty)
+
+      ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
+      ctx.fillText(g._eventShopUsed ? '已选择物品' : '免费选择一件', W*0.5, safeTop + 90*S)
+      const items = ev.data
+      if (items) {
+        const cardW = W*0.8, cardH = 55*S, gap = 10*S, startY = H*0.22
+        g._eventShopRects = []
+        items.forEach((item, i) => {
+          const cy = startY + i*(cardH+gap)
+          ctx.fillStyle = TH.card; R.rr(W*0.1, cy, cardW, cardH, 8*S); ctx.fill()
+          ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.fillText(item.name, W*0.5, cy + cardH*0.5 + 5*S)
+          g._eventShopRects.push([W*0.1, cy, cardW, cardH])
+        })
+      }
+      const bx = W*0.3, by = H*0.82, bw = W*0.4, bh = 40*S
+      R.drawBtn(bx, by, bw, bh, '离开', TH.info, 14)
+      g._eventBtnRect = [bx, by, bw, bh]
+      drawBackBtn(g)
+      return
+    }
+
+    // === 休息：直接显示选项卡片 ===
+    if (ev.type === 'rest') {
+      R.drawBg(g.af)
+      // 重绘顶部
+      let ty = safeTop + 32*S
+      ctx.textAlign = 'center'
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
+      ty += 22*S
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText('休息之地', W*0.5, ty)
+
+      const opts = ev.data
+      if (opts) {
+        const cardW = W*0.7, cardH = 65*S, gap = 16*S, startY = H*0.3
+        g._eventRestRects = []
+        opts.forEach((opt, i) => {
+          const cy = startY + i*(cardH+gap)
+          ctx.fillStyle = TH.card; R.rr(W*0.15, cy, cardW, cardH, 8*S); ctx.fill()
+          ctx.fillStyle = TH.text; ctx.font = `bold ${15*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.fillText(opt.name, W*0.5, cy + 28*S)
+          ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
+          ctx.fillText(opt.desc, W*0.5, cy + 48*S)
+          g._eventRestRects.push([W*0.15, cy, cardW, cardH])
+        })
+      }
+      g._eventBtnRect = null
+      drawBackBtn(g)
+      return
+    }
+
+    // 其他未知非战斗事件（fallback）
     const goBtnW = W*0.55, goBtnH = 44*S
     const goBtnX = (W - goBtnW)/2, goBtnY = curY
     R.drawBtn(goBtnX, goBtnY, goBtnW, goBtnH, '进入', TH.accent, 16)
@@ -150,30 +226,89 @@ function rEvent(g) {
   R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
   curY += hpBarH + 10*S
 
-  // ===== 法宝区 =====
+  // ===== 法宝区（网格布局） =====
   ctx.textAlign = 'left'
   ctx.fillStyle = TH.sub; ctx.font = `bold ${11*S}px sans-serif`
   ctx.fillText('── 法宝 ──', padX, curY)
   curY += 8*S
 
-  const wpnRowH = 42*S
-  const wpnCardW = W - padX*2
+  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
+  const wpnFrameScale = 1.12
+  const wpnGap = 4*S
+  const wpnIconSz = Math.floor((W - padX*2 - wpnGap*4) / 5)
+  const wpnTextH = 28*S
 
-  // 当前法宝
-  _drawWeaponCard(ctx, R, TH, S, padX, curY, wpnCardW, wpnRowH, g.weapon, true, g._eventWpnSlots, 'equipped', 0)
-  curY += wpnRowH + 4*S
-
-  // 背包法宝
-  if (g.weaponBag.length > 0) {
-    ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText('背包法宝（点击替换）：', padX + 4*S, curY + 2*S)
-    curY += 12*S
-    for (let i = 0; i < g.weaponBag.length; i++) {
-      _drawWeaponCard(ctx, R, TH, S, padX, curY, wpnCardW, wpnRowH, g.weaponBag[i], false, g._eventWpnSlots, 'bag', i)
-      curY += wpnRowH + 3*S
+  // 当前法宝（第一个格子，带高亮边框）
+  {
+    const sx = padX, sy = curY
+    const cx0 = sx + wpnIconSz*0.5
+    ctx.fillStyle = 'rgba(30,25,18,0.85)'
+    ctx.fillRect(sx+1, sy+1, wpnIconSz-2, wpnIconSz-2)
+    if (g.weapon) {
+      const wImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
+      if (wImg && wImg.width > 0) {
+        ctx.save(); ctx.beginPath(); ctx.rect(sx+1, sy+1, wpnIconSz-2, wpnIconSz-2); ctx.clip()
+        const aw = wImg.width, ah = wImg.height
+        const dw = wpnIconSz - 2, dh = dw * (ah / aw)
+        ctx.drawImage(wImg, sx+1, sy+1+(wpnIconSz-2-dh), dw, dh)
+        ctx.restore()
+      }
+      if (frameWeapon && frameWeapon.width > 0) {
+        const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
+        ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
+      }
+      ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
+      ctx.strokeRect(sx-1, sy-1, wpnIconSz+2, wpnIconSz+2)
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillText(g.weapon.name.substring(0,5), cx0, sy+wpnIconSz+3*S)
+      ctx.textBaseline = 'alphabetic'
+    } else {
+      if (frameWeapon && frameWeapon.width > 0) {
+        ctx.save(); ctx.globalAlpha = 0.35
+        const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
+        ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
+        ctx.restore()
+      }
+      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('无', cx0, sy + wpnIconSz*0.5)
+      ctx.textBaseline = 'alphabetic'
     }
+    g._eventWpnSlots.push({ rect: [sx, sy, wpnIconSz, wpnIconSz + wpnTextH], action: 'detail', type: 'equipped', index: 0 })
   }
-  curY += 6*S
+
+  // 背包法宝（紧跟在当前法宝后面的格子）
+  for (let i = 0; i < g.weaponBag.length; i++) {
+    const col = (i + 1) % 5
+    const row = Math.floor((i + 1) / 5)
+    const bx = padX + col*(wpnIconSz+wpnGap)
+    const by = curY + row*(wpnIconSz+wpnTextH+wpnGap)
+    const bcx = bx + wpnIconSz*0.5
+    const wp = g.weaponBag[i]
+    ctx.fillStyle = 'rgba(15,15,30,0.6)'
+    ctx.fillRect(bx+1, by+1, wpnIconSz-2, wpnIconSz-2)
+    const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
+    if (wImg && wImg.width > 0) {
+      ctx.save(); ctx.beginPath(); ctx.rect(bx+1, by+1, wpnIconSz-2, wpnIconSz-2); ctx.clip()
+      const aw = wImg.width, ah = wImg.height
+      const dw = wpnIconSz - 2, dh = dw * (ah / aw)
+      ctx.drawImage(wImg, bx+1, by+1+(wpnIconSz-2-dh), dw, dh)
+      ctx.restore()
+    }
+    if (frameWeapon && frameWeapon.width > 0) {
+      const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
+      ctx.drawImage(frameWeapon, bx - fOff, by - fOff, fSz, fSz)
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillStyle = '#ddd'; ctx.font = `bold ${9*S}px sans-serif`
+    ctx.fillText(wp.name.substring(0,5), bcx, by+wpnIconSz+3*S)
+    ctx.textBaseline = 'alphabetic'
+    g._eventWpnSlots.push({ rect: [bx, by, wpnIconSz, wpnIconSz + wpnTextH], action: 'equip', type: 'bag', index: i })
+  }
+  const wpnTotalItems = 1 + g.weaponBag.length
+  const wpnRows = Math.ceil(wpnTotalItems / 5)
+  curY += wpnRows * (wpnIconSz + wpnTextH + wpnGap) + 6*S
 
   // ===== 灵宠区 =====
   ctx.textAlign = 'left'

@@ -65,17 +65,8 @@ function rBattle(g) {
     const nameY = imgDrawY - 16*S
     const nameFontSize = 14*S
     ctx.textAlign = 'center'
-    // 半透明底衬让名称在任何背景下都清晰
+    // 名称文字：暖米色，柔和阴影（无底框）
     ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
-    const nameW = ctx.measureText(g.enemy.name).width
-    const namePadX = 12*S, namePadY = 6*S
-    const nameBgX = W*0.5 - nameW/2 - namePadX
-    const nameBgW = nameW + namePadX*2
-    const nameBgH = namePadY*2 + nameFontSize
-    const nameBgY = nameY - nameFontSize + 2*S - namePadY
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'
-    R.rr(nameBgX, nameBgY, nameBgW, nameBgH, 6*S); ctx.fill()
-    // 名称文字：暖米色，柔和阴影
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
     ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
