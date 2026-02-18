@@ -1858,12 +1858,21 @@ class Render {
   // ===== 技能触发特效 =====
   drawSkillEffect(f) {
     const {ctx:c,S} = this
-    const {x,y,text,color,alpha} = f
+    const {x,y,text,color,alpha,scale,big} = f
     c.save(); c.globalAlpha=alpha
-    c.fillStyle=color||TH.accent; c.font=`bold ${16*S}px "PingFang SC",sans-serif`
+    const sz = big ? 28 : 16
+    const sc = scale || 1
+    c.fillStyle=color||TH.accent; c.font=`bold ${sz*sc*S}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
-    c.strokeStyle='rgba(0,0,0,0.5)'; c.lineWidth=3*S; c.strokeText(text,x,y)
+    c.strokeStyle='rgba(0,0,0,0.6)'; c.lineWidth=(big?4:3)*S; c.strokeText(text,x,y)
     c.fillText(text,x,y)
+    // 大字光晕
+    if (big && alpha > 0.5) {
+      c.shadowColor = color || '#40e8ff'
+      c.shadowBlur = 20*S*alpha
+      c.fillText(text,x,y)
+      c.shadowBlur = 0
+    }
     c.restore()
   }
 

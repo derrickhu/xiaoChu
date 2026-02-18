@@ -464,6 +464,20 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.fillRect(W*0.5 - flashR, flashCy - flashR, flashR * 2, flashR * 2)
     ctx.restore()
   }
+
+  // 格挡/护盾闪光冲击（青色）
+  if (g._blockFlash > 0) {
+    ctx.save()
+    const bfAlpha = (g._blockFlash / 12) * 0.35
+    const bfGrd = ctx.createRadialGradient(W*0.5, H*0.5, 0, W*0.5, H*0.5, 200*S)
+    bfGrd.addColorStop(0, `rgba(64,232,255,${bfAlpha})`)
+    bfGrd.addColorStop(0.4, `rgba(125,223,255,${bfAlpha * 0.5})`)
+    bfGrd.addColorStop(1, 'transparent')
+    ctx.fillStyle = bfGrd
+    ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+    g._blockFlash--
+  }
 }
 
 function _drawDragTimer(g, cellSize, boardTop) {
