@@ -53,7 +53,7 @@ function rEvent(g) {
     const avatarY = cardTop + (cardH - avatarSize) / 2
     ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); ctx.fill()
-    const avatarPath = e.avatar ? e.avatar + '.jpg' : null
+    const avatarPath = e.avatar ? e.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     if (enemyImg && enemyImg.width > 0) {
       ctx.save()

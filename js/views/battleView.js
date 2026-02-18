@@ -38,22 +38,17 @@ function rBattle(g) {
     const ac = ATTR_COLOR[g.enemy.attr]
     const themeBg = 'theme_' + (g.enemy.attr || 'metal')
     R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
-    const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.jpg' : null
+    const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     if (enemyImg && enemyImg.width > 0) {
-      const maxImgH = eAreaH * 0.65
-      const maxImgW = W * 0.7
+      const maxImgH = eAreaH * 0.6
+      const maxImgW = W * 0.45
       const imgRatio = enemyImg.width / enemyImg.height
       let imgW = maxImgH * imgRatio, imgH = maxImgH
       if (imgW > maxImgW) { imgW = maxImgW; imgH = imgW / imgRatio }
       const imgX = (W - imgW) / 2
-      const imgY = eAreaTop + eAreaH * 0.08
-      ctx.save()
-      ctx.beginPath()
-      ctx.ellipse(imgX + imgW/2, imgY + imgH/2, imgW*0.48, imgH*0.48, 0, 0, Math.PI*2)
-      ctx.clip()
+      const imgY = eAreaTop + (eAreaH - imgH) * 0.5
       ctx.drawImage(enemyImg, imgX, imgY, imgW, imgH)
-      ctx.restore()
     }
     // 层数标记
     ctx.textAlign = 'center'

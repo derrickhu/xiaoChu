@@ -59,6 +59,17 @@ function rLoading(g) {
     ctx.fill()
     ctx.shadowBlur = 0
   }
+
+  // 百分比数字（进度条右侧，带描边）
+  const pctText = `${Math.round(pct * 100)}%`
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3*S; ctx.lineJoin = 'round'
+  ctx.strokeText(pctText, barX + barW, barY - 10*S)
+  ctx.fillStyle = '#ffd700'
+  ctx.fillText(pctText, barX + barW, barY - 10*S)
+  ctx.textBaseline = 'alphabetic'
+
   ctx.restore()
 }
 
@@ -709,14 +720,14 @@ function drawNewRunConfirm(g) {
   R.drawDialogPanel(px, py, pw, ph)
 
   // 标题
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('开始新挑战', px + pw*0.5, py + 40*S)
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('开始新挑战', px + pw*0.5, py + 48*S)
 
   // 说明文字
-  ctx.fillStyle = 'rgba(220,220,230,0.85)'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 68*S)
-  ctx.fillStyle = '#ffaa44'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 90*S)
+  ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 72*S)
+  ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 92*S)
 
   // 按钮
   const btnW = pw * 0.38, btnH = 44*S, gap = 14*S
