@@ -15,7 +15,7 @@ class MusicManager {
     this.bgmEnabled = true
     // 音效实例池：复用高频音效实例，减少GC
     this._sfxPool = {}
-    this._poolSize = 3
+    this._poolSize = 4
   }
 
   // ============ 背景音乐 ============
@@ -37,36 +37,91 @@ class MusicManager {
 
   // ============ 连击音效系统（核心爽感） ============
 
+  // 音阶频率比（十二平均律）：Do Re Mi Fa Sol La Si Do'
+  // combo 1-8 对应第一个八度，9-15 对应第二个八度（×2），16+ 顶到最高
+  // playbackRate 范围 0.5-2.0，以 combo.wav 原始音高为 Do 基准
+  static get SCALE() {
+    return [
+      1.0,     // 1  Do
+      1.122,   // 2  Re
+      1.260,   // 3  Mi
+      1.335,   // 4  Fa
+      1.498,   // 5  Sol
+      1.682,   // 6  La
+      1.888,   // 7  Si
+      2.0,     // 8  Do'（高八度）
+    ]
+  }
+
   /**
-   * 连击递进音效 - 根据连击数动态调整音高、音量、播放速率
-   * 参考：Puzzle & Dragons / 神魔之塔的连击递升音阶设计
+   * 连击递进音效 - 钢琴音阶式 Do Re Mi Fa Sol La Si Do
+   * combo 1-8：第一个八度，音量逐步增大
+   * combo 9+：高八度用 levelup 音色叠加，持续递升刺激感
    * @param {number} comboNum 当前连击数（1开始）
    */
   playComboHit(comboNum) {
     if (!this.enabled) return
-    const pitchStep = 0.06
-    const basePitch = 0.94
-    const pitch = Math.min(2.0, basePitch + (comboNum - 1) * pitchStep)
-    const baseVol = 0.35
-    const maxVol = 0.85
-    const vol = Math.min(maxVol, baseVol + (comboNum - 1) * 0.05)
+    const scale = MusicManager.SCALE
+    const n = Math.min(comboNum, 8)
+    const pitch = scale[n - 1]
+    // 音量：从0.4平滑递增到0.85
+    const vol = Math.min(0.85, 0.4 + (comboNum - 1) * 0.065)
     this._playSfxEx('audio/combo.wav', vol, pitch)
+
+    // combo 9+：进入第二个八度，用 levelup 音色叠加出更高音阶
+    // 第二八度 idx: combo 9→Do(1.0), 10→Re(1.122) ...
+    if (comboNum > 8) {
+      const idx2 = Math.min(comboNum - 9, scale.length - 1)
+      const pitch2 = scale[idx2]
+      const vol2 = Math.min(0.6, 0.3 + (comboNum - 9) * 0.05)
+      this._playSfxEx('audio/levelup.wav', vol2, pitch2)
+    }
+
+    // 5连击(Sol)开始叠加轻打击音，增加节奏冲击感
+    if (comboNum >= 8) {
+      this._playSfxEx('audio/attack.wav', 0.3, pitch)
+    } else if (comboNum >= 5) {
+      this._playSfxEx('audio/eliminate.wav', 0.2, pitch)
+    }
   }
 
   /**
-   * 连击里程碑突破音效
+   * 连击里程碑突破音效 — 和弦式爆发
+   * 5连(Sol): 主音+三度+五度 模拟大三和弦
+   * 8连(Do'): 高八度主音+五度 力量和弦
+   * 12连+:   全音阶扫弦式爆发
    * @param {number} comboNum 当前连击数
    */
   playComboMilestone(comboNum) {
     if (!this.enabled) return
+    const scale = MusicManager.SCALE
     if (comboNum === 5) {
-      this._playSfxEx('audio/levelup.wav', 0.5, 1.3)
-    } else if (comboNum === 8) {
-      this._playSfxEx('audio/skill.wav', 0.65, 1.2)
-    } else if (comboNum >= 12) {
-      this._playSfxEx('audio/boss.wav', 0.5, 1.5)
+      // Sol大三和弦：Sol + Si + Re'
+      this._playSfxEx('audio/levelup.wav', 0.6, scale[4])  // Sol
       setTimeout(() => {
-        if (this.enabled) this._playSfxEx('audio/victory.wav', 0.35, 1.4)
+        if (this.enabled) {
+          this._playSfxEx('audio/combo.wav', 0.45, scale[6])  // Si
+          this._playSfxEx('audio/eliminate.wav', 0.35, scale[7]) // Do'
+        }
+      }, 40)
+    } else if (comboNum === 8) {
+      // 高八度力量和弦
+      this._playSfxEx('audio/skill.wav', 0.7, scale[7])  // Do'
+      setTimeout(() => {
+        if (this.enabled) {
+          this._playSfxEx('audio/combo.wav', 0.5, scale[4])  // Sol
+          this._playSfxEx('audio/attack.wav', 0.4, scale[7]) // Do'
+        }
+      }, 50)
+    } else if (comboNum >= 12) {
+      // 全爆发：boss低音 + 快速上行扫弦
+      this._playSfxEx('audio/boss.wav', 0.6, scale[0])
+      setTimeout(() => {
+        if (this.enabled) {
+          this._playSfxEx('audio/victory.wav', 0.5, scale[4])  // Sol
+          this._playSfxEx('audio/skill.wav', 0.4, scale[7])    // Do'
+          this._playSfxEx('audio/combo.wav', 0.35, scale[7])   // Do' 叠加
+        }
       }, 60)
     }
   }
@@ -233,30 +288,55 @@ class MusicManager {
 
   // ============ 内部方法 ============
 
+  /**
+   * 从实例池获取音频实例（避免连击时频繁创建/销毁导致音效丢失）
+   * 每个 src 维护 _poolSize 个实例，轮询复用
+   */
+  _getPooled(src) {
+    if (!this._sfxPool[src]) {
+      this._sfxPool[src] = { idx: 0, items: [] }
+      for (let i = 0; i < this._poolSize; i++) {
+        const a = wx.createInnerAudioContext()
+        a.src = src
+        this._sfxPool[src].items.push(a)
+      }
+    }
+    const pool = this._sfxPool[src]
+    const a = pool.items[pool.idx % pool.items.length]
+    pool.idx++
+    return a
+  }
+
   /** 基础音效播放 */
   _playSfx(src, volume) {
-    const a = wx.createInnerAudioContext()
-    a.src = src
+    const a = this._getPooled(src)
     if (volume !== undefined) a.volume = volume
+    a.playbackRate = 1.0
+    a.stop()
+    a.seek(0)
     a.play()
-    a.onEnded(() => a.destroy())
   }
 
   /**
    * 增强音效播放 - 支持播放速率（音高）调节
+   * 微信小游戏中 playbackRate 需在 play() 后设置才可靠生效
    * @param {string} src 音频文件路径
    * @param {number} volume 音量 0-1
    * @param {number} playbackRate 播放速率 0.5-2.0（>1升调，<1降调）
    */
   _playSfxEx(src, volume, playbackRate) {
-    const a = wx.createInnerAudioContext()
-    a.src = src
+    const a = this._getPooled(src)
     if (volume !== undefined) a.volume = volume
-    if (playbackRate !== undefined && playbackRate !== 1.0) {
-      a.playbackRate = playbackRate
-    }
+    a.stop()
+    a.seek(0)
+    // 先设一次 playbackRate，再 play，play 后再设一次（双保险）
+    const rate = (playbackRate !== undefined && playbackRate !== 1.0) ? playbackRate : 1.0
+    a.playbackRate = rate
     a.play()
-    a.onEnded(() => a.destroy())
+    // play 后再设一次确保生效（部分机型/版本需要 play 后才接受 playbackRate）
+    if (rate !== 1.0) {
+      a.playbackRate = rate
+    }
   }
 }
 

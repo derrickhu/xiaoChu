@@ -30,5 +30,3 @@ build/
 *.swp
 *.swo
 
-# 云端资源（法宝图片已上传云存储，不需要在代码包中）
-assets/equipment/
