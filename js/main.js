@@ -38,17 +38,6 @@ ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS)
 class Main {
   constructor() {
     this.storage = new Storage()
-    this.storage.onCloudReady = () => R.preloadCloudAssets(
-      (loaded, failed, total) => {
-        this._cloudLoadProgress = { loaded, failed, total }
-      },
-      (loaded, failed) => {
-        this._cloudAssetsReady = true
-        console.log(`[Main] 云资源加载完毕, 成功:${loaded}, 失败:${failed}`)
-      }
-    )
-    this._cloudAssetsReady = false
-    this._cloudLoadProgress = { loaded: 0, failed: 0, total: 0 }
     this.scene = 'loading'
     this.af = 0
 
@@ -173,9 +162,7 @@ class Main {
     anim.updateAnimations(this)
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
-      const minWait = elapsed > 1500
-      const maxWait = elapsed > 15000
-      if ((minWait && this._cloudAssetsReady) || maxWait) {
+      if (elapsed > 1000) {
         this.scene = 'title'; MusicMgr.playBgm()
       }
     }
