@@ -241,6 +241,7 @@ const CLOUD_ASSETS = {
   'assets/enemies/bg_boss_8.jpg': 'assets/enemies/bg_boss_8.jpg',
   'assets/enemies/bg_boss_9.jpg': 'assets/enemies/bg_boss_9.jpg',
   'assets/enemies/bg_boss_10.jpg': 'assets/enemies/bg_boss_10.jpg',
+  // 注意：backgrounds、ui 资源已压缩打包在本地，不走云端加载
 }
 
 class Render {
@@ -425,7 +426,7 @@ class Render {
 
   drawLoadingBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/loading_bg.png')
+    const img = this.getImg('assets/backgrounds/loading_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
@@ -436,7 +437,7 @@ class Render {
 
   drawShopBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/shop_bg.png')
+    const img = this.getImg('assets/backgrounds/shop_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
@@ -448,7 +449,7 @@ class Render {
 
   drawAdventureBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/adventure_bg.png')
+    const img = this.getImg('assets/backgrounds/adventure_bg.jpg')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
@@ -807,6 +808,46 @@ class Render {
     c.fillText(text,w/2,h/2)
 
     c.restore()
+  }
+
+  // ===== 弹窗面板（图片资源版） =====
+  drawDialogPanel(x, y, w, h) {
+    const {ctx:c, S} = this
+    const img = this.getImg('assets/ui/dialog_bg.png')
+    if (img && img.width) {
+      c.drawImage(img, x, y, w, h)
+    } else {
+      // fallback: 深色半透明面板 + 金色边框
+      const rad = 14*S
+      c.fillStyle = 'rgba(20,20,40,0.95)'
+      this.rr(x, y, w, h, rad); c.fill()
+      c.strokeStyle = '#c9a84c66'; c.lineWidth = 2*S
+      this.rr(x, y, w, h, rad); c.stroke()
+    }
+  }
+
+  // ===== 弹窗按钮（图片资源版） =====
+  drawDialogBtn(x, y, w, h, text, type) {
+    const {ctx:c, S} = this
+    // type: 'confirm' | 'cancel'
+    const imgPath = type === 'confirm' ? 'assets/ui/btn_confirm.png' : 'assets/ui/btn_cancel.png'
+    const img = this.getImg(imgPath)
+    if (img && img.width) {
+      c.drawImage(img, x, y, w, h)
+      // 叠加文字 — 右偏10%避开左侧装饰图案
+      c.save()
+      c.fillStyle = type === 'confirm' ? '#4A2020' : '#1E2A3A'
+      c.font = `bold ${Math.min(13*S, h*0.38)}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.shadowColor = 'rgba(255,255,255,0.3)'; c.shadowBlur = 1*S
+      c.fillText(text, x + w*0.55, y + h*0.48)
+      c.shadowBlur = 0
+      c.restore()
+    } else {
+      // fallback: 使用原有drawBtn
+      const clr = type === 'confirm' ? '#e07a5f' : '#5b9bd5'
+      this.drawBtn(x, y, w, h, text, clr)
+    }
   }
 
   // ===== 法宝卡片（立体质感） =====

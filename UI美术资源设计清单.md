@@ -276,6 +276,69 @@ Square 1:1 ratio decorative frame on a SOLID PURE MAGENTA background (#FF00FF), 
 
 ---
 
+## 十、确认提示框（弹窗面板 + 操作按钮）
+
+**用途**：游戏内各类确认提示弹窗（如"开始新挑战"、"放弃当前进度"等决策弹窗）  
+**整体风格**：水彩仙侠风，与主页背景及首页按钮统一，深色半透明面板 + 金色描边 + 水彩质感  
+**背景**：纯黑色背景（方便抠图）
+
+### 10.1 弹窗面板背景
+
+**文件**：`assets/ui/dialog_bg.png`  
+**尺寸**：宽高比约 4:3（如 800×600），圆角矩形
+
+```
+A horizontal rounded-rectangle game UI dialog panel, approximately 4:3 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor ink style:
+
+Panel shape — elegant large rounded rectangle with double-line golden border: outer line is a thin ink-brush style gold line (#C9A84C), inner line is a thinner pale gold line (#E8D5A0) with ~4px gap between them, creating a refined frame effect. Corner areas have subtle golden 祥云 (auspicious cloud) ornamental flourishes extending slightly beyond the border.
+
+Fill — semi-transparent deep gradient: rich dark indigo-plum (#1A1228) at center blending to slightly lighter warm dark purple-brown (#2A1F35) at edges. Subtle watercolor paper texture visible throughout, with very faint ink-wash cloud wisps (淡墨云纹) in slightly lighter purple-grey drifting across the interior, adding depth without distraction.
+
+Top center — a small decorative golden divider element: a stylized horizontal ink-brush golden line with a tiny golden lotus (莲花) or jade disc (玉璧) motif at its center, serving as a title area separator.
+
+Bottom area — slightly darker gradient fade toward the bottom third, providing visual grounding for button placement.
+
+Decorative details — very faint golden sparkle particles scattered near the border. Subtle ink-wash texture variation across the panel surface. Four corner accents: tiny golden dot or cloud curl at each rounded corner.
+
+Overall: mysterious, elegant, authoritative — appropriate for important game decisions. Dark enough for white/gold text to be clearly readable. Watercolor ink-wash texture, flat painterly style, no 3D bevel, no heavy drop shadow, no metallic sheen. Background must be perfectly SOLID PURE BLACK with absolutely no variation — for easy chroma-key removal.
+```
+
+### 10.2 确认按钮
+
+**文件**：`assets/ui/btn_confirm.png`  
+**尺寸**：宽高比约 3.5:1（如 700×200），圆角矩形
+
+```
+A horizontal rounded-rectangle game UI button, 3.5:1 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor style:
+
+Button shape — elegant rounded rectangle with soft golden border (thin ink-brush style gold line, warm gold #C9A84C, not metallic). Fill: semi-transparent warm gradient from soft coral-pink (#F0A8A0) on left to pale peach-cream (#FFE8E0) on right, with subtle watercolor paper texture visible through. A gentle warm glow aura around the entire button edge.
+
+Text — Chinese characters "确认" centered, rendered in elegant dark ink brush calligraphy (semi-cursive 行楷), color deep warm rosewood-brown (#3D1F1F) with very subtle gold shimmer on stroke edges.
+
+Decorative elements — a small stylized golden checkmark (✓) or auspicious knot (如意结) icon on the left side of the text. Faint coral-pink ink-wash accent along the bottom edge, like a soft watercolor blush. Very subtle golden sparkle particles scattered near the border. Tiny 祥云 (auspicious cloud) wisp curling at the right end.
+
+Overall: warm, decisive, encouraging — the primary action button for confirmations. Warm coral-pink tone conveys positive/affirmative action. Clean, elegant, clearly readable. Watercolor texture, no heavy 3D bevel, no drop shadow, flat painterly style with gentle luminous warmth. Background must be perfectly SOLID PURE BLACK with no variation — for easy chroma-key removal.
+```
+
+### 10.3 取消按钮
+
+**文件**：`assets/ui/btn_cancel.png`  
+**尺寸**：宽高比约 3.5:1（如 700×200），圆角矩形
+
+```
+A horizontal rounded-rectangle game UI button, 3.5:1 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor style:
+
+Button shape — elegant rounded rectangle with soft golden border (thin ink-brush style gold line, muted gold #B8A870, slightly less prominent than confirm button). Fill: semi-transparent cool gradient from soft sky-blue (#A8C8E8) on left to pale ice-cream white (#F0F5FF) on right, with subtle watercolor paper texture visible through.
+
+Text — Chinese characters "取消" centered, elegant dark ink brush calligraphy (semi-cursive 行楷), color deep slate blue-grey (#2A3040) with very subtle gold shimmer on stroke edges.
+
+Decorative elements — a small stylized pale blue-silver returning arrow (↩) or crescent moon (弯月) icon on the left side of the text. Faint sky-blue ink-wash accent along the bottom edge, like a soft watercolor wash. Very subtle silver-white sparkle particles scattered. Tiny 祥云 (auspicious cloud) wisp curling at the right end, rendered in pale blue-grey rather than gold.
+
+Overall: calm, neutral, non-intrusive — the secondary action button for cancellation. Cool blue tone conveys caution/retreat without negativity. Visually lighter/less prominent than the confirm button to guide user toward the primary action. Clean, elegant, clearly readable. Watercolor texture, flat painterly style, no 3D effects, no heavy shadows. Background must be perfectly SOLID PURE BLACK with no variation — for easy chroma-key removal.
+```
+
+---
+
 ## 附录：资源文件清单
 
 | 序号 | 资源名称 | 文件路径 | 格式 | 尺寸比例 |
@@ -297,3 +360,6 @@ Square 1:1 ratio decorative frame on a SOLID PURE MAGENTA background (#FF00FF), 
 | 15 | 火属性灵宠框 | `assets/ui/frame_pet_fire.png` | PNG（品红底抠图） | 1:1 |
 | 16 | 土属性灵宠框 | `assets/ui/frame_pet_earth.png` | PNG（品红底抠图） | 1:1 |
 | 17 | 法宝通用框 | `assets/ui/frame_weapon.png` | PNG（品红底抠图） | 1:1 |
+| 18 | 弹窗面板背景 | `assets/ui/dialog_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
+| 19 | 确认按钮 | `assets/ui/btn_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 20 | 取消按钮 | `assets/ui/btn_cancel.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |

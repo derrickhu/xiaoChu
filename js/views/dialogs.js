@@ -11,10 +11,7 @@ function drawExitDialog(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
   const pw = W * 0.78, ph = 200*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  ctx.fillStyle = 'rgba(20,20,40,0.95)'
-  R.rr(px, py, pw, ph, 12*S); ctx.fill()
-  ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 2*S
-  R.rr(px, py, pw, ph, 12*S); ctx.stroke()
+  R.drawDialogPanel(px, py, pw, ph)
   ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('退出战斗', px + pw*0.5, py + 36*S)
   ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
@@ -23,9 +20,9 @@ function drawExitDialog(g) {
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
   const btnY = py + 90*S
-  R.drawBtn(btn1X, btnY, btnW, btnH, '暂存退出', TH.info, 14)
+  R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
-  R.drawBtn(btn2X, btnY, btnW, btnH, '重新开局', TH.danger, 14)
+  R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
   const cancelW = pw * 0.4, cancelH = 36*S
   const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 16*S
@@ -71,10 +68,7 @@ function drawRunBuffDetailDialog(g) {
   const tipH = Math.min(contentH, H * 0.7)
   const tipX = (W - tipW) / 2
   const tipY = (H - tipH) / 2
-  ctx.fillStyle = 'rgba(10,10,30,0.95)'
-  R.rr(tipX, tipY, tipW, tipH, 10*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(255,215,0,0.4)'; ctx.lineWidth = 1*S
-  R.rr(tipX, tipY, tipW, tipH, 10*S); ctx.stroke()
+  R.drawDialogPanel(tipX, tipY, tipW, tipH)
   ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('全局增益一览', W*0.5, tipY + padY + 12*S)
   let ly = tipY + padY + titleH + 4*S
@@ -166,10 +160,7 @@ function drawEnemyDetailDialog(g) {
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = 'rgba(16,16,32,0.96)'
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.fill()
-  ctx.strokeStyle = ac ? ac.main + '88' : TH.accent + '66'; ctx.lineWidth = 2*S
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.stroke()
+  R.drawDialogPanel(tipX, tipY, tipW, totalH)
   ctx.save()
   ctx.beginPath()
   R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
@@ -224,10 +215,7 @@ function drawWeaponDetailDialog(g) {
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = 'rgba(16,16,32,0.96)'
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.fill()
-  ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 2*S
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.stroke()
+  R.drawDialogPanel(tipX, tipY, tipW, totalH)
   ctx.save()
   ctx.beginPath()
   R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
@@ -316,10 +304,7 @@ function drawBattlePetDetailDialog(g) {
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = 'rgba(16,16,32,0.96)'
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.fill()
-  ctx.strokeStyle = ac ? ac.main + '88' : TH.accent + '66'; ctx.lineWidth = 2*S
-  R.rr(tipX, tipY, tipW, totalH, 12*S); ctx.stroke()
+  R.drawDialogPanel(tipX, tipY, tipW, totalH)
   ctx.save()
   ctx.beginPath()
   R.rr(tipX, tipY, tipW, 4*S, 12*S); ctx.clip()
