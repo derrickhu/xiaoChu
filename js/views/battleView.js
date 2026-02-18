@@ -467,43 +467,9 @@ function _drawCombo(g, cellSize, boardTop) {
 }
 
 function _drawDragTimer(g, cellSize, boardTop) {
-  const { ctx, R, TH, W, H, S, COLS, ROWS } = V
-  const remain = Math.max(0, (g.dragTimeLimit - g.dragTimer) / 60)
+  const { ctx, S } = V
   const pct = Math.max(0, Math.min(1, (g.dragTimeLimit - g.dragTimer) / g.dragTimeLimit))
   const barColor = pct < 0.25 ? '#ff4d6a' : pct < 0.5 ? '#ff8c00' : '#4dcc4d'
-  const isUrgent = pct < 0.25
-  const urgentShow = !isUrgent || (Math.floor(g.dragTimer / 9) % 2 === 0)
-
-  ctx.save()
-  const barH = 8*S
-  const barY = g.boardY - barH - 3*S
-  const barX = g.boardX
-  const barW = COLS * g.cellSize
-  const barR = barH / 2
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'
-  R.rr(barX, barY, barW, barH, barR); ctx.fill()
-  if (pct > 0 && urgentShow) {
-    const fillW = barW * pct
-    ctx.fillStyle = barColor
-    R.rr(barX, barY, fillW, barH, barR); ctx.fill()
-    ctx.shadowColor = barColor
-    ctx.shadowBlur = 6*S
-    R.rr(barX, barY, fillW, barH, barR); ctx.fill()
-    ctx.shadowBlur = 0
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1*S
-  R.rr(barX, barY, barW, barH, barR); ctx.stroke()
-
-  const numY = barY - 2*S
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-  const fontSize = isUrgent ? 18*S : 15*S
-  ctx.font = `bold ${fontSize}px sans-serif`
-  const timeText = remain.toFixed(1) + 's'
-  ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3*S
-  ctx.strokeText(timeText, barX + barW * 0.5, numY)
-  ctx.fillStyle = urgentShow ? barColor : 'rgba(255,77,106,0.3)'
-  ctx.fillText(timeText, barX + barW * 0.5, numY)
-  ctx.restore()
 
   // 珠子周围进度环
   const ringR = (g.cellSize - g.cellSize*0.08*2) * 0.5 + 6*S
