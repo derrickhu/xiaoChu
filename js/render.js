@@ -113,6 +113,18 @@ class Render {
     }
   }
 
+  drawRewardBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/reward_bg.jpg')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
   // 各主题的背景色调配置
   static THEME_BG = {
     theme_metal: { top:'#1a1520', mid:'#2a2035', bot:'#0e0b12', accent:'#c0a060', particle:'#ffd700' },

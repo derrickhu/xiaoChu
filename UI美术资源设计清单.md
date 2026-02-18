@@ -313,7 +313,7 @@ A horizontal rounded-rectangle game UI button, 3.5:1 aspect ratio, on a SOLID PU
 
 Button shape — elegant rounded rectangle with soft golden border (thin ink-brush style gold line, warm gold #C9A84C, not metallic). Fill: semi-transparent warm gradient from soft coral-pink (#F0A8A0) on left to pale peach-cream (#FFE8E0) on right, with subtle watercolor paper texture visible through. A gentle warm glow aura around the entire button edge.
 
-Text — Chinese characters "确认" centered, rendered in elegant dark ink brush calligraphy (semi-cursive 行楷), color deep warm rosewood-brown (#3D1F1F) with very subtle gold shimmer on stroke edges.
+
 
 Decorative elements — a small stylized golden checkmark (✓) or auspicious knot (如意结) icon on the left side of the text. Faint coral-pink ink-wash accent along the bottom edge, like a soft watercolor blush. Very subtle golden sparkle particles scattered near the border. Tiny 祥云 (auspicious cloud) wisp curling at the right end.
 
@@ -330,11 +330,153 @@ A horizontal rounded-rectangle game UI button, 3.5:1 aspect ratio, on a SOLID PU
 
 Button shape — elegant rounded rectangle with soft golden border (thin ink-brush style gold line, muted gold #B8A870, slightly less prominent than confirm button). Fill: semi-transparent cool gradient from soft sky-blue (#A8C8E8) on left to pale ice-cream white (#F0F5FF) on right, with subtle watercolor paper texture visible through.
 
-Text — Chinese characters "取消" centered, elegant dark ink brush calligraphy (semi-cursive 行楷), color deep slate blue-grey (#2A3040) with very subtle gold shimmer on stroke edges.
+
 
 Decorative elements — a small stylized pale blue-silver returning arrow (↩) or crescent moon (弯月) icon on the left side of the text. Faint sky-blue ink-wash accent along the bottom edge, like a soft watercolor wash. Very subtle silver-white sparkle particles scattered. Tiny 祥云 (auspicious cloud) wisp curling at the right end, rendered in pale blue-grey rather than gold.
 
 Overall: calm, neutral, non-intrusive — the secondary action button for cancellation. Cool blue tone conveys caution/retreat without negativity. Visually lighter/less prominent than the confirm button to guide user toward the primary action. Clean, elegant, clearly readable. Watercolor texture, flat painterly style, no 3D effects, no heavy shadows. Background must be perfectly SOLID PURE BLACK with no variation — for easy chroma-key removal.
+```
+
+---
+
+## 十一、战斗胜利弹窗背景
+
+**用途**：战斗胜利后弹出的结算面板背景（显示"战斗胜利"文字、速通提示、"选择奖励"按钮）  
+**尺寸**：宽高比约 5:2（如 1000×400），圆角矩形，竖向居中显示  
+**文件**：`assets/ui/victory_panel_bg.png`（生成后抠图去背景）  
+**背景**：纯黑色背景 #000000（方便抠图）
+
+**布局约束**：
+- 上部 30%：标题文字区域（"战斗胜利"四字）
+- 中部 30%：副标题/速通提示区域
+- 下部 40%：按钮区域（放置"选择奖励"按钮）
+
+```
+A horizontal rounded-rectangle game UI victory panel, approximately 5:2 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor ink style, celebratory yet elegant:
+
+Panel shape — large rounded rectangle with ornate double-line golden border: outer border is a slightly thick ink-brush style warm gold line (#D4AF37) with subtle calligraphic stroke variation, inner border is a thinner pale champagne-gold line (#E8D5A0) with ~5px gap. Corner decorations: stylized golden 祥云 (auspicious cloud) flourishes extending gracefully from each corner, with tiny golden sparkle dots at the tips.
+
+Fill — rich semi-transparent gradient: deep warm indigo-purple (#1E1430) at center, blending to slightly warmer plum-brown (#2D1F3A) at edges. Overlaid with very subtle watercolor ink-wash texture — faint wispy golden cloud patterns (淡金云纹) drifting across the interior, creating depth without distraction. A gentle warm golden radiance emanating softly from the upper-center area, suggesting triumph and glory.
+
+Top center decoration — an elegant horizontal golden ornamental divider: a stylized ink-brush golden line with a small golden lotus blossom (金莲) or victory knot (如意结) motif at its center, flanked by thin flowing golden lines that taper toward the edges. Above the divider, very faint golden light rays (like subtle god-rays) spreading upward, conveying a sense of achievement.
+
+Bottom area — slightly deeper gradient fading toward warm darkness, providing visual grounding for button placement. A very faint suggestion of golden cloud wisps along the bottom edge.
+
+Ambient details — scattered tiny golden sparkle particles concentrated near the border and upper area. Very subtle warm golden glow around the entire panel edge. Faint watercolor paper texture throughout the panel surface. The overall warmth and golden luminosity should convey victory and celebration while remaining refined and not garish.
+
+Overall: triumphant, warm, celebratory yet elegant — appropriate for a battle victory moment in a xianxia game. Dark enough interior for white/gold text to be clearly readable. Rich golden accents throughout. Watercolor ink-wash texture, flat painterly style, no 3D bevel, no heavy drop shadow, no metallic sheen. Background must be perfectly SOLID PURE BLACK with absolutely no variation — for easy chroma-key removal.
+```
+
+---
+
+## 十二、奖励加成卡片背景框
+
+**用途**：战斗胜利后奖励选择界面中，每个可选奖励项（全队加成buff、灵兽选择、法宝选择）的卡片背景框  
+**尺寸**：宽高比约 7:1（如 1050×150），宽扁圆角矩形，适配竖屏横向满宽布局  
+**文件**：`assets/ui/reward_card_bg.png`（生成后抠图去背景）  
+**背景**：纯黑色背景 #000000（方便抠图）
+
+**布局约束**：
+- 左侧 15%：图标/标签区域（放置属性图标、"加成"/"⚡速通"标签）
+- 中部 60%：主文字区域（奖励名称、效果描述）
+- 右侧 25%：辅助信息区域（背包容量、属性提示等）
+
+```
+A wide horizontal rounded-rectangle game UI card frame, approximately 7:1 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor ink style, refined and mystical:
+
+Card shape — elegant wide rounded rectangle (like a horizontal scroll or jade tablet) with a delicate single-line border: thin ink-brush style pale gold line (#C9A84C) with subtle calligraphic variation, slightly thicker at corners tapering to thinner along straight edges. Rounded corners are softly curved, 不 too tight, giving a smooth scroll-like feel.
+
+Fill — semi-transparent deep gradient: a rich dark teal-indigo (#141828) as the base, with a very subtle horizontal gradient — slightly warmer plum tint (#1A1430) on the left side blending to cooler dark blue-grey (#151D2A) on the right side. This gradient provides visual depth and subtle directional flow. Overlaid with very faint watercolor paper texture and barely visible ink-wash cloud wisps.
+
+Left edge accent — a subtle vertical decorative element: a thin golden line segment with a tiny golden jade disc (玉璧) or ruyi (如意) motif at the center of the left edge, serving as a visual anchor for the icon/label area. Very faint golden glow emanating from this accent.
+
+Bottom edge — an extremely subtle warm golden ink-wash stroke along the bottom 10%, like a faint watercolor blush of pale gold (#E8D5A0 at 15% opacity), providing visual grounding.
+
+Right edge — a very faint mirror of the left accent: a tiny golden dot or minimal cloud curl, lighter and less prominent than the left side, maintaining visual balance without competing for attention.
+
+Interior texture — very subtle variations: faint hexagonal or cloud-pattern watermark (暗纹) at ~5% opacity across the surface, like a hidden silk brocade pattern. This adds richness when viewed up close without interfering with overlaid text readability.
+
+Overall: refined, mysterious, collectible-feeling — like a precious jade tablet or celestial scroll. Dark enough for white/gold/colored text to be clearly readable. Subtle golden accents provide elegance without overwhelming. Watercolor ink-wash texture, flat painterly style, no 3D bevel, no drop shadow, no metallic reflections. Must work well when multiple cards are stacked vertically with 10px gaps between them. Background must be perfectly SOLID PURE BLACK with absolutely no variation — for easy chroma-key removal.
+```
+
+---
+
+## 十三、奖励选择确认按钮
+
+**用途**：奖励选择界面底部的确认按钮（选定奖励后出现）  
+**尺寸**：宽高比约 3.5:1（如 700×200），圆角矩形，与首页按钮风格统一  
+**文件**：`assets/ui/btn_reward_confirm.png`（生成后抠图去背景）  
+**背景**：纯黑色背景 #000000（方便抠图）
+
+```
+A horizontal rounded-rectangle game UI button, 3.5:1 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor style, celebratory and decisive:
+
+Button shape — elegant rounded rectangle with warm golden border (thin ink-brush style gold line, rich gold #D4AF37, slightly more prominent than standard confirm button to convey importance). Fill: semi-transparent warm gradient from soft amber-gold (#E8C878) on left to pale champagne-cream (#FFF5E0) on right, with subtle watercolor paper texture visible through. A gentle warm golden glow aura around the entire button edge, slightly more luminous than standard buttons.
+
+Text — Chinese characters "确认选择" centered, rendered in elegant dark ink brush calligraphy (semi-cursive 行楷), color deep warm rosewood-brown (#3D1F1F) with subtle gold shimmer on stroke edges.
+
+Decorative elements — a small stylized golden ruyi scepter (如意) or auspicious knot icon on the left side of the text, symbolizing a fortunate choice. Faint amber-gold ink-wash accent along the bottom edge, like a warm watercolor wash. Scattered golden sparkle particles near the border, slightly more abundant than standard buttons. Tiny 祥云 (auspicious cloud) wisp curling at the right end in warm gold.
+
+Overall: warm, decisive, celebratory — the primary action button for confirming a reward choice. Richer golden tone than standard confirm button to match the victory/reward context. Clean, elegant, clearly readable. Watercolor texture, no heavy 3D bevel, no drop shadow, flat painterly style with gentle luminous warmth. Background must be perfectly SOLID PURE BLACK with no variation — for easy chroma-key removal.
+```
+
+---
+
+## 十四、战斗层数标签框
+
+**用途**：战斗界面顶部显示当前层数（如"第 1 层"）的装饰文字框背景  
+**尺寸**：宽高比约 4:1（如 480×120），左右对称的横向标签形态  
+**文件**：`assets/ui/floor_label_bg.png`（生成后抠图去背景）  
+**背景**：纯黑色背景 #000000（方便抠图）
+
+**布局约束**：
+- 中央为文字放置区域，需留足空间显示"第 XX 层"文字
+- 左右两端可有对称装饰元素（如祥云、如意纹）
+- 整体尺寸较小，不可喧宾夺主，需与战斗背景自然融合
+
+```
+A horizontal symmetrical game UI label/badge frame, approximately 4:1 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor ink style, compact and elegant:
+
+Shape — a stylized horizontal banner/ribbon form with softly pointed or cloud-curved ends (like a celestial jade tablet 玉牌 or silk ribbon banner 绸带), NOT a simple rectangle. The overall silhouette is wider in the center tapering gracefully toward both ends, giving a flowing banner feel. Thin ink-brush style golden border (#C9A84C) with subtle calligraphic stroke variation following the banner contour.
+
+Fill — semi-transparent deep gradient: rich dark indigo-purple (#1A1228) in the center blending to slightly darker plum (#15101E) at the tapered ends. Very subtle watercolor paper texture visible throughout. Faint ink-wash cloud wisps (淡墨云纹) drifting horizontally across the interior, very subtle and understated.
+
+Left and right end decorations — small symmetrical golden 祥云 (auspicious cloud) curl motifs at each tapered end, rendered in soft ink-brush gold (#D4AF37), delicate and not overly ornate. These serve as visual bookends framing the central text area.
+
+Top and bottom edge — very thin secondary pale gold line (#E8D5A0) running parallel to the main border at ~2px inset, creating a refined double-line frame effect along the longer horizontal edges only. The tapered ends have single-line border only.
+
+Center area — clean and uncluttered, reserved for overlaid text. A very faint golden radiance (like a soft spotlight at ~8% opacity) emanating from the center, ensuring the text area feels subtly highlighted.
+
+Overall: compact, refined, authoritative — like an official celestial rank plaque or floor marker in a tower. Must not be too decorative or large; this is a small informational label, not a major panel. Dark enough for gold/white text to be clearly readable. Watercolor ink-wash texture, flat painterly style, no 3D bevel, no heavy drop shadow, no metallic sheen. Should feel cohesive with the dialog_bg panel and other UI elements in the same xianxia watercolor aesthetic. Background must be perfectly SOLID PURE BLACK with absolutely no variation — for easy chroma-key removal.
+```
+
+---
+
+## 十五、奖励选择页背景图
+
+**用途**：战斗胜利后奖励选择页面的全屏背景（顶部标题"战斗胜利 - 选择奖励"、中间奖励卡片列表、底部确认按钮）  
+**尺寸**：竖屏 9:16（如 1080×1920）  
+**文件**：`assets/backgrounds/reward_bg.jpg`
+
+**布局约束**：
+- 顶部 0~15% 高度：标题文字区域（"战斗胜利 - 选择奖励"、速通提示），背景应有氛围感但不过于抢眼
+- 中部 15%~80% 高度：奖励卡片列表区域（3~4张卡片纵向排列），背景需暗沉柔和，确保卡片内文字清晰可读
+- 底部 80%~100%：确认按钮区域，背景应平稳过渡到深色
+
+```
+A vertical 9:16 mobile game background for a reward selection / victory loot screen, Chinese xianxia watercolor ink painting style, triumphant yet serene atmosphere with warm golden undertones:
+
+Upper area (top 15%) — a warm celestial sky with soft golden radiance emanating from the upper center, like the afterglow of a victorious battle. Faint ink-wash auspicious clouds (祥云) in warm amber and pale gold drifting gracefully. Very subtle golden light rays (god-rays) streaming downward, conveying glory and achievement. A few tiny golden sparkle particles floating in the warm air. The tone is warm champagne-gold blending into deeper hues below.
+
+Upper-middle area (15%~35%) — transitional zone: the warm golden glow gradually darkens into a rich deep indigo-plum (#1A1430). Faint watercolor ink-wash cloud layers in warm purple-brown tones, creating depth and atmospheric perspective. Very subtle suggestion of distant celestial palace rooftops or pagoda silhouettes in soft golden outline, barely visible through the mist — evoking the tower (通天塔) theme without being literal or distracting. Scattered tiny golden dust particles.
+
+Central area (35%~70%) — the main card placement zone: a deep, rich, subdued background of dark indigo-purple (#141228) with very subtle warm undertone. This area must be DARK and CALM — serving as a neutral canvas for semi-transparent reward cards placed on top. Very faint vertical silk brocade texture (暗纹) at ~3% opacity, like subtle fabric weave, adding tactile richness without visual noise. Extremely subtle horizontal bands of slightly varying darkness (like layered ink-wash strokes), providing gentle visual rhythm that complements vertically stacked cards. A barely perceptible warm golden vignette glow from the edges inward.
+
+Lower area (70%~100%) — gradual descent into deeper darkness: rich plum-black (#0E0A18) with very subtle warm purple-brown gradient. Faint suggestion of stylized golden lotus petals or cloud wisps along the very bottom edge at ~5% opacity, grounding the composition. The bottom 10% should be quite dark and simple for button overlay. Extremely subtle golden sparkle particles near the bottom edge.
+
+Atmospheric details throughout — very faint floating golden motes (like fireflies or spiritual energy particles) scattered sparsely across the entire image, more concentrated near the top and thinning toward the bottom. Subtle ink-wash texture variation across the surface. The overall color journey from top to bottom: warm champagne-gold → amber-plum → deep indigo-purple → plum-black, creating a natural sense of descending from the heavens after victory.
+
+Overall: triumphant, warm, contemplative — like standing in a celestial hall choosing one's reward after a hard-won battle. The mood should be celebratory but refined, not flashy or garish. Warm golden tones dominate the upper portion while the lower 70% is deeply subdued for UI readability. Watercolor ink-wash style with gentle luminosity. Color palette: warm gold (#D4AF37), champagne (#F5E6C8), deep indigo-plum (#1A1430), plum-black (#0E0A18). NO characters, NO pets, NO text, NO UI elements. Subtle watercolor paper texture throughout.
 ```
 
 ---
@@ -363,3 +505,8 @@ Overall: calm, neutral, non-intrusive — the secondary action button for cancel
 | 18 | 弹窗面板背景 | `assets/ui/dialog_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
 | 19 | 确认按钮 | `assets/ui/btn_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
 | 20 | 取消按钮 | `assets/ui/btn_cancel.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 21 | 战斗胜利弹窗背景 | `assets/ui/victory_panel_bg.png` | PNG（纯黑底抠图） | ~5:2 横向 |
+| 22 | 奖励加成卡片背景框 | `assets/ui/reward_card_bg.png` | PNG（纯黑底抠图） | ~7:1 宽扁 |
+| 23 | 奖励确认按钮 | `assets/ui/btn_reward_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 24 | 战斗层数标签框 | `assets/ui/floor_label_bg.png` | PNG（纯黑底抠图） | ~4:1 横向 |
+| 25 | 奖励选择页背景 | `assets/backgrounds/reward_bg.jpg` | JPG | 9:16 竖屏 |

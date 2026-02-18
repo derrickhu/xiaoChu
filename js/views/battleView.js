@@ -39,42 +39,15 @@ function rBattle(g) {
     const themeBg = 'theme_' + (g.enemy.attr || 'metal')
     R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
 
-    // --- 血条 ---
-    const hpY = eAreaBottom - 22*S
-    const hpBarW = W - padX*2 - 80*S
-    R.drawHp(padX+40*S, hpY, hpBarW, 16*S, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
+    // --- 血条（细窄样式） ---
+    const hpY = eAreaBottom - 18*S
+    const hpBarW = W * 0.55
+    const hpBarX = (W - hpBarW) / 2
+    R.drawHp(hpBarX, hpY, hpBarW, 10*S, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
 
-    // --- 弱点 & 抵抗（血条下方一行） ---
-    const weakAttr = COUNTER_BY[g.enemy.attr]
-    const resistAttr = COUNTER_MAP[g.enemy.attr]
-    const orbR = 7*S  // 属性球半径
-    const infoY = hpY + 16*S + 14*S  // 血条底部 + 间距
-    ctx.textAlign = 'center'
-    // 弱点 在左侧
-    if (weakAttr) {
-      const wc = ATTR_COLOR[weakAttr]
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px sans-serif`
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-      const weakLabelX = W*0.5 - 40*S
-      ctx.strokeText('弱点:', weakLabelX, infoY)
-      ctx.fillText('弱点:', weakLabelX, infoY)
-      R.drawBead(weakLabelX + 30*S, infoY - 4*S, orbR, weakAttr, g.af)
-    }
-    // 抵抗 在右侧
-    if (resistAttr) {
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px sans-serif`
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-      const resistLabelX = W*0.5 + 30*S
-      ctx.strokeText('抵抗:', resistLabelX, infoY)
-      ctx.fillText('抵抗:', resistLabelX, infoY)
-      R.drawBead(resistLabelX + 30*S, infoY - 4*S, orbR, resistAttr, g.af)
-    }
-
-    // --- 怪物名（在怪物图片头顶显示） ---
-    // 先计算怪物图片位置：底部贴近血条上方
+    // --- 怪物图片 ---
     const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
-    const nameY_offset = 18*S  // 名字占用的高度
     const imgBottom = hpY - 6*S  // 图片底部贴近血条上方
     let imgDrawY = eAreaTop  // 默认值
     if (enemyImg && enemyImg.width > 0) {
@@ -87,37 +60,92 @@ function rBattle(g) {
       imgDrawY = imgBottom - imgH
       ctx.drawImage(enemyImg, imgX, imgDrawY, imgW, imgH)
     }
-    // 怪物名字绘制在怪物图片顶部
-    const nameY = imgDrawY - 4*S
-    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${16*S}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-    ctx.strokeText(g.enemy.name, W*0.5, nameY)
-    ctx.fillText(g.enemy.name, W*0.5, nameY)
 
-    // --- 层数标记（最顶部） ---
+    // --- 怪物名（图片头顶，上移留出抗性空间） ---
+    const nameY = imgDrawY - 16*S
+    const nameFontSize = 14*S
+    ctx.textAlign = 'center'
+    // 半透明底衬让名称在任何背景下都清晰
+    ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
+    const nameW = ctx.measureText(g.enemy.name).width
+    const namePadX = 12*S, namePadY = 6*S
+    const nameBgX = W*0.5 - nameW/2 - namePadX
+    const nameBgW = nameW + namePadX*2
+    const nameBgH = namePadY*2 + nameFontSize
+    const nameBgY = nameY - nameFontSize + 2*S - namePadY
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'
+    R.rr(nameBgX, nameBgY, nameBgW, nameBgH, 6*S); ctx.fill()
+    // 名称文字：暖米色，柔和阴影
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
+    ctx.fillText(g.enemy.name, W*0.5, nameY)
+    ctx.restore()
+
+    // --- 弱点 & 抵抗（名称正下方居中） ---
+    const weakAttr = COUNTER_BY[g.enemy.attr]
+    const resistAttr = COUNTER_MAP[g.enemy.attr]
+    const orbR = 5*S
+    const infoFontSize = 9*S
+    const infoY = nameY + 12*S
+    // 预计算总宽度以实现居中
+    ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+    let totalInfoW = 0
+    const weakLabelW = weakAttr ? ctx.measureText('弱:').width + orbR*2 + 4*S : 0
+    const resistLabelW = resistAttr ? ctx.measureText('抗:').width + orbR*2 + 4*S : 0
+    const infoGap = (weakAttr && resistAttr) ? 10*S : 0
+    totalInfoW = weakLabelW + infoGap + resistLabelW
+    let curX = W*0.5 - totalInfoW/2
+    ctx.textAlign = 'left'
+    if (weakAttr) {
+      ctx.fillStyle = 'rgba(240,224,192,0.9)'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2*S
+      ctx.fillText('弱:', curX, infoY)
+      ctx.restore()
+      const lw = ctx.measureText('弱:').width
+      R.drawBead(curX + lw + orbR + 2*S, infoY - 3*S, orbR, weakAttr, g.af)
+      curX += weakLabelW + infoGap
+    }
+    if (resistAttr) {
+      ctx.fillStyle = 'rgba(240,224,192,0.9)'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2*S
+      ctx.fillText('抗:', curX, infoY)
+      ctx.restore()
+      const lw = ctx.measureText('抗:').width
+      R.drawBead(curX + lw + orbR + 2*S, infoY - 3*S, orbR, resistAttr, g.af)
+    }
+
+    // --- 层数标记（最顶部，使用标签框底图） ---
     ctx.textAlign = 'center'
     const evType = g.curEvent ? g.curEvent.type : 'battle'
+    const floorLabelImg = R.getImg('assets/ui/floor_label_bg.png')
+    const labelW = W * 0.45, labelH = labelW / 4
+    const labelX = (W - labelW) / 2, labelY = eAreaTop + 2*S
+    if (floorLabelImg && floorLabelImg.width > 0) {
+      ctx.drawImage(floorLabelImg, labelX, labelY, labelW, labelH)
+    }
+    const labelCY = labelY + labelH * 0.52
     if (evType === 'boss') {
       const floorText = `第 ${g.floor} 层`
       const bossTag = '⚠ BOSS ⚠'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`
-      ctx.fillText(floorText, W*0.5, eAreaTop + 14*S)
-      const tagW = 100*S, tagH = 20*S, tagX = (W - tagW)/2, tagY = eAreaTop + 20*S
-      ctx.fillStyle = 'rgba(180,30,30,0.85)'; R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.fill()
-      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1*S; R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.stroke()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px sans-serif`
-      ctx.fillText(bossTag, W*0.5, eAreaTop + 33*S)
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+      ctx.fillText(floorText, W*0.5, labelCY - 2*S)
+      ctx.restore()
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillText(bossTag, W*0.5, labelCY + 9*S)
     } else if (evType === 'elite') {
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`
-      ctx.fillText(`第 ${g.floor} 层`, W*0.5, eAreaTop + 14*S)
-      const tagW = 80*S, tagH = 18*S, tagX = (W - tagW)/2, tagY = eAreaTop + 20*S
-      ctx.fillStyle = 'rgba(120,50,180,0.8)'; R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.fill()
-      ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${10*S}px sans-serif`
-      ctx.fillText('★ 精英战斗', W*0.5, eAreaTop + 32*S)
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+      ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY - 2*S)
+      ctx.restore()
+      ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillText('★ 精英战斗', W*0.5, labelCY + 9*S)
     } else {
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${13*S}px sans-serif`
-      ctx.fillText(`第 ${g.floor} 层`, W*0.5, eAreaTop + 14*S)
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+      ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY)
+      ctx.restore()
     }
 
     // 敌方Buff
@@ -368,7 +396,7 @@ function _drawCombo(g, cellSize, boardTop) {
   const isMega = g.combo >= 12
   const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
   const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
-  const baseSz = isMega ? 84*S : isSuper ? 72*S : isHigh ? 62*S : 54*S
+  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : 32*S
 
   // 预算伤害数据
   const comboMulVal = 1 + (g.combo - 1) * 0.25
@@ -395,7 +423,7 @@ function _drawCombo(g, cellSize, boardTop) {
   ctx.globalAlpha = comboAlpha
 
   // 半透明背景遮罩
-  const maskH = baseSz * 3.2
+  const maskH = baseSz * 2.8
   const maskCy = comboCy + baseSz * 0.35
   const maskGrd = ctx.createLinearGradient(0, maskCy - maskH*0.5, 0, maskCy + maskH*0.5)
   maskGrd.addColorStop(0, 'transparent')
@@ -471,7 +499,7 @@ function _drawCombo(g, cellSize, boardTop) {
   const comboFont = `italic 900 ${baseSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
   const comboText = `${g.combo} 连击`
   ctx.font = comboFont
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 8*S
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
   ctx.strokeText(comboText, 0, 0)
   ctx.fillStyle = mainColor
   ctx.fillText(comboText, 0, 0)
@@ -535,7 +563,7 @@ function _drawCombo(g, cellSize, boardTop) {
     } else {
       dmgGrd.addColorStop(0, '#ffaaaa'); dmgGrd.addColorStop(0.4, '#ff4d60'); dmgGrd.addColorStop(1, '#cc2040')
     }
-    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 7*S
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
     ctx.strokeText(dmgText, 0, 0)
     ctx.fillStyle = dmgGrd
     ctx.fillText(dmgText, 0, 0)
@@ -582,7 +610,7 @@ function _drawCombo(g, cellSize, boardTop) {
       } else {
         pctGrd.addColorStop(0, '#ffbbbb'); pctGrd.addColorStop(0.4, '#ff5577'); pctGrd.addColorStop(1, '#dd3355')
       }
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5*S
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
       ctx.strokeText(pctText, 0, 0)
       ctx.fillStyle = pctGrd
       ctx.fillText(pctText, 0, 0)
@@ -656,7 +684,7 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.save()
     const flashAlpha = (g._comboFlash / 8) * (g.combo >= 12 ? 0.4 : g.combo >= 8 ? 0.3 : 0.2)
     const flashCy = g.boardY + (ROWS * g.cellSize) * 0.32
-    const flashR = (g.combo >= 12 ? 180 : g.combo >= 8 ? 140 : g.combo >= 5 ? 110 : 80) * S
+    const flashR = (g.combo >= 12 ? 120 : g.combo >= 8 ? 90 : g.combo >= 5 ? 70 : 50) * S
     const flashGrd = ctx.createRadialGradient(W*0.5, flashCy, 0, W*0.5, flashCy, flashR)
     flashGrd.addColorStop(0, `rgba(255,255,255,${flashAlpha})`)
     flashGrd.addColorStop(0.5, `rgba(255,255,240,${flashAlpha * 0.5})`)
@@ -717,8 +745,8 @@ function drawBoard(g) {
   ctx.strokeStyle = 'rgba(80,80,120,0.5)'; ctx.lineWidth = 1.5*S
   R.rr(bx-3*S, by-3*S, boardW+6*S, boardH+6*S, 6*S); ctx.stroke()
 
-  const tileDark = R.getImg('assets/backgrounds/board_bg_dark.jpg')
-  const tileLight = R.getImg('assets/backgrounds/board_bg_light.jpg')
+  const tileDark = R.getImg('assets/backgrounds/board_bg_dark1.jpg')
+  const tileLight = R.getImg('assets/backgrounds/board_bg_light1.jpg')
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -922,10 +950,8 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
         if (!ready) {
-          // 半透明遮罩表示冷却中
+          // 冷却中 — 不变暗头像，仅显示CD标记
           ctx.save()
-          ctx.fillStyle = 'rgba(0,0,0,0.4)'
-          ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
           // CD 圆形标签（右下角）
           const cdR = iconSize * 0.2
           const cdX = ix + iconSize - cdR - 2*S
@@ -1129,13 +1155,13 @@ function drawVictoryOverlay(g) {
 
   ctx.textAlign = 'center'
   // 标题 — 与首页弹窗风格一致：米色
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px sans-serif`
   ctx.fillText('战斗胜利', W*0.5, panelY + 42*S)
 
   if (hasSpeed) {
-    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px sans-serif`
     ctx.fillText(`⚡ 速通达成！(${g.lastTurnCount}回合击败)`, W*0.5, panelY + 64*S)
-    ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${10*S}px sans-serif`
     ctx.fillText('额外获得速通奖励', W*0.5, panelY + 80*S)
   }
 

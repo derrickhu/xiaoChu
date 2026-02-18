@@ -401,17 +401,23 @@ function _wrapText(text, maxW, fontSize) {
 function rReward(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   const { REWARD_TYPES } = require('../data/tower')
-  R.drawBg(g.af)
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`; ctx.textAlign = 'center'
+  R.drawRewardBg(g.af)
+  ctx.textAlign = 'center'
   const evtType = g.curEvent ? g.curEvent.type : ''
   let title = '战斗胜利 - 选择奖励'
   if (evtType === 'elite') title = '精英击败 - 选择灵兽'
   else if (evtType === 'boss') title = 'BOSS击败 - 选择法宝'
-  ctx.fillText(title, W*0.5, safeTop + 40*S)
+  // 标题：米金色书法风
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${18*S}px sans-serif`
+  ctx.fillText(title, W*0.5, safeTop + 38*S)
+  // 标题下方装饰分割线
+  const divW = W*0.36, divY = safeTop + 44*S
+  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); ctx.moveTo(W*0.5 - divW, divY); ctx.lineTo(W*0.5 + divW, divY); ctx.stroke()
   let headerOffset = 0
   if (g.lastSpeedKill) {
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${13*S}px sans-serif`
-    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁！`, W*0.5, safeTop + 60*S)
+    ctx.fillStyle = '#e8a840'; ctx.font = `${12*S}px sans-serif`
+    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁`, W*0.5, safeTop + 60*S)
     headerOffset = 22*S
   }
   if (!g.rewards) return
@@ -452,9 +458,18 @@ function rReward(g) {
     else if (rw.type === REWARD_TYPES.NEW_WEAPON) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
     else if (rw.type === REWARD_TYPES.BUFF) bgColor = selected ? 'rgba(77,171,255,0.2)' : 'rgba(77,171,255,0.06)'
 
-    ctx.fillStyle = bgColor
-    R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
-    ctx.strokeStyle = borderColor; ctx.lineWidth = selected ? 2.5*S : 1.5*S; ctx.stroke()
+    const rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
+    if (rewardCardBg && rewardCardBg.width) {
+      ctx.drawImage(rewardCardBg, cardX, cy, cardW, cardH)
+      if (selected) {
+        ctx.strokeStyle = borderColor; ctx.lineWidth = 2.5*S
+        R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
+      }
+    } else {
+      ctx.fillStyle = bgColor
+      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
+      ctx.strokeStyle = borderColor; ctx.lineWidth = selected ? 2.5*S : 1.5*S; ctx.stroke()
+    }
 
     if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
       // ====== 灵兽卡片：头像框 + 详细信息 ======
@@ -501,8 +516,9 @@ function rReward(g) {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
       ctx.fillText(p.name, infoX, iy)
       const nameW = ctx.measureText(p.name).width
-      ctx.fillStyle = ac ? ac.main + 'aa' : TH.dim; ctx.font = `${10*S}px sans-serif`
-      ctx.fillText(`${ATTR_NAME[p.attr]}属性`, infoX + nameW + 6*S, iy)
+      // 属性球代替文字
+      const orbR = 6*S
+      R.drawBead(infoX + nameW + 6*S + orbR, iy - orbR*0.4, orbR, p.attr, 0)
 
       // ATK + CD
       iy += 18*S
@@ -588,11 +604,13 @@ function rReward(g) {
         })
       }
 
-      // 属性相关提示
+      // 属性相关提示（属性球代替文字）
       if (w.attr) {
-        const wac = ATTR_COLOR[w.attr]
-        ctx.fillStyle = wac ? wac.main : TH.dim; ctx.font = `${10*S}px sans-serif`
-        ctx.fillText(`对应属性：${ATTR_NAME[w.attr] || w.attr}`, infoX, iy)
+        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+        ctx.fillText('对应属性：', infoX, iy)
+        const labelW = ctx.measureText('对应属性：').width
+        const orbR = 6*S
+        R.drawBead(infoX + labelW + orbR, iy - orbR*0.4, orbR, w.attr, 0)
       }
 
       // 背包容量
@@ -602,17 +620,17 @@ function rReward(g) {
 
     } else {
       // ====== 普通Buff卡片（保持原样式但更紧凑） ======
-      let typeTag = '', tagColor = TH.dim
-      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#ffd700' }
-      else { typeTag = '加成'; tagColor = '#4dabff' }
+      let typeTag = '', tagColor = '#999'
+      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#e0c070' }
+      else { typeTag = '加成'; tagColor = '#8ab4d8' }
 
       ctx.fillStyle = tagColor; ctx.font = `bold ${10*S}px sans-serif`; ctx.textAlign = 'left'
       ctx.fillText(typeTag, cardX + 14*S, cy + cardH*0.4)
 
-      ctx.fillStyle = TH.text; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
       ctx.fillText(rw.label, W*0.5, cy + cardH*0.55)
 
-      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+      ctx.fillStyle = '#999'; ctx.font = `${10*S}px sans-serif`
       ctx.fillText('全队永久生效', W*0.5, cy + cardH*0.8)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])
@@ -621,7 +639,16 @@ function rReward(g) {
   // 确认按钮
   if (g.selectedReward >= 0) {
     const bx = W*0.25, by = H*0.86, bw = W*0.5, bh = 44*S
-    R.drawBtn(bx, by, bw, bh, '确认', TH.accent, 16)
+    const confirmBtnImg = R.getImg('assets/ui/btn_reward_confirm.png')
+    if (confirmBtnImg && confirmBtnImg.width) {
+      ctx.drawImage(confirmBtnImg, bx, by, bw, bh)
+      ctx.fillStyle = '#4A2020'; ctx.font = `bold ${16*S}px sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('确认', bx + bw*0.5, by + bh*0.48)
+      ctx.textBaseline = 'alphabetic'
+    } else {
+      R.drawBtn(bx, by, bw, bh, '确认', TH.accent, 16)
+    }
     g._rewardConfirmRect = [bx, by, bw, bh]
   }
   drawBackBtn(g)
