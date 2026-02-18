@@ -37,7 +37,7 @@ function rBattle(g) {
     const eAreaH = eAreaBottom - eAreaTop
     const ac = ATTR_COLOR[g.enemy.attr]
     const themeBg = 'theme_' + (g.enemy.attr || 'metal')
-    R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr)
+    R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
     const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.jpg' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     if (enemyImg && enemyImg.width > 0) {

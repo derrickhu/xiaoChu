@@ -214,6 +214,33 @@ const CLOUD_ASSETS = {
   'assets/enemies/enemy_heart_3.jpg': 'assets/enemies/enemy_heart_3.jpg',
   'assets/enemies/enemy_mixed_1.jpg': 'assets/enemies/enemy_mixed_1.jpg',
   'assets/enemies/enemy_mixed_2.jpg': 'assets/enemies/enemy_mixed_2.jpg',
+  // 精英战斗背景（15张，5属性×3张）
+  'assets/enemies/bg_elite_m_1.jpg': 'assets/enemies/bg_elite_m_1.jpg',
+  'assets/enemies/bg_elite_m_2.jpg': 'assets/enemies/bg_elite_m_2.jpg',
+  'assets/enemies/bg_elite_m_3.jpg': 'assets/enemies/bg_elite_m_3.jpg',
+  'assets/enemies/bg_elite_w_1.jpg': 'assets/enemies/bg_elite_w_1.jpg',
+  'assets/enemies/bg_elite_w_2.jpg': 'assets/enemies/bg_elite_w_2.jpg',
+  'assets/enemies/bg_elite_w_3.jpg': 'assets/enemies/bg_elite_w_3.jpg',
+  'assets/enemies/bg_elite_s_1.jpg': 'assets/enemies/bg_elite_s_1.jpg',
+  'assets/enemies/bg_elite_s_2.jpg': 'assets/enemies/bg_elite_s_2.jpg',
+  'assets/enemies/bg_elite_s_3.jpg': 'assets/enemies/bg_elite_s_3.jpg',
+  'assets/enemies/bg_elite_f_1.jpg': 'assets/enemies/bg_elite_f_1.jpg',
+  'assets/enemies/bg_elite_f_2.jpg': 'assets/enemies/bg_elite_f_2.jpg',
+  'assets/enemies/bg_elite_f_3.jpg': 'assets/enemies/bg_elite_f_3.jpg',
+  'assets/enemies/bg_elite_e_1.jpg': 'assets/enemies/bg_elite_e_1.jpg',
+  'assets/enemies/bg_elite_e_2.jpg': 'assets/enemies/bg_elite_e_2.jpg',
+  'assets/enemies/bg_elite_e_3.jpg': 'assets/enemies/bg_elite_e_3.jpg',
+  // BOSS战斗背景（10张）
+  'assets/enemies/bg_boss_1.jpg': 'assets/enemies/bg_boss_1.jpg',
+  'assets/enemies/bg_boss_2.jpg': 'assets/enemies/bg_boss_2.jpg',
+  'assets/enemies/bg_boss_3.jpg': 'assets/enemies/bg_boss_3.jpg',
+  'assets/enemies/bg_boss_4.jpg': 'assets/enemies/bg_boss_4.jpg',
+  'assets/enemies/bg_boss_5.jpg': 'assets/enemies/bg_boss_5.jpg',
+  'assets/enemies/bg_boss_6.jpg': 'assets/enemies/bg_boss_6.jpg',
+  'assets/enemies/bg_boss_7.jpg': 'assets/enemies/bg_boss_7.jpg',
+  'assets/enemies/bg_boss_8.jpg': 'assets/enemies/bg_boss_8.jpg',
+  'assets/enemies/bg_boss_9.jpg': 'assets/enemies/bg_boss_9.jpg',
+  'assets/enemies/bg_boss_10.jpg': 'assets/enemies/bg_boss_10.jpg',
 }
 
 class Render {
@@ -393,23 +420,39 @@ class Render {
       g.addColorStop(0,'#1a1035'); g.addColorStop(0.5,'#0d0d2a'); g.addColorStop(1,'#050510')
       c.fillStyle = g; c.fillRect(0,0,W,H)
     }
-    // 全屏暗化遮罩（让背景图不抢文字）
-    c.save()
-    const overlay = c.createLinearGradient(0,0,0,H)
-    overlay.addColorStop(0,'rgba(0,0,0,0.35)')
-    overlay.addColorStop(0.4,'rgba(0,0,0,0.5)')
-    overlay.addColorStop(1,'rgba(0,0,0,0.7)')
-    c.fillStyle = overlay; c.fillRect(0,0,W,H)
-    c.restore()
+
   }
 
   drawLoadingBg(frame) {
     const {ctx:c,W,H} = this
-    const img = this.getImg('assets/backgrounds/home_bg.jpg')
+    const img = this.getImg('assets/backgrounds/loading_bg.png')
     if (img && img.width > 0) {
       const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
       c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
-      c.save(); c.globalAlpha=0.3; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
+  drawShopBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/shop_bg.png')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
+  drawAdventureBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/adventure_bg.png')
+    if (img && img.width > 0) {
+      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
+      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -434,14 +477,18 @@ class Render {
   }
 
   /** 绘制怪物区主题背景（仅覆盖怪物区域） */
-  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom, battleTheme) {
+  drawEnemyAreaBg(frame, themeBg, areaTop, areaBottom, battleTheme, customBg) {
     const {ctx:c,W,S} = this
     const theme = Render.THEME_BG[themeBg] || Render.THEME_BG.theme_metal
     const areaH = areaBottom - areaTop
 
-    // 按属性匹配背景图：battle_{属性}.jpg，默认用 metal
+    // 优先使用Boss/精英专属背景，其次按属性匹配
     let bgImg = null
-    if (battleTheme) {
+    if (customBg) {
+      bgImg = this.getImg(`assets/${customBg}.jpg`)
+      if (!bgImg || !bgImg.width) bgImg = null
+    }
+    if (!bgImg && battleTheme) {
       bgImg = this.getImg(`assets/battle/battle_${battleTheme}.jpg`)
       if (!bgImg || !bgImg.width) bgImg = null
     }
