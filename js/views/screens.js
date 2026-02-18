@@ -3,66 +3,142 @@
  * 以及通用 UI 组件：返回按钮、弹窗
  */
 const V = require('./env')
-const { ATTR_COLOR } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 
 // ===== Loading =====
 function rLoading(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawLoadingBg(g.af)
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${28*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('五行通天塔', W*0.5, H*0.4)
-  ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
+
+  // 进度计算
   const p = g._cloudLoadProgress
+  let pct = 0
   if (p.total > 0) {
     const done = p.loaded + p.failed
-    const pct = Math.floor(done / p.total * 100)
-    ctx.fillText(`加载资源中... ${pct}%`, W*0.5, H*0.5)
-    const barW = W * 0.5, barH = 6 * S, barX = W * 0.25, barY = H * 0.54
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'
-    ctx.fillRect(barX, barY, barW, barH)
-    ctx.fillStyle = TH.accent
-    ctx.fillRect(barX, barY, barW * (done / p.total), barH)
-  } else {
-    ctx.fillText('正在连接...', W*0.5, H*0.5)
+    pct = done / p.total
   }
+
+  // 进度条参数 — 位于画面底部
+  const barW = W * 0.6
+  const barH = 10 * S
+  const barX = (W - barW) / 2
+  const barY = H - 60 * S
+  const radius = barH / 2
+
+  // 进度条底槽（半透明白色，圆角）
+  ctx.save()
+  ctx.beginPath()
+  R.rr(barX, barY, barW, barH, radius)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+  ctx.fill()
+
+  // 进度条填充（金色渐变，圆角，带发光）
+  const fillW = Math.max(barH, barW * pct)
+  if (pct > 0) {
+    ctx.beginPath()
+    R.rr(barX, barY, fillW, barH, radius)
+    const grad = ctx.createLinearGradient(barX, barY, barX + fillW, barY)
+    grad.addColorStop(0, '#f0a030')
+    grad.addColorStop(0.5, '#ffd700')
+    grad.addColorStop(1, '#ffe066')
+    ctx.fillStyle = grad
+    ctx.fill()
+
+    // 高光条纹
+    ctx.beginPath()
+    R.rr(barX, barY, fillW, barH * 0.45, radius)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+    ctx.fill()
+
+    // 外发光
+    ctx.shadowColor = '#ffd700'
+    ctx.shadowBlur = 8 * S
+    ctx.beginPath()
+    R.rr(barX, barY, fillW, barH, radius)
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.15)'
+    ctx.fill()
+    ctx.shadowBlur = 0
+  }
+  ctx.restore()
 }
 
 // ===== Title =====
+function _drawImgBtn(ctx, R, img, x, y, w, h, text, fontSize, S) {
+  if (img && img.width > 0) {
+    ctx.drawImage(img, x, y, w, h)
+  } else {
+    // fallback: 金色渐变圆角按钮
+    const r = h * 0.4
+    const grad = ctx.createLinearGradient(x, y, x, y + h)
+    grad.addColorStop(0, '#f5d98a'); grad.addColorStop(0.5, '#d4a84b'); grad.addColorStop(1, '#b8862d')
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y)
+    ctx.arcTo(x + w, y, x + w, y + r, r)
+    ctx.lineTo(x + w, y + h - r)
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+    ctx.lineTo(x + r, y + h)
+    ctx.arcTo(x, y + h, x, y + h - r, r)
+    ctx.lineTo(x, y + r)
+    ctx.arcTo(x, y, x + r, y, r)
+    ctx.closePath(); ctx.fill()
+  }
+  // 按钮上叠加文字
+  if (text) {
+    ctx.save()
+    ctx.fillStyle = '#5a2d0c'
+    ctx.font = `bold ${fontSize * S}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(255,230,180,0.6)'; ctx.shadowBlur = 2 * S
+    ctx.fillText(text, x + w / 2, y + h / 2)
+    ctx.shadowBlur = 0
+    ctx.restore()
+  }
+}
+
 function rTitle(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${32*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('五行通天塔', W*0.5, H*0.22)
-  ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
-  ctx.fillText(`最高记录：第 ${g.storage.bestFloor} 层`, W*0.5, H*0.30)
-  ctx.fillText(`挑战次数：${g.storage.totalRuns}`, W*0.5, H*0.35)
+
+  const imgContinue = R.getImg('assets/ui/btn_continue.png')
+  const imgStart = R.getImg('assets/ui/btn_start.png')
+  const imgRank = R.getImg('assets/ui/btn_rank.png')
+
+  // 按钮宽度占屏幕60%，高度按 4:1 宽高比
+  const btnW = W * 0.6, btnH = btnW / 4
+  const btnX = (W - btnW) / 2
+  // 底部小按钮
+  const smallW = (W * 0.7 - 8 * S) / 2, smallH = smallW / 4, gap = 8 * S, smallX = W * 0.15
 
   const hasSave = g.storage.hasSavedRun()
   if (hasSave) {
     const saved = g.storage.loadRunState()
-    const cbx = W*0.25, cby = H*0.48, cbw = W*0.5, cbh = 50*S
-    R.drawBtn(cbx, cby, cbw, cbh, `继续挑战 (第${saved.floor}层)`, TH.accent, 16)
-    g._titleContinueRect = [cbx, cby, cbw, cbh]
-    const bx = W*0.25, by = H*0.60, bw = W*0.5, bh = 44*S
-    R.drawBtn(bx, by, bw, bh, '开始挑战', TH.info, 15)
-    g._titleBtnRect = [bx, by, bw, bh]
-    const rowY = H*0.72, btnH2 = 40*S, gap = 8*S
-    const halfW = (W*0.7 - gap) / 2, startX = W*0.15
-    R.drawBtn(startX, rowY, halfW, btnH2, '历史统计', TH.info, 14)
-    g._statBtnRect = [startX, rowY, halfW, btnH2]
-    R.drawBtn(startX + halfW + gap, rowY, halfW, btnH2, '🏆 排行榜', '#e6a817', 14)
-    g._rankBtnRect = [startX + halfW + gap, rowY, halfW, btnH2]
+    // 继续挑战
+    const cby = H * 0.48
+    _drawImgBtn(ctx, R, imgContinue, btnX, cby, btnW, btnH, `继续挑战 (第${saved.floor}层)`, 16, S)
+    g._titleContinueRect = [btnX, cby, btnW, btnH]
+    // 开始挑战
+    const sby = H * 0.60
+    _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 15, S)
+    g._titleBtnRect = [btnX, sby, btnW, btnH]
+    // 底部两按钮
+    const rowY = H * 0.72
+    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '历史统计', 13, S)
+    g._statBtnRect = [smallX, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '排行榜', 13, S)
+    g._rankBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
   } else {
     g._titleContinueRect = null
-    const bx = W*0.25, by = H*0.55, bw = W*0.5, bh = 50*S
-    R.drawBtn(bx, by, bw, bh, '开始挑战', TH.accent, 18)
-    g._titleBtnRect = [bx, by, bw, bh]
-    const rowY = H*0.67, btnH2 = 40*S, gap = 8*S
-    const halfW = (W*0.7 - gap) / 2, startX = W*0.15
-    R.drawBtn(startX, rowY, halfW, btnH2, '历史统计', TH.info, 14)
-    g._statBtnRect = [startX, rowY, halfW, btnH2]
-    R.drawBtn(startX + halfW + gap, rowY, halfW, btnH2, '🏆 排行榜', '#e6a817', 14)
-    g._rankBtnRect = [startX + halfW + gap, rowY, halfW, btnH2]
+    // 开始挑战
+    const sby = H * 0.55
+    _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 18, S)
+    g._titleBtnRect = [btnX, sby, btnW, btnH]
+    // 底部两按钮
+    const rowY = H * 0.67
+    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '历史统计', 13, S)
+    g._statBtnRect = [smallX, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '排行榜', 13, S)
+    g._rankBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
   }
 
   if (g.showNewRunConfirm) drawNewRunConfirm(g)
@@ -301,6 +377,20 @@ function rStats(g) {
 }
 
 // ===== Reward =====
+function _wrapText(text, maxW, fontSize) {
+  const S = V.S
+  const charW = fontSize * S * 0.55
+  const maxChars = Math.floor(maxW / charW)
+  if (maxChars <= 0) return [text]
+  const result = []
+  let rest = text
+  while (rest.length > 0) {
+    result.push(rest.substring(0, maxChars))
+    rest = rest.substring(maxChars)
+  }
+  return result.length > 0 ? result : [text]
+}
+
 function rReward(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   const { REWARD_TYPES } = require('../data/tower')
@@ -319,48 +409,211 @@ function rReward(g) {
   }
   if (!g.rewards) return
   const rewardCount = g.rewards.length
-  const maxCardArea = H * 0.58
+  const isPetOrWeapon = g.rewards.some(rw => rw.type === REWARD_TYPES.NEW_PET || rw.type === REWARD_TYPES.NEW_WEAPON)
+  const maxCardArea = H * 0.62
   const gap = 10*S
-  const cardH = Math.min(78*S, (maxCardArea - (rewardCount-1)*gap) / rewardCount)
-  const cardW = W*0.8
-  const startY = H*0.16 + headerOffset
+  const defaultCardH = isPetOrWeapon ? 120*S : 78*S
+  const cardH = Math.min(defaultCardH, (maxCardArea - (rewardCount-1)*gap) / rewardCount)
+  const cardW = W*0.88
+  const cardX = (W - cardW) / 2
+  const startY = H*0.14 + headerOffset
   g._rewardRects = []
+
+  const framePetMap = {
+    metal: R.getImg('assets/ui/frame_pet_metal.png'),
+    wood:  R.getImg('assets/ui/frame_pet_wood.png'),
+    water: R.getImg('assets/ui/frame_pet_water.png'),
+    fire:  R.getImg('assets/ui/frame_pet_fire.png'),
+    earth: R.getImg('assets/ui/frame_pet_earth.png'),
+  }
+  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
+
   g.rewards.forEach((rw, i) => {
     const cy = startY + i*(cardH+gap)
     const selected = g.selectedReward === i
     const isSpeedBuff = rw.isSpeed === true
+
+    // 卡片背景
     let bgColor = TH.card
+    let borderColor = selected ? TH.accent : TH.cardB
     if (isSpeedBuff) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
-    else if (rw.type === REWARD_TYPES.NEW_PET) bgColor = selected ? 'rgba(77,204,77,0.2)' : 'rgba(77,204,77,0.08)'
+    else if (rw.type === REWARD_TYPES.NEW_PET) {
+      const ac = ATTR_COLOR[rw.data.attr]
+      bgColor = selected ? (ac ? ac.main + '33' : 'rgba(77,204,77,0.2)') : (ac ? ac.bg + 'cc' : 'rgba(77,204,77,0.08)')
+      if (selected && ac) borderColor = ac.main
+    }
     else if (rw.type === REWARD_TYPES.NEW_WEAPON) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
     else if (rw.type === REWARD_TYPES.BUFF) bgColor = selected ? 'rgba(77,171,255,0.2)' : 'rgba(77,171,255,0.06)'
+
     ctx.fillStyle = bgColor
-    R.rr(W*0.1, cy, cardW, cardH, 10*S); ctx.fill()
-    ctx.strokeStyle = selected ? TH.accent : TH.cardB; ctx.lineWidth = 2*S; ctx.stroke()
-    let typeTag = ''
-    let tagColor = TH.dim
-    if (isSpeedBuff) { typeTag = '【速通】'; tagColor = '#ffd700' }
-    else if (rw.type === REWARD_TYPES.NEW_PET) { typeTag = '【灵兽】'; tagColor = '#4dcc4d' }
-    else if (rw.type === REWARD_TYPES.NEW_WEAPON) { typeTag = '【法宝】'; tagColor = '#ffd700' }
-    else if (rw.type === REWARD_TYPES.BUFF) { typeTag = '【加成】'; tagColor = '#4dabff' }
-    ctx.fillStyle = tagColor; ctx.font = `bold ${11*S}px sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText(typeTag, W*0.5, cy + 16*S)
-    ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
-    ctx.fillText(rw.label, W*0.5, cy + cardH*0.5)
-    if (rw.type === REWARD_TYPES.NEW_PET) {
-      ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
-      ctx.fillText(`→ 进入灵兽背包 (${g.petBag.length}/8)`, W*0.5, cy + cardH*0.78)
-    } else if (rw.type === REWARD_TYPES.NEW_WEAPON) {
-      ctx.fillStyle = TH.sub; ctx.font = `${10*S}px sans-serif`
-      ctx.fillText(`→ 进入法宝背包 (${g.weaponBag.length}/4)`, W*0.5, cy + cardH*0.78)
-    } else if (rw.type === REWARD_TYPES.BUFF) {
+    R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
+    ctx.strokeStyle = borderColor; ctx.lineWidth = selected ? 2.5*S : 1.5*S; ctx.stroke()
+
+    if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
+      // ====== 灵兽卡片：头像框 + 详细信息 ======
+      const p = rw.data
+      const ac = ATTR_COLOR[p.attr]
+      const avSz = Math.min(56*S, cardH - 16*S)
+      const avX = cardX + 12*S
+      const avY = cy + (cardH - avSz) / 2
+
+      // 头像背景
+      ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
+      R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
+
+      // 头像图片
+      const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+      if (petAvatar && petAvatar.width > 0) {
+        ctx.save()
+        ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()
+        const aw = petAvatar.width, ah = petAvatar.height
+        const dw = avSz - 2, dh = dw * (ah/aw)
+        ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
+        ctx.restore()
+      } else {
+        ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${avSz*0.35}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(ATTR_NAME[p.attr] || '', avX + avSz/2, avY + avSz/2)
+        ctx.textBaseline = 'alphabetic'
+      }
+
+      // 头像框
+      const petFrame = framePetMap[p.attr] || framePetMap.metal
+      if (petFrame && petFrame.width > 0) {
+        const fScale = 1.12, fSz = avSz * fScale, fOff = (fSz - avSz)/2
+        ctx.drawImage(petFrame, avX - fOff, avY - fOff, fSz, fSz)
+      }
+
+      // 右侧文字信息
+      const infoX = avX + avSz + 14*S
+      const textMaxW = cardX + cardW - infoX - 10*S
+      let iy = cy + 16*S
+
+      // 名称 + 属性标签
+      ctx.textAlign = 'left'
+      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText(p.name, infoX, iy)
+      const nameW = ctx.measureText(p.name).width
+      ctx.fillStyle = ac ? ac.main + 'aa' : TH.dim; ctx.font = `${10*S}px sans-serif`
+      ctx.fillText(`${ATTR_NAME[p.attr]}属性`, infoX + nameW + 6*S, iy)
+
+      // ATK + CD
+      iy += 18*S
+      ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
+      ctx.fillText(`ATK: ${p.atk}    CD: ${p.cd}回合`, infoX, iy)
+
+      // 技能
+      if (p.skill) {
+        iy += 18*S
+        ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px sans-serif`
+        ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
+        iy += 16*S
+        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+        const descLines = _wrapText(p.skill.desc, textMaxW, 10)
+        descLines.forEach(line => {
+          ctx.fillText(line, infoX, iy)
+          iy += 14*S
+        })
+      }
+
+      // 背包容量
+      ctx.textAlign = 'right'
+      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`
+      ctx.fillText(`背包 ${g.petBag.length}/8`, cardX + cardW - 12*S, cy + cardH - 8*S)
+
+    } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
+      // ====== 法宝卡片：图标 + 详细信息 ======
+      const w = rw.data
+      const avSz = Math.min(56*S, cardH - 16*S)
+      const avX = cardX + 12*S
+      const avY = cy + (cardH - avSz) / 2
+
+      // 法宝图标背景
+      ctx.fillStyle = '#2a2030'
+      R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
+
+      // 法宝图标（尝试加载图片）
+      const wpnImg = R.getImg(`assets/weapons/weapon_${w.id}.png`)
+      if (wpnImg && wpnImg.width > 0) {
+        ctx.save()
+        ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()
+        const aw = wpnImg.width, ah = wpnImg.height
+        const dw = avSz - 2, dh = dw * (ah/aw)
+        ctx.drawImage(wpnImg, avX+1, avY+1+(avSz-2-dh), dw, dh)
+        ctx.restore()
+      } else {
+        // 降级：绘制法宝文字符号
+        ctx.fillStyle = '#ffd700'; ctx.font = `bold ${avSz*0.4}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('⚔', avX + avSz/2, avY + avSz/2)
+        ctx.textBaseline = 'alphabetic'
+      }
+
+      // 法宝框
+      if (frameWeapon && frameWeapon.width > 0) {
+        const fScale = 1.12, fSz = avSz * fScale, fOff = (fSz - avSz)/2
+        ctx.drawImage(frameWeapon, avX - fOff, avY - fOff, fSz, fSz)
+      }
+
+      // 右侧文字信息
+      const infoX = avX + avSz + 14*S
+      const textMaxW = cardX + cardW - infoX - 10*S
+      let iy = cy + 18*S
+
+      // 法宝名称
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillText(w.name, infoX, iy)
+
+      // 法宝类型标签
+      const nameW = ctx.measureText(w.name).width
+      ctx.fillStyle = '#ffd700aa'; ctx.font = `${10*S}px sans-serif`
+      ctx.fillText('法宝', infoX + nameW + 6*S, iy)
+
+      // 法宝效果描述
+      iy += 20*S
+      ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
+      if (w.desc) {
+        const descLines = _wrapText(w.desc, textMaxW, 11)
+        descLines.forEach(line => {
+          ctx.fillText(line, infoX, iy)
+          iy += 16*S
+        })
+      }
+
+      // 属性相关提示
+      if (w.attr) {
+        const wac = ATTR_COLOR[w.attr]
+        ctx.fillStyle = wac ? wac.main : TH.dim; ctx.font = `${10*S}px sans-serif`
+        ctx.fillText(`对应属性：${ATTR_NAME[w.attr] || w.attr}`, infoX, iy)
+      }
+
+      // 背包容量
+      ctx.textAlign = 'right'
+      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`
+      ctx.fillText(`背包 ${g.weaponBag.length}/4`, cardX + cardW - 12*S, cy + cardH - 8*S)
+
+    } else {
+      // ====== 普通Buff卡片（保持原样式但更紧凑） ======
+      let typeTag = '', tagColor = TH.dim
+      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#ffd700' }
+      else { typeTag = '加成'; tagColor = '#4dabff' }
+
+      ctx.fillStyle = tagColor; ctx.font = `bold ${10*S}px sans-serif`; ctx.textAlign = 'left'
+      ctx.fillText(typeTag, cardX + 14*S, cy + cardH*0.4)
+
+      ctx.fillStyle = TH.text; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText(rw.label, W*0.5, cy + cardH*0.55)
+
       ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
-      ctx.fillText('全队永久生效', W*0.5, cy + cardH*0.78)
+      ctx.fillText('全队永久生效', W*0.5, cy + cardH*0.8)
     }
-    g._rewardRects.push([W*0.1, cy, cardW, cardH])
+    g._rewardRects.push([cardX, cy, cardW, cardH])
   })
+
+  // 确认按钮
   if (g.selectedReward >= 0) {
-    const bx = W*0.25, by = H*0.82, bw = W*0.5, bh = 44*S
+    const bx = W*0.25, by = H*0.86, bw = W*0.5, bh = 44*S
     R.drawBtn(bx, by, bw, bh, '确认', TH.accent, 16)
     g._rewardConfirmRect = [bx, by, bw, bh]
   }
@@ -370,7 +623,7 @@ function rReward(g) {
 // ===== Shop =====
 function rShop(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawBg(g.af)
+  R.drawShopBg(g.af)
   ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('神秘商店', W*0.5, safeTop + 40*S)
   ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
@@ -415,7 +668,7 @@ function rRest(g) {
 // ===== Adventure =====
 function rAdventure(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawBg(g.af)
+  R.drawAdventureBg(g.af)
   ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('奇遇', W*0.5, safeTop + 40*S)
   if (!g.adventureData) return
