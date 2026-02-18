@@ -306,10 +306,7 @@ function drawPrepareTip(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.45)'
   ctx.fillRect(0, 0, W, H)
 
-  ctx.fillStyle = 'rgba(20,20,36,0.96)'
-  R.rr(tipX, tipY, tipW, totalH, 10*S); ctx.fill()
-  ctx.strokeStyle = TH.accent; ctx.lineWidth = 1.5*S
-  R.rr(tipX, tipY, tipW, totalH, 10*S); ctx.stroke()
+  R.drawDialogPanel(tipX, tipY, tipW, totalH)
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
