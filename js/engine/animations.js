@@ -65,13 +65,15 @@ function updateAnimations(g) {
 }
 
 function _updateComboAnim(g, S) {
-  if (!(g._comboAnim && g._comboAnim.timer < 60)) return
-  // 消除/掉落/攻击展示阶段都冻结timer，避免combo文字在连锁过程中提前淡出
+  if (!g._comboAnim) return
   const inBattle = g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow'
-  const freezeTimer = inBattle && g._comboAnim.timer >= 40
-  if (!freezeTimer) g._comboAnim.timer++
+  // 战斗中且弹入动画已完成(timer>=10)时冻结timer，确保combo文字持续可见
+  // 仅在非战斗状态(preEnemy等)才允许timer继续推进淡出
+  const freezeTimer = inBattle && g._comboAnim.timer >= 10
+  if (!freezeTimer && g._comboAnim.timer < 60) g._comboAnim.timer++
   const t = g._comboAnim.timer
   if (t <= 10) {
+    // 弹入阶段：从大缩小到1.0
     const p = t / 10
     const initScale = g._comboAnim._initScale || 2.5
     if (p < 0.4) g._comboAnim.scale = initScale - (initScale - 0.7) * (p / 0.4)
@@ -79,22 +81,24 @@ function _updateComboAnim(g, S) {
     else g._comboAnim.scale = 1.0
     g._comboAnim.alpha = 1
     g._comboAnim.offsetY = 0
+  } else if (inBattle) {
+    // 战斗进行中：始终保持可见（含呼吸微动）
+    const breathP = Math.sin((t - 10) * 0.2) * 0.04
+    g._comboAnim.scale = 1.0 + breathP
+    g._comboAnim.alpha = 1
+    g._comboAnim.offsetY = 0
   } else if (t <= 40) {
+    // 战斗结束后仍在呼吸区间
     const breathP = Math.sin((t - 10) * 0.2) * 0.04
     g._comboAnim.scale = 1.0 + breathP
     g._comboAnim.alpha = 1
     g._comboAnim.offsetY = 0
   } else {
-    if (inBattle) {
-      g._comboAnim.scale = 1.0
-      g._comboAnim.alpha = 1
-      g._comboAnim.offsetY = 0
-    } else {
-      const fadeP = (t - 40) / 20
-      g._comboAnim.scale = 1.0 - 0.12 * fadeP
-      g._comboAnim.alpha = 1 - fadeP
-      g._comboAnim.offsetY = -fadeP * 25 * S
-    }
+    // 淡出阶段（仅非战斗状态才到这里）
+    const fadeP = Math.min(1, (t - 40) / 20)
+    g._comboAnim.scale = 1.0 - 0.12 * fadeP
+    g._comboAnim.alpha = 1 - fadeP
+    g._comboAnim.offsetY = -fadeP * 25 * S
   }
   // 伤害部分延迟5帧后弹入
   const dt = t - 5
@@ -123,11 +127,7 @@ function _updateComboAnim(g, S) {
     else if (pp < 0.85) g._comboAnim.pctScale = 0.8 + 0.3 * ((pp - 0.6) / 0.25)
     else g._comboAnim.pctScale = 1.1
     g._comboAnim.pctAlpha = Math.min(1, pt / 5)
-  } else if (pt > 10 && pt <= 30) {
-    g._comboAnim.pctOffX = 0
-    g._comboAnim.pctScale = 1.1 - 0.1 * Math.min(1, (pt - 10) / 5)
-    g._comboAnim.pctAlpha = 1
-  } else if (pt > 30) {
+  } else if (pt > 10) {
     g._comboAnim.pctOffX = 0
     g._comboAnim.pctScale = 1.0
     g._comboAnim.pctAlpha = 1

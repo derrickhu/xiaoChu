@@ -308,14 +308,14 @@ function _drawCombo(g, cellSize, boardTop) {
 
   const ca = g._comboAnim || { num: g.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
   const comboScale = ca.scale || 1
-  const stillActive = g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow'
-  const comboAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.alpha != null ? ca.alpha : 1)
-  const comboOffY = (ca.timer >= 60 && stillActive) ? 0 : (ca.offsetY || 0)
-  const dmgScale = (ca.timer >= 60 && stillActive) ? 1 : (ca.dmgScale || 0)
-  const dmgAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.dmgAlpha || 0)
-  const pctScale = (ca.timer >= 60 && stillActive) ? 1 : (ca.pctScale || 0)
-  const pctAlpha = (ca.timer >= 60 && stillActive) ? 1 : (ca.pctAlpha || 0)
-  const pctOffX = (ca.timer >= 60 && stillActive) ? 0 : (ca.pctOffX || 0)
+  // 动画端已保证战斗中 alpha=1，这里直接取值
+  const comboAlpha = ca.alpha != null ? Math.max(ca.alpha, 0) : 1
+  const comboOffY = ca.offsetY || 0
+  const dmgScale = ca.dmgScale || 0
+  const dmgAlpha = ca.dmgAlpha || 0
+  const pctScale = ca.pctScale || 0
+  const pctAlpha = ca.pctAlpha || 0
+  const pctOffX = ca.pctOffX || 0
 
   const comboCx = W * 0.5
   const comboCy = g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
