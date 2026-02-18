@@ -891,7 +891,7 @@ function drawVictoryOverlay(g) {
     ctx.fillText('额外获得速通奖励', W*0.5, H*0.44)
   }
   const bx = W*0.25, by = H*0.52, bw = W*0.5, bh = 46*S
-  R.drawBtn(bx, by, bw, bh, '选择奖励', TH.accent, 16)
+  R.drawDialogBtn(bx, by, bw, bh, '选择奖励', 'confirm')
   g._victoryBtnRect = [bx, by, bw, bh]
 }
 
@@ -901,7 +901,7 @@ function drawDefeatOverlay(g) {
   ctx.fillStyle = TH.danger; ctx.font = `bold ${28*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('修士陨落...', W*0.5, H*0.35)
   const bx = W*0.25, by = H*0.5, bw = W*0.5, bh = 46*S
-  R.drawBtn(bx, by, bw, bh, '结算', TH.info, 16)
+  R.drawDialogBtn(bx, by, bw, bh, '结算', 'cancel')
   g._defeatBtnRect = [bx, by, bw, bh]
 }
 
@@ -910,10 +910,7 @@ function drawAdReviveOverlay(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
   const panelW = W * 0.78, panelH = 240*S
   const panelX = (W - panelW) / 2, panelY = H * 0.28
-  ctx.fillStyle = 'rgba(16,16,32,0.96)'
-  R.rr(panelX, panelY, panelW, panelH, 14*S); ctx.fill()
-  ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
-  R.rr(panelX, panelY, panelW, panelH, 14*S); ctx.stroke()
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
   ctx.save()
   ctx.beginPath()
   R.rr(panelX, panelY, panelW, 4*S, 14*S); ctx.clip()
@@ -931,19 +928,11 @@ function drawAdReviveOverlay(g) {
   ctx.fillText('每轮通关仅有一次复活机会', W*0.5, panelY + 116*S)
   const btnW = panelW * 0.7, btnH = 44*S
   const btnX = (W - btnW) / 2, btnY = panelY + 140*S
-  ctx.fillStyle = '#ffd700'
-  R.rr(btnX, btnY, btnW, btnH, 10*S); ctx.fill()
-  ctx.fillStyle = '#1a1a2e'; ctx.font = `bold ${16*S}px sans-serif`
-  ctx.fillText('▶ 观看广告复活', W*0.5, btnY + btnH*0.5 + 6*S)
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '▶ 观看广告复活', 'confirm')
   g._adReviveBtnRect = [btnX, btnY, btnW, btnH]
   const skipW = panelW * 0.5, skipH = 36*S
   const skipX = (W - skipW) / 2, skipY = panelY + 196*S
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'
-  R.rr(skipX, skipY, skipW, skipH, 8*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1*S
-  R.rr(skipX, skipY, skipW, skipH, 8*S); ctx.stroke()
-  ctx.fillStyle = TH.dim; ctx.font = `${13*S}px sans-serif`
-  ctx.fillText('放弃治疗', W*0.5, skipY + skipH*0.5 + 5*S)
+  R.drawDialogBtn(skipX, skipY, skipW, skipH, '放弃治疗', 'cancel')
   g._adReviveSkipRect = [skipX, skipY, skipW, skipH]
 }
 
