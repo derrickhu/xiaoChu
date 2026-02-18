@@ -292,7 +292,12 @@ function generateMonster(floor) {
   if (floor >= 21) skills.push(_pick(['poison','seal','convert']))
   if (floor >= 45) skills.push(_pick(['atkBuff','defDown','healBlock']))
 
-  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.3), skills, avatar: `enemies/enemy_${attr}_1` }
+  // 怪物图片：mon_{属性缩写}_{1-7}，根据名字索引匹配
+  const attrKeyMap = { metal:'m', wood:'w', earth:'e', water:'s', fire:'f' }
+  const monKey = attrKeyMap[attr] || 'm'
+  const monIdx = nameIdx + 1  // 1~7
+
+  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.3), skills, avatar: `enemies/mon_${monKey}_${monIdx}` }
 }
 
 // ===== 生成精英怪 =====
@@ -317,10 +322,13 @@ function generateElite(floor) {
   while (s2 === s1) s2 = _pick(skillPool)
   base.skills = [s1, s2]
 
-  base.avatar = `enemies/enemy_${attr}_2`
-  // 精英专属战斗背景（每属性3张随机选1张）
+  // 精英图片：elite_{属性缩写}_{1-3}，根据名字索引匹配
   const eliteAttrMap = { metal:'m', wood:'w', water:'s', fire:'f', earth:'e' }
   const eliteKey = eliteAttrMap[attr] || 'm'
+  const eliteNames = ELITE_NAMES[attr]
+  const eliteIdx = eliteNames.indexOf(base.name) + 1 || _rand(1,3)
+  base.avatar = `enemies/elite_${eliteKey}_${eliteIdx}`
+  // 精英专属战斗背景（每属性3张随机选1张）
   base.battleBg = `enemies/bg_elite_${eliteKey}_${_rand(1,3)}`
   return base
 }
@@ -352,9 +360,10 @@ function generateBoss(floor) {
   const defSkills  = ['selfHeal','atkBuff','defDown','healBlock']
   base.skills = [_pick(ctrlSkills), _pick(defSkills)]
 
-  base.avatar = `enemies/enemy_${base.attr}_3`
-  // BOSS专属战斗背景（10个Boss层对应10张背景）
+  // BOSS图片：boss_{1-10}，根据bossIdx匹配
   const bossNum = Math.min(Math.max(1, bossIdx + 1), 10)
+  base.avatar = `enemies/boss_${bossNum}`
+  // BOSS专属战斗背景（10个Boss层对应10张背景）
   base.battleBg = `enemies/bg_boss_${bossNum}`
   return base
 }

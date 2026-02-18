@@ -1,6 +1,5 @@
 console.log('五行通天塔开始初始化...')
 
-
 try {
   require('./js/main')
   console.log('游戏初始化成功')
