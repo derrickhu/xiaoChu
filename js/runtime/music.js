@@ -24,9 +24,10 @@ class MusicManager {
     if (!this.bgmEnabled) return
     if (!this._bgm) {
       this._bgm = wx.createInnerAudioContext()
-      this._bgm.src = 'audio/bgm.m4a'
+      this._bgm.src = 'audio/bgm.mp3'
       this._bgm.loop = true
-      this._bgm.volume = 0.3
+      this._bgm.volume = 0.08
+      this._bgm.playbackRate = 2.0
     }
     this._bgm.play()
   }
@@ -64,9 +65,10 @@ class MusicManager {
     const scale = MusicManager.SCALE
     const n = Math.min(comboNum, 8)
     const pitch = scale[n - 1]
-    // 音量：从0.4平滑递增到0.85
-    const vol = Math.min(0.85, 0.4 + (comboNum - 1) * 0.065)
-    this._playSfxEx('audio/combo.wav', vol, pitch)
+    // 音量：从0.85平滑递增到1.0
+    const vol = Math.min(1.0, 0.85 + (comboNum - 1) * 0.025)
+    // 音阶整体提高：基础pitch × 1.3（约高大三度）
+    this._playSfxEx('audio/combo.mp3', vol, Math.min(2.0, pitch * 1.3))
 
     // combo 9+：进入第二个八度，用 levelup 音色叠加出更高音阶
     // 第二八度 idx: combo 9→Do(1.0), 10→Re(1.122) ...
@@ -79,9 +81,9 @@ class MusicManager {
 
     // 5连击(Sol)开始叠加轻打击音，增加节奏冲击感
     if (comboNum >= 8) {
-      this._playSfxEx('audio/attack.wav', 0.3, pitch)
+      this._playSfxEx('audio/attack.mp3', 0.3, pitch)
     } else if (comboNum >= 5) {
-      this._playSfxEx('audio/eliminate.wav', 0.2, pitch)
+      this._playSfxEx('audio/eliminate.mp3', 0.2, pitch)
     }
   }
 
@@ -100,8 +102,8 @@ class MusicManager {
       this._playSfxEx('audio/levelup.wav', 0.6, scale[4])  // Sol
       setTimeout(() => {
         if (this.enabled) {
-          this._playSfxEx('audio/combo.wav', 0.45, scale[6])  // Si
-          this._playSfxEx('audio/eliminate.wav', 0.35, scale[7]) // Do'
+          this._playSfxEx('audio/combo.mp3', 0.45, scale[6])  // Si
+          this._playSfxEx('audio/eliminate.mp3', 0.35, scale[7]) // Do'
         }
       }, 40)
     } else if (comboNum === 8) {
@@ -109,8 +111,8 @@ class MusicManager {
       this._playSfxEx('audio/skill.wav', 0.7, scale[7])  // Do'
       setTimeout(() => {
         if (this.enabled) {
-          this._playSfxEx('audio/combo.wav', 0.5, scale[4])  // Sol
-          this._playSfxEx('audio/attack.wav', 0.4, scale[7]) // Do'
+          this._playSfxEx('audio/combo.mp3', 0.5, scale[4])  // Sol
+          this._playSfxEx('audio/attack.mp3', 0.4, scale[7]) // Do'
         }
       }, 50)
     } else if (comboNum >= 12) {
@@ -120,7 +122,7 @@ class MusicManager {
         if (this.enabled) {
           this._playSfxEx('audio/victory.wav', 0.5, scale[4])  // Sol
           this._playSfxEx('audio/skill.wav', 0.4, scale[7])    // Do'
-          this._playSfxEx('audio/combo.wav', 0.35, scale[7])   // Do' 叠加
+          this._playSfxEx('audio/combo.mp3', 0.35, scale[7])   // Do' 叠加
         }
       }, 60)
     }
@@ -131,11 +133,11 @@ class MusicManager {
   playEliminate(count) {
     if (!this.enabled) return
     if (count >= 5) {
-      this._playSfxEx('audio/eliminate.wav', 0.7, 1.2)
+      this._playSfxEx('audio/eliminate.mp3', 0.7, 1.2)
     } else if (count === 4) {
-      this._playSfxEx('audio/eliminate.wav', 0.55, 1.1)
+      this._playSfxEx('audio/eliminate.mp3', 0.55, 1.1)
     } else {
-      this._playSfx('audio/eliminate.wav', 0.4)
+      this._playSfx('audio/eliminate.mp3', 0.4)
     }
   }
 
@@ -143,7 +145,7 @@ class MusicManager {
 
   playPickUp() {
     if (!this.enabled) return
-    this._playSfxEx('audio/eliminate.wav', 0.15, 1.5)
+    this._playSfxEx('audio/eliminate.mp3', 0.15, 1.5)
   }
 
   playSwap() {
@@ -156,9 +158,9 @@ class MusicManager {
 
   playCritHit() {
     if (!this.enabled) return
-    this._playSfxEx('audio/combo.wav', 0.7, 1.6)
+    this._playSfxEx('audio/combo.mp3', 0.7, 1.6)
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/attack.wav', 0.6, 0.7)
+      if (this.enabled) this._playSfxEx('audio/attack.mp3', 0.6, 0.7)
     }, 50)
   }
 
@@ -174,25 +176,25 @@ class MusicManager {
 
   playDragEnd() {
     if (!this.enabled) return
-    this._playSfxEx('audio/eliminate.wav', 0.2, 0.8)
+    this._playSfxEx('audio/eliminate.mp3', 0.2, 0.8)
   }
 
   // ============ 战斗音效（增强版） ============
 
   playAttack() {
     if (!this.enabled) return
-    this._playSfx('audio/attack.wav', 0.5)
+    this._playSfx('audio/attack.mp3', 0.5)
   }
 
   playAttackCrit() {
     if (!this.enabled) return
-    this._playSfxEx('audio/attack.wav', 0.65, 1.15)
+    this._playSfxEx('audio/attack.mp3', 0.65, 1.15)
     this.playCritHit()
   }
 
   playCombo() {
     if (!this.enabled) return
-    this._playSfx('audio/combo.wav')
+    this._playSfx('audio/combo.mp3')
   }
 
   playSkill() {

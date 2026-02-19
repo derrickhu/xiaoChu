@@ -41,9 +41,15 @@ function triggerPetSkill(g, pet, idx) {
     case 'convertBead': {
       const { ROWS, COLS } = V
       const targetAttr = sk.attr || pet.attr
+      const cells = []
       for (let i = 0; i < sk.count; i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].attr = targetAttr
+        if (g.board[r][c] && g.board[r][c].attr !== targetAttr) {
+          cells.push({ r, c, fromAttr: g.board[r][c].attr, toAttr: targetAttr })
+        }
+      }
+      if (cells.length) {
+        g._beadConvertAnim = { cells, timer: 0, phase: 'flash_old', duration: 48 }
       }
       break
     }
@@ -144,14 +150,16 @@ function triggerPetSkill(g, pet, idx) {
       // 将棋盘上所有fromAttr珠替换为toAttr珠
       const { ROWS, COLS } = V
       const from = sk.fromAttr, to = sk.toAttr || pet.attr
-      let replaced = 0
+      const cells = []
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           if (g.board[r][c] && g.board[r][c].attr === from) {
-            g.board[r][c].attr = to
-            replaced++
+            cells.push({ r, c, fromAttr: from, toAttr: to })
           }
         }
+      }
+      if (cells.length) {
+        g._beadConvertAnim = { cells, timer: 0, phase: 'flash_old', duration: 48 }
       }
       break
     }
