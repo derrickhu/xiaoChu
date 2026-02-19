@@ -481,6 +481,47 @@ Overall: triumphant, warm, contemplative — like standing in a celestial hall c
 
 ---
 
+## 十六、说明面板背景（明亮水彩风）
+
+**用途**：宠物详情、怪物详情、法宝详情等说明弹窗的面板背景，区别于暗色系的确认/操作弹窗  
+**尺寸**：宽高比约 4:3（如 800×600），圆角矩形  
+**文件**：`assets/ui/info_panel_bg.png`（生成后抠图去背景）  
+**背景**：纯黑色背景 #000000（方便抠图）
+
+**设计要求**：
+- 与现有暗色弹窗 (`dialog_bg.png`) 形成鲜明对比——**明亮、温暖、淡雅**
+- 风格贴近 Loading 页面和首页的水彩仙侠感：淡金、浅粉、薰衣草紫、奶白
+- 文字将使用深色（深棕、深金），需确保面板底色足够浅以保证可读性
+
+```
+A horizontal rounded-rectangle game UI information panel, approximately 4:3 aspect ratio, on a SOLID PURE BLACK background (#000000), Chinese xianxia watercolor ink style, BRIGHT and WARM — distinctly different from the dark dialog panels:
+
+Panel shape — elegant large rounded rectangle with refined double-line golden border: outer line is a thin ink-brush style warm gold line (#C9A84C) with subtle calligraphic variation, inner line is a thinner pale champagne-gold line (#DAC382) with ~4px gap between them. Corner areas have delicate golden 祥云 (auspicious cloud) ornamental flourishes extending slightly beyond the border, rendered in soft warm gold watercolor.
+
+Fill — BRIGHT semi-transparent warm gradient, resembling an ancient celestial scroll or jade tablet:
+- Top area: soft warm cream-white (#F8F0E4) with very subtle warm golden tint
+- Upper-middle: gentle transition to pale warm beige (#F5EBE1) 
+- Lower-middle: soft lavender-cream (#EEE4F0) blending in, like morning mist on a celestial mountain
+- Bottom area: slightly deeper warm lavender-pink (#E8DCeB) providing visual grounding
+The overall feel should be like aged rice paper (宣纸) with a warm, luminous quality.
+
+Central glow — a very subtle radial warm golden glow emanating from the upper-center area at ~15% opacity, like sunlight filtering through celestial clouds, adding depth and warmth without being distracting.
+
+Texture overlay — very faint watercolor paper texture throughout the entire panel surface, resembling traditional Chinese rice paper with subtle fiber patterns. Additionally, an extremely subtle silk brocade watermark pattern (暗纹) at ~3% opacity, like hidden cloud or lotus motifs woven into celestial fabric.
+
+Top decorative divider — a delicate horizontal ink-brush golden line below the top area (~15% from top), with a tiny golden diamond/rhombus (菱形) motif at its center, flanked by thin tapering golden lines. This serves as a title separator. The line is rendered in soft watercolor gold (#C9A84C at 40% opacity).
+
+Bottom area accent — an extremely subtle warm golden watercolor wash along the bottom 10% at ~8% opacity, like a faint golden cloud floor, providing gentle visual grounding.
+
+Corner accents — four small golden cloud-curl (祥云) motifs at each rounded corner of the inner border, delicate and refined, rendered in soft gold watercolor. Tiny golden sparkle dots scattered near the corners.
+
+Overall: BRIGHT, warm, elegant, scholarly — like reading a precious celestial scroll or jade tablet. The panel should feel distinctly LIGHTER and MORE INVITING than the dark dialog_bg panel. Think of the warm, inviting palette of the home_bg and loading_bg: off-white (#F8F0E4), pale gold (#F5E6C8), soft peach (#FADCD9), light lavender (#E8D5F5). 
+
+The interior must be light enough for DARK text (deep brown #3D2B1F, dark gold #8B6914) to be clearly and comfortably readable — this is the opposite of the dark panels which use light text. Watercolor ink-wash texture, flat painterly style, no 3D bevel, no heavy drop shadow, no metallic sheen. Gentle warmth and luminosity throughout. Background must be perfectly SOLID PURE BLACK with absolutely no variation — for easy chroma-key removal.
+```
+
+---
+
 ## 附录：资源文件清单
 
 | 序号 | 资源名称 | 文件路径 | 格式 | 尺寸比例 |
@@ -510,3 +551,4 @@ Overall: triumphant, warm, contemplative — like standing in a celestial hall c
 | 23 | 奖励确认按钮 | `assets/ui/btn_reward_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
 | 24 | 战斗层数标签框 | `assets/ui/floor_label_bg.png` | PNG（纯黑底抠图） | ~4:1 横向 |
 | 25 | 奖励选择页背景 | `assets/backgrounds/reward_bg.jpg` | JPG | 9:16 竖屏 |
+| 26 | 说明面板背景 | `assets/ui/info_panel_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |

@@ -550,29 +550,27 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   ctx.fillText(`ATK:${pet.atk}`, cxP, py + size + 19*S)
 }
 
-// ===== 灵宠详情弹窗 =====
+// ===== 灵宠详情弹窗（明亮说明面板） =====
 function drawEventPetDetail(g) {
   const { ctx, R, TH, W, H, S } = V
   const idx = g._eventPetDetail
   if (idx == null) return
-  // 可能是队伍或背包中的宠物
   const p = g._eventPetDetailData || (idx >= 0 && idx < g.pets.length ? g.pets[idx] : null)
   if (!p) return
   const ac = ATTR_COLOR[p.attr]
 
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
 
   const cardW = W * 0.78
-  // 预计算内容高度
   const descLines = wrapText(p.skill.desc, cardW - 60*S, 10)
   const cardH = Math.max(180*S, 80*S + descLines.length * 14*S + 80*S)
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
-  R.drawDialogPanel(cardX, cardY, cardW, cardH)
+  R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
-  // 头像（无头像框，纯圆角小图）
+  // 头像
   const avSz = 40*S
   const avX = cardX + 24*S, avY = cardY + 24*S
-  ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
+  ctx.fillStyle = ac ? ac.bg : '#E8E0D8'
   R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
   const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
   if (petAvatar && petAvatar.width > 0) {
@@ -583,36 +581,34 @@ function drawEventPetDetail(g) {
     ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
     ctx.restore()
   }
-  // 属性色细边框（代替头像框）
-  ctx.strokeStyle = ac ? ac.main : '#666'; ctx.lineWidth = 1.5*S
+  ctx.strokeStyle = ac ? ac.main : '#999'; ctx.lineWidth = 1.5*S
   R.rr(avX, avY, avSz, avSz, 6*S); ctx.stroke()
 
-  // 右侧信息（整体右移下移）
+  // 右侧信息
   const infoX = avX + avSz + 16*S
   let iy = cardY + 40*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.dk || ac.main : '#3D2B1F'; ctx.font = `bold ${14*S}px sans-serif`
   ctx.fillText(p.name, infoX, iy)
-  // 属性球 + ATK
   iy += 20*S
   const orbR = 6*S
   R.drawBead(infoX + orbR, iy - 3*S, orbR, p.attr, 0)
-  ctx.fillStyle = '#ccc'; ctx.font = `${11*S}px sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px sans-serif`
   ctx.fillText(`ATK: ${p.atk}`, infoX + orbR*2 + 8*S, iy)
 
-  // 技能区域（整体下移，字号缩小）
+  // 技能区域
   iy = avY + avSz + 12*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px sans-serif`
   ctx.fillText(`技能：${p.skill.name}`, cardX + 28*S, iy)
   iy += 16*S
-  ctx.fillStyle = '#bbb'; ctx.font = `${10*S}px sans-serif`
+  ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px sans-serif`
   descLines.forEach(line => {
     ctx.fillText(line, cardX + 28*S, iy)
     iy += 14*S
   })
   iy += 2*S
-  ctx.fillStyle = '#999'; ctx.font = `${10*S}px sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px sans-serif`
   ctx.fillText(`CD：${p.cd} 回合`, cardX + 28*S, iy)
 
   const closeBtnW = 80*S, closeBtnH = 32*S
@@ -622,21 +618,21 @@ function drawEventPetDetail(g) {
   g._eventPetDetailCloseRect = [closeBtnX, closeBtnY, closeBtnW, closeBtnH]
 }
 
-// ===== 法宝详情弹窗 =====
+// ===== 法宝详情弹窗（明亮说明面板） =====
 function _drawWeaponDetailPopup(g) {
   const { ctx, R, TH, W, H, S } = V
   const wp = g._eventWpnDetailData
   if (!wp) return
 
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
 
   const cardW = W * 0.72, cardH = 140*S
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
-  R.drawDialogPanel(cardX, cardY, cardW, cardH)
+  R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
   const iconSz = 48*S
   const iconX = cardX + 16*S, iconY = cardY + 16*S
-  ctx.fillStyle = '#1a1510'
+  ctx.fillStyle = '#E8E0D8'
   R.rr(iconX, iconY, iconSz, iconSz, 6*S); ctx.fill()
   const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
   if (wImg && wImg.width > 0) {
@@ -647,9 +643,9 @@ function _drawWeaponDetailPopup(g) {
 
   const textX = iconX + iconSz + 14*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${14*S}px sans-serif`
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${14*S}px sans-serif`
   ctx.fillText(wp.name, textX, cardY + 36*S)
-  ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
+  ctx.fillStyle = '#4A3B30'; ctx.font = `${11*S}px sans-serif`
   const descLines = wrapText(wp.desc, cardW - iconSz - 50*S, 11)
   let dy = cardY + 56*S
   descLines.forEach(line => {

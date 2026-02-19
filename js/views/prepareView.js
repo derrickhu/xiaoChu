@@ -302,25 +302,25 @@ function drawPrepareTip(g) {
   let lines = []
   if (tip.type === 'pet') {
     const ac = ATTR_COLOR[d.attr]
-    lines.push({ text: d.name, color: ac ? ac.main : TH.text, bold: true, size: 15 })
-    lines.push({ text: `__ATTR_ORB__${d.attr}　　ATK：${d.atk}`, color: TH.sub, size: 11, attrOrb: d.attr })
-    lines.push({ text: `冷却：${d.cd} 回合`, color: TH.dim, size: 11 })
+    lines.push({ text: d.name, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15 })
+    lines.push({ text: `__ATTR_ORB__${d.attr}　　ATK：${d.atk}`, color: '#6B5B50', size: 11, attrOrb: d.attr })
+    lines.push({ text: `冷却：${d.cd} 回合`, color: '#8B7B70', size: 11 })
     if (d.skill) {
       lines.push({ text: '', size: 6 })
-      lines.push({ text: `技能：${d.skill.name}`, color: TH.accent, bold: true, size: 12 })
+      lines.push({ text: `技能：${d.skill.name}`, color: '#8B6914', bold: true, size: 12 })
       const descLines = wrapText(d.skill.desc || '', tipW - padX*2, 11)
       for (const dl of descLines) {
-        lines.push({ text: dl, color: TH.text, size: 11 })
+        lines.push({ text: dl, color: '#3D2B1F', size: 11 })
       }
     }
   } else if (tip.type === 'weapon') {
-    lines.push({ text: d.name, color: TH.accent, bold: true, size: 15 })
-    lines.push({ text: '被动效果', color: TH.sub, size: 11 })
+    lines.push({ text: d.name, color: '#8B6914', bold: true, size: 15 })
+    lines.push({ text: '被动效果', color: '#6B5B50', size: 11 })
     if (d.desc) {
       lines.push({ text: '', size: 6 })
       const descLines = wrapText(d.desc, tipW - padX*2, 11)
       for (const dl of descLines) {
-        lines.push({ text: dl, color: TH.text, size: 11 })
+        lines.push({ text: dl, color: '#3D2B1F', size: 11 })
       }
     }
   }
@@ -332,17 +332,17 @@ function drawPrepareTip(g) {
   const tipY = Math.min(Math.max(tip.y - totalH - 10*S, safeTop + 10*S), H - totalH - 80*S)
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'
   ctx.fillRect(0, 0, W, H)
 
-  R.drawDialogPanel(tipX, tipY, tipW, totalH)
+  R.drawInfoPanel(tipX, tipY, tipW, totalH)
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
   for (const l of lines) {
     if (l.size === 6) { curY += 6*S; continue }
     curY += lineH
-    ctx.fillStyle = l.color || TH.text
+    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
@@ -356,7 +356,7 @@ function drawPrepareTip(g) {
     }
   }
 
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH + 16*S)
 
   ctx.restore()

@@ -92,30 +92,30 @@ function drawRunBuffDetailDialog(g) {
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + tipH - 8*S)
 }
 
-// ===== 敌人详情弹窗 =====
+// ===== 敌人详情弹窗（明亮说明面板） =====
 function drawEnemyDetailDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   if (!g.enemy) return
   const e = g.enemy
   const ac = ATTR_COLOR[e.attr]
-  const padX = 36*S, padY = 32*S
+  const padX = 36*S, padY = 36*S
   const tipW = W * 0.84
   const lineH = 20*S
   const smallLineH = 16*S
 
   let lines = []
   const typeTag = e.isBoss ? '【BOSS】' : (e.isElite ? '【精英】' : '')
-  lines.push({ text: `${typeTag}${e.name}`, color: ac ? ac.main : TH.text, bold: true, size: 15, h: lineH + 4*S })
-  lines.push({ text: `__ATTR_ORB__${e.attr}　　第 ${g.floor} 层`, color: TH.sub, size: 11, h: smallLineH, attrOrb: e.attr })
-  lines.push({ text: `HP：${Math.round(e.hp)} / ${Math.round(e.maxHp)}　ATK：${e.atk}　DEF：${e.def || 0}`, color: TH.text, size: 11, h: smallLineH })
+  lines.push({ text: `${typeTag}${e.name}`, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15, h: lineH + 4*S })
+  lines.push({ text: `__ATTR_ORB__${e.attr}　　第 ${g.floor} 层`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: e.attr })
+  lines.push({ text: `HP：${Math.round(e.hp)} / ${Math.round(e.maxHp)}　ATK：${e.atk}　DEF：${e.def || 0}`, color: '#3D2B1F', size: 11, h: smallLineH })
 
   if (e.skills && e.skills.length > 0) {
     lines.push({ text: '', size: 0, h: 6*S })
-    lines.push({ text: '技能列表：', color: TH.accent, bold: true, size: 12, h: smallLineH })
+    lines.push({ text: '技能列表：', color: '#8B6914', bold: true, size: 12, h: smallLineH })
     e.skills.forEach(sk => {
       const skData = ENEMY_SKILLS[sk]
       if (skData) {
-        lines.push({ text: `· ${skData.name}`, color: '#ffcc66', bold: true, size: 11, h: smallLineH })
+        lines.push({ text: `· ${skData.name}`, color: '#7A5C30', bold: true, size: 11, h: smallLineH })
         let desc = skData.desc || ''
         if (desc.includes('{val}')) {
           const val = skData.type === 'dot' ? Math.round(e.atk * 0.3) : Math.round(e.atk * 0.8)
@@ -123,7 +123,7 @@ function drawEnemyDetailDialog(g) {
         }
         const descLines = wrapText(desc, tipW - padX*2 - 10*S, 10)
         descLines.forEach(dl => {
-          lines.push({ text: `  ${dl}`, color: TH.dim, size: 10, h: smallLineH - 2*S })
+          lines.push({ text: `  ${dl}`, color: '#6B5B50', size: 10, h: smallLineH - 2*S })
         })
       }
     })
@@ -131,20 +131,20 @@ function drawEnemyDetailDialog(g) {
 
   if (g.enemyBuffs && g.enemyBuffs.length > 0) {
     lines.push({ text: '', size: 0, h: 6*S })
-    lines.push({ text: '敌方状态：', color: '#ff6666', bold: true, size: 12, h: smallLineH })
+    lines.push({ text: '敌方状态：', color: '#C0392B', bold: true, size: 12, h: smallLineH })
     g.enemyBuffs.forEach(b => {
       const durTxt = b.dur < 99 ? ` (${b.dur}回合)` : ''
-      const color = b.bad ? '#ff8888' : '#88ff88'
+      const color = b.bad ? '#C0392B' : '#27864A'
       lines.push({ text: `· ${b.name || b.type}${durTxt}`, color, size: 10, h: smallLineH - 2*S })
     })
   }
 
   if (g.heroBuffs && g.heroBuffs.length > 0) {
     lines.push({ text: '', size: 0, h: 6*S })
-    lines.push({ text: '己方状态：', color: '#66aaff', bold: true, size: 12, h: smallLineH })
+    lines.push({ text: '己方状态：', color: '#2E6DA4', bold: true, size: 12, h: smallLineH })
     g.heroBuffs.forEach(b => {
       const durTxt = b.dur < 99 ? ` (${b.dur}回合)` : ''
-      const color = b.bad ? '#ff8888' : '#88ff88'
+      const color = b.bad ? '#C0392B' : '#27864A'
       lines.push({ text: `· ${b.name || b.type}${durTxt}`, color, size: 10, h: smallLineH - 2*S })
     })
   }
@@ -158,9 +158,9 @@ function drawEnemyDetailDialog(g) {
   const tipY = (H - totalH) / 2
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
   ctx.fillRect(0, 0, W, H)
-  R.drawDialogPanel(tipX, tipY, tipW, totalH)
+  R.drawInfoPanel(tipX, tipY, tipW, totalH)
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
@@ -168,7 +168,7 @@ function drawEnemyDetailDialog(g) {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
-    ctx.fillStyle = l.color || TH.text
+    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
@@ -182,30 +182,30 @@ function drawEnemyDetailDialog(g) {
     }
   })
 
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }
 
-// ===== 法宝详情弹窗 =====
+// ===== 法宝详情弹窗（明亮说明面板） =====
 function drawWeaponDetailDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   if (!g.weapon) { g.showWeaponDetail = false; return }
   const w = g.weapon
-  const padX = 36*S, padY = 32*S
+  const padX = 36*S, padY = 36*S
   const lineH = 20*S, smallLineH = 16*S
   const tipW = W * 0.82
 
   let lines = []
-  lines.push({ text: w.name, color: TH.accent, bold: true, size: 15, h: lineH + 4*S })
+  lines.push({ text: w.name, color: '#8B6914', bold: true, size: 15, h: lineH + 4*S })
   lines.push({ text: '', size: 0, h: 6*S })
-  lines.push({ text: '法宝效果：', color: '#ffd700', bold: true, size: 12, h: smallLineH })
+  lines.push({ text: '法宝效果：', color: '#8B6914', bold: true, size: 12, h: smallLineH })
   const descLines = wrapText(w.desc || '无', tipW - padX*2 - 10*S, 11)
   descLines.forEach(dl => {
-    lines.push({ text: dl, color: '#ddd', size: 11, h: smallLineH })
+    lines.push({ text: dl, color: '#3D2B1F', size: 11, h: smallLineH })
   })
   lines.push({ text: '', size: 0, h: 6*S })
-  lines.push({ text: '提示：法宝为被动效果，全程自动生效', color: TH.dim, size: 10, h: smallLineH })
+  lines.push({ text: '提示：法宝为被动效果，全程自动生效', color: '#8B7B70', size: 10, h: smallLineH })
 
   let totalH = padY * 2
   lines.forEach(l => { totalH += l.h })
@@ -216,9 +216,9 @@ function drawWeaponDetailDialog(g) {
   const tipY = (H - totalH) / 2
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
   ctx.fillRect(0, 0, W, H)
-  R.drawDialogPanel(tipX, tipY, tipW, totalH)
+  R.drawInfoPanel(tipX, tipY, tipW, totalH)
 
   const wdImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
   const wdImgSz = 64*S
@@ -228,7 +228,7 @@ function drawWeaponDetailDialog(g) {
     ctx.save(); R.rr(wdImgX, wdImgY, wdImgSz, wdImgSz, 8*S); ctx.clip()
     ctx.drawImage(wdImg, wdImgX, wdImgY, wdImgSz, wdImgSz)
     ctx.restore()
-    ctx.strokeStyle = TH.accent + '66'; ctx.lineWidth = 1.5*S
+    ctx.strokeStyle = 'rgba(139,105,20,0.4)'; ctx.lineWidth = 1.5*S
     R.rr(wdImgX, wdImgY, wdImgSz, wdImgSz, 8*S); ctx.stroke()
   }
 
@@ -237,17 +237,17 @@ function drawWeaponDetailDialog(g) {
   lines.forEach(l => {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
-    ctx.fillStyle = l.color || TH.text
+    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
     ctx.fillText(l.text, tipX + padX, curY - 4*S)
   })
 
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }
 
-// ===== 宠物详情弹窗（战斗中）=====
+// ===== 宠物详情弹窗（战斗中，明亮说明面板）=====
 function drawBattlePetDetailDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   const idx = g.showBattlePetDetail
@@ -255,20 +255,20 @@ function drawBattlePetDetailDialog(g) {
   const p = g.pets[idx]
   const ac = ATTR_COLOR[p.attr]
   const sk = p.skill
-  const padX = 36*S, padY = 32*S
+  const padX = 36*S, padY = 36*S
   const lineH = 20*S, smallLineH = 16*S
   const tipW = W * 0.82
 
   let lines = []
-  lines.push({ text: p.name, color: ac ? ac.main : TH.accent, bold: true, size: 15, h: lineH + 4*S })
-  lines.push({ text: `__ATTR_ORB__${p.attr}　　攻击力：${p.atk}`, color: '#ccc', size: 11, h: smallLineH, attrOrb: p.attr })
+  lines.push({ text: p.name, color: ac ? ac.dk || ac.main : '#8B6914', bold: true, size: 15, h: lineH + 4*S })
+  lines.push({ text: `__ATTR_ORB__${p.attr}　　攻击力：${p.atk}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
   lines.push({ text: '', size: 0, h: 6*S })
 
   if (sk) {
-    lines.push({ text: `技能：${sk.name}`, color: '#e0c070', bold: true, size: 12, h: lineH })
+    lines.push({ text: `技能：${sk.name}`, color: '#7A5C30', bold: true, size: 12, h: lineH })
     const descLines = wrapText(sk.desc || '无描述', tipW - padX*2 - 10*S, 11)
     descLines.forEach(dl => {
-      lines.push({ text: dl, color: '#ddd', size: 11, h: smallLineH })
+      lines.push({ text: dl, color: '#3D2B1F', size: 11, h: smallLineH })
     })
     lines.push({ text: '', size: 0, h: 4*S })
     let cdBase = p.cd
@@ -278,19 +278,19 @@ function drawBattlePetDetailDialog(g) {
     }
     const cdReduced = cdActual < cdBase
     const cdText = cdReduced ? `冷却：${cdActual}回合（原${cdBase}，CD缩短${g.runBuffs.skillCdReducePct}%）` : `冷却：${cdBase}回合`
-    lines.push({ text: cdText, color: TH.sub, size: 10, h: smallLineH })
+    lines.push({ text: cdText, color: '#6B5B50', size: 10, h: smallLineH })
     const ready = p.currentCd <= 0
     if (ready) {
-      lines.push({ text: '✦ 技能已就绪，可点击头像释放！', color: '#4dcc4d', bold: true, size: 11, h: smallLineH })
+      lines.push({ text: '✦ 技能已就绪，上划头像发动技能！', color: '#27864A', bold: true, size: 11, h: smallLineH })
     } else {
-      lines.push({ text: `◈ 冷却中：还需 ${p.currentCd} 回合`, color: '#ff8c00', size: 11, h: smallLineH })
+      lines.push({ text: `◈ 冷却中：还需 ${p.currentCd} 回合`, color: '#C07000', size: 11, h: smallLineH })
     }
   } else {
-    lines.push({ text: '该宠物没有主动技能', color: TH.dim, size: 11, h: smallLineH })
+    lines.push({ text: '该宠物没有主动技能', color: '#8B7B70', size: 11, h: smallLineH })
   }
 
   lines.push({ text: '', size: 0, h: 6*S })
-  lines.push({ text: '提示：消除对应属性珠时该宠物发动攻击', color: TH.dim, size: 10, h: smallLineH })
+  lines.push({ text: '提示：消除对应属性珠时该宠物发动攻击', color: '#8B7B70', size: 10, h: smallLineH })
 
   let totalH = padY * 2
   lines.forEach(l => { totalH += l.h })
@@ -299,9 +299,9 @@ function drawBattlePetDetailDialog(g) {
   const tipY = (H - totalH) / 2
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
   ctx.fillRect(0, 0, W, H)
-  R.drawDialogPanel(tipX, tipY, tipW, totalH)
+  R.drawInfoPanel(tipX, tipY, tipW, totalH)
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
@@ -309,7 +309,7 @@ function drawBattlePetDetailDialog(g) {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
-    ctx.fillStyle = l.color || TH.text
+    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
@@ -323,7 +323,7 @@ function drawBattlePetDetailDialog(g) {
     }
   })
 
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }

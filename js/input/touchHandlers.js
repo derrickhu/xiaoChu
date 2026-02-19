@@ -320,6 +320,13 @@ function tBattle(g, type, x, y) {
   }
   // 宠物头像框交互：上划释放技能，点击查看详情
   if (g._petBtnRects && g.bState !== 'victory' && g.bState !== 'defeat') {
+    // end事件：如果之前已触发上划技能，直接清理状态，不做任何处理（防止弹详情）
+    if (type === 'end' && g._petSwipeTriggered) {
+      if (g._petLongPressTimer) { clearTimeout(g._petLongPressTimer); g._petLongPressTimer = null }
+      g._petSwipeIndex = -1; g._petSwipeTriggered = false
+      g._petLongPressIndex = -1; g._petLongPressTriggered = false
+      return
+    }
     for (let i = 0; i < g._petBtnRects.length; i++) {
       if (i < g.pets.length && g._hitRect(x,y,...g._petBtnRects[i])) {
         const pet = g.pets[i]
@@ -373,10 +380,8 @@ function tBattle(g, type, x, y) {
             g._petSwipeIndex = -1
             return
           }
-          // 如果没有触发上划技能，则视为点击，显示宠物详情
-          if (!g._petSwipeTriggered) {
-            g.showBattlePetDetail = i
-          }
+          // 没有触发上划技能，视为点击，显示宠物详情
+          g.showBattlePetDetail = i
           // 重置滑动状态
           g._petSwipeIndex = -1
           g._petSwipeTriggered = false
@@ -397,6 +402,12 @@ function tBattle(g, type, x, y) {
           g._triggerPetSkill(pet, g._petSwipeIndex)
         }
       }
+    }
+    // end事件且有未清理的swipe状态（手指在头像框外释放）：清理状态
+    if (type === 'end' && g._petSwipeIndex >= 0) {
+      if (g._petLongPressTimer) { clearTimeout(g._petLongPressTimer); g._petLongPressTimer = null }
+      g._petSwipeIndex = -1; g._petSwipeTriggered = false
+      g._petLongPressIndex = -1; g._petLongPressTriggered = false
     }
   }
   // 转珠
