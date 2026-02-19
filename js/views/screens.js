@@ -107,6 +107,16 @@ function rTitle(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawHomeBg(g.af)
 
+  // 游戏标题Logo
+  const titleLogo = R.getImg('assets/ui/title_logo.png')
+  if (titleLogo && titleLogo.width > 0) {
+    const logoW = W * 0.7
+    const logoH = logoW * (titleLogo.height / titleLogo.width)
+    const logoX = (W - logoW) / 2
+    const logoY = H * 0.08
+    ctx.drawImage(titleLogo, logoX, logoY, logoW, logoH)
+  }
+
   const imgContinue = R.getImg('assets/ui/btn_continue.png')
   const imgStart = R.getImg('assets/ui/btn_start.png')
   const imgRank = R.getImg('assets/ui/btn_rank.png')
@@ -408,28 +418,29 @@ function rReward(g) {
   if (evtType === 'elite') title = '精英击败 - 选择灵兽'
   else if (evtType === 'boss') title = 'BOSS击败 - 选择法宝'
   // 标题：米金色书法风
+  const titleBaseY = safeTop + 58*S
   ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${18*S}px sans-serif`
-  ctx.fillText(title, W*0.5, safeTop + 38*S)
+  ctx.fillText(title, W*0.5, titleBaseY)
   // 标题下方装饰分割线
-  const divW = W*0.36, divY = safeTop + 44*S
+  const divW = W*0.36, divY = titleBaseY + 6*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - divW, divY); ctx.lineTo(W*0.5 + divW, divY); ctx.stroke()
   let headerOffset = 0
   if (g.lastSpeedKill) {
     ctx.fillStyle = '#e8a840'; ctx.font = `${12*S}px sans-serif`
-    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁`, W*0.5, safeTop + 60*S)
+    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁`, W*0.5, titleBaseY + 22*S)
     headerOffset = 22*S
   }
   if (!g.rewards) return
   const rewardCount = g.rewards.length
   const isPetOrWeapon = g.rewards.some(rw => rw.type === REWARD_TYPES.NEW_PET || rw.type === REWARD_TYPES.NEW_WEAPON)
-  const maxCardArea = H * 0.62
+  const maxCardArea = H * 0.58
   const gap = 10*S
   const defaultCardH = isPetOrWeapon ? 120*S : 78*S
   const cardH = Math.min(defaultCardH, (maxCardArea - (rewardCount-1)*gap) / rewardCount)
   const cardW = W*0.88
   const cardX = (W - cardW) / 2
-  const startY = H*0.14 + headerOffset
+  const startY = H*0.20 + headerOffset
   g._rewardRects = []
 
   const framePetMap = {

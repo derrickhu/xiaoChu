@@ -16,8 +16,8 @@ const WEAPONS = [
   { id:'w5',  name:'赤霄神灯',   desc:'火属性伤害+40%',                     type:'attrDmgUp',     attr:'fire', pct:40 },
   { id:'w6',  name:'昆仑玉璧',   desc:'土属性伤害+35%',                     type:'attrDmgUp',     attr:'earth', pct:35 },
   { id:'w7',  name:'八卦金盘',   desc:'Combo伤害额外+25%',                  type:'comboDmgUp',    pct:25 },
-  { id:'w8',  name:'流云仙扇',   desc:'Combo伤害+20%',                      type:'comboDmgUp',    pct:20 },
-  { id:'w9',  name:'燎原宝塔',   desc:'Combo伤害额外+30%',                  type:'comboDmgUp',    pct:30 },
+  { id:'w8',  name:'流云仙扇',   desc:'降低敌方攻击力15%',                  type:'weakenEnemy',   pct:15 },
+  { id:'w9',  name:'燎原宝塔',   desc:'火属性宠物攻击力+30%',              type:'attrPetAtkUp',  attr:'fire', pct:30 },
 
   // --- 暴击类 ---
   { id:'w10', name:'火凤令牌',   desc:'暴击率+25%，暴击伤害+40%',          type:'critAll',       critRate:25, critDmg:40 },
@@ -25,11 +25,11 @@ const WEAPONS = [
   { id:'w12', name:'焚心宝印',   desc:'每段Combo暴击率+5%',                type:'comboToCrit',   pct:5 },
 
   // --- 防御减伤类 ---
-  { id:'w13', name:'玄铁如意',   desc:'受到所有伤害-20%',                   type:'reduceDmg',     pct:20 },
-  { id:'w14', name:'藤甲天衣',   desc:'受到伤害-18%',                       type:'reduceDmg',     pct:18 },
-  { id:'w15', name:'寒冰宝鉴',   desc:'受到伤害-25%',                       type:'reduceDmg',     pct:25 },
-  { id:'w16', name:'厚土宝甲',   desc:'受到伤害-28%',                       type:'reduceDmg',     pct:28 },
-  { id:'w17', name:'烈焰神甲',   desc:'火属性伤害无视15%防御',             type:'ignoreDefPct',  attr:'fire', pct:15 },
+  { id:'w13', name:'玄铁如意',   desc:'金属性宠物攻击力+30%',              type:'attrPetAtkUp',  attr:'metal', pct:30 },
+  { id:'w14', name:'藤甲天衣',   desc:'受到土属性怪普攻伤害-30%',           type:'reduceAttrAtkDmg', attr:'earth', pct:30 },
+  { id:'w15', name:'寒冰宝鉴',   desc:'受到敌方直接技能伤害-25%',           type:'reduceSkillDmg', pct:25 },
+  { id:'w16', name:'厚土宝甲',   desc:'受到所有伤害-15%',                   type:'reduceDmg',     pct:15 },
+  { id:'w17', name:'烈焰神甲',   desc:'受到金属性怪普攻伤害-30%',           type:'reduceAttrAtkDmg', attr:'metal', pct:30 },
 
   // --- 回血治疗类 ---
   { id:'w18', name:'万寿青莲',   desc:'每回合自动回血5%',                   type:'regenPct',      pct:5 },
@@ -41,7 +41,7 @@ const WEAPONS = [
 
   // --- 血量护盾类 ---
   { id:'w24', name:'建木神符',   desc:'血量上限+25%',                       type:'hpMaxUp',       pct:25 },
-  { id:'w25', name:'磐石仙鼎',   desc:'血量上限+30%',                       type:'hpMaxUp',       pct:30 },
+  { id:'w25', name:'磐石仙鼎',   desc:'土属性伤害无视怪物防御',            type:'ignoreDefPct',  attr:'earth', pct:100 },
   { id:'w26', name:'水月宝镜',   desc:'消除水珠时获得小额护盾',            type:'shieldOnElim',  attr:'water', val:15 },
   { id:'w27', name:'开山神斧',   desc:'消除土珠时获得护盾',                type:'shieldOnElim',  attr:'earth', val:20 },
   { id:'w28', name:'山河社稷图', desc:'护盾效果+50%',                       type:'shieldBoost',   pct:50 },
@@ -55,12 +55,12 @@ const WEAPONS = [
   { id:'w34', name:'息壤神珠',   desc:'土珠出现概率大幅提升',               type:'beadRateUp',    attr:'earth' },
 
   // --- 转珠操控类 ---
-  { id:'w35', name:'金翼飞轮',   desc:'转珠时间+1秒',                       type:'extraTime',     sec:1 },
-  { id:'w36', name:'定水神针',   desc:'转珠时间+1秒',                       type:'extraTime',     sec:1 },
-  { id:'w37', name:'踏火风火轮', desc:'转珠更易形成大Combo',               type:'comboPlus',     count:1 },
+  { id:'w35', name:'金翼飞轮',   desc:'敌人残血10%以下时直接斩杀',          type:'execute',       threshold:10 },
+  { id:'w36', name:'定水神针',   desc:'消除5个水珠必定暴击',               type:'guaranteeCrit', attr:'water', minCount:5 },
+  { id:'w37', name:'踏火风火轮', desc:'转珠时间+2秒',                     type:'extraTime',     sec:2 },
 
   // --- 特殊触发类 ---
-  { id:'w38', name:'炎龙法珠',   desc:'消除5个火珠触发全体攻击',           type:'aoeOnElim',     attr:'fire', minCount:5 },
+  { id:'w38', name:'炎龙法珠',   desc:'消除5火珠触发额外攻击',             type:'aoeOnElim',     attr:'fire', minCount:5 },
   { id:'w39', name:'蛊雕毒珠',   desc:'攻击时有概率让怪物中毒',            type:'poisonChance',  dmg:15, dur:3, chance:30 },
   { id:'w40', name:'玄龟宝印',   desc:'被攻击反弹20%伤害',                  type:'reflectPct',    pct:20 },
   { id:'w41', name:'玄武宝令',   desc:'被攻击有概率眩晕怪物',              type:'counterStun',   chance:20 },
@@ -68,9 +68,9 @@ const WEAPONS = [
   { id:'w43', name:'浴火金莲',   desc:'残血时临时提升20%伤害',             type:'lowHpDmgUp',    pct:20, threshold:30 },
 
   // --- 免疫类 ---
-  { id:'w44', name:'鲛人泪珠',   desc:'免疫眩晕1次',                        type:'immuneStun' },
+  { id:'w44', name:'鲛人泪珠',   desc:'永久免疫眩晕',                       type:'immuneStun' },
   { id:'w45', name:'灵木仙屏',   desc:'免疫持续伤害',                       type:'immuneDot' },
-  { id:'w46', name:'镇妖宝塔',   desc:'免疫所有控制',                       type:'immuneCtrl' },
+  { id:'w46', name:'镇妖宝塔',   desc:'破防：怪物防御值变为0',              type:'breakDef' },
   { id:'w47', name:'混元宝伞',   desc:'不会被负面效果影响',                type:'immuneDebuff' },
 
   // --- 层数成长类 ---

@@ -65,11 +65,10 @@ class Render {
 
   drawHomeBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      const dw=iw*scale, dh=ih*scale
-      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      this._drawCoverImg(img, 0, 0, W, H)
     } else {
       const g = c.createLinearGradient(0,0,0,H)
       g.addColorStop(0,'#1a1035'); g.addColorStop(0.5,'#0d0d2a'); g.addColorStop(1,'#050510')
@@ -80,10 +79,10 @@ class Render {
 
   drawLoadingBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/loading_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      this._drawCoverImg(img, 0, 0, W, H)
     } else {
       this.drawBg(frame)
     }
@@ -91,10 +90,10 @@ class Render {
 
   drawShopBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/shop_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
@@ -103,10 +102,10 @@ class Render {
 
   drawAdventureBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/adventure_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
@@ -115,10 +114,10 @@ class Render {
 
   drawRewardBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/reward_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      c.drawImage(img,(W-iw*scale)/2,(H-ih*scale)/2,iw*scale,ih*scale)
+      this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
@@ -193,11 +192,10 @@ class Render {
 
   drawLevelBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      const dw=iw*scale, dh=ih*scale
-      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
@@ -206,11 +204,10 @@ class Render {
 
   drawEquipBg(frame) {
     const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/home_bg.jpg')
     if (img && img.width > 0) {
-      const iw=img.width, ih=img.height, scale=Math.max(W/iw,H/ih)
-      const dw=iw*scale, dh=ih*scale
-      c.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh)
+      this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
@@ -1685,6 +1682,16 @@ class Render {
     c.fillText(text, x, y)
     c.shadowBlur = 0
     c.restore()
+  }
+
+  // 工具 - Cover模式绘制图片（无黑边，居中裁剪）
+  _drawCoverImg(img, x, y, w, h) {
+    const c = this.ctx
+    const iw = img.width, ih = img.height
+    const scale = Math.max(w / iw, h / ih)
+    const dw = iw * scale, dh = ih * scale
+    const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2
+    c.drawImage(img, dx, dy, dw, dh)
   }
 
   // 工具 - 颜色加深

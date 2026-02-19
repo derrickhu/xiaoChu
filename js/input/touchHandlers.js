@@ -357,7 +357,7 @@ function tBattle(g, type, x, y) {
   const cs = g.cellSize, bx = g.boardX, by = g.boardY
   if (type === 'start') {
     const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c]) {
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c] && !g.board[r][c].sealed) {
       g.dragging = true; g.dragR = r; g.dragC = c
       g.dragStartX = x; g.dragStartY = y; g.dragCurX = x; g.dragCurY = y
       const cell = g.board[r][c]
@@ -368,7 +368,7 @@ function tBattle(g, type, x, y) {
   } else if (type === 'move' && g.dragging) {
     g.dragCurX = x; g.dragCurY = y
     const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC)) {
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed)) {
       const or = g.dragR, oc = g.dragC
       const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
       g.swapAnim = { r1:or, c1:oc, r2:r, c2:c, t:0, dur:6 }

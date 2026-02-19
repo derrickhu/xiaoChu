@@ -98,7 +98,13 @@ function triggerPetSkill(g, pet, idx) {
     case 'allDefUp':
       g.heroBuffs.push({ type:'allDefUp', pct:sk.pct, dur:sk.dur||3, bad:false, name:sk.name }); break
     case 'critBoost':
-      g.heroBuffs.push({ type:'critBoost', pct:sk.pct, dur:sk.dur||3, bad:false, name:sk.name }); break
+      if (sk.perCombo) {
+        // 每段Combo暴击率递增：存储perCombo标记，在calcCrit中按combo数叠加
+        g.heroBuffs.push({ type:'critBoostPerCombo', pct:sk.pct, dur:sk.dur||1, bad:false, name:sk.name })
+      } else {
+        g.heroBuffs.push({ type:'critBoost', pct:sk.pct, dur:sk.dur||3, bad:false, name:sk.name })
+      }
+      break
     case 'critDmgUp':
       g.heroBuffs.push({ type:'critDmgUp', pct:sk.pct, dur:1, bad:false, name:sk.name }); break
     case 'reflectPct':
@@ -128,11 +134,47 @@ function triggerPetSkill(g, pet, idx) {
     case 'dmgImmune':
       g.heroBuffs.push({ type:'dmgImmune', dur:1, bad:false, name:sk.name }); break
     case 'guaranteeCrit':
-      g.heroBuffs.push({ type:'critBoost', pct:100, dur:1, bad:false, name:sk.name }); break
+      // 如果指定了属性，则只对该属性暴击；否则全属性暴击
+      g.heroBuffs.push({ type:'guaranteeCrit', attr:sk.attr||null, pct:100, dur:1, bad:false, name:sk.name }); break
     case 'comboDmgUp':
       g.heroBuffs.push({ type:'comboDmgUp', pct:sk.pct, dur:1, bad:false, name:sk.name }); break
     case 'onKillHeal':
       g.heroBuffs.push({ type:'onKillHeal', pct:sk.pct, dur:99, bad:false, name:sk.name }); break
+    case 'replaceBeads': {
+      // 将棋盘上所有fromAttr珠替换为toAttr珠
+      const { ROWS, COLS } = V
+      const from = sk.fromAttr, to = sk.toAttr || pet.attr
+      let replaced = 0
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (g.board[r][c] && g.board[r][c].attr === from) {
+            g.board[r][c].attr = to
+            replaced++
+          }
+        }
+      }
+      break
+    }
+    case 'teamAttack': {
+      // 全队主动攻击：每只宠物按各自atk值对敌人造成伤害
+      if (g.enemy) {
+        let totalTeamDmg = 0
+        g.pets.forEach(p => {
+          let dmg = p.atk
+          dmg = Math.round(dmg * (1 + g.runBuffs.allAtkPct / 100))
+          dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
+          if (g.enemy) {
+            dmg = Math.max(0, dmg - (g.enemy.def || 0))
+          }
+          totalTeamDmg += dmg
+          g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S+Math.random()*20*S, text:`-${dmg}`, color:ATTR_COLOR[p.attr]?.main||V.TH.danger, t:0, alpha:1 })
+        })
+        g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
+        g._playHeroAttack(sk.name, pet.attr, 'burst')
+        if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+      }
+      break
+    }
   }
 }
 
