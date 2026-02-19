@@ -316,13 +316,19 @@ function tBattle(g, type, x, y) {
       && g.weapon && g._weaponBtnRect && g._hitRect(x,y,...g._weaponBtnRect)) {
     g.showWeaponDetail = true; return
   }
-  // 宠物点击
+  // 宠物头像框交互：上划释放技能，点击查看详情
   if (g._petBtnRects && g.bState !== 'victory' && g.bState !== 'defeat') {
     for (let i = 0; i < g._petBtnRects.length; i++) {
       if (i < g.pets.length && g._hitRect(x,y,...g._petBtnRects[i])) {
         const pet = g.pets[i]
         const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0
         if (type === 'start') {
+          // 记录滑动起始位置
+          g._petSwipeIndex = i
+          g._petSwipeStartX = x
+          g._petSwipeStartY = y
+          g._petSwipeTriggered = false
+          // 保留长按预览功能（500ms）
           if (skillReady) {
             g._petLongPressIndex = i
             g._petLongPressTriggered = false
@@ -334,20 +340,59 @@ function tBattle(g, type, x, y) {
           }
           return
         } else if (type === 'move') {
+          // 检测上划手势：向上滑动超过30像素且技能就绪
+          if (g._petSwipeIndex === i && skillReady) {
+            const dy = g._petSwipeStartY - y  // 向上为正
+            if (dy > 30 * V.S && !g._petSwipeTriggered) {
+              g._petSwipeTriggered = true
+              // 取消长按定时器
+              if (g._petLongPressTimer) { clearTimeout(g._petLongPressTimer); g._petLongPressTimer = null }
+              // 触发技能释放
+              g._triggerPetSkill(pet, i)
+              return
+            }
+          }
+          // 如果移动距离较大，取消长按预览（使用滑动起始位置）
           if (g._petLongPressIndex === i && g._petLongPressTimer) {
-            clearTimeout(g._petLongPressTimer)
-            g._petLongPressTimer = null; g._petLongPressIndex = -1
+            const dx = x - g._petSwipeStartX
+            const dy = y - g._petSwipeStartY
+            if (dx*dx + dy*dy > 100) {
+              clearTimeout(g._petLongPressTimer)
+              g._petLongPressTimer = null; g._petLongPressIndex = -1
+            }
           }
           return
         } else if (type === 'end') {
+          // 清理长按定时器
           if (g._petLongPressTimer) { clearTimeout(g._petLongPressTimer); g._petLongPressTimer = null }
+          // 如果触发了长按预览，结束时不处理点击
           if (g._petLongPressTriggered && g._petLongPressIndex === i) {
-            g._petLongPressIndex = -1; g._petLongPressTriggered = false; return
+            g._petLongPressIndex = -1; g._petLongPressTriggered = false
+            g._petSwipeIndex = -1
+            return
           }
+          // 如果没有触发上划技能，则视为点击，显示宠物详情
+          if (!g._petSwipeTriggered) {
+            g.showBattlePetDetail = i
+          }
+          // 重置滑动状态
+          g._petSwipeIndex = -1
+          g._petSwipeTriggered = false
           g._petLongPressIndex = -1
-          if (skillReady) { g._triggerPetSkill(pet, i) }
-          else { g.showBattlePetDetail = i }
           return
+        }
+      }
+    }
+    // 触摸开始后移出头像框：仍允许触发上划（只要技能就绪）
+    if (type === 'move' && g._petSwipeIndex >= 0) {
+      const pet = g.pets[g._petSwipeIndex]
+      const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0
+      if (skillReady && !g._petSwipeTriggered) {
+        const dy = g._petSwipeStartY - y
+        if (dy > 30 * V.S) {
+          g._petSwipeTriggered = true
+          if (g._petLongPressTimer) { clearTimeout(g._petLongPressTimer); g._petLongPressTimer = null }
+          g._triggerPetSkill(pet, g._petSwipeIndex)
         }
       }
     }

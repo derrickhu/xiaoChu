@@ -1010,52 +1010,78 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.save()
           const glowColor2 = ac ? ac.main : TH.accent
           const glowAlpha = 0.5 + 0.4 * Math.sin(g.af * 0.1)
-          // 旋转弧线光环
-          ctx.save()
-          ctx.translate(cx, cy)
-          ctx.rotate(g.af * 0.04)
-          const arcR = iconSize * 0.58
-          for (let a = 0; a < 4; a++) {
-            ctx.beginPath()
-            ctx.arc(0, 0, arcR, a * Math.PI/2, a * Math.PI/2 + Math.PI/3)
-            ctx.strokeStyle = glowColor2
-            ctx.lineWidth = 2.5*S
-            ctx.globalAlpha = glowAlpha * 0.8
-            ctx.shadowColor = glowColor2
-            ctx.shadowBlur = 10*S
-            ctx.stroke()
-          }
-          ctx.restore()
-          // 脉冲发光边框
+          // 向上箭头特效（浮动动画）
+          const arrowSize = iconSize * 0.2
+          const arrowYOffset = 2 + Math.sin(g.af * 0.1) * 3  // 上下浮动
+          const arrowX = cx
+          const arrowY = iconY - arrowSize - 4*S - arrowYOffset
+          
+          // 箭头发光光晕
           ctx.shadowColor = glowColor2
-          ctx.shadowBlur = 12*S
-          ctx.strokeStyle = glowColor2
-          ctx.lineWidth = 2.5*S
+          ctx.shadowBlur = 10*S
           ctx.globalAlpha = glowAlpha
-          ctx.strokeRect(ix - 2, iconY - 2, iconSize + 4, iconSize + 4)
-          const glowGrd = ctx.createRadialGradient(cx, cy, iconSize*0.15, cx, cy, iconSize*0.55)
-          glowGrd.addColorStop(0, glowColor2 + '30')
-          glowGrd.addColorStop(1, 'transparent')
-          ctx.fillStyle = glowGrd
+          // 绘制箭头（三角形）
+          ctx.beginPath()
+          ctx.moveTo(arrowX, arrowY)
+          ctx.lineTo(arrowX - arrowSize*0.7, arrowY + arrowSize)
+          ctx.lineTo(arrowX + arrowSize*0.7, arrowY + arrowSize)
+          ctx.closePath()
+          ctx.fillStyle = glowColor2
+          ctx.fill()
+          
+          // 箭头内部高光
           ctx.shadowBlur = 0
+          ctx.globalAlpha = glowAlpha * 1.2
+          ctx.beginPath()
+          ctx.moveTo(arrowX, arrowY + arrowSize*0.2)
+          ctx.lineTo(arrowX - arrowSize*0.5, arrowY + arrowSize*0.9)
+          ctx.lineTo(arrowX + arrowSize*0.5, arrowY + arrowSize*0.9)
+          ctx.closePath()
+          ctx.fillStyle = '#fff'
+          ctx.fill()
+          
+          // 脉冲发光边框（保留，但减淡）
+          ctx.shadowColor = glowColor2
+          ctx.shadowBlur = 8*S
+          ctx.strokeStyle = glowColor2
+          ctx.lineWidth = 2*S
           ctx.globalAlpha = glowAlpha * 0.6
-          ctx.fillRect(ix, iconY, iconSize, iconSize)
-          // "技能就绪" 提示标签（头像上方）
+          ctx.strokeRect(ix - 1, iconY - 1, iconSize + 2, iconSize + 2)
+          
+          // "上划放技能" 提示标签（头像上方）
           ctx.globalAlpha = glowAlpha
           const tagW = iconSize * 0.9, tagH = iconSize * 0.22
-          const tagX = cx - tagW/2, tagY = iconY - tagH - 4*S
+          const tagX = cx - tagW/2, tagY = iconY - tagH - arrowSize - 8*S
           ctx.fillStyle = glowColor2 + 'cc'
           R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.fill()
           ctx.fillStyle = '#fff'; ctx.font = `bold ${iconSize*0.14}px sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-          ctx.fillText('点击放技能', tagX + tagW/2, tagY + tagH/2)
+          ctx.fillText('上划放技能', tagX + tagW/2, tagY + tagH/2)
           ctx.shadowBlur = 0
           ctx.restore()
         } else if (ready) {
-          // 技能就绪但不在玩家回合或正在拖拽：只显示静态发光
+          // 技能就绪但不在玩家回合或正在拖拽：显示静态箭头和边框
           ctx.save()
           const glowColor2 = ac ? ac.main : TH.accent
+          // 静态向上箭头
+          const arrowSize = iconSize * 0.18
+          const arrowX = cx
+          const arrowY = iconY - arrowSize - 4*S
+          
+          ctx.shadowColor = glowColor2
+          ctx.shadowBlur = 6*S
+          ctx.globalAlpha = 0.6
+          ctx.beginPath()
+          ctx.moveTo(arrowX, arrowY)
+          ctx.lineTo(arrowX - arrowSize*0.7, arrowY + arrowSize)
+          ctx.lineTo(arrowX + arrowSize*0.7, arrowY + arrowSize)
+          ctx.closePath()
+          ctx.fillStyle = glowColor2
+          ctx.fill()
+          
+          // 静态发光边框
+          ctx.shadowBlur = 4*S
           ctx.strokeStyle = glowColor2
           ctx.lineWidth = 2*S
           ctx.globalAlpha = 0.5
