@@ -32,17 +32,17 @@ class MusicManager {
     this._bgm.src = 'audio/bgm.mp3'
     this._bgm.loop = true
     this._bgm.volume = 0.08
-    this._bgm.playbackRate = 2.0
+    this._bgm.playbackRate = 1.0
     this._bgm.onCanplay(() => {
-      this._bgm.playbackRate = 2.0
+      this._bgm.playbackRate = 1.0
     })
     this._bgm.onPlay(() => {
-      this._bgm.playbackRate = 2.0
+      this._bgm.playbackRate = 1.0
     })
     this._bgm.play()
     // 延迟再次设置，确保在播放后生效
     setTimeout(() => {
-      if (this._bgm) this._bgm.playbackRate = 2.0
+      if (this._bgm) this._bgm.playbackRate = 1.0
     }, 50)
   }
 
