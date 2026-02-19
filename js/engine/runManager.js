@@ -4,7 +4,7 @@
  */
 const { TH } = require('../render')
 const {
-  EVENT_TYPE, ADVENTURES,
+  EVENT_TYPE, ADVENTURES, MAX_FLOOR,
   generateFloorEvent,
 } = require('../data/tower')
 const { generateStarterPets } = require('../data/pets')
@@ -27,6 +27,7 @@ function makeDefaultRunBuffs() {
 
 function startRun(g) {
   g.floor = 0
+  g.cleared = false
   g.pets = generateStarterPets()
   g.weapon = null
   g.petBag = []
@@ -50,6 +51,12 @@ function nextFloor(g) {
   g.enemyBuffs = []
   g.heroShield = 0
   g.floor++
+  // 通关检测：超过最大层数即为通关
+  if (g.floor > MAX_FLOOR) {
+    g.cleared = true
+    endRun(g)
+    return
+  }
   if (g.floor > 1) MusicMgr.playLevelUp()
   // 法宝perFloorBuff
   if (g.weapon && g.weapon.type === 'perFloorBuff' && g.floor > 1 && (g.floor - 1) % g.weapon.per === 0) {
@@ -83,12 +90,17 @@ function restoreBattleHpMax(g) {
 }
 
 function endRun(g) {
-  g.storage.updateBestFloor(g.floor, g.pets, g.weapon)
+  const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+  g.storage.updateBestFloor(finalFloor, g.pets, g.weapon)
   g.storage.clearRunState()
   if (g.storage.userAuthorized) {
-    g.storage.submitScore(g.floor, g.pets, g.weapon)
+    g.storage.submitScore(finalFloor, g.pets, g.weapon)
   }
-  MusicMgr.playGameOver()
+  if (g.cleared) {
+    MusicMgr.playLevelUp()
+  } else {
+    MusicMgr.playGameOver()
+  }
   g.scene = 'gameover'
 }
 

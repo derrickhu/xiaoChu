@@ -165,12 +165,41 @@ function rTitle(g) {
 function rGameover(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawBg(g.af)
-  ctx.fillStyle = TH.danger; ctx.font = `bold ${26*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('挑战结束', W*0.5, H*0.2)
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`
-  ctx.fillText(`本次到达：第 ${g.floor} 层`, W*0.5, H*0.32)
-  ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
-  ctx.fillText(`历史最高：第 ${g.storage.bestFloor} 层`, W*0.5, H*0.40)
+
+  if (g.cleared) {
+    // ===== 通关界面 =====
+    // 金色光芒背景
+    ctx.save()
+    const glow = ctx.createRadialGradient(W*0.5, H*0.28, 0, W*0.5, H*0.28, W*0.5)
+    glow.addColorStop(0, 'rgba(255,215,0,0.25)')
+    glow.addColorStop(1, 'rgba(255,215,0,0)')
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${28*S}px sans-serif`
+    ctx.fillText('通天塔·通关', W*0.5, H*0.18)
+
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `${16*S}px sans-serif`
+    ctx.fillText('恭喜修士登顶通天塔！', W*0.5, H*0.26)
+
+    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${18*S}px sans-serif`
+    ctx.fillText(`通关层数：第 ${g.floor > 60 ? 60 : g.floor} 层`, W*0.5, H*0.34)
+
+    ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
+    ctx.fillText(`历史最高：第 ${g.storage.bestFloor} 层`, W*0.5, H*0.40)
+  } else {
+    // ===== 失败界面 =====
+    ctx.textAlign = 'center'
+    ctx.fillStyle = TH.danger; ctx.font = `bold ${26*S}px sans-serif`
+    ctx.fillText('挑战结束', W*0.5, H*0.2)
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${20*S}px sans-serif`
+    ctx.fillText(`本次到达：第 ${g.floor} 层`, W*0.5, H*0.32)
+    ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
+    ctx.fillText(`历史最高：第 ${g.storage.bestFloor} 层`, W*0.5, H*0.40)
+  }
+
+  ctx.textAlign = 'center'
   ctx.fillText('上场灵兽：', W*0.5, H*0.50)
   g.pets.forEach((p, i) => {
     const ac = ATTR_COLOR[p.attr]
@@ -184,7 +213,7 @@ function rGameover(g) {
   ctx.fillStyle = TH.dim; ctx.font = `${11*S}px sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`灵兽背包：${g.petBag.length}只  法宝背包：${g.weaponBag.length}件`, W*0.5, H*0.68)
   const bx = W*0.25, by = H*0.75, bw = W*0.5, bh = 48*S
-  R.drawBtn(bx, by, bw, bh, '重新挑战', TH.accent, 18)
+  R.drawBtn(bx, by, bw, bh, g.cleared ? '再次挑战' : '重新挑战', TH.accent, 18)
   g._goBtnRect = [bx, by, bw, bh]
   drawBackBtn(g)
 }
@@ -764,10 +793,10 @@ function drawNewRunConfirm(g) {
   ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 92*S)
 
   // 按钮
-  const btnW = pw * 0.38, btnH = 44*S, gap = 14*S
+  const btnW = pw * 0.32, btnH = 34*S, gap = 14*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 118*S
+  const btnY = py + 124*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, '取消', 'cancel')
   g._newRunCancelRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, '确认开始', 'confirm')
