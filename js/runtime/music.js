@@ -22,20 +22,28 @@ class MusicManager {
 
   playBgm() {
     if (!this.bgmEnabled) return
-    if (!this._bgm) {
-      this._bgm = wx.createInnerAudioContext()
-      this._bgm.src = 'audio/bgm.mp3'
-      this._bgm.loop = true
-      this._bgm.volume = 0.08
-      this._bgm.onCanplay(() => {
-        this._bgm.playbackRate = 2.0
-      })
-      this._bgm.onPlay(() => {
-        this._bgm.playbackRate = 2.0
-      })
+    // 销毁之前的 BGM 实例，确保重新创建时 playbackRate 生效
+    if (this._bgm) {
+      this._bgm.stop()
+      this._bgm.destroy()
+      this._bgm = null
     }
-    this._bgm.play()
+    this._bgm = wx.createInnerAudioContext()
+    this._bgm.src = 'audio/bgm.mp3'
+    this._bgm.loop = true
+    this._bgm.volume = 0.08
     this._bgm.playbackRate = 2.0
+    this._bgm.onCanplay(() => {
+      this._bgm.playbackRate = 2.0
+    })
+    this._bgm.onPlay(() => {
+      this._bgm.playbackRate = 2.0
+    })
+    this._bgm.play()
+    // 延迟再次设置，确保在播放后生效
+    setTimeout(() => {
+      if (this._bgm) this._bgm.playbackRate = 2.0
+    }, 50)
   }
 
   stopBgm() {
