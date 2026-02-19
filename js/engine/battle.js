@@ -720,12 +720,22 @@ function applyEnemySkill(g, skillKey) {
         if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 2
       }
       break
-    case 'convert':
+    case 'convert': {
+      const cells = []
       for (let i = 0; i < sk.count; i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].attr = BEAD_ATTRS[Math.floor(Math.random()*5)]
+        if (g.board[r][c]) {
+          const toAttr = BEAD_ATTRS[Math.floor(Math.random()*5)]
+          if (g.board[r][c].attr !== toAttr) {
+            cells.push({ r, c, fromAttr: g.board[r][c].attr, toAttr })
+          }
+        }
+      }
+      if (cells.length) {
+        g._beadConvertAnim = { cells, timer: 0, phase: 'flash_old', duration: 48 }
       }
       break
+    }
     case 'aoe': {
       let aoeDmg = Math.round(g.enemy.atk * 0.5)
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') aoeDmg = Math.round(aoeDmg * (1 - g.weapon.pct / 100))

@@ -42,6 +42,8 @@ function updateAnimations(g) {
     if (f.t > 30) f.alpha -= 0.04
     return f.alpha > 0 && f.t < 60
   })
+  // 珠子变换动画（convertBead / replaceBeads / 敌方convert）
+  _updateBeadConvertAnim(g)
   // Combo弹出动画
   _updateComboAnim(g, S)
   // 宠物头像攻击数值动画
@@ -62,6 +64,35 @@ function updateAnimations(g) {
     }
     return f.alpha > 0
   })
+}
+
+/**
+ * 珠子变换动画更新
+ * 3阶段：flash_old(原珠闪烁0-15帧) → morph(切换属性16帧) → flash_new(新珠闪烁17-48帧)
+ */
+function _updateBeadConvertAnim(g) {
+  const anim = g._beadConvertAnim
+  if (!anim) return
+  anim.timer++
+  const FLASH_OLD_END = 16
+  const MORPH_FRAME = 16
+  const FLASH_NEW_END = 48
+
+  if (anim.timer === MORPH_FRAME) {
+    // 在变形帧切换珠子属性
+    anim.phase = 'flash_new'
+    for (const cell of anim.cells) {
+      if (g.board[cell.r] && g.board[cell.r][cell.c]) {
+        g.board[cell.r][cell.c].attr = cell.toAttr
+      }
+    }
+  } else if (anim.timer < MORPH_FRAME) {
+    anim.phase = 'flash_old'
+  }
+
+  if (anim.timer >= FLASH_NEW_END) {
+    g._beadConvertAnim = null
+  }
 }
 
 function _updateComboAnim(g, S) {

@@ -769,6 +769,48 @@ function drawBoard(g) {
       const beadPad = cs * 0.08
       const beadR = (cs - beadPad*2) * 0.5
       R.drawBead(drawX+cs*0.5, drawY+cs*0.5, beadR, attr, g.af)
+      // 变珠闪光特效
+      if (g._beadConvertAnim) {
+        const bca = g._beadConvertAnim
+        const convertCell = bca.cells.find(cc => cc.r === r && cc.c === c)
+        if (convertCell) {
+          const cx = drawX + cs*0.5, cy = drawY + cs*0.5
+          ctx.save()
+          if (bca.phase === 'flash_old') {
+            // 原珠闪烁：快速正弦波明暗交替 + 白色光晕扩散
+            const flashP = Math.sin(bca.timer * 0.8) * 0.5 + 0.5
+            const glowR = beadR * (1.2 + flashP * 0.6)
+            const grd = ctx.createRadialGradient(cx, cy, beadR*0.3, cx, cy, glowR)
+            grd.addColorStop(0, `rgba(255,255,255,${0.5 + flashP * 0.4})`)
+            grd.addColorStop(0.6, `rgba(255,255,200,${0.2 + flashP * 0.2})`)
+            grd.addColorStop(1, 'rgba(255,255,255,0)')
+            ctx.globalCompositeOperation = 'lighter'
+            ctx.fillStyle = grd
+            ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI*2); ctx.fill()
+            // 珠子缩放脉冲（接近morph时缩小）
+            if (bca.timer >= 12) {
+              const shrink = 1 - (bca.timer - 12) / 4 * 0.3
+              ctx.globalAlpha = Math.max(0.3, shrink)
+            }
+          } else {
+            // 新珠闪烁：从亮到正常的发光扩散
+            const newT = bca.timer - 16
+            const fadeP = Math.min(1, newT / 32)
+            const flashIntensity = (1 - fadeP) * (0.5 + 0.3 * Math.sin(newT * 0.6))
+            if (flashIntensity > 0.05) {
+              const glowR2 = beadR * (1.5 - fadeP * 0.5)
+              const grd2 = ctx.createRadialGradient(cx, cy, beadR*0.2, cx, cy, glowR2)
+              grd2.addColorStop(0, `rgba(255,255,255,${flashIntensity})`)
+              grd2.addColorStop(0.5, `rgba(255,255,200,${flashIntensity * 0.5})`)
+              grd2.addColorStop(1, 'rgba(255,255,255,0)')
+              ctx.globalCompositeOperation = 'lighter'
+              ctx.fillStyle = grd2
+              ctx.beginPath(); ctx.arc(cx, cy, glowR2, 0, Math.PI*2); ctx.fill()
+            }
+          }
+          ctx.restore()
+        }
+      }
       ctx.globalAlpha = 1
       if (cell.sealed) {
         ctx.strokeStyle = 'rgba(180,0,0,0.7)'; ctx.lineWidth = 2*S
