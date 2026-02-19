@@ -45,6 +45,11 @@ function cellAttr(g, r, c) {
 function fillBoard(g) {
   const { ROWS, COLS } = V
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
+  // beadRateUp效果也在fillBoard中生效
+  if (g.goodBeadsNextTurn) {
+    g.goodBeadsNextTurn = false
+    g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
+  }
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
   for (let c = 0; c < COLS; c++) {
     let writeRow = ROWS - 1
@@ -64,7 +69,7 @@ function fillBoard(g) {
 function checkAndElim(g) {
   const groups = findMatchesSeparate(g)
   if (groups.length > 0) {
-    if (!g._pendingDmgMap) { g._pendingDmgMap = {}; g._pendingHeal = 0; g.combo = 0 }
+    if (!g._pendingDmgMap) { g._pendingDmgMap = {}; g._pendingHeal = 0; g.combo = 0; g._pendingAttrMaxCount = {} }
     g.elimQueue = groups
     startNextElimAnim(g)
   } else if (g.combo > 0) {
@@ -162,6 +167,12 @@ function startNextElimAnim(g) {
     let heal = (10 + Math.floor(g.floor * 0.3)) * elimMul
     heal *= 1 + g.runBuffs.heartBoostPct / 100
     if (g.weapon && g.weapon.type === 'heartBoost') heal *= 1 + g.weapon.pct / 100
+    // 宠物技能heartBoost buff：心珠效果翻倍
+    g.heroBuffs.forEach(b => { if (b.type === 'heartBoost') heal *= b.mul || 2 })
+    // 怪物debuff healBlock：心珠回复量减半
+    g.heroBuffs.forEach(b => {
+      if (b.type === 'debuff' && b.field === 'healRate') heal *= b.rate
+    })
     g._pendingHeal += heal
     elimDisplayVal = Math.round(heal)
     elimDisplayColor = '#d4607a'
@@ -175,6 +186,9 @@ function startNextElimAnim(g) {
       baseDmg *= 1 + g.runBuffs.allAtkPct / 100
       if (!g._pendingDmgMap[attr]) g._pendingDmgMap[attr] = 0
       g._pendingDmgMap[attr] += baseDmg
+      // 记录该属性单次最大消除数（用于guaranteeCrit minCount判定）
+      if (!g._pendingAttrMaxCount) g._pendingAttrMaxCount = {}
+      g._pendingAttrMaxCount[attr] = Math.max(g._pendingAttrMaxCount[attr] || 0, count)
       elimDisplayVal = Math.round(baseDmg)
       const ac = ATTR_COLOR[attr]
       elimDisplayColor = ac ? ac.main : '#fff'
@@ -207,6 +221,15 @@ function startNextElimAnim(g) {
   g.heroBuffs.forEach(b => {
     if (b.type === 'shieldOnElim' && b.attr === attr) g._addShield(b.val || 30)
   })
+  // 法宝aoeOnElim：消除指定属性珠达到minCount时触发对敌人额外伤害
+  if (g.weapon && g.weapon.type === 'aoeOnElim' && g.weapon.attr === attr && count >= (g.weapon.minCount || 5) && g.enemy) {
+    const aoeDmg = Math.round(g.enemy.maxHp * 0.1)
+    g.enemy.hp = Math.max(0, g.enemy.hp - aoeDmg)
+    const { W, S } = V
+    g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:ATTR_COLOR[attr]?.main||'#ff6347', t:0, alpha:1 })
+    g.shakeT = 6; g.shakeI = 4
+    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
   g.bState = 'elimAnim'
@@ -342,6 +365,7 @@ function enterPetAtkShow(g) {
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === pet.attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
+    if (g.weapon && g.weapon.type === 'attrPetAtkUp' && g.weapon.attr === pet.attr) dmg *= 1 + g.weapon.pct / 100
     if (g.enemy) {
       const enemyAttr = g.enemy.attr
       if (COUNTER_MAP[pet.attr] === enemyAttr) { dmg *= COUNTER_MUL; dmg *= 1 + g.runBuffs.counterDmgPct / 100 }
@@ -399,19 +423,30 @@ function enterPetAtkShow(g) {
 // ===== 攻击结算 =====
 function executeAttack(g) {
   applyFinalDamage(g, g._pendingDmgMap || {}, g._pendingHeal || 0)
-  g._pendingDmgMap = null; g._pendingHeal = 0
+  g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g.storage.recordBattle(g.combo)
 }
 
 function calcCrit(g) {
   let critRate = 0, critDmg = 50
   g.heroBuffs.forEach(b => { if (b.type === 'critBoost') critRate += b.pct })
+  // guaranteeCrit：指定属性必暴击（检查该属性是否有伤害）
+  const dmgMap = g._pendingDmgMap || {}
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'guaranteeCrit') {
+      if (!b.attr || dmgMap[b.attr] > 0) critRate = 100
+    }
+  })
+  // critBoostPerCombo：每段Combo暴击率递增
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'critBoostPerCombo') critRate += b.pct * (g.combo || 0)
+  })
   g.heroBuffs.forEach(b => { if (b.type === 'critDmgUp') critDmg += b.pct })
   if (g.weapon && g.weapon.type === 'critAll') { critRate += g.weapon.critRate || 0; critDmg += g.weapon.critDmg || 0 }
   if (g.weapon && g.weapon.type === 'comboToCrit') { critRate += (g.weapon.pct || 5) * g.combo }
   if (g.weapon && g.weapon.type === 'guaranteeCrit') {
-    const dmgMap = g._pendingDmgMap || {}
-    if (g.weapon.attr && dmgMap[g.weapon.attr] > 0) critRate = 100
+    const maxCount = (g._pendingAttrMaxCount && g._pendingAttrMaxCount[g.weapon.attr]) || 0
+    if (g.weapon.attr && dmgMap[g.weapon.attr] > 0 && (!g.weapon.minCount || maxCount >= g.weapon.minCount)) critRate = 100
   }
   critRate = Math.min(critRate, 100)
   return { critRate, critDmg }
@@ -457,6 +492,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
+    if (g.weapon && g.weapon.type === 'attrPetAtkUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'comboDmgUp') dmg *= 1 + g.weapon.pct / 100 * (g.combo > 1 ? 1 : 0)
     if (g.weapon && g.weapon.type === 'lowHpDmgUp' && g.heroHp / g.heroMaxHp <= (g.weapon.threshold || 30) / 100) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'stunBonusDmg' && g.enemyBuffs.some(b => b.type === 'stun')) dmg *= 1 + g.weapon.pct / 100
@@ -471,6 +507,12 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (g.weapon && g.weapon.type === 'ignoreDefPct' && g.weapon.attr === attr && g.enemy) {
       dmg += (g.enemy.def || 0) * g.weapon.pct / 100
     }
+    // 宠物技能ignoreDefPct buff：无视部分防御
+    g.heroBuffs.forEach(b => {
+      if (b.type === 'ignoreDefPct' && b.attr === attr && g.enemy) {
+        dmg += (g.enemy.def || 0) * b.pct / 100
+      }
+    })
     dmg *= critMul
     dmg = Math.round(dmg)
     if (dmg > 0) {
@@ -493,6 +535,12 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (g.weapon && g.weapon.type === 'poisonChance' && Math.random()*100 < g.weapon.chance) {
       g.enemyBuffs.push({ type:'dot', name:'中毒', dmg:g.weapon.dmg, dur:g.weapon.dur, bad:true })
     }
+  }
+  // 法宝execute：敌人残血低于阈值时直接斩杀
+  if (g.weapon && g.weapon.type === 'execute' && g.enemy && g.enemy.hp > 0 && g.enemy.hp / g.enemy.maxHp <= (g.weapon.threshold || 10) / 100) {
+    g.enemy.hp = 0
+    g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY(), text:'斩 杀 ！', color:'#ff2020', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
+    g.shakeT = 10; g.shakeI = 6
   }
   // 回复
   if (heal > 0 && !g._pendingHealApplied) {
@@ -524,6 +572,12 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (g.weapon && g.weapon.type === 'onKillHeal') {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.weapon.pct / 100))
     }
+    // 宠物技能onKillHeal buff：击杀回血
+    g.heroBuffs.forEach(b => {
+      if (b.type === 'onKillHeal') {
+        g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * b.pct / 100))
+      }
+    })
     if (g.runBuffs.postBattleHealPct > 0) {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.runBuffs.postBattleHealPct / 100))
     }
@@ -539,6 +593,18 @@ function settle(g) {
   g.heroBuffs = g.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
   g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
   g.pets.forEach(p => { if (p.currentCd > 0) p.currentCd-- })
+  // seal持续时间递减：sealed为数字时每回合-1，归0则解封
+  const { ROWS, COLS } = V
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (g.board[r][c] && g.board[r][c].sealed) {
+        if (typeof g.board[r][c].sealed === 'number') {
+          g.board[r][c].sealed--
+          if (g.board[r][c].sealed <= 0) g.board[r][c].sealed = false
+        }
+      }
+    }
+  }
   g.comboNeverBreak = false
   g.bState = 'preEnemy'; g._stateTimer = 0
 }
@@ -558,7 +624,14 @@ function enemyTurn(g) {
   if (atkBuff) atkDmg = Math.round(atkDmg * (1 + atkBuff.rate))
   let reducePct = 0
   g.heroBuffs.forEach(b => { if (b.type === 'reduceDmg') reducePct += b.pct })
+  // 宠物技能allDefUp buff：全队防御加成转化为减伤
+  g.heroBuffs.forEach(b => { if (b.type === 'allDefUp') reducePct += b.pct })
+  // 怪物debuff defDown：降低防御 → 增加受到的伤害
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'debuff' && b.field === 'def') reducePct -= b.rate * 100
+  })
   if (g.weapon && g.weapon.type === 'reduceDmg') reducePct += g.weapon.pct
+  if (g.weapon && g.weapon.type === 'reduceAttrAtkDmg' && g.enemy && g.enemy.attr === g.weapon.attr) reducePct += g.weapon.pct
   reducePct += g.runBuffs.dmgReducePct
   if (g.runBuffs.nextDmgReducePct > 0) reducePct += g.runBuffs.nextDmgReducePct
   atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
@@ -597,6 +670,8 @@ function enemyTurn(g) {
   g.heroBuffs.forEach(b => {
     if (b.type === 'dot' && b.dmg > 0) {
       if (g.weapon && g.weapon.type === 'immuneDot') return
+      // 宠物技能immuneCtrl也能免疫持续伤害
+      if (g.heroBuffs.some(hb => hb.type === 'immuneCtrl')) return
       g._dealDmgToHero(b.dmg)
     }
   })
@@ -627,6 +702,12 @@ function applyEnemySkill(g, skillKey) {
   const { S, W, H, TH, ROWS, COLS } = V
   const sk = ENEMY_SKILLS[skillKey]
   if (!sk) return
+  // 法宝immuneDebuff：免疫所有负面效果（dot/debuff/stun/seal等，不拦截buff/selfHeal/convert/breakBead/aoe）
+  const negTypes = ['dot','debuff','stun','seal']
+  if (g.weapon && g.weapon.type === 'immuneDebuff' && negTypes.includes(sk.type)) {
+    g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'免疫！', color:'#40e8ff', t:0, alpha:1 })
+    return
+  }
   g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()+30*S, text:sk.name, color:TH.danger, t:0, alpha:1 })
   switch(sk.type) {
     case 'buff':
@@ -636,7 +717,7 @@ function applyEnemySkill(g, skillKey) {
     case 'seal':
       for (let i = 0; i < sk.count; i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].sealed = true
+        if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 2
       }
       break
     case 'convert':
@@ -645,15 +726,20 @@ function applyEnemySkill(g, skillKey) {
         if (g.board[r][c]) g.board[r][c].attr = BEAD_ATTRS[Math.floor(Math.random()*5)]
       }
       break
-    case 'aoe':
-      g._dealDmgToHero(Math.round(g.enemy.atk * 0.5)); break
+    case 'aoe': {
+      let aoeDmg = Math.round(g.enemy.atk * 0.5)
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') aoeDmg = Math.round(aoeDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(aoeDmg); break
+    }
     case 'debuff':
       g.heroBuffs.push({ type:'debuff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:true }); break
-    case 'stun':
-      if (!g.immuneOnce && !(g.weapon && (g.weapon.type === 'immuneStun' || g.weapon.type === 'immuneCtrl'))) {
+    case 'stun': {
+      const hasImmuneCtrl = g.heroBuffs.some(b => b.type === 'immuneCtrl')
+      if (!g.immuneOnce && !hasImmuneCtrl && !(g.weapon && g.weapon.type === 'immuneStun')) {
         g.heroBuffs.push({ type:'heroStun', name:'眩晕', dur:sk.dur, bad:true })
       } else { g.immuneOnce = false }
       break
+    }
     case 'selfHeal':
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + Math.round(g.enemy.maxHp * (sk.pct||15) / 100)); break
     case 'breakBead':
@@ -682,11 +768,13 @@ function enterBattle(g, enemyData) {
   if (hpReduce > 0) { g.enemy.hp = Math.round(g.enemy.hp * (1 - hpReduce / 100)); g.enemy.maxHp = g.enemy.hp }
   if (atkReduce > 0) g.enemy.atk = Math.round(g.enemy.atk * (1 - atkReduce / 100))
   if (defReduce > 0) g.enemy.def = Math.round((g.enemy.def || 0) * (1 - defReduce / 100))
+  if (g.weapon && g.weapon.type === 'breakDef') g.enemy.def = 0
+  if (g.weapon && g.weapon.type === 'weakenEnemy') g.enemy.atk = Math.round(g.enemy.atk * (1 - g.weapon.pct / 100))
   g.enemyBuffs = []
   g.bState = 'playerTurn'
   g.combo = 0; g.turnCount = 0
   g.lastSpeedKill = false; g.lastTurnCount = 0
-  g._pendingDmgMap = null; g._pendingHeal = 0
+  g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g.elimQueue = []; g.elimAnimCells = null
   g.elimFloats = []; g.petAtkNums = []
   g._elimSkipCombo = false

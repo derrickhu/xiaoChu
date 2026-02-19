@@ -192,7 +192,18 @@ class Main {
     }
     if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
       this._stateTimer++
-      if (this._stateTimer >= 36) { this._stateTimer = 0; this._enemyTurnWait = false; this.bState = 'playerTurn'; this.dragTimer = 0 }
+      if (this._stateTimer >= 36) {
+        this._stateTimer = 0; this._enemyTurnWait = false
+        // 检查heroStun：玩家被眩晕则跳过操作回合
+        const stunIdx = this.heroBuffs.findIndex(b => b.type === 'heroStun')
+        if (stunIdx >= 0) {
+          this.heroBuffs.splice(stunIdx, 1)
+          this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
+          this.bState = 'preEnemy'; this._stateTimer = 0
+        } else {
+          this.bState = 'playerTurn'; this.dragTimer = 0
+        }
+      }
     }
     anim.updateSwapAnim(this)
     anim.updateBattleAnims(this)
