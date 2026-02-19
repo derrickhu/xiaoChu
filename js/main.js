@@ -131,6 +131,11 @@ class Main {
     this._petLongPressTimer = null
     this._petLongPressIndex = -1
     this._petLongPressTriggered = false
+    // 上划释放技能
+    this._petSwipeIndex = -1
+    this._petSwipeStartX = 0
+    this._petSwipeStartY = 0
+    this._petSwipeTriggered = false
     this.skillPreview = null  // {pet, index, timer, x, y}
     this.showExitDialog = false
     this.showNewRunConfirm = false  // 首页"开始挑战"确认弹窗
