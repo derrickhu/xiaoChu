@@ -39,18 +39,30 @@ function rBattle(g) {
     const themeBg = 'theme_' + (g.enemy.attr || 'metal')
     R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
 
-    // --- 血条（细窄样式） ---
-    const hpY = eAreaBottom - 18*S
-    const hpBarW = W * 0.55
+    // --- 血条（加大样式） ---
+    const eHpH = 14*S
+    const hpY = eAreaBottom - 26*S
+    const hpBarW = W * 0.72
     const hpBarX = (W - hpBarW) / 2
-    R.drawHp(hpBarX, hpY, hpBarW, 10*S, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
+    // Boss/精英血条发光边框
+    if (g.enemy.isBoss || g.enemy.isElite) {
+      ctx.save()
+      const hpGlowColor = ac ? ac.main : '#ff4040'
+      ctx.shadowColor = hpGlowColor; ctx.shadowBlur = 10*S
+      ctx.strokeStyle = hpGlowColor + '88'; ctx.lineWidth = 2*S
+      R.rr(hpBarX - 2*S, hpY - 2*S, hpBarW + 4*S, eHpH + 4*S, (eHpH + 4*S)/2); ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.restore()
+    }
+    R.drawHp(hpBarX, hpY, hpBarW, eHpH, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
 
-    // --- 怪物图片 ---
+    // --- 怪物图片（胜利状态且死亡动画结束后不再绘制） ---
     const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     const imgBottom = hpY - 6*S  // 图片底部贴近血条上方
     let imgDrawY = eAreaTop  // 默认值
-    if (enemyImg && enemyImg.width > 0) {
+    const hideEnemy = g.bState === 'victory' && !g._enemyDeathAnim
+    if (enemyImg && enemyImg.width > 0 && !hideEnemy) {
       const maxImgH = eAreaH * 0.58
       const maxImgW = W * 0.5
       const imgRatio = enemyImg.width / enemyImg.height
@@ -58,7 +70,119 @@ function rBattle(g) {
       if (imgW > maxImgW) { imgW = maxImgW; imgH = imgW / imgRatio }
       const imgX = (W - imgW) / 2
       imgDrawY = imgBottom - imgH
-      ctx.drawImage(enemyImg, imgX, imgDrawY, imgW, imgH)
+
+      // 敌人受击抖动+闪红+squash形变（使用离屏canvas避免source-atop透明底图问题）
+      ctx.save()
+      let hitOffX = 0, hitOffY = 0
+      if (g._enemyHitFlash > 0) {
+        const hitIntensity = g._enemyHitFlash / 12
+        hitOffX = (Math.random() - 0.5) * 10 * S * hitIntensity
+        hitOffY = (Math.random() - 0.5) * 6 * S * hitIntensity
+        const squashP = Math.min(1, g._enemyHitFlash / 6)
+        const scaleX = 1 - squashP * 0.08
+        const scaleY = 1 + squashP * 0.06
+        ctx.translate(imgX + imgW/2, imgDrawY + imgH)
+        ctx.scale(scaleX, scaleY)
+        ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH))
+      }
+      // 死亡爆裂时缩小+淡出
+      if (g._enemyDeathAnim) {
+        const dp = g._enemyDeathAnim.timer / g._enemyDeathAnim.duration
+        const deathScale = 1 - dp * 0.5
+        const deathAlpha = 1 - dp
+        ctx.globalAlpha = Math.max(0, deathAlpha)
+        ctx.translate(imgX + imgW/2, imgDrawY + imgH/2)
+        ctx.scale(deathScale, deathScale)
+        ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH/2))
+      }
+      // 受击闪白脉冲（不使用composite操作，避免透明底图边框问题）
+      if (g._enemyHitFlash > 0) {
+        const flashP = g._enemyHitFlash / 12
+        // 透明度脉冲：快速闪烁2次
+        const blinkAlpha = flashP > 0.5 ? (Math.sin(g._enemyHitFlash * 1.5) * 0.3 + 0.7) : 1
+        ctx.globalAlpha = (ctx.globalAlpha || 1) * blinkAlpha
+      }
+      ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+      // 受击时在图片上方叠一层同尺寸的敌人图片（lighter模式，产生泛白发光效果）
+      if (g._enemyHitFlash > 0) {
+        const glowAlpha = Math.min(0.5, g._enemyHitFlash / 12 * 0.5)
+        ctx.globalAlpha = glowAlpha
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.globalAlpha = 1
+      }
+      ctx.restore()
+
+      // --- 敌人 debuff 视觉特效（替代图标显示） ---
+      _drawEnemyDebuffVFX(g, imgX, imgDrawY, imgW, imgH, enemyImg)
+
+      // 死亡特效：多层粒子+光柱+扩散环
+      if (g._enemyDeathAnim) {
+        const da = g._enemyDeathAnim
+        const dp = da.timer / da.duration
+        ctx.save()
+        const centerX = imgX + imgW/2, centerY = imgDrawY + imgH/2
+        const deathColor = ac ? ac.main : '#ff6040'
+
+        // 光柱（从敌人位置向上冲天）
+        if (dp < 0.6) {
+          const pillarP = dp / 0.6
+          const pillarW = 20*S * (1 - pillarP * 0.5)
+          const pillarH = 200*S * pillarP
+          ctx.globalAlpha = (1 - pillarP) * 0.6
+          const pillarGrd = ctx.createLinearGradient(centerX, centerY, centerX, centerY - pillarH)
+          pillarGrd.addColorStop(0, '#fff')
+          pillarGrd.addColorStop(0.3, deathColor)
+          pillarGrd.addColorStop(0.7, deathColor + '44')
+          pillarGrd.addColorStop(1, 'transparent')
+          ctx.fillStyle = pillarGrd
+          ctx.fillRect(centerX - pillarW, centerY - pillarH, pillarW*2, pillarH)
+        }
+
+        // 多层扩散环
+        for (let ring = 0; ring < 3; ring++) {
+          const ringDelay = ring * 0.1
+          const ringP = Math.max(0, dp - ringDelay) / (1 - ringDelay)
+          if (ringP <= 0 || ringP > 1) continue
+          const ringR = ringP * (60 + ring * 30) * S
+          ctx.globalAlpha = (1 - ringP) * (0.6 - ring * 0.15)
+          ctx.strokeStyle = ring === 0 ? '#fff' : deathColor
+          ctx.lineWidth = (3 - ringP * 2 - ring * 0.5) * S
+          ctx.beginPath(); ctx.arc(centerX, centerY, ringR, 0, Math.PI*2); ctx.stroke()
+        }
+
+        // 密集碎片粒子（外层大粒子+内层小粒子）
+        const particleCount = 24
+        for (let pi = 0; pi < particleCount; pi++) {
+          const angle = (pi / particleCount) * Math.PI * 2 + da.timer * 0.08
+          const speed = 20 + (pi % 5) * 15
+          const dist = dp * speed * S
+          const px = centerX + Math.cos(angle) * dist
+          const py = centerY + Math.sin(angle) * dist
+          const pAlpha = (1 - dp) * 0.85
+          const pSize = (pi % 3 === 0 ? 3.5 : pi % 3 === 1 ? 2.5 : 1.5) * S * (1 - dp * 0.5)
+          ctx.globalAlpha = pAlpha
+          ctx.fillStyle = pi % 4 === 0 ? '#fff' : pi % 4 === 1 ? deathColor : pi % 4 === 2 ? '#ffd700' : deathColor + 'cc'
+          ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI*2); ctx.fill()
+        }
+
+        // 核心闪光（前半段）
+        if (dp < 0.3) {
+          const flashR = 25*S * (1 + dp / 0.3)
+          ctx.globalAlpha = (0.3 - dp) / 0.3 * 0.7
+          ctx.globalCompositeOperation = 'lighter'
+          const flashGrd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, flashR)
+          flashGrd.addColorStop(0, '#fff')
+          flashGrd.addColorStop(0.5, deathColor)
+          flashGrd.addColorStop(1, 'transparent')
+          ctx.fillStyle = flashGrd
+          ctx.beginPath(); ctx.arc(centerX, centerY, flashR, 0, Math.PI*2); ctx.fill()
+          ctx.globalCompositeOperation = 'source-over'
+        }
+
+        ctx.restore()
+      }
     }
 
     // --- 怪物名（图片头顶，上移留出抗性空间） ---
@@ -73,37 +197,77 @@ function rBattle(g) {
     ctx.fillText(g.enemy.name, W*0.5, nameY)
     ctx.restore()
 
-    // --- 弱点 & 抵抗（名称正下方居中） ---
+    // --- 弱点 & 抵抗（药丸标签化，Boss弱点呼吸脉冲） ---
     const weakAttr = COUNTER_BY[g.enemy.attr]
     const resistAttr = COUNTER_MAP[g.enemy.attr]
-    const orbR = 5*S
-    const infoFontSize = 9*S
-    const infoY = nameY + 12*S
-    // 预计算总宽度以实现居中
+    const orbR = 7*S
+    const infoFontSize = 11*S
+    const infoY = nameY + 14*S
+    const tagH = 22*S, tagR = tagH/2
     ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-    let totalInfoW = 0
-    const weakLabelW = weakAttr ? ctx.measureText('弱:').width + orbR*2 + 4*S : 0
-    const resistLabelW = resistAttr ? ctx.measureText('抗:').width + orbR*2 + 4*S : 0
+    const weakTagW = weakAttr ? ctx.measureText('弱点').width + orbR*2 + 16*S : 0
+    const resistTagW = resistAttr ? ctx.measureText('抵抗').width + orbR*2 + 16*S : 0
     const infoGap = (weakAttr && resistAttr) ? 10*S : 0
-    totalInfoW = weakLabelW + infoGap + resistLabelW
+    const totalInfoW = weakTagW + infoGap + resistTagW
     let curX = W*0.5 - totalInfoW/2
-    ctx.textAlign = 'left'
+    // 弱点标签
     if (weakAttr) {
-      ctx.fillStyle = 'rgba(240,224,192,0.9)'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2*S
-      ctx.fillText('弱:', curX, infoY)
+      const wac = ATTR_COLOR[weakAttr]
+      const weakMain = wac ? wac.main : '#fff'
+      const isBoss = g.enemy.isBoss || g.enemy.isElite
+      // Boss/精英弱点呼吸脉冲
+      const pulseAlpha = isBoss ? (0.75 + 0.25 * Math.sin(g.af * 0.08)) : 0.85
+      const pulseScale = isBoss ? (1 + 0.03 * Math.sin(g.af * 0.08)) : 1
+      ctx.save()
+      if (isBoss) {
+        ctx.translate(curX + weakTagW/2, infoY - tagH*0.5 + tagH/2)
+        ctx.scale(pulseScale, pulseScale)
+        ctx.translate(-(curX + weakTagW/2), -(infoY - tagH*0.5 + tagH/2))
+      }
+      ctx.globalAlpha = pulseAlpha
+      // 药丸底色
+      ctx.fillStyle = weakMain + '40'
+      ctx.beginPath()
+      R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.fill()
+      ctx.strokeStyle = weakMain + '99'; ctx.lineWidth = 1.5*S
+      R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
+      // Boss额外发光
+      if (isBoss) {
+        ctx.shadowColor = weakMain; ctx.shadowBlur = 8*S
+        ctx.strokeStyle = weakMain + 'cc'; ctx.lineWidth = 1*S
+        R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
+        ctx.shadowBlur = 0
+      }
+      // 文字 + 珠子
+      ctx.globalAlpha = 1
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.fillText('弱点', curX + 6*S, infoY)
+      const lw = ctx.measureText('弱点').width
+      R.drawBead(curX + 6*S + lw + orbR + 3*S, infoY, orbR, weakAttr, g.af)
+      ctx.textBaseline = 'alphabetic'
       ctx.restore()
-      const lw = ctx.measureText('弱:').width
-      R.drawBead(curX + lw + orbR + 2*S, infoY - 3*S, orbR, weakAttr, g.af)
-      curX += weakLabelW + infoGap
+      curX += weakTagW + infoGap
     }
+    // 抵抗标签
     if (resistAttr) {
-      ctx.fillStyle = 'rgba(240,224,192,0.9)'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2*S
-      ctx.fillText('抗:', curX, infoY)
+      const rac = ATTR_COLOR[resistAttr]
+      const resistMain = rac ? rac.main : '#888'
+      ctx.save()
+      ctx.globalAlpha = 0.65
+      ctx.fillStyle = 'rgba(60,60,80,0.6)'
+      ctx.beginPath()
+      R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.fill()
+      ctx.strokeStyle = 'rgba(150,150,170,0.4)'; ctx.lineWidth = 1*S
+      R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.stroke()
+      ctx.globalAlpha = 0.8
+      ctx.fillStyle = '#aaa'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.fillText('抵抗', curX + 6*S, infoY)
+      const lw2 = ctx.measureText('抵抗').width
+      R.drawBead(curX + 6*S + lw2 + orbR + 3*S, infoY, orbR, resistAttr, g.af)
+      ctx.textBaseline = 'alphabetic'
       ctx.restore()
-      const lw = ctx.measureText('抗:').width
-      R.drawBead(curX + lw + orbR + 2*S, infoY - 3*S, orbR, resistAttr, g.af)
     }
 
     // --- 层数标记（最顶部，使用标签框底图） ---
@@ -139,8 +303,7 @@ function rBattle(g) {
       ctx.restore()
     }
 
-    // 敌方Buff
-    drawBuffIconsLabeled(g.enemyBuffs, padX+8*S, nameY - 18*S, '敌方', true)
+    // 敌方Buff — 已改为怪物身上的视觉特效显示，不再使用图标
     g._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]
   }
 
@@ -183,8 +346,8 @@ function rBattle(g) {
   // Combo显示
   _drawCombo(g, cellSize, boardTop)
 
-  // 技能释放横幅
-  if (g._skillBanner) _drawSkillBanner(g)
+  // 技能快闪
+  if (g._skillFlash) _drawSkillFlash(g)
 
   // 宠物攻击技能光波特效
   if (g._petSkillWave) _drawPetSkillWave(g)
@@ -196,6 +359,12 @@ function rBattle(g) {
   if (g.dragging && g.bState === 'playerTurn') {
     _drawDragTimer(g, cellSize, boardTop)
   }
+
+  // 敌方回合过渡横条
+  if (g._pendingEnemyAtk && g.bState === 'playerTurn') {
+    _drawEnemyTurnBanner(g)
+  }
+
   // 胜利/失败覆盖
   if (g.bState === 'victory') drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
@@ -235,19 +404,26 @@ function _drawPetSkillWave(g) {
   const targetX = wave.targetX
   const targetY = wave.targetY
 
+  // 安全检查：坐标值必须是有限数值，否则 createRadialGradient 会抛异常导致渲染循环中断
+  if (!isFinite(startX) || !isFinite(startY) || !isFinite(targetX) || !isFinite(targetY) || !isFinite(iconSize)) {
+    g._petSkillWave = null; return
+  }
+
   ctx.save()
 
   // 阶段1（0-0.15）：宠物头像蓄力光环
   if (p < 0.15) {
     const chargeP = p / 0.15
     const chargeR = iconSize * 0.4 * chargeP
-    ctx.globalAlpha = 0.6 + chargeP * 0.4
-    const chargeGrd = ctx.createRadialGradient(startX, startY, 0, startX, startY, chargeR)
-    chargeGrd.addColorStop(0, '#fff')
-    chargeGrd.addColorStop(0.5, clr)
-    chargeGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = chargeGrd
-    ctx.beginPath(); ctx.arc(startX, startY, chargeR, 0, Math.PI*2); ctx.fill()
+    if (chargeR > 0) {
+      ctx.globalAlpha = 0.6 + chargeP * 0.4
+      const chargeGrd = ctx.createRadialGradient(startX, startY, 0, startX, startY, chargeR)
+      chargeGrd.addColorStop(0, '#fff')
+      chargeGrd.addColorStop(0.5, clr)
+      chargeGrd.addColorStop(1, 'transparent')
+      ctx.fillStyle = chargeGrd
+      ctx.beginPath(); ctx.arc(startX, startY, chargeR, 0, Math.PI*2); ctx.fill()
+    }
   }
 
   // 阶段2（0.1-0.6）：光波从宠物飞向敌人
@@ -294,136 +470,154 @@ function _drawPetSkillWave(g) {
     }
   }
 
-  // 阶段3（0.5-1.0）：命中爆炸冲击波
+  // 阶段3（0.5-1.0）：命中 — 密集碎片+速度线+闪光（非大爆炸）
   if (p >= 0.5) {
     const hitP = (p - 0.5) / 0.5  // 0→1
-    const impactR = 30*S + hitP * 70*S
 
-    // 冲击波环
-    ctx.globalAlpha = (1 - hitP) * 0.7
-    ctx.strokeStyle = clr
-    ctx.lineWidth = (1 - hitP) * 6*S
-    ctx.shadowColor = clr
-    ctx.shadowBlur = 15*S
-    ctx.beginPath(); ctx.arc(targetX, targetY, impactR, 0, Math.PI*2); ctx.stroke()
-    ctx.shadowBlur = 0
+    // 紧凑闪光核心（半径小，衰减快）
+    if (hitP < 0.3) {
+      const coreR = 15*S + hitP / 0.3 * 20*S
+      ctx.globalAlpha = (0.3 - hitP) / 0.3 * 0.8
+      const coreGrd = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, coreR)
+      coreGrd.addColorStop(0, '#fff')
+      coreGrd.addColorStop(0.5, clr)
+      coreGrd.addColorStop(1, 'transparent')
+      ctx.fillStyle = coreGrd
+      ctx.beginPath(); ctx.arc(targetX, targetY, coreR, 0, Math.PI*2); ctx.fill()
+    }
 
-    // 内部闪光
-    ctx.globalAlpha = (1 - hitP) * 0.4
-    const impactGrd = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, impactR * 0.8)
-    impactGrd.addColorStop(0, '#fff')
-    impactGrd.addColorStop(0.3, clr + 'aa')
-    impactGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = impactGrd
-    ctx.beginPath(); ctx.arc(targetX, targetY, impactR * 0.8, 0, Math.PI*2); ctx.fill()
+    // 速度线（从命中点向外放射的短线）
+    if (hitP < 0.6) {
+      const lineP = hitP / 0.6
+      ctx.save()
+      ctx.globalAlpha = (1 - lineP) * 0.7
+      ctx.strokeStyle = clr; ctx.lineWidth = 2*S
+      ctx.shadowColor = clr; ctx.shadowBlur = 6*S
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2 + wave.timer * 0.05
+        const innerR = 10*S + lineP * 25*S
+        const outerR = innerR + (8 + Math.random() * 12) * S * (1 - lineP)
+        ctx.beginPath()
+        ctx.moveTo(targetX + Math.cos(angle) * innerR, targetY + Math.sin(angle) * innerR)
+        ctx.lineTo(targetX + Math.cos(angle) * outerR, targetY + Math.sin(angle) * outerR)
+        ctx.stroke()
+      }
+      ctx.shadowBlur = 0
+      ctx.restore()
+    }
 
-    // 放射碎片
-    for (let i = 0; i < 8; i++) {
-      const angle = Math.PI*2 / 8 * i
-      const dist = impactR * (0.3 + hitP * 0.7)
+    // 密集碎片粒子（小而多，快速扩散）
+    ctx.save()
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2 + hitP * 2
+      const speed = 15 + (i % 3) * 8
+      const dist = hitP * speed * S
       const px = targetX + Math.cos(angle) * dist
       const py = targetY + Math.sin(angle) * dist
-      const pr = (1 - hitP) * 4*S
-      ctx.globalAlpha = (1 - hitP) * 0.6
-      ctx.fillStyle = i % 2 === 0 ? '#fff' : clr
+      const pr = (1 - hitP) * (1.5 + (i % 4) * 0.5) * S
+      ctx.globalAlpha = (1 - hitP * hitP) * 0.7
+      ctx.fillStyle = i % 3 === 0 ? '#fff' : i % 3 === 1 ? clr : clr + 'cc'
       ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI*2); ctx.fill()
+    }
+    ctx.restore()
+
+    // 薄冲击环（比原来小很多，仅一个快速扩散环）
+    if (hitP < 0.4) {
+      const ringR = 12*S + hitP / 0.4 * 35*S
+      ctx.globalAlpha = (0.4 - hitP) / 0.4 * 0.5
+      ctx.strokeStyle = clr; ctx.lineWidth = (2 - hitP * 4) * S
+      ctx.beginPath(); ctx.arc(targetX, targetY, ringR, 0, Math.PI*2); ctx.stroke()
     }
   }
 
   ctx.restore()
 }
 
-// ===== 技能释放横幅动画 =====
-function _drawSkillBanner(g) {
+// ===== 技能快闪（替代横幅，0.33秒即时反馈） =====
+function _drawSkillFlash(g) {
   const { ctx, R, TH, W, H, S } = V
-  const b = g._skillBanner
-  if (!b) return
-  b.timer++
-  if (b.timer > b.duration) { g._skillBanner = null; return }
+  const f = g._skillFlash
+  if (!f) return
+  f.timer++
+  if (f.timer > f.duration) { g._skillFlash = null; return }
 
-  const t = b.timer
-  const dur = b.duration
-  // 动画阶段：入场(0-12帧) → 持续(12-dur-15帧) → 退场(dur-15~dur帧)
-  let alpha, slideX
-  if (t <= 12) {
-    const p = t / 12
-    alpha = p
-    slideX = (1 - p) * W * 0.3  // 从右侧滑入
-  } else if (t >= dur - 15) {
-    const p = (t - (dur - 15)) / 15
-    alpha = 1 - p
-    slideX = -p * W * 0.3  // 向左侧滑出
-  } else {
-    alpha = 1
-    slideX = 0
-  }
+  const t = f.timer
+  const dur = f.duration
+  const p = t / dur  // 0→1 进度
 
   ctx.save()
-  ctx.globalAlpha = alpha
 
-  // 半透明背景条（全宽）
-  const bannerH = 80 * S
-  const bannerY = H * 0.33
-  const bgGrd = ctx.createLinearGradient(0, bannerY, 0, bannerY + bannerH)
-  bgGrd.addColorStop(0, 'transparent')
-  bgGrd.addColorStop(0.15, (b.bgColor || '#1a1a2e') + 'dd')
-  bgGrd.addColorStop(0.5, (b.bgColor || '#1a1a2e') + 'ee')
-  bgGrd.addColorStop(0.85, (b.bgColor || '#1a1a2e') + 'dd')
-  bgGrd.addColorStop(1, 'transparent')
-  ctx.fillStyle = bgGrd
-  ctx.fillRect(0, bannerY, W, bannerH)
+  // 全屏属性色闪光（快速衰减）
+  if (t <= 6) {
+    const flashAlpha = (1 - t / 6) * 0.3
+    const flashGrd = ctx.createRadialGradient(W*0.5, H*0.38, 0, W*0.5, H*0.38, W*0.6)
+    flashGrd.addColorStop(0, f.color)
+    flashGrd.addColorStop(0.5, f.color + '44')
+    flashGrd.addColorStop(1, 'transparent')
+    ctx.globalAlpha = flashAlpha
+    ctx.fillStyle = flashGrd
+    ctx.fillRect(0, 0, W, H)
+  }
 
-  // 属性色上边线 + 下边线
-  ctx.fillStyle = b.color
-  ctx.globalAlpha = alpha * 0.8
-  ctx.fillRect(0, bannerY + 2*S, W, 2*S)
-  ctx.fillRect(0, bannerY + bannerH - 4*S, W, 2*S)
-  ctx.globalAlpha = alpha
+  // 整体弹入缩放
+  const mainScale = t <= 6
+    ? 2.0 - (t / 6) * 1.0  // 2.0→1.0 放大弹入
+    : t <= 12
+      ? 1.0 + Math.sin((t - 6) / 6 * Math.PI) * 0.05  // 微微呼吸
+      : 1.0 - (t - 12) / (dur - 12) * 0.3  // 缩小消失
+  const mainAlpha = t <= 12 ? 1 : 1 - (t - 12) / (dur - 12)
 
-  const cx = W * 0.5 + slideX
+  const hasDesc = !!f.skillDesc
+  // 有描述时：技能名在上方做小标签，描述居中做主体；无描述时技能名做主体
+  const centerY = hasDesc ? H * 0.36 : H * 0.36
 
-  // 宠物名称（小字，技能名上方）
-  ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.globalAlpha = mainAlpha
+  ctx.translate(W*0.5, centerY)
+  ctx.scale(mainScale, mainScale)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillStyle = b.color
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
-  ctx.strokeText(b.petName, cx, bannerY + 20*S)
-  ctx.fillText(b.petName, cx, bannerY + 20*S)
 
-  // 技能名称（大字，居中）
-  const nameScale = t <= 12 ? 1 + (1 - t/12) * 0.5 : 1
-  ctx.save()
-  ctx.translate(cx, bannerY + 42*S)
-  ctx.scale(nameScale, nameScale)
-  ctx.font = `italic 900 ${22*S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-  ctx.fillStyle = '#fff'
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3*S
-  ctx.shadowColor = b.color; ctx.shadowBlur = 15*S
-  ctx.strokeText(b.skillName, 0, 0)
-  ctx.fillText(b.skillName, 0, 0)
-  ctx.shadowBlur = 0
-  ctx.restore()
-
-  // 技能描述（小字，技能名下方）
-  if (b.skillDesc) {
-    ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillStyle = '#ddd'
+  if (hasDesc) {
+    // --- 技能名（弱化：小字号、半透明、属性色，在描述上方） ---
+    ctx.save()
+    ctx.globalAlpha = mainAlpha * 0.6
+    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2*S
-    ctx.strokeText(b.skillDesc, cx, bannerY + 62*S)
-    ctx.fillText(b.skillDesc, cx, bannerY + 62*S)
+    ctx.strokeText(f.skillName, 0, -20*S)
+    ctx.fillStyle = f.color
+    ctx.fillText(f.skillName, 0, -20*S)
+    ctx.shadowBlur = 0
+    ctx.restore()
+
+    // --- 技能描述（主体：大字号、高亮、发光） ---
+    ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+    ctx.shadowColor = f.color; ctx.shadowBlur = 16*S
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
+    ctx.strokeText(f.skillDesc, 0, 6*S)
+    ctx.fillStyle = '#fff'
+    ctx.fillText(f.skillDesc, 0, 6*S)
+    ctx.shadowBlur = 0
+  } else {
+    // --- 无描述：技能名做主体（攻击技能等） ---
+    ctx.font = `italic 900 ${24*S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+    ctx.shadowColor = f.color; ctx.shadowBlur = 20*S
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 4*S
+    ctx.strokeText(f.skillName, 0, 0)
+    ctx.fillStyle = '#fff'
+    ctx.fillText(f.skillName, 0, 0)
+    ctx.shadowBlur = 0
   }
 
-  // 两侧装饰光点
-  if (t <= 20) {
-    const sparkAlpha = Math.min(1, t / 6) * (1 - Math.max(0, (t - 12)) / 8)
-    ctx.globalAlpha = alpha * sparkAlpha * 0.7
-    for (let i = 0; i < 6; i++) {
-      const sx = cx + (i - 2.5) * 30*S + Math.sin(t * 0.5 + i) * 5*S
-      const sy = bannerY + bannerH * 0.5 + Math.cos(t * 0.3 + i * 2) * 10*S
-      const sr = (2 + Math.random()) * S
-      ctx.fillStyle = i % 2 === 0 ? '#fff' : b.color
-      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill()
-    }
+  // 属性色光环扩散
+  if (t <= 10) {
+    const ringR = 30*S + (t / 10) * 80*S
+    const ringAlpha = (1 - t / 10) * 0.6
+    ctx.globalAlpha = ringAlpha
+    ctx.beginPath()
+    ctx.arc(0, 0, ringR, 0, Math.PI*2)
+    ctx.strokeStyle = f.color
+    ctx.lineWidth = (4 - t / 10 * 3) * S
+    ctx.stroke()
   }
 
   ctx.restore()
@@ -508,16 +702,21 @@ function _drawCombo(g, cellSize, boardTop) {
   const pctOffX = ca.pctOffX || 0
 
   const comboCx = W * 0.5
-  const comboCy = g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
+  const isLow = g.combo < 4
+  const comboCy = isLow
+    ? g.boardY + (ROWS * g.cellSize) * 0.12 + comboOffY  // 低combo上移到棋盘顶部
+    : g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
   const isHigh = g.combo >= 5
   const isSuper = g.combo >= 8
   const isMega = g.combo >= 12
   const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
   const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
-  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : 32*S
+  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : isLow ? 22*S : 32*S
+  // 低combo弱化透明度
+  const lowAlphaMul = isLow ? 0.5 : 1.0
 
   // 预算伤害数据
-  const comboMulVal = 1 + (g.combo - 1) * 0.25
+  const comboMulVal = 1 + (g.combo - 1) * 0.35
   const comboBonusPct = g.runBuffs.comboDmgPct || 0
   const totalMul = comboMulVal * (1 + comboBonusPct / 100)
   const extraPct = Math.round((totalMul - 1) * 100)
@@ -538,8 +737,10 @@ function _drawCombo(g, cellSize, boardTop) {
   estTotalDmg = Math.round(estTotalDmg)
 
   ctx.save()
-  ctx.globalAlpha = comboAlpha
+  ctx.globalAlpha = comboAlpha * lowAlphaMul
 
+  // 低combo跳过背景遮罩和爆炸特效
+  if (!isLow) {
   // 半透明背景遮罩
   const maskH = baseSz * 2.8
   const maskCy = comboCy + baseSz * 0.35
@@ -608,6 +809,8 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.shadowBlur = 0
     ctx.restore()
   }
+
+  } // end if (!isLow)
 
   // 第一行："N 连击"
   ctx.save()
@@ -825,6 +1028,53 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.restore()
     g._blockFlash--
   }
+
+  // 英雄受击红闪（加强视觉冲击）
+  if (g._heroHurtFlash > 0) {
+    ctx.save()
+    const hfP = g._heroHurtFlash / 18
+    // 前6帧强闪，后面渐退
+    const hfAlpha = g._heroHurtFlash > 12 ? 0.4 : hfP * 0.35
+    ctx.fillStyle = `rgba(255,30,30,${hfAlpha})`
+    ctx.fillRect(0, 0, W, H)
+    // 屏幕边缘红色暗角
+    if (g._heroHurtFlash > 6) {
+      const vigR = Math.min(W, H) * 0.7
+      const vigGrd = ctx.createRadialGradient(W*0.5, H*0.5, vigR*0.5, W*0.5, H*0.5, vigR)
+      vigGrd.addColorStop(0, 'transparent')
+      vigGrd.addColorStop(1, `rgba(180,0,0,${hfP * 0.3})`)
+      ctx.fillStyle = vigGrd
+      ctx.fillRect(0, 0, W, H)
+    }
+    ctx.restore()
+    g._heroHurtFlash--
+  }
+
+  // 敌人回合预警红闪
+  if (g._enemyWarning > 0) {
+    ctx.save()
+    const ewP = g._enemyWarning / 15
+    const ewAlpha = ewP * 0.2 * (1 + Math.sin(g._enemyWarning * 0.8) * 0.5)
+    ctx.fillStyle = `rgba(255,60,30,${ewAlpha})`
+    ctx.fillRect(0, H * 0.6, W, H * 0.4)
+    ctx.restore()
+    g._enemyWarning--
+  }
+
+  // 克制属性色闪光
+  if (g._counterFlash && g._counterFlash.timer > 0) {
+    ctx.save()
+    const cfAlpha = (g._counterFlash.timer / 10) * 0.35
+    const cfColor = g._counterFlash.color || '#ffd700'
+    const cfGrd = ctx.createRadialGradient(W*0.5, g._getEnemyCenterY(), 0, W*0.5, g._getEnemyCenterY(), W*0.5)
+    cfGrd.addColorStop(0, cfColor)
+    cfGrd.addColorStop(0.4, cfColor + '88')
+    cfGrd.addColorStop(1, 'transparent')
+    ctx.globalAlpha = cfAlpha
+    ctx.fillStyle = cfGrd
+    ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+  }
 }
 
 function _drawDragTimer(g, cellSize, boardTop) {
@@ -849,6 +1099,63 @@ function _drawDragTimer(g, cellSize, boardTop) {
   ctx.beginPath()
   ctx.arc(cx, cy, ringR, startAngle, endAngle)
   ctx.stroke()
+  ctx.restore()
+}
+
+// ===== 敌方回合过渡横条（画面顶部，不遮挡血条） =====
+function _drawEnemyTurnBanner(g) {
+  const { ctx, R, W, H, S, safeTop } = V
+  const pea = g._pendingEnemyAtk
+  if (!pea) return
+  const p = Math.min(1, pea.timer / 16)
+  const bannerH = 38*S
+  // 定位在画面顶部安全区下方
+  const bannerY = safeTop + 8*S
+  ctx.save()
+  // 从右侧滑入
+  const slideX = (1 - p) * W * 0.4
+  ctx.translate(slideX, 0)
+  ctx.globalAlpha = Math.min(1, p * 1.5)
+  // 半透明暗条
+  const bgGrd = ctx.createLinearGradient(0, bannerY - 6*S, 0, bannerY + bannerH + 6*S)
+  bgGrd.addColorStop(0, 'transparent')
+  bgGrd.addColorStop(0.12, 'rgba(120,20,15,0.8)')
+  bgGrd.addColorStop(0.5, 'rgba(90,10,10,0.9)')
+  bgGrd.addColorStop(0.88, 'rgba(120,20,15,0.8)')
+  bgGrd.addColorStop(1, 'transparent')
+  ctx.fillStyle = bgGrd
+  ctx.fillRect(0, bannerY - 6*S, W, bannerH + 12*S)
+  // 左右红色光条
+  ctx.fillStyle = 'rgba(255,50,30,0.85)'
+  ctx.fillRect(0, bannerY, 4*S, bannerH)
+  ctx.fillStyle = 'rgba(255,50,30,0.65)'
+  ctx.fillRect(W - 4*S, bannerY, 4*S, bannerH)
+  // 两侧速度线
+  ctx.save()
+  ctx.globalAlpha = Math.min(1, p * 2) * 0.4
+  ctx.strokeStyle = '#ff6644'; ctx.lineWidth = 1.5*S
+  for (let i = 0; i < 6; i++) {
+    const ly = bannerY + 4*S + i * (bannerH - 8*S) / 5
+    const lOffset = Math.sin(pea.timer * 0.3 + i * 0.8) * 15*S
+    ctx.beginPath(); ctx.moveTo(8*S + lOffset, ly); ctx.lineTo(40*S + lOffset, ly); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(W - 8*S - lOffset, ly); ctx.lineTo(W - 40*S - lOffset, ly); ctx.stroke()
+  }
+  ctx.restore()
+  // 文字（加大字号 + 粗描边 + 脉动）
+  const textPulse = 1 + Math.sin(pea.timer * 0.25) * 0.06
+  ctx.save()
+  ctx.translate(W*0.5, bannerY + bannerH/2)
+  ctx.scale(textPulse, textPulse)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  // 深色描边确保可读性
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5*S
+  ctx.strokeText('敌 方 回 合', 0, 0)
+  ctx.shadowColor = '#ff4422'; ctx.shadowBlur = 12*S
+  ctx.fillStyle = '#ffccaa'
+  ctx.fillText('敌 方 回 合', 0, 0)
+  ctx.shadowBlur = 0
+  ctx.restore()
   ctx.restore()
 }
 
@@ -880,8 +1187,60 @@ function drawBoard(g) {
       const cell = g.board[r] && g.board[r][c]
       if (!cell) continue
       if (g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c)) {
-        const flash = Math.sin(g.elimAnimTimer * 0.5) * 0.5 + 0.5
-        ctx.globalAlpha = flash
+        const ep = g.elimAnimTimer / 16  // 0→1 消除进度（16帧）
+        const elimColor = ATTR_COLOR[g.elimAnimCells[0].attr]?.main || '#ffffff'
+        // 阶段1（0-0.3）：高亮放大脉冲
+        // 阶段2（0.3-0.7）：缩小 + 属性色发光
+        // 阶段3（0.7-1.0）：快速缩到0 + 爆散粒子光效
+        let beadAlpha = 1, beadScale = 1
+        if (ep < 0.3) {
+          const p1 = ep / 0.3
+          beadAlpha = 1
+          beadScale = 1 + 0.15 * Math.sin(p1 * Math.PI)
+        } else if (ep < 0.7) {
+          const p2 = (ep - 0.3) / 0.4
+          beadAlpha = 1 - p2 * 0.3
+          beadScale = 1 - p2 * 0.4
+        } else {
+          const p3 = (ep - 0.7) / 0.3
+          beadAlpha = 0.7 * (1 - p3)
+          beadScale = 0.6 * (1 - p3)
+        }
+        ctx.globalAlpha = beadAlpha
+        // 属性色光晕（全程）
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        const glowIntensity = ep < 0.3 ? ep / 0.3 * 0.7 : (1 - ep) * 0.8
+        ctx.globalAlpha = glowIntensity
+        const glowR2 = cs * (0.5 + ep * 0.3)
+        const grd = ctx.createRadialGradient(x+cs*0.5, y+cs*0.5, 0, x+cs*0.5, y+cs*0.5, glowR2)
+        grd.addColorStop(0, '#fff')
+        grd.addColorStop(0.4, elimColor + 'aa')
+        grd.addColorStop(1, 'transparent')
+        ctx.fillStyle = grd
+        ctx.beginPath(); ctx.arc(x+cs*0.5, y+cs*0.5, glowR2, 0, Math.PI*2); ctx.fill()
+        ctx.restore()
+        // 4+消除额外强光
+        if (g.elimAnimCells.length >= 4) {
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = glowIntensity * (g.elimAnimCells.length >= 5 ? 0.6 : 0.35)
+          const bigGlowR = cs * (0.7 + ep * 0.4)
+          const grd2 = ctx.createRadialGradient(x+cs*0.5, y+cs*0.5, 0, x+cs*0.5, y+cs*0.5, bigGlowR)
+          grd2.addColorStop(0, '#fff')
+          grd2.addColorStop(0.3, elimColor)
+          grd2.addColorStop(1, 'transparent')
+          ctx.fillStyle = grd2
+          ctx.beginPath(); ctx.arc(x+cs*0.5, y+cs*0.5, bigGlowR, 0, Math.PI*2); ctx.fill()
+          ctx.restore()
+        }
+        // 缩放珠子（消除进行中始终开启save，确保配对）
+        ctx.save()
+        if (beadScale !== 1) {
+          ctx.translate(x+cs*0.5, y+cs*0.5)
+          ctx.scale(beadScale, beadScale)
+          ctx.translate(-(x+cs*0.5), -(y+cs*0.5))
+        }
       }
       if (g.dragging && g.dragR === r && g.dragC === c) {
         ctx.globalAlpha = 0.3
@@ -896,43 +1255,79 @@ function drawBoard(g) {
       const beadPad = cs * 0.08
       const beadR = (cs - beadPad*2) * 0.5
       R.drawBead(drawX+cs*0.5, drawY+cs*0.5, beadR, attr, g.af)
-      // 变珠闪光特效
+      // 关闭消除缩放
+      if (g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c)) {
+        ctx.restore()
+      }
+      // 变珠升级特效（三阶段：聚能→爆变→余韵）
       if (g._beadConvertAnim) {
         const bca = g._beadConvertAnim
         const convertCell = bca.cells.find(cc => cc.r === r && cc.c === c)
         if (convertCell) {
           const cx = drawX + cs*0.5, cy = drawY + cs*0.5
+          const toColor = ATTR_COLOR[convertCell.toAttr]?.main || '#ffffff'
           ctx.save()
-          if (bca.phase === 'flash_old') {
-            // 原珠闪烁：快速正弦波明暗交替 + 白色光晕扩散
-            const flashP = Math.sin(bca.timer * 0.8) * 0.5 + 0.5
-            const glowR = beadR * (1.2 + flashP * 0.6)
-            const grd = ctx.createRadialGradient(cx, cy, beadR*0.3, cx, cy, glowR)
-            grd.addColorStop(0, `rgba(255,255,255,${0.5 + flashP * 0.4})`)
-            grd.addColorStop(0.6, `rgba(255,255,200,${0.2 + flashP * 0.2})`)
-            grd.addColorStop(1, 'rgba(255,255,255,0)')
+          if (bca.phase === 'charge') {
+            // 阶段1：聚能 — 属性色光柱从天而降 + 珠子缩小
+            const chargeP = bca.timer / 6
+            // 光柱
+            const pillarAlpha = 0.3 + chargeP * 0.5
+            const pillarW = beadR * (0.3 + chargeP * 0.7)
+            const pillarGrd = ctx.createLinearGradient(cx, cy - cs*2, cx, cy)
+            pillarGrd.addColorStop(0, 'transparent')
+            pillarGrd.addColorStop(0.3, toColor + '44')
+            pillarGrd.addColorStop(0.7, toColor + 'aa')
+            pillarGrd.addColorStop(1, '#fff')
+            ctx.globalAlpha = pillarAlpha
+            ctx.fillStyle = pillarGrd
+            ctx.fillRect(cx - pillarW, cy - cs*2 * chargeP, pillarW*2, cs*2 * chargeP)
+            // 珠子脉冲
+            const pulseR = beadR * (1.1 + Math.sin(bca.timer * 1.5) * 0.15)
+            const pulseGrd = ctx.createRadialGradient(cx, cy, beadR*0.2, cx, cy, pulseR)
+            pulseGrd.addColorStop(0, '#ffffff88')
+            pulseGrd.addColorStop(0.6, toColor + '66')
+            pulseGrd.addColorStop(1, 'transparent')
             ctx.globalCompositeOperation = 'lighter'
-            ctx.fillStyle = grd
-            ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI*2); ctx.fill()
-            // 珠子缩放脉冲（接近morph时缩小）
-            if (bca.timer >= 12) {
-              const shrink = 1 - (bca.timer - 12) / 4 * 0.3
-              ctx.globalAlpha = Math.max(0.3, shrink)
+            ctx.globalAlpha = 0.5 + chargeP * 0.4
+            ctx.fillStyle = pulseGrd
+            ctx.beginPath(); ctx.arc(cx, cy, pulseR, 0, Math.PI*2); ctx.fill()
+          } else if (bca.phase === 'burst') {
+            // 阶段2：爆变 — 白光爆发 + 属性色碎片粒子
+            const burstP = (bca.timer - 7) / 3
+            // 白光爆发
+            const burstR = beadR * (1.5 + burstP * 1.5)
+            ctx.globalCompositeOperation = 'lighter'
+            ctx.globalAlpha = (1 - burstP) * 0.9
+            const burstGrd = ctx.createRadialGradient(cx, cy, 0, cx, cy, burstR)
+            burstGrd.addColorStop(0, '#ffffff')
+            burstGrd.addColorStop(0.3, '#ffffffcc')
+            burstGrd.addColorStop(0.6, toColor + '88')
+            burstGrd.addColorStop(1, 'transparent')
+            ctx.fillStyle = burstGrd
+            ctx.beginPath(); ctx.arc(cx, cy, burstR, 0, Math.PI*2); ctx.fill()
+            // 碎片粒子
+            for (let pi = 0; pi < 6; pi++) {
+              const angle = (pi / 6) * Math.PI * 2 + bca.timer * 0.5
+              const dist = beadR * (0.5 + burstP * 2.5)
+              const px = cx + Math.cos(angle) * dist
+              const py = cy + Math.sin(angle) * dist
+              ctx.globalAlpha = (1 - burstP) * 0.8
+              ctx.fillStyle = pi % 2 === 0 ? '#fff' : toColor
+              ctx.beginPath(); ctx.arc(px, py, (2.5 - burstP * 1.5) * S, 0, Math.PI*2); ctx.fill()
             }
           } else {
-            // 新珠闪烁：从亮到正常的发光扩散
-            const newT = bca.timer - 16
-            const fadeP = Math.min(1, newT / 32)
-            const flashIntensity = (1 - fadeP) * (0.5 + 0.3 * Math.sin(newT * 0.6))
-            if (flashIntensity > 0.05) {
-              const glowR2 = beadR * (1.5 - fadeP * 0.5)
-              const grd2 = ctx.createRadialGradient(cx, cy, beadR*0.2, cx, cy, glowR2)
-              grd2.addColorStop(0, `rgba(255,255,255,${flashIntensity})`)
-              grd2.addColorStop(0.5, `rgba(255,255,200,${flashIntensity * 0.5})`)
-              grd2.addColorStop(1, 'rgba(255,255,255,0)')
+            // 阶段3：余韵 — 新珠发光脉冲渐弱
+            const glowP = (bca.timer - 10) / 14
+            const intensity = (1 - glowP) * 0.6
+            if (intensity > 0.05) {
+              const glowR = beadR * (1.3 - glowP * 0.3)
+              const glowGrd = ctx.createRadialGradient(cx, cy, beadR*0.2, cx, cy, glowR)
+              glowGrd.addColorStop(0, `rgba(255,255,255,${intensity})`)
+              glowGrd.addColorStop(0.5, toColor + Math.round(intensity * 128).toString(16).padStart(2, '0'))
+              glowGrd.addColorStop(1, 'transparent')
               ctx.globalCompositeOperation = 'lighter'
-              ctx.fillStyle = grd2
-              ctx.beginPath(); ctx.arc(cx, cy, glowR2, 0, Math.PI*2); ctx.fill()
+              ctx.fillStyle = glowGrd
+              ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI*2); ctx.fill()
             }
           }
           ctx.restore()
@@ -947,7 +1342,98 @@ function drawBoard(g) {
   }
   if (g.dragging && g.dragAttr) {
     const beadR = (cs - cs*0.08*2) * 0.5
+    const dragColor = ATTR_COLOR[g.dragAttr]?.main || '#ffffff'
+
+    // 拖尾粒子（每3帧生成，最多保留12个）
+    if (!g._dragTrailParticles) g._dragTrailParticles = []
+    if (g.dragTimer % 3 === 0) {
+      g._dragTrailParticles.push({
+        x: g.dragCurX + (Math.random()-0.5)*beadR*0.6,
+        y: g.dragCurY + (Math.random()-0.5)*beadR*0.6,
+        r: (2 + Math.random()*2) * S,
+        alpha: 0.7,
+        color: Math.random() < 0.3 ? '#fff' : dragColor
+      })
+      if (g._dragTrailParticles.length > 12) g._dragTrailParticles.shift()
+    }
+    // 绘制拖尾
+    g._dragTrailParticles = g._dragTrailParticles.filter(tp => {
+      tp.alpha -= 0.06; tp.r *= 0.93
+      if (tp.alpha <= 0) return false
+      ctx.save()
+      ctx.globalAlpha = tp.alpha
+      ctx.fillStyle = tp.color
+      ctx.beginPath(); ctx.arc(tp.x, tp.y, tp.r, 0, Math.PI*2); ctx.fill()
+      ctx.restore()
+      return true
+    })
+
+    // 拖拽珠子脉冲+发光效果
+    ctx.save()
+    const dragScale = 1.1 + Math.sin(g.dragTimer * 0.15) * 0.05
+    ctx.translate(g.dragCurX, g.dragCurY)
+    ctx.scale(dragScale, dragScale)
+    ctx.translate(-g.dragCurX, -g.dragCurY)
+    // 拖拽发光光晕
+    const dragGlow = ctx.createRadialGradient(g.dragCurX, g.dragCurY, beadR*0.5, g.dragCurX, g.dragCurY, beadR*1.6)
+    dragGlow.addColorStop(0, dragColor + '44')
+    dragGlow.addColorStop(1, 'transparent')
+    ctx.fillStyle = dragGlow
+    ctx.beginPath(); ctx.arc(g.dragCurX, g.dragCurY, beadR*1.6, 0, Math.PI*2); ctx.fill()
     R.drawBead(g.dragCurX, g.dragCurY, beadR, g.dragAttr, g.af)
+    ctx.restore()
+  } else {
+    // 不拖拽时清空拖尾粒子
+    g._dragTrailParticles = null
+  }
+
+  // 消除冲击波纹（多层扩散 + 属性色碎片粒子，匹配16帧消除）
+  if (g.elimAnimCells && g.elimAnimTimer <= 16) {
+    const eP = g.elimAnimTimer / 16
+    const elimAttrColor = ATTR_COLOR[g.elimAnimCells[0]?.attr]?.main || '#ffffff'
+    let eCx = 0, eCy = 0
+    g.elimAnimCells.forEach(ec => { eCx += bx + ec.c*cs + cs*0.5; eCy += by + ec.r*cs + cs*0.5 })
+    eCx /= g.elimAnimCells.length; eCy /= g.elimAnimCells.length
+    ctx.save()
+    // 主波纹（较快扩散）
+    const waveR = cs * (0.5 + eP * 2.5)
+    ctx.globalAlpha = (1 - eP) * 0.55
+    ctx.strokeStyle = elimAttrColor
+    ctx.lineWidth = (3 - eP * 2) * S
+    ctx.beginPath(); ctx.arc(eCx, eCy, waveR, 0, Math.PI*2); ctx.stroke()
+    // 内层波纹（稍慢，跟随）
+    if (eP > 0.1) {
+      const innerP = (eP - 0.1) / 0.9
+      const waveR2 = cs * (0.3 + innerP * 2)
+      ctx.globalAlpha = (1 - innerP) * 0.35
+      ctx.lineWidth = (2 - innerP * 1.5) * S
+      ctx.beginPath(); ctx.arc(eCx, eCy, waveR2, 0, Math.PI*2); ctx.stroke()
+    }
+    // 4+消额外强波纹
+    if (g.elimAnimCells.length >= 4 && eP > 0.15) {
+      const outerP = (eP - 0.15) / 0.85
+      const waveR3 = cs * (0.6 + outerP * 3)
+      ctx.globalAlpha = (1 - outerP) * 0.25
+      ctx.lineWidth = (2.5 - outerP * 2) * S
+      ctx.strokeStyle = '#fff'
+      ctx.beginPath(); ctx.arc(eCx, eCy, waveR3, 0, Math.PI*2); ctx.stroke()
+    }
+    // 消除爆散粒子（在消除中后期，从消除中心向外射出小光点）
+    if (eP > 0.25 && eP < 0.85) {
+      const sparkP = (eP - 0.25) / 0.6
+      const sparkCount = g.elimAnimCells.length >= 5 ? 10 : g.elimAnimCells.length >= 4 ? 7 : 5
+      for (let si = 0; si < sparkCount; si++) {
+        const angle = (si / sparkCount) * Math.PI * 2 + g.elimAnimTimer * 0.2
+        const dist = cs * (0.3 + sparkP * 1.8)
+        const sx = eCx + Math.cos(angle) * dist
+        const sy = eCy + Math.sin(angle) * dist
+        const sparkR = (1.5 + (si % 3) * 0.5) * S * (1 - sparkP * 0.6)
+        ctx.globalAlpha = (1 - sparkP) * 0.75
+        ctx.fillStyle = si % 3 === 0 ? '#fff' : elimAttrColor
+        ctx.beginPath(); ctx.arc(sx, sy, sparkR, 0, Math.PI*2); ctx.fill()
+      }
+    }
+    ctx.restore()
   }
 }
 
@@ -1110,8 +1596,11 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
         if (!ready) {
-          // 冷却中 — 不变暗头像，仅显示CD标记
+          // 冷却中 — 暗化头像 + 显示CD标记
           ctx.save()
+          // 暗化遮罩
+          ctx.fillStyle = 'rgba(0,0,0,0.45)'
+          ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
           // CD 圆形标签（右下角）
           const cdR = iconSize * 0.2
           const cdX = ix + iconSize - cdR - 2*S
@@ -1133,21 +1622,39 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.fillText('冷却', cdLabelX + cdLabelW/2, cdLabelY + cdLabelH/2)
           ctx.restore()
         }
+        // 首次就绪闪光脉冲
+        if (ready && g._petReadyFlash && g._petReadyFlash[petIdx] > 0) {
+          ctx.save()
+          const rfP = g._petReadyFlash[petIdx] / 15
+          const rfColor = ac ? ac.main : '#ffd700'
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = rfP * 0.7
+          const rfGrd = ctx.createRadialGradient(cx, cy, iconSize*0.1, cx, cy, iconSize*0.7)
+          rfGrd.addColorStop(0, '#ffffff')
+          rfGrd.addColorStop(0.4, rfColor)
+          rfGrd.addColorStop(1, 'transparent')
+          ctx.fillStyle = rfGrd
+          ctx.beginPath(); ctx.arc(cx, cy, iconSize*0.7, 0, Math.PI*2); ctx.fill()
+          // 扩散环
+          const rfRingR = iconSize * (0.5 + (1-rfP) * 0.8)
+          ctx.globalAlpha = rfP * 0.5
+          ctx.strokeStyle = rfColor; ctx.lineWidth = (2 + rfP*2)*S
+          ctx.beginPath(); ctx.arc(cx, cy, rfRingR, 0, Math.PI*2); ctx.stroke()
+          ctx.restore()
+        }
         if (ready && g.bState === 'playerTurn' && !g.dragging) {
           ctx.save()
           const glowColor2 = ac ? ac.main : TH.accent
           const glowAlpha = 0.5 + 0.4 * Math.sin(g.af * 0.1)
           // 向上箭头特效（浮动动画）
           const arrowSize = iconSize * 0.2
-          const arrowYOffset = 2 + Math.sin(g.af * 0.1) * 3  // 上下浮动
+          const arrowYOffset = 2 + Math.sin(g.af * 0.1) * 3
           const arrowX = cx
           const arrowY = iconY - arrowSize - 4*S - arrowYOffset
           
-          // 箭头发光光晕
           ctx.shadowColor = glowColor2
           ctx.shadowBlur = 10*S
           ctx.globalAlpha = glowAlpha
-          // 绘制箭头（三角形）
           ctx.beginPath()
           ctx.moveTo(arrowX, arrowY)
           ctx.lineTo(arrowX - arrowSize*0.7, arrowY + arrowSize)
@@ -1156,7 +1663,6 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.fillStyle = glowColor2
           ctx.fill()
           
-          // 箭头内部高光
           ctx.shadowBlur = 0
           ctx.globalAlpha = glowAlpha * 1.2
           ctx.beginPath()
@@ -1167,25 +1673,13 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.fillStyle = '#fff'
           ctx.fill()
           
-          // 脉冲发光边框（保留，但减淡）
+          // 脉冲发光边框
           ctx.shadowColor = glowColor2
           ctx.shadowBlur = 8*S
           ctx.strokeStyle = glowColor2
           ctx.lineWidth = 2*S
           ctx.globalAlpha = glowAlpha * 0.6
           ctx.strokeRect(ix - 1, iconY - 1, iconSize + 2, iconSize + 2)
-          
-          // "上划放技能" 提示标签（头像上方）
-          ctx.globalAlpha = glowAlpha
-          const tagW = iconSize * 0.9, tagH = iconSize * 0.22
-          const tagX = cx - tagW/2, tagY = iconY - tagH - arrowSize - 8*S
-          ctx.fillStyle = glowColor2 + 'cc'
-          R.rr(tagX, tagY, tagW, tagH, 4*S); ctx.fill()
-          ctx.fillStyle = '#fff'; ctx.font = `bold ${iconSize*0.14}px sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-          ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-          ctx.fillText('上划放技能', tagX + tagW/2, tagY + tagH/2)
-          ctx.shadowBlur = 0
           ctx.restore()
         } else if (ready) {
           // 技能就绪但不在玩家回合或正在拖拽：显示静态箭头和边框
@@ -1230,6 +1724,215 @@ function drawTeamBar(g, topY, barH, iconSize) {
     }
   }
   ctx.restore()
+}
+
+// ===== 敌人 Debuff 染色离屏canvas =====
+let _debuffOC = null
+let _debuffOCCtx = null
+function _getDebuffTintCanvas(enemyImg, w, h, tintColor) {
+  if (!enemyImg || !enemyImg.width) return null
+  // 微信小游戏环境下创建离屏canvas
+  try {
+    const iw = Math.ceil(w)
+    const ih = Math.ceil(h)
+    if (!_debuffOC || _debuffOC.width !== iw || _debuffOC.height !== ih) {
+      _debuffOC = wx.createOffscreenCanvas({ type: '2d', width: iw, height: ih })
+      _debuffOCCtx = _debuffOC.getContext('2d')
+    }
+    const oc = _debuffOCCtx
+    oc.clearRect(0, 0, iw, ih)
+    oc.globalCompositeOperation = 'source-over'
+    oc.globalAlpha = 1
+    oc.drawImage(enemyImg, 0, 0, iw, ih)
+    // source-atop：仅在已有像素（敌人轮廓）上着色
+    oc.globalCompositeOperation = 'source-atop'
+    oc.fillStyle = tintColor
+    oc.fillRect(0, 0, iw, ih)
+    oc.globalCompositeOperation = 'source-over'
+    return _debuffOC
+  } catch (e) {
+    return null
+  }
+}
+
+// ===== 敌人 Debuff 视觉特效 =====
+function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
+  const { ctx, S } = V
+  const hasBuffs = g.enemyBuffs && g.enemyBuffs.length > 0
+  const hasBreakDef = g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0
+  if (!hasBuffs && !hasBreakDef) return
+  if (g._enemyDeathAnim) return // 死亡中不画
+
+  const af = g.af || 0
+  const cx = imgX + imgW / 2
+  const cy = imgY + imgH / 2
+  const hasStun = hasBuffs && g.enemyBuffs.some(b => b.type === 'stun')
+  const hasDot = hasBuffs && g.enemyBuffs.some(b => b.type === 'dot')
+  const hasBuff = hasBuffs && g.enemyBuffs.some(b => b.type === 'buff' && !b.bad)
+
+  // --- 1. 中毒/灼烧：身体染色叠加 + 毒液/火焰粒子 ---
+  if (hasDot) {
+    const dots = g.enemyBuffs.filter(b => b.type === 'dot')
+    const isBurn = dots.some(b => b.dotType === 'burn' || b.name === '灼烧')
+    const isPoison = dots.some(b => b.dotType === 'poison' || (b.dotType !== 'burn' && b.name !== '灼烧'))
+
+    ctx.save()
+    if (isPoison) {
+      // 中毒：用离屏canvas生成绿色染色蒙版
+      const tintAlpha = 0.22 + 0.08 * Math.sin(af * 0.1)
+      const oc = _getDebuffTintCanvas(enemyImg, imgW, imgH, '#00ff40')
+      if (oc) {
+        ctx.globalAlpha = tintAlpha
+        ctx.drawImage(oc, imgX, imgY, imgW, imgH)
+        ctx.globalAlpha = 1
+      }
+
+      // 毒液滴落粒子
+      for (let i = 0; i < 6; i++) {
+        const px = imgX + imgW * 0.15 + (i / 6) * imgW * 0.7
+        const speed = 0.06 + (i % 3) * 0.02
+        const py = imgY + imgH * 0.3 + ((af * speed + i * 37) % (imgH * 0.6))
+        const pAlpha = 0.5 - ((af * speed + i * 37) % (imgH * 0.6)) / (imgH * 0.6) * 0.5
+        const pSize = (2 + (i % 3)) * S
+        ctx.globalAlpha = pAlpha
+        ctx.fillStyle = '#40ff60'
+        ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI * 2); ctx.fill()
+        // 毒液拖尾
+        ctx.fillStyle = '#20cc40'
+        ctx.globalAlpha = pAlpha * 0.4
+        ctx.beginPath(); ctx.arc(px, py - pSize * 2, pSize * 0.6, 0, Math.PI * 2); ctx.fill()
+      }
+      ctx.globalAlpha = 1
+    }
+
+    if (isBurn) {
+      // 灼烧：用离屏canvas生成橙红色染色蒙版
+      const burnTintAlpha = 0.2 + 0.08 * Math.sin(af * 0.12)
+      const oc = _getDebuffTintCanvas(enemyImg, imgW, imgH, '#ff4400')
+      if (oc) {
+        ctx.globalAlpha = burnTintAlpha
+        ctx.drawImage(oc, imgX, imgY, imgW, imgH)
+        ctx.globalAlpha = 1
+      }
+
+      // 火焰粒子（从底部向上飘）
+      for (let i = 0; i < 8; i++) {
+        const baseX = imgX + imgW * 0.1 + (i / 8) * imgW * 0.8
+        const speed = 0.08 + (i % 4) * 0.02
+        const phase = (af * speed + i * 47) % (imgH * 0.7)
+        const py = imgY + imgH - phase
+        const pAlpha = 0.7 - phase / (imgH * 0.7) * 0.7
+        const wobble = Math.sin(af * 0.15 + i * 2.5) * 4 * S
+        const pSize = (2.5 + (i % 3) * 1.2) * S * (1 - phase / (imgH * 0.7) * 0.5)
+        ctx.globalAlpha = pAlpha
+        ctx.fillStyle = i % 3 === 0 ? '#ff6020' : i % 3 === 1 ? '#ffaa00' : '#ffdd44'
+        ctx.beginPath(); ctx.arc(baseX + wobble, py, pSize, 0, Math.PI * 2); ctx.fill()
+      }
+      ctx.globalAlpha = 1
+    }
+    ctx.restore()
+  }
+
+  // --- 2. 眩晕：头顶旋转星星 + 晕圈 ---
+  if (hasStun) {
+    ctx.save()
+    const stunCx = cx
+    const stunCy = imgY + imgH * 0.05 // 头顶位置
+    const starCount = 5
+    const orbitR = imgW * 0.22
+
+    // 晕圈（椭圆环）
+    ctx.globalAlpha = 0.3 + 0.15 * Math.sin(af * 0.08)
+    ctx.strokeStyle = '#ffdd44'
+    ctx.lineWidth = 1.5 * S
+    ctx.beginPath()
+    ctx.ellipse(stunCx, stunCy, orbitR, orbitR * 0.35, 0, 0, Math.PI * 2)
+    ctx.stroke()
+
+    // 旋转星星
+    for (let i = 0; i < starCount; i++) {
+      const angle = (af * 0.06) + (i / starCount) * Math.PI * 2
+      const sx = stunCx + Math.cos(angle) * orbitR
+      const sy = stunCy + Math.sin(angle) * orbitR * 0.35
+      const starSize = (3 + Math.sin(af * 0.15 + i) * 1) * S
+      const starAlpha = 0.7 + 0.3 * Math.sin(af * 0.12 + i * 1.5)
+      ctx.globalAlpha = starAlpha
+      ctx.fillStyle = i % 2 === 0 ? '#ffee44' : '#ffaa00'
+      _drawStar(ctx, sx, sy, starSize)
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // --- 3. 破甲（防御为0）：裂纹特效 ---
+  if (g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0) {
+    ctx.save()
+    ctx.globalAlpha = 0.6 + 0.15 * Math.sin(af * 0.1)
+    ctx.strokeStyle = '#ff4444'
+    ctx.lineWidth = 2 * S
+    ctx.shadowColor = '#ff0000'
+    ctx.shadowBlur = 4 * S
+
+    // 几道裂纹
+    const cracks = [
+      [0.5, 0.25, 0.3, 0.55, 0.55, 0.45],
+      [0.5, 0.25, 0.7, 0.5, 0.6, 0.7],
+      [0.45, 0.4, 0.25, 0.65],
+      [0.55, 0.35, 0.75, 0.6],
+    ]
+    cracks.forEach(c => {
+      ctx.beginPath()
+      ctx.moveTo(imgX + imgW * c[0], imgY + imgH * c[1])
+      for (let j = 2; j < c.length; j += 2) {
+        ctx.lineTo(imgX + imgW * c[j], imgY + imgH * c[j + 1])
+      }
+      ctx.stroke()
+    })
+
+    // 碎片飘散粒子
+    for (let i = 0; i < 4; i++) {
+      const px = imgX + imgW * (0.3 + (i / 4) * 0.4)
+      const py = imgY + imgH * 0.3 + Math.sin(af * 0.05 + i * 2) * imgH * 0.15
+      ctx.globalAlpha = 0.4 + 0.2 * Math.sin(af * 0.08 + i)
+      ctx.fillStyle = '#ff6644'
+      ctx.fillRect(px - 2 * S, py - 1 * S, 4 * S, 2 * S)
+    }
+
+    ctx.shadowBlur = 0
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // --- 4. 敌方增益buff：红色气场脉冲 ---
+  if (hasBuff) {
+    ctx.save()
+    const auraAlpha = 0.15 + 0.1 * Math.sin(af * 0.08)
+    const auraR = Math.max(imgW, imgH) * 0.55 + Math.sin(af * 0.06) * 5 * S
+    const grd = ctx.createRadialGradient(cx, cy, auraR * 0.3, cx, cy, auraR)
+    grd.addColorStop(0, 'rgba(255,60,60,0)')
+    grd.addColorStop(0.7, `rgba(255,40,40,${auraAlpha})`)
+    grd.addColorStop(1, 'rgba(255,20,20,0)')
+    ctx.fillStyle = grd
+    ctx.beginPath(); ctx.arc(cx, cy, auraR, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+  }
+}
+
+// 画五角星
+function _drawStar(ctx, x, y, r) {
+  ctx.beginPath()
+  for (let i = 0; i < 5; i++) {
+    const angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
+    const outerX = x + Math.cos(angle) * r
+    const outerY = y + Math.sin(angle) * r
+    if (i === 0) ctx.moveTo(outerX, outerY)
+    else ctx.lineTo(outerX, outerY)
+    const innerAngle = angle + Math.PI / 5
+    const innerR = r * 0.4
+    ctx.lineTo(x + Math.cos(innerAngle) * innerR, y + Math.sin(innerAngle) * innerR)
+  }
+  ctx.closePath()
+  ctx.fill()
 }
 
 // ===== Buff图标 =====

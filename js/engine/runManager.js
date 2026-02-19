@@ -167,7 +167,10 @@ function resumeRun(g) {
 
 function onDefeat(g, W, H) {
   if (g.tempRevive) {
-    g.tempRevive = false; g.heroHp = Math.round(g.heroMaxHp * 0.3)
+    g.tempRevive = false
+    const reviveHealPct = g._reviveHealPct || 30
+    g._reviveHealPct = null
+    g.heroHp = Math.round(g.heroMaxHp * reviveHealPct / 100)
     g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'天护复活！', color:TH.accent, t:0, alpha:1 })
     MusicMgr.playRevive()
     g.bState = 'playerTurn'; g.dragTimer = 0; return

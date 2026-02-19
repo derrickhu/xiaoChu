@@ -308,8 +308,9 @@ function tBattle(g, type, x, y) {
       if (g._hitRect(x, y, ...item.rect)) { g.showRunBuffDetail = true; return }
     }
   }
-  // 敌人详情
+  // 敌人详情（技能释放/动画播放期间不弹出）
   if (type === 'end' && g.bState !== 'victory' && g.bState !== 'defeat'
+      && !g._petSwipeTriggered && !g._skillFlash && !g._petSkillWave
       && g.enemy && g._enemyAreaRect && g._hitRect(x,y,...g._enemyAreaRect)) {
     if (!g._exitBtnRect || !g._hitRect(x,y,...g._exitBtnRect)) { g.showEnemyDetail = true; return }
   }
@@ -330,7 +331,7 @@ function tBattle(g, type, x, y) {
     for (let i = 0; i < g._petBtnRects.length; i++) {
       if (i < g.pets.length && g._hitRect(x,y,...g._petBtnRects[i])) {
         const pet = g.pets[i]
-        const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0
+        const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
         if (type === 'start') {
           // 记录滑动起始位置
           g._petSwipeIndex = i
@@ -393,7 +394,7 @@ function tBattle(g, type, x, y) {
     // 触摸开始后移出头像框：仍允许触发上划（只要技能就绪）
     if (type === 'move' && g._petSwipeIndex >= 0) {
       const pet = g.pets[g._petSwipeIndex]
-      const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0
+      const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
       if (skillReady && !g._petSwipeTriggered) {
         const dy = g._petSwipeStartY - y
         if (dy > 30 * V.S) {
@@ -410,8 +411,9 @@ function tBattle(g, type, x, y) {
       g._petLongPressIndex = -1; g._petLongPressTriggered = false
     }
   }
-  // 转珠
+  // 转珠（技能动画播放期间锁定操作）
   if (g.bState !== 'playerTurn') return
+  if (g._petSkillWave || g._skillFlash) return
   const cs = g.cellSize, bx = g.boardX, by = g.boardY
   if (type === 'start') {
     const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)

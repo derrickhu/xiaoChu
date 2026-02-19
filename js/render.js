@@ -331,35 +331,48 @@ class Render {
       c.restore()
     }
 
-    // 加血绿色底层（先画绿色增量，再画粉色血条覆盖到旧血量位置，增量部分露出绿色）
+    // 加血绿色底层（先画亮绿增量，再画血条覆盖到旧血量位置，增量部分露出亮绿）
     const gainActive = hpGain && hpGain.fromPct < pct
     if (gainActive) {
-      const greenAlpha = hpGain.timer <= 15 ? 1 : Math.max(0, 1 - (hpGain.timer - 15) / 25)
-      // 绿色增量条（fromPct → pct）
+      const gt = hpGain.timer
+      const greenAlpha = gt <= 25 ? 1 : Math.max(0, 1 - (gt - 25) / 30)
+      // 亮绿增量条（fromPct → pct）— 使用高亮绿色确保与血条颜色有明显区分
       c.save(); c.globalAlpha = greenAlpha
       const gg = c.createLinearGradient(x, y, x, y+h)
-      gg.addColorStop(0, '#6eff6e'); gg.addColorStop(0.5, '#4dcc4d'); gg.addColorStop(1, '#2d9a2d')
+      gg.addColorStop(0, '#80ff80'); gg.addColorStop(0.5, '#40ff60'); gg.addColorStop(1, '#20cc40')
       c.fillStyle = gg
       this.rr(x, y, w*pct, h, h/2); c.fill()
       // 绿色高光
-      c.globalAlpha = greenAlpha * 0.4
+      c.globalAlpha = greenAlpha * 0.5
       c.fillStyle = '#fff'
       this.rr(x+2*S, y+1, w*pct-4*S, h*0.35, h/4); c.fill()
       c.restore()
+      // 绿色增量区域发光脉冲
+      const gainStartX = x + w * hpGain.fromPct
+      const gainW = w * (pct - hpGain.fromPct)
+      if (gainW > 0) {
+        const pulseAlpha = greenAlpha * (0.4 + 0.3 * Math.sin(gt * 0.4))
+        c.save(); c.globalAlpha = pulseAlpha
+        c.shadowColor = '#40ff60'; c.shadowBlur = 8*S
+        c.fillStyle = '#80ff80'
+        this.rr(gainStartX, y - 2*S, gainW, h + 4*S, h/2); c.fill()
+        c.shadowBlur = 0
+        c.restore()
+      }
     }
 
     if (pct > 0) {
       const barColor = color || (pct>0.5?TH.success:pct>0.2?TH.hard:TH.danger)
       const fg=c.createLinearGradient(x,y,x,y+h)
       fg.addColorStop(0,this._lighten(barColor,0.15)); fg.addColorStop(0.5,barColor); fg.addColorStop(1,this._darken(barColor))
-      // 加血动画中：粉色只画到旧血量(fromPct)，增量部分露出下面的绿色
+      // 加血动画中：血条只画到旧血量(fromPct)，增量部分露出下面的亮绿色
       const drawPct = gainActive ? hpGain.fromPct : pct
       if (drawPct > 0) {
         c.fillStyle=fg; this.rr(x,y,w*drawPct,h,h/2); c.fill()
       }
-      // 绿色渐隐后，粉色逐渐扩展覆盖增量部分
-      if (gainActive && hpGain.timer > 15) {
-        const expandT = (hpGain.timer - 15) / 25
+      // 绿色渐隐后，血条逐渐扩展覆盖增量部分
+      if (gainActive && hpGain.timer > 25) {
+        const expandT = (hpGain.timer - 25) / 30
         const coverPct = hpGain.fromPct + (pct - hpGain.fromPct) * expandT
         c.fillStyle=fg; this.rr(x,y,w*coverPct,h,h/2); c.fill()
       }
@@ -1548,24 +1561,52 @@ class Render {
           const py = cy + 40*S - p*120*S - i*15*S
           const pr = 2*S + Math.random()*2*S
           c.globalAlpha = Math.max(0, (1-p)*0.7 - i*0.08)
-          c.fillStyle = i%2===0 ? healClr : '#f09ab0'
+          c.fillStyle = i%2===0 ? healClr : '#80ffaa'
           c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
         break
       }
       case 'enemyAtk': {
-        c.globalAlpha = (1-p)*0.7
-        const cx = tx
-        const cy = ty
-        const impactR = 30*S + p*30*S
+        const cx = tx, cy = ty
+        // 第一阶段：冲击波扩散（更大范围）
+        const impactR = 40*S + p*80*S
+        c.globalAlpha = (1-p)*0.8
         const ig = c.createRadialGradient(cx, cy, 0, cx, cy, impactR)
-        ig.addColorStop(0, '#ff4d6a'); ig.addColorStop(0.5, '#ff4d6a88'); ig.addColorStop(1, 'transparent')
+        ig.addColorStop(0, '#ff2244')
+        ig.addColorStop(0.3, '#ff4d6acc')
+        ig.addColorStop(0.6, '#ff4d6a44')
+        ig.addColorStop(1, 'transparent')
         c.fillStyle = ig; c.beginPath(); c.arc(cx, cy, impactR, 0, Math.PI*2); c.fill()
-        for (let i=0; i<4; i++) {
-          const ly = cy + (i-1.5)*12*S
-          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.4})`
-          c.lineWidth = 2*S
-          c.beginPath(); c.moveTo(cx+20*S, ly); c.lineTo(cx+60*S+Math.random()*20*S, ly); c.stroke()
+        // 交叉斜线冲击（更醒目）
+        c.save()
+        c.translate(cx, cy)
+        for (let i=0; i<8; i++) {
+          const ang = (Math.PI*2/8)*i + p*0.5
+          const lineLen = 30*S + p*60*S
+          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.7})`
+          c.lineWidth = (3 - p*2)*S
+          c.beginPath()
+          c.moveTo(Math.cos(ang)*15*S, Math.sin(ang)*15*S)
+          c.lineTo(Math.cos(ang)*lineLen, Math.sin(ang)*lineLen)
+          c.stroke()
+        }
+        c.restore()
+        // 中心闪光
+        if (p < 0.3) {
+          c.globalAlpha = (0.3-p)/0.3 * 0.9
+          c.fillStyle = '#fff'
+          c.beginPath(); c.arc(cx, cy, (20-p*40)*S, 0, Math.PI*2); c.fill()
+        }
+        // 碎片粒子
+        c.globalAlpha = (1-p)*0.6
+        for (let i=0; i<10; i++) {
+          const pAng = (Math.PI*2/10)*i + i*0.3
+          const dist = 20*S + p*70*S + i*5*S
+          const px = cx + Math.cos(pAng)*dist
+          const py = cy + Math.sin(pAng)*dist + p*20*S
+          const pr = (3-p*2.5)*S
+          c.fillStyle = i%3===0 ? '#fff' : '#ff6677'
+          c.beginPath(); c.arc(px, py, Math.max(0.5*S, pr), 0, Math.PI*2); c.fill()
         }
         break
       }
@@ -1633,6 +1674,50 @@ class Render {
         }
         break
       }
+      case 'dot': {
+        // DOT施放特效：灼烧→火焰爆发，中毒→毒雾扩散
+        const cx4 = tx, cy4 = ty
+        const dotFade = p < 0.15 ? p/0.15 : (1-p)*1.18
+        const isBurnDot = anim.dotType === 'burn'
+        if (isBurnDot) {
+          // 灼烧：中心火焰爆发 + 火焰粒子向上
+          c.globalAlpha = Math.max(0, dotFade) * 0.7
+          const fireR = 50*S * Math.min(1, p*3)
+          const fg2 = c.createRadialGradient(cx4, cy4, 0, cx4, cy4, fireR)
+          fg2.addColorStop(0, '#ffdd44cc'); fg2.addColorStop(0.4, '#ff6020aa'); fg2.addColorStop(0.8, '#ff400066'); fg2.addColorStop(1, 'transparent')
+          c.fillStyle = fg2; c.beginPath(); c.arc(cx4, cy4, fireR, 0, Math.PI*2); c.fill()
+          // 火焰粒子
+          for (let i=0; i<10; i++) {
+            const fAngle = (Math.PI*2/10)*i + p*3
+            const fDist = fireR * (0.3 + p*0.7) + i*3*S
+            const fpx = cx4 + Math.cos(fAngle)*fDist*0.6
+            const fpy = cy4 - p*40*S - Math.abs(Math.sin(fAngle))*fDist*0.8
+            const fpr = (3 - p*2)*S
+            c.globalAlpha = Math.max(0, dotFade) * 0.8
+            c.fillStyle = i%3===0 ? '#ffdd44' : i%3===1 ? '#ff8020' : '#ff4400'
+            c.beginPath(); c.arc(fpx, fpy, Math.max(0.5*S, fpr), 0, Math.PI*2); c.fill()
+          }
+        } else {
+          // 中毒：绿色毒雾扩散
+          c.globalAlpha = Math.max(0, dotFade) * 0.5
+          const poisonR = 55*S * Math.min(1, p*2.5)
+          const pg = c.createRadialGradient(cx4, cy4, 0, cx4, cy4, poisonR)
+          pg.addColorStop(0, '#40ff6088'); pg.addColorStop(0.5, '#20cc4066'); pg.addColorStop(0.8, '#00882233'); pg.addColorStop(1, 'transparent')
+          c.fillStyle = pg; c.beginPath(); c.arc(cx4, cy4, poisonR, 0, Math.PI*2); c.fill()
+          // 毒液粒子（向下滴落）
+          for (let i=0; i<8; i++) {
+            const pAngle = (Math.PI*2/8)*i + p*2
+            const pDist = poisonR * (0.4 + p*0.5)
+            const ppx = cx4 + Math.cos(pAngle)*pDist*0.7
+            const ppy = cy4 + p*30*S + Math.abs(Math.sin(pAngle))*pDist*0.5
+            const ppr = (2.5 - p*1.5)*S
+            c.globalAlpha = Math.max(0, dotFade) * 0.7
+            c.fillStyle = i%2===0 ? '#40ff60' : '#20cc40'
+            c.beginPath(); c.arc(ppx, ppy, Math.max(0.5*S, ppr), 0, Math.PI*2); c.fill()
+          }
+        }
+        break
+      }
     }
     if (anim.skillName && p < 0.7) {
       c.globalAlpha = p < 0.1 ? p/0.1 : (p < 0.5 ? 1 : (0.7-p)/0.2)
@@ -1684,39 +1769,61 @@ class Render {
       c.fillText(text,x,y)
       c.shadowBlur = 0
     }
+    // 技能描述副文字（告诉玩家技能效果）
+    if (f.desc) {
+      const descSz = big ? 13 : 10
+      c.font=`bold ${descSz*S}px "PingFang SC",sans-serif`
+      c.shadowColor='rgba(0,0,0,0.9)'; c.shadowBlur=4*S
+      c.strokeStyle='rgba(0,0,0,0.8)'; c.lineWidth=2.5*S
+      const descY = y + sz*0.5*S + 12*S
+      c.strokeText(f.desc, x, descY)
+      c.fillStyle='#ffe0aa'
+      c.fillText(f.desc, x, descY)
+      c.shadowBlur=0
+    }
     c.restore()
   }
 
-  // ===== 伤害飘字 =====
+  // ===== 伤害飘字（加大加粗，高对比度） =====
   drawDmgFloat(f) {
     const {ctx:c,S} = this
     const {x,y,text,color,alpha,scale} = f
     c.save(); c.globalAlpha=alpha||1
-    c.fillStyle=color||TH.danger; c.font=`bold ${(18*(scale||1))*S}px "PingFang SC",sans-serif`
+    const sz = (22*(scale||1))*S
+    c.font=`bold ${sz}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
-    c.strokeStyle='rgba(0,0,0,0.6)'; c.lineWidth=2*S; c.strokeText(text,x,y)
+    // 深色粗描边（提升对比度）
+    c.strokeStyle='rgba(0,0,0,0.85)'; c.lineWidth=3.5*S; c.strokeText(text,x,y)
+    // 发光效果
+    c.shadowColor = color || TH.danger; c.shadowBlur = 6*S
+    c.fillStyle=color||TH.danger
     c.fillText(text,x,y)
+    c.shadowBlur = 0
     c.restore()
   }
 
-  // ===== 消除数值飘字（棋子处） =====
+  // ===== 消除数值飘字（棋子处，加大加粗 + 发光） =====
   drawElimFloat(f) {
     const {ctx:c,S} = this
     const {x,y,text,color,alpha,scale,subText} = f
     c.save(); c.globalAlpha = alpha || 1
     // 主数值（伤害/回复值）
-    const sz = (14*(scale||1))*S
+    const sz = (18*(scale||1))*S
     c.font = `bold ${sz}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
+    // 深色粗描边
+    c.strokeStyle = 'rgba(0,0,0,0.85)'; c.lineWidth = 3*S
     c.strokeText(text, x, y)
+    // 发光效果
+    c.shadowColor = color || '#fff'; c.shadowBlur = 5*S
     c.fillStyle = color || '#fff'
     c.fillText(text, x, y)
+    c.shadowBlur = 0
     // 副文字（Combo N）
     if (subText) {
-      const subSz = 10*S
+      const subSz = 11*S
       c.font = `bold ${subSz}px "PingFang SC",sans-serif`
-      c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2*S
+      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
       c.strokeText(subText, x, y + sz*0.7)
       c.fillStyle = '#ffd700'
       c.fillText(subText, x, y + sz*0.7)
