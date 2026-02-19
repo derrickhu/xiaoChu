@@ -27,9 +27,15 @@ class MusicManager {
       this._bgm.src = 'audio/bgm.mp3'
       this._bgm.loop = true
       this._bgm.volume = 0.08
-      this._bgm.playbackRate = 2.0
+      this._bgm.onCanplay(() => {
+        this._bgm.playbackRate = 2.0
+      })
+      this._bgm.onPlay(() => {
+        this._bgm.playbackRate = 2.0
+      })
     }
     this._bgm.play()
+    this._bgm.playbackRate = 2.0
   }
 
   stopBgm() {
@@ -46,7 +52,7 @@ class MusicManager {
       this._bossBgm.src = 'audio/boss_bgm.mp3'
       this._bossBgm.loop = true
       this._bossBgm.volume = 0.1
-      this._bossBgm.playbackRate = 2.0
+      this._bossBgm.playbackRate = 1.0
     }
     this._bossBgm.play()
   }
@@ -197,6 +203,19 @@ class MusicManager {
   playHeal() {
     if (!this.enabled) return
     this._playSfxEx('audio/reward.wav', 0.3, 1.2)
+  }
+
+  /** 变珠音效：清脆变化音，珠子越多音量越大 */
+  playBeadConvert(count) {
+    if (!this.enabled) return
+    const vol = Math.min(0.6, 0.25 + (count || 1) * 0.05)
+    this._playSfxEx('audio/skill.wav', vol, 1.5)
+  }
+
+  /** DOT伤害音效：低沉的灼烧/中毒声 */
+  playDotDmg() {
+    if (!this.enabled) return
+    this._playSfxEx('audio/enemy_attack.wav', 0.2, 0.7)
   }
 
   playDragEnd() {

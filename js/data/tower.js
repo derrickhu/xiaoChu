@@ -51,17 +51,16 @@ const BASE_EVENT_WEIGHTS = {
 }
 
 // ===== 总层数 =====
-const MAX_FLOOR = 60
+const MAX_FLOOR = 30
 
-// ===== 怪物数据（按层段，60层制） =====
-// 普通怪物数值段：6个阶段，每阶段10层
+// ===== 怪物数据（按层段，30层制，保证普通怪能撑3-4回合） =====
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:10,  hpMin:80,   hpMax:220,   atkMin:5,   atkMax:10  },
-  { minFloor:11,  maxFloor:20,  hpMin:230,  hpMax:450,   atkMin:9,   atkMax:16  },
-  { minFloor:21,  maxFloor:30,  hpMin:460,  hpMax:750,   atkMin:15,  atkMax:26  },
-  { minFloor:31,  maxFloor:40,  hpMin:760,  hpMax:1200,  atkMin:25,  atkMax:42  },
-  { minFloor:41,  maxFloor:50,  hpMin:1210, hpMax:1900,  atkMin:40,  atkMax:65  },
-  { minFloor:51,  maxFloor:60,  hpMin:1910, hpMax:3000,  atkMin:62,  atkMax:100 },
+  { minFloor:1,   maxFloor:5,   hpMin:120,  hpMax:240,   atkMin:3,   atkMax:6   },
+  { minFloor:6,   maxFloor:10,  hpMin:260,  hpMax:480,   atkMin:6,   atkMax:12  },
+  { minFloor:11,  maxFloor:15,  hpMin:500,  hpMax:850,   atkMin:11,  atkMax:20  },
+  { minFloor:16,  maxFloor:20,  hpMin:880,  hpMax:1350,  atkMin:18,  atkMax:32  },
+  { minFloor:21,  maxFloor:25,  hpMin:1400, hpMax:2200,  atkMin:30,  atkMax:50  },
+  { minFloor:26,  maxFloor:30,  hpMin:2300, hpMax:3600,  atkMin:45,  atkMax:75  },
 ]
 
 // 普通怪物名池（按属性）
@@ -96,10 +95,10 @@ const BOSS_NAMES = [
   '混沌始祖·鸿蒙',
   '天道化身·审判',
 ]
-// 50/60层固定BOSS
+// 50/60层固定BOSS → 改为20/30层
 const BOSS_FINAL = [
-  { floor:50, name:'万妖之主·通天',   bossNum:9 },
-  { floor:60, name:'无上大妖·超越',   bossNum:10 },
+  { floor:20, name:'万妖之主·通天',   bossNum:9 },
+  { floor:30, name:'无上大妖·超越',   bossNum:10 },
 ]
 
 // 妖兽技能池（战斗中使用）
@@ -173,84 +172,82 @@ const REWARD_TYPES = {
   BUFF:       'buff',       // 全队加成奖励
 }
 
-// ===== 加成奖励池（分小/中/大三档，保持平衡）=====
-// 小档（普通战斗掉落）——数值温和，积少成多
+// ===== 加成奖励池（重做：去掉蚊子叮，改为体感明显的变革性效果）=====
+// 小档（普通战斗掉落）——每次拿到都能明显感到变强
 const BUFF_POOL_MINOR = [
-  { id:'m1',  label:'全队攻击 +2%',           buff:'allAtkPct',       val:2 },
-  { id:'m2',  label:'全队攻击 +3%',           buff:'allAtkPct',       val:3 },
-  { id:'m3',  label:'主角血量上限 +3%',       buff:'hpMaxPct',        val:3 },
-  { id:'m4',  label:'主角血量上限 +5%',       buff:'hpMaxPct',        val:5 },
-  { id:'m5',  label:'心珠回复效果 +5%',       buff:'heartBoostPct',   val:5 },
-  { id:'m6',  label:'Combo伤害 +2%',          buff:'comboDmgPct',     val:2 },
-  { id:'m7',  label:'3消基础伤害 +3%',        buff:'elim3DmgPct',     val:3 },
-  { id:'m8',  label:'转珠操作时间 +0.2秒',    buff:'extraTimeSec',    val:0.2 },
-  { id:'m9',  label:'每回合自动回血 +1',       buff:'regenPerTurn',    val:1 },
-  { id:'m10', label:'受到伤害 -2%',           buff:'dmgReducePct',    val:2 },
-  { id:'m11', label:'所有怪物攻击 -2%',       buff:'enemyAtkReducePct', val:2 },
-  { id:'m12', label:'所有怪物血量 -2%',       buff:'enemyHpReducePct',  val:2 },
-  { id:'m13', label:'主角立即恢复15%血量',    buff:'healNow',         val:15 },
-  { id:'m14', label:'战斗结束后额外回血5%',   buff:'postBattleHeal',  val:5 },
+  { id:'m1',  label:'全队攻击 +8%',           buff:'allAtkPct',       val:8 },
+  { id:'m2',  label:'全队攻击 +10%',          buff:'allAtkPct',       val:10 },
+  { id:'m3',  label:'血量上限 +10%',          buff:'hpMaxPct',        val:10 },
+  { id:'m4',  label:'血量上限 +15%',          buff:'hpMaxPct',        val:15 },
+  { id:'m5',  label:'心珠回复 +15%',          buff:'heartBoostPct',   val:15 },
+  { id:'m6',  label:'Combo伤害 +8%',          buff:'comboDmgPct',     val:8 },
+  { id:'m7',  label:'3消伤害 +10%',           buff:'elim3DmgPct',     val:10 },
+  { id:'m8',  label:'转珠时间 +0.5秒',        buff:'extraTimeSec',    val:0.5 },
+  { id:'m9',  label:'每回合回血 +3',           buff:'regenPerTurn',    val:3 },
+  { id:'m10', label:'受伤减免 -5%',           buff:'dmgReducePct',    val:5 },
+  { id:'m11', label:'怪物攻击 -5%',           buff:'enemyAtkReducePct', val:5 },
+  { id:'m12', label:'怪物血量 -5%',           buff:'enemyHpReducePct',  val:5 },
+  { id:'m13', label:'立即恢复30%血量',        buff:'healNow',         val:30 },
+  { id:'m14', label:'战后额外回血10%',        buff:'postBattleHeal',  val:10 },
 ]
-// 中档（精英战斗掉落）——有明显提升感
+// 中档（精英战斗掉落）——质变级
 const BUFF_POOL_MEDIUM = [
-  { id:'e1',  label:'全队攻击 +5%',           buff:'allAtkPct',       val:5 },
-  { id:'e2',  label:'主角血量上限 +8%',       buff:'hpMaxPct',        val:8 },
-  { id:'e3',  label:'心珠回复效果 +10%',      buff:'heartBoostPct',   val:10 },
-  { id:'e4',  label:'Combo伤害 +5%',          buff:'comboDmgPct',     val:5 },
-  { id:'e5',  label:'4消伤害 +8%',            buff:'elim4DmgPct',     val:8 },
-  { id:'e6',  label:'五行克制伤害 +5%',       buff:'counterDmgPct',   val:5 },
-  { id:'e7',  label:'灵兽技能伤害 +5%',       buff:'skillDmgPct',     val:5 },
-  { id:'e8',  label:'灵兽技能CD缩短 +5%',     buff:'skillCdReducePct',val:5 },
-  { id:'e9',  label:'转珠操作时间 +0.3秒',    buff:'extraTimeSec',    val:0.3 },
-  { id:'e10', label:'每回合自动回血 +2',       buff:'regenPerTurn',    val:2 },
-  { id:'e11', label:'受到伤害 -3%',           buff:'dmgReducePct',    val:3 },
-  { id:'e12', label:'精英怪攻击 -5%',         buff:'eliteAtkReducePct', val:5 },
-  { id:'e13', label:'精英怪血量 -5%',         buff:'eliteHpReducePct',  val:5 },
-  { id:'e14', label:'主角立即恢复30%血量',    buff:'healNow',         val:30 },
-  { id:'e15', label:'下一场受到伤害降低20%',  buff:'nextDmgReduce',   val:20 },
-  { id:'e16', label:'战斗结束后额外回血10%',  buff:'postBattleHeal',  val:10 },
+  { id:'e1',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
+  { id:'e2',  label:'血量上限 +20%',          buff:'hpMaxPct',        val:20 },
+  { id:'e3',  label:'心珠回复 +25%',          buff:'heartBoostPct',   val:25 },
+  { id:'e4',  label:'Combo伤害 +15%',         buff:'comboDmgPct',     val:15 },
+  { id:'e5',  label:'4消伤害 +20%',           buff:'elim4DmgPct',     val:20 },
+  { id:'e6',  label:'克制伤害 +15%',          buff:'counterDmgPct',   val:15 },
+  { id:'e7',  label:'技能伤害 +15%',          buff:'skillDmgPct',     val:15 },
+  { id:'e8',  label:'技能CD -15%',            buff:'skillCdReducePct',val:15 },
+  { id:'e9',  label:'转珠时间 +1秒',          buff:'extraTimeSec',    val:1 },
+  { id:'e10', label:'每回合回血 +5',           buff:'regenPerTurn',    val:5 },
+  { id:'e11', label:'受伤减免 -10%',          buff:'dmgReducePct',    val:10 },
+  { id:'e12', label:'精英攻击 -10%',          buff:'eliteAtkReducePct', val:10 },
+  { id:'e13', label:'精英血量 -10%',          buff:'eliteHpReducePct',  val:10 },
+  { id:'e14', label:'立即恢复50%血量',        buff:'healNow',         val:50 },
+  { id:'e15', label:'下场减伤30%',            buff:'nextDmgReduce',   val:30 },
+  { id:'e16', label:'战后额外回血20%',        buff:'postBattleHeal',  val:20 },
 ]
-// 大档（BOSS战掉落）——质变级强化
+// 大档（BOSS战掉落）——超级强化，拿到就起飞
 const BUFF_POOL_MAJOR = [
-  { id:'M1',  label:'全队攻击 +8%',           buff:'allAtkPct',       val:8 },
-  { id:'M2',  label:'主角血量上限 +12%',      buff:'hpMaxPct',        val:12 },
-  { id:'M3',  label:'心珠回复效果 +15%',      buff:'heartBoostPct',   val:15 },
-  { id:'M4',  label:'Combo伤害 +8%',          buff:'comboDmgPct',     val:8 },
-  { id:'M5',  label:'5消伤害 +12%',           buff:'elim5DmgPct',     val:12 },
-  { id:'M6',  label:'五行克制伤害 +8%',       buff:'counterDmgPct',   val:8 },
-  { id:'M7',  label:'灵兽技能伤害 +8%',       buff:'skillDmgPct',     val:8 },
-  { id:'M8',  label:'灵兽技能CD缩短 +10%',    buff:'skillCdReducePct',val:10 },
-  { id:'M9',  label:'转珠操作时间 +0.5秒',    buff:'extraTimeSec',    val:0.5 },
-  { id:'M10', label:'每回合自动回血 +3',       buff:'regenPerTurn',    val:3 },
-  { id:'M11', label:'受到伤害 -5%',           buff:'dmgReducePct',    val:5 },
-  { id:'M12', label:'消除额外 +1连击',        buff:'bonusCombo',      val:1 },
-  { id:'M13', label:'5消眩晕 +1回合',         buff:'stunDurBonus',    val:1 },
-  { id:'M14', label:'BOSS攻击 -5%',           buff:'bossAtkReducePct', val:5 },
-  { id:'M15', label:'BOSS血量 -5%',           buff:'bossHpReducePct',  val:5 },
-  { id:'M16', label:'主角立即恢复50%血量',    buff:'healNow',         val:50 },
-  { id:'M17', label:'下一场受到伤害降低30%',  buff:'nextDmgReduce',   val:30 },
-  { id:'M18', label:'本局额外1次复活机会',    buff:'extraRevive',     val:1 },
+  { id:'M1',  label:'全队攻击 +25%',          buff:'allAtkPct',       val:25 },
+  { id:'M2',  label:'血量上限 +30%',          buff:'hpMaxPct',        val:30 },
+  { id:'M3',  label:'心珠回复 +40%',          buff:'heartBoostPct',   val:40 },
+  { id:'M4',  label:'Combo伤害 +25%',         buff:'comboDmgPct',     val:25 },
+  { id:'M5',  label:'5消伤害 +30%',           buff:'elim5DmgPct',     val:30 },
+  { id:'M6',  label:'克制伤害 +25%',          buff:'counterDmgPct',   val:25 },
+  { id:'M7',  label:'技能伤害 +25%',          buff:'skillDmgPct',     val:25 },
+  { id:'M8',  label:'技能CD -25%',            buff:'skillCdReducePct',val:25 },
+  { id:'M9',  label:'转珠时间 +1.5秒',        buff:'extraTimeSec',    val:1.5 },
+  { id:'M10', label:'每回合回血 +8',           buff:'regenPerTurn',    val:8 },
+  { id:'M11', label:'受伤减免 -15%',          buff:'dmgReducePct',    val:15 },
+  { id:'M12', label:'额外 +2连击',            buff:'bonusCombo',      val:2 },
+  { id:'M13', label:'5消眩晕 +2回合',         buff:'stunDurBonus',    val:2 },
+  { id:'M14', label:'BOSS攻击 -15%',          buff:'bossAtkReducePct', val:15 },
+  { id:'M15', label:'BOSS血量 -15%',          buff:'bossHpReducePct',  val:15 },
+  { id:'M16', label:'立即恢复100%血量',       buff:'healNow',         val:100 },
+  { id:'M17', label:'下场减伤50%',            buff:'nextDmgReduce',   val:50 },
+  { id:'M18', label:'额外1次复活机会',        buff:'extraRevive',     val:1 },
 ]
-// 速通奖励池（5回合内击败敌人的额外奖励，数值略高于小档 + 独特效果）
+// 速通奖励池（5回合内击败的额外奖励，独特效果）
 const BUFF_POOL_SPEEDKILL = [
-  // 数值型（略高于小档）
-  { id:'s1',  label:'[速通] 回复20%血量',       buff:'healNow',           val:20 },
-  { id:'s2',  label:'[速通] 全队攻击 +4%',      buff:'allAtkPct',         val:4 },
-  { id:'s3',  label:'[速通] 血量上限 +6%',      buff:'hpMaxPct',          val:6 },
-  { id:'s4',  label:'[速通] 心珠效果 +8%',      buff:'heartBoostPct',     val:8 },
-  { id:'s5',  label:'[速通] 怪物血量 -3%',      buff:'enemyHpReducePct',  val:3 },
-  { id:'s6',  label:'[速通] 转珠时间 +0.3秒',   buff:'extraTimeSec',      val:0.3 },
-  { id:'s7',  label:'[速通] 回血 +2/回合',      buff:'regenPerTurn',      val:2 },
-  { id:'s8',  label:'[速通] 受伤 -3%',          buff:'dmgReducePct',      val:3 },
-  { id:'s9',  label:'[速通] Combo伤害 +4%',     buff:'comboDmgPct',       val:4 },
-  { id:'s10', label:'[速通] 宠物技能伤害 +4%',  buff:'skillDmgPct',       val:4 },
-  // 独特效果（仅速通池拥有）
-  { id:'s11', label:'[速通] 下场战斗首回合伤害翻倍', buff:'nextFirstTurnDouble', val:1 },
-  { id:'s12', label:'[速通] 下场战斗敌人眩晕1回合', buff:'nextStunEnemy',      val:1 },
-  { id:'s13', label:'[速通] 获得30点护盾',          buff:'grantShield',        val:30 },
-  { id:'s14', label:'[速通] 宠物技能CD全部重置',    buff:'resetAllCd',         val:1 },
-  { id:'s15', label:'[速通] 跳过下一场普通战斗',    buff:'skipNextBattle',     val:1 },
-  { id:'s16', label:'[速通] 下场战斗免疫一次伤害',  buff:'immuneOnce',         val:1 },
+  { id:'s1',  label:'[速通] 回复40%血量',       buff:'healNow',           val:40 },
+  { id:'s2',  label:'[速通] 全队攻击 +12%',     buff:'allAtkPct',         val:12 },
+  { id:'s3',  label:'[速通] 血量上限 +15%',     buff:'hpMaxPct',          val:15 },
+  { id:'s4',  label:'[速通] 心珠效果 +20%',     buff:'heartBoostPct',     val:20 },
+  { id:'s5',  label:'[速通] 怪物血量 -8%',      buff:'enemyHpReducePct',  val:8 },
+  { id:'s6',  label:'[速通] 转珠时间 +0.8秒',   buff:'extraTimeSec',      val:0.8 },
+  { id:'s7',  label:'[速通] 回血 +5/回合',      buff:'regenPerTurn',      val:5 },
+  { id:'s8',  label:'[速通] 受伤 -8%',          buff:'dmgReducePct',      val:8 },
+  { id:'s9',  label:'[速通] Combo伤害 +12%',    buff:'comboDmgPct',       val:12 },
+  { id:'s10', label:'[速通] 技能伤害 +12%',     buff:'skillDmgPct',       val:12 },
+  { id:'s11', label:'[速通] 下场首回合伤害翻倍', buff:'nextFirstTurnDouble', val:1 },
+  { id:'s12', label:'[速通] 下场敌人眩晕1回合', buff:'nextStunEnemy',      val:1 },
+  { id:'s13', label:'[速通] 获得60点护盾',      buff:'grantShield',        val:60 },
+  { id:'s14', label:'[速通] 技能CD全部重置',    buff:'resetAllCd',         val:1 },
+  { id:'s15', label:'[速通] 跳过下一场战斗',    buff:'skipNextBattle',     val:1 },
+  { id:'s16', label:'[速通] 下场免疫一次伤害',  buff:'immuneOnce',         val:1 },
 ]
 // 合并所有（兼容旧引用）
 const ALL_BUFF_REWARDS = [...BUFF_POOL_MINOR, ...BUFF_POOL_MEDIUM, ...BUFF_POOL_MAJOR]
@@ -278,19 +275,19 @@ function generateMonster(floor) {
   let hp  = Math.round(_lerp(tier.hpMin, tier.hpMax, progress) * rand())
   let atk = Math.round(_lerp(tier.atkMin, tier.atkMax, progress) * rand())
 
-  // 名字：根据层数从弱到强选
+  // 名字：根据层数从弱到强选（30层制，每5层升一档）
   const names = MONSTER_NAMES[attr]
-  const nameIdx = Math.min(Math.floor(floor / 10), names.length - 1)
+  const nameIdx = Math.min(Math.floor(floor / 5), names.length - 1)
   const name = names[nameIdx]
 
-  // 技能：1-15层无技能，16层起逐步加技能
+  // 技能：1-8层无技能，9层起逐步加技能（30层制）
   const skills = []
   const skillPool1 = ['poison','seal','convert']
   const skillPool2 = ['atkBuff','defDown','healBlock']
-  if (floor >= 16) skills.push(_pick(skillPool1))
-  if (floor >= 35) skills.push(_pick(skillPool2))
-  // 50层以上有小概率带第3个技能
-  if (floor >= 50 && Math.random() < 0.3) {
+  if (floor >= 9) skills.push(_pick(skillPool1))
+  if (floor >= 18) skills.push(_pick(skillPool2))
+  // 25层以上有小概率带第3个技能
+  if (floor >= 25 && Math.random() < 0.3) {
     const allSkills = [...skillPool1, ...skillPool2, 'breakBead']
     const extra = _pick(allSkills.filter(s => !skills.includes(s)))
     if (extra) skills.push(extra)
@@ -301,7 +298,7 @@ function generateMonster(floor) {
   const monKey = attrKeyMap[attr] || 'm'
   const monIdx = nameIdx + 1
 
-  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.3), skills, avatar: `enemies/mon_${monKey}_${monIdx}` }
+  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.35), skills, avatar: `enemies/mon_${monKey}_${monIdx}` }
 }
 
 // ===== 生成精英怪 =====
@@ -343,11 +340,11 @@ function generateElite(floor) {
 function generateBoss(floor) {
   const base = generateMonster(floor)
 
-  // BOSS倍率随层数递增（60层制）
-  const bossLevel = Math.floor(floor / 10)  // 1~6
-  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.5, 5)
-  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.2, 2.5)
-  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.16, 2)
+  // BOSS倍率随层数递增（30层制）
+  const bossLevel = Math.floor(floor / 10) + 1  // 1~3
+  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.8, 5)
+  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.3, 2.5)
+  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.2, 2)
 
   base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp
@@ -356,14 +353,14 @@ function generateBoss(floor) {
   base.isBoss = true
   base.attr   = _pick(ATTRS)
 
-  // 50/60层：固定BOSS
+  // 20/30层：固定BOSS
   const finalBoss = BOSS_FINAL.find(b => b.floor === floor)
   if (finalBoss) {
     base.name = finalBoss.name
     base.avatar = `enemies/boss_${finalBoss.bossNum}`
     base.battleBg = `enemies/bg_boss_${finalBoss.bossNum}`
   } else {
-    // 10-40层：从BOSS_NAMES池中随机选
+    // 10层：从BOSS_NAMES池中随机选
     const idx = Math.floor(Math.random() * BOSS_NAMES.length)
     base.name = BOSS_NAMES[idx]
     const bossNum = idx + 1  // 1~8
@@ -375,7 +372,7 @@ function generateBoss(floor) {
   const ctrlSkills = ['stun','seal','convert']
   const defSkills  = ['selfHeal','atkBuff','defDown','healBlock']
   base.skills = [_pick(ctrlSkills), _pick(defSkills)]
-  // 50/60层BOSS额外加第3个技能
+  // 20/30层BOSS额外加第3个技能
   if (finalBoss) {
     const allSkills = [...ctrlSkills, ...defSkills, 'poison', 'breakBead']
     const extra = _pick(allSkills.filter(s => !base.skills.includes(s)))
@@ -395,32 +392,27 @@ function generateFloorEvent(floor) {
   // 权重随机事件
   const weights = { ...BASE_EVENT_WEIGHTS }
 
-  // 前3层：只出普通战斗
-  if (floor <= 3) {
+  // 前2层：只出普通战斗（30层制更快进入完整体验）
+  if (floor <= 2) {
     weights.elite = 0
     weights.adventure = 0
     weights.shop = 0
     weights.rest = 0
-  } else if (floor <= 6) {
-    // 4-6层：开放奇遇和休息，但无精英/商店
+  } else if (floor <= 4) {
+    // 3-4层：开放奇遇和休息
     weights.elite = 0
     weights.shop = 0
     weights.adventure = 8
     weights.rest = 3
   } else {
-    // 7层起：全面开放，随层数增强随机性
-    // 精英概率随层数递增
-    weights.elite += Math.floor(floor / 8) * 3
-    // 每第5层（如5,15,25...）精英概率大幅提升
+    // 5层起：全面开放
+    weights.elite += Math.floor(floor / 4) * 3
     if (floor % 5 === 0) weights.elite += 18
-    // 奇遇随层数略增，保持新鲜感
-    weights.adventure += Math.floor(floor / 12) * 2
-    // 商店/休息概率递增
-    weights.shop += Math.floor(floor / 15) * 2
-    weights.rest += Math.floor(floor / 15) * 2
-    // 后期普通战斗概率降低，事件更丰富
-    if (floor >= 30) weights.battle -= 10
-    if (floor >= 45) weights.battle -= 10
+    weights.adventure += Math.floor(floor / 6) * 2
+    weights.shop += Math.floor(floor / 8) * 2
+    weights.rest += Math.floor(floor / 8) * 2
+    if (floor >= 15) weights.battle -= 10
+    if (floor >= 22) weights.battle -= 10
   }
 
   const total = Object.values(weights).reduce((a, b) => a + b, 0)
@@ -492,8 +484,8 @@ function generateRewards(floor, eventType, speedKill) {
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
     }
   } else {
-    // 普通战斗：小概率掉落宠物（15%），其余为小档加成
-    if (Math.random() < 0.15) {
+    // 普通战斗：30%概率掉落宠物（30层制加速build）
+    if (Math.random() < 0.30) {
       const newPet = randomPet()
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
       rewards.push(pickFrom(BUFF_POOL_MINOR))

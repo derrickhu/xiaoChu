@@ -80,6 +80,13 @@ class Main {
     this.enemyAttackAnim= { active:false, progress:0, duration:20 }
     this.skillCastAnim  = { active:false, progress:0, duration:30, type:'slash', color:TH.accent, skillName:'', targetX:0, targetY:0 }
     this._enemyHpLoss = null; this._heroHpLoss = null; this._heroHpGain = null
+    this._enemyHitFlash = 0   // 敌人受击闪白帧数
+    this._enemyDeathAnim = null // 敌人死亡爆裂特效
+    this._blockFlash = 0
+    this._heroHurtFlash = 0    // 英雄受击红闪帧数
+    this._enemyWarning = 0     // 敌人回合预警帧数
+    this._counterFlash = null  // 克制属性色闪光 {color, timer}
+    this._bossEntrance = 0     // Boss入场特效帧数
 
     // Run state (Roguelike)
     this.floor = 0
@@ -155,7 +162,7 @@ class Main {
       wx.onTouchEnd(e => this.onTouch('end', e))
     }
 
-    const loop = () => { this.af++; this.update(); this.render(); requestAnimationFrame(loop) }
+    const loop = () => { this.af++; try { this.update(); this.render() } catch(e) { console.error('loop error:', e) }; requestAnimationFrame(loop) }
     requestAnimationFrame(loop)
   }
 
@@ -200,7 +207,7 @@ class Main {
             this.heroBuffs.splice(stunIdx, 1)
             this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
             // 眩晕：需要再做一轮敌人攻击
-            this._pendingEnemyAtk = { timer: 0, delay: 36 }
+            this._pendingEnemyAtk = { timer: 0, delay: 24 }
           }
           this.bState = 'playerTurn'
         }
@@ -208,17 +215,17 @@ class Main {
     }
     if (this.bState === 'petAtkShow') {
       this._stateTimer++
-      if (this._stateTimer >= 50) { this._stateTimer = 0; this.bState = 'preAttack' }
+      if (this._stateTimer >= 38) { this._stateTimer = 0; this.bState = 'preAttack' }
     }
     if (this.bState === 'preAttack') {
-      this._stateTimer++; if (this._stateTimer >= 15) { this._stateTimer = 0; this._executeAttack() }
+      this._stateTimer++; if (this._stateTimer >= 12) { this._stateTimer = 0; this._executeAttack() }
     }
     if (this.bState === 'preEnemy') {
-      this._stateTimer++; if (this._stateTimer >= 54) { this._stateTimer = 0; this._enemyTurn() }
+      this._stateTimer++; if (this._stateTimer >= 30) { this._stateTimer = 0; this._enemyTurn() }
     }
     if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
       this._stateTimer++
-      if (this._stateTimer >= 48) {
+      if (this._stateTimer >= 30) {
         this._stateTimer = 0; this._enemyTurnWait = false
         // 检查heroStun：玩家被眩晕则跳过操作回合
         const stunIdx = this.heroBuffs.findIndex(b => b.type === 'heroStun')
@@ -345,7 +352,7 @@ class Main {
     const hpBarY = boardTop - hpBarH - 4*S
     const teamBarY = hpBarY - teamBarH - 2*S
     const eAreaTop = safeTop + 4*S
-    return { boardPad, cellSize, boardH, boardTop, teamBarH, teamBarY, hpBarY, eAreaTop }
+    return { boardPad, cellSize, boardH, boardTop, iconSize, teamBarH, teamBarY, hpBarY, eAreaTop }
   }
 
   _getEnemyCenterY() {
@@ -358,6 +365,7 @@ class Main {
   _playHeroAttack(skillName, attr, type) {
     this.heroAttackAnim = { active:true, progress:0, duration:24 }
     this.enemyHurtAnim  = { active:true, progress:0, duration:18 }
+    this._enemyHitFlash = 12  // 敌人闪白12帧
     const color = ATTR_COLOR[attr]?.main || TH.accent
     const eCenterY = this._getEnemyCenterY()
     this.skillCastAnim = { active:true, progress:0, duration:30, type:type||'slash', color, skillName:skillName||'', targetX:W*0.5, targetY:eCenterY }
@@ -372,8 +380,8 @@ class Main {
 
   _playHealEffect() {
     const L = this._getBattleLayout()
-    this.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:'#d4607a', skillName:'', targetX:W*0.5, targetY:L.hpBarY }
-    MusicMgr.playHeal()  // 回血治愈音效
+    this.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:'#4dcc4d', skillName:'', targetX:W*0.5, targetY:L.hpBarY }
+    MusicMgr.playHeal()
   }
 
   // ===== 触摸入口 =====
@@ -428,7 +436,7 @@ class Main {
         if (stunIdx >= 0) {
           this.heroBuffs.splice(stunIdx, 1)
           this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
-          this._pendingEnemyAtk = { timer: 0, delay: 36 }
+          this._pendingEnemyAtk = { timer: 0, delay: 24 }
         }
         this.bState = 'playerTurn'
       }
