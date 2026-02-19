@@ -50,14 +50,18 @@ const BASE_EVENT_WEIGHTS = {
   rest:       3,
 }
 
-// ===== 怪物数据（按层段） =====
-// 普通怪物数值段
+// ===== 总层数 =====
+const MAX_FLOOR = 60
+
+// ===== 怪物数据（按层段，60层制） =====
+// 普通怪物数值段：6个阶段，每阶段10层
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:10,  hpMin:80,  hpMax:250,  atkMin:5,   atkMax:10  },
-  { minFloor:11,  maxFloor:20,  hpMin:260, hpMax:500,  atkMin:8,   atkMax:14  },
-  { minFloor:21,  maxFloor:40,  hpMin:350, hpMax:850,  atkMin:16,  atkMax:35  },
-  { minFloor:41,  maxFloor:70,  hpMin:860, hpMax:1700, atkMin:36,  atkMax:70  },
-  { minFloor:71,  maxFloor:100, hpMin:1710,hpMax:3500, atkMin:71,  atkMax:130 },
+  { minFloor:1,   maxFloor:10,  hpMin:80,   hpMax:220,   atkMin:5,   atkMax:10  },
+  { minFloor:11,  maxFloor:20,  hpMin:230,  hpMax:450,   atkMin:9,   atkMax:16  },
+  { minFloor:21,  maxFloor:30,  hpMin:460,  hpMax:750,   atkMin:15,  atkMax:26  },
+  { minFloor:31,  maxFloor:40,  hpMin:760,  hpMax:1200,  atkMin:25,  atkMax:42  },
+  { minFloor:41,  maxFloor:50,  hpMin:1210, hpMax:1900,  atkMin:40,  atkMax:65  },
+  { minFloor:51,  maxFloor:60,  hpMin:1910, hpMax:3000,  atkMin:62,  atkMax:100 },
 ]
 
 // 普通怪物名池（按属性）
@@ -81,18 +85,21 @@ const ELITE_NAMES = {
 // 精英怪技能
 const ELITE_SKILLS = ['stun','defDown','selfHeal','breakBead','atkBuff']
 
-// BOSS名池（每10层一个，越来越强）
+// BOSS名池（10个，前8个用于1-40层随机，后2个为50/60层固定BOSS）
 const BOSS_NAMES = [
-  '炼狱守卫·妖兵统领',  // 第10层
-  '五行妖将·破阵',      // 第20层
-  '天罡妖帝·噬天',      // 第30层
-  '混沌魔神·灭世',      // 第40层
-  '太古凶兽·吞天',      // 第50层
-  '九天妖皇·逆仙',      // 第60层
-  '万妖之主·通天',      // 第70层
-  '混沌始祖·鸿蒙',      // 第80层
-  '天道化身·审判',      // 第90层
-  '无上大妖·超越',      // 第100层
+  '炼狱守卫·妖兵统领',
+  '五行妖将·破阵',
+  '天罡妖帝·噬天',
+  '混沌魔神·灭世',
+  '太古凶兽·吞天',
+  '九天妖皇·逆仙',
+  '混沌始祖·鸿蒙',
+  '天道化身·审判',
+]
+// 50/60层固定BOSS
+const BOSS_FINAL = [
+  { floor:50, name:'万妖之主·通天',   bossNum:9 },
+  { floor:60, name:'无上大妖·超越',   bossNum:10 },
 ]
 
 // 妖兽技能池（战斗中使用）
@@ -256,7 +263,6 @@ function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 // ===== 生成某层怪物 =====
 function generateMonster(floor) {
   const attr = _pick(ATTRS)
-  const an = ATTR_NAME[attr]
 
   // 查找数值段
   let tier = MONSTER_TIERS[MONSTER_TIERS.length - 1]
@@ -265,37 +271,35 @@ function generateMonster(floor) {
   }
 
   // 层段内线性插值
-  let progress
-  if (floor <= tier.maxFloor) {
-    progress = (floor - tier.minFloor) / Math.max(1, tier.maxFloor - tier.minFloor)
-  } else {
-    progress = 1
-  }
+  const progress = Math.min(1, (floor - tier.minFloor) / Math.max(1, tier.maxFloor - tier.minFloor))
 
-  let hp  = Math.round(_lerp(tier.hpMin, tier.hpMax, progress))
-  let atk = Math.round(_lerp(tier.atkMin, tier.atkMax, progress))
-
-  // 100层以上：每层+8%
-  if (floor > 100) {
-    const extra = Math.pow(1.08, floor - 100)
-    hp  = Math.round(hp * extra)
-    atk = Math.round(atk * extra)
-  }
+  // 增加随机性：基础值±15%波动
+  const rand = () => 0.85 + Math.random() * 0.30
+  let hp  = Math.round(_lerp(tier.hpMin, tier.hpMax, progress) * rand())
+  let atk = Math.round(_lerp(tier.atkMin, tier.atkMax, progress) * rand())
 
   // 名字：根据层数从弱到强选
   const names = MONSTER_NAMES[attr]
-  const nameIdx = Math.min(Math.floor(floor / 15), names.length - 1)
+  const nameIdx = Math.min(Math.floor(floor / 10), names.length - 1)
   const name = names[nameIdx]
 
-  // 技能：1-20层无技能（血厚攻低的肉盾），21层起逐步加技能
+  // 技能：1-15层无技能，16层起逐步加技能
   const skills = []
-  if (floor >= 21) skills.push(_pick(['poison','seal','convert']))
-  if (floor >= 45) skills.push(_pick(['atkBuff','defDown','healBlock']))
+  const skillPool1 = ['poison','seal','convert']
+  const skillPool2 = ['atkBuff','defDown','healBlock']
+  if (floor >= 16) skills.push(_pick(skillPool1))
+  if (floor >= 35) skills.push(_pick(skillPool2))
+  // 50层以上有小概率带第3个技能
+  if (floor >= 50 && Math.random() < 0.3) {
+    const allSkills = [...skillPool1, ...skillPool2, 'breakBead']
+    const extra = _pick(allSkills.filter(s => !skills.includes(s)))
+    if (extra) skills.push(extra)
+  }
 
-  // 怪物图片：mon_{属性缩写}_{1-7}，根据名字索引匹配
+  // 怪物图片
   const attrKeyMap = { metal:'m', wood:'w', earth:'e', water:'s', fire:'f' }
   const monKey = attrKeyMap[attr] || 'm'
-  const monIdx = nameIdx + 1  // 1~7
+  const monIdx = nameIdx + 1
 
   return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.3), skills, avatar: `enemies/mon_${monKey}_${monIdx}` }
 }
@@ -305,10 +309,12 @@ function generateElite(floor) {
   const base = generateMonster(floor)
   const attr = base.attr
 
-  // 精英 = 普通×2.5血 ×1.8攻
-  base.hp    = Math.round(base.hp * 2.5)
+  // 精英 = 普通×(2.2~2.8)血 ×(1.6~2.0)攻
+  const hpMul = 2.2 + Math.random() * 0.6
+  const atkMul = 1.6 + Math.random() * 0.4
+  base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp
-  base.atk   = Math.round(base.atk * 1.8)
+  base.atk   = Math.round(base.atk * atkMul)
   base.def   = Math.round(base.def * 1.5)
 
   // 名称
@@ -336,12 +342,9 @@ function generateElite(floor) {
 // ===== 生成BOSS =====
 function generateBoss(floor) {
   const base = generateMonster(floor)
-  const bossIdx = Math.min(Math.floor(floor / 10) - 1, BOSS_NAMES.length - 1)
 
-  // BOSS倍率随层数递增：第10层温和，后续逐步变强
-  // 血量倍率：2.5 → 5（10层=2.5, 20层=3.0, 30层=3.5 ... 60层+=5）
-  // 攻击倍率：1.5 → 2.5（10层=1.5, 20层=1.7, 30层=1.9 ... 60层+=2.5）
-  const bossLevel = Math.floor(floor / 10)  // 1,2,3...
+  // BOSS倍率随层数递增（60层制）
+  const bossLevel = Math.floor(floor / 10)  // 1~6
   const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.5, 5)
   const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.2, 2.5)
   const defMul = Math.min(1.2 + (bossLevel - 1) * 0.16, 2)
@@ -350,21 +353,35 @@ function generateBoss(floor) {
   base.maxHp = base.hp
   base.atk   = Math.round(base.atk * atkMul)
   base.def   = Math.round(base.def * defMul)
+  base.isBoss = true
+  base.attr   = _pick(ATTRS)
 
-  base.name    = BOSS_NAMES[Math.max(0, bossIdx)]
-  base.isBoss  = true
-  base.attr    = _pick(ATTRS) // Boss随机属性
+  // 50/60层：固定BOSS
+  const finalBoss = BOSS_FINAL.find(b => b.floor === floor)
+  if (finalBoss) {
+    base.name = finalBoss.name
+    base.avatar = `enemies/boss_${finalBoss.bossNum}`
+    base.battleBg = `enemies/bg_boss_${finalBoss.bossNum}`
+  } else {
+    // 10-40层：从BOSS_NAMES池中随机选
+    const idx = Math.floor(Math.random() * BOSS_NAMES.length)
+    base.name = BOSS_NAMES[idx]
+    const bossNum = idx + 1  // 1~8
+    base.avatar = `enemies/boss_${bossNum}`
+    base.battleBg = `enemies/bg_boss_${bossNum}`
+  }
 
   // BOSS必带2个技能：控制+减伤/回血
   const ctrlSkills = ['stun','seal','convert']
   const defSkills  = ['selfHeal','atkBuff','defDown','healBlock']
   base.skills = [_pick(ctrlSkills), _pick(defSkills)]
+  // 50/60层BOSS额外加第3个技能
+  if (finalBoss) {
+    const allSkills = [...ctrlSkills, ...defSkills, 'poison', 'breakBead']
+    const extra = _pick(allSkills.filter(s => !base.skills.includes(s)))
+    if (extra) base.skills.push(extra)
+  }
 
-  // BOSS图片：boss_{1-10}，根据bossIdx匹配
-  const bossNum = Math.min(Math.max(1, bossIdx + 1), 10)
-  base.avatar = `enemies/boss_${bossNum}`
-  // BOSS专属战斗背景（10个Boss层对应10张背景）
-  base.battleBg = `enemies/bg_boss_${bossNum}`
   return base
 }
 
@@ -378,22 +395,32 @@ function generateFloorEvent(floor) {
   // 权重随机事件
   const weights = { ...BASE_EVENT_WEIGHTS }
 
-  // 前5层：只出普通战斗，不出精英/奇遇/商店
-  if (floor <= 5) {
+  // 前3层：只出普通战斗
+  if (floor <= 3) {
     weights.elite = 0
     weights.adventure = 0
     weights.shop = 0
     weights.rest = 0
+  } else if (floor <= 6) {
+    // 4-6层：开放奇遇和休息，但无精英/商店
+    weights.elite = 0
+    weights.shop = 0
+    weights.adventure = 8
+    weights.rest = 3
   } else {
-    // 层数越高，精英概率越高
-    weights.elite += Math.floor(floor / 10) * 2
+    // 7层起：全面开放，随层数增强随机性
+    // 精英概率随层数递增
+    weights.elite += Math.floor(floor / 8) * 3
     // 每第5层（如5,15,25...）精英概率大幅提升
-    if (floor % 5 === 0) {
-      weights.elite += 20
-    }
-    // 商店/休息概率略微递增
-    weights.shop  += Math.floor(floor / 20) * 1
-    weights.rest  += Math.floor(floor / 30) * 1
+    if (floor % 5 === 0) weights.elite += 18
+    // 奇遇随层数略增，保持新鲜感
+    weights.adventure += Math.floor(floor / 12) * 2
+    // 商店/休息概率递增
+    weights.shop += Math.floor(floor / 15) * 2
+    weights.rest += Math.floor(floor / 15) * 2
+    // 后期普通战斗概率降低，事件更丰富
+    if (floor >= 30) weights.battle -= 10
+    if (floor >= 45) weights.battle -= 10
   }
 
   const total = Object.values(weights).reduce((a, b) => a + b, 0)
@@ -520,6 +547,7 @@ function getBeadWeights(floorAttr, weapon) {
 
 module.exports = {
   // 常量
+  MAX_FLOOR,
   ATTRS, ATTR_NAME, ATTR_COLOR,
   COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
   BEAD_ATTRS, BEAD_ATTR_NAME, BEAD_ATTR_COLOR,
@@ -529,7 +557,7 @@ module.exports = {
   REWARD_TYPES,
   ALL_BUFF_REWARDS,
   BUFF_POOL_SPEEDKILL,
-  MONSTER_NAMES, ELITE_NAMES, BOSS_NAMES,
+  MONSTER_NAMES, ELITE_NAMES, BOSS_NAMES, BOSS_FINAL,
 
   // 生成器
   generateMonster,
