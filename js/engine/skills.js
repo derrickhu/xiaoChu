@@ -14,27 +14,45 @@ const { randomWeapon } = require('../data/weapons')
 function triggerPetSkill(g, pet, idx) {
   const { S, W, H } = V
   const sk = pet.skill; if (!sk) return
-  MusicMgr.playSkill()
   let cd = pet.cd
   if (g.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - g.runBuffs.skillCdReducePct / 100)))
   pet.currentCd = cd
   const attrColor = ATTR_COLOR[pet.attr]?.main || V.TH.accent
-  // 技能释放横幅动画（名称 + 描述 + 宠物名）
-  g._skillBanner = {
-    petName: pet.name,
-    skillName: sk.name,
-    skillDesc: sk.desc || '',
-    color: attrColor,
-    bgColor: ATTR_COLOR[pet.attr]?.bg || '#1a1a2e',
-    timer: 0,
-    duration: 90,   // 约1.5秒
-    petIdx: idx
+
+  // 攻击伤害类技能：使用攻击光波特效 + pet_skill.mp3
+  const isAttackSkill = (sk.type === 'instantDmg' || sk.type === 'teamAttack')
+  if (isAttackSkill) {
+    MusicMgr.playPetSkill()
+    // 攻击光波特效（从宠物头像位置向敌人发射）
+    const eCenterY = g._getEnemyCenterY()
+    g._petSkillWave = {
+      petIdx: idx,
+      attr: sk.attr || pet.attr,
+      color: attrColor,
+      timer: 0,
+      duration: 36,
+      targetX: W * 0.5,
+      targetY: eCenterY
+    }
+    g._comboFlash = 6
+    g.shakeT = 6; g.shakeI = 4
+  } else {
+    // 非攻击类技能：保留原横幅动画
+    MusicMgr.playSkill()
+    g._skillBanner = {
+      petName: pet.name,
+      skillName: sk.name,
+      skillDesc: sk.desc || '',
+      color: attrColor,
+      bgColor: ATTR_COLOR[pet.attr]?.bg || '#1a1a2e',
+      timer: 0,
+      duration: 90,
+      petIdx: idx
+    }
+    g._comboFlash = 8
+    g.shakeT = 5; g.shakeI = 3
+    g.skillEffects.push({ x:W*0.5, y:H*0.38, text:sk.name, color:attrColor, t:0, alpha:1, scale:2.2, _initScale:2.2, big:true })
   }
-  // 全屏闪光 + 震屏
-  g._comboFlash = 8
-  g.shakeT = 5; g.shakeI = 3
-  // 仍然保留飘字（作为补充）
-  g.skillEffects.push({ x:W*0.5, y:H*0.38, text:sk.name, color:attrColor, t:0, alpha:1, scale:2.2, _initScale:2.2, big:true })
   switch(sk.type) {
     case 'dmgBoost':
       g.heroBuffs.push({ type:'dmgBoost', attr:sk.attr, pct:sk.pct, dur:1, bad:false, name:sk.name }); break

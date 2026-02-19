@@ -90,6 +90,7 @@ function restoreBattleHpMax(g) {
 }
 
 function endRun(g) {
+  MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon)
   g.storage.clearRunState()
@@ -105,6 +106,7 @@ function endRun(g) {
 }
 
 function saveAndExit(g) {
+  MusicMgr.stopBossBgm()
   restoreBattleHpMax(g)
   const runState = {
     floor: g.floor,

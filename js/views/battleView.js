@@ -186,6 +186,9 @@ function rBattle(g) {
   // 技能释放横幅
   if (g._skillBanner) _drawSkillBanner(g)
 
+  // 宠物攻击技能光波特效
+  if (g._petSkillWave) _drawPetSkillWave(g)
+
   // 宠物头像攻击数值翻滚
   g.petAtkNums.forEach(f => R.drawPetAtkNum(f))
 
@@ -204,6 +207,130 @@ function rBattle(g) {
   if (g.showBattlePetDetail != null) g._drawBattlePetDetailDialog()
   if (g.skillPreview) _drawSkillPreviewPopup(g)
   if (g.runBuffDetail) g._drawRunBuffDetailDialog()
+}
+
+// ===== 宠物攻击技能光波特效 =====
+function _drawPetSkillWave(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const wave = g._petSkillWave
+  if (!wave) return
+  wave.timer++
+  if (wave.timer > wave.duration) { g._petSkillWave = null; return }
+
+  const t = wave.timer
+  const dur = wave.duration
+  const p = t / dur  // 0→1 进度
+  const clr = wave.color || TH.accent
+
+  // 计算宠物头像位置（光波起点）
+  const L = g._getBattleLayout()
+  const iconSize = L.iconSize
+  const iconY = L.teamBarY + (L.teamBarH - iconSize) / 2
+  const sidePad = 8*S, wpnGap = 12*S, petGap = 8*S
+  let ix
+  if (wave.petIdx === 0) { ix = sidePad }
+  else { ix = sidePad + iconSize + wpnGap + (wave.petIdx - 1) * (iconSize + petGap) }
+  const startX = ix + iconSize * 0.5
+  const startY = iconY
+  const targetX = wave.targetX
+  const targetY = wave.targetY
+
+  ctx.save()
+
+  // 阶段1（0-0.15）：宠物头像蓄力光环
+  if (p < 0.15) {
+    const chargeP = p / 0.15
+    const chargeR = iconSize * 0.4 * chargeP
+    ctx.globalAlpha = 0.6 + chargeP * 0.4
+    const chargeGrd = ctx.createRadialGradient(startX, startY, 0, startX, startY, chargeR)
+    chargeGrd.addColorStop(0, '#fff')
+    chargeGrd.addColorStop(0.5, clr)
+    chargeGrd.addColorStop(1, 'transparent')
+    ctx.fillStyle = chargeGrd
+    ctx.beginPath(); ctx.arc(startX, startY, chargeR, 0, Math.PI*2); ctx.fill()
+  }
+
+  // 阶段2（0.1-0.6）：光波从宠物飞向敌人
+  if (p >= 0.1 && p < 0.6) {
+    const flyP = (p - 0.1) / 0.5  // 0→1
+    const easedP = 1 - Math.pow(1 - flyP, 2)  // ease-out
+    const curX = startX + (targetX - startX) * easedP
+    const curY = startY + (targetY - startY) * easedP
+    const waveR = 18*S + flyP * 12*S
+
+    // 光波主体
+    ctx.globalAlpha = 0.9 - flyP * 0.3
+    const waveGrd = ctx.createRadialGradient(curX, curY, 0, curX, curY, waveR)
+    waveGrd.addColorStop(0, '#fff')
+    waveGrd.addColorStop(0.3, clr)
+    waveGrd.addColorStop(0.7, clr + '88')
+    waveGrd.addColorStop(1, 'transparent')
+    ctx.fillStyle = waveGrd
+    ctx.beginPath(); ctx.arc(curX, curY, waveR, 0, Math.PI*2); ctx.fill()
+
+    // 光波拖尾
+    ctx.globalAlpha = 0.4 * (1 - flyP)
+    const tailLen = 40*S
+    const tailAngle = Math.atan2(targetY - startY, targetX - startX)
+    const tailX = curX - Math.cos(tailAngle) * tailLen * flyP
+    const tailY = curY - Math.sin(tailAngle) * tailLen * flyP
+    const tailGrd = ctx.createLinearGradient(tailX, tailY, curX, curY)
+    tailGrd.addColorStop(0, 'transparent')
+    tailGrd.addColorStop(0.5, clr + '44')
+    tailGrd.addColorStop(1, clr + 'aa')
+    ctx.strokeStyle = tailGrd
+    ctx.lineWidth = 6*S
+    ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(curX, curY); ctx.stroke()
+
+    // 光波碎片
+    for (let i = 0; i < 4; i++) {
+      const angle = Math.PI*2 / 4 * i + flyP * 3
+      const dist = waveR * 0.6
+      const px = curX + Math.cos(angle) * dist
+      const py = curY + Math.sin(angle) * dist
+      ctx.globalAlpha = 0.5 * (1 - flyP)
+      ctx.fillStyle = i % 2 === 0 ? '#fff' : clr
+      ctx.beginPath(); ctx.arc(px, py, 3*S, 0, Math.PI*2); ctx.fill()
+    }
+  }
+
+  // 阶段3（0.5-1.0）：命中爆炸冲击波
+  if (p >= 0.5) {
+    const hitP = (p - 0.5) / 0.5  // 0→1
+    const impactR = 30*S + hitP * 70*S
+
+    // 冲击波环
+    ctx.globalAlpha = (1 - hitP) * 0.7
+    ctx.strokeStyle = clr
+    ctx.lineWidth = (1 - hitP) * 6*S
+    ctx.shadowColor = clr
+    ctx.shadowBlur = 15*S
+    ctx.beginPath(); ctx.arc(targetX, targetY, impactR, 0, Math.PI*2); ctx.stroke()
+    ctx.shadowBlur = 0
+
+    // 内部闪光
+    ctx.globalAlpha = (1 - hitP) * 0.4
+    const impactGrd = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, impactR * 0.8)
+    impactGrd.addColorStop(0, '#fff')
+    impactGrd.addColorStop(0.3, clr + 'aa')
+    impactGrd.addColorStop(1, 'transparent')
+    ctx.fillStyle = impactGrd
+    ctx.beginPath(); ctx.arc(targetX, targetY, impactR * 0.8, 0, Math.PI*2); ctx.fill()
+
+    // 放射碎片
+    for (let i = 0; i < 8; i++) {
+      const angle = Math.PI*2 / 8 * i
+      const dist = impactR * (0.3 + hitP * 0.7)
+      const px = targetX + Math.cos(angle) * dist
+      const py = targetY + Math.sin(angle) * dist
+      const pr = (1 - hitP) * 4*S
+      ctx.globalAlpha = (1 - hitP) * 0.6
+      ctx.fillStyle = i % 2 === 0 ? '#fff' : clr
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI*2); ctx.fill()
+    }
+  }
+
+  ctx.restore()
 }
 
 // ===== 技能释放横幅动画 =====

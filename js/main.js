@@ -57,6 +57,7 @@ class Main {
     this.bState = 'none'
     this._stateTimer = 0
     this._enemyTurnWait = false
+    this._pendingEnemyAtk = null
     this._pendingDmgMap = null
     this._pendingHeal = 0
     this.combo = 0; this.turnCount = 0
@@ -185,6 +186,26 @@ class Main {
         this._checkAndElim()
       }
     }
+    // 延迟敌人攻击：在玩家回合背景中执行，不阻塞操作
+    if (this._pendingEnemyAtk && this.bState === 'playerTurn') {
+      this._pendingEnemyAtk.timer++
+      if (this._pendingEnemyAtk.timer >= this._pendingEnemyAtk.delay) {
+        this._pendingEnemyAtk = null
+        this._enemyTurn()
+        // enemyTurn 可能将 bState 改为 defeat 等，如果仍在 playerTurn 或 enemyTurn 就恢复
+        if (this.bState === 'enemyTurn') {
+          // 被眩晕检查
+          const stunIdx = this.heroBuffs.findIndex(b => b.type === 'heroStun')
+          if (stunIdx >= 0) {
+            this.heroBuffs.splice(stunIdx, 1)
+            this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
+            // 眩晕：需要再做一轮敌人攻击
+            this._pendingEnemyAtk = { timer: 0, delay: 36 }
+          }
+          this.bState = 'playerTurn'
+        }
+      }
+    }
     if (this.bState === 'petAtkShow') {
       this._stateTimer++
       if (this._stateTimer >= 50) { this._stateTimer = 0; this.bState = 'preAttack' }
@@ -193,11 +214,11 @@ class Main {
       this._stateTimer++; if (this._stateTimer >= 15) { this._stateTimer = 0; this._executeAttack() }
     }
     if (this.bState === 'preEnemy') {
-      this._stateTimer++; if (this._stateTimer >= 30) { this._stateTimer = 0; this._enemyTurn() }
+      this._stateTimer++; if (this._stateTimer >= 54) { this._stateTimer = 0; this._enemyTurn() }
     }
     if (this.bState === 'enemyTurn' && this._enemyTurnWait) {
       this._stateTimer++
-      if (this._stateTimer >= 36) {
+      if (this._stateTimer >= 48) {
         this._stateTimer = 0; this._enemyTurnWait = false
         // 检查heroStun：玩家被眩晕则跳过操作回合
         const stunIdx = this.heroBuffs.findIndex(b => b.type === 'heroStun')
@@ -394,7 +415,26 @@ class Main {
   _initBoard() { battleEngine.initBoard(this) }
   _cellAttr(r, c) { return battleEngine.cellAttr(this, r, c) }
   // ===== 消除核心 =====
-  _checkAndElim() { battleEngine.checkAndElim(this) }
+  _checkAndElim() {
+    // 消除前如果敌人攻击还在等待，立即执行（确保回合数正确）
+    if (this._pendingEnemyAtk) {
+      this._pendingEnemyAtk = null
+      this._enemyTurn()
+      // 敌人攻击后可能导致 defeat/victory，此时不再消除
+      if (this.bState !== 'playerTurn' && this.bState !== 'enemyTurn') return
+      // 敌人回合结束后检查玩家眩晕
+      if (this.bState === 'enemyTurn') {
+        const stunIdx = this.heroBuffs.findIndex(b => b.type === 'heroStun')
+        if (stunIdx >= 0) {
+          this.heroBuffs.splice(stunIdx, 1)
+          this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
+          this._pendingEnemyAtk = { timer: 0, delay: 36 }
+        }
+        this.bState = 'playerTurn'
+      }
+    }
+    battleEngine.checkAndElim(this)
+  }
   _startNextElimAnim() { battleEngine.startNextElimAnim(this) }
   _processElim() { battleEngine.processElim(this) }
   _processDropAnim() { battleEngine.processDropAnim(this) }
