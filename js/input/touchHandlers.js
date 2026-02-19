@@ -268,6 +268,7 @@ function tBattle(g, type, x, y) {
     if (type !== 'end') return
     if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) { g._saveAndExit(); return }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
+      MusicMgr.stopBossBgm()
       g.showExitDialog = false; g.storage.clearRunState(); g._startRun(); return
     }
     if (g._exitCancelRect && g._hitRect(x,y,...g._exitCancelRect)) { g.showExitDialog = false; return }
@@ -285,6 +286,7 @@ function tBattle(g, type, x, y) {
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     if (g._victoryBtnRect && g._hitRect(x,y,...g._victoryBtnRect)) {
+      if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
       g.rewards = generateRewards(g.floor, g.curEvent ? g.curEvent.type : 'battle', g.lastSpeedKill); g.selectedReward = -1; g.rewardPetSlot = -1
@@ -292,7 +294,7 @@ function tBattle(g, type, x, y) {
     }
   }
   if (g.bState === 'defeat' && type === 'end') {
-    if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { g._endRun(); return }
+    if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm(); g._endRun(); return }
   }
   // 广告复活
   if (g.bState === 'adReviveOffer' && type === 'end') {

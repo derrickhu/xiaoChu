@@ -36,6 +36,31 @@ class MusicManager {
     if (this._bgm) this._bgm.stop()
   }
 
+  playBossBgm() {
+    if (!this.bgmEnabled) return
+    // 停止通用BGM
+    if (this._bgm) this._bgm.stop()
+    // 创建或复用boss BGM实例
+    if (!this._bossBgm) {
+      this._bossBgm = wx.createInnerAudioContext()
+      this._bossBgm.src = 'audio/boss_bgm.mp3'
+      this._bossBgm.loop = true
+      this._bossBgm.volume = 0.1
+      this._bossBgm.playbackRate = 2.0
+    }
+    this._bossBgm.play()
+  }
+
+  stopBossBgm() {
+    if (this._bossBgm) this._bossBgm.stop()
+  }
+
+  /** boss战结束后恢复通用BGM */
+  resumeNormalBgm() {
+    this.stopBossBgm()
+    this.playBgm()
+  }
+
   // ============ 连击音效系统（核心爽感） ============
 
   // 音阶频率比（十二平均律）：Do Re Mi Fa Sol La Si Do'
@@ -202,6 +227,11 @@ class MusicManager {
     this._playSfx('audio/skill.wav', 0.6)
   }
 
+  playPetSkill() {
+    if (!this.enabled) return
+    this._playSfx('audio/pet_skill.mp3', 0.7)
+  }
+
   playEnemyAttack(dmgRatio) {
     if (!this.enabled) return
     const vol = dmgRatio != null
@@ -279,7 +309,7 @@ class MusicManager {
   toggleBgm() {
     this.bgmEnabled = !this.bgmEnabled
     if (this.bgmEnabled) this.playBgm()
-    else this.stopBgm()
+    else { this.stopBgm(); this.stopBossBgm() }
     return this.bgmEnabled
   }
 

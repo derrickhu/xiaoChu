@@ -412,8 +412,6 @@ function enterPetAtkShow(g) {
   }
   if (hasAny) {
     g.bState = 'petAtkShow'
-    if (isCrit) MusicMgr.playAttackCrit()
-    else MusicMgr.playAttack()
     MusicMgr.playRolling()
   } else {
     g.bState = 'preAttack'
@@ -528,9 +526,12 @@ function applyFinalDamage(g, dmgMap, heal) {
     g._enemyHpLoss = { fromPct: oldPct, timer: 0 }
     g._playHeroAttack('', Object.keys(dmgMap)[0] || 'metal')
     g.shakeT = isCrit ? 12 : 8; g.shakeI = isCrit ? 6 : 4
+    // 攻击音效与伤害飘字同步播放
     if (isCrit) {
+      MusicMgr.playAttackCrit()
       g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()-40*S, text:'暴击！', color:'#ffdd00', t:0, alpha:1 })
-      MusicMgr.playCritHit()
+    } else {
+      MusicMgr.playAttack()
     }
     if (g.weapon && g.weapon.type === 'poisonChance' && Math.random()*100 < g.weapon.chance) {
       g.enemyBuffs.push({ type:'dot', name:'中毒', dmg:g.weapon.dmg, dur:g.weapon.dur, bad:true })
@@ -606,7 +607,9 @@ function settle(g) {
     }
   }
   g.comboNeverBreak = false
-  g.bState = 'preEnemy'; g._stateTimer = 0
+  // 立即进入玩家回合，敌人攻击延迟在背景执行
+  g._pendingEnemyAtk = { timer: 0, delay: 36 }
+  g.bState = 'playerTurn'; g.dragTimer = 0
 }
 
 function enemyTurn(g) {
@@ -785,6 +788,7 @@ function enterBattle(g, enemyData) {
   g.combo = 0; g.turnCount = 0
   g.lastSpeedKill = false; g.lastTurnCount = 0
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
+  g._pendingEnemyAtk = null
   g.elimQueue = []; g.elimAnimCells = null
   g.elimFloats = []; g.petAtkNums = []
   g._elimSkipCombo = false
@@ -796,7 +800,7 @@ function enterBattle(g, enemyData) {
     g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
   }
   g.scene = 'battle'
-  if (g.enemy && g.enemy.isBoss) MusicMgr.playBoss()
+  if (g.enemy && g.enemy.isBoss) { MusicMgr.playBoss(); MusicMgr.playBossBgm() }
   g.pets.forEach(p => { p.currentCd = Math.ceil(p.cd * 0.6) })
   initBoard(g)
   let extraTime = g.runBuffs.extraTimeSec
