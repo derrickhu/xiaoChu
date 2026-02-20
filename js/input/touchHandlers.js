@@ -224,12 +224,82 @@ function tEvent(g, type, x, y) {
       }
     }
 
-    // 商店商品点击（内联在 event 页面）
+    // 商店交互（新版：属性选择/灵兽选择/商品点击）
     const ev = g.curEvent
-    if (ev && ev.type === 'shop' && !g._eventShopUsed && g._eventShopRects) {
-      for (let i = 0; i < g._eventShopRects.length; i++) {
-        if (g._hitRect(x,y,...g._eventShopRects[i])) {
-          g._applyShopItem(ev.data[i]); g._eventShopUsed = true; return
+    if (ev && ev.type === 'shop') {
+      // 属性选择面板
+      if (g._shopSelectAttr) {
+        if (g._shopAttrRects) {
+          for (const rect of g._shopAttrRects) {
+            if (g._hitRect(x,y,rect[0],rect[1],rect[2],rect[3])) {
+              const attr = rect[4]
+              g._applyShopPetByAttr(attr)
+              g._shopSelectAttr = false
+              g._shopSelectAttrItem = null
+              return
+            }
+          }
+        }
+        if (g._shopAttrCancelRect && g._hitRect(x,y,...g._shopAttrCancelRect)) {
+          g._shopSelectAttr = false; g._shopSelectAttrItem = null; return
+        }
+        return  // 面板打开时不响应其他点击
+      }
+      // 灵兽选择面板
+      if (g._shopSelectPet) {
+        if (g._shopPetRects) {
+          for (const rect of g._shopPetRects) {
+            if (g._hitRect(x,y,rect[0],rect[1],rect[2],rect[3])) {
+              const petIdx = rect[4]
+              const selectType = g._shopSelectPet.type
+              if (selectType === 'starUp') g._applyShopStarUp(petIdx)
+              else if (selectType === 'upgradePet') g._applyShopUpgradePet(petIdx, g._shopSelectPet.pct)
+              else if (selectType === 'cdReduce') g._applyShopCdReduce(petIdx)
+              g._shopSelectPet = null
+              return
+            }
+          }
+        }
+        if (g._shopPetCancelRect && g._hitRect(x,y,...g._shopPetCancelRect)) {
+          g._shopSelectPet = null; return
+        }
+        return  // 面板打开时不响应其他点击
+      }
+      // 商品点击
+      const shopUsedCount = g._eventShopUsedCount || 0
+      if (shopUsedCount < 2 && g._eventShopRects) {
+        for (let i = 0; i < g._eventShopRects.length; i++) {
+          const rect = g._eventShopRects[i]
+          if (!rect) continue  // 已购买的占位
+          if (g._hitRect(x,y,...rect)) {
+            const item = ev.data[i]
+            if (!item) return
+            // 第2件需消耗血量
+            if (shopUsedCount === 1) {
+              const cost = Math.round(g.heroHp * 15 / 100)
+              g.heroHp = Math.max(1, g.heroHp - cost)
+            }
+            // 标记已购买
+            g._eventShopUsedItems = g._eventShopUsedItems || []
+            g._eventShopUsedItems.push(i)
+            g._eventShopUsedCount = shopUsedCount + 1
+            // 需要选择的效果：弹出面板
+            if (item.effect === 'getPetByAttr') {
+              g._shopSelectAttr = true; g._shopSelectAttrItem = item; return
+            }
+            if (item.effect === 'starUp') {
+              g._shopSelectPet = { type: 'starUp' }; return
+            }
+            if (item.effect === 'upgradePet') {
+              g._shopSelectPet = { type: 'upgradePet', pct: item.pct || 25 }; return
+            }
+            if (item.effect === 'cdReduce') {
+              g._shopSelectPet = { type: 'cdReduce' }; return
+            }
+            // 直接生效的效果
+            g._applyShopItem(item)
+            return
+          }
         }
       }
     }

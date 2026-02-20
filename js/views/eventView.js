@@ -104,7 +104,7 @@ function rEvent(g) {
       return
     }
 
-    // === 商店：直接显示商品列表 ===
+    // === 商店：4件展示，免费选1件，第2件消耗15%血量 ===
     if (ev.type === 'shop') {
       R.drawShopBg(g.af)
       // 重绘顶部
@@ -116,23 +116,234 @@ function rEvent(g) {
       ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
       ctx.fillText('神秘商店', W*0.5, ty)
 
-      ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
-      ctx.fillText(g._eventShopUsed ? '已选择物品' : '免费选择一件', W*0.5, safeTop + 90*S)
+      // 状态提示
+      const shopUsedCount = g._eventShopUsedCount || 0
+      const maxFree = 1
+      let hintText = ''
+      if (g._shopSelectAttr) {
+        hintText = '请选择属性'
+      } else if (g._shopSelectPet) {
+        hintText = '请选择目标灵兽'
+      } else if (shopUsedCount === 0) {
+        hintText = '免费选择一件'
+      } else if (shopUsedCount === 1) {
+        hintText = `再选一件需消耗${15}%当前血量`
+      } else {
+        hintText = '已选完'
+      }
+      ctx.fillStyle = shopUsedCount >= 2 ? TH.dim : '#ffd700'; ctx.font = `${13*S}px sans-serif`
+      ctx.fillText(hintText, W*0.5, safeTop + 90*S)
+
       const items = ev.data
-      if (items) {
-        const cardW = W*0.8, cardH = 55*S, gap = 10*S, startY = H*0.22
+      if (items && !g._shopSelectAttr && !g._shopSelectPet) {
+        const cardW = W*0.84, cardH = 60*S, gap = 8*S, startY = safeTop + 100*S
         g._eventShopRects = []
+        const RARITY_COLORS = { normal:'rgba(40,60,40,0.85)', rare:'rgba(40,40,80,0.85)', epic:'rgba(80,40,80,0.85)' }
+        const RARITY_BORDERS = { normal:'rgba(100,200,100,0.4)', rare:'rgba(100,150,255,0.5)', epic:'rgba(220,100,255,0.6)' }
+        const RARITY_LABELS = { normal:'', rare:'稀有', epic:'史诗' }
         items.forEach((item, i) => {
           const cy = startY + i*(cardH+gap)
-          ctx.fillStyle = TH.card; R.rr(W*0.1, cy, cardW, cardH, 8*S); ctx.fill()
-          ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
-          ctx.fillText(item.name, W*0.5, cy + cardH*0.5 + 5*S)
-          g._eventShopRects.push([W*0.1, cy, cardW, cardH])
+          const isUsed = g._eventShopUsedItems && g._eventShopUsedItems.includes(i)
+          const canBuy = !isUsed && shopUsedCount < 2
+          ctx.fillStyle = isUsed ? 'rgba(30,30,30,0.6)' : (RARITY_COLORS[item.rarity] || TH.card)
+          R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.fill()
+          ctx.strokeStyle = isUsed ? 'rgba(80,80,80,0.3)' : (RARITY_BORDERS[item.rarity] || 'rgba(200,180,140,0.3)')
+          ctx.lineWidth = 1*S
+          R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.stroke()
+
+          // 稀有度标签
+          const rarityLabel = RARITY_LABELS[item.rarity]
+          if (rarityLabel && !isUsed) {
+            ctx.save()
+            const tagW = ctx.measureText(rarityLabel).width + 12*S
+            const tagH = 16*S
+            const tagX = W*0.08 + 6*S, tagY = cy + 4*S
+            ctx.fillStyle = item.rarity === 'epic' ? 'rgba(180,60,220,0.8)' : 'rgba(60,100,200,0.8)'
+            R.rr(tagX, tagY, tagW, tagH, 3*S); ctx.fill()
+            ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px sans-serif`
+            ctx.textAlign = 'center'
+            ctx.fillText(rarityLabel, tagX + tagW/2, tagY + tagH*0.65)
+            ctx.restore()
+          }
+
+          // 名称和描述
+          ctx.globalAlpha = isUsed ? 0.4 : 1
+          ctx.fillStyle = isUsed ? TH.dim : '#fff'; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'left'
+          ctx.fillText(item.name, W*0.08 + 14*S, cy + 24*S)
+          ctx.fillStyle = isUsed ? TH.dim : TH.sub; ctx.font = `${10*S}px sans-serif`
+          ctx.fillText(item.desc, W*0.08 + 14*S, cy + 42*S)
+
+          // 费用标签（右侧）
+          ctx.textAlign = 'right'
+          if (isUsed) {
+            ctx.fillStyle = TH.dim; ctx.font = `bold ${11*S}px sans-serif`
+            ctx.fillText('已选', W*0.08 + cardW - 12*S, cy + 34*S)
+          } else if (shopUsedCount === 0) {
+            ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px sans-serif`
+            ctx.fillText('免费', W*0.08 + cardW - 12*S, cy + 34*S)
+          } else if (shopUsedCount === 1) {
+            ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${10*S}px sans-serif`
+            ctx.fillText(`-${15}%血`, W*0.08 + cardW - 12*S, cy + 34*S)
+          }
+          ctx.globalAlpha = 1
+          ctx.textAlign = 'center'
+
+          if (canBuy) {
+            g._eventShopRects.push([W*0.08, cy, cardW, cardH])
+          } else {
+            g._eventShopRects.push(null)  // 占位
+          }
         })
       }
-      const bx = W*0.3, by = H*0.82, bw = W*0.4, bh = 40*S
-      R.drawBtn(bx, by, bw, bh, '离开', TH.info, 14)
-      g._eventBtnRect = [bx, by, bw, bh]
+
+      // === 属性选择面板（灵兽招募时弹出） ===
+      if (g._shopSelectAttr) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
+        const panelW = W*0.8, panelH = 160*S
+        const panelX = (W - panelW)/2, panelY = H*0.35
+        ctx.fillStyle = 'rgba(20,20,40,0.95)'
+        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.fill()
+        ctx.strokeStyle = 'rgba(200,180,140,0.5)'; ctx.lineWidth = 1*S
+        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.stroke()
+
+        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText('选择灵兽属性', W*0.5, panelY + 28*S)
+
+        const attrs = ['metal','wood','water','fire','earth']
+        const attrNames = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土' }
+        const btnW = 48*S, btnH = 48*S, btnGap = 8*S
+        const totalBtnW = attrs.length * btnW + (attrs.length - 1) * btnGap
+        const btnStartX = (W - totalBtnW) / 2
+        const btnY = panelY + 52*S
+        g._shopAttrRects = []
+        attrs.forEach((attr, i) => {
+          const bx = btnStartX + i * (btnW + btnGap)
+          const ac = ATTR_COLOR[attr]
+          ctx.fillStyle = ac ? ac.bg : '#222'
+          R.rr(bx, btnY, btnW, btnH, 8*S); ctx.fill()
+          ctx.strokeStyle = ac ? ac.main : '#666'; ctx.lineWidth = 1.5*S
+          R.rr(bx, btnY, btnW, btnH, 8*S); ctx.stroke()
+          // 属性球
+          R.drawBead(bx + btnW/2, btnY + btnH*0.35, 10*S, attr, 0)
+          ctx.fillStyle = ac ? ac.main : '#ccc'; ctx.font = `bold ${10*S}px sans-serif`
+          ctx.textAlign = 'center'
+          ctx.fillText(attrNames[attr], bx + btnW/2, btnY + btnH*0.82)
+          g._shopAttrRects.push([bx, btnY, btnW, btnH, attr])
+        })
+
+        // 取消按钮
+        const cancelY = btnY + btnH + 16*S
+        const cancelW = 80*S, cancelH = 32*S
+        R.drawBtn((W-cancelW)/2, cancelY, cancelW, cancelH, '取消', TH.dim, 12)
+        g._shopAttrCancelRect = [(W-cancelW)/2, cancelY, cancelW, cancelH]
+      }
+
+      // === 灵兽选择面板（升星/强化/减CD时弹出） ===
+      if (g._shopSelectPet) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
+        const panelW = W*0.85, panelH = 200*S
+        const panelX = (W - panelW)/2, panelY = H*0.3
+        ctx.fillStyle = 'rgba(20,20,40,0.95)'
+        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.fill()
+        ctx.strokeStyle = 'rgba(200,180,140,0.5)'; ctx.lineWidth = 1*S
+        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.stroke()
+
+        const selectType = g._shopSelectPet.type  // 'starUp' | 'upgradePet' | 'cdReduce'
+        const titleMap = { starUp:'选择灵兽升星', upgradePet:'选择灵兽强化', cdReduce:'选择灵兽减CD' }
+        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(titleMap[selectType] || '选择灵兽', W*0.5, panelY + 28*S)
+
+        const petSlotSz = 48*S, petGap2 = 10*S
+        const petsPerRow = Math.min(g.pets.length, 5)
+        const totalPetW = petsPerRow * petSlotSz + (petsPerRow - 1) * petGap2
+        const petStartX = (W - totalPetW) / 2
+        const petRowY = panelY + 48*S
+        g._shopPetRects = []
+        const framePetMap2 = {
+          metal: R.getImg('assets/ui/frame_pet_metal.png'),
+          wood:  R.getImg('assets/ui/frame_pet_wood.png'),
+          water: R.getImg('assets/ui/frame_pet_water.png'),
+          fire:  R.getImg('assets/ui/frame_pet_fire.png'),
+          earth: R.getImg('assets/ui/frame_pet_earth.png'),
+        }
+        g.pets.forEach((p, i) => {
+          const px = petStartX + i * (petSlotSz + petGap2)
+          const py2 = petRowY
+          const ac2 = ATTR_COLOR[p.attr]
+
+          // 判断能否选择
+          let canSelect = true
+          let dimReason = ''
+          if (selectType === 'starUp' && (p.star || 1) >= 3) { canSelect = false; dimReason = '已满星' }
+          if (selectType === 'cdReduce' && p.cd <= 2) { canSelect = false; dimReason = 'CD已最低' }
+
+          ctx.globalAlpha = canSelect ? 1 : 0.4
+          ctx.fillStyle = ac2 ? ac2.bg : '#1a1a2e'
+          ctx.fillRect(px, py2, petSlotSz, petSlotSz)
+          const petAvatar = R.getImg(getPetAvatarPath(p))
+          if (petAvatar && petAvatar.width > 0) {
+            ctx.save()
+            ctx.beginPath(); ctx.rect(px+1, py2+1, petSlotSz-2, petSlotSz-2); ctx.clip()
+            const aw = petAvatar.width, ah = petAvatar.height
+            const dw = petSlotSz-2, dh = dw*(ah/aw)
+            ctx.drawImage(petAvatar, px+1, py2+1+(petSlotSz-2-dh), dw, dh)
+            ctx.restore()
+          }
+          const pf = framePetMap2[p.attr]
+          if (pf && pf.width > 0) {
+            const fs = petSlotSz*1.12, fo = (fs-petSlotSz)/2
+            ctx.drawImage(pf, px-fo, py2-fo, fs, fs)
+          }
+          // 星级
+          if ((p.star||1) > 1) {
+            ctx.save()
+            ctx.font = `bold ${petSlotSz*0.14}px sans-serif`
+            ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+            ctx.strokeText('★'.repeat(p.star), px+2*S, py2+petSlotSz-2*S)
+            ctx.fillStyle = '#ffd700'
+            ctx.fillText('★'.repeat(p.star), px+2*S, py2+petSlotSz-2*S)
+            ctx.textBaseline = 'alphabetic'
+            ctx.restore()
+          }
+          ctx.globalAlpha = 1
+
+          // 名字和信息
+          ctx.fillStyle = canSelect ? (ac2 ? ac2.main : '#ccc') : TH.dim
+          ctx.font = `bold ${8*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.fillText(p.name.substring(0,4), px+petSlotSz/2, py2+petSlotSz+12*S)
+          if (selectType === 'starUp') {
+            ctx.fillStyle = canSelect ? '#ffd700' : TH.dim; ctx.font = `${7*S}px sans-serif`
+            ctx.fillText(canSelect ? `★${p.star||1}→★${(p.star||1)+1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
+          } else if (selectType === 'upgradePet') {
+            ctx.fillStyle = '#ff9040'; ctx.font = `${7*S}px sans-serif`
+            ctx.fillText(`ATK:${p.atk}→${Math.round(p.atk*1.25)}`, px+petSlotSz/2, py2+petSlotSz+22*S)
+          } else if (selectType === 'cdReduce') {
+            ctx.fillStyle = canSelect ? '#40ccff' : TH.dim; ctx.font = `${7*S}px sans-serif`
+            ctx.fillText(canSelect ? `CD:${p.cd}→${p.cd-1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
+          }
+
+          if (canSelect) {
+            g._shopPetRects.push([px, py2, petSlotSz, petSlotSz, i])
+          }
+        })
+
+        // 取消按钮
+        const cancelY2 = petRowY + petSlotSz + 36*S
+        const cancelW2 = 80*S, cancelH2 = 32*S
+        R.drawBtn((W-cancelW2)/2, cancelY2, cancelW2, cancelH2, '取消', TH.dim, 12)
+        g._shopPetCancelRect = [(W-cancelW2)/2, cancelY2, cancelW2, cancelH2]
+      }
+
+      const bx = W*0.3, by = H*0.88, bw = W*0.4, bh = 40*S
+      if (!g._shopSelectAttr && !g._shopSelectPet) {
+        R.drawBtn(bx, by, bw, bh, '离开', TH.info, 14)
+        g._eventBtnRect = [bx, by, bw, bh]
+      } else {
+        g._eventBtnRect = null
+      }
       drawBackBtn(g)
       return
     }

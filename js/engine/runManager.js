@@ -7,7 +7,7 @@ const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
   generateFloorEvent,
 } = require('../data/tower')
-const { generateStarterPets } = require('../data/pets')
+const { generateStarterPets, generateSessionPetPool } = require('../data/pets')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 
@@ -29,7 +29,9 @@ function makeDefaultRunBuffs() {
 function startRun(g) {
   g.floor = 0
   g.cleared = false
-  g.pets = generateStarterPets()
+  // 生成本局宠物池（每属性5只，共25只），所有宠物获取从此池抽取
+  g.sessionPetPool = generateSessionPetPool()
+  g.pets = generateStarterPets(g.sessionPetPool)
   g.weapon = null
   g.petBag = []
   g.weaponBag = []
@@ -128,6 +130,7 @@ function saveAndExit(g) {
     weapon: g.weapon ? JSON.parse(JSON.stringify(g.weapon)) : null,
     petBag: JSON.parse(JSON.stringify(g.petBag)),
     weaponBag: JSON.parse(JSON.stringify(g.weaponBag)),
+    sessionPetPool: JSON.parse(JSON.stringify(g.sessionPetPool || [])),
     heroHp: g.heroHp, heroMaxHp: g.heroMaxHp, heroShield: g.heroShield,
     heroBuffs: JSON.parse(JSON.stringify(g.heroBuffs)),
     runBuffs: JSON.parse(JSON.stringify(g.runBuffs)),
@@ -151,6 +154,7 @@ function resumeRun(g) {
   g.weapon = s.weapon
   g.petBag = s.petBag || []
   g.weaponBag = s.weaponBag || []
+  g.sessionPetPool = s.sessionPetPool || []
   g.heroHp = s.heroHp; g.heroMaxHp = s.heroMaxHp; g.heroShield = s.heroShield || 0
   g.heroBuffs = s.heroBuffs || []; g.enemyBuffs = []
   g.runBuffs = s.runBuffs || makeDefaultRunBuffs()

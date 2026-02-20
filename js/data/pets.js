@@ -52,11 +52,11 @@ const PETS = {
   metal: [
     { id:'m1',  name:'金锋灵猫',  atk:8,  skill:{ name:'锋芒斩', desc:'下次金属性伤害×2倍', type:'dmgBoost', attr:'metal', pct:100 }, cd:3 },
     { id:'m2',  name:'锐金鼠将',  atk:9,  skill:{ name:'金珠阵', desc:'整行珠子变为金珠', type:'convertRow', attr:'metal' }, cd:4 },
-    { id:'m3',  name:'玄甲金狮',  atk:9,  skill:{ name:'金甲术', desc:'获得护盾80点+本回合免伤50%', type:'shieldPlus', val:80, reducePct:50 }, cd:4 },
+    { id:'m3',  name:'玄甲金狮',  atk:9,  skill:{ name:'金甲术', desc:'获得护盾40点+本回合免伤50%', type:'shieldPlus', val:40, reducePct:50 }, cd:5 },
     { id:'m4',  name:'天罡金鹏',  atk:10, skill:{ name:'天罡击', desc:'对敌人造成250%攻击力伤害', type:'instantDmg', attr:'metal', pct:250 }, cd:4 },
     { id:'m5',  name:'碎金战将',  atk:11, skill:{ name:'金缚锁', desc:'敌人眩晕2回合', type:'stun', dur:2 }, cd:5 },
     { id:'m6',  name:'金光剑灵',  atk:11, skill:{ name:'剑气纵横', desc:'Combo+3，且本次Combo不会断', type:'comboPlusNeverBreak', count:3 }, cd:4 },
-    { id:'m7',  name:'金罡守卫',  atk:9,  skill:{ name:'罡气盾', desc:'获得护盾100点', type:'shield', val:100 }, cd:4 },
+    { id:'m7',  name:'金罡守卫',  atk:9,  skill:{ name:'罡气盾', desc:'获得护盾50点', type:'shield', val:50 }, cd:5 },
     { id:'m8',  name:'鸣金神雀',  atk:10, skill:{ name:'鸣金诀', desc:'转珠时间+3秒+金珠概率大增', type:'extraTimePlus', sec:3, attr:'metal' }, cd:5 },
     { id:'m9',  name:'破甲金将',  atk:12, skill:{ name:'破甲斩', desc:'下次金攻无视全部防御+伤害×1.5', type:'ignoreDefFull', attr:'metal', pct:100, dmgMul:50 }, cd:4 },
     { id:'m10', name:'九天金凰',  atk:12, skill:{ name:'金身不灭', desc:'抵挡一次致死伤害+回复50%血量', type:'revivePlus', healPct:50 }, cd:6 },
@@ -76,7 +76,7 @@ const PETS = {
   wood: [
     { id:'w1',  name:'青灵木鹿',  atk:8,  skill:{ name:'春回大地', desc:'立即回复30%血量', type:'healPct', pct:30 }, cd:3 },
     { id:'w2',  name:'藤萝灵蛇',  atk:8,  skill:{ name:'剧毒蛇牙', desc:'剧毒：每回合50点，持续3回合', type:'dot', dmg:50, dur:3 }, cd:4 },
-    { id:'w3',  name:'苍木灵熊',  atk:9,  skill:{ name:'熊力护体', desc:'护盾100点+反弹20%伤害2回合', type:'shieldReflect', val:100, reflectPct:20, dur:2 }, cd:4 },
+    { id:'w3',  name:'苍木灵熊',  atk:9,  skill:{ name:'熊力护体', desc:'护盾50点+反弹20%伤害2回合', type:'shieldReflect', val:50, reflectPct:20, dur:2 }, cd:5 },
     { id:'w4',  name:'万木灵狐',  atk:9,  skill:{ name:'万木化珠', desc:'整列珠子变木珠', type:'convertCol', attr:'wood' }, cd:4 },
     { id:'w5',  name:'灵木仙子',  atk:10, skill:{ name:'生生不息', desc:'每回合回血40点，持续3回合', type:'dot', dmg:-40, dur:3, isHeal:true }, cd:4 },
     { id:'w6',  name:'青木战灵',  atk:11, skill:{ name:'木灵爆发', desc:'下次木属性伤害×2.5倍', type:'dmgBoost', attr:'wood', pct:150 }, cd:3 },
@@ -84,7 +84,7 @@ const PETS = {
     { id:'w8',  name:'枯木老妖',  atk:9,  skill:{ name:'古木回春', desc:'血量上限+30%+立即回复等量血量', type:'hpMaxUp', pct:30 }, cd:5 },
     { id:'w9',  name:'木灵使者',  atk:11, skill:{ name:'灵心愈术', desc:'心珠效果×3持续2回合', type:'heartBoost', mul:3, dur:2 }, cd:4 },
     { id:'w10', name:'万木之主',  atk:12, skill:{ name:'万木天威', desc:'全队全属性伤害+40%持续3回合', type:'allDmgUp', pct:40, dur:3 }, cd:6 },
-    { id:'w11', name:'青藤守卫',  atk:9,  skill:{ name:'藤甲壁垒', desc:'护盾120点+减伤30%持续2回合', type:'shieldPlus', val:120, reducePct:30 }, cd:5 },
+    { id:'w11', name:'青藤守卫',  atk:9,  skill:{ name:'藤甲壁垒', desc:'护盾60点+减伤30%持续2回合', type:'shieldPlus', val:60, reducePct:30 }, cd:6 },
     { id:'w12', name:'翠竹灵蟋',  atk:11, skill:{ name:'翠竹连击', desc:'连续攻击3次，每次120%木属性伤害', type:'multiHit', attr:'wood', hits:3, pct:120 }, cd:4 },
     { id:'w13', name:'灵芝仙菇',  atk:9,  skill:{ name:'净化万毒', desc:'清除所有负面+免疫控制2回合', type:'purify', immuneDur:2 }, cd:4 },
     { id:'w14', name:'苍蟒木蛟',  atk:11, skill:{ name:'蛟龙回春', desc:'消除木珠回血12%，持续3回合', type:'healOnElim', attr:'wood', pct:12 }, cd:4 },
@@ -92,14 +92,14 @@ const PETS = {
     { id:'w16', name:'千年古藤',  atk:12, skill:{ name:'古藤缠天', desc:'十字形珠子全变木珠', type:'convertCross', attr:'wood' }, cd:5 },
     { id:'w17', name:'碧玉螳螂',  atk:11, skill:{ name:'螳螂无双', desc:'Combo不断+Combo伤害+50%', type:'comboNeverBreakPlus', comboDmgPct:50 }, cd:4 },
     { id:'w18', name:'青鸾翠雀',  atk:11, skill:{ name:'翠雀风舞', desc:'整行变木珠+木珠概率大增', type:'convertRow', attr:'wood', beadBoost:true }, cd:4 },
-    { id:'w19', name:'万木神龟',  atk:12, skill:{ name:'神龟之力', desc:'血量上限+40%+护盾100点', type:'hpMaxShield', hpPct:40, shieldVal:100 }, cd:6 },
+    { id:'w19', name:'万木神龟',  atk:12, skill:{ name:'神龟之力', desc:'血量上限+40%+护盾50点', type:'hpMaxShield', hpPct:40, shieldVal:50 }, cd:7 },
     { id:'w20', name:'神木麒麟',  atk:14, skill:{ name:'神木灭世', desc:'立即500%木属性爆裂伤害', type:'instantDmg', attr:'wood', pct:500 }, cd:5 },
   ],
 
   // ===== （三）水属性宠物（20只） =====
   water: [
     { id:'s1',  name:'沧澜水雀',  atk:8,  skill:{ name:'水珠涌现', desc:'整列珠子变水珠', type:'convertCol', attr:'water' }, cd:4 },
-    { id:'s2',  name:'冰魄灵龟',  atk:9,  skill:{ name:'冰魄铠甲', desc:'护盾100点+免伤60%本回合', type:'shieldPlus', val:100, reducePct:60 }, cd:4 },
+    { id:'s2',  name:'冰魄灵龟',  atk:9,  skill:{ name:'冰魄铠甲', desc:'护盾50点+免伤60%本回合', type:'shieldPlus', val:50, reducePct:60 }, cd:5 },
     { id:'s3',  name:'海灵蛟童',  atk:9,  skill:{ name:'寒冰封印', desc:'冰冻敌人2回合', type:'stun', dur:2 }, cd:5 },
     { id:'s4',  name:'玄水蛟龙',  atk:10, skill:{ name:'蛟龙怒击', desc:'250%水属性直接伤害', type:'instantDmg', attr:'water', pct:250 }, cd:4 },
     { id:'s5',  name:'碧波灵蛙',  atk:9,  skill:{ name:'碧波愈泉', desc:'回复40%血量', type:'healPct', pct:40 }, cd:4 },
@@ -110,14 +110,14 @@ const PETS = {
     { id:'s10', name:'沧海龙神',  atk:13, skill:{ name:'龙神覆海', desc:'全场一半珠子变水珠（约18颗）', type:'convertBead', attr:'water', count:18 }, cd:6 },
     { id:'s11', name:'冰玄灵蛾',  atk:11, skill:{ name:'冰玄风暴', desc:'随机8颗变水珠+水珠概率大增', type:'convertBead', attr:'water', count:8, beadBoost:true }, cd:4 },
     { id:'s12', name:'沧澜海蛇',  atk:12, skill:{ name:'海蛇三连', desc:'连续攻击3次，每次120%水伤害', type:'multiHit', attr:'water', hits:3, pct:120 }, cd:4 },
-    { id:'s13', name:'玄水灵蟾',  atk:10, skill:{ name:'水盾壁障', desc:'护盾120点', type:'shield', val:120 }, cd:4 },
+    { id:'s13', name:'玄水灵蟾',  atk:10, skill:{ name:'水盾壁障', desc:'护盾60点', type:'shield', val:60 }, cd:5 },
     { id:'s14', name:'冰魄灵鹤',  atk:12, skill:{ name:'冰魄封天', desc:'眩晕2回合+水伤×2倍', type:'stunPlusDmg', attr:'water', pct:100, stunDur:2 }, cd:5 },
     { id:'s15', name:'海灵水母',  atk:11, skill:{ name:'水母幻术', desc:'转珠时间+3秒+Combo不断', type:'extraTimePlus', sec:3, comboNeverBreak:true }, cd:5 },
-    { id:'s16', name:'水镜灵蝶',  atk:11, skill:{ name:'水镜反射', desc:'反弹50%伤害1回合+护盾80', type:'shieldReflect', val:80, reflectPct:50, dur:1 }, cd:4 },
+    { id:'s16', name:'水镜灵蝶',  atk:11, skill:{ name:'水镜反射', desc:'反弹50%伤害1回合+护盾40', type:'shieldReflect', val:40, reflectPct:50, dur:1 }, cd:5 },
     { id:'s17', name:'沧澜鲲鹏',  atk:14, skill:{ name:'鲲鹏怒涛', desc:'500%水属性爆裂伤害', type:'instantDmg', attr:'water', pct:500 }, cd:5 },
     { id:'s18', name:'玄水神蛟',  atk:12, skill:{ name:'神蛟护佑', desc:'全队防御+50%持续3回合', type:'allDefUp', pct:50, dur:3 }, cd:5 },
-    { id:'s19', name:'水纹灵獭',  atk:11, skill:{ name:'灵獭水盾', desc:'消除水珠获护盾60点持续3回合', type:'shieldOnElim', attr:'water', val:60 }, cd:4 },
-    { id:'s20', name:'冰凰神鸟',  atk:11, skill:{ name:'冰凰绝对', desc:'免疫所有控制2回合+护盾100', type:'immuneShield', immuneDur:2, shieldVal:100 }, cd:5 },
+    { id:'s19', name:'水纹灵獭',  atk:11, skill:{ name:'灵獭水盾', desc:'消除水珠获护盾25点持续2回合', type:'shieldOnElim', attr:'water', val:25, dur:2 }, cd:6 },
+    { id:'s20', name:'冰凰神鸟',  atk:11, skill:{ name:'冰凰绝对', desc:'免疫所有控制2回合+护盾50', type:'immuneShield', immuneDur:2, shieldVal:50 }, cd:6 },
   ],
 
   // ===== （四）火属性宠物（20只） =====
@@ -146,9 +146,9 @@ const PETS = {
 
   // ===== （五）土属性宠物（20只） =====
   earth: [
-    { id:'e1',  name:'厚土石灵',  atk:9,  skill:{ name:'厚土护体', desc:'护盾100点+减伤50%本回合', type:'shieldPlus', val:100, reducePct:50 }, cd:4 },
+    { id:'e1',  name:'厚土石灵',  atk:9,  skill:{ name:'厚土护体', desc:'护盾50点+减伤50%本回合', type:'shieldPlus', val:50, reducePct:50 }, cd:5 },
     { id:'e2',  name:'山岳石怪',  atk:9,  skill:{ name:'山岳珠阵', desc:'整行珠子变土珠', type:'convertRow', attr:'earth' }, cd:4 },
-    { id:'e3',  name:'镇地石犀',  atk:10, skill:{ name:'镇地壁垒', desc:'获得护盾150点', type:'shield', val:150 }, cd:4 },
+    { id:'e3',  name:'镇地石犀',  atk:10, skill:{ name:'镇地壁垒', desc:'获得护盾70点', type:'shield', val:70 }, cd:6 },
     { id:'e4',  name:'玄武圣兽',  atk:11, skill:{ name:'玄武震慑', desc:'敌人眩晕2回合', type:'stun', dur:2 }, cd:5 },
     { id:'e5',  name:'裂地穿山甲',  atk:12, skill:{ name:'裂地重击', desc:'下次土属性伤害×2.5倍', type:'dmgBoost', attr:'earth', pct:150 }, cd:3 },
     { id:'e6',  name:'山岩石蟹',  atk:10, skill:{ name:'岩甲回春', desc:'血量上限+30%+立即回满', type:'hpMaxUp', pct:30 }, cd:5 },
@@ -158,13 +158,13 @@ const PETS = {
     { id:'e10', name:'后土神兽',  atk:13, skill:{ name:'后土庇佑', desc:'全队防御+60%持续3回合', type:'allDefUp', pct:60, dur:3 }, cd:6 },
     { id:'e11', name:'厚土灵虫',  atk:11, skill:{ name:'土魂涌现', desc:'随机8颗变土珠+土珠概率大增', type:'convertBead', attr:'earth', count:8, beadBoost:true }, cd:4 },
     { id:'e12', name:'山岳灵兔',  atk:12, skill:{ name:'兔踢三连', desc:'连续攻击3次，每次120%土伤害', type:'multiHit', attr:'earth', hits:3, pct:120 }, cd:4 },
-    { id:'e13', name:'镇地石龙',  atk:11, skill:{ name:'镇地龙盾', desc:'护盾120点+护盾效果+50%', type:'shield', val:120, bonusPct:50 }, cd:4 },
+    { id:'e13', name:'镇地石龙',  atk:11, skill:{ name:'镇地龙盾', desc:'护盾60点+护盾效果+50%', type:'shield', val:60, bonusPct:50 }, cd:6 },
     { id:'e14', name:'玄土灵蛤',  atk:12, skill:{ name:'蛤蟆震地', desc:'眩晕1回合+破甲（防御归零）', type:'stunBreakDef', stunDur:1 }, cd:4 },
-    { id:'e15', name:'裂地灵蚁',  atk:11, skill:{ name:'灵蚁护盾', desc:'消除土珠获护盾70点持续3回合', type:'shieldOnElim', attr:'earth', val:70 }, cd:4 },
+    { id:'e15', name:'裂地灵蚁',  atk:11, skill:{ name:'灵蚁护盾', desc:'消除土珠获护盾30点持续2回合', type:'shieldOnElim', attr:'earth', val:30, dur:2 }, cd:6 },
     { id:'e16', name:'山岩石象',  atk:11, skill:{ name:'象踏山崩', desc:'本回合受伤变为1点', type:'dmgImmune' }, cd:5 },
     { id:'e17', name:'后土灵蚕',  atk:10, skill:{ name:'地脉转珠', desc:'十字形珠子全变土珠', type:'convertCross', attr:'earth' }, cd:5 },
     { id:'e18', name:'镇地神牛',  atk:14, skill:{ name:'神牛碎天', desc:'500%土属性爆裂伤害', type:'instantDmg', attr:'earth', pct:500 }, cd:5 },
-    { id:'e19', name:'厚土灵龟',  atk:11, skill:{ name:'仙龟铁壁', desc:'血量上限+40%+护盾150点', type:'hpMaxShield', hpPct:40, shieldVal:150 }, cd:6 },
+    { id:'e19', name:'厚土灵龟',  atk:11, skill:{ name:'仙龟铁壁', desc:'血量上限+40%+护盾70点', type:'hpMaxShield', hpPct:40, shieldVal:70 }, cd:7 },
     { id:'e20', name:'玄武神君',  atk:13, skill:{ name:'玄武破天', desc:'眩晕2回合+土伤×3倍', type:'stunPlusDmg', attr:'earth', pct:200, stunDur:2 }, cd:5 },
   ],
 }
@@ -239,15 +239,40 @@ function randomPetByAttr(attr) {
   return { ...pool[Math.floor(Math.random() * pool.length)], attr, star: 1 }
 }
 
-// 随机获取一只任意属性的宠物
+// 随机获取一只任意属性的宠物（全局100只池，仅用于无session pool场景）
 function randomPet() {
   const attrs = ['metal','wood','water','fire','earth']
   const attr = attrs[Math.floor(Math.random() * attrs.length)]
   return randomPetByAttr(attr)
 }
 
-// 开局生成初始4只宠物（随机4个不同属性，从弱者池中选）
-function generateStarterPets() {
+// 从本局宠物池中随机获取一只宠物
+function randomPetFromPool(sessionPool) {
+  if (!sessionPool || sessionPool.length === 0) return randomPet()
+  const p = sessionPool[Math.floor(Math.random() * sessionPool.length)]
+  return { ...p, star: 1 }
+}
+
+// 生成本局宠物池：每属性随机5只，共25只（大幅提高同ID命中率）
+function generateSessionPetPool() {
+  const pool = []
+  for (const attr of ['metal','wood','water','fire','earth']) {
+    const attrPets = [...PETS[attr]]
+    // 洗牌
+    for (let i = attrPets.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[attrPets[i], attrPets[j]] = [attrPets[j], attrPets[i]]
+    }
+    // 取前5只
+    for (let k = 0; k < 5 && k < attrPets.length; k++) {
+      pool.push({ ...attrPets[k], attr, star: 1 })
+    }
+  }
+  return pool
+}
+
+// 开局生成初始4只宠物（从本局池中选，保证初始宠物在池子内）
+function generateStarterPets(sessionPool) {
   const allAttrs = ['metal','wood','water','fire','earth']
   // 随机打乱后取前4个属性
   for (let i = allAttrs.length - 1; i > 0; i--) {
@@ -256,7 +281,18 @@ function generateStarterPets() {
   }
   const chosen = allAttrs.slice(0, 4)
   return chosen.map(attr => {
-    // 从前8只（较弱的）中随机选1只
+    // 从本局池中该属性的前几只（较弱的）中选
+    if (sessionPool) {
+      const attrPool = sessionPool.filter(p => p.attr === attr)
+      // 按atk排序取前3只（较弱的）
+      attrPool.sort((a, b) => a.atk - b.atk)
+      const weakPool = attrPool.slice(0, Math.min(3, attrPool.length))
+      if (weakPool.length > 0) {
+        const pet = weakPool[Math.floor(Math.random() * weakPool.length)]
+        return { ...pet, attr, star: 1, currentCd: 0 }
+      }
+    }
+    // fallback: 从前8只中随机选
     const pool = PETS[attr].slice(0, 8)
     const pet = pool[Math.floor(Math.random() * pool.length)]
     return { ...pet, attr, star: 1, currentCd: 0 }
@@ -283,6 +319,8 @@ module.exports = {
   getPetById,
   randomPetByAttr,
   randomPet,
+  randomPetFromPool,
+  generateSessionPetPool,
   generateStarterPets,
   getPetAvatarPath,
 }
