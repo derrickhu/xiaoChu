@@ -4,6 +4,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
+const { getPetStarAtk, MAX_STAR } = require('../data/pets')
 
 function rPrepare(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
@@ -100,6 +101,19 @@ function _drawPetTab(g, padX, contentY) {
       if (pf && pf.width > 0) {
         ctx.drawImage(pf, sx-fOff, slotY-fOff, frameSz, frameSz)
       }
+      // 星级标记
+      if ((p.star || 1) > 1) {
+        const starText = '★'.repeat(p.star || 1)
+        ctx.save()
+        ctx.font = `bold ${iconSz * 0.18}px sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+        ctx.strokeText(starText, sx + 2*S, slotY + 2*S)
+        ctx.fillStyle = '#ffd700'
+        ctx.fillText(starText, sx + 2*S, slotY + 2*S)
+        ctx.textBaseline = 'alphabetic'
+        ctx.restore()
+      }
       if (isSel) {
         ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
         ctx.strokeRect(sx-1, slotY-1, iconSz+2, iconSz+2)
@@ -108,7 +122,9 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px sans-serif`
       ctx.fillText(p.name.substring(0,5), cx, slotY+iconSz+3*S)
       ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`
-      ctx.fillText(`ATK:${p.atk}`, cx, slotY+iconSz+14*S)
+      const pStarAtk = getPetStarAtk(p)
+      const pAtkDisp = (p.star || 1) > 1 ? `ATK:${p.atk}→${pStarAtk}` : `ATK:${p.atk}`
+      ctx.fillText(pAtkDisp, cx, slotY+iconSz+14*S)
     } else {
       const pf = fMap.metal
       if (pf && pf.width > 0) {
@@ -165,6 +181,19 @@ function _drawPetTab(g, padX, contentY) {
       if (bf && bf.width > 0) {
         ctx.drawImage(bf, bx-bfOff, by-bfOff, bFrameSz, bFrameSz)
       }
+      // 星级标记
+      if ((bp.star || 1) > 1) {
+        const bStarText = '★'.repeat(bp.star || 1)
+        ctx.save()
+        ctx.font = `bold ${bagIcon * 0.18}px sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+        ctx.strokeText(bStarText, bx + 2*S, by + 2*S)
+        ctx.fillStyle = '#ffd700'
+        ctx.fillText(bStarText, bx + 2*S, by + 2*S)
+        ctx.textBaseline = 'alphabetic'
+        ctx.restore()
+      }
       if (isSel) {
         ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
         ctx.strokeRect(bx-1, by-1, bagIcon+2, bagIcon+2)
@@ -173,7 +202,9 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px sans-serif`
       ctx.fillText(bp.name.substring(0,5), bcx, by+bagIcon+3*S)
       ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`
-      ctx.fillText(`ATK:${bp.atk}`, bcx, by+bagIcon+14*S)
+      const bpStarAtk = getPetStarAtk(bp)
+      const bpAtkDisp = (bp.star || 1) > 1 ? `ATK:${bp.atk}→${bpStarAtk}` : `ATK:${bp.atk}`
+      ctx.fillText(bpAtkDisp, bcx, by+bagIcon+14*S)
     } else {
       const bf = fMap.metal
       if (bf && bf.width > 0) {
@@ -302,8 +333,11 @@ function drawPrepareTip(g) {
   let lines = []
   if (tip.type === 'pet') {
     const ac = ATTR_COLOR[d.attr]
-    lines.push({ text: d.name, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15 })
-    lines.push({ text: `__ATTR_ORB__${d.attr}　　ATK：${d.atk}`, color: '#6B5B50', size: 11, attrOrb: d.attr })
+    const starText = '★'.repeat(d.star || 1) + ((d.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (d.star || 1)) : '')
+    lines.push({ text: d.name + '  ' + starText, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15 })
+    const tipStarAtk = getPetStarAtk(d)
+    const tipAtkDisp = (d.star || 1) > 1 ? `ATK：${d.atk}→${tipStarAtk}` : `ATK：${d.atk}`
+    lines.push({ text: `__ATTR_ORB__${d.attr}　　${tipAtkDisp}`, color: '#6B5B50', size: 11, attrOrb: d.attr })
     lines.push({ text: `冷却：${d.cd} 回合`, color: '#8B7B70', size: 11 })
     if (d.skill) {
       lines.push({ text: '', size: 6 })

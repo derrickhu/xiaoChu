@@ -32,7 +32,7 @@ function startRun(g) {
   g.weapon = null
   g.petBag = []
   g.weaponBag = []
-  g.heroHp = 60; g.heroMaxHp = 60; g.heroShield = 0
+  g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
   g.runBuffLog = []
@@ -50,6 +50,7 @@ function nextFloor(g) {
   g.heroBuffs = []
   g.enemyBuffs = []
   g.heroShield = 0
+  g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
   g.floor++
   // 通关检测：超过最大层数即为通关
   if (g.floor > MAX_FLOOR) {
@@ -58,6 +59,17 @@ function nextFloor(g) {
     return
   }
   if (g.floor > 1) MusicMgr.playLevelUp()
+  // ===== 层数隐性成长：每过5层自动获得攻击和血量加成（保证玩家跟得上怪物膨胀）=====
+  if (g.floor > 1 && g.floor % 5 === 1) {
+    // 第6/11/16/21/26层触发（即刚过完5/10/15/20/25层时）
+    const tier = Math.floor((g.floor - 1) / 5)  // 1~5
+    const atkBonus = 10 + tier * 2               // 12/14/16/18/20%
+    const hpBonus = 8 + tier * 2                 // 10/12/14/16/18%
+    g.runBuffs.allAtkPct += atkBonus
+    const hpInc = Math.round(g.heroMaxHp * hpBonus / 100)
+    g.heroMaxHp += hpInc; g.heroHp = Math.min(g.heroMaxHp, g.heroHp + hpInc)
+    g.runBuffs.hpMaxPct += hpBonus
+  }
   // 法宝perFloorBuff
   if (g.weapon && g.weapon.type === 'perFloorBuff' && g.floor > 1 && (g.floor - 1) % g.weapon.per === 0) {
     if (g.weapon.field === 'atk') g.runBuffs.allAtkPct += g.weapon.pct

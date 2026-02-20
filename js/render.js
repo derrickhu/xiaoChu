@@ -507,7 +507,26 @@ class Render {
     const {ctx:c, S} = this
     const img = this.getImg('assets/ui/info_panel_bg.png')
     if (img && img.width) {
-      c.drawImage(img, x, y, w, h)
+      // 九宫格绘制：保持四角装饰不变形
+      const iw = img.width, ih = img.height
+      // 切片边距（取图片短边的30%作为角区域）
+      const slice = Math.min(iw, ih) * 0.3
+      const dSlice = slice * (w / iw) * 0.8  // 目标切片大小，略微缩小保持精致
+      const sl = slice, sr = slice, st = slice, sb = slice
+      const dl = dSlice, dr = dSlice, dt = dSlice, db = dSlice
+
+      // 四角
+      c.drawImage(img, 0, 0, sl, st, x, y, dl, dt)                                    // 左上
+      c.drawImage(img, iw-sr, 0, sr, st, x+w-dr, y, dr, dt)                            // 右上
+      c.drawImage(img, 0, ih-sb, sl, sb, x, y+h-db, dl, db)                            // 左下
+      c.drawImage(img, iw-sr, ih-sb, sr, sb, x+w-dr, y+h-db, dr, db)                   // 右下
+      // 四边
+      c.drawImage(img, sl, 0, iw-sl-sr, st, x+dl, y, w-dl-dr, dt)                      // 上
+      c.drawImage(img, sl, ih-sb, iw-sl-sr, sb, x+dl, y+h-db, w-dl-dr, db)             // 下
+      c.drawImage(img, 0, st, sl, ih-st-sb, x, y+dt, dl, h-dt-db)                      // 左
+      c.drawImage(img, iw-sr, st, sr, ih-st-sb, x+w-dr, y+dt, dr, h-dt-db)             // 右
+      // 中心
+      c.drawImage(img, sl, st, iw-sl-sr, ih-st-sb, x+dl, y+dt, w-dl-dr, h-dt-db)
     } else {
       // fallback: 明亮暖色水彩风面板
       const rad = 16*S

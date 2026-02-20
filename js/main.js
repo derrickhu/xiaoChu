@@ -5,7 +5,7 @@
  */
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
-const { ATTR_COLOR } = require('./data/tower')
+const { ATTR_COLOR, generateRewards } = require('./data/tower')
 const MusicMgr = require('./runtime/music')
 const ViewEnv = require('./views/env')
 const screens = require('./views/screens')
@@ -177,6 +177,12 @@ class Main {
   // ===== 更新 =====
   update() {
     anim.updateAnimations(this)
+    // victory 状态下懒生成奖励（仅生成一次）
+    if (this.bState === 'victory' && !this.rewards) {
+      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill)
+      this.selectedReward = -1
+      this._rewardDetailShow = null
+    }
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
       if (elapsed > 1000) {
@@ -496,6 +502,15 @@ class Main {
     this.heroHp = Math.max(0, this.heroHp - dmg)
     this._heroHpLoss = { fromPct: oldPct, timer: 0 }
     this.dmgFloats.push({ x:W*0.5, y:H*0.7, text:`-${dmg}`, color:TH.danger, t:0, alpha:1 })
+    // ===== 怒气系统：受到实际伤害积累怒气 =====
+    if (this.rage != null && dmg > 0) {
+      const ragePct = Math.min(50, Math.round(dmg / this.heroMaxHp * 100))  // 受伤占血量比的怒气
+      this.rage = Math.min(100, this.rage + ragePct + 8)  // 每次受击固定+8基础怒气
+      if (this.rage >= 100 && !this._rageReady) {
+        this._rageReady = true
+        this.skillEffects.push({ x:W*0.5, y:H*0.45, text:'怒气满！下次攻击爆发！', color:'#ff4040', t:0, alpha:1, scale:2.2, _initScale:2.2, big:true })
+      }
+    }
   }
 
   _onDefeat() { runMgr.onDefeat(this, W, H) }
