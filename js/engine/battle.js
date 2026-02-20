@@ -5,7 +5,7 @@
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
 const {
-  ATTR_COLOR, BEAD_ATTRS, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
+  ATTR_COLOR, ATTR_NAME, BEAD_ATTRS, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
   ENEMY_SKILLS, EVENT_TYPE, ADVENTURES, getBeadWeights,
 } = require('../data/tower')
 const { getPetStarAtk } = require('../data/pets')
@@ -99,10 +99,11 @@ function startNextElimAnim(g) {
     g._comboFlash = 16
     g._comboAnim.scale = 3.5; g._comboAnim._initScale = 3.5
   }
-  // ★ Combo里程碑奖励：让高combo有实质回馈（增强版）
+  // ★ Combo里程碑奖励：护盾随层数动态缩放（前期低盾保紧张感，后期高盾防暴毙）
   if (g.combo === 5) {
-    g._addShield(50)
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'5连击！护盾+50', color:'#40e8ff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
+    const shieldVal = 5 + (g.floor || 1) * 2
+    g._addShield(shieldVal)
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:`5连击！护盾+${shieldVal}`, color:'#40e8ff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
   } else if (g.combo === 8) {
     g.heroBuffs.push({ type:'allAtkUp', pct:40, dur:1, bad:false, name:'连击之力' })
     g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'8连击！攻击+40%', color:'#ff8c00', t:0, alpha:1, scale:2.0, _initScale:2.0 })
@@ -111,13 +112,13 @@ function startNextElimAnim(g) {
     g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'连击暴击' })
     g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'12连击！全力爆发！', color:'#ff2050', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
   } else if (g.combo === 16) {
-    // 新增16连击里程碑：全队合击
+    const shieldVal16 = 10 + (g.floor || 1) * 3
     g.heroBuffs.push({ type:'allDmgUp', pct:120, dur:1, bad:false, name:'极限连击' })
     g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'极限暴击' })
-    const megaHeal = Math.round(g.heroMaxHp * 0.3)
+    const megaHeal = Math.round(g.heroMaxHp * 0.15)
     g.heroHp = Math.min(g.heroMaxHp, g.heroHp + megaHeal)
-    g._addShield(100)
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'16连击！极限合击！', color:'#ff00ff', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
+    g._addShield(shieldVal16)
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:`16连击！极限合击！盾+${shieldVal16}`, color:'#ff00ff', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
   }
   // 粒子
   const pCount = (g.combo >= 12 ? 40 : g.combo >= 8 ? 28 : g.combo >= 5 ? 18 : 10) + (isTierBreak ? 20 : 0)
@@ -567,13 +568,14 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
   }
   if (g.nextDmgDouble) g.nextDmgDouble = false
-  // ===== 怒气爆发：满100怒气时自动释放，伤害翻倍+回血+护盾 =====
+  // ===== 怒气爆发：满100怒气时自动释放，伤害翻倍+少量回血+动态护盾 =====
   if (g._rageReady && totalDmg > 0) {
     totalDmg = Math.round(totalDmg * 2)
     g.rage = 0; g._rageReady = false
-    const rageHeal = Math.round(g.heroMaxHp * 0.15)
+    const rageHeal = Math.round(g.heroMaxHp * 0.10)
     g.heroHp = Math.min(g.heroMaxHp, g.heroHp + rageHeal)
-    g._addShield(60)
+    const rageShield = (g.floor || 1) * 2
+    g._addShield(rageShield)
     g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()-60*S, text:'怒气爆发！伤害×2！', color:'#ff2020', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
     g.shakeT = 16; g.shakeI = 10
     g._comboFlash = 14
@@ -761,8 +763,6 @@ function enemyTurn(g) {
     MusicMgr.playEnemyAttack(dmgRatio)
     setTimeout(() => MusicMgr.playHeroHurt(dmgRatio), 100)
     g.shakeT = 10; g.shakeI = 6  // 更强震屏
-    // 显示敌方造成的伤害数字（在屏幕中下方）
-    g.dmgFloats.push({ x:W*0.5, y:H*0.72, text:`-${atkDmg}`, color:'#ff4444', t:0, alpha:1, scale:1.3 })
   }
   g.heroBuffs.forEach(b => {
     if (b.type === 'dot' && b.dmg > 0) {
@@ -806,7 +806,7 @@ function applyEnemySkill(g, skillKey) {
   const sk = ENEMY_SKILLS[skillKey]
   if (!sk) return
   // 法宝immuneDebuff：免疫所有负面效果（dot/debuff/stun/seal等，不拦截buff/selfHeal/convert/breakBead/aoe）
-  const negTypes = ['dot','debuff','stun','seal']
+  const negTypes = ['dot','debuff','stun','seal','sealRow','sealAttr','sealAll']
   if (g.weapon && g.weapon.type === 'immuneDebuff' && negTypes.includes(sk.type)) {
     g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'免疫！', color:'#40e8ff', t:0, alpha:1 })
     return
@@ -840,7 +840,7 @@ function applyEnemySkill(g, skillKey) {
       break
     }
     case 'aoe': {
-      let aoeDmg = Math.round(g.enemy.atk * 0.5)
+      let aoeDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.2))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') aoeDmg = Math.round(aoeDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(aoeDmg); break
     }
@@ -862,15 +862,54 @@ function applyEnemySkill(g, skillKey) {
       }
       fillBoard(g)
       break
+    // ===== 封珠变体 =====
+    case 'sealRow': {
+      // 封锁整行灵珠
+      const sr = Math.floor(Math.random() * ROWS)
+      for (let c = 0; c < COLS; c++) {
+        if (g.board[sr][c]) g.board[sr][c].sealed = sk.dur || 2
+      }
+      break
+    }
+    case 'sealAttr': {
+      // 封锁指定属性（随机选一个非心珠属性）的所有灵珠
+      const attrPool = ['metal','wood','water','fire','earth']
+      const targetAttr = attrPool[Math.floor(Math.random()*attrPool.length)]
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (g.board[r][c] && g.board[r][c].attr === targetAttr) {
+            g.board[r][c].sealed = sk.dur || 2
+          }
+        }
+      }
+      g.skillEffects.push({ x:W*0.5, y:g.boardY+60*S, text:`${ATTR_NAME[targetAttr]||targetAttr}珠封印！`, color:'#ff4040', t:0, alpha:1, scale:1.5, _initScale:1.5 })
+      break
+    }
+    case 'sealAll': {
+      // 封锁全场所有灵珠
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 1
+        }
+      }
+      break
+    }
     // ===== BOSS专属技能 =====
     case 'bossQuake': {
-      // 震天裂地：AOE伤害 + 封锁灵珠
-      let qDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.8))
+      // 震天裂地：AOE伤害 + 封锁整行灵珠
+      let qDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.3))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') qDmg = Math.round(qDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(qDmg)
-      for (let i = 0; i < (sk.sealCount || 3); i++) {
-        const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+      if (sk.sealType === 'row') {
+        const sr = Math.floor(Math.random() * ROWS)
+        for (let c = 0; c < COLS; c++) {
+          if (g.board[sr][c]) g.board[sr][c].sealed = sk.sealDur || 2
+        }
+      } else {
+        for (let i = 0; i < (sk.sealCount || 3); i++) {
+          const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+        }
       }
       break
     }
@@ -942,13 +981,21 @@ function applyEnemySkill(g, skillKey) {
       g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:0.5, dur:sk.dur || 3, bad:true })
       break
     case 'bossUltimate': {
-      // 超越·终焉：大伤害 + 封锁 + 眩晕
-      let uDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.2))
+      // 超越·终焉：大伤害 + 封锁（全场或随机） + 眩晕
+      let uDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.8))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') uDmg = Math.round(uDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(uDmg)
-      for (let i = 0; i < (sk.sealCount || 4); i++) {
-        const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+      if (sk.sealType === 'all') {
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+          }
+        }
+      } else {
+        for (let i = 0; i < (sk.sealCount || 4); i++) {
+          const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+        }
       }
       const hasImmuneCtrl2 = g.heroBuffs.some(b => b.type === 'immuneCtrl')
       if (!g.immuneOnce && !hasImmuneCtrl2 && !(g.weapon && g.weapon.type === 'immuneStun')) {

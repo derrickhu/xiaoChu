@@ -112,28 +112,34 @@ const BOSS_POOL_30 = [
 const ENEMY_SKILLS = {
   atkBuff:   { name:'妖气暴涨', desc:'攻击提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
   poison:    { name:'瘴毒',     desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
-  seal:      { name:'禁珠咒',   desc:'随机封锁2颗灵珠,持续2回合', type:'seal', count:2, dur:2 },
+  seal:      { name:'禁珠咒',   desc:'随机封锁4颗灵珠,持续2回合', type:'seal', count:4, dur:2 },
   convert:   { name:'灵脉紊乱', desc:'随机转换3颗灵珠属性', type:'convert', count:3 },
-  aoe:       { name:'妖力横扫', desc:'对修士造成{val}点伤害', type:'aoe' },
+  aoe:       { name:'妖力横扫', desc:'对修士造成120%攻击力伤害', type:'aoe', atkPct:1.2 },
   defDown:   { name:'碎甲爪',   desc:'降低修士防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
   healBlock: { name:'噬灵术',   desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
   stun:      { name:'妖力震慑', desc:'眩晕修士，无法操作1回合', type:'stun', dur:1 },
   selfHeal:  { name:'妖力再生', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
   breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
+  // ===== 精英封珠技能 =====
+  eliteSealRow:   { name:'封灵锁链', desc:'封锁整行灵珠,持续2回合', type:'sealRow', dur:2 },
+  eliteSealAttr:  { name:'属性封印', desc:'封锁所有指定属性灵珠,持续2回合', type:'sealAttr', dur:2 },
+  eliteSealHeavy: { name:'禁珠大咒', desc:'随机封锁8颗灵珠,持续2回合', type:'seal', count:8, dur:2 },
   // ===== BOSS专属技能 =====
   bossRage:      { name:'狂暴咆哮', desc:'攻击提升50%,持续3回合', type:'buff', field:'atk', rate:0.5, dur:3 },
-  bossQuake:     { name:'震天裂地', desc:'造成80%攻击力伤害+封锁3颗灵珠', type:'bossQuake', atkPct:0.8, sealCount:3, sealDur:2 },
-  bossDevour:    { name:'噬魂夺魄', desc:'造成60%攻击力伤害+窃取20%治疗为自身回血', type:'bossDevour', atkPct:0.6, stealPct:20 },
-  bossInferno:   { name:'业火焚天', desc:'灼烧：每回合造成攻击力40%伤害,持续3回合', type:'bossDot', atkPct:0.4, dur:3 },
+  bossQuake:     { name:'震天裂地', desc:'造成130%攻击力伤害+封锁整行灵珠', type:'bossQuake', atkPct:1.3, sealType:'row', sealDur:2 },
+  bossDevour:    { name:'噬魂夺魄', desc:'造成110%攻击力伤害+窃取治疗', type:'bossDevour', atkPct:1.1, stealPct:20 },
+  bossInferno:   { name:'业火焚天', desc:'灼烧：每回合造成攻击力50%伤害,持续3回合', type:'bossDot', atkPct:0.5, dur:3 },
   bossVoidSeal:  { name:'虚空禁锢', desc:'封锁整行灵珠,持续2回合', type:'bossVoidSeal', dur:2 },
   bossConvert:   { name:'五行逆乱', desc:'随机6颗灵珠属性混乱', type:'convert', count:6 },
   bossMirror:    { name:'妖力护体', desc:'反弹30%伤害,持续2回合', type:'bossMirror', reflectPct:30, dur:2 },
   bossWeaken:    { name:'天罡镇压', desc:'修士攻击降低40%+防御降低40%,持续2回合', type:'bossWeaken', atkRate:0.4, defRate:0.4, dur:2 },
-  bossBlitz:     { name:'连环妖击', desc:'连续攻击3次，每次40%攻击力', type:'bossBlitz', hits:3, atkPct:0.4 },
-  bossDrain:     { name:'吸星大法', desc:'造成50%攻击力伤害并回复等量生命', type:'bossDrain', atkPct:0.5 },
-  bossAnnihil:   { name:'灭世天劫', desc:'造成100%攻击力伤害+破坏4颗灵珠', type:'bossAnnihil', atkPct:1.0, breakCount:4 },
+  bossBlitz:     { name:'连环妖击', desc:'连续攻击3次，每次50%攻击力', type:'bossBlitz', hits:3, atkPct:0.5 },
+  bossDrain:     { name:'吸星大法', desc:'造成100%攻击力伤害并回复等量生命', type:'bossDrain', atkPct:1.0 },
+  bossAnnihil:   { name:'灭世天劫', desc:'造成150%攻击力伤害+破坏4颗灵珠', type:'bossAnnihil', atkPct:1.5, breakCount:4 },
   bossCurse:     { name:'万妖诅咒', desc:'每回合受到固定100点伤害+心珠回复减半,持续3回合', type:'bossCurse', dmg:100, dur:3 },
-  bossUltimate:  { name:'超越·终焉', desc:'造成120%攻击力伤害+封锁4颗+眩晕1回合', type:'bossUltimate', atkPct:1.2, sealCount:4, sealDur:2 },
+  bossUltimate:  { name:'超越·终焉', desc:'造成180%攻击力伤害+封锁全场+眩晕1回合', type:'bossUltimate', atkPct:1.8, sealType:'all', sealDur:2 },
+  bossSealAll:   { name:'万象封灵', desc:'封锁全场所有灵珠,持续1回合', type:'sealAll', dur:1 },
+  bossSealAttr:  { name:'五行禁锢', desc:'封锁全场指定属性灵珠,持续3回合', type:'sealAttr', dur:3 },
 }
 
 // ===== BOSS专属技能组（每个BOSS有独立的2-3个技能） =====
@@ -142,18 +148,18 @@ const BOSS_SKILL_SETS = {
   // --- 10层BOSS池（2个技能） ---
   1: ['bossRage',    'bossBlitz'],     // 炼狱守卫·妖兵统领：狂暴+连击，纯攻击型
   2: ['bossConvert', 'bossWeaken'],    // 五行妖将·破阵：五行逆乱+双降，控制削弱型
-  3: ['bossQuake',   'bossInferno'],   // 天罡妖帝·噬天：震地+业火，AOE持续伤害型
+  3: ['bossQuake',   'bossInferno'],   // 天罡妖帝·噬天：震地封行+业火，AOE持续伤害型
   4: ['bossDevour',  'bossDrain'],     // 混沌魔神·灭世：噬魂+吸血，续航消耗型
   // --- 20层BOSS池（2个技能） ---
   5: ['bossVoidSeal','bossBlitz'],     // 太古凶兽·吞天：封锁整行+连击，控制突击型
-  6: ['bossMirror',  'bossInferno'],   // 九天妖皇·逆仙：反弹+业火，反打灼烧型
-  7: ['bossQuake',   'bossDrain'],     // 混沌始祖·鸿蒙：震地+吸血，坦克型
+  6: ['bossMirror',  'bossSealAttr'],  // 九天妖皇·逆仙：反弹+属性封印，反打控制型
+  7: ['bossQuake',   'bossDrain'],     // 混沌始祖·鸿蒙：震地封行+吸血，坦克型
   8: ['bossWeaken',  'bossAnnihil'],   // 天道化身·审判：双降+灭世，终极审判型
   // --- 30层BOSS池（3个技能） ---
-  9:  ['bossCurse',   'bossDevour',  'bossAnnihil'],  // 万妖之主·通天
-  10: ['bossUltimate','bossDrain',   'bossRage'],     // 无上大妖·超越
-  '太虚妖祖·混元': ['bossVoidSeal', 'bossCurse',  'bossDrain'],   // 封锁+诅咒+吸血
-  '末劫天魔·无极': ['bossUltimate', 'bossAnnihil','bossInferno'], // 终焉+灭世+业火
+  9:  ['bossCurse',   'bossSealAll',  'bossAnnihil'],  // 万妖之主·通天：诅咒+全场封珠+灭世
+  10: ['bossUltimate','bossDrain',    'bossRage'],     // 无上大妖·超越：终焉全封+吸血+狂暴
+  '太虚妖祖·混元': ['bossVoidSeal', 'bossCurse',  'bossSealAttr'],   // 封行+诅咒+属性封
+  '末劫天魔·无极': ['bossUltimate', 'bossAnnihil','bossSealAll'],     // 终焉+灭世+全封
 }
 
 // ===== 奇遇事件（30个） =====
@@ -394,7 +400,7 @@ function generateElite(floor) {
   base.isElite = true
 
   // 精英必带2个技能
-  const skillPool = ['stun','defDown','selfHeal','breakBead','atkBuff','poison','seal']
+  const skillPool = ['stun','defDown','selfHeal','breakBead','atkBuff','poison','seal','eliteSealRow','eliteSealAttr','eliteSealHeavy']
   const s1 = _pick(skillPool)
   let s2 = _pick(skillPool)
   while (s2 === s1) s2 = _pick(skillPool)
