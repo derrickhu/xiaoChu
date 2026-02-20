@@ -321,21 +321,21 @@ function rBattle(g) {
     if (evType === 'boss') {
       const floorText = `第 ${g.floor} 层`
       const bossTag = '⚠ BOSS ⚠'
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px sans-serif`
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
       ctx.fillText(floorText, W*0.5, labelCY - 2*S)
       ctx.restore()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(bossTag, W*0.5, labelCY + 9*S)
     } else if (evType === 'elite') {
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px sans-serif`
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
       ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY - 2*S)
       ctx.restore()
-      ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText('★ 精英战斗', W*0.5, labelCY + 9*S)
     } else {
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px sans-serif`
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
       ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY)
       ctx.restore()
@@ -355,22 +355,13 @@ function rBattle(g) {
   R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
   ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
   R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.stroke()
-  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
   ctx.textBaseline = 'alphabetic'
   g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
 
-  // [DEV] 一键过关调试按钮
-  if (g.enemy && g.bState !== 'victory' && g.bState !== 'defeat') {
-    const dbgX = exitBtnX + exitBtnSize + 6*S, dbgY = exitBtnY
-    const dbgW = 44*S, dbgH = exitBtnSize
-    ctx.fillStyle = 'rgba(200,50,50,0.6)'
-    R.rr(dbgX, dbgY, dbgW, dbgH, 6*S); ctx.fill()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${10*S}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('秒杀', dbgX + dbgW*0.5, dbgY + dbgH*0.5)
-    ctx.textBaseline = 'alphabetic'
-    g._devKillRect = [dbgX, dbgY, dbgW, dbgH]
-  }
+  // [DEV] 调试按钮已移除
+  g._devKillRect = null
 
   // 队伍栏
   drawTeamBar(g, teamBarY, teamBarH, iconSize)
@@ -1527,14 +1518,14 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.fillStyle = grd
           ctx.fillRect(ix, iconY, iconSize, iconSize)
           ctx.fillStyle = '#ffd700'
-          ctx.font = `bold ${iconSize*0.38}px sans-serif`
+          ctx.font = `bold ${iconSize*0.38}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText('⚔', cx, cy)
         }
         ctx.restore()
       } else {
         ctx.fillStyle = 'rgba(80,70,60,0.3)'
-        ctx.font = `${iconSize*0.26}px sans-serif`
+        ctx.font = `${iconSize*0.26}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText('⚔', cx, cy)
       }
@@ -1619,10 +1610,10 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.restore()
         } else {
           ctx.fillStyle = ac ? ac.main : TH.text
-          ctx.font = `bold ${iconSize*0.35}px sans-serif`
+          ctx.font = `bold ${iconSize*0.35}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText(ATTR_NAME[p.attr] || '', cx, cy - iconSize*0.08)
-          ctx.font = `bold ${iconSize*0.14}px sans-serif`
+          ctx.font = `bold ${iconSize*0.14}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
           ctx.strokeText(p.name.substring(0,3), cx, cy + iconSize*0.25)
@@ -1636,7 +1627,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
         if ((p.star || 1) > 1) {
           const starText = '★'.repeat(p.star || 1)
           ctx.save()
-          ctx.font = `bold ${iconSize * 0.14}px sans-serif`
+          ctx.font = `bold ${iconSize * 0.14}px "PingFang SC",sans-serif`
           ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
           ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
           ctx.strokeText(starText, ix + 2*S, iconY + iconSize - 2*S)
@@ -1659,7 +1650,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.beginPath(); ctx.arc(cdX + cdR, cdY + cdR, cdR, 0, Math.PI*2); ctx.fill()
           ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1*S
           ctx.beginPath(); ctx.arc(cdX + cdR, cdY + cdR, cdR, 0, Math.PI*2); ctx.stroke()
-          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${iconSize*0.22}px sans-serif`
+          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${iconSize*0.22}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText(`${p.currentCd}`, cdX + cdR, cdY + cdR)
           // "CD" 小标签（右上角）
@@ -1667,7 +1658,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
           const cdLabelW = iconSize * 0.38, cdLabelH = iconSize * 0.18
           const cdLabelX = ix + iconSize - cdLabelW - 1*S, cdLabelY = iconY + 1*S
           R.rr(cdLabelX, cdLabelY, cdLabelW, cdLabelH, 3*S); ctx.fill()
-          ctx.fillStyle = '#aaa'; ctx.font = `bold ${iconSize*0.12}px sans-serif`
+          ctx.fillStyle = '#aaa'; ctx.font = `bold ${iconSize*0.12}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.fillText('冷却', cdLabelX + cdLabelW/2, cdLabelY + cdLabelH/2)
           ctx.restore()
@@ -1993,7 +1984,7 @@ function drawBuffIcons(buffs, x, y) {
     const bx = x + i*24*S
     ctx.fillStyle = b.bad ? 'rgba(200,40,40,0.7)' : 'rgba(40,160,40,0.7)'
     R.rr(bx, y, 22*S, 16*S, 3*S); ctx.fill()
-    ctx.fillStyle = '#fff'; ctx.font = `${8*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#fff'; ctx.font = `${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText(b.name || b.type, bx+11*S, y+12*S)
   })
 }
@@ -2002,19 +1993,19 @@ function drawBuffIconsLabeled(buffs, x, y, label, isEnemy) {
   const { ctx, R, S } = V
   if (!buffs || buffs.length === 0) return
   ctx.fillStyle = isEnemy ? 'rgba(200,80,80,0.8)' : 'rgba(60,160,200,0.8)'
-  ctx.font = `bold ${7*S}px sans-serif`; ctx.textAlign = 'left'
+  ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   ctx.fillText(label, x, y - 1*S)
   const startX = x
   buffs.forEach((b, i) => {
     const bx = startX + i * 28*S
     ctx.fillStyle = b.bad ? 'rgba(180,30,30,0.75)' : 'rgba(30,140,50,0.75)'
     R.rr(bx, y + 2*S, 26*S, 16*S, 3*S); ctx.fill()
-    ctx.fillStyle = '#fff'; ctx.font = `${7*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#fff'; ctx.font = `${7*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText(b.name || b.type, bx + 13*S, y + 12*S)
     if (b.dur !== undefined && b.dur < 99) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'
       ctx.beginPath(); ctx.arc(bx + 24*S, y + 4*S, 5*S, 0, Math.PI*2); ctx.fill()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${6*S}px sans-serif`
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${6*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText(`${b.dur}`, bx + 24*S, y + 4*S)
       ctx.textBaseline = 'alphabetic'
@@ -2063,19 +2054,19 @@ function drawRunBuffIcons(g, topY, bottomY) {
     ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
     ctx.lineWidth = 1*S
     R.rr(leftX, iy, iconSz, iconSz, 4*S); ctx.stroke()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px sans-serif`
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText(it.label, leftX + iconSz/2, iy + iconSz*0.38)
     ctx.textBaseline = 'alphabetic'
     const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
                    it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                    `${it.val > 0 ? '+' : ''}${it.val}%`
-    ctx.fillStyle = '#ffd700'; ctx.font = `${6*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffd700'; ctx.font = `${6*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText(valTxt, leftX + iconSz/2, iy + iconSz*0.78)
     g._runBuffIconRects.push({ rect: [leftX, iy, iconSz, iconSz], data: it })
   }
   if (items.length > maxShow) {
-    ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText(`+${items.length - maxShow}`, leftX + iconSz/2, topY + maxShow * (iconSz + gap) + 8*S)
   }
 }
@@ -2440,13 +2431,13 @@ function drawAdReviveOverlay(g) {
   ctx.fillRect(panelX, panelY, panelW, 4*S)
   ctx.restore()
   ctx.textAlign = 'center'
-  ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px sans-serif`
+  ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
   ctx.fillText('修士陨落', W*0.5, panelY + 40*S)
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px sans-serif`
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
   ctx.fillText('🎬 观看广告，满血复活！', W*0.5, panelY + 72*S)
-  ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
+  ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`当前第 ${g.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('每轮通关仅有一次复活机会', W*0.5, panelY + 116*S)
   const btnW = panelW * 0.7, btnH = 44*S
   const btnX = (W - btnW) / 2, btnY = panelY + 140*S

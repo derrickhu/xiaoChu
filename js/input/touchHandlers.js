@@ -378,10 +378,7 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
-  // [DEV] 一键秒杀
-  if (type === 'end' && g._devKillRect && g._hitRect(x,y,...g._devKillRect) && g.enemy) {
-    g.enemy.hp = 0; g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.bState = 'victory'; return
-  }
+  // [DEV] 秒杀按钮已禁用
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     // 详情浮层打开时，点击任意位置关闭

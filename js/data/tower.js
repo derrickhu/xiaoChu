@@ -54,14 +54,14 @@ const BASE_EVENT_WEIGHTS = {
 const MAX_FLOOR = 30
 
 // ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
-// 调优：后期HP从3600降至2000, ATK从75降至40, 整体增长约12~15倍（配合玩家层数成长）
+// 调优：前期HP大幅提升（保证3-5回合体验），中后期同步上调，ATK略微上调
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:100,  hpMax:200,   atkMin:3,   atkMax:5   },
-  { minFloor:6,   maxFloor:10,  hpMin:220,  hpMax:400,   atkMin:5,   atkMax:10  },
-  { minFloor:11,  maxFloor:15,  hpMin:420,  hpMax:700,   atkMin:9,   atkMax:16  },
-  { minFloor:16,  maxFloor:20,  hpMin:720,  hpMax:1100,  atkMin:14,  atkMax:24  },
-  { minFloor:21,  maxFloor:25,  hpMin:1100, hpMax:1600,  atkMin:22,  atkMax:34  },
-  { minFloor:26,  maxFloor:30,  hpMin:1500, hpMax:2000,  atkMin:30,  atkMax:40  },
+  { minFloor:1,   maxFloor:5,   hpMin:200,  hpMax:360,   atkMin:3,   atkMax:6   },
+  { minFloor:6,   maxFloor:10,  hpMin:380,  hpMax:650,   atkMin:6,   atkMax:12  },
+  { minFloor:11,  maxFloor:15,  hpMin:680,  hpMax:1100,  atkMin:10,  atkMax:18  },
+  { minFloor:16,  maxFloor:20,  hpMin:1100, hpMax:1700,  atkMin:16,  atkMax:26  },
+  { minFloor:21,  maxFloor:25,  hpMin:1600, hpMax:2400,  atkMin:24,  atkMax:36  },
+  { minFloor:26,  maxFloor:30,  hpMin:2200, hpMax:3000,  atkMin:32,  atkMax:44  },
 ]
 
 // 普通怪物名池（按属性）
@@ -85,24 +85,30 @@ const ELITE_NAMES = {
 // 精英怪技能
 const ELITE_SKILLS = ['stun','defDown','selfHeal','breakBead','atkBuff']
 
-// BOSS名池（10个，前8个用于1-40层随机，后2个为50/60层固定BOSS）
-const BOSS_NAMES = [
-  '炼狱守卫·妖兵统领',
-  '五行妖将·破阵',
-  '天罡妖帝·噬天',
-  '混沌魔神·灭世',
-  '太古凶兽·吞天',
-  '九天妖皇·逆仙',
-  '混沌始祖·鸿蒙',
-  '天道化身·审判',
+// BOSS名池：按层级分为3个随机池
+// 10层BOSS池（4个，对应 boss_1~4 图片）
+const BOSS_POOL_10 = [
+  { name:'炼狱守卫·妖兵统领', bossNum:1 },
+  { name:'五行妖将·破阵',     bossNum:2 },
+  { name:'天罡妖帝·噬天',     bossNum:3 },
+  { name:'混沌魔神·灭世',     bossNum:4 },
 ]
-// 50/60层固定BOSS → 改为20/30层
-const BOSS_FINAL = [
-  { floor:20, name:'万妖之主·通天',   bossNum:9 },
-  { floor:30, name:'无上大妖·超越',   bossNum:10 },
+// 20层BOSS池（4个，对应 boss_5~8 图片）
+const BOSS_POOL_20 = [
+  { name:'太古凶兽·吞天',     bossNum:5 },
+  { name:'九天妖皇·逆仙',     bossNum:6 },
+  { name:'混沌始祖·鸿蒙',     bossNum:7 },
+  { name:'天道化身·审判',      bossNum:8 },
+]
+// 30层BOSS池（4个，对应 boss_9~10 图片 + 2个变体复用图）
+const BOSS_POOL_30 = [
+  { name:'万妖之主·通天',     bossNum:9 },
+  { name:'无上大妖·超越',     bossNum:10 },
+  { name:'太虚妖祖·混元',     bossNum:9 },   // 复用boss_9图
+  { name:'末劫天魔·无极',     bossNum:10 },  // 复用boss_10图
 ]
 
-// 妖兽技能池（战斗中使用）
+// 妖兽技能池（普通怪/精英使用）
 const ENEMY_SKILLS = {
   atkBuff:   { name:'妖气暴涨', desc:'攻击提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
   poison:    { name:'瘴毒',     desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
@@ -114,6 +120,40 @@ const ENEMY_SKILLS = {
   stun:      { name:'妖力震慑', desc:'眩晕修士，无法操作1回合', type:'stun', dur:1 },
   selfHeal:  { name:'妖力再生', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
   breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
+  // ===== BOSS专属技能 =====
+  bossRage:      { name:'狂暴咆哮', desc:'攻击提升50%,持续3回合', type:'buff', field:'atk', rate:0.5, dur:3 },
+  bossQuake:     { name:'震天裂地', desc:'造成80%攻击力伤害+封锁3颗灵珠', type:'bossQuake', atkPct:0.8, sealCount:3, sealDur:2 },
+  bossDevour:    { name:'噬魂夺魄', desc:'造成60%攻击力伤害+窃取20%治疗为自身回血', type:'bossDevour', atkPct:0.6, stealPct:20 },
+  bossInferno:   { name:'业火焚天', desc:'灼烧：每回合造成攻击力40%伤害,持续3回合', type:'bossDot', atkPct:0.4, dur:3 },
+  bossVoidSeal:  { name:'虚空禁锢', desc:'封锁整行灵珠,持续2回合', type:'bossVoidSeal', dur:2 },
+  bossConvert:   { name:'五行逆乱', desc:'随机6颗灵珠属性混乱', type:'convert', count:6 },
+  bossMirror:    { name:'妖力护体', desc:'反弹30%伤害,持续2回合', type:'bossMirror', reflectPct:30, dur:2 },
+  bossWeaken:    { name:'天罡镇压', desc:'修士攻击降低40%+防御降低40%,持续2回合', type:'bossWeaken', atkRate:0.4, defRate:0.4, dur:2 },
+  bossBlitz:     { name:'连环妖击', desc:'连续攻击3次，每次40%攻击力', type:'bossBlitz', hits:3, atkPct:0.4 },
+  bossDrain:     { name:'吸星大法', desc:'造成50%攻击力伤害并回复等量生命', type:'bossDrain', atkPct:0.5 },
+  bossAnnihil:   { name:'灭世天劫', desc:'造成100%攻击力伤害+破坏4颗灵珠', type:'bossAnnihil', atkPct:1.0, breakCount:4 },
+  bossCurse:     { name:'万妖诅咒', desc:'每回合受到固定100点伤害+心珠回复减半,持续3回合', type:'bossCurse', dmg:100, dur:3 },
+  bossUltimate:  { name:'超越·终焉', desc:'造成120%攻击力伤害+封锁4颗+眩晕1回合', type:'bossUltimate', atkPct:1.2, sealCount:4, sealDur:2 },
+}
+
+// ===== BOSS专属技能组（每个BOSS有独立的2-3个技能） =====
+// 技能组用 bossNum 索引；30层新增的2个变体用 'name' 作为额外key
+const BOSS_SKILL_SETS = {
+  // --- 10层BOSS池（2个技能） ---
+  1: ['bossRage',    'bossBlitz'],     // 炼狱守卫·妖兵统领：狂暴+连击，纯攻击型
+  2: ['bossConvert', 'bossWeaken'],    // 五行妖将·破阵：五行逆乱+双降，控制削弱型
+  3: ['bossQuake',   'bossInferno'],   // 天罡妖帝·噬天：震地+业火，AOE持续伤害型
+  4: ['bossDevour',  'bossDrain'],     // 混沌魔神·灭世：噬魂+吸血，续航消耗型
+  // --- 20层BOSS池（2个技能） ---
+  5: ['bossVoidSeal','bossBlitz'],     // 太古凶兽·吞天：封锁整行+连击，控制突击型
+  6: ['bossMirror',  'bossInferno'],   // 九天妖皇·逆仙：反弹+业火，反打灼烧型
+  7: ['bossQuake',   'bossDrain'],     // 混沌始祖·鸿蒙：震地+吸血，坦克型
+  8: ['bossWeaken',  'bossAnnihil'],   // 天道化身·审判：双降+灭世，终极审判型
+  // --- 30层BOSS池（3个技能） ---
+  9:  ['bossCurse',   'bossDevour',  'bossAnnihil'],  // 万妖之主·通天
+  10: ['bossUltimate','bossDrain',   'bossRage'],     // 无上大妖·超越
+  '太虚妖祖·混元': ['bossVoidSeal', 'bossCurse',  'bossDrain'],   // 封锁+诅咒+吸血
+  '末劫天魔·无极': ['bossUltimate', 'bossAnnihil','bossInferno'], // 终焉+灭世+业火
 }
 
 // ===== 奇遇事件（30个） =====
@@ -265,6 +305,15 @@ function _lerp(a, b, t) { return a + (b - a) * t }
 function _rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min }
 function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 
+// ===== 最近怪物记录（用于去重） =====
+const _recentMonsters = []     // 存储最近遇到的怪物 avatar 标识
+const RECENT_LIMIT = 3         // 连续3场内不出同一张图
+
+function _pushRecent(avatar) {
+  _recentMonsters.push(avatar)
+  if (_recentMonsters.length > RECENT_LIMIT) _recentMonsters.shift()
+}
+
 // ===== 生成某层怪物 =====
 function generateMonster(floor) {
   const attr = _pick(ATTRS)
@@ -283,9 +332,20 @@ function generateMonster(floor) {
   let hp  = Math.round(_lerp(tier.hpMin, tier.hpMax, progress) * rand())
   let atk = Math.round(_lerp(tier.atkMin, tier.atkMax, progress) * rand())
 
-  // 名字：根据层数从弱到强选（30层制，每5层升一档）
+  // 名字：基准档位 ±1 随机浮动，增加同层段怪物多样性
   const names = MONSTER_NAMES[attr]
-  const nameIdx = Math.min(Math.floor(floor / 5), names.length - 1)
+  const baseIdx = Math.min(Math.floor(floor / 5), names.length - 1)
+  const lo = Math.max(0, baseIdx - 1)
+  const hi = Math.min(names.length - 1, baseIdx + 1)
+  // 在 [lo, hi] 范围内随机选取，优先避开最近出现过的
+  const attrKeyMap = { metal:'m', wood:'w', earth:'e', water:'s', fire:'f' }
+  const monKey = attrKeyMap[attr] || 'm'
+  let nameIdx = baseIdx
+  const candidates = []
+  for (let i = lo; i <= hi; i++) candidates.push(i)
+  // 过滤掉最近出现过的（同属性同档位 = 同张图）
+  const fresh = candidates.filter(i => !_recentMonsters.includes(`enemies/mon_${monKey}_${i + 1}`))
+  nameIdx = fresh.length > 0 ? _pick(fresh) : _pick(candidates)
   const name = names[nameIdx]
 
   // 技能：1-8层无技能，9层起逐步加技能（30层制）
@@ -302,11 +362,11 @@ function generateMonster(floor) {
   }
 
   // 怪物图片
-  const attrKeyMap = { metal:'m', wood:'w', earth:'e', water:'s', fire:'f' }
-  const monKey = attrKeyMap[attr] || 'm'
   const monIdx = nameIdx + 1
+  const avatar = `enemies/mon_${monKey}_${monIdx}`
+  _pushRecent(avatar)
 
-  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.35), skills, avatar: `enemies/mon_${monKey}_${monIdx}` }
+  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.35), skills, avatar }
 }
 
 // ===== 生成精英怪 =====
@@ -348,8 +408,8 @@ function generateElite(floor) {
 function generateBoss(floor) {
   const base = generateMonster(floor)
 
-  // BOSS倍率随层数递增（30层制）
-  const bossLevel = Math.floor(floor / 10) + 1  // 1~3
+  // BOSS倍率随层数递增（30层制：10层=1档，20层=2档，30层=3档）
+  const bossLevel = Math.round(floor / 10)  // 1~3
   const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.8, 5)
   const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.3, 2.5)
   const defMul = Math.min(1.2 + (bossLevel - 1) * 0.2, 2)
@@ -361,31 +421,22 @@ function generateBoss(floor) {
   base.isBoss = true
   base.attr   = _pick(ATTRS)
 
-  // 20/30层：固定BOSS
-  const finalBoss = BOSS_FINAL.find(b => b.floor === floor)
-  if (finalBoss) {
-    base.name = finalBoss.name
-    base.avatar = `enemies/boss_${finalBoss.bossNum}`
-    base.battleBg = `enemies/bg_boss_${finalBoss.bossNum}`
-  } else {
-    // 10层：从BOSS_NAMES池中随机选
-    const idx = Math.floor(Math.random() * BOSS_NAMES.length)
-    base.name = BOSS_NAMES[idx]
-    const bossNum = idx + 1  // 1~8
-    base.avatar = `enemies/boss_${bossNum}`
-    base.battleBg = `enemies/bg_boss_${bossNum}`
-  }
+  // 按层级从不同BOSS池中随机选取
+  let pool
+  if (floor >= 30)      pool = BOSS_POOL_30
+  else if (floor >= 20) pool = BOSS_POOL_20
+  else                  pool = BOSS_POOL_10
 
-  // BOSS必带2个技能：控制+减伤/回血
-  const ctrlSkills = ['stun','seal','convert']
-  const defSkills  = ['selfHeal','atkBuff','defDown','healBlock']
-  base.skills = [_pick(ctrlSkills), _pick(defSkills)]
-  // 20/30层BOSS额外加第3个技能
-  if (finalBoss) {
-    const allSkills = [...ctrlSkills, ...defSkills, 'poison', 'breakBead']
-    const extra = _pick(allSkills.filter(s => !base.skills.includes(s)))
-    if (extra) base.skills.push(extra)
-  }
+  const chosen = pool[Math.floor(Math.random() * pool.length)]
+  base.name = chosen.name
+  const bossNum = chosen.bossNum
+  base.avatar = `enemies/boss_${bossNum}`
+  base.battleBg = `enemies/bg_boss_${bossNum}`
+
+  // BOSS专属技能组：优先按名字查找（30层变体），否则按bossNum
+  base.skills = BOSS_SKILL_SETS[chosen.name]
+    ? [...BOSS_SKILL_SETS[chosen.name]]
+    : (BOSS_SKILL_SETS[bossNum] ? [...BOSS_SKILL_SETS[bossNum]] : ['bossRage', 'bossBlitz'])
 
   return base
 }
@@ -566,7 +617,7 @@ module.exports = {
   REWARD_TYPES,
   ALL_BUFF_REWARDS,
   BUFF_POOL_SPEEDKILL,
-  MONSTER_NAMES, ELITE_NAMES, BOSS_NAMES, BOSS_FINAL,
+  MONSTER_NAMES, ELITE_NAMES, BOSS_POOL_10, BOSS_POOL_20, BOSS_POOL_30,
 
   // 生成器
   generateMonster,

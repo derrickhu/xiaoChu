@@ -16,7 +16,7 @@ function drawExitDialog(g) {
 
   // 标题 — 暗金色仙侠风
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#e8d5a0'
+  ctx.fillStyle = '#f0e0c0'
   ctx.font = `bold ${17*S}px "PingFang SC",sans-serif`
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
@@ -91,7 +91,7 @@ function drawRunBuffDetailDialog(g) {
   const tipX = (W - tipW) / 2
   const tipY = (H - tipH) / 2
   R.drawDialogPanel(tipX, tipY, tipW, tipH)
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('全局增益一览', W*0.5, tipY + padY + 12*S)
   let ly = tipY + padY + titleH + 4*S
   ctx.textAlign = 'left'
@@ -102,15 +102,15 @@ function drawRunBuffDetailDialog(g) {
                    it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                    `${it.val > 0 ? '+' : ''}${it.val}%`
     const countTxt = it.count > 1 ? ` (x${it.count})` : ''
-    ctx.fillStyle = '#ddd'; ctx.font = `${11*S}px sans-serif`
+    ctx.fillStyle = '#ddd'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`· ${name}`, tipX + padX, ly + 12*S)
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px sans-serif`
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'right'
     ctx.fillText(`${valTxt}${countTxt}`, tipX + tipW - padX, ly + 12*S)
     ctx.textAlign = 'left'
     ly += lineH
   }
-  ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + tipH - 8*S)
 }
 
@@ -191,7 +191,7 @@ function drawEnemyDetailDialog(g) {
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
     ctx.fillStyle = l.color || '#3D2B1F'
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
       const orbX = tipX + padX + orbR
@@ -204,7 +204,7 @@ function drawEnemyDetailDialog(g) {
     }
   })
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }
@@ -260,11 +260,11 @@ function drawWeaponDetailDialog(g) {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
     ctx.fillStyle = l.color || '#3D2B1F'
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
     ctx.fillText(l.text, tipX + padX, curY - 4*S)
   })
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }
@@ -335,7 +335,7 @@ function drawBattlePetDetailDialog(g) {
     curY += l.h
     if (curY > tipY + totalH - 24*S) return
     ctx.fillStyle = l.color || '#3D2B1F'
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
       const orbX = tipX + padX + orbR
@@ -347,14 +347,14 @@ function drawBattlePetDetailDialog(g) {
       ctx.fillText(l.text, tipX + padX, curY - 4*S)
       if (l.starSuffix) {
         const nameW = ctx.measureText(l.text).width
-        ctx.font = `bold ${11*S}px sans-serif`
+        ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
         ctx.fillStyle = '#ffd700'
         ctx.fillText(l.starSuffix, tipX + padX + nameW + 6*S, curY - 4*S)
       }
     }
   })
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
   ctx.restore()
 }

@@ -3,8 +3,6 @@
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
-// 旧装备系统兼容常量（渲染方法中仍有引用，提供空默认值）
-const QUALITY = {}, EQUIP_SLOT = {}, STAT_DEFS = {}
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -282,7 +280,13 @@ class Render {
     const img = avatar ? this.getImg(avatar) : null
     if (img && img.width > 0) {
       c.save(); c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip()
-      c.drawImage(img,x-r,y-r,r*2,r*2); c.restore()
+      // 保持原图比例居中绘制
+      const iR = img.width / img.height
+      let dw, dh
+      if (iR > 1) { dw = r*2; dh = r*2 / iR }
+      else { dh = r*2; dw = r*2 * iR }
+      c.drawImage(img, x - dw/2, y - dh/2, dw, dh)
+      c.restore()
     } else {
       const g = c.createRadialGradient(x,y-r*0.3,r*0.1,x,y,r)
       g.addColorStop(0,a.lt); g.addColorStop(1,a.dk)
@@ -605,138 +609,6 @@ class Render {
     }
   }
 
-  // ===== 法宝卡片（立体质感） =====
-  drawEquipCard(x,y,w,h,equip,selected,frame) {
-    const {ctx:c,S} = this
-    if (!equip) {
-      // 空槽位 - 凹陷虚线框
-      c.save()
-      c.fillStyle='rgba(0,0,0,0.15)'; this.rr(x,y,w,h,8*S); c.fill()
-      c.strokeStyle='rgba(255,255,255,0.12)'; c.lineWidth=1; c.setLineDash([4*S,4*S])
-      this.rr(x,y,w,h,8*S); c.stroke()
-      c.setLineDash([])
-      c.fillStyle=TH.dim; c.font=`${24*S}px "PingFang SC",sans-serif`
-      c.textAlign='center'; c.textBaseline='middle'; c.fillText('+',x+w/2,y+h/2)
-      c.restore()
-      return
-    }
-    const q = QUALITY[equip.quality]
-    const a = ATTR_COLOR[equip.attr]
-    c.save()
-    // 底部投影
-    c.fillStyle='rgba(0,0,0,0.2)'; this.rr(x+1*S,y+3*S,w,h,8*S); c.fill()
-    // 背景渐变
-    const bg = c.createLinearGradient(x,y,x,y+h)
-    bg.addColorStop(0,'rgba(30,30,48,0.94)'); bg.addColorStop(1,'rgba(18,18,32,0.96)')
-    c.fillStyle=bg; this.rr(x,y,w,h,8*S); c.fill()
-    // 顶部高光
-    c.save(); c.globalAlpha=0.08
-    const tg=c.createLinearGradient(x,y,x,y+h*0.35)
-    tg.addColorStop(0,'rgba(255,255,255,0.4)'); tg.addColorStop(1,'rgba(255,255,255,0)')
-    c.fillStyle=tg; this.rr(x,y,w,h*0.35,8*S); c.fill()
-    c.restore()
-    // 品质边框
-    if (selected) {
-      c.strokeStyle=TH.accent; c.lineWidth=2.5*S
-      // 选中光效
-      c.save(); c.globalAlpha=0.1
-      c.fillStyle=TH.accent; this.rr(x,y,w,h,8*S); c.fill()
-      c.restore()
-    } else {
-      c.strokeStyle=q.color+'66'; c.lineWidth=1.5*S
-    }
-    this.rr(x,y,w,h,8*S); c.stroke()
-    // 品质光效
-    if (equip.quality === 'orange' || equip.quality === 'purple') {
-      c.save(); c.globalAlpha = 0.06 + 0.04*Math.sin((frame||0)*0.04)
-      c.fillStyle = q.color; this.rr(x,y,w,h,8*S); c.fill()
-      c.restore()
-    }
-    // 属性色条（圆角）
-    c.fillStyle = a.main
-    this.rr(x+3*S,y+4*S,3*S,h-8*S,1.5*S); c.fill()
-    // 装备图标
-    const eqIcon = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.jpg`)
-    const iconSz = h - 8*S
-    if (eqIcon && eqIcon.width > 0) {
-      c.drawImage(eqIcon, x+8*S, y+4*S, iconSz, iconSz)
-    }
-    const textOff = (eqIcon && eqIcon.width > 0) ? iconSz + 10*S : 12*S
-    // 名称
-    c.fillStyle=TH.text; c.font=`bold ${11*S}px "PingFang SC",sans-serif`
-    c.textAlign='left'; c.textBaseline='top'
-    c.fillText(equip.name, x+textOff, y+6*S)
-    // 品质标签 + 等级
-    c.fillStyle=q.color; c.font=`bold ${9*S}px "PingFang SC",sans-serif`
-    c.fillText(q.name + (equip.level ? ` Lv.${equip.level}` : ''), x+12*S, y+20*S)
-    // 槽位图标
-    const slot = EQUIP_SLOT[equip.slot]
-    c.fillStyle=TH.sub; c.font=`${10*S}px "PingFang SC",sans-serif`
-    c.textAlign='right'; c.fillText(slot.icon+' '+slot.name, x+w-8*S, y+6*S)
-    // 属性概要（显示stats，兜底显示绝技名）
-    c.fillStyle=TH.sub; c.font=`${9*S}px "PingFang SC",sans-serif`
-    c.textAlign='left'
-    if (equip.stats && Object.keys(equip.stats).length > 0) {
-      const statText = Object.entries(equip.stats).map(([k,v]) => {
-        const sd = STAT_DEFS[k]
-        return `${sd ? sd.name : k}+${v}`
-      }).join(' ')
-      c.fillText(statText, x+12*S, y+34*S)
-    } else {
-      c.fillText(equip.ult ? equip.ult.name : '', x+12*S, y+34*S)
-    }
-    c.restore()
-  }
-
-  // ===== 法宝详情面板 =====
-  drawEquipDetail(x,y,w,equip,frame) {
-    if (!equip) return
-    const {ctx:c,S} = this
-    const q = QUALITY[equip.quality]
-    const a = ATTR_COLOR[equip.attr]
-    const lineH = 18*S, padX = 12*S
-    let cy = y
-
-    // 名称行
-    c.fillStyle = q.color; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    c.fillText(equip.name, x+padX, cy); cy += 22*S
-    // 品质+属性+等级
-    c.fillStyle = TH.sub; c.font = `${11*S}px "PingFang SC",sans-serif`
-    c.fillText(`${q.name} · ${ATTR_NAME[equip.attr]}属性 · ${EQUIP_SLOT[equip.slot].name}${equip.level ? ' · Lv.'+equip.level : ''}`, x+padX, cy); cy += lineH
-
-    // 属性加成
-    if (equip.stats && Object.keys(equip.stats).length > 0) {
-      cy += 4*S
-      c.fillStyle = TH.accent; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-      c.fillText('▸ 属性加成:', x+padX, cy); cy += 14*S
-      const statColors = {
-        stamina:'#ff5555',metalAtk:'#ffd700',woodAtk:'#4dcc4d',earthAtk:'#d4a056',waterAtk:'#4dabff',fireAtk:'#ff4d4d',
-        metalDef:'#ffd700',woodDef:'#4dcc4d',earthDef:'#d4a056',waterDef:'#4dabff',fireDef:'#ff4d4d',recovery:'#ff69b4'}
-      Object.entries(equip.stats).forEach(([k,v]) => {
-        const sd = STAT_DEFS[k]
-        c.fillStyle = statColors[k] || TH.text; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  ${sd ? sd.name : k} +${v}`, x+padX, cy); cy += 14*S
-      })
-    }
-
-    // 绝技
-    if (equip.ult) {
-      cy += 6*S
-      c.fillStyle = TH.accent; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      c.fillText('★ 绝技: '+equip.ult.name+` (需${equip.ultTrigger}次蓄力)`, x+padX, cy); cy += lineH
-      c.fillStyle = TH.sub; c.font = `${10*S}px "PingFang SC",sans-serif`
-      // 格式化绝技描述
-      const desc = equip.ult.desc.replace(/{(\w+)}/g, (m,k) => {
-        if (k === 'dur') return equip.ult.buffDur || ''
-        return equip.ult[k] || m
-      })
-      c.fillText('  '+desc, x+padX, cy); cy += lineH
-    }
-
-    return cy - y  // 返回占用高度
-  }
-
   // ===== 难度标签（立体胶囊按钮） =====
   drawDiffTag(x,y,w,h,text,color,active) {
     const {ctx:c,S} = this
@@ -865,213 +737,6 @@ class Render {
     c.restore()
   }
 
-  // ===== 任务卡片（立体条目） =====
-  drawTaskCard(x,y,w,h,task) {
-    const {ctx:c,S} = this
-    c.save()
-    // 底部投影
-    c.fillStyle='rgba(0,0,0,0.12)'; this.rr(x,y+2*S,w,h,8*S); c.fill()
-    // 主体
-    const bg = task.done ? 'rgba(77,204,77,0.12)' : 'rgba(30,30,50,0.85)'
-    c.fillStyle=bg; this.rr(x,y,w,h,8*S); c.fill()
-    // 顶部高光
-    c.save(); c.globalAlpha=0.08
-    const tg=c.createLinearGradient(x,y,x,y+h*0.4)
-    tg.addColorStop(0,'rgba(255,255,255,0.3)'); tg.addColorStop(1,'rgba(255,255,255,0)')
-    c.fillStyle=tg; this.rr(x,y,w,h*0.4,8*S); c.fill()
-    c.restore()
-    // 边框
-    c.strokeStyle = task.done ? TH.success+'55' : 'rgba(80,80,100,0.3)'
-    c.lineWidth=1; this.rr(x,y,w,h,8*S); c.stroke()
-    // 状态图标
-    if (task.done) {
-      c.fillStyle=TH.success
-      c.beginPath(); c.arc(x+16*S, y+h/2, 8*S, 0, Math.PI*2); c.fill()
-      c.fillStyle='#fff'; c.font=`bold ${12*S}px "PingFang SC",sans-serif`
-      c.textAlign='center'; c.textBaseline='middle'; c.fillText('✓',x+16*S,y+h/2)
-    } else {
-      c.strokeStyle=TH.dim; c.lineWidth=1.5*S
-      c.beginPath(); c.arc(x+16*S, y+h/2, 8*S, 0, Math.PI*2); c.stroke()
-    }
-    // 名称
-    c.fillStyle = TH.text; c.font = `${12*S}px "PingFang SC",sans-serif`
-    c.textAlign='left'; c.textBaseline='middle'
-    c.fillText(task.name, x+30*S, y+h/2-7*S)
-    // 进度
-    c.fillStyle = TH.sub; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText(`${task.progress}/${task.target}`, x+30*S, y+h/2+8*S)
-    c.restore()
-  }
-
-  // ===== 掉落弹窗 =====
-  drawDropPopup(x,y,w,h,equip,frame) {
-    const {ctx:c,S} = this
-    if (!equip) return
-    const q = QUALITY[equip.quality]
-    c.save()
-    // 遮罩
-    c.fillStyle='rgba(0,0,0,0.6)'; c.fillRect(0,0,this.W,this.H)
-    // 面板
-    const g = c.createLinearGradient(x,y,x,y+h)
-    g.addColorStop(0,'rgba(30,30,55,0.96)'); g.addColorStop(1,'rgba(18,18,35,0.98)')
-    c.fillStyle=g; this.rr(x,y,w,h,14*S); c.fill()
-    // 品质光框
-    c.save(); c.globalAlpha = 0.3 + 0.1*Math.sin((frame||0)*0.06)
-    c.strokeStyle=q.color; c.lineWidth=2*S; this.rr(x,y,w,h,14*S); c.stroke()
-    c.restore()
-    // 标题
-    c.fillStyle=TH.accent; c.font=`bold ${16*S}px "PingFang SC",sans-serif`
-    c.textAlign='center'; c.textBaseline='top'
-    c.fillText('🎉 获得法宝!', x+w/2, y+12*S)
-    // 法宝详情
-    this.drawEquipDetail(x, y+36*S, w, equip, frame)
-    c.restore()
-  }
-
-  // ===== 仙技蓄力指示器 =====
-  drawUltGauge(x,y,w,h,current,max,ready,color,frame) {
-    const {ctx:c,S} = this
-    const pct = Math.min(1, current/max)
-    // 背景
-    c.fillStyle='rgba(0,0,0,0.3)'; this.rr(x,y,w,h,h/2); c.fill()
-    // 填充
-    if (pct > 0) {
-      const fc = ready ? TH.accent : (color || TH.info)
-      c.fillStyle = fc; this.rr(x,y,w*pct,h,h/2); c.fill()
-      if (ready) {
-        c.save(); c.globalAlpha = 0.3+0.2*Math.sin((frame||0)*0.08)
-        c.fillStyle = '#fff'; this.rr(x,y,w*pct,h,h/2); c.fill()
-        c.restore()
-      }
-    }
-    // 文字
-    c.fillStyle=ready?'#fff':TH.sub; c.font=`bold ${8*S}px "PingFang SC",sans-serif`
-    c.textAlign='center'; c.textBaseline='middle'
-    c.fillText(ready?'仙技就绪':`${current}/${max}`, x+w/2, y+h/2)
-  }
-
-  // ===== 绝技图标（棋盘下方，含蓄力次数+就绪特效+上滑提示） =====
-  drawUltSkillIcon(x, y, size, equip, current, max, ready, frame, swipeProgress) {
-    if (!equip) return
-    const {ctx:c, S} = this
-    const a = ATTR_COLOR[equip.attr]
-    const q = QUALITY[equip.quality]
-    const slot = EQUIP_SLOT[equip.slot]
-
-    c.save()
-
-    // 上滑时的偏移
-    const swipeOff = (swipeProgress || 0) * (-30*S)
-    c.translate(0, swipeOff)
-
-    // ===== 就绪时外围旋转光环特效 =====
-    if (ready) {
-      const pulse = 1 + 0.06*Math.sin(frame*0.08)
-      const cx = x + size/2, cy = y + size/2
-      // 外圈呼吸光环
-      c.save()
-      c.globalAlpha = 0.25 + 0.15*Math.sin(frame*0.06)
-      const auraR = size*0.7*pulse
-      const auraG = c.createRadialGradient(cx, cy, size*0.3, cx, cy, auraR)
-      auraG.addColorStop(0, a.main+'88'); auraG.addColorStop(0.6, a.main+'44'); auraG.addColorStop(1, 'transparent')
-      c.fillStyle = auraG; c.beginPath(); c.arc(cx, cy, auraR, 0, Math.PI*2); c.fill()
-      c.restore()
-
-      // 旋转光点
-      c.save()
-      for (let i=0; i<4; i++) {
-        const angle = frame*0.04 + (Math.PI*2/4)*i
-        const pr = size*0.52
-        const px = cx + Math.cos(angle)*pr
-        const py = cy + Math.sin(angle)*pr
-        c.globalAlpha = 0.5 + 0.3*Math.sin(frame*0.1+i)
-        c.fillStyle = '#fff'
-        c.beginPath(); c.arc(px, py, 2.5*S, 0, Math.PI*2); c.fill()
-      }
-      c.restore()
-
-      // 底部金色上箭头提示（闪烁）
-      c.save()
-      c.globalAlpha = 0.4 + 0.4*Math.sin(frame*0.1)
-      c.fillStyle = TH.accent
-      c.font = `${10*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'top'
-      c.fillText('↑', x+size/2, y-12*S)
-      c.restore()
-    }
-
-    // ===== 图标底板 =====
-    // 底部阴影
-    c.fillStyle = 'rgba(0,0,0,0.3)'
-    this.rr(x+1*S, y+2*S, size, size, 8*S); c.fill()
-    // 主体背景渐变
-    const bgG = c.createLinearGradient(x, y, x, y+size)
-    bgG.addColorStop(0, 'rgba(30,30,50,0.95)'); bgG.addColorStop(1, 'rgba(18,18,35,0.98)')
-    c.fillStyle = bgG; this.rr(x, y, size, size, 8*S); c.fill()
-    // 属性色叠加
-    c.save(); c.globalAlpha = 0.12
-    c.fillStyle = a.main; this.rr(x, y, size, size, 8*S); c.fill()
-    c.restore()
-
-    // ===== 边框（品质色/就绪时金色） =====
-    if (ready) {
-      c.strokeStyle = TH.accent; c.lineWidth = 2*S
-      // 金色发光
-      c.save(); c.globalAlpha = 0.15 + 0.1*Math.sin(frame*0.07)
-      c.fillStyle = TH.accent; this.rr(x, y, size, size, 8*S); c.fill()
-      c.restore()
-    } else {
-      c.strokeStyle = q.color+'66'; c.lineWidth = 1.5*S
-    }
-    this.rr(x, y, size, size, 8*S); c.stroke()
-
-    // ===== 槽位图标（大）- 优先使用图片 =====
-    const eqIconImg = this.getImg(`assets/equipment/icon_${equip.slot}_${equip.attr}.jpg`)
-    const iconPad = size * 0.15
-    if (eqIconImg && eqIconImg.width > 0) {
-      const iSz = size - iconPad*2
-      c.drawImage(eqIconImg, x+iconPad, y+iconPad*0.6, iSz, iSz*0.7)
-    } else {
-      c.fillStyle = ready ? '#fff' : a.main
-      c.font = `${size*0.38}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText(slot.icon, x+size/2, y+size*0.38)
-    }
-
-    // ===== 属性小标（左上角） =====
-    c.save()
-    c.fillStyle = a.main
-    c.beginPath(); c.arc(x+10*S, y+10*S, 6*S, 0, Math.PI*2); c.fill()
-    c.fillStyle = '#fff'; c.font = `bold ${6*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(ATTR_NAME[equip.attr], x+10*S, y+10*S)
-    c.restore()
-
-    // ===== 蓄力次数（底部） =====
-    const countY = y + size*0.7
-    // 进度小条
-    const barW = size*0.7, barH = 3*S
-    const barX = x + (size-barW)/2
-    const pct = Math.min(1, current/max)
-    c.fillStyle = 'rgba(0,0,0,0.4)'; this.rr(barX, countY, barW, barH, barH/2); c.fill()
-    if (pct > 0) {
-      c.fillStyle = ready ? TH.accent : a.main
-      this.rr(barX, countY, barW*pct, barH, barH/2); c.fill()
-    }
-    // 次数文字
-    c.fillStyle = ready ? TH.accent : TH.sub
-    c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'top'
-    c.fillText(`${current}/${max}`, x+size/2, countY+barH+2*S)
-
-    // ===== 上滑进行中的透明度渐变 =====
-    if (swipeProgress && swipeProgress > 0) {
-      c.globalAlpha = 1 - swipeProgress*0.5
-    }
-
-    c.restore()
-  }
-
   // ===== 战斗角色立绘（修士，带装备图标） =====
   drawBattleHero(x, y, size, equipped, hp, maxHp, frame, attackAnim) {
     const {ctx:c, S} = this
@@ -1159,7 +824,10 @@ class Render {
     const img = avatar ? this.getImg(avatar) : null
     const imgSize = size * 0.8
     if (img && img.width > 0) {
-      c.drawImage(img, x-imgSize/2, y-imgSize*0.45, imgSize, imgSize)
+      const iR2 = img.width / img.height
+      let dw2 = imgSize, dh2 = imgSize
+      if (iR2 > 1) { dh2 = imgSize / iR2 } else { dw2 = imgSize * iR2 }
+      c.drawImage(img, x-dw2/2, y-dh2*0.45, dw2, dh2)
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.4)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)
@@ -1224,7 +892,10 @@ class Render {
     const img = avatar ? this.getImg(avatar) : null
     const imgSize = size * 0.9
     if (img && img.width > 0) {
-      c.drawImage(img, x-imgSize/2, y-imgSize*0.5, imgSize, imgSize)
+      const iR3 = img.width / img.height
+      let dw3 = imgSize, dh3 = imgSize
+      if (iR3 > 1) { dh3 = imgSize / iR3 } else { dw3 = imgSize * iR3 }
+      c.drawImage(img, x-dw3/2, y-dh3*0.5, dw3, dh3)
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.45)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)
