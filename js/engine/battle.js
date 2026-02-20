@@ -233,7 +233,7 @@ function startNextElimAnim(g) {
     g._addShield(g.weapon.val || 15)
   }
   g.heroBuffs.forEach(b => {
-    if (b.type === 'shieldOnElim' && b.attr === attr) g._addShield(b.val || 30)
+    if (b.type === 'shieldOnElim' && b.attr === attr) g._addShield(b.val || 15)
   })
   // 法宝aoeOnElim：消除指定属性珠达到minCount时触发对敌人额外伤害
   if (g.weapon && g.weapon.type === 'aoeOnElim' && g.weapon.attr === attr && count >= (g.weapon.minCount || 5) && g.enemy) {

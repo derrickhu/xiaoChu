@@ -4,7 +4,7 @@
  * 无局外养成，每局完全重置
  */
 
-const { randomPetByAttr, randomPet } = require('./pets')
+const { randomPetByAttr, randomPet, randomPetFromPool } = require('./pets')
 const { randomWeapon } = require('./weapons')
 
 // ===== 五行属性基础 =====
@@ -118,7 +118,7 @@ const ENEMY_SKILLS = {
 
 // ===== 奇遇事件（30个） =====
 const ADVENTURES = [
-  { id:'adv1',  name:'误入灵脉',   desc:'全队攻击+3%',              effect:'allAtkUp',    pct:3 },
+  { id:'adv1',  name:'灵兽来投',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv2',  name:'捡到仙丹',   desc:'立即回血50%',              effect:'healPct',     pct:50 },
   { id:'adv3',  name:'上古洞府',   desc:'血量上限+10%',             effect:'hpMaxUp',     pct:10 },
   { id:'adv4',  name:'天降灵物',   desc:'随机获得一件法宝',          effect:'getWeapon' },
@@ -137,8 +137,8 @@ const ADVENTURES = [
   { id:'adv17', name:'无尘之地',   desc:'清除所有负面状态',          effect:'clearDebuff' },
   { id:'adv18', name:'灵泉洗礼',   desc:'心珠效果+20%',             effect:'heartBoost',  pct:20 },
   { id:'adv19', name:'神兵残影',   desc:'法宝效果临时提升20%',       effect:'weaponBoost', pct:20 },
-  { id:'adv20', name:'五行调和',   desc:'全属性伤害+3%',            effect:'allDmgUp',    pct:3 },
-  { id:'adv21', name:'山神赐福',   desc:'血量上限+8%',              effect:'hpMaxUp',     pct:8 },
+  { id:'adv20', name:'遗落法宝',   desc:'随机获得一件法宝',          effect:'getWeapon' },
+  { id:'adv21', name:'灵兽投缘',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv22', name:'妖巢空寂',   desc:'直接跳过一层',              effect:'skipFloor' },
   { id:'adv23', name:'上古战魂',   desc:'下一层伤害翻倍',            effect:'nextDmgDouble' },
   { id:'adv24', name:'静心咒',     desc:'转珠时间+1秒',             effect:'extraTime',   sec:1 },
@@ -150,15 +150,22 @@ const ADVENTURES = [
   { id:'adv30', name:'机缘',       desc:'直接获得三选一奖励',        effect:'tripleChoice' },
 ]
 
-// ===== 商店物品池（免费兑换） =====
+// ===== 商店物品池（新版：10件，按权重抽4件，免费选1件，第2件消耗15%血） =====
 const SHOP_ITEMS = [
-  { id:'shop1', name:'随机新灵兽一只', effect:'getPet' },
-  { id:'shop2', name:'随机法宝一件',   effect:'getWeapon' },
-  { id:'shop3', name:'满血回复',       effect:'fullHeal' },
-  { id:'shop4', name:'随机强化一只灵兽（攻击+20%）', effect:'upgradePet', pct:20 },
-  { id:'shop5', name:'移除所有负面状态', effect:'clearDebuff' },
-  { id:'shop6', name:'血量上限+10%',    effect:'hpMaxUp', pct:10 },
+  { id:'shop1',  name:'灵兽招募',   desc:'选择属性，获得该属性灵兽', effect:'getPetByAttr', weight:10, rarity:'normal' },
+  { id:'shop2',  name:'法宝寻宝',   desc:'随机获得一件法宝',         effect:'getWeapon',    weight:10, rarity:'normal' },
+  { id:'shop3',  name:'升星灵石',   desc:'选择一只灵兽直接升1星',    effect:'starUp',       weight:3,  rarity:'epic' },
+  { id:'shop4',  name:'攻击秘药',   desc:'选择一只灵兽，攻击+25%',   effect:'upgradePet',   pct:25, weight:6, rarity:'rare' },
+  { id:'shop5',  name:'悟道丹',     desc:'选择一只灵兽，技能CD-1',   effect:'cdReduce',     weight:3,  rarity:'epic' },
+  { id:'shop6',  name:'满血回复',   desc:'血量恢复至上限',           effect:'fullHeal',     weight:10, rarity:'normal' },
+  { id:'shop7',  name:'血脉丹',     desc:'血量上限+15%',             effect:'hpMaxUp',      pct:15, weight:10, rarity:'normal' },
+  { id:'shop8',  name:'护身符',     desc:'永久受伤减免+8%',          effect:'dmgReduce',    pct:8, weight:6, rarity:'rare' },
+  { id:'shop9',  name:'还魂玉',     desc:'获得1次额外复活机会',      effect:'extraRevive',  weight:6,  rarity:'rare' },
+  { id:'shop10', name:'灵力结晶',   desc:'全队技能伤害+15%',         effect:'skillDmgUp',   pct:15, weight:10, rarity:'normal' },
 ]
+const SHOP_DISPLAY_COUNT = 4   // 每次展示4件
+const SHOP_FREE_COUNT = 1      // 免费选1件
+const SHOP_HP_COST_PCT = 15    // 第2件消耗当前血量的百分比
 
 // ===== 休息之地选项 =====
 const REST_OPTIONS = [
@@ -433,12 +440,18 @@ function generateFloorEvent(floor) {
     case 'adventure':
       return { type: EVENT_TYPE.ADVENTURE, data: _pick(ADVENTURES) }
     case 'shop':
-      // 随机3个商品
+      // 按权重随机抽取4件商品（不重复）
       const items = []
       const pool = [...SHOP_ITEMS]
-      for (let i = 0; i < 3 && pool.length > 0; i++) {
-        const idx = Math.floor(Math.random() * pool.length)
-        items.push(pool.splice(idx, 1)[0])
+      for (let i = 0; i < SHOP_DISPLAY_COUNT && pool.length > 0; i++) {
+        const totalW = pool.reduce((s, it) => s + (it.weight || 10), 0)
+        let roll = Math.random() * totalW
+        let picked = 0
+        for (let j = 0; j < pool.length; j++) {
+          roll -= (pool[j].weight || 10)
+          if (roll <= 0) { picked = j; break }
+        }
+        items.push(pool.splice(picked, 1)[0])
       }
       return { type: EVENT_TYPE.SHOP, data: items }
     case 'rest':
@@ -451,9 +464,11 @@ function generateFloorEvent(floor) {
 // ===== 生成胜利后三选一奖励 =====
 // eventType: 'battle' | 'elite' | 'boss'
 // speedKill: 是否速通（5回合内击败）
-function generateRewards(floor, eventType, speedKill, ownedWeaponIds) {
+// sessionPetPool: 本局宠物池（25只）
+function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool) {
   const rewards = []
   const usedIds = new Set()
+  const _rPet = () => randomPetFromPool(sessionPetPool)
 
   // 从指定池中随机选一个不重复的
   function pickFrom(pool) {
@@ -479,9 +494,9 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds) {
     // 精英战斗：2只灵宠 + 1个中档buff 三选一（速通4选1）
     const petIds = new Set()
     for (let i = 0; i < 2; i++) {
-      let p = randomPet()
+      let p = _rPet()
       let tries = 0
-      while (petIds.has(p.id) && tries < 20) { p = randomPet(); tries++ }
+      while (petIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
       petIds.add(p.id)
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
     }
@@ -489,7 +504,7 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds) {
   } else {
     // 普通战斗：30%概率掉落宠物（30层制加速build）
     if (Math.random() < 0.30) {
-      const newPet = randomPet()
+      const newPet = _rPet()
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
       rewards.push(pickFrom(BUFF_POOL_MINOR))
       rewards.push(pickFrom(BUFF_POOL_MINOR))
@@ -508,10 +523,10 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds) {
       let w = randomWeapon(wpnExclude)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     } else if (eventType === 'elite') {
-      let p = randomPet()
+      let p = _rPet()
       let tries = 0
       const existIds = new Set(rewards.map(r => r.data && r.data.id))
-      while (existIds.has(p.id) && tries < 20) { p = randomPet(); tries++ }
+      while (existIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
     } else {
       const bonus = pickFrom(BUFF_POOL_SPEEDKILL)
@@ -547,7 +562,7 @@ module.exports = {
   BEAD_ATTRS, BEAD_ATTR_NAME, BEAD_ATTR_COLOR,
   EVENT_TYPE,
   ENEMY_SKILLS,
-  ADVENTURES, SHOP_ITEMS, REST_OPTIONS,
+  ADVENTURES, SHOP_ITEMS, SHOP_DISPLAY_COUNT, SHOP_FREE_COUNT, SHOP_HP_COST_PCT, REST_OPTIONS,
   REWARD_TYPES,
   ALL_BUFF_REWARDS,
   BUFF_POOL_SPEEDKILL,

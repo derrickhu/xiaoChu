@@ -182,7 +182,7 @@ class Main {
       const ownedWpnIds = new Set()
       if (this.weapon) ownedWpnIds.add(this.weapon.id)
       if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
-      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds)
+      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool)
       this.selectedReward = -1
       this._rewardDetailShow = null
     }
@@ -425,7 +425,7 @@ class Main {
   _tGameover(type,x,y) { touchH.tGameover(this,type,x,y) }
   _tRanking(type,x,y) { touchH.tRanking(this,type,x,y) }
   _tStats(type,x,y) { touchH.tStats(this,type,x,y) }
-  _enterEvent() { this._eventPetDetail = null; this._eventPetDetailData = null; this._eventWpnDetail = null; this._eventWpnDetailData = null; this._eventDragPet = null; this.scene = 'event' }
+  _enterEvent() { this._eventPetDetail = null; this._eventPetDetailData = null; this._eventWpnDetail = null; this._eventWpnDetailData = null; this._eventDragPet = null; this._eventShopUsedCount = 0; this._eventShopUsedItems = null; this._shopSelectAttr = false; this._shopSelectPet = null; this.scene = 'event' }
   _showSkillPreview(pet, index) { skillEngine.showSkillPreview(this, pet, index) }
   // ===== 战斗进入 =====
   _enterBattle(enemyData) { battleEngine.enterBattle(this, enemyData) }
@@ -470,6 +470,10 @@ class Main {
   _applyReward(rw) { skillEngine.applyReward(this, rw) }
   _applyBuffReward(b) { skillEngine.applyBuffReward(this, b) }
   _applyShopItem(item) { skillEngine.applyShopItem(this, item) }
+  _applyShopPetByAttr(attr) { skillEngine.applyShopPetByAttr(this, attr) }
+  _applyShopStarUp(petIdx) { return skillEngine.applyShopStarUp(this, petIdx) }
+  _applyShopUpgradePet(petIdx, pct) { return skillEngine.applyShopUpgradePet(this, petIdx, pct) }
+  _applyShopCdReduce(petIdx) { return skillEngine.applyShopCdReduce(this, petIdx) }
   _applyRestOption(opt) { skillEngine.applyRestOption(this, opt) }
   _applyAdventure(adv) { skillEngine.applyAdventure(this, adv) }
   // 统一添加护盾（自动应用法宝shieldBoost加成）
