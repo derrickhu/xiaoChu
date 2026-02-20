@@ -7,8 +7,17 @@ const MusicMgr = require('../runtime/music')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
-const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet } = require('../data/pets')
+const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
+
+// 辅助：tryMergePet 后检查是否升到满星，记录图鉴
+function _mergePetAndDex(g, allPets, newPet) {
+  const result = tryMergePet(allPets, newPet)
+  if (result.merged && result.target && (result.target.star || 1) >= MAX_STAR) {
+    g.storage.addPetDex(result.target.id)
+  }
+  return result
+}
 
 // ===== 宠物技能 =====
 // 辅助：从棋盘随机挑选N颗非目标属性的珠子
@@ -404,7 +413,7 @@ function applyReward(g, rw) {
     case REWARD_TYPES.NEW_PET: {
       const newPet = { ...rw.data, star: rw.data.star || 1, currentCd: 0 }
       const allPets = [...g.pets, ...g.petBag]
-      const mergeResult = tryMergePet(allPets, newPet)
+      const mergeResult = _mergePetAndDex(g, allPets, newPet)
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
       }
@@ -487,7 +496,7 @@ function applyShopItem(g, item) {
       // 这里是 fallback（如果直接调用则随机属性）
       const newPet = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }
       const allPets = [...g.pets, ...g.petBag]
-      const mergeResult = tryMergePet(allPets, newPet)
+      const mergeResult = _mergePetAndDex(g, allPets, newPet)
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
       }
@@ -556,7 +565,7 @@ function applyShopPetByAttr(g, attr) {
   const picked = attrPool[Math.floor(Math.random() * attrPool.length)]
   const newPet = { ...picked, currentCd: 0 }
   const allPets = [...g.pets, ...g.petBag]
-  const mergeResult = tryMergePet(allPets, newPet)
+  const mergeResult = _mergePetAndDex(g, allPets, newPet)
   if (!mergeResult.merged) {
     g.petBag.push(newPet)
   }
@@ -568,6 +577,7 @@ function applyShopStarUp(g, petIdx) {
   if (!p) return false
   if ((p.star || 1) >= 3) return false
   p.star = (p.star || 1) + 1
+  if (p.star >= MAX_STAR) g.storage.addPetDex(p.id)
   return true
 }
 
@@ -614,7 +624,7 @@ function applyAdventure(g, adv) {
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
-    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = tryMergePet(allP, p); if (!mr.merged) { g.petBag.push(p) } break }
+    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p) } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; break

@@ -54,14 +54,14 @@ const BASE_EVENT_WEIGHTS = {
 const MAX_FLOOR = 30
 
 // ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
-// 调优：前期HP大幅提升（保证3-5回合体验），中后期同步上调，ATK略微上调
+// 调优：ATK全面上调，确保每回合对英雄造成可感知的威胁（8%~15%血量）
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:200,  hpMax:360,   atkMin:3,   atkMax:6   },
-  { minFloor:6,   maxFloor:10,  hpMin:380,  hpMax:650,   atkMin:6,   atkMax:12  },
-  { minFloor:11,  maxFloor:15,  hpMin:680,  hpMax:1100,  atkMin:10,  atkMax:18  },
-  { minFloor:16,  maxFloor:20,  hpMin:1100, hpMax:1700,  atkMin:16,  atkMax:26  },
-  { minFloor:21,  maxFloor:25,  hpMin:1600, hpMax:2400,  atkMin:24,  atkMax:36  },
-  { minFloor:26,  maxFloor:30,  hpMin:2200, hpMax:3000,  atkMin:32,  atkMax:44  },
+  { minFloor:1,   maxFloor:5,   hpMin:200,  hpMax:360,   atkMin:8,   atkMax:14  },
+  { minFloor:6,   maxFloor:10,  hpMin:380,  hpMax:650,   atkMin:14,  atkMax:22  },
+  { minFloor:11,  maxFloor:15,  hpMin:680,  hpMax:1100,  atkMin:20,  atkMax:32  },
+  { minFloor:16,  maxFloor:20,  hpMin:1100, hpMax:1700,  atkMin:30,  atkMax:46  },
+  { minFloor:21,  maxFloor:25,  hpMin:1600, hpMax:2400,  atkMin:40,  atkMax:58  },
+  { minFloor:26,  maxFloor:30,  hpMin:2200, hpMax:3000,  atkMin:50,  atkMax:68  },
 ]
 
 // 普通怪物名池（按属性）
@@ -348,12 +348,19 @@ function generateMonster(floor) {
   nameIdx = fresh.length > 0 ? _pick(fresh) : _pick(candidates)
   const name = names[nameIdx]
 
-  // 技能：1-8层无技能，9层起逐步加技能（30层制）
+  // 技能：前5层1个轻量技能，6-8层1个基础技能，9层起逐步加技能（30层制）
   const skills = []
-  const skillPool1 = ['poison','seal','convert']
-  const skillPool2 = ['atkBuff','defDown','healBlock']
-  if (floor >= 9) skills.push(_pick(skillPool1))
-  if (floor >= 18) skills.push(_pick(skillPool2))
+  const skillPoolLight = ['convert','aoe']              // 前期轻量技能（转珠/小范围伤害）
+  const skillPool1 = ['poison','seal','convert']        // 控制/干扰类
+  const skillPool2 = ['atkBuff','defDown','healBlock']  // 增强/削弱类
+  if (floor <= 5) {
+    skills.push(_pick(skillPoolLight))                  // 1-5层: 1个轻量技能
+  } else if (floor <= 8) {
+    skills.push(_pick(skillPool1))                      // 6-8层: 1个Pool1技能
+  } else {
+    skills.push(_pick(skillPool1))                      // 9层起: 1个Pool1技能
+    if (floor >= 18) skills.push(_pick(skillPool2))     // 18层起: 再加1个Pool2技能
+  }
   // 25层以上有小概率带第3个技能
   if (floor >= 25 && Math.random() < 0.3) {
     const allSkills = [...skillPool1, ...skillPool2, 'breakBead']
