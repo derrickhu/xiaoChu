@@ -367,8 +367,8 @@ function rBattle(g) {
   drawTeamBar(g, teamBarY, teamBarH, iconSize)
   // 英雄血条
   R.drawHp(padX, hpBarY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', g._heroHpLoss, true, '#4dcc4d', g.heroShield, g._heroHpGain, g.af)
-  // 怒气进度条（右侧竖条）
-  _drawRageBar(g, teamBarY, eAreaBottom)
+  // 怒气进度条（右侧竖条，怪物区内）
+  _drawRageBar(g, eAreaTop, eAreaBottom)
   // 棋盘
   drawBoard(g)
   // 消除飘字
@@ -717,32 +717,102 @@ function _drawSkillPreviewPopup(g) {
   ctx.restore()
 }
 
-// ===== 怒气进度条（画面最右侧竖条） =====
-function _drawRageBar(g, teamBarY, eAreaBottom) {
+// ===== 怒气进度条（右侧精致短竖条） =====
+function _drawRageBar(g, eAreaTop, eAreaBottom) {
   const { ctx, R, W, H, S } = V
   const rage = g.rage || 0
   const maxRage = 100
   const pct = Math.min(1, rage / maxRage)
   const ready = !!g._rageReady
 
-  // 尺寸与位置：右侧贴边，从队伍栏上方到怪物区下方
-  const barW = 6 * S          // 窄条宽度
-  const barPad = 4 * S        // 距右边距
+  // 尺寸：短条，居中放在怪物区右侧中段
+  const barW = 7 * S
+  const barH = 80 * S                   // 固定短高度
+  const barPad = 8 * S
   const barX = W - barW - barPad
-  const barTopY = eAreaBottom + 4 * S  // 怪物区下方
-  const barBotY = teamBarY - 4 * S     // 队伍栏上方
-  const barH = barBotY - barTopY
+  const midY = (eAreaTop + eAreaBottom) / 2
+  const barTopY = midY - barH / 2
+  const barBotY = midY + barH / 2
   if (barH <= 0) return
 
   ctx.save()
 
-  // 底槽（暗色圆角条）
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'
+  // ---- 顶部圆形图标（替代"怒"字，用火焰符号风格化） ----
+  const iconR = 10 * S
+  const iconCX = barX + barW / 2
+  const iconCY = barTopY - iconR - 3 * S
+  // 图标底圆
+  const iconBgAlpha = ready ? 0.9 : (pct > 0 ? 0.6 : 0.3)
+  ctx.globalAlpha = iconBgAlpha
+  const iconGrd = ctx.createRadialGradient(iconCX, iconCY, 0, iconCX, iconCY, iconR)
+  if (ready) {
+    iconGrd.addColorStop(0, '#ff4040')
+    iconGrd.addColorStop(1, '#8B1A1A')
+  } else if (pct > 0) {
+    iconGrd.addColorStop(0, '#cc3520')
+    iconGrd.addColorStop(1, '#4a1008')
+  } else {
+    iconGrd.addColorStop(0, 'rgba(80,40,30,0.8)')
+    iconGrd.addColorStop(1, 'rgba(30,15,10,0.6)')
+  }
+  ctx.fillStyle = iconGrd
+  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 1
+  // 图标边框
+  ctx.strokeStyle = ready ? 'rgba(255,80,60,0.8)' : 'rgba(255,255,255,0.15)'
+  ctx.lineWidth = 1 * S
+  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR, 0, Math.PI * 2); ctx.stroke()
+  // 满怒气图标发光
+  if (ready) {
+    ctx.save()
+    const glowA = 0.4 + 0.4 * Math.sin(g.af * 0.12)
+    ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10 * S
+    ctx.globalAlpha = glowA
+    ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2 * S
+    ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR + 1 * S, 0, Math.PI * 2); ctx.stroke()
+    ctx.restore()
+  }
+  // 图标内火焰符号 🔥 用绘制代替文字，画一个简笔火焰
+  ctx.save()
+  ctx.translate(iconCX, iconCY)
+  const fS = iconR * 0.55  // 火焰缩放
+  ctx.beginPath()
+  ctx.moveTo(0, -fS * 1.1)
+  ctx.bezierCurveTo(fS * 0.5, -fS * 0.5, fS * 0.7, fS * 0.2, fS * 0.35, fS * 0.8)
+  ctx.quadraticCurveTo(fS * 0.15, fS * 0.4, 0, fS * 0.1)
+  ctx.quadraticCurveTo(-fS * 0.15, fS * 0.4, -fS * 0.35, fS * 0.8)
+  ctx.bezierCurveTo(-fS * 0.7, fS * 0.2, -fS * 0.5, -fS * 0.5, 0, -fS * 1.1)
+  ctx.closePath()
+  const flameGrd = ctx.createLinearGradient(0, -fS, 0, fS * 0.8)
+  if (ready) {
+    flameGrd.addColorStop(0, '#ffdd44')
+    flameGrd.addColorStop(0.5, '#ff6030')
+    flameGrd.addColorStop(1, '#cc2010')
+  } else if (pct > 0) {
+    flameGrd.addColorStop(0, '#ff9966')
+    flameGrd.addColorStop(0.5, '#cc4422')
+    flameGrd.addColorStop(1, '#661510')
+  } else {
+    flameGrd.addColorStop(0, 'rgba(160,100,80,0.6)')
+    flameGrd.addColorStop(1, 'rgba(80,40,30,0.4)')
+  }
+  ctx.fillStyle = flameGrd; ctx.fill()
+  ctx.restore()
+
+  // ---- 底槽（暗色圆角条 + 精致边框） ----
+  // 外层阴影
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4 * S
+  ctx.fillStyle = 'rgba(10,5,5,0.6)'
   R.rr(barX, barTopY, barW, barH, barW / 2); ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 0.5 * S
+  ctx.restore()
+  // 内槽
+  ctx.fillStyle = 'rgba(20,10,8,0.7)'
+  R.rr(barX, barTopY, barW, barH, barW / 2); ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5 * S
   R.rr(barX, barTopY, barW, barH, barW / 2); ctx.stroke()
 
-  // 填充条（从底向上）
+  // ---- 填充条（从底向上） ----
   if (pct > 0) {
     const fillH = barH * pct
     const fillY = barTopY + barH - fillH
@@ -751,74 +821,55 @@ function _drawRageBar(g, teamBarY, eAreaBottom) {
     ctx.beginPath()
     R.rr(barX, barTopY, barW, barH, barW / 2); ctx.clip()
 
-    // 渐变色：低怒气暗红 → 中间橙色 → 满怒气亮红
+    // 渐变色
     const grd = ctx.createLinearGradient(0, barBotY, 0, barTopY)
-    grd.addColorStop(0, '#8B2500')    // 底部暗红
-    grd.addColorStop(0.4, '#ff4500')  // 中间橙红
-    grd.addColorStop(0.7, '#ff6347')  // 偏亮
-    grd.addColorStop(1.0, '#ff2020')  // 顶部亮红
-
+    grd.addColorStop(0, '#6B1800')
+    grd.addColorStop(0.3, '#cc3300')
+    grd.addColorStop(0.6, '#ff4500')
+    grd.addColorStop(0.85, '#ff6030')
+    grd.addColorStop(1.0, '#ffaa44')
     ctx.fillStyle = grd
     ctx.fillRect(barX, fillY, barW, fillH)
 
-    // 满怒气脉冲发光
+    // 满怒气脉冲
     if (ready) {
-      const pulseAlpha = 0.4 + 0.4 * Math.sin(g.af * 0.15)
+      const pulseAlpha = 0.35 + 0.35 * Math.sin(g.af * 0.15)
       ctx.globalAlpha = pulseAlpha
       ctx.fillStyle = '#ff4040'
       ctx.fillRect(barX, fillY, barW, fillH)
       ctx.globalAlpha = 1
     }
 
-    // 填充顶部小高光
+    // 高光
     if (fillH > 4 * S) {
-      const hlH = Math.min(6 * S, fillH * 0.25)
+      const hlH = Math.min(6 * S, fillH * 0.3)
       const hlGrd = ctx.createLinearGradient(0, fillY, 0, fillY + hlH)
-      hlGrd.addColorStop(0, 'rgba(255,255,255,0.5)')
+      hlGrd.addColorStop(0, 'rgba(255,255,255,0.45)')
       hlGrd.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = hlGrd
-      ctx.fillRect(barX, fillY, barW, hlH)
+      ctx.fillRect(barX + 1 * S, fillY, barW - 2 * S, hlH)
     }
 
     ctx.restore()
   }
 
-  // 满怒气外发光
+  // ---- 满怒气外发光 ----
   if (ready) {
     ctx.save()
-    const glowAlpha = 0.3 + 0.3 * Math.sin(g.af * 0.15)
-    ctx.shadowColor = '#ff2020'
-    ctx.shadowBlur = 8 * S
+    const glowAlpha = 0.25 + 0.25 * Math.sin(g.af * 0.15)
+    ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 6 * S
     ctx.globalAlpha = glowAlpha
-    ctx.strokeStyle = '#ff4040'
-    ctx.lineWidth = 1.5 * S
+    ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 1.5 * S
     R.rr(barX - 1 * S, barTopY - 1 * S, barW + 2 * S, barH + 2 * S, barW / 2 + 1 * S); ctx.stroke()
     ctx.restore()
   }
 
-  // 文字标签：在条的上方显示"怒"字
-  ctx.fillStyle = ready ? '#ff4040' : (pct > 0 ? 'rgba(255,200,180,0.7)' : 'rgba(255,255,255,0.25)')
-  ctx.font = `bold ${7 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-  if (ready) {
-    // 满时脉动
-    const txtPulse = 1 + 0.1 * Math.sin(g.af * 0.15)
-    ctx.save()
-    ctx.translate(barX + barW / 2, barTopY - 2 * S)
-    ctx.scale(txtPulse, txtPulse)
-    ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 6 * S
-    ctx.fillText('怒', 0, 0)
-    ctx.restore()
-  } else {
-    ctx.fillText('怒', barX + barW / 2, barTopY - 2 * S)
-  }
-
-  // 百分比数字：在条的下方
+  // ---- 底部百分比数字 ----
   if (rage > 0) {
-    ctx.fillStyle = ready ? '#ffd700' : 'rgba(255,255,255,0.45)'
+    ctx.fillStyle = ready ? '#ffd700' : 'rgba(255,200,180,0.5)'
     ctx.font = `bold ${6 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillText(`${Math.round(rage)}`, barX + barW / 2, barBotY + 2 * S)
+    ctx.fillText(`${Math.round(rage)}`, barX + barW / 2, barBotY + 3 * S)
   }
 
   ctx.restore()
@@ -1473,8 +1524,29 @@ function drawBoard(g) {
       }
       ctx.globalAlpha = 1
       if (cell.sealed) {
-        ctx.strokeStyle = 'rgba(180,0,0,0.7)'; ctx.lineWidth = 2*S
-        ctx.strokeRect(x+3*S, y+3*S, cs-6*S, cs-6*S)
+        const cx = x + cs*0.5, cy = y + cs*0.5, hr = cs*0.42
+        const sealPulse = 0.7 + 0.3 * Math.sin(g.af * 0.1 + r * 1.3 + c * 0.7)
+        ctx.save()
+        // 暗色遮罩（灵珠变暗表示被封）
+        ctx.fillStyle = 'rgba(20,0,0,0.45)'
+        ctx.beginPath(); ctx.arc(cx, cy, hr, 0, Math.PI*2); ctx.fill()
+        // 锁链纹理：画十字交叉锁链
+        ctx.strokeStyle = `rgba(160,80,40,${sealPulse * 0.85})`; ctx.lineWidth = 2.5*S; ctx.lineCap = 'round'
+        // 横链
+        ctx.beginPath(); ctx.moveTo(x+5*S, cy-2*S); ctx.lineTo(x+cs-5*S, cy-2*S); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(x+5*S, cy+2*S); ctx.lineTo(x+cs-5*S, cy+2*S); ctx.stroke()
+        // 竖链
+        ctx.beginPath(); ctx.moveTo(cx-2*S, y+5*S); ctx.lineTo(cx-2*S, y+cs-5*S); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(cx+2*S, y+5*S); ctx.lineTo(cx+2*S, y+cs-5*S); ctx.stroke()
+        // 中心锁扣（小圆环）
+        ctx.strokeStyle = `rgba(200,120,40,${sealPulse * 0.9})`; ctx.lineWidth = 2*S
+        ctx.beginPath(); ctx.arc(cx, cy, 5*S, 0, Math.PI*2); ctx.stroke()
+        ctx.fillStyle = `rgba(80,30,10,${sealPulse * 0.8})`
+        ctx.beginPath(); ctx.arc(cx, cy, 3.5*S, 0, Math.PI*2); ctx.fill()
+        // 外圈暗红光环脉冲
+        ctx.strokeStyle = `rgba(180,40,20,${sealPulse * 0.35})`; ctx.lineWidth = 1.5*S
+        ctx.beginPath(); ctx.arc(cx, cy, hr + 1*S, 0, Math.PI*2); ctx.stroke()
+        ctx.restore()
       }
     }
   }

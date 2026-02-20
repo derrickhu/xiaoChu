@@ -384,6 +384,16 @@ function triggerPetSkill(g, pet, idx) {
       if (cells.length) {
         g._beadConvertAnim = { cells, timer: 0, phase: 'charge', duration: 24 }
       }
+      // 附带增伤buff
+      if (sk.dmgBoost) g.heroBuffs.push({ type:'dmgBoost', attr:to, pct:Math.round(sk.dmgBoost * sMul), dur:1, bad:false, name:sk.name })
+      // 附带全队攻击提升
+      if (sk.atkBoost) g.heroBuffs.push({ type:'allAtkUp', pct:Math.round(sk.atkBoost * sMul), dur:2, bad:false, name:sk.name })
+      // 附带全队防御提升
+      if (sk.defBoost) g.heroBuffs.push({ type:'allDefUp', pct:Math.round(sk.defBoost * sMul), dur:2, bad:false, name:sk.name })
+      // 附带回血
+      if (sk.regen) g.heroBuffs.push({ type:'regen', name:sk.name, heal:Math.round(sk.regen * sMul), dur:sk.regenDur||2, bad:false })
+      // 附带珠子概率大增
+      if (sk.beadBoost) g.goodBeadsNextTurn = true
       break
     }
     case 'teamAttack': {
