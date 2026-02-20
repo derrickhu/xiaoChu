@@ -6,6 +6,7 @@ const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
 const { generateRewards } = require('../data/tower')
 const { hasSameIdOnTeam } = require('../data/pets')
+const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
@@ -31,8 +32,29 @@ function tTitle(g, type, x, y) {
   if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) { g._openRanking(); return }
 }
 
+let _prepScrolling = false
+let _prepScrollMoved = false
+
 function tPrepare(g, type, x, y) {
-  if (type !== 'end') return
+  if (type === 'start') {
+    _prepScrollMoved = false
+    _prepScrolling = prepBagScrollStart(g, y)
+    return
+  }
+  if (type === 'move') {
+    if (_prepScrolling) {
+      prepBagScrollMove(y)
+      _prepScrollMoved = true
+    }
+    return
+  }
+  // type === 'end'
+  if (_prepScrolling) {
+    prepBagScrollEnd()
+    _prepScrolling = false
+    if (_prepScrollMoved) return // 滚动手势，不触发点击
+  }
+
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g.scene = 'event'; return }
   if (g.prepareTip) { g.prepareTip = null; return }
   if (g._prepPetTabRect && g._hitRect(x,y,...g._prepPetTabRect)) { g.prepareTab = 'pets'; g.prepareSelBagIdx = -1; g.prepareSelSlotIdx = -1; g.prepareTip = null; return }

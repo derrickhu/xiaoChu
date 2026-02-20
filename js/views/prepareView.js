@@ -4,7 +4,18 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
-const { getPetStarAtk, MAX_STAR } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetAvatarPath } = require('../data/pets')
+
+// 背包滚动状态
+let _petBagScrollY = 0
+let _wpnBagScrollY = 0
+let _petBagContentH = 0
+let _petBagViewH = 0
+let _wpnBagContentH = 0
+let _wpnBagViewH = 0
+let _scrollTouchStartY = 0
+let _scrollStartVal = 0
+let _scrollingTab = '' // 'pets' | 'weapon'
 
 function rPrepare(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
@@ -83,7 +94,7 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = grd
       ctx.fillRect(sx, slotY, iconSz, iconSz)
       ctx.restore()
-      const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+      const petAvatar = R.getImg(getPetAvatarPath(p))
       if (petAvatar && petAvatar.width > 0) {
         const aw = petAvatar.width, ah = petAvatar.height
         const drawW = iconSz - 2, drawH = drawW * (ah / aw)
@@ -101,16 +112,16 @@ function _drawPetTab(g, padX, contentY) {
       if (pf && pf.width > 0) {
         ctx.drawImage(pf, sx-fOff, slotY-fOff, frameSz, frameSz)
       }
-      // 星级标记
+      // 星级标记（左下角）
       if ((p.star || 1) > 1) {
         const starText = '★'.repeat(p.star || 1)
         ctx.save()
-        ctx.font = `bold ${iconSz * 0.18}px sans-serif`
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.font = `bold ${iconSz * 0.14}px sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
         ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-        ctx.strokeText(starText, sx + 2*S, slotY + 2*S)
+        ctx.strokeText(starText, sx + 2*S, slotY + iconSz - 2*S)
         ctx.fillStyle = '#ffd700'
-        ctx.fillText(starText, sx + 2*S, slotY + 2*S)
+        ctx.fillText(starText, sx + 2*S, slotY + iconSz - 2*S)
         ctx.textBaseline = 'alphabetic'
         ctx.restore()
       }
@@ -138,7 +149,7 @@ function _drawPetTab(g, padX, contentY) {
   // 背包宠物
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
   const bagLabelY = slotY + slotH + 30*S
-  ctx.fillText(`灵兽背包（${g.petBag.length}/8）：`, padX, bagLabelY)
+  ctx.fillText(`灵兽背包（${g.petBag.length}只）：`, padX, bagLabelY)
   const bagY = bagLabelY + 16*S
   const bagGap = 4*S
   const bagIcon = Math.floor((W - padX*2 - bagGap*3) / 4)
@@ -146,6 +157,29 @@ function _drawPetTab(g, padX, contentY) {
   const bagW = bagIcon, bagH = bagIcon + bagTextH
   const bFrameSz = bagIcon * frameScale
   const bfOff = (bFrameSz - bagIcon) / 2
+
+  // 计算背包区域可视高度和内容高度
+  const bagBottomLimit = H - 60*S - 18*S - 12*S - 58*S // HP条+出发按钮上方
+  const bagViewH = bagBottomLimit - bagY
+  const bagRows = Math.ceil(Math.max(g.petBag.length, 1) / 4)
+  const bagContentH = bagRows * (bagH + bagGap)
+  _petBagContentH = bagContentH
+  _petBagViewH = bagViewH
+  // 存储背包区域信息供触摸处理使用
+  g._prepBagScrollArea = [0, bagY, W, bagViewH]
+
+  // 约束滚动范围
+  const maxScroll = Math.max(0, bagContentH - bagViewH)
+  if (_petBagScrollY < 0) _petBagScrollY = 0
+  if (_petBagScrollY > maxScroll) _petBagScrollY = maxScroll
+
+  // 裁剪+滚动
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, bagY, W, bagViewH)
+  ctx.clip()
+  ctx.translate(0, -_petBagScrollY)
+
   g._prepBagRects = []
   for (let i = 0; i < Math.max(g.petBag.length, 1); i++) {
     const bx = padX + (i%4)*(bagIcon+bagGap), by = bagY + Math.floor(i/4)*(bagH+bagGap)
@@ -163,7 +197,7 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = bgrd
       ctx.fillRect(bx, by, bagIcon, bagIcon)
       ctx.restore()
-      const bpAvatar = R.getImg(`assets/pets/pet_${bp.id}.png`)
+      const bpAvatar = R.getImg(getPetAvatarPath(bp))
       if (bpAvatar && bpAvatar.width > 0) {
         const baw = bpAvatar.width, bah = bpAvatar.height
         const bdW = bagIcon - 2, bdH = bdW * (bah / baw)
@@ -181,16 +215,16 @@ function _drawPetTab(g, padX, contentY) {
       if (bf && bf.width > 0) {
         ctx.drawImage(bf, bx-bfOff, by-bfOff, bFrameSz, bFrameSz)
       }
-      // 星级标记
+      // 星级标记（左下角）
       if ((bp.star || 1) > 1) {
         const bStarText = '★'.repeat(bp.star || 1)
         ctx.save()
-        ctx.font = `bold ${bagIcon * 0.18}px sans-serif`
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+        ctx.font = `bold ${bagIcon * 0.14}px sans-serif`
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
         ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-        ctx.strokeText(bStarText, bx + 2*S, by + 2*S)
+        ctx.strokeText(bStarText, bx + 2*S, by + bagIcon - 2*S)
         ctx.fillStyle = '#ffd700'
-        ctx.fillText(bStarText, bx + 2*S, by + 2*S)
+        ctx.fillText(bStarText, bx + 2*S, by + bagIcon - 2*S)
         ctx.textBaseline = 'alphabetic'
         ctx.restore()
       }
@@ -216,16 +250,29 @@ function _drawPetTab(g, padX, contentY) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText('空', bcx, bcy)
     }
-    g._prepBagRects.push([bx, by, bagW, bagH])
+    // 存储实际屏幕坐标（减去滚动偏移后的位置用于点击检测）
+    g._prepBagRects.push([bx, by - _petBagScrollY, bagW, bagH])
   }
-  // 交换按钮
+  // 交换按钮（在滚动区域内）
   if (g.prepareSelSlotIdx >= 0 && g.prepareSelBagIdx >= 0 && g.petBag[g.prepareSelBagIdx]) {
-    const swapBtnY = bagY + (Math.ceil(Math.max(g.petBag.length,1)/4))*(bagH+bagGap) + 8*S
+    const swapBtnY = bagY + bagRows*(bagH+bagGap) + 8*S
     const swapBtnX = W*0.25, swapBtnW = W*0.5, swapBtnH = 38*S
     R.drawBtn(swapBtnX, swapBtnY, swapBtnW, swapBtnH, '交换上场', TH.accent, 14)
-    g._prepSwapBtnRect = [swapBtnX, swapBtnY, swapBtnW, swapBtnH]
+    g._prepSwapBtnRect = [swapBtnX, swapBtnY - _petBagScrollY, swapBtnW, swapBtnH]
   } else {
     g._prepSwapBtnRect = null
+  }
+
+  ctx.restore() // 恢复裁剪
+
+  // 绘制滚动条
+  if (bagContentH > bagViewH) {
+    const scrollRatio = _petBagScrollY / maxScroll
+    const barH = Math.max(20*S, bagViewH * (bagViewH / bagContentH))
+    const barY = bagY + scrollRatio * (bagViewH - barH)
+    const barX = W - 6*S
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'
+    R.rr(barX, barY, 4*S, barH, 2*S); ctx.fill()
   }
 }
 
@@ -283,13 +330,33 @@ function _drawWeaponTab(g, padX, contentY) {
   // 法宝背包（网格布局，参照灵宠背包）
   const wBagLabelY = curWpnY + curIconSz + curTextH + 14*S
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
-  ctx.fillText(`背包法宝（${g.weaponBag.length}/4）：`, padX, wBagLabelY)
+  ctx.fillText(`背包法宝（${g.weaponBag.length}件）：`, padX, wBagLabelY)
   const wBagY = wBagLabelY + 16*S
   const bagGap = 4*S
   const bagIcon = Math.floor((W - padX*2 - bagGap*3) / 4)
   const bagTextH = 28*S
   const bFrameSz = bagIcon * frameScale
   const bfOff = (bFrameSz - bagIcon) / 2
+
+  // 计算法宝背包滚动
+  const wBagBottomLimit = H - 60*S - 18*S - 12*S - 58*S
+  const wBagViewH = wBagBottomLimit - wBagY
+  const wBagRows = Math.max(Math.ceil(g.weaponBag.length / 4), 1)
+  const wBagContentH = wBagRows * (bagIcon + bagTextH + bagGap)
+  _wpnBagContentH = wBagContentH
+  _wpnBagViewH = wBagViewH
+  g._prepWpnBagScrollArea = [0, wBagY, W, wBagViewH]
+
+  const wMaxScroll = Math.max(0, wBagContentH - wBagViewH)
+  if (_wpnBagScrollY < 0) _wpnBagScrollY = 0
+  if (_wpnBagScrollY > wMaxScroll) _wpnBagScrollY = wMaxScroll
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, wBagY, W, wBagViewH)
+  ctx.clip()
+  ctx.translate(0, -_wpnBagScrollY)
+
   g._prepWpnBagRects = []
   for (let i = 0; i < g.weaponBag.length; i++) {
     const bx = padX + (i%4)*(bagIcon+bagGap), by = wBagY + Math.floor(i/4)*(bagIcon+bagTextH+bagGap)
@@ -312,11 +379,23 @@ function _drawWeaponTab(g, padX, contentY) {
     ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
     ctx.fillText(wp.name.substring(0,5), bcx, by+bagIcon+3*S)
     ctx.textBaseline = 'alphabetic'
-    g._prepWpnBagRects.push([bx, by, bagIcon, bagIcon + bagTextH])
+    g._prepWpnBagRects.push([bx, by - _wpnBagScrollY, bagIcon, bagIcon + bagTextH])
   }
   if (g.weaponBag.length === 0) {
     ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('背包空空如也', W*0.5, wBagY + 20*S)
+  }
+
+  ctx.restore()
+
+  // 绘制法宝背包滚动条
+  if (wBagContentH > wBagViewH) {
+    const scrollRatio = _wpnBagScrollY / wMaxScroll
+    const barH = Math.max(20*S, wBagViewH * (wBagViewH / wBagContentH))
+    const barY = wBagY + scrollRatio * (wBagViewH - barH)
+    const barX = W - 6*S
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'
+    R.rr(barX, barY, 4*S, barH, 2*S); ctx.fill()
   }
 }
 
@@ -334,7 +413,7 @@ function drawPrepareTip(g) {
   if (tip.type === 'pet') {
     const ac = ATTR_COLOR[d.attr]
     const starText = '★'.repeat(d.star || 1) + ((d.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (d.star || 1)) : '')
-    lines.push({ text: d.name + '  ' + starText, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15 })
+    lines.push({ text: d.name, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15, starSuffix: starText })
     const tipStarAtk = getPetStarAtk(d)
     const tipAtkDisp = (d.star || 1) > 1 ? `ATK：${d.atk}→${tipStarAtk}` : `ATK：${d.atk}`
     lines.push({ text: `__ATTR_ORB__${d.attr}　　${tipAtkDisp}`, color: '#6B5B50', size: 11, attrOrb: d.attr })
@@ -387,6 +466,12 @@ function drawPrepareTip(g) {
       ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
     } else {
       ctx.fillText(l.text, tipX + padX, curY - 4*S)
+      if (l.starSuffix) {
+        const nameW = ctx.measureText(l.text).width
+        ctx.font = `bold ${11*S}px sans-serif`
+        ctx.fillStyle = '#ffd700'
+        ctx.fillText(l.starSuffix, tipX + padX + nameW + 6*S, curY - 4*S)
+      }
     }
   }
 
@@ -412,4 +497,47 @@ function wrapText(text, maxW, fontSize) {
   return result.length > 0 ? result : [text]
 }
 
-module.exports = { rPrepare, drawPrepareTip, wrapText }
+// 背包滚动触摸处理
+function prepBagScrollStart(g, y) {
+  const tab = g.prepareTab
+  if (tab === 'pets' && g._prepBagScrollArea) {
+    const [, sy, , sh] = g._prepBagScrollArea
+    if (y >= sy && y <= sy + sh) {
+      _scrollingTab = 'pets'
+      _scrollTouchStartY = y
+      _scrollStartVal = _petBagScrollY
+      return true
+    }
+  } else if (tab === 'weapon' && g._prepWpnBagScrollArea) {
+    const [, sy, , sh] = g._prepWpnBagScrollArea
+    if (y >= sy && y <= sy + sh) {
+      _scrollingTab = 'weapon'
+      _scrollTouchStartY = y
+      _scrollStartVal = _wpnBagScrollY
+      return true
+    }
+  }
+  return false
+}
+
+function prepBagScrollMove(y) {
+  const dy = _scrollTouchStartY - y
+  if (_scrollingTab === 'pets') {
+    const maxScroll = Math.max(0, _petBagContentH - _petBagViewH)
+    _petBagScrollY = Math.max(0, Math.min(maxScroll, _scrollStartVal + dy))
+  } else if (_scrollingTab === 'weapon') {
+    const maxScroll = Math.max(0, _wpnBagContentH - _wpnBagViewH)
+    _wpnBagScrollY = Math.max(0, Math.min(maxScroll, _scrollStartVal + dy))
+  }
+}
+
+function prepBagScrollEnd() {
+  _scrollingTab = ''
+}
+
+function resetPrepBagScroll() {
+  _petBagScrollY = 0
+  _wpnBagScrollY = 0
+}
+
+module.exports = { rPrepare, drawPrepareTip, wrapText, prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd, resetPrepBagScroll }

@@ -263,6 +263,14 @@ function generateStarterPets() {
   })
 }
 
+// 获取宠物头像路径：★3满星使用水墨国风JPG，其余使用原版PNG
+function getPetAvatarPath(pet) {
+  if ((pet.star || 1) >= MAX_STAR) {
+    return `assets/pets/pet_${pet.id}_s3.jpg`
+  }
+  return `assets/pets/pet_${pet.id}.png`
+}
+
 module.exports = {
   PETS,
   MAX_STAR,
@@ -276,4 +284,5 @@ module.exports = {
   randomPetByAttr,
   randomPet,
   generateStarterPets,
+  getPetAvatarPath,
 }

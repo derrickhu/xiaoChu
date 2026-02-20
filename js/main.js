@@ -92,8 +92,8 @@ class Main {
     this.floor = 0
     this.pets = []          // [{...petData, attr, currentCd}] — 上场5只
     this.weapon = null      // 当前装备法宝
-    this.petBag = []        // 宠物背包，最多8只
-    this.weaponBag = []     // 法宝背包，最多4件
+    this.petBag = []        // 宠物背包（无上限）
+    this.weaponBag = []     // 法宝背包（无上限）
     this.heroHp = 0; this.heroMaxHp = 60
     this.heroShield = 0
     this.heroBuffs = []; this.enemyBuffs = []
@@ -179,7 +179,10 @@ class Main {
     anim.updateAnimations(this)
     // victory 状态下懒生成奖励（仅生成一次）
     if (this.bState === 'victory' && !this.rewards) {
-      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill)
+      const ownedWpnIds = new Set()
+      if (this.weapon) ownedWpnIds.add(this.weapon.id)
+      if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
+      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds)
       this.selectedReward = -1
       this._rewardDetailShow = null
     }

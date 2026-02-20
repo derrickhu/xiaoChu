@@ -6,7 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
-const { getPetStarAtk, MAX_STAR } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetAvatarPath } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
 let _scrollY = 0          // 当前滚动偏移
@@ -263,6 +263,63 @@ function rEvent(g) {
   R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
   curY += hpBarH + 10*S
 
+  // ===== 全局增益buff横排显示 =====
+  if (g.runBuffLog && g.runBuffLog.length > 0) {
+    const BUFF_LABELS = {
+      allAtkPct:'攻', allDmgPct:'伤', heartBoostPct:'回', weaponBoostPct:'武',
+      extraTimeSec:'时', hpMaxPct:'血', comboDmgPct:'连', elim3DmgPct:'3消',
+      elim4DmgPct:'4消', elim5DmgPct:'5消', counterDmgPct:'克', skillDmgPct:'技',
+      skillCdReducePct:'CD', regenPerTurn:'生', dmgReducePct:'防', bonusCombo:'C+',
+      stunDurBonus:'晕', enemyAtkReducePct:'弱攻', enemyHpReducePct:'弱血',
+      enemyDefReducePct:'弱防', eliteAtkReducePct:'E攻', eliteHpReducePct:'E血',
+      bossAtkReducePct:'B攻', bossHpReducePct:'B血',
+      nextDmgReducePct:'减伤', postBattleHealPct:'战回', extraRevive:'复活',
+    }
+    const DEBUFF_KEYS = ['enemyAtkReducePct','enemyHpReducePct','enemyDefReducePct',
+      'eliteAtkReducePct','eliteHpReducePct','bossAtkReducePct','bossHpReducePct']
+    const merged = {}
+    for (const entry of g.runBuffLog) {
+      const k = entry.buff
+      if (!merged[k]) merged[k] = { buff: k, val: 0, label: BUFF_LABELS[k] || k }
+      merged[k].val += entry.val
+    }
+    const buffItems = Object.values(merged)
+    if (buffItems.length > 0) {
+      const iconSz = 22*S
+      const gap = 4*S
+      const maxPerRow = Math.floor((W - padX*2 + gap) / (iconSz + gap))
+      const rows = Math.ceil(buffItems.length / maxPerRow)
+      const totalW = Math.min(buffItems.length, maxPerRow) * (iconSz + gap) - gap
+      const startX = (W - totalW) / 2
+      for (let i = 0; i < buffItems.length; i++) {
+        const row = Math.floor(i / maxPerRow)
+        const col = i % maxPerRow
+        const itemsInRow = (row < rows - 1) ? maxPerRow : buffItems.length - row * maxPerRow
+        const rowW = itemsInRow * (iconSz + gap) - gap
+        const rowStartX = (W - rowW) / 2
+        const ix = rowStartX + col * (iconSz + gap)
+        const iy = curY + row * (iconSz + gap)
+        const it = buffItems[i]
+        const isDebuff = DEBUFF_KEYS.includes(it.buff)
+        ctx.fillStyle = isDebuff ? 'rgba(180,60,60,0.7)' : 'rgba(30,100,60,0.7)'
+        R.rr(ix, iy, iconSz, iconSz, 4*S); ctx.fill()
+        ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
+        ctx.lineWidth = 1*S
+        R.rr(ix, iy, iconSz, iconSz, 4*S); ctx.stroke()
+        ctx.fillStyle = '#fff'; ctx.font = `bold ${7*S}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(it.label, ix + iconSz/2, iy + iconSz*0.36)
+        const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
+                       it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
+                       `${it.val > 0 ? '+' : ''}${it.val}%`
+        ctx.fillStyle = '#ffd700'; ctx.font = `${5.5*S}px sans-serif`; ctx.textAlign = 'center'
+        ctx.textBaseline = 'alphabetic'
+        ctx.fillText(valTxt, ix + iconSz/2, iy + iconSz*0.8)
+      }
+      curY += rows * (iconSz + gap) + 4*S
+    }
+  }
+
   // ===== 当前队伍：法宝 + 灵宠（一行，参考战斗界面 drawTeamBar 布局） =====
   const drag = g._eventDragPet
   const teamSlots = 6
@@ -339,7 +396,7 @@ function rEvent(g) {
         const ac2 = ATTR_COLOR[p.attr]
         ctx.fillStyle = ac2 ? ac2.bg : '#1a1a2e'
         ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
-        const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+        const petAvatar = R.getImg(getPetAvatarPath(p))
         if (petAvatar && petAvatar.width > 0) {
           const aw = petAvatar.width, ah = petAvatar.height
           const drawW = teamIconSize - 2, drawH = drawW * (ah / aw)
@@ -352,16 +409,16 @@ function rEvent(g) {
         if (petFrame && petFrame.width > 0) {
           ctx.drawImage(petFrame, ix - frameOff, teamIconY - frameOff, frameSize, frameSize)
         }
-        // 星级标记
+        // 星级标记（左下角）
         if ((p.star || 1) > 1) {
           const starText = '★'.repeat(p.star || 1)
           ctx.save()
-          ctx.font = `bold ${teamIconSize * 0.18}px sans-serif`
-          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.font = `bold ${teamIconSize * 0.14}px sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
           ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-          ctx.strokeText(starText, ix + 2*S, teamIconY + 2*S)
+          ctx.strokeText(starText, ix + 2*S, teamIconY + teamIconSize - 2*S)
           ctx.fillStyle = '#ffd700'
-          ctx.fillText(starText, ix + 2*S, teamIconY + 2*S)
+          ctx.fillText(starText, ix + 2*S, teamIconY + teamIconSize - 2*S)
           ctx.textBaseline = 'alphabetic'
           ctx.restore()
         }
@@ -615,7 +672,7 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
   ctx.fillRect(px, py, size, size)
   ctx.restore()
 
-  const petAvatar = R.getImg(`assets/pets/pet_${pet.id}.png`)
+  const petAvatar = R.getImg(getPetAvatarPath(pet))
   if (petAvatar && petAvatar.width > 0) {
     const aw = petAvatar.width, ah = petAvatar.height
     const drawW = size - 2, drawH = drawW * (ah / aw)
@@ -636,16 +693,16 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
     ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
   }
 
-  // 星级标记
+  // 星级标记（左下角）
   if ((pet.star || 1) > 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
-    ctx.font = `bold ${size * 0.18}px sans-serif`
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.font = `bold ${size * 0.14}px sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-    ctx.strokeText(starText, px + 2*S, py + 2*S)
+    ctx.strokeText(starText, px + 2*S, py + size - 2*S)
     ctx.fillStyle = '#ffd700'
-    ctx.fillText(starText, px + 2*S, py + 2*S)
+    ctx.fillText(starText, px + 2*S, py + size - 2*S)
     ctx.textBaseline = 'alphabetic'
     ctx.restore()
   }
@@ -673,7 +730,7 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   ctx.fillRect(px, py, size, size)
   ctx.restore()
 
-  const petAvatar = R.getImg(`assets/pets/pet_${pet.id}.png`)
+  const petAvatar = R.getImg(getPetAvatarPath(pet))
   if (petAvatar && petAvatar.width > 0) {
     const aw = petAvatar.width, ah = petAvatar.height
     const drawW = size - 2, drawH = drawW * (ah / aw)
@@ -694,16 +751,16 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
     ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
   }
 
-  // 星级标记
+  // 星级标记（左下角）
   if ((pet.star || 1) > 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
-    ctx.font = `bold ${size * 0.18}px sans-serif`
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.font = `bold ${size * 0.14}px sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-    ctx.strokeText(starText, px + 2*S, py + 2*S)
+    ctx.strokeText(starText, px + 2*S, py + size - 2*S)
     ctx.fillStyle = '#ffd700'
-    ctx.fillText(starText, px + 2*S, py + 2*S)
+    ctx.fillText(starText, px + 2*S, py + size - 2*S)
     ctx.textBaseline = 'alphabetic'
     ctx.restore()
   }
@@ -745,7 +802,7 @@ function drawEventPetDetail(g) {
   const avX = cardX + 24*S, avY = cardY + 24*S
   ctx.fillStyle = ac ? ac.bg : '#E8E0D8'
   R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
-  const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+  const petAvatar = R.getImg(getPetAvatarPath(p))
   if (petAvatar && petAvatar.width > 0) {
     ctx.save()
     ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()

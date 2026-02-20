@@ -89,8 +89,12 @@ function getWeaponById(id) {
   return WEAPONS.find(w => w.id === id) || null
 }
 
-// 随机获取一件法宝
-function randomWeapon() {
+// 随机获取一件法宝（可传入排除ID集合）
+function randomWeapon(excludeIds) {
+  if (excludeIds && excludeIds.size > 0) {
+    const pool = WEAPONS.filter(w => !excludeIds.has(w.id))
+    if (pool.length > 0) return { ...pool[Math.floor(Math.random() * pool.length)] }
+  }
   return { ...WEAPONS[Math.floor(Math.random() * WEAPONS.length)] }
 }
 

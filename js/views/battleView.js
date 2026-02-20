@@ -3,7 +3,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES } = require('../data/tower')
-const { getPetStarAtk } = require('../data/pets')
+const { getPetStarAtk, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
@@ -347,8 +347,8 @@ function rBattle(g) {
 
   // 己方buffs
   drawBuffIconsLabeled(g.heroBuffs, W*0.3, teamBarY - 16*S, '己方', false)
-  // 左侧全局增益图标列
-  drawRunBuffIcons(g, eAreaTop + 42*S, eAreaBottom - 54*S)
+  // 左侧全局增益图标列（已移至战斗准备页面显示）
+  // drawRunBuffIcons(g, eAreaTop + 42*S, eAreaBottom - 54*S)
 
   // 退出按钮
   ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -1607,7 +1607,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
         ctx.fillStyle = grd
         ctx.fillRect(ix, iconY, iconSize, iconSize)
         ctx.restore()
-        const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+        const petAvatar = R.getImg(getPetAvatarPath(p))
         const hasPetImg = petAvatar && petAvatar.width > 0
         if (hasPetImg) {
           const aw = petAvatar.width, ah = petAvatar.height
@@ -1632,16 +1632,16 @@ function drawTeamBar(g, topY, barH, iconSize) {
         if (petFrame && petFrame.width > 0) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
-        // ★ 星级标记
+        // ★ 星级标记（左下角）
         if ((p.star || 1) > 1) {
           const starText = '★'.repeat(p.star || 1)
           ctx.save()
-          ctx.font = `bold ${iconSize * 0.18}px sans-serif`
-          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.font = `bold ${iconSize * 0.14}px sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
           ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-          ctx.strokeText(starText, ix + 2*S, iconY + 2*S)
+          ctx.strokeText(starText, ix + 2*S, iconY + iconSize - 2*S)
           ctx.fillStyle = '#ffd700'
-          ctx.fillText(starText, ix + 2*S, iconY + 2*S)
+          ctx.fillText(starText, ix + 2*S, iconY + iconSize - 2*S)
           ctx.textBaseline = 'alphabetic'
           ctx.restore()
         }
@@ -2192,7 +2192,7 @@ function drawVictoryOverlay(g) {
 
       ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
       R.rr(avX, avY, avSz, avSz, 4*S); ctx.fill()
-      const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+      const petAvatar = R.getImg(getPetAvatarPath(p))
       if (petAvatar && petAvatar.width > 0) {
         ctx.save(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 3*S); ctx.clip()
         const dw = avSz - 2, dh = dw * (petAvatar.height/petAvatar.width)
@@ -2213,8 +2213,19 @@ function drawVictoryOverlay(g) {
       ctx.fillText(p.name, infoX, midY - 2*S)
       const nameW = ctx.measureText(p.name).width
       R.drawBead(infoX + nameW + 5*S + 4*S, midY - 6*S, 4*S, p.attr, 0)
-      ctx.fillStyle = '#6B5B50'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`ATK ${p.atk}  ${p.skill ? p.skill.name : ''}`, infoX, midY + 10*S)
+      // 已拥有标注
+      const _allOwned = [...(g.pets || []), ...(g.petBag || [])]
+      const _ownedPet = _allOwned.find(op => op.id === p.id)
+      if (_ownedPet) {
+        const _os = _ownedPet.star || 1
+        const _sTxt = _os >= MAX_STAR ? `已拥有★${_os}（满星）` : `已拥有★${_os} 选择升星`
+        ctx.fillStyle = _os >= MAX_STAR ? '#C07000' : '#27864A'
+        ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText(_sTxt, infoX, midY + 10*S)
+      } else {
+        ctx.fillStyle = '#6B5B50'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`ATK ${p.atk}  ${p.skill ? p.skill.name : ''}`, infoX, midY + 10*S)
+      }
 
     } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
       const w = rw.data
