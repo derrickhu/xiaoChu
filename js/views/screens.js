@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetAvatarPath, MAX_STAR } = require('../data/pets')
+const { getPetAvatarPath, MAX_STAR, PETS } = require('../data/pets')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -125,8 +125,9 @@ function rTitle(g) {
   // 按钮宽度占屏幕60%，高度按 4:1 宽高比
   const btnW = W * 0.6, btnH = btnW / 4
   const btnX = (W - btnW) / 2
-  // 底部小按钮
-  const smallW = (W * 0.7 - 8 * S) / 2, smallH = smallW / 4, gap = 8 * S, smallX = W * 0.15
+  // 底部小按钮（3个）
+  const gap = 6 * S
+  const smallW = (W * 0.88 - gap * 2) / 3, smallH = smallW / 3.5, smallX = W * 0.06
 
   const hasSave = g.storage.hasSavedRun()
   if (hasSave) {
@@ -139,24 +140,28 @@ function rTitle(g) {
     const sby = H * 0.60
     _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 15, S)
     g._titleBtnRect = [btnX, sby, btnW, btnH]
-    // 底部两按钮
+    // 底部三按钮
     const rowY = H * 0.72
-    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '历史统计', 13, S)
-    g._statBtnRect = [smallX, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '排行榜', 13, S)
-    g._rankBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '图鉴', 13, S)
+    g._dexBtnRect = [smallX, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '统计', 13, S)
+    g._statBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + (smallW + gap)*2, rowY, smallW, smallH, '排行', 13, S)
+    g._rankBtnRect = [smallX + (smallW + gap)*2, rowY, smallW, smallH]
   } else {
     g._titleContinueRect = null
     // 开始挑战
     const sby = H * 0.55
     _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 18, S)
     g._titleBtnRect = [btnX, sby, btnW, btnH]
-    // 底部两按钮
+    // 底部三按钮
     const rowY = H * 0.67
-    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '历史统计', 13, S)
-    g._statBtnRect = [smallX, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '排行榜', 13, S)
-    g._rankBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '图鉴', 13, S)
+    g._dexBtnRect = [smallX, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '统计', 13, S)
+    g._statBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
+    _drawImgBtn(ctx, R, imgRank, smallX + (smallW + gap)*2, rowY, smallW, smallH, '排行', 13, S)
+    g._rankBtnRect = [smallX + (smallW + gap)*2, rowY, smallW, smallH]
   }
 
   if (g.showNewRunConfirm) drawNewRunConfirm(g)
@@ -967,8 +972,123 @@ function drawNewRunConfirm(g) {
   g._newRunConfirmRect = [btn2X, btnY, btnW, btnH]
 }
 
+// ===== Dex（灵兽图鉴） =====
+const DEX_ATTRS = ['metal','wood','water','fire','earth']
+const DEX_ATTR_LABEL = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土' }
+
+function rDex(g) {
+  const { ctx, R, TH, W, H, S, safeTop } = V
+  R.drawHomeBg(g.af)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
+
+  // 标题
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
+  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('灵兽图鉴', W*0.5, safeTop + 40*S)
+  ctx.restore()
+  // 分割线
+  const sdivW = W*0.22, sdivY = safeTop + 48*S
+  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); ctx.moveTo(W*0.5 - sdivW, sdivY); ctx.lineTo(W*0.5 + sdivW, sdivY); ctx.stroke()
+
+  // 收集进度
+  const dex = g.storage.petDex || []
+  const totalPets = DEX_ATTRS.reduce((sum, a) => sum + PETS[a].length, 0)
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText(`已收集：${dex.length} / ${totalPets}`, W*0.5, safeTop + 64*S)
+
+  // 滚动区域
+  const contentTop = safeTop + 78*S
+  const contentBottom = H - 8*S
+  const scrollY = g._dexScrollY || 0
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, contentTop, W, contentBottom - contentTop)
+  ctx.clip()
+
+  const padX = 12*S
+  const cols = 5
+  const cellGap = 4*S
+  const cellW = (W - padX*2 - (cols-1)*cellGap) / cols
+  const cellH = cellW + 18*S  // 头像+名字
+
+  let y = contentTop + scrollY
+  g._dexTotalH = 0  // 用于滚动限制
+
+  for (const attr of DEX_ATTRS) {
+    const pets = PETS[attr]
+    const ac = ATTR_COLOR[attr]
+    // 属性标题
+    ctx.fillStyle = ac.main; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillText(`${DEX_ATTR_LABEL[attr]}属性 (${pets.filter(p=>dex.includes(p.id)).length}/${pets.length})`, padX, y + 14*S)
+    y += 22*S
+
+    // 宠物网格
+    const rows = Math.ceil(pets.length / cols)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c
+        if (idx >= pets.length) break
+        const pet = pets[idx]
+        const cx = padX + c * (cellW + cellGap)
+        const cy = y + r * (cellH + cellGap)
+        const collected = dex.includes(pet.id)
+
+        // 卡片背景
+        ctx.fillStyle = collected ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.2)'
+        R.rr(cx, cy, cellW, cellH, 4*S); ctx.fill()
+
+        if (collected) {
+          // 显示3星头像
+          const fakePet = { id: pet.id, star: MAX_STAR }
+          const avatarPath = getPetAvatarPath(fakePet)
+          const img = R.getImg(avatarPath)
+          const imgPad = 3*S
+          const imgSz = cellW - imgPad*2
+          if (img && img.width > 0) {
+            ctx.save()
+            ctx.beginPath(); R.rr(cx+imgPad, cy+imgPad, imgSz, imgSz, 3*S); ctx.clip()
+            // 保持比例居中
+            const iR = img.width / img.height
+            let dw = imgSz, dh = imgSz
+            if (iR > 1) { dh = imgSz / iR } else { dw = imgSz * iR }
+            ctx.drawImage(img, cx+imgPad+(imgSz-dw)/2, cy+imgPad+(imgSz-dh)/2, dw, dh)
+            ctx.restore()
+          }
+          // 金色边框
+          ctx.strokeStyle = ac.main + '88'; ctx.lineWidth = 1*S
+          R.rr(cx, cy, cellW, cellH, 4*S); ctx.stroke()
+          // 名字
+          ctx.fillStyle = ac.lt; ctx.font = `${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+          const shortName = pet.name.length > 4 ? pet.name.substring(0,4) : pet.name
+          ctx.fillText(shortName, cx + cellW/2, cy + cellW - imgPad + 14*S)
+        } else {
+          // 问号
+          ctx.fillStyle = 'rgba(255,255,255,0.08)'
+          const qSz = cellW * 0.5
+          ctx.beginPath()
+          ctx.arc(cx + cellW/2, cy + cellW*0.4, qSz/2, 0, Math.PI*2); ctx.fill()
+          ctx.fillStyle = TH.dim; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+          ctx.fillText('?', cx + cellW/2, cy + cellW*0.4 + 6*S)
+          // 暗色名字
+          ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.font = `${8*S}px "PingFang SC",sans-serif`
+          ctx.fillText('???', cx + cellW/2, cy + cellW + 10*S)
+        }
+      }
+    }
+    y += rows * (cellH + cellGap) + 8*S
+  }
+
+  g._dexTotalH = y - scrollY - contentTop
+  ctx.restore()
+
+  drawBackBtn(g)
+}
+
 module.exports = {
   rLoading, rTitle, rGameover, rRanking, rStats,
   rReward, rShop, rRest, rAdventure,
-  drawBackBtn, drawNewRunConfirm,
+  drawBackBtn, drawNewRunConfirm, rDex,
 }

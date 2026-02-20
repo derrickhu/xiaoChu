@@ -30,6 +30,7 @@ function tTitle(g, type, x, y) {
   }
   if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { g.scene = 'stats'; return }
   if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) { g._openRanking(); return }
+  if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { g._dexScrollY = 0; g.scene = 'dex'; return }
 }
 
 let _prepScrolling = false
@@ -639,8 +640,29 @@ function tStats(g, type, x, y) {
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.scene = 'title'; return }
 }
 
+function tDex(g, type, x, y) {
+  if (type === 'start') {
+    g._dexTouchStartY = y
+    g._dexScrollStart = g._dexScrollY || 0
+    return
+  }
+  if (type === 'move') {
+    const dy = y - (g._dexTouchStartY || y)
+    const { H, S, safeTop } = V
+    const contentH = H - safeTop - 78*S - 8*S
+    const maxScroll = 0
+    const minScroll = -Math.max(0, (g._dexTotalH || 0) - contentH)
+    g._dexScrollY = Math.max(minScroll, Math.min(maxScroll, g._dexScrollStart + dy))
+    return
+  }
+  if (type !== 'end') return
+  const dy = Math.abs(y - (g._dexTouchStartY || y))
+  if (dy > 10 * V.S) return  // 滚动手势，不触发点击
+  if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.scene = 'title'; return }
+}
+
 module.exports = {
   tTitle, tPrepare, tEvent, tBattle,
   tReward, tShop, tRest, tAdventure, tGameover,
-  tRanking, tStats,
+  tRanking, tStats, tDex,
 }

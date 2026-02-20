@@ -303,9 +303,11 @@ class Render {
 
   // ===== HP条（立体槽+发光填充+掉血灰色残影+数值） =====
   // showNum: 是否在条上显示 hp/maxHp 数值; shield: 护盾值; hpGain: 加血动画
-  drawHp(x,y,w,h,hp,maxHp,color,hpLoss,showNum,numColor,shield,hpGain) {
+  // lowHpFlash: 传入动画帧号(af)时，血量<=20%会触发深红色闪动警告
+  drawHp(x,y,w,h,hp,maxHp,color,hpLoss,showNum,numColor,shield,hpGain,lowHpFlash) {
     const {ctx:c,S} = this
     const pct = Math.max(0,Math.min(1,hp/maxHp))
+    const isLowHp = pct > 0 && pct <= 0.2 && lowHpFlash !== undefined
     // 凹槽背景
     c.save()
     c.fillStyle='rgba(0,0,0,0.5)'; this.rr(x,y,w,h,h/2); c.fill()
@@ -366,7 +368,8 @@ class Render {
     }
 
     if (pct > 0) {
-      const barColor = color || (pct>0.5?TH.success:pct>0.2?TH.hard:TH.danger)
+      // 低血量(<=20%)时强制使用深红色
+      const barColor = isLowHp ? '#8b0000' : (color || (pct>0.5?TH.success:pct>0.2?TH.hard:TH.danger))
       const fg=c.createLinearGradient(x,y,x,y+h)
       fg.addColorStop(0,this._lighten(barColor,0.15)); fg.addColorStop(0.5,barColor); fg.addColorStop(1,this._darken(barColor))
       // 加血动画中：血条只画到旧血量(fromPct)，增量部分露出下面的亮绿色
@@ -379,6 +382,25 @@ class Render {
         const expandT = (hpGain.timer - 25) / 30
         const coverPct = hpGain.fromPct + (pct - hpGain.fromPct) * expandT
         c.fillStyle=fg; this.rr(x,y,w*coverPct,h,h/2); c.fill()
+      }
+      // 低血量闪动特效：快速明暗交替脉冲 + 红色发光
+      if (isLowHp) {
+        const af = lowHpFlash || 0
+        // 快速闪烁（频率较高，引起注意）
+        const flashAlpha = 0.25 + 0.35 * Math.abs(Math.sin(af * 0.18))
+        c.save(); c.globalAlpha = flashAlpha
+        c.fillStyle = '#ff1a1a'
+        this.rr(x, y, w*pct, h, h/2); c.fill()
+        c.restore()
+        // 外发光脉冲
+        c.save()
+        const glowAlpha = 0.3 + 0.35 * Math.sin(af * 0.18)
+        c.shadowColor = '#ff0000'; c.shadowBlur = 6*S
+        c.globalAlpha = glowAlpha
+        c.strokeStyle = '#ff2020'; c.lineWidth = 1.5*S
+        this.rr(x - 1*S, y - 1*S, w*pct + 2*S, h + 2*S, (h+2*S)/2); c.stroke()
+        c.shadowBlur = 0
+        c.restore()
       }
       // 顶部高光条
       c.save(); c.globalAlpha=0.35
@@ -400,8 +422,14 @@ class Render {
         c.restore()
       }
     }
-    // 槽边框
-    c.strokeStyle='rgba(0,0,0,0.3)'; c.lineWidth=1; this.rr(x,y,w,h,h/2); c.stroke()
+    // 槽边框（低血量时用暗红描边加强警示）
+    if (isLowHp) {
+      const borderAlpha = 0.4 + 0.3 * Math.abs(Math.sin((lowHpFlash || 0) * 0.18))
+      c.strokeStyle = `rgba(180,0,0,${borderAlpha})`; c.lineWidth = 1.5*S
+    } else {
+      c.strokeStyle='rgba(0,0,0,0.3)'; c.lineWidth=1
+    }
+    this.rr(x,y,w,h,h/2); c.stroke()
     // HP数值（条上居中）
     if (showNum) {
       const fontSize = Math.max(8*S, h * 0.7)
@@ -409,6 +437,8 @@ class Render {
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2*S
       const hpTxt = `${Math.round(hp)}/${Math.round(maxHp)}`
+      // 低血量时HP数值也闪红
+      const hpNumColor = isLowHp ? '#ff4444' : (numColor || '#fff')
       if (shield && shield > 0) {
         // HP数值 + 护盾数值（分颜色绘制）
         const shieldTxt = `+${Math.round(shield)}`
@@ -419,7 +449,7 @@ class Render {
         c.textAlign = 'left'
         // 绘制HP部分
         c.strokeText(hpTxt, startX, y + h/2)
-        c.fillStyle = numColor || '#fff'
+        c.fillStyle = hpNumColor
         c.fillText(hpTxt, startX, y + h/2)
         // 绘制护盾部分（青色）
         c.strokeText(shieldTxt, startX + hpW, y + h/2)
@@ -427,7 +457,7 @@ class Render {
         c.fillText(shieldTxt, startX + hpW, y + h/2)
       } else {
         c.strokeText(hpTxt, x + w/2, y + h/2)
-        c.fillStyle = numColor || '#fff'
+        c.fillStyle = hpNumColor
         c.fillText(hpTxt, x + w/2, y + h/2)
       }
     }

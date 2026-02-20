@@ -297,7 +297,7 @@ function rEvent(g) {
             ctx.drawImage(pf, px-fo, py2-fo, fs, fs)
           }
           // 星级
-          if ((p.star||1) > 1) {
+          if ((p.star||1) >= 1) {
             ctx.save()
             ctx.font = `bold ${petSlotSz*0.14}px "PingFang SC",sans-serif`
             ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
@@ -629,7 +629,7 @@ function rEvent(g) {
           ctx.drawImage(petFrame, ix - frameOff, teamIconY - frameOff, frameSize, frameSize)
         }
         // 星级标记（左下角）
-        if ((p.star || 1) > 1) {
+        if ((p.star || 1) >= 1) {
           const starText = '★'.repeat(p.star || 1)
           ctx.save()
           ctx.font = `bold ${teamIconSize * 0.14}px "PingFang SC",sans-serif`
@@ -913,7 +913,7 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
   }
 
   // 星级标记（左下角）
-  if ((pet.star || 1) > 1) {
+  if ((pet.star || 1) >= 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
     ctx.font = `bold ${size * 0.14}px "PingFang SC",sans-serif`
@@ -971,7 +971,7 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   }
 
   // 星级标记（左下角）
-  if ((pet.star || 1) > 1) {
+  if ((pet.star || 1) >= 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
     ctx.font = `bold ${size * 0.14}px "PingFang SC",sans-serif`

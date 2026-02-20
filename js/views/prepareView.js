@@ -113,7 +113,7 @@ function _drawPetTab(g, padX, contentY) {
         ctx.drawImage(pf, sx-fOff, slotY-fOff, frameSz, frameSz)
       }
       // 星级标记（左下角）
-      if ((p.star || 1) > 1) {
+      if ((p.star || 1) >= 1) {
         const starText = '★'.repeat(p.star || 1)
         ctx.save()
         ctx.font = `bold ${iconSz * 0.14}px "PingFang SC",sans-serif`
@@ -216,7 +216,7 @@ function _drawPetTab(g, padX, contentY) {
         ctx.drawImage(bf, bx-bfOff, by-bfOff, bFrameSz, bFrameSz)
       }
       // 星级标记（左下角）
-      if ((bp.star || 1) > 1) {
+      if ((bp.star || 1) >= 1) {
         const bStarText = '★'.repeat(bp.star || 1)
         ctx.save()
         ctx.font = `bold ${bagIcon * 0.14}px "PingFang SC",sans-serif`

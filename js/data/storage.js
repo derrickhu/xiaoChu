@@ -24,6 +24,7 @@ function defaultPersist() {
       bgmOn: true,
       sfxOn: true,
     },
+    petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
   }
 }
 
@@ -85,6 +86,16 @@ class Storage {
     this._d.settings.sfxOn = !this._d.settings.sfxOn
     this._save()
     return this._d.settings.sfxOn
+  }
+
+  // 图鉴：记录收集到3星的宠物
+  get petDex()    { return this._d.petDex || [] }
+  addPetDex(petId) {
+    if (!this._d.petDex) this._d.petDex = []
+    if (!this._d.petDex.includes(petId)) {
+      this._d.petDex.push(petId)
+      this._save()
+    }
   }
 
   // ===== 局内暂存（暂存退出用）=====

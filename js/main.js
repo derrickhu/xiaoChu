@@ -275,6 +275,7 @@ class Main {
       case 'gameover': screens.rGameover(this); break
       case 'ranking': screens.rRanking(this); break
       case 'stats': screens.rStats(this); break
+      case 'dex': screens.rDex(this); break
     }
     this.dmgFloats.forEach(f => R.drawDmgFloat(f))
     this.skillEffects.forEach(e => R.drawSkillEffect(e))
@@ -410,6 +411,7 @@ class Main {
       case 'gameover': touchH.tGameover(this,type,x,y); break
       case 'ranking': touchH.tRanking(this,type,x,y); break
       case 'stats': touchH.tStats(this,type,x,y); break
+      case 'dex': touchH.tDex(this,type,x,y); break
     }
   }
 
