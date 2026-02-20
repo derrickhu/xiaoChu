@@ -4,6 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
+const { getPetAvatarPath, MAX_STAR } = require('../data/pets')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -524,7 +525,7 @@ function rReward(g) {
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
       // 头像图片
-      const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+      const petAvatar = R.getImg(getPetAvatarPath(p))
       if (petAvatar && petAvatar.width > 0) {
         ctx.save()
         ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()
@@ -565,6 +566,22 @@ function rReward(g) {
       ctx.fillStyle = TH.sub; ctx.font = `${11*S}px sans-serif`
       ctx.fillText(`ATK: ${p.atk}    CD: ${p.cd}回合`, infoX, iy)
 
+      // 已拥有标注
+      const allOwned = [...(g.pets || []), ...(g.petBag || [])]
+      const ownedPet = allOwned.find(op => op.id === p.id)
+      if (ownedPet) {
+        iy += 16*S
+        const ownedStar = ownedPet.star || 1
+        const starDisp = '★'.repeat(ownedStar) + (ownedStar < MAX_STAR ? '☆'.repeat(MAX_STAR - ownedStar) : '')
+        if (ownedStar >= MAX_STAR) {
+          ctx.fillStyle = '#C07000'; ctx.font = `bold ${10*S}px sans-serif`
+          ctx.fillText(`已拥有 ${starDisp}（已满星）`, infoX, iy)
+        } else {
+          ctx.fillStyle = '#27864A'; ctx.font = `bold ${10*S}px sans-serif`
+          ctx.fillText(`已拥有 ${starDisp}　选择则升至${ownedStar+1}星`, infoX, iy)
+        }
+      }
+
       // 技能
       if (p.skill) {
         iy += 18*S
@@ -582,7 +599,7 @@ function rReward(g) {
       // 背包容量
       ctx.textAlign = 'right'
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`
-      ctx.fillText(`背包 ${g.petBag.length}/8`, cardX + cardW - 12*S, cy + cardH - 8*S)
+      ctx.fillText(`背包 ${g.petBag.length}只`, cardX + cardW - 12*S, cy + cardH - 8*S)
 
     } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
       // ====== 法宝卡片：图标 + 详细信息 ======
@@ -656,7 +673,7 @@ function rReward(g) {
       // 背包容量
       ctx.textAlign = 'right'
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`
-      ctx.fillText(`背包 ${g.weaponBag.length}/4`, cardX + cardW - 12*S, cy + cardH - 8*S)
+      ctx.fillText(`背包 ${g.weaponBag.length}件`, cardX + cardW - 12*S, cy + cardH - 8*S)
 
     } else {
       // ====== 普通Buff卡片（保持原样式但更紧凑） ======

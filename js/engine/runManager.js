@@ -9,6 +9,7 @@ const {
 } = require('../data/tower')
 const { generateStarterPets } = require('../data/pets')
 const MusicMgr = require('../runtime/music')
+const { resetPrepBagScroll } = require('../views/prepareView')
 
 const DEFAULT_RUN_BUFFS = {
   allAtkPct:0, allDmgPct:0, attrDmgPct:{metal:0,wood:0,earth:0,water:0,fire:0},
@@ -86,6 +87,7 @@ function nextFloor(g) {
   g.prepareTab = 'pets'
   g.prepareSelBagIdx = -1
   g.prepareSelSlotIdx = -1
+  resetPrepBagScroll()
   g._eventPetDetail = null
   g._adventureApplied = false
   g._eventShopUsed = false
@@ -171,6 +173,7 @@ function resumeRun(g) {
   g.prepareTab = 'pets'
   g.prepareSelBagIdx = -1
   g.prepareSelSlotIdx = -1
+  resetPrepBagScroll()
   g._eventPetDetail = null
   g._adventureApplied = false
   g._eventShopUsed = false

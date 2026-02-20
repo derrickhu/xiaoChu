@@ -451,7 +451,7 @@ function generateFloorEvent(floor) {
 // ===== 生成胜利后三选一奖励 =====
 // eventType: 'battle' | 'elite' | 'boss'
 // speedKill: 是否速通（5回合内击败）
-function generateRewards(floor, eventType, speedKill) {
+function generateRewards(floor, eventType, speedKill, ownedWeaponIds) {
   const rewards = []
   const usedIds = new Set()
 
@@ -464,14 +464,14 @@ function generateRewards(floor, eventType, speedKill) {
     return { type: REWARD_TYPES.BUFF, label: b.label, data: { ...b } }
   }
 
+  // 法宝排除已拥有 + 本次已选的
+  const wpnExclude = new Set(ownedWeaponIds || [])
+
   if (eventType === 'boss') {
     // BOSS战斗：2件法宝 + 1个大档buff 三选一（速通4选1）
-    const wpnIds = new Set()
     for (let i = 0; i < 2; i++) {
-      let w = randomWeapon()
-      let tries = 0
-      while (wpnIds.has(w.id) && tries < 20) { w = randomWeapon(); tries++ }
-      wpnIds.add(w.id)
+      let w = randomWeapon(wpnExclude)
+      wpnExclude.add(w.id)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     }
     rewards.push(pickFrom(BUFF_POOL_MAJOR))
@@ -503,10 +503,9 @@ function generateRewards(floor, eventType, speedKill) {
   // 速通额外奖励：精英/boss追加同类型第4个选项，普通战追加速通buff
   if (speedKill) {
     if (eventType === 'boss') {
-      let w = randomWeapon()
-      let tries = 0
       const existIds = new Set(rewards.map(r => r.data && r.data.id))
-      while (existIds.has(w.id) && tries < 20) { w = randomWeapon(); tries++ }
+      existIds.forEach(id => wpnExclude.add(id))
+      let w = randomWeapon(wpnExclude)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     } else if (eventType === 'elite') {
       let p = randomPet()

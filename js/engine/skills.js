@@ -402,15 +402,13 @@ function applyReward(g, rw) {
       const allPets = [...g.pets, ...g.petBag]
       const mergeResult = tryMergePet(allPets, newPet)
       if (!mergeResult.merged) {
-        if (g.petBag.length < 8) g.petBag.push(newPet)
-        else g.petBag[g.petBag.length - 1] = newPet
+        g.petBag.push(newPet)
       }
       break
     }
     case REWARD_TYPES.NEW_WEAPON: {
       const newWpn = { ...rw.data }
-      if (g.weaponBag.length < 4) g.weaponBag.push(newWpn)
-      else g.weaponBag[g.weaponBag.length - 1] = newWpn
+      g.weaponBag.push(newWpn)
       break
     }
     case REWARD_TYPES.BUFF:
@@ -485,16 +483,13 @@ function applyShopItem(g, item) {
       const allPets = [...g.pets, ...g.petBag]
       const mergeResult = tryMergePet(allPets, newPet)
       if (!mergeResult.merged) {
-        if (g.petBag.length < 8) g.petBag.push(newPet)
-        else { const idx = Math.floor(Math.random() * g.pets.length); g.pets[idx] = newPet }
+        g.petBag.push(newPet)
       }
       break
     }
     case 'getWeapon': {
       const newWpn = randomWeapon()
-      if (g.weaponBag.length < 4) g.weaponBag.push(newWpn)
-      else if (!g.weapon) g.weapon = newWpn
-      else g.weaponBag[g.weaponBag.length - 1] = newWpn
+      g.weaponBag.push(newWpn)
       break
     }
     case 'fullHeal':
@@ -528,7 +523,7 @@ function applyAdventure(g, adv) {
     case 'allAtkUp':      g.runBuffs.allAtkPct += adv.pct; break
     case 'healPct':        g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp*adv.pct/100)); break
     case 'hpMaxUp':        { const inc = Math.round(g.heroMaxHp*adv.pct/100); g.heroMaxHp += inc; g.heroHp += inc; break }
-    case 'getWeapon':      { const w = randomWeapon(); if (g.weaponBag.length<4) g.weaponBag.push(w); else if (!g.weapon) g.weapon=w; else g.weaponBag[g.weaponBag.length-1]=w; break }
+    case 'getWeapon':      { const w = randomWeapon(); g.weaponBag.push(w); break }
     case 'skipBattle':     g.skipNextBattle = true; break
     case 'fullHeal':       g.heroHp = g.heroMaxHp; break
     case 'extraTime':      g.runBuffs.extraTimeSec += adv.sec; break
@@ -538,7 +533,7 @@ function applyAdventure(g, adv) {
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
-    case 'getPet':         { const p = { ...randomPet(), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = tryMergePet(allP, p); if (!mr.merged) { if (g.petBag.length<8) g.petBag.push(p); else { const i2=Math.floor(Math.random()*g.pets.length); g.pets[i2]=p } } break }
+    case 'getPet':         { const p = { ...randomPet(), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = tryMergePet(allP, p); if (!mr.merged) { g.petBag.push(p) } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; break
@@ -549,7 +544,7 @@ function applyAdventure(g, adv) {
     case 'petAtkUp':       { const i3 = Math.floor(Math.random()*g.pets.length); g.pets[i3].atk = Math.round(g.pets[i3].atk*(1+adv.pct/100)); break }
     case 'goodBeads':      g.goodBeadsNextTurn = true; break
     case 'immuneOnce':     g.immuneOnce = true; break
-    case 'tripleChoice':   g.rewards = generateRewards(g.floor, 'battle'); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return
+    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); g.rewards = generateRewards(g.floor, 'battle', false, _ow); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
   }
 }
 

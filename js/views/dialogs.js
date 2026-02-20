@@ -282,11 +282,11 @@ function drawBattlePetDetailDialog(g) {
   const tipW = W * 0.82
 
   let lines = []
-  lines.push({ text: p.name, color: ac ? ac.dk || ac.main : '#8B6914', bold: true, size: 15, h: lineH + 4*S })
   const starText = '★'.repeat(p.star || 1) + (p.star < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
+  lines.push({ text: p.name, color: ac ? ac.dk || ac.main : '#8B6914', bold: true, size: 15, h: lineH + 4*S, starSuffix: starText })
   const starAtk = getPetStarAtk(p)
   const atkDisplay = (p.star || 1) > 1 ? `${p.atk}→${starAtk}` : `${p.atk}`
-  lines.push({ text: `__ATTR_ORB__${p.attr}　${starText}　攻击力：${atkDisplay}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
+  lines.push({ text: `__ATTR_ORB__${p.attr}　ATK：${atkDisplay}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
   lines.push({ text: '', size: 0, h: 6*S })
 
   if (sk) {
@@ -345,6 +345,12 @@ function drawBattlePetDetailDialog(g) {
       ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
     } else {
       ctx.fillText(l.text, tipX + padX, curY - 4*S)
+      if (l.starSuffix) {
+        const nameW = ctx.measureText(l.text).width
+        ctx.font = `bold ${11*S}px sans-serif`
+        ctx.fillStyle = '#ffd700'
+        ctx.fillText(l.starSuffix, tipX + padX + nameW + 6*S, curY - 4*S)
+      }
     }
   })
 
