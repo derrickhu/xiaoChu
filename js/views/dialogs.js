@@ -3,6 +3,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
+const { getPetStarAtk, MAX_STAR } = require('../data/pets')
 const { wrapText } = require('./prepareView')
 
 // ===== 退出确认弹窗 =====
@@ -12,24 +13,45 @@ function drawExitDialog(g) {
   const pw = W * 0.78, ph = 200*S
   const px = (W - pw) / 2, py = (H - ph) / 2
   R.drawDialogPanel(px, py, pw, ph)
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`; ctx.textAlign = 'center'
+
+  // 标题 — 暗金色仙侠风
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#e8d5a0'
+  ctx.font = `bold ${17*S}px "PingFang SC",sans-serif`
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
   ctx.fillText('退出战斗', px + pw*0.5, py + 36*S)
-  ctx.fillStyle = TH.sub; ctx.font = `${13*S}px sans-serif`
-  ctx.fillText('请选择退出方式', px + pw*0.5, py + 62*S)
+  ctx.restore()
+
+  // 副标题
+  ctx.fillStyle = 'rgba(200,190,170,0.7)'
+  ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('请选择退出方式', px + pw*0.5, py + 58*S)
+
+  // 两个主按钮
   const btnW = pw * 0.38, btnH = 42*S, gap = 12*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 90*S
+  const btnY = py + 84*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
-  const cancelW = pw * 0.4, cancelH = 36*S
+
+  // 取消按钮 — 使用半透明描边风格
+  const cancelW = pw * 0.36, cancelH = 34*S
   const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 16*S
-  ctx.fillStyle = 'rgba(60,60,80,0.8)'
+  ctx.save()
+  ctx.fillStyle = 'rgba(40,35,50,0.6)'
   R.rr(cancelX, cancelY, cancelW, cancelH, 8*S); ctx.fill()
-  ctx.fillStyle = TH.dim; ctx.font = `${13*S}px sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('取消', cancelX + cancelW*0.5, cancelY + cancelH*0.65)
+  ctx.strokeStyle = 'rgba(180,170,150,0.3)'; ctx.lineWidth = 1*S
+  R.rr(cancelX, cancelY, cancelW, cancelH, 8*S); ctx.stroke()
+  ctx.fillStyle = 'rgba(200,190,170,0.6)'
+  ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('取消', cancelX + cancelW*0.5, cancelY + cancelH*0.5)
+  ctx.textBaseline = 'alphabetic'
+  ctx.restore()
   g._exitCancelRect = [cancelX, cancelY, cancelW, cancelH]
 }
 
@@ -261,7 +283,10 @@ function drawBattlePetDetailDialog(g) {
 
   let lines = []
   lines.push({ text: p.name, color: ac ? ac.dk || ac.main : '#8B6914', bold: true, size: 15, h: lineH + 4*S })
-  lines.push({ text: `__ATTR_ORB__${p.attr}　　攻击力：${p.atk}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
+  const starText = '★'.repeat(p.star || 1) + (p.star < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
+  const starAtk = getPetStarAtk(p)
+  const atkDisplay = (p.star || 1) > 1 ? `${p.atk}→${starAtk}` : `${p.atk}`
+  lines.push({ text: `__ATTR_ORB__${p.attr}　${starText}　攻击力：${atkDisplay}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
   lines.push({ text: '', size: 0, h: 6*S })
 
   if (sk) {

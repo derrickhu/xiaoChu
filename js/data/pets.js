@@ -169,6 +169,45 @@ const PETS = {
   ],
 }
 
+// ===== 星级融合系统常量 =====
+const MAX_STAR = 3          // 最高星级
+const STAR_ATK_MUL = 1.3    // 每升1星ATK倍率
+const STAR_SKILL_MUL = 1.25 // 每升1星技能数值倍率
+
+// 获取宠物星级加成后的ATK
+function getPetStarAtk(pet) {
+  const star = pet.star || 1
+  return Math.floor(pet.atk * Math.pow(STAR_ATK_MUL, star - 1))
+}
+
+// 获取宠物星级技能数值倍率（用于乘以技能关键数值）
+function getPetStarSkillMul(pet) {
+  const star = pet.star || 1
+  return Math.pow(STAR_SKILL_MUL, star - 1)
+}
+
+// 尝试融合宠物：在已有宠物列表中查找同ID宠物，找到则升星
+// allPets: 包含 g.pets 和 g.petBag 的合并数组
+// newPet: 新获得的宠物
+// 返回: { merged: true/false, target: 被升星的宠物/null }
+function tryMergePet(allPets, newPet) {
+  const target = allPets.find(p => p.id === newPet.id)
+  if (target && (target.star || 1) < MAX_STAR) {
+    target.star = (target.star || 1) + 1
+    return { merged: true, target }
+  }
+  if (target && (target.star || 1) >= MAX_STAR) {
+    // 已满星，无法融合也不新增
+    return { merged: true, target, maxed: true }
+  }
+  return { merged: false, target: null }
+}
+
+// 检查是否有同ID宠物已上场（用于禁止同ID上场）
+function hasSameIdOnTeam(pets, petId, excludeIndex) {
+  return pets.some((p, i) => p && p.id === petId && i !== excludeIndex)
+}
+
 // 获取指定属性的所有宠物
 function getPetsByAttr(attr) {
   return PETS[attr] || []
@@ -179,7 +218,7 @@ function getAllPets() {
   const all = []
   for (const attr of ['metal','wood','water','fire','earth']) {
     for (const p of PETS[attr]) {
-      all.push({ ...p, attr })
+      all.push({ ...p, attr, star: 1 })
     }
   }
   return all
@@ -189,7 +228,7 @@ function getAllPets() {
 function getPetById(id) {
   for (const attr of ['metal','wood','water','fire','earth']) {
     const found = PETS[attr].find(p => p.id === id)
-    if (found) return { ...found, attr }
+    if (found) return { ...found, attr, star: 1 }
   }
   return null
 }
@@ -197,7 +236,7 @@ function getPetById(id) {
 // 随机获取一只指定属性的宠物
 function randomPetByAttr(attr) {
   const pool = PETS[attr]
-  return { ...pool[Math.floor(Math.random() * pool.length)], attr }
+  return { ...pool[Math.floor(Math.random() * pool.length)], attr, star: 1 }
 }
 
 // 随机获取一只任意属性的宠物
@@ -220,12 +259,17 @@ function generateStarterPets() {
     // 从前8只（较弱的）中随机选1只
     const pool = PETS[attr].slice(0, 8)
     const pet = pool[Math.floor(Math.random() * pool.length)]
-    return { ...pet, attr, currentCd: 0 }
+    return { ...pet, attr, star: 1, currentCd: 0 }
   })
 }
 
 module.exports = {
   PETS,
+  MAX_STAR,
+  getPetStarAtk,
+  getPetStarSkillMul,
+  tryMergePet,
+  hasSameIdOnTeam,
   getPetsByAttr,
   getAllPets,
   getPetById,

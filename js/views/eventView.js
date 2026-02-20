@@ -6,6 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
+const { getPetStarAtk, MAX_STAR } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
 let _scrollY = 0          // 当前滚动偏移
@@ -17,7 +18,7 @@ let _lastFloor = -1       // 用于检测楼层变化时重置滚动
 
 function rEvent(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawBg(g.af)
+  R.drawRewardBg(g.af)
   const ev = g.curEvent
   if (!ev) return
   const padX = 12*S
@@ -27,12 +28,21 @@ function rEvent(g) {
   // 楼层切换时重置滚动
   if (g.floor !== _lastFloor) { _scrollY = 0; _lastFloor = g.floor }
 
-  // ===== 固定顶部区域 =====
+  // ===== 固定顶部区域：层数标签（复用floor_label_bg） =====
   let curY = safeTop + 32*S
   ctx.textAlign = 'center'
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
-  ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, curY)
-  curY += 22*S
+  const floorLabelImg = R.getImg('assets/ui/floor_label_bg.png')
+  const flLabelW = W * 0.45, flLabelH = flLabelW / 4
+  const flLabelX = (W - flLabelW) / 2, flLabelY = curY - flLabelH * 0.7
+  if (floorLabelImg && floorLabelImg.width > 0) {
+    ctx.drawImage(floorLabelImg, flLabelX, flLabelY, flLabelW, flLabelH)
+  }
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
+  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${18*S}px sans-serif`
+  ctx.fillText(`第 ${g.floor} 层`, W*0.5, curY)
+  ctx.restore()
+  curY += 28*S
   const evLabel = typeName[ev.type] || '未知事件'
   if (ev.type === 'boss') {
     const tagW = 140*S, tagH = 28*S, tagX = (W - tagW)/2, tagY = curY - 17*S
@@ -47,8 +57,11 @@ function rEvent(g) {
     ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${14*S}px sans-serif`
     ctx.fillText('★ ' + evLabel, W*0.5, curY)
   } else {
-    ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
+    ctx.fillStyle = '#e8d8b8'; ctx.font = `bold ${14*S}px sans-serif`
     ctx.fillText(evLabel, W*0.5, curY)
+    ctx.restore()
   }
   curY += 18*S
 
@@ -221,107 +234,52 @@ function rEvent(g) {
   }
   curY = cardTop + cardH + 8*S
 
+  // ===== 怪物区与己方区域分界线 =====
+  ctx.save()
+  const divLineY = curY
+  const divGrad = ctx.createLinearGradient(padX, 0, W - padX, 0)
+  divGrad.addColorStop(0, 'rgba(180,160,120,0)')
+  divGrad.addColorStop(0.2, 'rgba(180,160,120,0.5)')
+  divGrad.addColorStop(0.5, 'rgba(220,200,160,0.6)')
+  divGrad.addColorStop(0.8, 'rgba(180,160,120,0.5)')
+  divGrad.addColorStop(1, 'rgba(180,160,120,0)')
+  ctx.strokeStyle = divGrad
+  ctx.lineWidth = 1.5*S
+  ctx.beginPath()
+  ctx.moveTo(padX, divLineY)
+  ctx.lineTo(W - padX, divLineY)
+  ctx.stroke()
+  ctx.restore()
+  curY += 16*S
+
+  // ===== 己方队伍标题 =====
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillText('── 己方队伍 ──', W*0.5, curY)
+  curY += 14*S
+
   // --- HP条 ---
   const hpBarH = 14*S
   R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
   curY += hpBarH + 10*S
 
-  // ===== 法宝区（网格布局） =====
-  ctx.textAlign = 'left'
-  ctx.fillStyle = TH.sub; ctx.font = `bold ${11*S}px sans-serif`
-  ctx.fillText('── 法宝 ──', padX, curY)
-  curY += 8*S
+  // ===== 当前队伍：法宝 + 灵宠（一行，参考战斗界面 drawTeamBar 布局） =====
+  const drag = g._eventDragPet
+  const teamSlots = 6
+  const teamSidePad = 8*S
+  const teamPetGap = 8*S
+  const teamWpnGap = 12*S
+  const teamTotalGapW = teamWpnGap + teamPetGap * 4 + teamSidePad * 2
+  const teamIconSize = (W - teamTotalGapW) / teamSlots
+  const teamBarH = teamIconSize + 6*S
+  const teamBarY = curY
+  const teamIconY = teamBarY + (teamBarH - teamIconSize) / 2
+
+  // 队伍栏背景
+  ctx.fillStyle = 'rgba(8,8,20,0.88)'
+  R.rr(0, teamBarY, W, teamBarH, 6*S); ctx.fill()
 
   const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
-  const wpnFrameScale = 1.12
-  const wpnGap = 4*S
-  const wpnIconSz = Math.floor((W - padX*2 - wpnGap*4) / 5)
-  const wpnTextH = 28*S
-
-  // 当前法宝（第一个格子，带高亮边框）
-  {
-    const sx = padX, sy = curY
-    const cx0 = sx + wpnIconSz*0.5
-    ctx.fillStyle = 'rgba(30,25,18,0.85)'
-    ctx.fillRect(sx+1, sy+1, wpnIconSz-2, wpnIconSz-2)
-    if (g.weapon) {
-      const wImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
-      if (wImg && wImg.width > 0) {
-        ctx.save(); ctx.beginPath(); ctx.rect(sx+1, sy+1, wpnIconSz-2, wpnIconSz-2); ctx.clip()
-        const aw = wImg.width, ah = wImg.height
-        const dw = wpnIconSz - 2, dh = dw * (ah / aw)
-        ctx.drawImage(wImg, sx+1, sy+1+(wpnIconSz-2-dh), dw, dh)
-        ctx.restore()
-      }
-      if (frameWeapon && frameWeapon.width > 0) {
-        const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
-        ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
-      }
-      ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
-      ctx.strokeRect(sx-1, sy-1, wpnIconSz+2, wpnIconSz+2)
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
-      ctx.fillText(g.weapon.name.substring(0,5), cx0, sy+wpnIconSz+3*S)
-      ctx.textBaseline = 'alphabetic'
-    } else {
-      if (frameWeapon && frameWeapon.width > 0) {
-        ctx.save(); ctx.globalAlpha = 0.35
-        const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
-        ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
-        ctx.restore()
-      }
-      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('无', cx0, sy + wpnIconSz*0.5)
-      ctx.textBaseline = 'alphabetic'
-    }
-    g._eventWpnSlots.push({ rect: [sx, sy, wpnIconSz, wpnIconSz + wpnTextH], action: 'detail', type: 'equipped', index: 0 })
-  }
-
-  // 背包法宝（紧跟在当前法宝后面的格子）
-  for (let i = 0; i < g.weaponBag.length; i++) {
-    const col = (i + 1) % 5
-    const row = Math.floor((i + 1) / 5)
-    const bx = padX + col*(wpnIconSz+wpnGap)
-    const by = curY + row*(wpnIconSz+wpnTextH+wpnGap)
-    const bcx = bx + wpnIconSz*0.5
-    const wp = g.weaponBag[i]
-    ctx.fillStyle = 'rgba(15,15,30,0.6)'
-    ctx.fillRect(bx+1, by+1, wpnIconSz-2, wpnIconSz-2)
-    const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
-    if (wImg && wImg.width > 0) {
-      ctx.save(); ctx.beginPath(); ctx.rect(bx+1, by+1, wpnIconSz-2, wpnIconSz-2); ctx.clip()
-      const aw = wImg.width, ah = wImg.height
-      const dw = wpnIconSz - 2, dh = dw * (ah / aw)
-      ctx.drawImage(wImg, bx+1, by+1+(wpnIconSz-2-dh), dw, dh)
-      ctx.restore()
-    }
-    if (frameWeapon && frameWeapon.width > 0) {
-      const fSz = wpnIconSz * wpnFrameScale, fOff = (fSz - wpnIconSz)/2
-      ctx.drawImage(frameWeapon, bx - fOff, by - fOff, fSz, fSz)
-    }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillStyle = '#ddd'; ctx.font = `bold ${9*S}px sans-serif`
-    ctx.fillText(wp.name.substring(0,5), bcx, by+wpnIconSz+3*S)
-    ctx.textBaseline = 'alphabetic'
-    g._eventWpnSlots.push({ rect: [bx, by, wpnIconSz, wpnIconSz + wpnTextH], action: 'equip', type: 'bag', index: i })
-  }
-  const wpnTotalItems = 1 + g.weaponBag.length
-  const wpnRows = Math.ceil(wpnTotalItems / 5)
-  curY += wpnRows * (wpnIconSz + wpnTextH + wpnGap) + 6*S
-
-  // ===== 灵宠区 =====
-  ctx.textAlign = 'left'
-  ctx.fillStyle = TH.sub; ctx.font = `bold ${11*S}px sans-serif`
-  ctx.fillText('── 灵宠 ──', padX, curY)
-  curY += 8*S
-
-  // 当前队伍灵宠（5格）
-  const petSlots = 5
-  const petGap = 6*S
-  const petSidePad = padX
-  const petIconSize = (W - petSidePad*2 - petGap*(petSlots-1)) / petSlots
-  const petIconY = curY
   const framePetMap = {
     metal: R.getImg('assets/ui/frame_pet_metal.png'),
     wood:  R.getImg('assets/ui/frame_pet_wood.png'),
@@ -330,80 +288,193 @@ function rEvent(g) {
     earth: R.getImg('assets/ui/frame_pet_earth.png'),
   }
   const frameScale = 1.12
-  const frameSize = petIconSize * frameScale
-  const frameOff = (frameSize - petIconSize) / 2
+  const frameSize = teamIconSize * frameScale
+  const frameOff = (frameSize - teamIconSize) / 2
 
-  const drag = g._eventDragPet
-
-  for (let i = 0; i < petSlots; i++) {
-    const px = petSidePad + i * (petIconSize + petGap)
-    const py = petIconY
-    g._eventPetSlots.push({ rect: [px, py, petIconSize, petIconSize], type: 'team', index: i })
-    g._eventPetRects.push([px, py, petIconSize, petIconSize])
-
-    // 拖拽中的源位置半透明显示
-    const isDragSource = drag && drag.source === 'team' && drag.index === i
-
-    if (i < g.pets.length) {
-      const p = g.pets[i]
-      if (isDragSource) {
-        ctx.globalAlpha = 0.3
-      }
-      _drawPetIcon(ctx, R, TH, S, px, py, petIconSize, p, framePetMap, frameSize, frameOff, false)
-      if (isDragSource) {
-        ctx.globalAlpha = 1
-      }
+  for (let i = 0; i < teamSlots; i++) {
+    let ix
+    if (i === 0) {
+      ix = teamSidePad
     } else {
-      ctx.fillStyle = 'rgba(25,22,18,0.5)'
-      ctx.fillRect(px, py, petIconSize, petIconSize)
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1
-      ctx.strokeRect(px, py, petIconSize, petIconSize)
-      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('空', px + petIconSize/2, py + petIconSize/2)
-      ctx.textBaseline = 'alphabetic'
+      ix = teamSidePad + teamIconSize + teamWpnGap + (i - 1) * (teamIconSize + teamPetGap)
     }
+    const cx = ix + teamIconSize * 0.5
+    const cy = teamIconY + teamIconSize * 0.5
 
-    // 拖拽悬停高亮：当从背包拖到队伍上时
-    if (drag && drag.source === 'bag') {
-      if (g._hitRect && g._hitRect(drag.x, drag.y, px, py, petIconSize, petIconSize)) {
-        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
-        ctx.strokeRect(px - 1, py - 1, petIconSize + 2, petIconSize + 2)
+    if (i === 0) {
+      // === 法宝槽 ===
+      ctx.fillStyle = g.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
+      ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
+      if (g.weapon) {
+        const wpnImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
+        ctx.save()
+        ctx.beginPath(); ctx.rect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2); ctx.clip()
+        if (wpnImg && wpnImg.width > 0) {
+          ctx.drawImage(wpnImg, ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
+        }
+        ctx.restore()
+      } else {
+        ctx.fillStyle = 'rgba(80,70,60,0.3)'
+        ctx.font = `${teamIconSize*0.26}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('⚔', cx, cy)
+      }
+      // 法宝边框（使用frame_weapon图片）
+      if (frameWeapon && frameWeapon.width > 0) {
+        const fSz = teamIconSize * frameScale, fOff2 = (fSz - teamIconSize) / 2
+        ctx.drawImage(frameWeapon, ix - fOff2, teamIconY - fOff2, fSz, fSz)
+      } else {
+        ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
+        ctx.strokeRect(ix - 1, teamIconY - 1, teamIconSize + 2, teamIconSize + 2)
+      }
+      g._eventWpnSlots.push({ rect: [ix, teamIconY, teamIconSize, teamIconSize], action: 'detail', type: 'equipped', index: 0 })
+    } else {
+      // === 宠物槽 ===
+      const petIdx = i - 1
+      const petFrame = petIdx < g.pets.length
+        ? (framePetMap[g.pets[petIdx].attr] || framePetMap.metal)
+        : framePetMap.metal
+      if (petIdx < g.pets.length) {
+        const p = g.pets[petIdx]
+        const ac2 = ATTR_COLOR[p.attr]
+        ctx.fillStyle = ac2 ? ac2.bg : '#1a1a2e'
+        ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
+        const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+        if (petAvatar && petAvatar.width > 0) {
+          const aw = petAvatar.width, ah = petAvatar.height
+          const drawW = teamIconSize - 2, drawH = drawW * (ah / aw)
+          const dy = teamIconY + 1 + (teamIconSize - 2) - drawH
+          ctx.save()
+          ctx.beginPath(); ctx.rect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2); ctx.clip()
+          ctx.drawImage(petAvatar, ix + 1, dy, drawW, drawH)
+          ctx.restore()
+        }
+        if (petFrame && petFrame.width > 0) {
+          ctx.drawImage(petFrame, ix - frameOff, teamIconY - frameOff, frameSize, frameSize)
+        }
+        // 星级标记
+        if ((p.star || 1) > 1) {
+          const starText = '★'.repeat(p.star || 1)
+          ctx.save()
+          ctx.font = `bold ${teamIconSize * 0.18}px sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+          ctx.strokeText(starText, ix + 2*S, teamIconY + 2*S)
+          ctx.fillStyle = '#ffd700'
+          ctx.fillText(starText, ix + 2*S, teamIconY + 2*S)
+          ctx.textBaseline = 'alphabetic'
+          ctx.restore()
+        }
+      } else {
+        ctx.fillStyle = 'rgba(18,18,30,0.6)'
+        ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
+        if (petFrame && petFrame.width > 0) {
+          ctx.save(); ctx.globalAlpha = 0.35
+          ctx.drawImage(petFrame, ix - frameOff, teamIconY - frameOff, frameSize, frameSize)
+          ctx.restore()
+        }
+      }
+      g._eventPetSlots.push({ rect: [ix, teamIconY, teamIconSize, teamIconSize], type: 'team', index: petIdx })
+      g._eventPetRects.push([ix, teamIconY, teamIconSize, teamIconSize])
+      // 拖拽悬停高亮：当从背包拖到队伍上时
+      if (drag && drag.source === 'bag') {
+        if (g._hitRect && g._hitRect(drag.x, drag.y, ix, teamIconY, teamIconSize, teamIconSize)) {
+          ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
+          ctx.strokeRect(ix - 1, teamIconY - 1, teamIconSize + 2, teamIconSize + 2)
+        }
       }
     }
   }
-  curY = petIconY + petIconSize + 26*S
+  curY = teamBarY + teamBarH + 8*S
 
-  // 背包灵宠
-  ctx.fillStyle = TH.dim; ctx.font = `${9*S}px sans-serif`; ctx.textAlign = 'left'
-  ctx.fillText('背包灵宠（拖动到上方可交换）：', padX + 4*S, curY + 2*S)
+  // ===== 队伍与背包分界线 =====
+  ctx.save()
+  const bagDivY = curY
+  const bagDivGrad = ctx.createLinearGradient(padX, 0, W - padX, 0)
+  bagDivGrad.addColorStop(0, 'rgba(180,160,120,0)')
+  bagDivGrad.addColorStop(0.2, 'rgba(180,160,120,0.35)')
+  bagDivGrad.addColorStop(0.5, 'rgba(200,180,140,0.4)')
+  bagDivGrad.addColorStop(0.8, 'rgba(180,160,120,0.35)')
+  bagDivGrad.addColorStop(1, 'rgba(180,160,120,0)')
+  ctx.strokeStyle = bagDivGrad
+  ctx.lineWidth = 1*S
+  ctx.beginPath()
+  ctx.moveTo(padX, bagDivY)
+  ctx.lineTo(W - padX, bagDivY)
+  ctx.stroke()
+  ctx.restore()
+  curY += 8*S
+
+  // ===== 背包区 =====
+  const bagCols = 6
+  const bagGap = teamPetGap
+  const bagSlotSize = teamIconSize
+  const petSidePad = padX
+
+  // --- 法宝背包 ---
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillText('── 法宝背包 ──', W*0.5, curY)
   curY += 14*S
-  if (g.petBag.length > 0) {
-    const bagGap = 6*S
-    const bagCols = 5
-    const bagIconSize = (W - petSidePad*2 - bagGap*(bagCols-1)) / bagCols
+  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px sans-serif`
+  ctx.fillText('点击可替换当前法宝', W*0.5, curY)
+  curY += 10*S
+  if (g.weaponBag.length > 0) {
+    const wpnFrameScale2 = 1.12
+    for (let i = 0; i < g.weaponBag.length; i++) {
+      const col = i % bagCols
+      const row = Math.floor(i / bagCols)
+      const bx = teamSidePad + col*(bagSlotSize+bagGap)
+      const by = curY + row*(bagSlotSize+bagGap)
+      const wp = g.weaponBag[i]
+      ctx.fillStyle = 'rgba(15,15,30,0.6)'
+      ctx.fillRect(bx+1, by+1, bagSlotSize-2, bagSlotSize-2)
+      const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
+      if (wImg && wImg.width > 0) {
+        ctx.save(); ctx.beginPath(); ctx.rect(bx+1, by+1, bagSlotSize-2, bagSlotSize-2); ctx.clip()
+        const aw = wImg.width, ah = wImg.height
+        const dw = bagSlotSize - 2, dh = dw * (ah / aw)
+        ctx.drawImage(wImg, bx+1, by+1+(bagSlotSize-2-dh), dw, dh)
+        ctx.restore()
+      }
+      if (frameWeapon && frameWeapon.width > 0) {
+        const fSz = bagSlotSize * wpnFrameScale2, fOff2 = (fSz - bagSlotSize)/2
+        ctx.drawImage(frameWeapon, bx - fOff2, by - fOff2, fSz, fSz)
+      }
+      g._eventWpnSlots.push({ rect: [bx, by, bagSlotSize, bagSlotSize], action: 'equip', type: 'bag', index: i })
+    }
+    const wpnRows = Math.ceil(g.weaponBag.length / bagCols)
+    curY += wpnRows * (bagSlotSize + bagGap) + 6*S
+  } else {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px sans-serif`
+    ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
+    curY += bagSlotSize*0.8 + 6*S
+  }
 
+  // --- 灵宠背包 ---
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillText('── 灵宠背包 ──', W*0.5, curY)
+  curY += 14*S
+  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px sans-serif`
+  ctx.fillText('拖动到上方队伍可交换', W*0.5, curY)
+  curY += 10*S
+  if (g.petBag.length > 0) {
+    const bagIconSize = bagSlotSize
     const bagFrameSize = bagIconSize * frameScale
     const bagFrameOff = (bagFrameSize - bagIconSize) / 2
-
     for (let i = 0; i < g.petBag.length; i++) {
       const col = i % bagCols
       const row = Math.floor(i / bagCols)
-      const bx = petSidePad + col * (bagIconSize + bagGap)
-      const by = curY + row * (bagIconSize + 26*S + bagGap)
+      const bx = teamSidePad + col * (bagIconSize + bagGap)
+      const by = curY + row * (bagIconSize + bagGap)
       g._eventPetSlots.push({ rect: [bx, by, bagIconSize, bagIconSize], type: 'bag', index: i })
       g._eventBagPetRects.push([bx, by, bagIconSize, bagIconSize])
-
       const isDragSource = drag && drag.source === 'bag' && drag.index === i
-      if (isDragSource) {
-        ctx.globalAlpha = 0.3
-      }
-      _drawPetIcon(ctx, R, TH, S, bx, by, bagIconSize, g.petBag[i], framePetMap, bagFrameSize, bagFrameOff, false)
-      if (isDragSource) {
-        ctx.globalAlpha = 1
-      }
-
-      // 拖拽悬停高亮：当从队伍拖到背包上时
+      if (isDragSource) ctx.globalAlpha = 0.3
+      _drawPetIconCompact(ctx, R, TH, S, bx, by, bagIconSize, g.petBag[i], framePetMap, bagFrameSize, bagFrameOff, false)
+      if (isDragSource) ctx.globalAlpha = 1
       if (drag && drag.source === 'team') {
         if (g._hitRect && g._hitRect(drag.x, drag.y, bx, by, bagIconSize, bagIconSize)) {
           ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
@@ -412,23 +483,51 @@ function rEvent(g) {
       }
     }
     const bagRows = Math.ceil(g.petBag.length / bagCols)
-    curY += bagRows * (bagIconSize + 26*S + bagGap)
+    curY += bagRows * (bagIconSize + bagGap)
+  } else {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px sans-serif`
+    ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
+    curY += bagSlotSize*0.8
   }
-  curY += 6*S
+  curY += 8*S
 
-  // ===== 进入战斗按钮（最下方） =====
-  curY += 4*S
-  const goBtnW = W*0.6, goBtnH = 46*S
-  const goBtnX = (W - goBtnW)/2, goBtnY = curY
-  R.drawBtn(goBtnX, goBtnY, goBtnW, goBtnH, '进入战斗', TH.accent, 16)
+  // ===== 进入战斗按钮（固定在页面底部） =====
+  const goBtnW = W*0.6, goBtnH = goBtnW / 4
+  const goBtnX = (W - goBtnW)/2, goBtnY = H - goBtnH - 28*S
+  const btnStartImg = R.getImg('assets/ui/btn_start.png')
+  if (btnStartImg && btnStartImg.width > 0) {
+    ctx.drawImage(btnStartImg, goBtnX, goBtnY, goBtnW, goBtnH)
+  } else {
+    R.drawBtn(goBtnX, goBtnY, goBtnW, goBtnH, '进入战斗', TH.accent, 16)
+  }
+  ctx.save()
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4*S
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px sans-serif`
+  ctx.fillText('进入战斗', W*0.5, goBtnY + goBtnH*0.5)
+  ctx.restore()
   g._eventBtnRect = [goBtnX, goBtnY, goBtnW, goBtnH]
   curY += goBtnH + 20*S
 
-  drawBackBtn(g)
+  // 返回首页按钮（古风暖色风格）
+  {
+    const btnW = 60*S, btnH = 30*S
+    const bbx = 8*S, bby = safeTop + 6*S
+    ctx.fillStyle = 'rgba(60,40,20,0.6)'
+    R.rr(bbx, bby, btnW, btnH, 6*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(200,170,120,0.4)'; ctx.lineWidth = 1
+    R.rr(bbx, bby, btnW, btnH, 6*S); ctx.stroke()
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('< 首页', bbx + btnW*0.5, bby + btnH*0.5)
+    ctx.textBaseline = 'alphabetic'
+    g._backBtnRect = [bbx, bby, btnW, btnH]
+  }
 
   // 拖拽中的灵宠跟随手指绘制
   if (drag && drag.pet) {
-    const dragSz = petIconSize * 0.9
+    const dragSz = teamIconSize * 0.9
     const dragFSz = dragSz * frameScale
     const dragFOff = (dragFSz - dragSz) / 2
     ctx.globalAlpha = 0.85
@@ -499,6 +598,64 @@ function _drawWeaponCard(ctx, R, TH, S, x, y, w, h, weapon, isEquipped, slotsArr
   }
 }
 
+// ===== 灵宠图标绘制（紧凑版，无文字说明） =====
+function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, frameOff, isSelected) {
+  const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
+  const ac = ATTR_COLOR[pet.attr]
+  const cxP = px + size/2
+  const cyP = py + size/2
+
+  ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
+  ctx.fillRect(px, py, size, size)
+  ctx.save()
+  const grd = ctx.createRadialGradient(cxP, cyP - size*0.06, 0, cxP, cyP - size*0.06, size*0.38)
+  grd.addColorStop(0, (ac ? ac.main : '#888') + '40')
+  grd.addColorStop(1, 'transparent')
+  ctx.fillStyle = grd
+  ctx.fillRect(px, py, size, size)
+  ctx.restore()
+
+  const petAvatar = R.getImg(`assets/pets/pet_${pet.id}.png`)
+  if (petAvatar && petAvatar.width > 0) {
+    const aw = petAvatar.width, ah = petAvatar.height
+    const drawW = size - 2, drawH = drawW * (ah / aw)
+    const dy = py + (size - 2) - drawH
+    ctx.save()
+    ctx.beginPath(); ctx.rect(px + 1, py + 1, size - 2, size - 2); ctx.clip()
+    ctx.drawImage(petAvatar, px + 1, dy, drawW, drawH)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(ATTR_NAME[pet.attr] || '', cxP, cyP)
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  const petFrame = framePetMap[pet.attr] || framePetMap.metal
+  if (petFrame && petFrame.width > 0) {
+    ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
+  }
+
+  // 星级标记
+  if ((pet.star || 1) > 1) {
+    const starText = '★'.repeat(pet.star || 1)
+    ctx.save()
+    ctx.font = `bold ${size * 0.18}px sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+    ctx.strokeText(starText, px + 2*S, py + 2*S)
+    ctx.fillStyle = '#ffd700'
+    ctx.fillText(starText, px + 2*S, py + 2*S)
+    ctx.textBaseline = 'alphabetic'
+    ctx.restore()
+  }
+
+  if (isSelected) {
+    ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
+    ctx.strokeRect(px - 1, py - 1, size + 2, size + 2)
+  }
+}
+
 // ===== 灵宠图标绘制 =====
 function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, frameOff, isSelected) {
   const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
@@ -537,6 +694,20 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
     ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
   }
 
+  // 星级标记
+  if ((pet.star || 1) > 1) {
+    const starText = '★'.repeat(pet.star || 1)
+    ctx.save()
+    ctx.font = `bold ${size * 0.18}px sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+    ctx.strokeText(starText, px + 2*S, py + 2*S)
+    ctx.fillStyle = '#ffd700'
+    ctx.fillText(starText, px + 2*S, py + 2*S)
+    ctx.textBaseline = 'alphabetic'
+    ctx.restore()
+  }
+
   // 选中高亮
   if (isSelected) {
     ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
@@ -546,8 +717,10 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${8*S}px sans-serif`
   ctx.textAlign = 'center'
   ctx.fillText(pet.name.substring(0,4), cxP, py + size + 10*S)
+  const starAtk = getPetStarAtk(pet)
+  const atkDisplay = (pet.star || 1) > 1 ? `ATK:${pet.atk}→${starAtk}` : `ATK:${pet.atk}`
   ctx.fillStyle = TH.dim; ctx.font = `${7*S}px sans-serif`
-  ctx.fillText(`ATK:${pet.atk}`, cxP, py + size + 19*S)
+  ctx.fillText(atkDisplay, cxP, py + size + 19*S)
 }
 
 // ===== 灵宠详情弹窗（明亮说明面板） =====
@@ -563,7 +736,7 @@ function drawEventPetDetail(g) {
 
   const cardW = W * 0.78
   const descLines = wrapText(p.skill.desc, cardW - 60*S, 10)
-  const cardH = Math.max(180*S, 80*S + descLines.length * 14*S + 80*S)
+  const cardH = Math.max(170*S, 80*S + descLines.length * 14*S + 50*S)
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
   R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
@@ -593,8 +766,16 @@ function drawEventPetDetail(g) {
   iy += 20*S
   const orbR = 6*S
   R.drawBead(infoX + orbR, iy - 3*S, orbR, p.attr, 0)
+  const starAtk = getPetStarAtk(p)
+  const atkDisplay = (p.star || 1) > 1 ? `ATK: ${p.atk}→${starAtk}` : `ATK: ${p.atk}`
   ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px sans-serif`
-  ctx.fillText(`ATK: ${p.atk}`, infoX + orbR*2 + 8*S, iy)
+  ctx.fillText(atkDisplay, infoX + orbR*2 + 8*S, iy)
+
+  // 星级显示
+  const starText = '★'.repeat(p.star || 1) + ((p.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
+  iy += 16*S
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillText(starText, infoX, iy)
 
   // 技能区域
   iy = avY + avSz + 12*S
@@ -611,11 +792,8 @@ function drawEventPetDetail(g) {
   ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px sans-serif`
   ctx.fillText(`CD：${p.cd} 回合`, cardX + 28*S, iy)
 
-  const closeBtnW = 80*S, closeBtnH = 32*S
-  const closeBtnX = cardX + (cardW - closeBtnW)/2
-  const closeBtnY = cardY + cardH - closeBtnH - 12*S
-  R.drawDialogBtn(closeBtnX, closeBtnY, closeBtnW, closeBtnH, '关闭', 'cancel')
-  g._eventPetDetailCloseRect = [closeBtnX, closeBtnY, closeBtnW, closeBtnH]
+  // 点击任意位置关闭（无关闭按钮）
+  g._eventPetDetailCloseRect = [0, 0, W, H]
 }
 
 // ===== 法宝详情弹窗（明亮说明面板） =====
@@ -626,7 +804,7 @@ function _drawWeaponDetailPopup(g) {
 
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
 
-  const cardW = W * 0.72, cardH = 140*S
+  const cardW = W * 0.72, cardH = 110*S
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
   R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
@@ -653,11 +831,8 @@ function _drawWeaponDetailPopup(g) {
     dy += 16*S
   })
 
-  const closeBtnW = 80*S, closeBtnH = 30*S
-  const closeBtnX = cardX + (cardW - closeBtnW)/2
-  const closeBtnY = cardY + cardH - closeBtnH - 10*S
-  R.drawDialogBtn(closeBtnX, closeBtnY, closeBtnW, closeBtnH, '关闭', 'cancel')
-  g._eventWpnDetailCloseRect = [closeBtnX, closeBtnY, closeBtnW, closeBtnH]
+  // 点击任意位置关闭（无关闭按钮）
+  g._eventWpnDetailCloseRect = [0, 0, W, H]
 }
 
 module.exports = { rEvent, drawEventPetDetail }

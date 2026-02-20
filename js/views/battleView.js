@@ -2,7 +2,8 @@
  * 战斗界面渲染：棋盘、队伍栏、怪物区、Combo、倒计时、胜利/失败覆盖
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES } = require('../data/tower')
+const { getPetStarAtk } = require('../data/pets')
 
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
@@ -185,11 +186,14 @@ function rBattle(g) {
       }
     }
 
-    // --- 怪物名（图片头顶，上移留出抗性空间） ---
-    const nameY = imgDrawY - 16*S
+    // --- 怪物技能倒计时（名称上方，醒目位置） ---
+    const hasSkillCd = g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0
+    const skillCdBlockH = hasSkillCd ? 28*S : 0  // 倒计时占据的垂直空间
+
+    // --- 怪物名（图片头顶，上移留出技能倒计时+抗性空间） ---
+    const nameY = imgDrawY - 20*S - skillCdBlockH
     const nameFontSize = 14*S
     ctx.textAlign = 'center'
-    // 名称文字：暖米色，柔和阴影（无底框）
     ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
@@ -197,12 +201,46 @@ function rBattle(g) {
     ctx.fillText(g.enemy.name, W*0.5, nameY)
     ctx.restore()
 
+    // 绘制技能倒计时（名称和弱点/抵抗之间）
+    if (hasSkillCd) {
+      const cdNum = g.enemySkillCd
+      const isUrgent = cdNum <= 1
+      const skFontSize = 10*S
+      ctx.font = `bold ${skFontSize}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      const cdText = isUrgent ? '⚠ 下回合释放技能！' : `技能蓄力 ${cdNum} 回合`
+      const cdTextW = ctx.measureText(cdText).width
+      const cdTagW = cdTextW + 20*S
+      const cdTagH = 20*S
+      const cdTagX = (W - cdTagW) / 2
+      const cdTagY = nameY + 6*S
+      ctx.save()
+      if (isUrgent) {
+        const pulse = 0.7 + 0.3 * Math.sin(g.af * 0.12)
+        ctx.globalAlpha = pulse
+        ctx.fillStyle = 'rgba(200,40,40,0.8)'
+      } else {
+        ctx.globalAlpha = 0.75
+        ctx.fillStyle = 'rgba(60,50,80,0.7)'
+      }
+      ctx.beginPath()
+      R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.fill()
+      ctx.strokeStyle = isUrgent ? 'rgba(255,80,80,0.9)' : 'rgba(180,170,200,0.5)'
+      ctx.lineWidth = 1*S
+      R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.stroke()
+      ctx.globalAlpha = 1
+      ctx.fillStyle = isUrgent ? '#ffcccc' : '#d0c8e0'
+      ctx.fillText(cdText, W * 0.5, cdTagY + cdTagH / 2)
+      ctx.restore()
+      ctx.textBaseline = 'alphabetic'
+    }
+
     // --- 弱点 & 抵抗（药丸标签化，Boss弱点呼吸脉冲） ---
     const weakAttr = COUNTER_BY[g.enemy.attr]
     const resistAttr = COUNTER_MAP[g.enemy.attr]
     const orbR = 7*S
     const infoFontSize = 11*S
-    const infoY = nameY + 14*S
+    const infoY = nameY + (hasSkillCd ? skillCdBlockH + 8*S : 14*S)
     const tagH = 22*S, tagR = tagH/2
     ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
     const weakTagW = weakAttr ? ctx.measureText('弱点').width + orbR*2 + 16*S : 0
@@ -953,17 +991,17 @@ function _drawCombo(g, cellSize, boardTop) {
       ctx.restore()
     }
 
-    // 倍率说明
-    const tipSz = baseSz * 0.17
-    const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.17 * 0.5 : tipSz * 1.0)
+    // 倍率说明（加大字号+增强可见度）
+    const tipSz = baseSz * 0.26
+    const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.26 * 0.5 : tipSz * 1.0)
     ctx.font = `bold ${tipSz}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.5*S
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
     const tipText = comboBonusPct > 0
       ? `x${totalMul.toFixed(2)}倍率 (含Combo加成${comboBonusPct}%)`
       : `x${totalMul.toFixed(2)}倍率`
     ctx.strokeText(tipText, 0, tipY)
-    ctx.fillStyle = 'rgba(255,200,200,0.75)'
+    ctx.fillStyle = 'rgba(255,230,210,0.95)'
     ctx.fillText(tipText, 0, tipY)
     ctx.restore()
   }
@@ -1443,8 +1481,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
   ctx.save()
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = 'rgba(8,8,20,0.88)'
-  ctx.fillRect(0, topY, W, barH)
+
   const framePetMap = {
     metal: R.getImg('assets/ui/frame_pet_metal.png'),
     wood:  R.getImg('assets/ui/frame_pet_wood.png'),
@@ -1594,6 +1631,19 @@ function drawTeamBar(g, topY, barH, iconSize) {
         }
         if (petFrame && petFrame.width > 0) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
+        }
+        // ★ 星级标记
+        if ((p.star || 1) > 1) {
+          const starText = '★'.repeat(p.star || 1)
+          ctx.save()
+          ctx.font = `bold ${iconSize * 0.18}px sans-serif`
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+          ctx.strokeText(starText, ix + 2*S, iconY + 2*S)
+          ctx.fillStyle = '#ffd700'
+          ctx.fillText(starText, ix + 2*S, iconY + 2*S)
+          ctx.textBaseline = 'alphabetic'
+          ctx.restore()
         }
         if (!ready) {
           // 冷却中 — 暗化头像 + 显示CD标记
@@ -2030,34 +2080,319 @@ function drawRunBuffIcons(g, topY, bottomY) {
   }
 }
 
-// ===== 胜利/失败/复活覆盖 =====
+// ===== 胜利弹窗（内嵌奖励选择）=====
 function drawVictoryOverlay(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
 
   const hasSpeed = g.lastSpeedKill
-  const panelH = hasSpeed ? 150*S : 120*S
-  const panelW = W * 0.72
+  const panelW = W * 0.82
   const panelX = (W - panelW) / 2
-  const panelY = (H - panelH) / 2
-  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+  const innerPad = 22*S
 
-  ctx.textAlign = 'center'
-  // 标题 — 与首页弹窗风格一致：米色
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px sans-serif`
-  ctx.fillText('战斗胜利', W*0.5, panelY + 42*S)
-
-  if (hasSpeed) {
-    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px sans-serif`
-    ctx.fillText(`⚡ 速通达成！(${g.lastTurnCount}回合击败)`, W*0.5, panelY + 64*S)
-    ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${10*S}px sans-serif`
-    ctx.fillText('额外获得速通奖励', W*0.5, panelY + 80*S)
+  // 如果奖励尚未生成，只显示胜利标题
+  if (!g.rewards || g.rewards.length === 0) {
+    const miniH = 60*S, miniY = (H - miniH) / 2
+    R.drawInfoPanel(panelX, miniY, panelW, miniH)
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+    ctx.fillText('战斗胜利', W*0.5, miniY + miniH*0.55)
+    return
   }
 
-  const btnW = panelW * 0.7, btnH = 40*S
-  const btnX = (W - btnW) / 2, btnY = panelY + panelH - btnH - 14*S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '选择奖励', 'confirm')
-  g._victoryBtnRect = [btnX, btnY, btnW, btnH]
+  // ---- 布局计算 ----
+  const rewardCount = g.rewards.length
+  const headerH = 24*S
+  const speedLineH = hasSpeed ? 18*S : 0
+  const subTitleH = 18*S
+  const btnAreaH = 36*S
+  const itemGap = 4*S
+
+  // 紧凑的奖励项高度：加成类型不需要很高
+  const hasPetOrWpn = g.rewards.some(rw => (rw.type === REWARD_TYPES.NEW_PET || rw.type === REWARD_TYPES.NEW_WEAPON) && rw.data)
+  const baseItemH = hasPetOrWpn ? 44*S : 36*S
+  // 动态调整：如果奖励很多就稍微压缩
+  const maxPanel = H * 0.85
+  const fixedH = innerPad + headerH + speedLineH + subTitleH + btnAreaH + innerPad + 6*S
+  const availForItems = maxPanel - fixedH
+  const itemH = Math.min(baseItemH, Math.max(32*S, Math.floor((availForItems - (rewardCount - 1) * itemGap) / rewardCount)))
+
+  const totalH = fixedH + rewardCount * itemH + (rewardCount - 1) * itemGap
+  const panelY = Math.max(8*S, Math.floor((H - totalH) / 2))
+
+  R.drawInfoPanel(panelX, panelY, panelW, totalH)
+
+  let curY = panelY + innerPad
+
+  // ---- 标题 ----
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  ctx.fillText('战斗胜利', W*0.5, curY + 14*S)
+  curY += headerH
+
+  // ---- 速通信息 ----
+  if (hasSpeed) {
+    ctx.fillStyle = '#C07000'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外奖励已解锁`, W*0.5, curY + 10*S)
+    curY += speedLineH
+  }
+
+  // ---- 子标题 ----
+  ctx.fillStyle = '#8B7B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('选择一项奖励', W*0.5, curY + 10*S)
+  curY += subTitleH
+
+  // ---- 奖励选项 ----
+  g._rewardRects = []
+  g._rewardAvatarRects = []
+
+  const framePetMap = {
+    metal: R.getImg('assets/ui/frame_pet_metal.png'),
+    wood:  R.getImg('assets/ui/frame_pet_wood.png'),
+    water: R.getImg('assets/ui/frame_pet_water.png'),
+    fire:  R.getImg('assets/ui/frame_pet_fire.png'),
+    earth: R.getImg('assets/ui/frame_pet_earth.png'),
+  }
+  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
+  const cardX = panelX + innerPad
+  const cardW = panelW - innerPad * 2
+
+  g.rewards.forEach((rw, i) => {
+    const iy = curY + i * (itemH + itemGap)
+    const selected = g.selectedReward === i
+    const isSpeedBuff = rw.isSpeed === true
+    const midY = iy + itemH * 0.5
+
+    // 卡片底色
+    ctx.save()
+    let bgColor, borderColor
+    if (selected) {
+      bgColor = 'rgba(201,168,76,0.18)'; borderColor = 'rgba(201,168,76,0.7)'
+    } else {
+      bgColor = isSpeedBuff ? 'rgba(224,192,112,0.12)' : 'rgba(220,210,195,0.3)'
+      borderColor = 'rgba(180,170,155,0.35)'
+    }
+    ctx.fillStyle = bgColor
+    R.rr(cardX, iy, cardW, itemH, 6*S); ctx.fill()
+    ctx.strokeStyle = borderColor; ctx.lineWidth = selected ? 1.5*S : 0.5*S
+    R.rr(cardX, iy, cardW, itemH, 6*S); ctx.stroke()
+    if (selected) {
+      ctx.fillStyle = 'rgba(201,168,76,0.6)'
+      R.rr(cardX, iy, 3*S, itemH, 1.5*S); ctx.fill()
+    }
+    ctx.restore()
+
+    g._rewardRects.push([cardX, iy, cardW, itemH])
+
+    if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
+      const p = rw.data
+      const ac = ATTR_COLOR[p.attr]
+      const avSz = Math.min(itemH - 8*S, 34*S)
+      const avX = cardX + 8*S, avY = midY - avSz/2
+
+      ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
+      R.rr(avX, avY, avSz, avSz, 4*S); ctx.fill()
+      const petAvatar = R.getImg(`assets/pets/pet_${p.id}.png`)
+      if (petAvatar && petAvatar.width > 0) {
+        ctx.save(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 3*S); ctx.clip()
+        const dw = avSz - 2, dh = dw * (petAvatar.height/petAvatar.width)
+        ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
+        ctx.restore()
+      }
+      const petFrame = framePetMap[p.attr] || framePetMap.metal
+      if (petFrame && petFrame.width > 0) {
+        const fSz = avSz * 1.12, fOff = (fSz - avSz)/2
+        ctx.drawImage(petFrame, avX - fOff, avY - fOff, fSz, fSz)
+      }
+      g._rewardAvatarRects.push({ idx: i, rect: [avX, avY, avSz, avSz], type: 'pet', data: p })
+
+      const infoX = avX + avSz + 10*S
+      ctx.textAlign = 'left'
+      ctx.fillStyle = ac ? (ac.dk || ac.main) : '#7A5C30'
+      ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(p.name, infoX, midY - 2*S)
+      const nameW = ctx.measureText(p.name).width
+      R.drawBead(infoX + nameW + 5*S + 4*S, midY - 6*S, 4*S, p.attr, 0)
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`ATK ${p.atk}  ${p.skill ? p.skill.name : ''}`, infoX, midY + 10*S)
+
+    } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
+      const w = rw.data
+      const avSz = Math.min(itemH - 8*S, 34*S)
+      const avX = cardX + 8*S, avY = midY - avSz/2
+
+      ctx.fillStyle = '#2a2030'
+      R.rr(avX, avY, avSz, avSz, 4*S); ctx.fill()
+      const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
+      if (wpnImg && wpnImg.width > 0) {
+        ctx.save(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 3*S); ctx.clip()
+        const dw = avSz - 2, dh = dw * (wpnImg.height/wpnImg.width)
+        ctx.drawImage(wpnImg, avX+1, avY+1+(avSz-2-dh), dw, dh)
+        ctx.restore()
+      }
+      if (frameWeapon && frameWeapon.width > 0) {
+        const fSz = avSz * 1.12, fOff = (fSz - avSz)/2
+        ctx.drawImage(frameWeapon, avX - fOff, avY - fOff, fSz, fSz)
+      }
+      g._rewardAvatarRects.push({ idx: i, rect: [avX, avY, avSz, avSz], type: 'weapon', data: w })
+
+      const infoX = avX + avSz + 10*S
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#8B6914'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(w.name, infoX, midY - 2*S)
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      const descShort = w.desc ? (w.desc.length > 14 ? w.desc.slice(0,14)+'…' : w.desc) : ''
+      ctx.fillText(descShort, infoX, midY + 10*S)
+
+    } else {
+      // 加成类奖励 — 紧凑单行布局：左侧标签 + 居中奖励名 + 右侧小字说明
+      const isSpeedTag = isSpeedBuff
+      const tagText = isSpeedTag ? '⚡速通' : '加成'
+      const tagColor = isSpeedTag ? '#C07000' : '#8B7B70'
+
+      // 左侧标签
+      ctx.textAlign = 'left'
+      ctx.fillStyle = tagColor; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(tagText, cardX + 10*S, midY - 4*S)
+
+      // 奖励名（居中）
+      ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'
+      const cardCenterX = cardX + cardW / 2
+      ctx.fillText(rw.label, cardCenterX, midY - 2*S)
+
+      // 描述
+      ctx.fillStyle = '#8B7B70'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('全队永久生效', cardCenterX, midY + 11*S)
+    }
+  })
+
+  curY += rewardCount * (itemH + itemGap) - itemGap + 6*S
+
+  // ---- 确认按钮 ----
+  if (g.selectedReward >= 0) {
+    const btnW = cardW * 0.6, btnH = 32*S
+    const btnX = cardX + (cardW - btnW) / 2, btnY = curY
+    R.drawDialogBtn(btnX, btnY, btnW, btnH, '确认选择', 'confirm')
+    g._rewardConfirmRect = [btnX, btnY, btnW, btnH]
+  } else {
+    g._rewardConfirmRect = null
+  }
+
+  // ---- 宠物/法宝详情浮层 ----
+  if (g._rewardDetailShow != null) {
+    _drawRewardDetailOverlay(g)
+  }
+}
+
+// 文字换行辅助
+function _wrapTextBV(text, maxW, fontSize) {
+  const charW = fontSize * V.S * 0.55
+  const maxChars = Math.floor(maxW / charW)
+  if (maxChars <= 0) return [text]
+  const result = []
+  for (let i = 0; i < text.length; i += maxChars) result.push(text.slice(i, i + maxChars))
+  return result
+}
+
+// 宠物/法宝详情浮层（从奖励选择弹窗中点击头像触发）
+function _drawRewardDetailOverlay(g) {
+  const { ctx, R, W, H, S } = V
+  const detail = g._rewardDetailShow
+  if (!detail) return
+
+  // 深色遮罩
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
+
+  const padX = 30*S, padY = 28*S
+  const tipW = W * 0.82
+
+  if (detail.type === 'pet') {
+    const p = detail.data
+    const ac = ATTR_COLOR[p.attr]
+    const sk = p.skill
+    const lineH = 20*S, smallLineH = 16*S
+
+    let lines = []
+    lines.push({ text: p.name, color: ac ? ac.dk || ac.main : '#8B6914', bold: true, size: 15, h: lineH + 4*S })
+    lines.push({ text: `__ATTR_ORB__${p.attr}　　攻击力：${p.atk}`, color: '#6B5B50', size: 11, h: smallLineH, attrOrb: p.attr })
+    lines.push({ text: '', size: 0, h: 6*S })
+    if (sk) {
+      lines.push({ text: `技能：${sk.name}`, color: '#7A5C30', bold: true, size: 12, h: lineH })
+      const descLines = _wrapTextBV(sk.desc || '无描述', tipW - padX*2 - 10*S, 11)
+      descLines.forEach(dl => lines.push({ text: dl, color: '#3D2B1F', size: 11, h: smallLineH }))
+      lines.push({ text: '', size: 0, h: 4*S })
+      lines.push({ text: `冷却：${p.cd}回合`, color: '#6B5B50', size: 10, h: smallLineH })
+    } else {
+      lines.push({ text: '该灵兽没有主动技能', color: '#8B7B70', size: 11, h: smallLineH })
+    }
+    lines.push({ text: '', size: 0, h: 4*S })
+    lines.push({ text: '消除对应属性珠时该灵兽发动攻击', color: '#8B7B70', size: 10, h: smallLineH })
+
+    let totalH = padY * 2 + 20*S
+    lines.forEach(l => totalH += l.h)
+    const tipX = (W - tipW) / 2, tipY = (H - totalH) / 2
+    R.drawInfoPanel(tipX, tipY, tipW, totalH)
+
+    let curY = tipY + padY
+    ctx.textAlign = 'left'
+    lines.forEach(l => {
+      if (l.size === 0) { curY += l.h; return }
+      curY += l.h
+      ctx.fillStyle = l.color || '#3D2B1F'
+      ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
+      if (l.attrOrb) {
+        const orbR = 6*S, orbX = tipX + padX + orbR, orbY = curY - 4*S - orbR*0.4
+        R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
+        ctx.fillText(l.text.replace(`__ATTR_ORB__${l.attrOrb}`, ''), orbX + orbR + 4*S, curY - 4*S)
+      } else {
+        ctx.fillText(l.text, tipX + padX, curY - 4*S)
+      }
+    })
+    ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
+
+  } else if (detail.type === 'weapon') {
+    const w = detail.data
+    const lineH = 20*S, smallLineH = 16*S
+    let lines = []
+    lines.push({ text: w.name, color: '#8B6914', bold: true, size: 15, h: lineH + 4*S })
+    lines.push({ text: '法宝', color: '#B89840', size: 10, h: smallLineH })
+    lines.push({ text: '', size: 0, h: 6*S })
+    if (w.desc) {
+      const descLines = _wrapTextBV(w.desc, tipW - padX*2 - 10*S, 11)
+      descLines.forEach(dl => lines.push({ text: dl, color: '#3D2B1F', size: 11, h: smallLineH }))
+    }
+    if (w.attr) {
+      lines.push({ text: '', size: 0, h: 4*S })
+      lines.push({ text: `对应属性：${ATTR_NAME[w.attr] || w.attr}`, color: '#6B5B50', size: 10, h: smallLineH, attrOrb: w.attr })
+    }
+
+    let totalH = padY * 2 + 20*S
+    lines.forEach(l => totalH += l.h)
+    const tipX = (W - tipW) / 2, tipY = (H - totalH) / 2
+    R.drawInfoPanel(tipX, tipY, tipW, totalH)
+
+    let curY = tipY + padY
+    ctx.textAlign = 'left'
+    lines.forEach(l => {
+      if (l.size === 0) { curY += l.h; return }
+      curY += l.h
+      ctx.fillStyle = l.color || '#3D2B1F'
+      ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
+      if (l.attrOrb) {
+        const orbR = 6*S, orbX = tipX + padX + orbR, orbY = curY - 4*S - orbR*0.4
+        R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
+        ctx.fillText(l.text.replace(`__ATTR_ORB__${l.attrOrb}`, ''), orbX + orbR + 4*S, curY - 4*S)
+      } else {
+        ctx.fillText(l.text, tipX + padX, curY - 4*S)
+      }
+    })
+    ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 8*S)
+  }
+  ctx.restore()
 }
 
 function drawDefeatOverlay(g) {

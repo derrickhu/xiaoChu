@@ -7,7 +7,7 @@ const MusicMgr = require('../runtime/music')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
-const { randomPet } = require('../data/pets')
+const { randomPet, getPetStarAtk, getPetStarSkillMul, tryMergePet } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
 
 // ===== 宠物技能 =====
@@ -248,7 +248,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'instantDmg':
       if (g.enemy) {
-        let dmg = Math.round(pet.atk * (sk.pct||150) / 100)
+        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||150) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||V.TH.danger, t:0, alpha:1 })
@@ -258,7 +258,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'instantDmgDot':
       if (g.enemy) {
-        let dmg = Math.round(pet.atk * (sk.pct||300) / 100)
+        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||300) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||V.TH.danger, t:0, alpha:1 })
@@ -272,7 +272,7 @@ function triggerPetSkill(g, pet, idx) {
         const hits = sk.hits || 3
         let totalDmg = 0
         for (let h = 0; h < hits; h++) {
-          let dmg = Math.round(pet.atk * (sk.pct||100) / 100)
+          let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||100) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           totalDmg += dmg
           const offY = (h - (hits-1)/2) * 12*S
@@ -377,7 +377,7 @@ function triggerPetSkill(g, pet, idx) {
       if (g.enemy) {
         let totalTeamDmg = 0
         g.pets.forEach(p => {
-          let dmg = Math.round(p.atk * (sk.pct || 100) / 100)
+          let dmg = Math.round(getPetStarAtk(p) * (sk.pct || 100) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.allAtkPct / 100))
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
@@ -398,9 +398,13 @@ function applyReward(g, rw) {
   if (!rw) return
   switch(rw.type) {
     case REWARD_TYPES.NEW_PET: {
-      const newPet = { ...rw.data, currentCd: 0 }
-      if (g.petBag.length < 8) g.petBag.push(newPet)
-      else g.petBag[g.petBag.length - 1] = newPet
+      const newPet = { ...rw.data, star: rw.data.star || 1, currentCd: 0 }
+      const allPets = [...g.pets, ...g.petBag]
+      const mergeResult = tryMergePet(allPets, newPet)
+      if (!mergeResult.merged) {
+        if (g.petBag.length < 8) g.petBag.push(newPet)
+        else g.petBag[g.petBag.length - 1] = newPet
+      }
       break
     }
     case REWARD_TYPES.NEW_WEAPON: {
@@ -477,9 +481,13 @@ function applyShopItem(g, item) {
   if (!item) return
   switch(item.effect) {
     case 'getPet': {
-      const newPet = randomPet()
-      if (g.petBag.length < 8) { g.petBag.push({ ...newPet, currentCd: 0 }) }
-      else { const idx = Math.floor(Math.random() * g.pets.length); g.pets[idx] = { ...newPet, currentCd: 0 } }
+      const newPet = { ...randomPet(), currentCd: 0 }
+      const allPets = [...g.pets, ...g.petBag]
+      const mergeResult = tryMergePet(allPets, newPet)
+      if (!mergeResult.merged) {
+        if (g.petBag.length < 8) g.petBag.push(newPet)
+        else { const idx = Math.floor(Math.random() * g.pets.length); g.pets[idx] = newPet }
+      }
       break
     }
     case 'getWeapon': {
@@ -530,7 +538,7 @@ function applyAdventure(g, adv) {
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
-    case 'getPet':         { const p = randomPet(); if (g.petBag.length<8) g.petBag.push({...p,currentCd:0}); else { const i2=Math.floor(Math.random()*g.pets.length); g.pets[i2]={...p,currentCd:0} } break }
+    case 'getPet':         { const p = { ...randomPet(), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = tryMergePet(allP, p); if (!mr.merged) { if (g.petBag.length<8) g.petBag.push(p); else { const i2=Math.floor(Math.random()*g.pets.length); g.pets[i2]=p } } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; break

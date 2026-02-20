@@ -19,8 +19,8 @@ const ATTR_COLOR = {
 }
 const COUNTER_MAP = { metal:'wood', wood:'earth', earth:'water', water:'fire', fire:'metal' }
 const COUNTER_BY  = { wood:'metal', earth:'wood', water:'earth', fire:'water', metal:'fire' }
-// 克制倍率
-const COUNTER_MUL = 2.0      // 克制对方伤害倍率
+// 克制倍率（提升至2.5倍，让策略消除更有意义）
+const COUNTER_MUL = 2.5      // 克制对方伤害倍率
 const COUNTERED_MUL = 0.5    // 被克制伤害倍率
 
 // 棋盘灵珠（含心珠）
@@ -53,14 +53,15 @@ const BASE_EVENT_WEIGHTS = {
 // ===== 总层数 =====
 const MAX_FLOOR = 30
 
-// ===== 怪物数据（按层段，30层制，保证普通怪能撑3-4回合） =====
+// ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
+// 调优：后期HP从3600降至2000, ATK从75降至40, 整体增长约12~15倍（配合玩家层数成长）
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:120,  hpMax:240,   atkMin:3,   atkMax:6   },
-  { minFloor:6,   maxFloor:10,  hpMin:260,  hpMax:480,   atkMin:6,   atkMax:12  },
-  { minFloor:11,  maxFloor:15,  hpMin:500,  hpMax:850,   atkMin:11,  atkMax:20  },
-  { minFloor:16,  maxFloor:20,  hpMin:880,  hpMax:1350,  atkMin:18,  atkMax:32  },
-  { minFloor:21,  maxFloor:25,  hpMin:1400, hpMax:2200,  atkMin:30,  atkMax:50  },
-  { minFloor:26,  maxFloor:30,  hpMin:2300, hpMax:3600,  atkMin:45,  atkMax:75  },
+  { minFloor:1,   maxFloor:5,   hpMin:100,  hpMax:200,   atkMin:3,   atkMax:5   },
+  { minFloor:6,   maxFloor:10,  hpMin:220,  hpMax:400,   atkMin:5,   atkMax:10  },
+  { minFloor:11,  maxFloor:15,  hpMin:420,  hpMax:700,   atkMin:9,   atkMax:16  },
+  { minFloor:16,  maxFloor:20,  hpMin:720,  hpMax:1100,  atkMin:14,  atkMax:24  },
+  { minFloor:21,  maxFloor:25,  hpMin:1100, hpMax:1600,  atkMin:22,  atkMax:34  },
+  { minFloor:26,  maxFloor:30,  hpMin:1500, hpMax:2000,  atkMin:30,  atkMax:40  },
 ]
 
 // 普通怪物名池（按属性）
@@ -175,20 +176,20 @@ const REWARD_TYPES = {
 // ===== 加成奖励池（重做：去掉蚊子叮，改为体感明显的变革性效果）=====
 // 小档（普通战斗掉落）——每次拿到都能明显感到变强
 const BUFF_POOL_MINOR = [
-  { id:'m1',  label:'全队攻击 +8%',           buff:'allAtkPct',       val:8 },
-  { id:'m2',  label:'全队攻击 +10%',          buff:'allAtkPct',       val:10 },
-  { id:'m3',  label:'血量上限 +10%',          buff:'hpMaxPct',        val:10 },
-  { id:'m4',  label:'血量上限 +15%',          buff:'hpMaxPct',        val:15 },
-  { id:'m5',  label:'心珠回复 +15%',          buff:'heartBoostPct',   val:15 },
-  { id:'m6',  label:'Combo伤害 +8%',          buff:'comboDmgPct',     val:8 },
-  { id:'m7',  label:'3消伤害 +10%',           buff:'elim3DmgPct',     val:10 },
+  { id:'m1',  label:'全队攻击 +12%',          buff:'allAtkPct',       val:12 },
+  { id:'m2',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
+  { id:'m3',  label:'血量上限 +12%',          buff:'hpMaxPct',        val:12 },
+  { id:'m4',  label:'血量上限 +18%',          buff:'hpMaxPct',        val:18 },
+  { id:'m5',  label:'心珠回复 +20%',          buff:'heartBoostPct',   val:20 },
+  { id:'m6',  label:'Combo伤害 +12%',         buff:'comboDmgPct',     val:12 },
+  { id:'m7',  label:'3消伤害 +15%',           buff:'elim3DmgPct',     val:15 },
   { id:'m8',  label:'转珠时间 +0.5秒',        buff:'extraTimeSec',    val:0.5 },
-  { id:'m9',  label:'每回合回血 +3',           buff:'regenPerTurn',    val:3 },
-  { id:'m10', label:'受伤减免 -5%',           buff:'dmgReducePct',    val:5 },
-  { id:'m11', label:'怪物攻击 -5%',           buff:'enemyAtkReducePct', val:5 },
-  { id:'m12', label:'怪物血量 -5%',           buff:'enemyHpReducePct',  val:5 },
-  { id:'m13', label:'立即恢复30%血量',        buff:'healNow',         val:30 },
-  { id:'m14', label:'战后额外回血10%',        buff:'postBattleHeal',  val:10 },
+  { id:'m9',  label:'每回合回血 +5',           buff:'regenPerTurn',    val:5 },
+  { id:'m10', label:'受伤减免 -8%',           buff:'dmgReducePct',    val:8 },
+  { id:'m11', label:'怪物攻击 -8%',           buff:'enemyAtkReducePct', val:8 },
+  { id:'m12', label:'怪物血量 -8%',           buff:'enemyHpReducePct',  val:8 },
+  { id:'m13', label:'立即恢复40%血量',        buff:'healNow',         val:40 },
+  { id:'m14', label:'战后额外回血15%',        buff:'postBattleHeal',  val:15 },
 ]
 // 中档（精英战斗掉落）——质变级
 const BUFF_POOL_MEDIUM = [
@@ -464,25 +465,27 @@ function generateRewards(floor, eventType, speedKill) {
   }
 
   if (eventType === 'boss') {
-    // BOSS战斗：法宝3选1（速通4选1）
+    // BOSS战斗：2件法宝 + 1个大档buff 三选一（速通4选1）
     const wpnIds = new Set()
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       let w = randomWeapon()
       let tries = 0
       while (wpnIds.has(w.id) && tries < 20) { w = randomWeapon(); tries++ }
       wpnIds.add(w.id)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     }
+    rewards.push(pickFrom(BUFF_POOL_MAJOR))
   } else if (eventType === 'elite') {
-    // 精英战斗：灵宠3选1（速通4选1）
+    // 精英战斗：2只灵宠 + 1个中档buff 三选一（速通4选1）
     const petIds = new Set()
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       let p = randomPet()
       let tries = 0
       while (petIds.has(p.id) && tries < 20) { p = randomPet(); tries++ }
       petIds.add(p.id)
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
     }
+    rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
     // 普通战斗：30%概率掉落宠物（30层制加速build）
     if (Math.random() < 0.30) {

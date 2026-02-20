@@ -5,6 +5,7 @@
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
 const { generateRewards } = require('../data/tower')
+const { hasSameIdOnTeam } = require('../data/pets')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
@@ -61,6 +62,8 @@ function tPrepare(g, type, x, y) {
     if (g._prepSwapBtnRect && g._hitRect(x,y,...g._prepSwapBtnRect)) {
       const si = g.prepareSelSlotIdx, bi = g.prepareSelBagIdx
       if (si >= 0 && bi >= 0 && g.petBag[bi]) {
+        // 禁止同ID上场
+        if (hasSameIdOnTeam(g.pets, g.petBag[bi].id, si)) return
         const tmp = g.pets[si]
         g.pets[si] = g.petBag[bi]
         g.pets[si].currentCd = 0
@@ -220,7 +223,7 @@ function tEvent(g, type, x, y) {
   }
 }
 
-// 灵宠拖拽交换：只允许队伍↔背包
+// 灵宠拖拽交换：只允许队伍↔背包，禁止同ID上场
 function _doEventPetSwap(g, drag, drop) {
   // 同区域不允许交换
   if (drag.source === drop.type) return
@@ -230,13 +233,14 @@ function _doEventPetSwap(g, drag, drop) {
   if (drag.source === 'team') {
     // 队伍 → 背包位置
     if (bi < g.petBag.length) {
-      // 交换
+      // 检查：背包宠物上场后是否与队伍中其他宠物同ID
+      const bagPet = g.petBag[bi]
+      if (hasSameIdOnTeam(g.pets, bagPet.id, si)) return // 禁止同ID上场
       const tmp = g.pets[si]
       g.pets[si] = g.petBag[bi]
       g.pets[si].currentCd = 0
       g.petBag[bi] = tmp
     } else {
-      // 拖到背包空白区 → 下场（队伍至少保留1只）
       if (g.pets.length > 1) {
         g.petBag.push(g.pets[si])
         g.pets.splice(si, 1)
@@ -245,15 +249,18 @@ function _doEventPetSwap(g, drag, drop) {
   } else {
     // 背包 → 队伍位置
     if (si < g.pets.length) {
-      // 交换
+      // 检查：背包宠物上场后是否与队伍中其他宠物同ID
+      const bagPet = g.petBag[bi]
+      if (hasSameIdOnTeam(g.pets, bagPet.id, si)) return // 禁止同ID上场
       const tmp = g.pets[si]
       g.pets[si] = g.petBag[bi]
       g.pets[si].currentCd = 0
       g.petBag[bi] = tmp
     } else {
-      // 拖到队伍空位 → 上场（最多5只）
       if (g.pets.length < 5) {
-        const pet = g.petBag.splice(bi, 1)[0]
+        const pet = g.petBag[bi]
+        if (hasSameIdOnTeam(g.pets, pet.id, -1)) return // 禁止同ID上场
+        g.petBag.splice(bi, 1)[0]
         pet.currentCd = 0
         g.pets.push(pet)
       }
@@ -285,13 +292,32 @@ function tBattle(g, type, x, y) {
   }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
-    if (g._victoryBtnRect && g._hitRect(x,y,...g._victoryBtnRect)) {
+    // 详情浮层打开时，点击任意位置关闭
+    if (g._rewardDetailShow != null) { g._rewardDetailShow = null; return }
+    // 点击宠物/法宝头像查看详情
+    if (g._rewardAvatarRects) {
+      for (const item of g._rewardAvatarRects) {
+        if (g._hitRect(x,y,...item.rect)) {
+          g._rewardDetailShow = { type: item.type, data: item.data }; return
+        }
+      }
+    }
+    // 点击确认按钮：应用奖励并进入下一层
+    if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
-      g.rewards = generateRewards(g.floor, g.curEvent ? g.curEvent.type : 'battle', g.lastSpeedKill); g.selectedReward = -1; g.rewardPetSlot = -1
-      g.scene = 'reward'; g.bState = 'none'; return
+      g._applyReward(g.rewards[g.selectedReward])
+      g._nextFloor()
+      return
     }
+    // 点击奖励卡片选中
+    if (g._rewardRects) {
+      for (let i = 0; i < g._rewardRects.length; i++) {
+        if (g._hitRect(x,y,...g._rewardRects[i])) { g.selectedReward = i; return }
+      }
+    }
+    return
   }
   if (g.bState === 'defeat' && type === 'end') {
     if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm(); g._endRun(); return }

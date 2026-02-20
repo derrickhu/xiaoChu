@@ -8,6 +8,7 @@ const {
   ATTR_COLOR, BEAD_ATTRS, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
   ENEMY_SKILLS, EVENT_TYPE, ADVENTURES, getBeadWeights,
 } = require('../data/tower')
+const { getPetStarAtk } = require('../data/pets')
 
 // ===== 棋盘 =====
 function initBoard(g) {
@@ -93,22 +94,30 @@ function startNextElimAnim(g) {
   // Combo弹出动画
   g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
   g._comboFlash = g.combo >= 5 ? 12 : 8
-  const isTierBreak = g.combo === 5 || g.combo === 8 || g.combo === 12
+  const isTierBreak = g.combo === 5 || g.combo === 8 || g.combo === 12 || g.combo === 16
   if (isTierBreak) {
     g._comboFlash = 16
     g._comboAnim.scale = 3.5; g._comboAnim._initScale = 3.5
   }
-  // ★ Combo里程碑奖励：让高combo有实质回馈
+  // ★ Combo里程碑奖励：让高combo有实质回馈（增强版）
   if (g.combo === 5) {
-    g._addShield(30)
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'5连击！护盾+30', color:'#40e8ff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
+    g._addShield(50)
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'5连击！护盾+50', color:'#40e8ff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
   } else if (g.combo === 8) {
-    g.heroBuffs.push({ type:'allAtkUp', pct:30, dur:1, bad:false, name:'连击之力' })
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'8连击！攻击+30%', color:'#ff8c00', t:0, alpha:1, scale:2.0, _initScale:2.0 })
+    g.heroBuffs.push({ type:'allAtkUp', pct:40, dur:1, bad:false, name:'连击之力' })
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'8连击！攻击+40%', color:'#ff8c00', t:0, alpha:1, scale:2.0, _initScale:2.0 })
   } else if (g.combo === 12) {
-    g.heroBuffs.push({ type:'allDmgUp', pct:50, dur:1, bad:false, name:'超级连击' })
+    g.heroBuffs.push({ type:'allDmgUp', pct:80, dur:1, bad:false, name:'超级连击' })
     g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'连击暴击' })
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'12连击！爆发！', color:'#ff2050', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'12连击！全力爆发！', color:'#ff2050', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
+  } else if (g.combo === 16) {
+    // 新增16连击里程碑：全队合击
+    g.heroBuffs.push({ type:'allDmgUp', pct:120, dur:1, bad:false, name:'极限连击' })
+    g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'极限暴击' })
+    const megaHeal = Math.round(g.heroMaxHp * 0.3)
+    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + megaHeal)
+    g._addShield(100)
+    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'16连击！极限合击！', color:'#ff00ff', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
   }
   // 粒子
   const pCount = (g.combo >= 12 ? 40 : g.combo >= 8 ? 28 : g.combo >= 5 ? 18 : 10) + (isTierBreak ? 20 : 0)
@@ -168,7 +177,7 @@ function startNextElimAnim(g) {
   // 消除数值飘字
   let elimDisplayVal = 0, elimDisplayColor = '#fff'
   if (attr === 'heart') {
-    let heal = (10 + Math.floor(g.floor * 0.3)) * elimMul
+    let heal = (12 + Math.floor(g.floor * 0.8)) * elimMul
     heal *= 1 + g.runBuffs.heartBoostPct / 100
     if (g.weapon && g.weapon.type === 'heartBoost') heal *= 1 + g.weapon.pct / 100
     // 宠物技能heartBoost buff：心珠效果翻倍
@@ -185,7 +194,7 @@ function startNextElimAnim(g) {
     const matchPets = g.pets.filter(p => p.attr === attr)
     if (matchPets.length > 0) {
       let totalAtk = 0
-      matchPets.forEach(p => { totalAtk += p.atk })
+      matchPets.forEach(p => { totalAtk += getPetStarAtk(p) })
       let baseDmg = totalAtk * elimMul
       baseDmg *= 1 + g.runBuffs.allAtkPct / 100
       if (!g._pendingDmgMap[attr]) g._pendingDmgMap[attr] = 0
@@ -355,8 +364,8 @@ function enterPetAtkShow(g) {
     if (totalBaseDmg <= 0) continue
     // 按该宠物攻击力占同属性宠物总攻击力的比例分配
     const sameAttrPets = g.pets.filter(p => p.attr === pet.attr)
-    const totalAtk = sameAttrPets.reduce((sum, p) => sum + p.atk, 0)
-    const ratio = totalAtk > 0 ? pet.atk / totalAtk : 1 / attrPetCount[pet.attr]
+    const totalAtk = sameAttrPets.reduce((sum, p) => sum + getPetStarAtk(p), 0)
+    const ratio = totalAtk > 0 ? getPetStarAtk(pet) / totalAtk : 1 / attrPetCount[pet.attr]
     const baseDmg = totalBaseDmg * ratio
     let dmg = baseDmg * comboMul * comboBonusMul
     dmg *= 1 + g.runBuffs.allDmgPct / 100
@@ -367,6 +376,10 @@ function enterPetAtkShow(g) {
     dmg *= 1 + (buffAttrDmgPct[pet.attr] || 0) / 100
     if (buffComboDmgPct > 0 && g.combo > 1) dmg *= 1 + buffComboDmgPct / 100
     if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
+    // ===== 固有残血爆发：HP越低伤害越高，给玩家翻盘手段 =====
+    const hpRatioShow = g.heroHp / g.heroMaxHp
+    if (hpRatioShow <= 0.15) dmg *= 2.0
+    else if (hpRatioShow <= 0.30) dmg *= 1.5
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === pet.attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
@@ -503,6 +516,10 @@ function applyFinalDamage(g, dmgMap, heal) {
     dmg *= 1 + (buffAttrDmgPct[attr] || 0) / 100
     if (buffComboDmgPct > 0 && g.combo > 1) dmg *= 1 + buffComboDmgPct / 100
     if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
+    // ===== 固有残血爆发：HP越低伤害越高 =====
+    const hpRatioFinal = g.heroHp / g.heroMaxHp
+    if (hpRatioFinal <= 0.15) dmg *= 2.0
+    else if (hpRatioFinal <= 0.30) dmg *= 1.5
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
@@ -546,6 +563,17 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
   }
   if (g.nextDmgDouble) g.nextDmgDouble = false
+  // ===== 怒气爆发：满100怒气时自动释放，伤害翻倍+回血+护盾 =====
+  if (g._rageReady && totalDmg > 0) {
+    totalDmg = Math.round(totalDmg * 2)
+    g.rage = 0; g._rageReady = false
+    const rageHeal = Math.round(g.heroMaxHp * 0.15)
+    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + rageHeal)
+    g._addShield(60)
+    g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()-60*S, text:'怒气爆发！伤害×2！', color:'#ff2020', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
+    g.shakeT = 16; g.shakeI = 10
+    g._comboFlash = 14
+  }
   if (totalDmg > 0 && g.enemy) {
     const oldPct = g.enemy.hp / g.enemy.maxHp
     g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
@@ -667,6 +695,7 @@ function enemyTurn(g) {
       }
     })
     if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
     return
@@ -731,10 +760,15 @@ function enemyTurn(g) {
       MusicMgr.playDotDmg()  // DOT音效
     }
   })
-  if (g.enemy.skills && g.turnCount > 0 && g.turnCount % 3 === 0) {
-    const sk = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
-    MusicMgr.playEnemySkill()
-    applyEnemySkill(g, sk)
+  // ===== 怪物技能释放：由倒计时驱动 =====
+  if (g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0) {
+    g.enemySkillCd--
+    if (g.enemySkillCd <= 0) {
+      const sk = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+      MusicMgr.playEnemySkill()
+      applyEnemySkill(g, sk)
+      g.enemySkillCd = 3  // 重置倒计时
+    }
   }
   g.enemyBuffs.forEach(b => {
     if (b.type === 'dot' && b.dmg > 0) {
@@ -839,7 +873,10 @@ function enterBattle(g, enemyData) {
   if (g.weapon && g.weapon.type === 'weakenEnemy') g.enemy.atk = Math.round(g.enemy.atk * (1 - g.weapon.pct / 100))
   g.enemyBuffs = []
   g.bState = 'playerTurn'
-  g.combo = 0; g.turnCount = 0
+  g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除上次奖励
+  g.combo = 0; g.turnCount = 0; g.rage = 0; g._rageReady = false; g._lowHpBurstShown = false
+  // ===== 怪物技能倒计时：计算距下次释放还需几回合 =====
+  g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0) ? 3 : -1  // 首次在第3回合触发，初始倒计时3
   g.lastSpeedKill = false; g.lastTurnCount = 0
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
