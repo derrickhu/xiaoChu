@@ -185,7 +185,7 @@ const ADVENTURES = [
   { id:'adv19', name:'神兵残影',   desc:'法宝效果临时提升20%',       effect:'weaponBoost', pct:20 },
   { id:'adv20', name:'遗落法宝',   desc:'随机获得一件法宝',          effect:'getWeapon' },
   { id:'adv21', name:'灵兽投缘',   desc:'随机获得一只新灵兽',        effect:'getPet' },
-  { id:'adv22', name:'妖巢空寂',   desc:'直接跳过一层',              effect:'skipFloor' },
+  { id:'adv22', name:'妖巢宝箱',   desc:'全队攻击+8%持续本局',       effect:'allDmgUp',    pct:8 },
   { id:'adv23', name:'上古战魂',   desc:'下一层伤害翻倍',            effect:'nextDmgDouble' },
   { id:'adv24', name:'静心咒',     desc:'转珠时间+1秒',             effect:'extraTime',   sec:1 },
   { id:'adv25', name:'天护',       desc:'抵挡一次致命攻击',          effect:'tempRevive' },
@@ -200,7 +200,7 @@ const ADVENTURES = [
 const SHOP_ITEMS = [
   { id:'shop1',  name:'灵兽招募',   desc:'选择属性，获得该属性灵兽', effect:'getPetByAttr', weight:10, rarity:'normal' },
   { id:'shop2',  name:'法宝寻宝',   desc:'随机获得一件法宝',         effect:'getWeapon',    weight:10, rarity:'normal' },
-  { id:'shop3',  name:'升星灵石',   desc:'选择一只灵兽直接升1星',    effect:'starUp',       weight:3,  rarity:'epic' },
+  { id:'shop3',  name:'升星灵石',   desc:'选择一只灵兽直接升1星',    effect:'starUp',       weight:8,  rarity:'rare' },
   { id:'shop4',  name:'攻击秘药',   desc:'选择一只灵兽，攻击+25%',   effect:'upgradePet',   pct:25, weight:6, rarity:'rare' },
   { id:'shop5',  name:'悟道丹',     desc:'选择一只灵兽，技能CD-1',   effect:'cdReduce',     weight:3,  rarity:'epic' },
   { id:'shop6',  name:'满血回复',   desc:'血量恢复至上限',           effect:'fullHeal',     weight:10, rarity:'normal' },
@@ -528,11 +528,12 @@ function generateFloorEvent(floor) {
 // ===== 生成胜利后三选一奖励 =====
 // eventType: 'battle' | 'elite' | 'boss'
 // speedKill: 是否速通（5回合内击败）
-// sessionPetPool: 本局宠物池（25只）
-function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool) {
+// sessionPetPool: 本局宠物池（15只）
+// ownedPetIds: 已拥有宠物ID集合（用于偏向抽取促进升星）
+function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool, ownedPetIds) {
   const rewards = []
   const usedIds = new Set()
-  const _rPet = () => randomPetFromPool(sessionPetPool)
+  const _rPet = () => randomPetFromPool(sessionPetPool, ownedPetIds)
 
   // 从指定池中随机选一个不重复的
   function pickFrom(pool) {
@@ -547,12 +548,12 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
   const wpnExclude = new Set(ownedWeaponIds || [])
 
   if (eventType === 'boss') {
-    // BOSS战斗：2件法宝 + 1个大档buff 三选一（速通4选1）
-    for (let i = 0; i < 2; i++) {
-      let w = randomWeapon(wpnExclude)
-      wpnExclude.add(w.id)
-      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
-    }
+    // BOSS战斗：1只灵宠 + 1件法宝 + 1个大档buff 三选一（速通4选1）
+    const newPet = _rPet()
+    rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
+    let w = randomWeapon(wpnExclude)
+    wpnExclude.add(w.id)
+    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     rewards.push(pickFrom(BUFF_POOL_MAJOR))
   } else if (eventType === 'elite') {
     // 精英战斗：2只灵宠 + 1个中档buff 三选一（速通4选1）
@@ -566,8 +567,8 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
     }
     rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
-    // 普通战斗：30%概率掉落宠物（30层制加速build）
-    if (Math.random() < 0.30) {
+    // 普通战斗：50%概率掉落宠物（加速build养成）
+    if (Math.random() < 0.50) {
       const newPet = _rPet()
       rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
       rewards.push(pickFrom(BUFF_POOL_MINOR))

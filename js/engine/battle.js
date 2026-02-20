@@ -657,7 +657,7 @@ function applyFinalDamage(g, dmgMap, heal) {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.runBuffs.postBattleHealPct / 100))
     }
     g.runBuffs.nextDmgReducePct = 0
-    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReduce')
+    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReducePct')
     return
   }
   settle(g)

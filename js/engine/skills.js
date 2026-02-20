@@ -441,10 +441,16 @@ function applyReward(g, rw) {
 
 function applyBuffReward(g, b) {
   if (!b || !b.buff) return
-  const isInstant = (b.buff === 'healNow' || b.buff === 'spawnHeart' || b.buff === 'nextComboNeverBreak')
+  const isInstant = (b.buff === 'healNow' || b.buff === 'spawnHeart' || b.buff === 'nextComboNeverBreak'
+    || b.buff === 'nextFirstTurnDouble' || b.buff === 'nextStunEnemy' || b.buff === 'grantShield'
+    || b.buff === 'resetAllCd' || b.buff === 'skipNextBattle' || b.buff === 'immuneOnce')
   if (!isInstant) {
     g.runBuffLog = g.runBuffLog || []
-    g.runBuffLog.push({ id: b.id || b.buff, label: b.label || b.buff, buff: b.buff, val: b.val, floor: g.floor })
+    // 统一 key 名，使 runBuffLog 中的 buff 字段与 BUFF_FULL_LABELS 一致
+    const logBuff = b.buff === 'nextDmgReduce' ? 'nextDmgReducePct'
+                  : b.buff === 'postBattleHeal' ? 'postBattleHealPct'
+                  : b.buff
+    g.runBuffLog.push({ id: b.id || b.buff, label: b.label || b.buff, buff: logBuff, val: b.val, floor: g.floor })
   }
   const rb = g.runBuffs
   switch(b.buff) {
@@ -614,20 +620,27 @@ function applyRestOption(g, opt) {
     case 'healPct':
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * opt.pct / 100)); break
     case 'allAtkUp':
-      g.runBuffs.allAtkPct += opt.pct; break
+      g.runBuffs.allAtkPct += opt.pct
+      g.runBuffLog = g.runBuffLog || []
+      g.runBuffLog.push({ id: 'rest_allAtkUp', label: `全队攻击+${opt.pct}%`, buff: 'allAtkPct', val: opt.pct, floor: g.floor })
+      break
   }
 }
 
 function applyAdventure(g, adv) {
   if (!adv) return
+  const _pushLog = (buff, val, label) => {
+    g.runBuffLog = g.runBuffLog || []
+    g.runBuffLog.push({ id: adv.id || buff, label: label || buff, buff, val, floor: g.floor })
+  }
   switch(adv.effect) {
-    case 'allAtkUp':      g.runBuffs.allAtkPct += adv.pct; break
+    case 'allAtkUp':      g.runBuffs.allAtkPct += adv.pct; _pushLog('allAtkPct', adv.pct); break
     case 'healPct':        g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp*adv.pct/100)); break
     case 'hpMaxUp':        { const inc = Math.round(g.heroMaxHp*adv.pct/100); g.heroMaxHp += inc; g.heroHp += inc; break }
     case 'getWeapon':      { const w = randomWeapon(); g.weaponBag.push(w); break }
     case 'skipBattle':     g.skipNextBattle = true; break
     case 'fullHeal':       g.heroHp = g.heroMaxHp; break
-    case 'extraTime':      g.runBuffs.extraTimeSec += adv.sec; break
+    case 'extraTime':      g.runBuffs.extraTimeSec += adv.sec; _pushLog('extraTimeSec', adv.sec); break
     case 'upgradePet':     { const i = Math.floor(Math.random()*g.pets.length); g.pets[i].atk = Math.round(g.pets[i].atk*1.2); break }
     case 'shield':         g._addShield(adv.val || 50); break
     case 'nextStun':       g.nextStunEnemy = true; break
@@ -636,16 +649,16 @@ function applyAdventure(g, adv) {
     case 'comboNeverBreak': g.comboNeverBreak = true; break
     case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p) } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
-    case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; break
-    case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; break
-    case 'allDmgUp':       g.runBuffs.allDmgPct += adv.pct; break
-    case 'skipFloor':      g.floor++; break
+    case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; _pushLog('heartBoostPct', adv.pct); break
+    case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; _pushLog('weaponBoostPct', adv.pct); break
+    case 'allDmgUp':       g.runBuffs.allDmgPct += adv.pct; _pushLog('allDmgPct', adv.pct); break
+
     case 'nextDmgDouble':  g.nextDmgDouble = true; break
     case 'tempRevive':     g.tempRevive = true; break
     case 'petAtkUp':       { const i3 = Math.floor(Math.random()*g.pets.length); g.pets[i3].atk = Math.round(g.pets[i3].atk*(1+adv.pct/100)); break }
     case 'goodBeads':      g.goodBeadsNextTurn = true; break
     case 'immuneOnce':     g.immuneOnce = true; break
-    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
+    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); const _op = new Set(); if(g.pets) g.pets.forEach(p=>{if(p)_op.add(p.id)}); if(g.petBag) g.petBag.forEach(p=>{if(p)_op.add(p.id)}); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool, _op); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
   }
 }
 
