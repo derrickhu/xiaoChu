@@ -482,60 +482,77 @@ function rEvent(g) {
   R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
   curY += hpBarH + 10*S
 
-  // ===== 全局增益buff横排显示 =====
+  // ===== 全局增益buff文字描述 =====
   if (g.runBuffLog && g.runBuffLog.length > 0) {
-    const BUFF_LABELS = {
-      allAtkPct:'攻', allDmgPct:'伤', heartBoostPct:'回', weaponBoostPct:'武',
-      extraTimeSec:'时', hpMaxPct:'血', comboDmgPct:'连', elim3DmgPct:'3消',
-      elim4DmgPct:'4消', elim5DmgPct:'5消', counterDmgPct:'克', skillDmgPct:'技',
-      skillCdReducePct:'CD', regenPerTurn:'生', dmgReducePct:'防', bonusCombo:'C+',
-      stunDurBonus:'晕', enemyAtkReducePct:'弱攻', enemyHpReducePct:'弱血',
-      enemyDefReducePct:'弱防', eliteAtkReducePct:'E攻', eliteHpReducePct:'E血',
-      bossAtkReducePct:'B攻', bossHpReducePct:'B血',
-      nextDmgReducePct:'减伤', postBattleHealPct:'战回', extraRevive:'复活',
+    const BUFF_FULL_LABELS = {
+      allAtkPct:'全队攻击', allDmgPct:'全属性伤害', heartBoostPct:'心珠回复', weaponBoostPct:'法宝效果',
+      extraTimeSec:'转珠时间', hpMaxPct:'血量上限', comboDmgPct:'Combo伤害', elim3DmgPct:'3消伤害',
+      elim4DmgPct:'4消伤害', elim5DmgPct:'5消伤害', counterDmgPct:'克制伤害', skillDmgPct:'技能伤害',
+      skillCdReducePct:'技能CD缩短', regenPerTurn:'每回合回血', dmgReducePct:'受伤减少',
+      bonusCombo:'额外连击', stunDurBonus:'眩晕延长', enemyAtkReducePct:'怪物攻击降低',
+      enemyHpReducePct:'怪物血量降低', enemyDefReducePct:'怪物防御降低',
+      eliteAtkReducePct:'精英攻击降低', eliteHpReducePct:'精英血量降低',
+      bossAtkReducePct:'BOSS攻击降低', bossHpReducePct:'BOSS血量降低',
+      nextDmgReducePct:'下场受伤减少', postBattleHealPct:'战后回血', extraRevive:'额外复活',
     }
     const DEBUFF_KEYS = ['enemyAtkReducePct','enemyHpReducePct','enemyDefReducePct',
       'eliteAtkReducePct','eliteHpReducePct','bossAtkReducePct','bossHpReducePct']
     const merged = {}
     for (const entry of g.runBuffLog) {
       const k = entry.buff
-      if (!merged[k]) merged[k] = { buff: k, val: 0, label: BUFF_LABELS[k] || k }
+      if (!merged[k]) merged[k] = { buff: k, val: 0 }
       merged[k].val += entry.val
     }
     const buffItems = Object.values(merged)
     if (buffItems.length > 0) {
-      const iconSz = 22*S
-      const gap = 4*S
-      const maxPerRow = Math.floor((W - padX*2 + gap) / (iconSz + gap))
-      const rows = Math.ceil(buffItems.length / maxPerRow)
-      const totalW = Math.min(buffItems.length, maxPerRow) * (iconSz + gap) - gap
-      const startX = (W - totalW) / 2
-      for (let i = 0; i < buffItems.length; i++) {
-        const row = Math.floor(i / maxPerRow)
-        const col = i % maxPerRow
-        const itemsInRow = (row < rows - 1) ? maxPerRow : buffItems.length - row * maxPerRow
-        const rowW = itemsInRow * (iconSz + gap) - gap
-        const rowStartX = (W - rowW) / 2
-        const ix = rowStartX + col * (iconSz + gap)
-        const iy = curY + row * (iconSz + gap)
-        const it = buffItems[i]
-        const isDebuff = DEBUFF_KEYS.includes(it.buff)
-        ctx.fillStyle = isDebuff ? 'rgba(180,60,60,0.7)' : 'rgba(30,100,60,0.7)'
-        R.rr(ix, iy, iconSz, iconSz, 4*S); ctx.fill()
-        ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
-        ctx.lineWidth = 1*S
-        R.rr(ix, iy, iconSz, iconSz, 4*S); ctx.stroke()
-        ctx.fillStyle = '#fff'; ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText(it.label, ix + iconSz/2, iy + iconSz*0.36)
-        const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
+      const texts = buffItems.map(it => {
+        const name = BUFF_FULL_LABELS[it.buff] || it.buff
+        const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}s` :
                        it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                        `${it.val > 0 ? '+' : ''}${it.val}%`
-        ctx.fillStyle = '#ffd700'; ctx.font = `${5.5*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillText(valTxt, ix + iconSz/2, iy + iconSz*0.8)
+        return { text: `${name}${valTxt}`, isDebuff: DEBUFF_KEYS.includes(it.buff) }
+      })
+      const fontSize = 8*S
+      ctx.font = `bold ${fontSize}px "PingFang SC",sans-serif`
+      const sep = '  '
+      const sepW = ctx.measureText(sep).width
+      const rowH = fontSize + 8*S
+      const maxW = W - padX * 2
+      const rows = []
+      let row = []
+      let rowW = 0
+      for (const t of texts) {
+        const tw = ctx.measureText(t.text).width
+        const needed = row.length > 0 ? sepW + tw : tw
+        if (row.length > 0 && rowW + needed > maxW) {
+          rows.push(row)
+          row = [t]
+          rowW = tw
+        } else {
+          row.push(t)
+          rowW += needed
+        }
       }
-      curY += rows * (iconSz + gap) + 4*S
+      if (row.length > 0) rows.push(row)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      for (let r = 0; r < rows.length; r++) {
+        const items = rows[r]
+        const lineText = items.map(t => t.text).join(sep)
+        const lineW = ctx.measureText(lineText).width
+        let dx = (W - lineW) / 2
+        const dy = curY + r * rowH + rowH / 2
+        for (let i = 0; i < items.length; i++) {
+          if (i > 0) dx += ctx.measureText(sep).width
+          const tw = ctx.measureText(items[i].text).width
+          ctx.fillStyle = items[i].isDebuff ? '#ff8888' : '#88ff99'
+          ctx.textAlign = 'left'
+          ctx.fillText(items[i].text, dx, dy)
+          dx += tw
+        }
+      }
+      ctx.textAlign = 'center'
+      curY += rows.length * rowH + 2*S
     }
   }
 

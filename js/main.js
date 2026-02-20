@@ -182,7 +182,10 @@ class Main {
       const ownedWpnIds = new Set()
       if (this.weapon) ownedWpnIds.add(this.weapon.id)
       if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
-      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool)
+      const ownedPetIds = new Set()
+      if (this.pets) this.pets.forEach(p => { if (p) ownedPetIds.add(p.id) })
+      if (this.petBag) this.petBag.forEach(p => { if (p) ownedPetIds.add(p.id) })
+      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool, ownedPetIds)
       this.selectedReward = -1
       this._rewardDetailShow = null
     }
