@@ -488,6 +488,9 @@ class Main {
   }
 
   _dealDmgToHero(dmg) {
+    // 绝对防御（dmgImmune）：所有伤害变为1点
+    const immune = this.heroBuffs && this.heroBuffs.find(b => b.type === 'dmgImmune')
+    if (immune && dmg > 1) dmg = 1
     if (this.heroShield > 0) {
       if (dmg <= this.heroShield) {
         this.heroShield -= dmg

@@ -39,7 +39,7 @@ function rEvent(g) {
   }
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${18*S}px sans-serif`
+  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
   ctx.fillText(`第 ${g.floor} 层`, W*0.5, curY)
   ctx.restore()
   curY += 28*S
@@ -48,18 +48,18 @@ function rEvent(g) {
     const tagW = 140*S, tagH = 28*S, tagX = (W - tagW)/2, tagY = curY - 17*S
     ctx.fillStyle = 'rgba(180,30,30,0.85)'; R.rr(tagX, tagY, tagW, tagH, 6*S); ctx.fill()
     ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.5*S; R.rr(tagX, tagY, tagW, tagH, 6*S); ctx.stroke()
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px sans-serif`
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
     ctx.fillText('⚠ ' + evLabel + ' ⚠', W*0.5, curY)
   } else if (ev.type === 'elite') {
     const tagW = 120*S, tagH = 26*S, tagX = (W - tagW)/2, tagY = curY - 16*S
     ctx.fillStyle = 'rgba(120,50,180,0.8)'; R.rr(tagX, tagY, tagW, tagH, 6*S); ctx.fill()
     ctx.strokeStyle = 'rgba(200,150,255,0.6)'; ctx.lineWidth = 1; R.rr(tagX, tagY, tagW, tagH, 6*S); ctx.stroke()
-    ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${14*S}px sans-serif`
+    ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
     ctx.fillText('★ ' + evLabel, W*0.5, curY)
   } else {
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-    ctx.fillStyle = '#e8d8b8'; ctx.font = `bold ${14*S}px sans-serif`
+    ctx.fillStyle = '#e8d8b8'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
     ctx.fillText(evLabel, W*0.5, curY)
     ctx.restore()
   }
@@ -85,17 +85,17 @@ function rEvent(g) {
       // 重绘顶部信息（被背景覆盖）
       let ty = safeTop + 32*S
       ctx.textAlign = 'center'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
       ty += 22*S
-      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('奇遇', W*0.5, ty)
 
-      ctx.fillStyle = TH.text; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillStyle = TH.text; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(ev.data.name, W*0.5, H*0.35)
-      ctx.fillStyle = TH.sub; ctx.font = `${14*S}px sans-serif`
+      ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`
       ctx.fillText(ev.data.desc, W*0.5, H*0.43)
-      ctx.fillStyle = TH.success; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillStyle = TH.success; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('效果已生效！', W*0.5, H*0.52)
       const bx = W*0.3, by = H*0.65, bw = W*0.4, bh = 44*S
       R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
@@ -110,10 +110,10 @@ function rEvent(g) {
       // 重绘顶部
       let ty = safeTop + 32*S
       ctx.textAlign = 'center'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
       ty += 22*S
-      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('神秘商店', W*0.5, ty)
 
       // 状态提示
@@ -131,7 +131,7 @@ function rEvent(g) {
       } else {
         hintText = '已选完'
       }
-      ctx.fillStyle = shopUsedCount >= 2 ? TH.dim : '#ffd700'; ctx.font = `${13*S}px sans-serif`
+      ctx.fillStyle = shopUsedCount >= 2 ? TH.dim : '#ffd700'; ctx.font = `${13*S}px "PingFang SC",sans-serif`
       ctx.fillText(hintText, W*0.5, safeTop + 90*S)
 
       const items = ev.data
@@ -160,7 +160,7 @@ function rEvent(g) {
             const tagX = W*0.08 + 6*S, tagY = cy + 4*S
             ctx.fillStyle = item.rarity === 'epic' ? 'rgba(180,60,220,0.8)' : 'rgba(60,100,200,0.8)'
             R.rr(tagX, tagY, tagW, tagH, 3*S); ctx.fill()
-            ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px sans-serif`
+            ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
             ctx.textAlign = 'center'
             ctx.fillText(rarityLabel, tagX + tagW/2, tagY + tagH*0.65)
             ctx.restore()
@@ -168,21 +168,21 @@ function rEvent(g) {
 
           // 名称和描述
           ctx.globalAlpha = isUsed ? 0.4 : 1
-          ctx.fillStyle = isUsed ? TH.dim : '#fff'; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'left'
+          ctx.fillStyle = isUsed ? TH.dim : '#fff'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
           ctx.fillText(item.name, W*0.08 + 14*S, cy + 24*S)
-          ctx.fillStyle = isUsed ? TH.dim : TH.sub; ctx.font = `${10*S}px sans-serif`
+          ctx.fillStyle = isUsed ? TH.dim : TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
           ctx.fillText(item.desc, W*0.08 + 14*S, cy + 42*S)
 
           // 费用标签（右侧）
           ctx.textAlign = 'right'
           if (isUsed) {
-            ctx.fillStyle = TH.dim; ctx.font = `bold ${11*S}px sans-serif`
+            ctx.fillStyle = TH.dim; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
             ctx.fillText('已选', W*0.08 + cardW - 12*S, cy + 34*S)
           } else if (shopUsedCount === 0) {
-            ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px sans-serif`
+            ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
             ctx.fillText('免费', W*0.08 + cardW - 12*S, cy + 34*S)
           } else if (shopUsedCount === 1) {
-            ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${10*S}px sans-serif`
+            ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
             ctx.fillText(`-${15}%血`, W*0.08 + cardW - 12*S, cy + 34*S)
           }
           ctx.globalAlpha = 1
@@ -206,7 +206,7 @@ function rEvent(g) {
         ctx.strokeStyle = 'rgba(200,180,140,0.5)'; ctx.lineWidth = 1*S
         R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.stroke()
 
-        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px sans-serif`
+        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText('选择灵兽属性', W*0.5, panelY + 28*S)
 
@@ -226,7 +226,7 @@ function rEvent(g) {
           R.rr(bx, btnY, btnW, btnH, 8*S); ctx.stroke()
           // 属性球
           R.drawBead(bx + btnW/2, btnY + btnH*0.35, 10*S, attr, 0)
-          ctx.fillStyle = ac ? ac.main : '#ccc'; ctx.font = `bold ${10*S}px sans-serif`
+          ctx.fillStyle = ac ? ac.main : '#ccc'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'
           ctx.fillText(attrNames[attr], bx + btnW/2, btnY + btnH*0.82)
           g._shopAttrRects.push([bx, btnY, btnW, btnH, attr])
@@ -251,7 +251,7 @@ function rEvent(g) {
 
         const selectType = g._shopSelectPet.type  // 'starUp' | 'upgradePet' | 'cdReduce'
         const titleMap = { starUp:'选择灵兽升星', upgradePet:'选择灵兽强化', cdReduce:'选择灵兽减CD' }
-        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px sans-serif`
+        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText(titleMap[selectType] || '选择灵兽', W*0.5, panelY + 28*S)
 
@@ -299,7 +299,7 @@ function rEvent(g) {
           // 星级
           if ((p.star||1) > 1) {
             ctx.save()
-            ctx.font = `bold ${petSlotSz*0.14}px sans-serif`
+            ctx.font = `bold ${petSlotSz*0.14}px "PingFang SC",sans-serif`
             ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
             ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
             ctx.strokeText('★'.repeat(p.star), px+2*S, py2+petSlotSz-2*S)
@@ -312,16 +312,16 @@ function rEvent(g) {
 
           // 名字和信息
           ctx.fillStyle = canSelect ? (ac2 ? ac2.main : '#ccc') : TH.dim
-          ctx.font = `bold ${8*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
           ctx.fillText(p.name.substring(0,4), px+petSlotSz/2, py2+petSlotSz+12*S)
           if (selectType === 'starUp') {
-            ctx.fillStyle = canSelect ? '#ffd700' : TH.dim; ctx.font = `${7*S}px sans-serif`
+            ctx.fillStyle = canSelect ? '#ffd700' : TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(canSelect ? `★${p.star||1}→★${(p.star||1)+1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
           } else if (selectType === 'upgradePet') {
-            ctx.fillStyle = '#ff9040'; ctx.font = `${7*S}px sans-serif`
+            ctx.fillStyle = '#ff9040'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(`ATK:${p.atk}→${Math.round(p.atk*1.25)}`, px+petSlotSz/2, py2+petSlotSz+22*S)
           } else if (selectType === 'cdReduce') {
-            ctx.fillStyle = canSelect ? '#40ccff' : TH.dim; ctx.font = `${7*S}px sans-serif`
+            ctx.fillStyle = canSelect ? '#40ccff' : TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(canSelect ? `CD:${p.cd}→${p.cd-1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
           }
 
@@ -354,10 +354,10 @@ function rEvent(g) {
       // 重绘顶部
       let ty = safeTop + 32*S
       ctx.textAlign = 'center'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`
+      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
       ty += 22*S
-      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px sans-serif`
+      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('休息之地', W*0.5, ty)
 
       const opts = ev.data
@@ -367,9 +367,9 @@ function rEvent(g) {
         opts.forEach((opt, i) => {
           const cy = startY + i*(cardH+gap)
           ctx.fillStyle = TH.card; R.rr(W*0.15, cy, cardW, cardH, 8*S); ctx.fill()
-          ctx.fillStyle = TH.text; ctx.font = `bold ${15*S}px sans-serif`; ctx.textAlign = 'center'
+          ctx.fillStyle = TH.text; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
           ctx.fillText(opt.name, W*0.5, cy + 28*S)
-          ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
+          ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`
           ctx.fillText(opt.desc, W*0.5, cy + 48*S)
           g._eventRestRects.push([W*0.15, cy, cardW, cardH])
         })
@@ -409,7 +409,15 @@ function rEvent(g) {
   if (enemyImg && enemyImg.width > 0) {
     ctx.save()
     ctx.beginPath(); R.rr(avatarX + 1, avatarY + 1, avatarSize - 2, avatarSize - 2, 5*S); ctx.clip()
-    ctx.drawImage(enemyImg, avatarX + 1, avatarY + 1, avatarSize - 2, avatarSize - 2)
+    // 保持原图比例居中绘制（contain模式）
+    const iRatio = enemyImg.width / enemyImg.height
+    const boxW = avatarSize - 2, boxH = avatarSize - 2
+    let dw, dh
+    if (iRatio > 1) { dw = boxW; dh = boxW / iRatio }
+    else { dh = boxH; dw = boxH * iRatio }
+    const dx = avatarX + 1 + (boxW - dw) / 2
+    const dy = avatarY + 1 + (boxH - dh) / 2
+    ctx.drawImage(enemyImg, dx, dy, dw, dh)
     ctx.restore()
   }
   ctx.strokeStyle = ac ? ac.main : '#666'; ctx.lineWidth = 1.5*S
@@ -418,11 +426,11 @@ function rEvent(g) {
   const infoX = avatarX + avatarSize + 12*S
   let infoY = cardTop + 24*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText(e.name, infoX, infoY)
   infoY += 20*S
   // 属性文字
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${ATTR_NAME[e.attr]}属性`, infoX, infoY)
   // 弱点 & 抵抗（下一行，用属性球）
   infoY += 18*S
@@ -430,7 +438,7 @@ function rEvent(g) {
   let bx = infoX
   const weakAttr = COUNTER_BY[e.attr]
   if (weakAttr) {
-    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px sans-serif`
+    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('弱:', bx, infoY)
     bx += ctx.measureText('弱:').width + 4*S
     R.drawBead(bx + orbR2, infoY - 3*S, orbR2, weakAttr, 0)
@@ -438,7 +446,7 @@ function rEvent(g) {
   }
   const resistAttr = COUNTER_MAP[e.attr]
   if (resistAttr) {
-    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px sans-serif`
+    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('抗:', bx, infoY)
     bx += ctx.measureText('抗:').width + 4*S
     R.drawBead(bx + orbR2, infoY - 3*S, orbR2, resistAttr, 0)
@@ -465,7 +473,7 @@ function rEvent(g) {
 
   // ===== 己方队伍标题 =====
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 己方队伍 ──', W*0.5, curY)
   curY += 14*S
 
@@ -517,13 +525,13 @@ function rEvent(g) {
         ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
         ctx.lineWidth = 1*S
         R.rr(ix, iy, iconSz, iconSz, 4*S); ctx.stroke()
-        ctx.fillStyle = '#fff'; ctx.font = `bold ${7*S}px sans-serif`
+        ctx.fillStyle = '#fff'; ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText(it.label, ix + iconSz/2, iy + iconSz*0.36)
         const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
                        it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                        `${it.val > 0 ? '+' : ''}${it.val}%`
-        ctx.fillStyle = '#ffd700'; ctx.font = `${5.5*S}px sans-serif`; ctx.textAlign = 'center'
+        ctx.fillStyle = '#ffd700'; ctx.font = `${5.5*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
         ctx.textBaseline = 'alphabetic'
         ctx.fillText(valTxt, ix + iconSz/2, iy + iconSz*0.8)
       }
@@ -583,7 +591,7 @@ function rEvent(g) {
         ctx.restore()
       } else {
         ctx.fillStyle = 'rgba(80,70,60,0.3)'
-        ctx.font = `${teamIconSize*0.26}px sans-serif`
+        ctx.font = `${teamIconSize*0.26}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText('⚔', cx, cy)
       }
@@ -624,7 +632,7 @@ function rEvent(g) {
         if ((p.star || 1) > 1) {
           const starText = '★'.repeat(p.star || 1)
           ctx.save()
-          ctx.font = `bold ${teamIconSize * 0.14}px sans-serif`
+          ctx.font = `bold ${teamIconSize * 0.14}px "PingFang SC",sans-serif`
           ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
           ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
           ctx.strokeText(starText, ix + 2*S, teamIconY + teamIconSize - 2*S)
@@ -681,10 +689,10 @@ function rEvent(g) {
 
   // --- 法宝背包 ---
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 法宝背包 ──', W*0.5, curY)
   curY += 14*S
-  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px sans-serif`
+  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击可替换当前法宝', W*0.5, curY)
   curY += 10*S
   if (g.weaponBag.length > 0) {
@@ -715,17 +723,17 @@ function rEvent(g) {
     curY += wpnRows * (bagSlotSize + bagGap) + 6*S
   } else {
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px sans-serif`
+    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
     curY += bagSlotSize*0.8 + 6*S
   }
 
   // --- 灵宠背包 ---
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px sans-serif`
+  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 灵宠背包 ──', W*0.5, curY)
   curY += 14*S
-  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px sans-serif`
+  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('拖动到上方队伍可交换', W*0.5, curY)
   curY += 10*S
   if (g.petBag.length > 0) {
@@ -754,7 +762,7 @@ function rEvent(g) {
     curY += bagRows * (bagIconSize + bagGap)
   } else {
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px sans-serif`
+    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
     curY += bagSlotSize*0.8
   }
@@ -772,7 +780,7 @@ function rEvent(g) {
   ctx.save()
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px sans-serif`
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
   ctx.fillText('进入战斗', W*0.5, goBtnY + goBtnH*0.5)
   ctx.restore()
   g._eventBtnRect = [goBtnX, goBtnY, goBtnW, goBtnH]
@@ -786,7 +794,7 @@ function rEvent(g) {
     R.rr(bbx, bby, btnW, btnH, 6*S); ctx.fill()
     ctx.strokeStyle = 'rgba(200,170,120,0.4)'; ctx.lineWidth = 1
     R.rr(bbx, bby, btnW, btnH, 6*S); ctx.stroke()
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px sans-serif`
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('< 首页', bbx + btnW*0.5, bby + btnH*0.5)
     ctx.textBaseline = 'alphabetic'
@@ -846,9 +854,9 @@ function _drawWeaponCard(ctx, R, TH, S, x, y, w, h, weapon, isEquipped, slotsArr
     }
     ctx.textAlign = 'left'
     const textX = iconX + iconSz + 8*S
-    ctx.fillStyle = isEquipped ? TH.accent : '#ddd'; ctx.font = `bold ${11*S}px sans-serif`
+    ctx.fillStyle = isEquipped ? TH.accent : '#ddd'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(weapon.name, textX, y + h*0.38)
-    ctx.fillStyle = TH.sub; ctx.font = `${9*S}px sans-serif`
+    ctx.fillStyle = TH.sub; ctx.font = `${9*S}px "PingFang SC",sans-serif`
     ctx.fillText(weapon.desc, textX, y + h*0.7)
 
     if (!isEquipped) {
@@ -860,7 +868,7 @@ function _drawWeaponCard(ctx, R, TH, S, x, y, w, h, weapon, isEquipped, slotsArr
     // 整个卡片也可点击查看详情
     slotsArr.push({ rect: [x, y, w, h], type: slotType, index: index, action: 'detail' })
   } else {
-    ctx.textAlign = 'center'; ctx.fillStyle = TH.dim; ctx.font = `${11*S}px sans-serif`
+    ctx.textAlign = 'center'; ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(isEquipped ? '未装备法宝' : '空', x + w/2, y + h*0.58)
     slotsArr.push({ rect: [x, y, w, h], type: slotType, index: index, action: 'detail' })
   }
@@ -893,7 +901,7 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
     ctx.drawImage(petAvatar, px + 1, dy, drawW, drawH)
     ctx.restore()
   } else {
-    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px sans-serif`
+    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText(ATTR_NAME[pet.attr] || '', cxP, cyP)
     ctx.textBaseline = 'alphabetic'
@@ -908,7 +916,7 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
   if ((pet.star || 1) > 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
-    ctx.font = `bold ${size * 0.14}px sans-serif`
+    ctx.font = `bold ${size * 0.14}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
     ctx.strokeText(starText, px + 2*S, py + size - 2*S)
@@ -951,7 +959,7 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
     ctx.drawImage(petAvatar, px + 1, dy, drawW, drawH)
     ctx.restore()
   } else {
-    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px sans-serif`
+    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText(ATTR_NAME[pet.attr] || '', cxP, cyP)
     ctx.textBaseline = 'alphabetic'
@@ -966,7 +974,7 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   if ((pet.star || 1) > 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
-    ctx.font = `bold ${size * 0.14}px sans-serif`
+    ctx.font = `bold ${size * 0.14}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
     ctx.strokeText(starText, px + 2*S, py + size - 2*S)
@@ -982,12 +990,12 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
     ctx.strokeRect(px - 1, py - 1, size + 2, size + 2)
   }
 
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${8*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   ctx.fillText(pet.name.substring(0,4), cxP, py + size + 10*S)
   const starAtk = getPetStarAtk(pet)
   const atkDisplay = (pet.star || 1) > 1 ? `ATK:${pet.atk}→${starAtk}` : `ATK:${pet.atk}`
-  ctx.fillStyle = TH.dim; ctx.font = `${7*S}px sans-serif`
+  ctx.fillStyle = TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
   ctx.fillText(atkDisplay, cxP, py + size + 19*S)
 }
 
@@ -1029,35 +1037,35 @@ function drawEventPetDetail(g) {
   const infoX = avX + avSz + 16*S
   let iy = cardY + 40*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.dk || ac.main : '#3D2B1F'; ctx.font = `bold ${14*S}px sans-serif`
+  ctx.fillStyle = ac ? ac.dk || ac.main : '#3D2B1F'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText(p.name, infoX, iy)
   iy += 20*S
   const orbR = 6*S
   R.drawBead(infoX + orbR, iy - 3*S, orbR, p.attr, 0)
   const starAtk = getPetStarAtk(p)
   const atkDisplay = (p.star || 1) > 1 ? `ATK: ${p.atk}→${starAtk}` : `ATK: ${p.atk}`
-  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(atkDisplay, infoX + orbR*2 + 8*S, iy)
 
   // 星级显示
   const starText = '★'.repeat(p.star || 1) + ((p.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
   iy += 16*S
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(starText, infoX, iy)
 
   // 技能区域
   iy = avY + avSz + 12*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px sans-serif`
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`技能：${p.skill.name}`, cardX + 28*S, iy)
   iy += 16*S
-  ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px sans-serif`
+  ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   descLines.forEach(line => {
     ctx.fillText(line, cardX + 28*S, iy)
     iy += 14*S
   })
   iy += 2*S
-  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText(`CD：${p.cd} 回合`, cardX + 28*S, iy)
 
   // 点击任意位置关闭（无关闭按钮）
@@ -1089,9 +1097,9 @@ function _drawWeaponDetailPopup(g) {
 
   const textX = iconX + iconSz + 14*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${14*S}px sans-serif`
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText(wp.name, textX, cardY + 36*S)
-  ctx.fillStyle = '#4A3B30'; ctx.font = `${11*S}px sans-serif`
+  ctx.fillStyle = '#4A3B30'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   const descLines = wrapText(wp.desc, cardW - iconSz - 50*S, 11)
   let dy = cardY + 56*S
   descLines.forEach(line => {

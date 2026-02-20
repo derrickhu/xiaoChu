@@ -496,6 +496,7 @@ function applyFinalDamage(g, dmgMap, heal) {
 
   // 汇总 heroBuffs 中的临时攻击加成
   let buffAllDmgPct = 0, buffAllAtkPct = 0, buffComboDmgPct = 0, buffLowHpDmgPct = 0
+  let debuffAtkReduce = 0  // BOSS天罡镇压等debuff降低攻击
   const buffAttrDmgPct = {}
   g.heroBuffs.forEach(b => {
     if (b.type === 'dmgBoost') buffAttrDmgPct[b.attr] = (buffAttrDmgPct[b.attr] || 0) + b.pct
@@ -503,11 +504,14 @@ function applyFinalDamage(g, dmgMap, heal) {
     else if (b.type === 'allAtkUp') buffAllAtkPct += b.pct
     else if (b.type === 'comboDmgUp') buffComboDmgPct += b.pct
     else if (b.type === 'lowHpDmgUp') buffLowHpDmgPct += b.pct
+    else if (b.type === 'debuff' && b.field === 'atk') debuffAtkReduce += b.rate
   })
 
   let totalDmg = 0
   for (const [attr, baseDmg] of Object.entries(dmgMap)) {
     let dmg = baseDmg * comboMul * comboBonusMul
+    // 应用BOSS debuff攻击降低
+    if (debuffAtkReduce > 0) dmg *= Math.max(0.1, 1 - debuffAtkReduce)
     dmg *= 1 + g.runBuffs.allDmgPct / 100
     dmg *= 1 + (g.runBuffs.attrDmgPct[attr] || 0) / 100
     // 宠物技能临时buff加成
@@ -590,6 +594,15 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
     if (g.weapon && g.weapon.type === 'poisonChance' && Math.random()*100 < g.weapon.chance) {
       g.enemyBuffs.push({ type:'dot', name:'中毒', dmg:g.weapon.dmg, dur:g.weapon.dur, bad:true, dotType:'poison' })
+    }
+    // BOSS妖力护体（bossMirror）：反弹伤害
+    const mirrorBuff = g.enemyBuffs.find(b => b.type === 'bossMirror')
+    if (mirrorBuff && totalDmg > 0) {
+      const reflectDmg = Math.round(totalDmg * (mirrorBuff.reflectPct || 30) / 100)
+      if (reflectDmg > 0) {
+        g._dealDmgToHero(reflectDmg)
+        g.skillEffects.push({ x:W*0.5, y:H*0.6, text:`反弹${reflectDmg}`, color:'#ff60ff', t:0, alpha:1, scale:1.3, _initScale:1.3 })
+      }
     }
   }
   // 法宝execute：敌人残血低于阈值时直接斩杀
@@ -849,6 +862,100 @@ function applyEnemySkill(g, skillKey) {
       }
       fillBoard(g)
       break
+    // ===== BOSS专属技能 =====
+    case 'bossQuake': {
+      // 震天裂地：AOE伤害 + 封锁灵珠
+      let qDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.8))
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') qDmg = Math.round(qDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(qDmg)
+      for (let i = 0; i < (sk.sealCount || 3); i++) {
+        const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+        if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+      }
+      break
+    }
+    case 'bossDevour': {
+      // 噬魂夺魄：造成伤害 + 窃取治疗（加healBlock debuff）
+      let dDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.6))
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') dDmg = Math.round(dDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(dDmg)
+      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:0.5, dur:2, bad:true })
+      break
+    }
+    case 'bossDot': {
+      // 业火焚天：按攻击力百分比的持续伤害
+      const dotDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.4))
+      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:dotDmg, dur:sk.dur || 3, bad:true })
+      break
+    }
+    case 'bossVoidSeal': {
+      // 虚空禁锢：封锁整行灵珠
+      const sealRow = Math.floor(Math.random() * ROWS)
+      for (let c = 0; c < COLS; c++) {
+        if (g.board[sealRow][c]) g.board[sealRow][c].sealed = sk.dur || 2
+      }
+      break
+    }
+    case 'bossMirror':
+      // 妖力护体：给BOSS自身反弹buff
+      g.enemyBuffs.push({ type:'bossMirror', name:sk.name, reflectPct:sk.reflectPct || 30, dur:sk.dur || 2, bad:false })
+      break
+    case 'bossWeaken':
+      // 天罡镇压：同时降低攻击和防御
+      g.heroBuffs.push({ type:'debuff', name:sk.name+'(攻)', field:'atk', rate:sk.atkRate || 0.4, dur:sk.dur || 2, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name+'(防)', field:'def', rate:sk.defRate || 0.4, dur:sk.dur || 2, bad:true })
+      break
+    case 'bossBlitz': {
+      // 连环妖击：多段攻击
+      const hits = sk.hits || 3
+      for (let i = 0; i < hits; i++) {
+        let bDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.4))
+        if (g.weapon && g.weapon.type === 'reduceSkillDmg') bDmg = Math.round(bDmg * (1 - g.weapon.pct / 100))
+        g._dealDmgToHero(bDmg)
+      }
+      break
+    }
+    case 'bossDrain': {
+      // 吸星大法：造成伤害并回复等量生命
+      let drDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.5))
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') drDmg = Math.round(drDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(drDmg)
+      g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + drDmg)
+      g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`+${drDmg}`, color:'#80ff80', t:0, alpha:1 })
+      break
+    }
+    case 'bossAnnihil': {
+      // 灭世天劫：大伤害 + 碎珠
+      let aDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.0))
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') aDmg = Math.round(aDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(aDmg)
+      for (let i = 0; i < (sk.breakCount || 4); i++) {
+        const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+        g.board[r][c] = null
+      }
+      fillBoard(g)
+      break
+    }
+    case 'bossCurse':
+      // 万妖诅咒：固定DOT + 心珠回复减半
+      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:sk.dmg || 100, dur:sk.dur || 3, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:0.5, dur:sk.dur || 3, bad:true })
+      break
+    case 'bossUltimate': {
+      // 超越·终焉：大伤害 + 封锁 + 眩晕
+      let uDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.2))
+      if (g.weapon && g.weapon.type === 'reduceSkillDmg') uDmg = Math.round(uDmg * (1 - g.weapon.pct / 100))
+      g._dealDmgToHero(uDmg)
+      for (let i = 0; i < (sk.sealCount || 4); i++) {
+        const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
+        if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+      }
+      const hasImmuneCtrl2 = g.heroBuffs.some(b => b.type === 'immuneCtrl')
+      if (!g.immuneOnce && !hasImmuneCtrl2 && !(g.weapon && g.weapon.type === 'immuneStun')) {
+        g.heroBuffs.push({ type:'heroStun', name:'眩晕', dur:1, bad:true })
+      } else { g.immuneOnce = false }
+      break
+    }
   }
 }
 

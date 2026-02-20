@@ -21,16 +21,16 @@ function rPrepare(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawBg(g.af)
   const padX = 12*S
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`── 阵容编辑 ──`, W*0.5, safeTop + 36*S)
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`
   ctx.fillText(`第 ${g.floor} 层`, W*0.5, safeTop + 56*S)
   // Tab切换
   const tabY = safeTop + 72*S, tabH = 32*S, tabW = W*0.35
   const petTabX = W*0.1, wpnTabX = W*0.55
   ctx.fillStyle = g.prepareTab === 'pets' ? TH.accent : TH.card
   R.rr(petTabX, tabY, tabW, tabH, 6*S); ctx.fill()
-  ctx.fillStyle = g.prepareTab === 'pets' ? '#fff' : TH.sub; ctx.font = `bold ${13*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = g.prepareTab === 'pets' ? '#fff' : TH.sub; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('灵兽编辑', petTabX+tabW*0.5, tabY+tabH*0.65)
   g._prepPetTabRect = [petTabX, tabY, tabW, tabH]
   ctx.fillStyle = g.prepareTab === 'weapon' ? TH.accent : TH.card
@@ -60,7 +60,7 @@ function rPrepare(g) {
 
 function _drawPetTab(g, padX, contentY) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   ctx.fillText('上场灵兽（5只）：', padX, contentY + 12*S)
   const slotGap = 4*S
   const iconSz = Math.floor((W - padX*2 - slotGap*4) / 5)
@@ -104,7 +104,7 @@ function _drawPetTab(g, padX, contentY) {
         ctx.restore()
       } else {
         ctx.fillStyle = ac ? ac.main : TH.text
-        ctx.font = `bold ${iconSz*0.35}px sans-serif`
+        ctx.font = `bold ${iconSz*0.35}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText(ATTR_NAME[p.attr]||'', cx, cy)
       }
@@ -116,7 +116,7 @@ function _drawPetTab(g, padX, contentY) {
       if ((p.star || 1) > 1) {
         const starText = '★'.repeat(p.star || 1)
         ctx.save()
-        ctx.font = `bold ${iconSz * 0.14}px sans-serif`
+        ctx.font = `bold ${iconSz * 0.14}px "PingFang SC",sans-serif`
         ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
         ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
         ctx.strokeText(starText, sx + 2*S, slotY + iconSz - 2*S)
@@ -130,9 +130,9 @@ function _drawPetTab(g, padX, contentY) {
         ctx.strokeRect(sx-1, slotY-1, iconSz+2, iconSz+2)
       }
       ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(p.name.substring(0,5), cx, slotY+iconSz+3*S)
-      ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`
+      ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
       const pStarAtk = getPetStarAtk(p)
       const pAtkDisp = (p.star || 1) > 1 ? `ATK:${p.atk}→${pStarAtk}` : `ATK:${p.atk}`
       ctx.fillText(pAtkDisp, cx, slotY+iconSz+14*S)
@@ -147,7 +147,7 @@ function _drawPetTab(g, padX, contentY) {
     g._prepSlotRects.push([sx, slotY, slotW, slotH])
   }
   // 背包宠物
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   const bagLabelY = slotY + slotH + 30*S
   ctx.fillText(`灵兽背包（${g.petBag.length}只）：`, padX, bagLabelY)
   const bagY = bagLabelY + 16*S
@@ -207,7 +207,7 @@ function _drawPetTab(g, padX, contentY) {
         ctx.restore()
       } else {
         ctx.fillStyle = ac ? ac.main : TH.text
-        ctx.font = `bold ${bagIcon*0.35}px sans-serif`
+        ctx.font = `bold ${bagIcon*0.35}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText(ATTR_NAME[bp.attr]||'', bcx, bcy)
       }
@@ -219,7 +219,7 @@ function _drawPetTab(g, padX, contentY) {
       if ((bp.star || 1) > 1) {
         const bStarText = '★'.repeat(bp.star || 1)
         ctx.save()
-        ctx.font = `bold ${bagIcon * 0.14}px sans-serif`
+        ctx.font = `bold ${bagIcon * 0.14}px "PingFang SC",sans-serif`
         ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
         ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
         ctx.strokeText(bStarText, bx + 2*S, by + bagIcon - 2*S)
@@ -233,9 +233,9 @@ function _drawPetTab(g, padX, contentY) {
         ctx.strokeRect(bx-1, by-1, bagIcon+2, bagIcon+2)
       }
       ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px sans-serif`
+      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(bp.name.substring(0,5), bcx, by+bagIcon+3*S)
-      ctx.fillStyle = TH.dim; ctx.font = `${8*S}px sans-serif`
+      ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
       const bpStarAtk = getPetStarAtk(bp)
       const bpAtkDisp = (bp.star || 1) > 1 ? `ATK:${bp.atk}→${bpStarAtk}` : `ATK:${bp.atk}`
       ctx.fillText(bpAtkDisp, bcx, by+bagIcon+14*S)
@@ -246,7 +246,7 @@ function _drawPetTab(g, padX, contentY) {
         ctx.drawImage(bf, bx-bfOff, by-bfOff, bFrameSz, bFrameSz)
         ctx.restore()
       }
-      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText('空', bcx, bcy)
     }
@@ -282,7 +282,7 @@ function _drawWeaponTab(g, padX, contentY) {
   const frameScale = 1.12
 
   // 当前装备法宝（单个大图标）
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   ctx.fillText('当前法宝：', padX, contentY + 12*S)
   const curWpnY = contentY + 20*S
   const curIconSz = Math.floor((W - padX*2 - 4*S*4) / 5)
@@ -307,7 +307,7 @@ function _drawWeaponTab(g, padX, contentY) {
     ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S
     ctx.strokeRect(sx-1, sy-1, curIconSz+2, curIconSz+2)
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
     ctx.fillText(g.weapon.name.substring(0,5), cx, sy+curIconSz+3*S)
     ctx.textBaseline = 'alphabetic'
     g._prepCurWpnRect = [sx, sy, curIconSz, curIconSz + curTextH]
@@ -320,7 +320,7 @@ function _drawWeaponTab(g, padX, contentY) {
       ctx.drawImage(frameWeapon, padX - fOff, curWpnY - fOff, fSz, fSz)
       ctx.restore()
     }
-    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px sans-serif`
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('无', padX + curIconSz*0.5, curWpnY + curIconSz*0.5)
     ctx.textBaseline = 'alphabetic'
@@ -329,7 +329,7 @@ function _drawWeaponTab(g, padX, contentY) {
 
   // 法宝背包（网格布局，参照灵宠背包）
   const wBagLabelY = curWpnY + curIconSz + curTextH + 14*S
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'left'
+  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   ctx.fillText(`背包法宝（${g.weaponBag.length}件）：`, padX, wBagLabelY)
   const wBagY = wBagLabelY + 16*S
   const bagGap = 4*S
@@ -376,13 +376,13 @@ function _drawWeaponTab(g, padX, contentY) {
       ctx.drawImage(frameWeapon, bx - bfOff, by - bfOff, bFrameSz, bFrameSz)
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px sans-serif`
+    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
     ctx.fillText(wp.name.substring(0,5), bcx, by+bagIcon+3*S)
     ctx.textBaseline = 'alphabetic'
     g._prepWpnBagRects.push([bx, by - _wpnBagScrollY, bagIcon, bagIcon + bagTextH])
   }
   if (g.weaponBag.length === 0) {
-    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('背包空空如也', W*0.5, wBagY + 20*S)
   }
 
@@ -456,7 +456,7 @@ function drawPrepareTip(g) {
     if (l.size === 6) { curY += 6*S; continue }
     curY += lineH
     ctx.fillStyle = l.color || '#3D2B1F'
-    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px sans-serif`
+    ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
     if (l.attrOrb) {
       const orbR = 6*S
       const orbX = tipX + padX + orbR
@@ -468,14 +468,14 @@ function drawPrepareTip(g) {
       ctx.fillText(l.text, tipX + padX, curY - 4*S)
       if (l.starSuffix) {
         const nameW = ctx.measureText(l.text).width
-        ctx.font = `bold ${11*S}px sans-serif`
+        ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
         ctx.fillStyle = '#ffd700'
         ctx.fillText(l.starSuffix, tipX + padX + nameW + 6*S, curY - 4*S)
       }
     }
   }
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH + 16*S)
 
   ctx.restore()
