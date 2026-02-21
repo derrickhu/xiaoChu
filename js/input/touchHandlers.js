@@ -28,9 +28,10 @@ function tTitle(g, type, x, y) {
     if (g.storage.hasSavedRun()) { g.showNewRunConfirm = true; return }
     g._startRun(); return
   }
-  if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { g.scene = 'stats'; return }
-  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) { g._openRanking(); return }
-  if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { g._dexScrollY = 0; g.scene = 'dex'; return }
+  if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { console.log('[Touch] Stats button clicked'); g.scene = 'stats'; return }
+  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) { console.log('[Touch] Rank button clicked'); g._openRanking(); return }
+  if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { console.log('[Touch] Dex button clicked'); g._dexScrollY = 0; g.scene = 'dex'; return }
+  console.log('[Touch] Title tap missed, rankBtnRect exists?', !!g._rankBtnRect)
 }
 
 let _prepScrolling = false
@@ -641,6 +642,28 @@ function tStats(g, type, x, y) {
 }
 
 function tDex(g, type, x, y) {
+  // 如果弹窗正在显示
+  if (g._dexDetailPetId) {
+    if (type === 'end') {
+      // 检测"带它出战"按钮
+      if (g._dexBattleBtnRect) {
+        const [bx, by, bw, bh] = g._dexBattleBtnRect
+        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+          // 模拟广告观看（同复活逻辑），然后带指定宠物开局
+          const petId = g._dexDetailPetId
+          g._dexDetailPetId = null
+          g._dexBattleBtnRect = null
+          g._designatedPetId = petId
+          g._startRun()
+          return
+        }
+      }
+      // 点击其他区域关闭弹窗
+      g._dexDetailPetId = null
+      g._dexBattleBtnRect = null
+    }
+    return
+  }
   if (type === 'start') {
     g._dexTouchStartY = y
     g._dexScrollStart = g._dexScrollY || 0
@@ -658,6 +681,15 @@ function tDex(g, type, x, y) {
   if (type !== 'end') return
   const dy = Math.abs(y - (g._dexTouchStartY || y))
   if (dy > 10 * V.S) return  // 滚动手势，不触发点击
+  // 检测宠物格子点击
+  if (g._dexCellRects) {
+    for (const cell of g._dexCellRects) {
+      if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+        g._dexDetailPetId = cell.id
+        return
+      }
+    }
+  }
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.scene = 'title'; return }
 }
 
