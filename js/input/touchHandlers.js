@@ -7,6 +7,7 @@ const MusicMgr = require('../runtime/music')
 const { generateRewards } = require('../data/tower')
 const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
+const tutorial = require('../engine/tutorial')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
@@ -364,6 +365,34 @@ function _doEventPetSwap(g, drag, drop) {
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
+  // === 教学系统拦截 ===
+  if (tutorial.isActive()) {
+    // 总结页点击
+    if (tutorial.isSummary()) {
+      if (type === 'end') tutorial.onSummaryTap(g)
+      return
+    }
+    // intro阶段点击跳过
+    if (tutorial.getPhase() === 'intro') {
+      if (type === 'end') tutorial.onIntroTap(g)
+      return
+    }
+    // 教学中胜利 — 点击切下一步（所有步骤统一，无奖励选择）
+    if (g.bState === 'victory') {
+      if (type === 'end') tutorial.onVictory(g)
+      return
+    }
+    // 教学中禁用退出/弹窗等UI
+    if (g.showExitDialog || g.showEnemyDetail || g.showRunBuffDetail || g.showWeaponDetail || g.showBattlePetDetail != null) {
+      if (type === 'end') {
+        g.showExitDialog = false; g.showEnemyDetail = false
+        g.showRunBuffDetail = false; g.showWeaponDetail = false
+        g.showBattlePetDetail = null
+      }
+      return
+    }
+  }
+  // === 教学拦截结束，以下为原逻辑 ===
   // 退出弹窗
   if (g.showExitDialog) {
     if (type !== 'end') return
@@ -534,7 +563,7 @@ function tBattle(g, type, x, y) {
   const cs = g.cellSize, bx = g.boardX, by = g.boardY
   if (type === 'start') {
     const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c] && !g.board[r][c].sealed) {
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c] && !g.board[r][c].sealed && tutorial.canDrag(g, r, c)) {
       g.dragging = true; g.dragR = r; g.dragC = c
       g.dragStartX = x; g.dragStartY = y; g.dragCurX = x; g.dragCurY = y
       const cell = g.board[r][c]

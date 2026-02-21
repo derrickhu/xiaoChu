@@ -11,6 +11,7 @@ const { generateStarterPets, generateSessionPetPool, PETS } = require('../data/p
 const { generateStarterWeapon } = require('../data/weapons')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
+const tutorial = require('./tutorial')
 
 const DEFAULT_RUN_BUFFS = {
   allAtkPct:0, allDmgPct:0, attrDmgPct:{metal:0,wood:0,earth:0,water:0,fire:0},
@@ -57,7 +58,6 @@ function startRun(g) {
       }
     }
   }
-  g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
   g.petBag = []
   g.weaponBag = []
   g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
@@ -71,6 +71,12 @@ function startRun(g) {
   g.adReviveUsed = false
   g.turnCount = 0; g.combo = 0
   g.storage._d.totalRuns++; g.storage._save()
+  // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
+  if (tutorial.needsTutorial()) {
+    tutorial.start(g)
+    return
+  }
+  g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
   nextFloor(g)
 }
 
@@ -80,6 +86,7 @@ function nextFloor(g) {
   g.enemyBuffs = []
   g.heroShield = 0
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
+  g._tutorialJustDone = g._tutorialJustDone && g.floor === 0  // 仅保留到第1层
   g.floor++
   // 通关检测：超过最大层数即为通关
   if (g.floor > MAX_FLOOR) {

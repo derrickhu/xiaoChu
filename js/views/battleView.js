@@ -4,6 +4,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES, getRealmInfo, REALM_TABLE } = require('../data/tower')
 const { getPetStarAtk, getPetAvatarPath, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
+const tutorial = require('../engine/tutorial')
 
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
@@ -331,7 +332,17 @@ function rBattle(g) {
       ctx.drawImage(floorLabelImg, labelX, labelY, labelW, labelH)
     }
     const labelCY = labelY + labelH * 0.52
-    if (evType === 'boss') {
+    const _isTutorial = tutorial.isActive()
+    if (_isTutorial) {
+      const tData = tutorial.getGuideData()
+      const stepTitle = tData ? tData.title : '新手教学'
+      ctx.fillStyle = '#b0e0ff'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+      ctx.fillText('新手教学', W*0.5, labelCY - 2*S)
+      ctx.restore()
+      ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`第${tutorial.getStep()+1}课 · ${stepTitle}`, W*0.5, labelCY + 9*S)
+    } else if (evType === 'boss') {
       const floorText = `第 ${g.floor} 层`
       const bossTag = '⚠ BOSS ⚠'
       ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
@@ -363,15 +374,19 @@ function rBattle(g) {
   // 左侧全局增益图标列（已移至战斗准备页面显示）
   // drawRunBuffIcons(g, eAreaTop + 42*S, eAreaBottom - 54*S)
 
-  // 退出按钮
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'
-  R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
-  R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.stroke()
-  ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
-  ctx.textBaseline = 'alphabetic'
-  g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
+  // 退出按钮（教学中隐藏）
+  if (!tutorial.isActive()) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
+    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.stroke()
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
+    ctx.textBaseline = 'alphabetic'
+    g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
+  } else {
+    g._exitBtnRect = null
+  }
 
   // [DEV] 调试按钮已移除
   g._devKillRect = null
@@ -409,8 +424,8 @@ function rBattle(g) {
     _drawEnemyTurnBanner(g)
   }
 
-  // 胜利/失败覆盖
-  if (g.bState === 'victory') drawVictoryOverlay(g)
+  // 胜利/失败覆盖（教学中由教学overlay接管，不显示正常胜利面板）
+  if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
   if (g.bState === 'adReviveOffer') drawAdReviveOverlay(g)
   // 弹窗层
@@ -2800,8 +2815,245 @@ function drawAdReviveOverlay(g) {
   g._adReviveSkipRect = [skipX, skipY, skipW, skipH]
 }
 
+// ===== 教学引导覆盖层 =====
+function drawTutorialOverlay(g) {
+  if (!tutorial.isActive()) return
+  const { ctx, R, TH, W, H, S } = V
+  const data = tutorial.getGuideData()
+  if (!data) return
+
+  // ---- 总结页 ----
+  if (data.isSummary) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H)
+    const panelW = W * 0.82, panelH = 260*S
+    const panelX = (W - panelW) / 2, panelY = (H - panelH) / 2
+    R.drawInfoPanel(panelX, panelY, panelW, panelH)
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#C07000'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    ctx.fillText('修仙要诀', W*0.5, panelY + 36*S)
+
+    const tips = [
+      '① 拖珠转位，三连消除',
+      '② Combo越多，伤害越高',
+      '③ 克制x2.5伤害，被克x0.5伤害',
+      '④ 上划释放宠物技能',
+      '⑤ 粉色心珠可回复生命',
+    ]
+    ctx.fillStyle = '#3D2B1F'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    tips.forEach((t, i) => {
+      ctx.fillText(t, W*0.5, panelY + 66*S + i * 24*S)
+    })
+
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    const pulse = 0.6 + 0.4 * Math.sin(g.af * 0.08)
+    ctx.globalAlpha = pulse
+    ctx.fillText('大道已明，开始通天之旅！', W*0.5, panelY + panelH - 30*S)
+    ctx.globalAlpha = 1.0
+
+    ctx.fillStyle = '#8B7B70'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText('点击屏幕继续', W*0.5, panelY + panelH - 10*S)
+    return
+  }
+
+  // ---- Intro阶段：步骤标题卡 ----
+  if (data.phase === 'intro') {
+    const alpha = Math.min(1, data.introTimer / 30)
+    ctx.save()
+    if (data.round === 0) {
+      // 步骤首回合：完整标题卡
+      ctx.globalAlpha = alpha * 0.65
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+      ctx.globalAlpha = alpha
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#C07000'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`第${data.step + 1}课`, W*0.5, H*0.38)
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+      ctx.fillText(data.title, W*0.5, H*0.44)
+      const startMsg = data.msgs.find(m => m.timing === 'start')
+      if (startMsg) {
+        ctx.fillStyle = '#fff'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+        ctx.fillText(startMsg.text, W*0.5, H*0.52)
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('点击屏幕开始', W*0.5, H*0.60)
+    } else {
+      // 后续回合：轻量提示横幅
+      ctx.globalAlpha = alpha * 0.45
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+      ctx.globalAlpha = alpha
+      ctx.textAlign = 'center'
+      const startMsg = data.msgs.find(m => m.timing === 'start')
+      if (startMsg) {
+        ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+        ctx.fillText(startMsg.text, W*0.5, H*0.45)
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('点击屏幕继续', W*0.5, H*0.54)
+    }
+    ctx.restore()
+    return
+  }
+
+  // ---- Play阶段：引导箭头 + 提示文字 ----
+  if (data.phase === 'play') {
+    const cs = g.cellSize, bx = g.boardX, by = g.boardY
+
+    // 步骤标签（左上角小标签）
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    const lblW = 80*S, lblH = 22*S, lblX = (W - lblW)/2, lblY = by - 32*S
+    R.rr(lblX, lblY, lblW, lblH, 4*S); ctx.fill()
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(`教学 ${data.step + 1}/4`, lblX + lblW/2, lblY + lblH/2)
+    ctx.restore()
+
+    // 引导箭头动画（仅未完成引导时显示）
+    if (data.guide && !data.guideDone && g.bState === 'playerTurn' && !g.dragging) {
+      const guide = data.guide
+      const fromX = bx + guide.fromC * cs + cs/2
+      const fromY = by + guide.fromR * cs + cs/2
+      const path = guide.path
+      const t = data.arrowTimer
+
+      // 高亮目标珠（脉冲）
+      const pulse = 0.5 + 0.3 * Math.sin(t * 0.1)
+      ctx.save()
+      ctx.strokeStyle = '#ffd700'
+      ctx.lineWidth = 3*S
+      ctx.globalAlpha = pulse
+      ctx.strokeRect(bx + guide.fromC * cs + 2, by + guide.fromR * cs + 2, cs - 4, cs - 4)
+      ctx.restore()
+
+      // 手指拖拽动画
+      const animDur = 120  // 2秒一个循环
+      const progress = (t % animDur) / animDur
+      // 沿路径插值手指位置
+      let fingerCX, fingerCY
+      if (path.length >= 2) {
+        const totalSegs = path.length - 1
+        const segFloat = progress * totalSegs
+        const segIdx = Math.min(Math.floor(segFloat), totalSegs - 1)
+        const segProg = segFloat - segIdx
+        const [r1, c1] = path[segIdx]
+        const [r2, c2] = path[Math.min(segIdx + 1, path.length - 1)]
+        fingerCX = bx + (c1 + (c2 - c1) * segProg) * cs + cs/2
+        fingerCY = by + (r1 + (r2 - r1) * segProg) * cs + cs/2
+      } else {
+        fingerCX = fromX; fingerCY = fromY
+      }
+
+      // 绘制虚线路径
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255,215,0,0.4)'
+      ctx.lineWidth = 2*S
+      ctx.setLineDash([4*S, 4*S])
+      ctx.beginPath()
+      for (let i = 0; i < path.length; i++) {
+        const px = bx + path[i][1] * cs + cs/2
+        const py = by + path[i][0] * cs + cs/2
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.restore()
+
+      // 绘制手指图标（圆形 + 箭头指向下一步）
+      ctx.save()
+      const fingerAlpha = progress < 0.1 ? progress / 0.1 : (progress > 0.85 ? (1 - progress) / 0.15 : 1)
+      ctx.globalAlpha = fingerAlpha * 0.85
+      // 手指光环
+      ctx.fillStyle = 'rgba(255,215,0,0.3)'
+      ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 8*S, 16*S, 0, Math.PI*2); ctx.fill()
+      // 手指主体（简化为圆+三角形）
+      ctx.fillStyle = '#fff'
+      ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 10*S, 8*S, 0, Math.PI*2); ctx.fill()
+      // 手指上方的点（指尖）
+      ctx.beginPath()
+      ctx.moveTo(fingerCX, fingerCY - 2*S)
+      ctx.lineTo(fingerCX - 5*S, fingerCY + 8*S)
+      ctx.lineTo(fingerCX + 5*S, fingerCY + 8*S)
+      ctx.closePath(); ctx.fill()
+      ctx.restore()
+    }
+
+    // afterElim消息
+    if (data.afterElimShown) {
+      const afterMsg = data.msgs.find(m => m.timing === 'afterElim')
+      if (afterMsg) {
+        ctx.save()
+        const msgW = W * 0.85, msgH = 30*S
+        const msgX = (W - msgW) / 2, msgY = by - 60*S
+        ctx.fillStyle = 'rgba(0,0,0,0.7)'
+        R.rr(msgX, msgY, msgW, msgH, 6*S); ctx.fill()
+        ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(afterMsg.text, W*0.5, msgY + msgH/2)
+        ctx.restore()
+      }
+    }
+
+    // skillReady提示（step 3）
+    if (data.step === 3) {
+      const readyPetIdx = g.pets.findIndex(p => petHasSkill(p) && p.currentCd <= 0)
+      if (readyPetIdx >= 0 && g.bState === 'playerTurn' && !g.dragging) {
+        const skillMsg = data.msgs.find(m => m.timing === 'skillReady')
+        if (skillMsg && g._petBtnRects && g._petBtnRects[readyPetIdx]) {
+          ctx.save()
+          const [px, py, pw, ph] = g._petBtnRects[readyPetIdx]
+          // 上方箭头
+          const arrowX = px + pw/2
+          const arrowY = py - 20*S - Math.sin(g.af * 0.1) * 5*S
+          ctx.fillStyle = '#ffd700'
+          ctx.globalAlpha = 0.8 + 0.2 * Math.sin(g.af * 0.08)
+          ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8*S
+          ctx.beginPath()
+          ctx.moveTo(arrowX, arrowY)
+          ctx.lineTo(arrowX - 8*S, arrowY - 12*S)
+          ctx.lineTo(arrowX + 8*S, arrowY - 12*S)
+          ctx.closePath(); ctx.fill()
+          ctx.shadowBlur = 0
+          // 文字提示
+          const msgW = W * 0.78, msgH = 28*S
+          const msgX = (W - msgW) / 2, msgY = py - 60*S
+          ctx.fillStyle = 'rgba(0,0,0,0.7)'
+          ctx.globalAlpha = 1
+          R.rr(msgX, msgY, msgW, msgH, 6*S); ctx.fill()
+          ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText(skillMsg.text, W*0.5, msgY + msgH/2)
+          ctx.restore()
+        }
+      }
+    }
+
+    // 教学中胜利提示（step 0-3，非最终步骤）
+    if (g.bState === 'victory' && data.step < 3) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.fillText('通过！', W*0.5, H*0.42)
+      const stepMsgs = [
+        '记住：拖珠与路上的珠子交换位置！',
+        'Combo让你更强！心珠是你的生命线！',
+        '克制属性造成2.5倍伤害，被克只有0.5倍！',
+      ]
+      ctx.fillStyle = '#fff'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(stepMsgs[data.step], W*0.5, H*0.50)
+      const pulseA = 0.5 + 0.5 * Math.sin(g.af * 0.08)
+      ctx.globalAlpha = pulseA
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText('点击继续', W*0.5, H*0.58)
+      ctx.restore()
+    }
+
+  }
+}
+
 module.exports = {
   rBattle, drawBoard, drawTeamBar,
   drawBuffIcons, drawBuffIconsLabeled, drawRunBuffIcons,
   drawVictoryOverlay, drawDefeatOverlay, drawAdReviveOverlay,
+  drawTutorialOverlay,
 }
