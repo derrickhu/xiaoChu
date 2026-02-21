@@ -6,7 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP, getRealmInfo } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
-const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
 let _scrollY = 0          // 当前滚动偏移
@@ -1045,16 +1045,16 @@ function drawEventPetDetail(g) {
   const padX = 16*S, padY = 14*S
   const maxTextW = cardW - padX * 2
   const lineH = 14*S
-  const skillDesc = getPetSkillDesc(p) || (p.skill ? p.skill.desc : '')
-  const descLines = wrapText(skillDesc, maxTextW - 4*S, 9)
+  const skillDesc = petHasSkill(p) ? (getPetSkillDesc(p) || (p.skill ? p.skill.desc : '')) : ''
+  const descLines = skillDesc ? wrapText(skillDesc, maxTextW - 4*S, 9) : []
 
   // 下一级数据
   let nextAtk = 0, nextSkillDesc = '', nextDescLines = []
   if (!isMaxStar) {
     const nextPet = { ...p, star: curStar + 1 }
     nextAtk = getPetStarAtk(nextPet)
-    nextSkillDesc = getPetSkillDesc(nextPet) || skillDesc
-    nextDescLines = wrapText(nextSkillDesc, maxTextW - 4*S, 9)
+    nextSkillDesc = petHasSkill(nextPet) ? (getPetSkillDesc(nextPet) || (p.skill ? p.skill.desc : '')) : ''
+    nextDescLines = nextSkillDesc ? wrapText(nextSkillDesc, maxTextW - 4*S, 9) : []
   }
 
   // 头像尺寸
@@ -1135,20 +1135,25 @@ function drawEventPetDetail(g) {
 
   // === 技能标题 + CD 高亮 ===
   iy += lineH
-  const skillTitle = `技能：${p.skill ? p.skill.name : '无'}`
-  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'left'
-  ctx.fillText(skillTitle, lx, iy)
-  const skillTitleW = ctx.measureText(skillTitle).width
-  const cdText = `CD ${p.cd}`
-  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  ctx.fillText(cdText, lx + skillTitleW + 6*S, iy)
-
-  // === 技能描述（数值高亮） ===
-  descLines.forEach(line => {
-    iy += lineH - 1*S
-    _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S)
-  })
+  if (petHasSkill(p)) {
+    const skillTitle = `技能：${p.skill.name}`
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(skillTitle, lx, iy)
+    const skillTitleW = ctx.measureText(skillTitle).width
+    const cdText = `CD ${p.cd}`
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(cdText, lx + skillTitleW + 6*S, iy)
+    // === 技能描述（数值高亮） ===
+    descLines.forEach(line => {
+      iy += lineH - 1*S
+      _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S)
+    })
+  } else {
+    ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText('技能：升至★2解锁', lx, iy)
+  }
 
   // === 下一级数据（非满星时，仅变化内容用醒目颜色） ===
   if (!isMaxStar) {
@@ -1176,29 +1181,50 @@ function drawEventPetDetail(g) {
     ctx.font = atkChanged ? `bold ${10*S}px "PingFang SC",sans-serif` : `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText(String(nextAtk), lx + nAtkLabelW, iy)
 
-    // 下一级技能标题 + CD（技能名和CD不变，用普通色）
-    iy += lineH
-    const nextSkillTitle = `技能：${p.skill ? p.skill.name : '无'}`
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'left'
-    ctx.fillText(nextSkillTitle, lx, iy)
-    const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
-    const nextCdText = `CD ${p.cd}`
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
-
-    // 下一级技能描述（仅描述变化时用高亮，否则普通色）
-    const descChanged = nextSkillDesc !== skillDesc
-    nextDescLines.forEach(line => {
-      iy += lineH - 1*S
-      if (descChanged) {
+    // 下一级技能
+    const nextPetFake = { ...p, star: curStar + 1 }
+    const nextHasSkill = petHasSkill(nextPetFake)
+    const curHasSkill = petHasSkill(p)
+    if (nextHasSkill && !curHasSkill) {
+      // ★1→★2：新解锁技能，用高亮醒目色
+      iy += lineH
+      const nextSkillTitle = `解锁技能：${p.skill.name}`
+      ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(nextSkillTitle, lx, iy)
+      const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
+      const nextCdText = `CD ${p.cd}`
+      ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
+      // 技能描述用高亮
+      nextDescLines.forEach(line => {
+        iy += lineH - 1*S
         _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S, '#c06020')
-      } else {
-        ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'left'
-        ctx.fillText(line, lx + 4*S, iy)
-      }
-    })
+      })
+    } else if (nextHasSkill) {
+      // ★2→★3：技能名和CD不变，用普通色
+      iy += lineH
+      const nextSkillTitle = `技能：${p.skill ? p.skill.name : '无'}`
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(nextSkillTitle, lx, iy)
+      const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
+      const nextCdText = `CD ${p.cd}`
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
+      // 下一级技能描述（仅描述变化时用高亮，否则普通色）
+      const descChanged = nextSkillDesc !== skillDesc
+      nextDescLines.forEach(line => {
+        iy += lineH - 1*S
+        if (descChanged) {
+          _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S, '#c06020')
+        } else {
+          ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'left'
+          ctx.fillText(line, lx + 4*S, iy)
+        }
+      })
+    }
   }
 
   ctx.restore() // 结束裁剪

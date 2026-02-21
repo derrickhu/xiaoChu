@@ -8,7 +8,7 @@ const {
   ATTR_COLOR, ATTR_NAME, BEAD_ATTRS, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
   ENEMY_SKILLS, EVENT_TYPE, ADVENTURES, getBeadWeights,
 } = require('../data/tower')
-const { getPetStarAtk } = require('../data/pets')
+const { getPetStarAtk, petHasSkill } = require('../data/pets')
 
 // ===== 棋盘 =====
 function initBoard(g) {
@@ -668,6 +668,7 @@ function settle(g) {
   g.heroBuffs = g.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
   g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
   g.pets.forEach((p, idx) => {
+    if (!petHasSkill(p)) return  // ★1无技能，不处理CD
     if (p.currentCd > 0) {
       p.currentCd--
       if (p.currentCd <= 0) {
@@ -777,10 +778,13 @@ function enemyTurn(g) {
   if (g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0) {
     g.enemySkillCd--
     if (g.enemySkillCd <= 0) {
-      const sk = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+      // 释放预选的技能（或随机选一个）
+      const sk = g._nextEnemySkill || g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
       MusicMgr.playEnemySkill()
       applyEnemySkill(g, sk)
       g.enemySkillCd = 3  // 重置倒计时
+      // 预选下一个技能（用于UI预警）
+      g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
     }
   }
   g.enemyBuffs.forEach(b => {
@@ -886,10 +890,12 @@ function applyEnemySkill(g, skillKey) {
       break
     }
     case 'sealAll': {
-      // 封锁全场所有灵珠
+      // 封锁井字形灵珠（行1/3 + 列2/4 交叉线，保留其余区域可操作）
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 1
+          if (r === 1 || r === 3 || c === 2 || c === 4) {
+            if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 1
+          }
         }
       }
       break
@@ -986,9 +992,12 @@ function applyEnemySkill(g, skillKey) {
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') uDmg = Math.round(uDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(uDmg)
       if (sk.sealType === 'all') {
+        // 封锁外围灵珠（保留中心区域可操作，避免卡死）
         for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
-            if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+            if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) {
+              if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+            }
           }
         }
       } else {
@@ -1031,6 +1040,10 @@ function enterBattle(g, enemyData) {
   g.combo = 0; g.turnCount = 0; g.rage = 0; g._rageReady = false; g._lowHpBurstShown = false
   // ===== 怪物技能倒计时：计算距下次释放还需几回合 =====
   g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0) ? 3 : -1  // 首次在第3回合触发，初始倒计时3
+  // 预选首次释放的技能（用于UI预警）
+  g._nextEnemySkill = (g.enemy.skills && g.enemy.skills.length > 0)
+    ? g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+    : null
   g.lastSpeedKill = false; g.lastTurnCount = 0
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
@@ -1052,7 +1065,7 @@ function enterBattle(g, enemyData) {
     g._comboFlash = 15  // Boss入场白闪
     g.skillEffects.push({ x:V.W*0.5, y:V.H*0.35, text:'⚠ BOSS ⚠', color:'#ff4040', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
   }
-  g.pets.forEach(p => { p.currentCd = Math.max(0, Math.ceil(p.cd * 0.4) - 1) })
+  g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? Math.max(0, Math.ceil(p.cd * 0.4) - 1) : 0 })
   initBoard(g)
   let extraTime = g.runBuffs.extraTimeSec
   if (g.weapon && g.weapon.type === 'extraTime') extraTime += g.weapon.sec

@@ -5,9 +5,10 @@
 const { TH } = require('../render')
 const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
-  generateFloorEvent,
+  generateFloorEvent, getRealmInfo,
 } = require('../data/tower')
-const { generateStarterPets, generateSessionPetPool } = require('../data/pets')
+const { generateStarterPets, generateSessionPetPool, PETS } = require('../data/pets')
+const { generateStarterWeapon } = require('../data/weapons')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 
@@ -32,10 +33,35 @@ function startRun(g) {
   // 生成本局宠物池（每属性5只，共25只），所有宠物获取从此池抽取
   g.sessionPetPool = generateSessionPetPool()
   g.pets = generateStarterPets(g.sessionPetPool)
-  g.weapon = null
+
+  // 图鉴"带它出战"：指定宠物替换第4只（1星形态）
+  if (g._designatedPetId) {
+    const dpId = g._designatedPetId
+    g._designatedPetId = null
+    // 查找宠物数据
+    let dpData = null, dpAttr = ''
+    for (const attr of ['metal','wood','water','fire','earth']) {
+      const found = PETS[attr].find(p => p.id === dpId)
+      if (found) { dpData = found; dpAttr = attr; break }
+    }
+    if (dpData) {
+      const designatedPet = { ...dpData, attr: dpAttr, star: 1, currentCd: 0 }
+      // 检查队伍中是否已有同属性宠物
+      const sameAttrIdx = g.pets.findIndex(p => p.attr === dpAttr)
+      if (sameAttrIdx >= 0) {
+        // 替换同属性的那只
+        g.pets[sameAttrIdx] = designatedPet
+      } else {
+        // 替换最后一只
+        g.pets[g.pets.length - 1] = designatedPet
+      }
+    }
+  }
+  g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
   g.petBag = []
   g.weaponBag = []
   g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
+  g.realmLevel = 1  // 修仙境界等级（对应当前层数）
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
   g.runBuffLog = []
@@ -62,16 +88,20 @@ function nextFloor(g) {
     return
   }
   if (g.floor > 1) MusicMgr.playLevelUp()
-  // ===== 层数隐性成长：每过5层自动获得攻击和血量加成（保证玩家跟得上怪物膨胀）=====
+  // ===== 修仙境界成长：每层固定增加血量上限（不回血），攻击仍保留每5层隐性加成 =====
+  if (g.floor > 1) {
+    g.realmLevel = g.floor
+    const realm = getRealmInfo(g.floor)
+    if (realm && realm.hpUp > 0) {
+      g.heroMaxHp += realm.hpUp
+      // 不回血，仅增加上限
+    }
+  }
+  // 攻击隐性加成：每过5层自动获得攻击加成（保证输出跟得上怪物膨胀）
   if (g.floor > 1 && g.floor % 5 === 1) {
-    // 第6/11/16/21/26层触发（即刚过完5/10/15/20/25层时）
     const tier = Math.floor((g.floor - 1) / 5)  // 1~5
     const atkBonus = 10 + tier * 2               // 12/14/16/18/20%
-    const hpBonus = 8 + tier * 2                 // 10/12/14/16/18%
     g.runBuffs.allAtkPct += atkBonus
-    const hpInc = Math.round(g.heroMaxHp * hpBonus / 100)
-    g.heroMaxHp += hpInc; g.heroHp = Math.min(g.heroMaxHp, g.heroHp + hpInc)
-    g.runBuffs.hpMaxPct += hpBonus
   }
   // 法宝perFloorBuff
   if (g.weapon && g.weapon.type === 'perFloorBuff' && g.floor > 1 && (g.floor - 1) % g.weapon.per === 0) {
@@ -93,6 +123,10 @@ function nextFloor(g) {
   g._eventPetDetail = null
   g._adventureApplied = false
   g._eventShopUsed = false
+  g._eventShopUsedCount = 0
+  g._eventShopUsedItems = null
+  g._shopSelectAttr = false
+  g._shopSelectPet = null
   g.scene = 'event'
 }
 
@@ -132,6 +166,7 @@ function saveAndExit(g) {
     weaponBag: JSON.parse(JSON.stringify(g.weaponBag)),
     sessionPetPool: JSON.parse(JSON.stringify(g.sessionPetPool || [])),
     heroHp: g.heroHp, heroMaxHp: g.heroMaxHp, heroShield: g.heroShield,
+    realmLevel: g.realmLevel || g.floor,
     heroBuffs: JSON.parse(JSON.stringify(g.heroBuffs)),
     runBuffs: JSON.parse(JSON.stringify(g.runBuffs)),
     runBuffLog: JSON.parse(JSON.stringify(g.runBuffLog || [])),
@@ -155,7 +190,8 @@ function resumeRun(g) {
   g.petBag = s.petBag || []
   g.weaponBag = s.weaponBag || []
   g.sessionPetPool = s.sessionPetPool || []
-  g.heroHp = s.heroHp; g.heroMaxHp = s.heroMaxHp; g.heroShield = s.heroShield || 0
+  g.heroHp = s.heroHp; g.heroMaxHp = s.heroMaxHp; g.heroShield = 0  // 护盾仅战斗局内生效，恢复时清零
+  g.realmLevel = s.realmLevel || s.floor
   g.heroBuffs = s.heroBuffs || []; g.enemyBuffs = []
   g.runBuffs = s.runBuffs || makeDefaultRunBuffs()
   // 兼容旧存档：补充缺失的新字段
@@ -181,6 +217,10 @@ function resumeRun(g) {
   g._eventPetDetail = null
   g._adventureApplied = false
   g._eventShopUsed = false
+  g._eventShopUsedCount = 0
+  g._eventShopUsedItems = null
+  g._shopSelectAttr = false
+  g._shopSelectPet = null
   g.scene = 'event'
 }
 

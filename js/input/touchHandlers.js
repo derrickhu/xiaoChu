@@ -5,7 +5,7 @@
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
 const { generateRewards } = require('../data/tower')
-const { hasSameIdOnTeam } = require('../data/pets')
+const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 
 function tTitle(g, type, x, y) {
@@ -448,7 +448,7 @@ function tBattle(g, type, x, y) {
     for (let i = 0; i < g._petBtnRects.length; i++) {
       if (i < g.pets.length && g._hitRect(x,y,...g._petBtnRects[i])) {
         const pet = g.pets[i]
-        const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
+        const skillReady = g.bState === 'playerTurn' && !g.dragging && petHasSkill(pet) && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
         if (type === 'start') {
           // 记录滑动起始位置
           g._petSwipeIndex = i
