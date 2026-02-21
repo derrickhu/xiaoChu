@@ -548,7 +548,7 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
     _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
   }
 
-  // === 下一级数据（非满星时）===
+  // === 下一级数据（非满星时，仅变化内容用醒目颜色）===
   if (!isMaxStar) {
     curY += 8*S
     // 分割线
@@ -563,26 +563,35 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
     ctx.textAlign = 'left'
     ctx.fillText(nextStarLabel, lx, curY - 4*S)
 
-    // 下一级ATK
+    // 下一级ATK（ATK总是变化，用醒目色）
     curY += lineH
     const nAtkLabel = 'ATK：'
+    const atkChanged = nextAtk !== curAtk
     ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText(nAtkLabel, lx, curY - 4*S)
     const nAtkLabelW = ctx.measureText(nAtkLabel).width
-    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = atkChanged ? '#c06020' : '#4A3B30'
+    ctx.font = atkChanged ? `bold ${10*S}px "PingFang SC",sans-serif` : `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText(String(nextAtk), lx + nAtkLabelW, curY - 4*S)
 
-    // 下一级技能标题
+    // 下一级技能标题（技能名不变，用普通色）
     curY += lineH
     const nextSkillTitle = `技能：${d.skill ? d.skill.name : '无'}`
-    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
     ctx.fillText(nextSkillTitle, lx, curY - 4*S)
 
-    // 下一级技能描述（数值高亮）
+    // 下一级技能描述（仅描述变化时用高亮，否则普通色）
+    const descChanged = nextSkillDesc !== skillDesc
     for (const line of nextSkillDescLines) {
       curY += lineH
-      _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
+      if (descChanged) {
+        _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
+      } else {
+        ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'
+        ctx.fillText(line, lx + 4*S, curY - 4*S)
+      }
     }
   }
 

@@ -3,10 +3,10 @@
  * 战斗层：整合法宝切换 + 灵宠替换，支持点击快速交换，无需跳转prepare页面
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP, getRealmInfo } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
-const { getPetStarAtk, MAX_STAR, getPetAvatarPath } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
 let _scrollY = 0          // 当前滚动偏移
@@ -477,9 +477,22 @@ function rEvent(g) {
   ctx.fillText('── 己方队伍 ──', W*0.5, curY)
   curY += 14*S
 
-  // --- HP条 ---
+  // --- HP条（左侧显示修仙境界） ---
   const hpBarH = 14*S
-  R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
+  const _realm = getRealmInfo(g.floor)
+  const _realmName = _realm ? _realm.name : ''
+  if (_realmName) {
+    ctx.save()
+    ctx.fillStyle = '#e8d5b0'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 2*S
+    const _rlW = ctx.measureText(_realmName).width + 6*S
+    ctx.fillText(_realmName, padX, curY + hpBarH * 0.5)
+    ctx.restore()
+    R.drawHp(padX + _rlW, curY, W - padX*2 - _rlW, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
+  } else {
+    R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
+  }
   curY += hpBarH + 10*S
 
   // ===== 全局增益buff文字描述 =====
@@ -1016,7 +1029,7 @@ function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, 
   ctx.fillText(atkDisplay, cxP, py + size + 19*S)
 }
 
-// ===== 灵宠详情弹窗（明亮说明面板） =====
+// ===== 灵宠详情弹窗（程序绘制浅色面板） =====
 function drawEventPetDetail(g) {
   const { ctx, R, TH, W, H, S } = V
   const idx = g._eventPetDetail
@@ -1024,18 +1037,62 @@ function drawEventPetDetail(g) {
   const p = g._eventPetDetailData || (idx >= 0 && idx < g.pets.length ? g.pets[idx] : null)
   if (!p) return
   const ac = ATTR_COLOR[p.attr]
+  const curStar = p.star || 1
+  const isMaxStar = curStar >= MAX_STAR
+  const curAtk = getPetStarAtk(p)
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+  const cardW = W * 0.82
+  const padX = 16*S, padY = 14*S
+  const maxTextW = cardW - padX * 2
+  const lineH = 14*S
+  const skillDesc = getPetSkillDesc(p) || (p.skill ? p.skill.desc : '')
+  const descLines = wrapText(skillDesc, maxTextW - 4*S, 9)
 
-  const cardW = W * 0.78
-  const descLines = wrapText(p.skill.desc, cardW - 60*S, 10)
-  const cardH = Math.max(170*S, 80*S + descLines.length * 14*S + 50*S)
+  // 下一级数据
+  let nextAtk = 0, nextSkillDesc = '', nextDescLines = []
+  if (!isMaxStar) {
+    const nextPet = { ...p, star: curStar + 1 }
+    nextAtk = getPetStarAtk(nextPet)
+    nextSkillDesc = getPetSkillDesc(nextPet) || skillDesc
+    nextDescLines = wrapText(nextSkillDesc, maxTextW - 4*S, 9)
+  }
+
+  // 头像尺寸
+  const avSz = 36*S, avPad = 12*S
+
+  // 预计算卡片高度
+  let cardH = padY * 2
+  const headerH = Math.max(avSz, 16*S + 16*S) + 4*S  // 名称行+ATK行 vs 头像
+  cardH += headerH
+  cardH += 6*S                          // 间距
+  cardH += lineH                        // 技能标题+CD
+  cardH += descLines.length * (lineH - 1*S)  // 技能描述
+  if (!isMaxStar) {
+    cardH += 10*S                       // 分割线上间距
+    cardH += 2*S                        // 分割线
+    cardH += 10*S                       // 分割线下间距
+    cardH += lineH                      // 下一级标题
+    cardH += lineH                      // 下一级ATK
+    cardH += lineH                      // 下一级技能标题
+    cardH += nextDescLines.length * (lineH - 1*S)  // 下一级技能描述
+  }
+  cardH = Math.max(cardH, 120*S)
+
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
+  const rad = 14*S
+
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H)
   R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
-  // 头像
-  const avSz = 40*S
-  const avX = cardX + 24*S, avY = cardY + 24*S
+  // 裁剪防溢出
+  ctx.save()
+  ctx.beginPath(); R.rr(cardX, cardY, cardW, cardH, rad); ctx.clip()
+
+  let iy = cardY + padY
+  const lx = cardX + padX
+
+  // === 头像 ===
+  const avX = lx, avY = iy
   ctx.fillStyle = ac ? ac.bg : '#E8E0D8'
   R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
   const petAvatar = R.getImg(getPetAvatarPath(p))
@@ -1047,62 +1104,163 @@ function drawEventPetDetail(g) {
     ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
     ctx.restore()
   }
-  ctx.strokeStyle = ac ? ac.main : '#999'; ctx.lineWidth = 1.5*S
-  R.rr(avX, avY, avSz, avSz, 6*S); ctx.stroke()
 
-  // 右侧信息
-  const infoX = avX + avSz + 16*S
-  let iy = cardY + 40*S
+  // === 名称 + 星星（头像右侧同一行） ===
+  const txL = avX + avSz + avPad
+  iy += 14*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.dk || ac.main : '#3D2B1F'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText(p.name, infoX, iy)
-  iy += 20*S
-  const orbR = 6*S
-  R.drawBead(infoX + orbR, iy - 3*S, orbR, p.attr, 0)
-  const starAtk = getPetStarAtk(p)
-  const atkDisplay = (p.star || 1) > 1 ? `ATK: ${p.atk}→${starAtk}` : `ATK: ${p.atk}`
-  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText(atkDisplay, infoX + orbR*2 + 8*S, iy)
+  ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(p.name, txL, iy)
+  const nameW = ctx.measureText(p.name).width
+  const starStr = '★'.repeat(curStar) + (curStar < MAX_STAR ? '☆'.repeat(MAX_STAR - curStar) : '')
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(starStr, txL + nameW + 6*S, iy)
 
-  // 星级显示
-  const starText = '★'.repeat(p.star || 1) + ((p.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
+  // === 属性珠 + ATK（仅当前值，数值高亮） ===
   iy += 16*S
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText(starText, infoX, iy)
-
-  // 技能区域
-  iy = avY + avSz + 12*S
-  ctx.textAlign = 'left'
-  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`技能：${p.skill.name}`, cardX + 28*S, iy)
-  iy += 16*S
-  ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-  descLines.forEach(line => {
-    ctx.fillText(line, cardX + 28*S, iy)
-    iy += 14*S
-  })
-  iy += 2*S
+  const orbR = 5*S
+  R.drawBead(txL + orbR, iy - 3*S, orbR, p.attr, 0)
+  const atkLabel = ' ATK：'
   ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`CD：${p.cd} 回合`, cardX + 28*S, iy)
+  ctx.fillText(atkLabel, txL + orbR*2 + 4*S, iy)
+  const atkLabelW = ctx.measureText(atkLabel).width
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(String(curAtk), txL + orbR*2 + 4*S + atkLabelW, iy)
 
-  // 点击任意位置关闭（无关闭按钮）
+  // 跳过头像区域
+  iy = Math.max(iy, avY + avSz)
+
+  // === 间距 ===
+  iy += 6*S
+
+  // === 技能标题 + CD 高亮 ===
+  iy += lineH
+  const skillTitle = `技能：${p.skill ? p.skill.name : '无'}`
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(skillTitle, lx, iy)
+  const skillTitleW = ctx.measureText(skillTitle).width
+  const cdText = `CD ${p.cd}`
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(cdText, lx + skillTitleW + 6*S, iy)
+
+  // === 技能描述（数值高亮） ===
+  descLines.forEach(line => {
+    iy += lineH - 1*S
+    _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S)
+  })
+
+  // === 下一级数据（非满星时，仅变化内容用醒目颜色） ===
+  if (!isMaxStar) {
+    iy += 10*S
+    // 分割线
+    ctx.strokeStyle = 'rgba(160,140,100,0.3)'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.moveTo(lx, iy); ctx.lineTo(cardX + cardW - padX, iy); ctx.stroke()
+    iy += 2*S + 10*S
+
+    // "下一级 ★X" 标题
+    iy += lineH
+    const nextStarLabel = `下一级 ${'★'.repeat(curStar + 1)}`
+    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(nextStarLabel, lx, iy)
+
+    // 下一级ATK（ATK总是变化，用醒目色）
+    iy += lineH
+    const nAtkLabel = 'ATK：'
+    const atkChanged = nextAtk !== curAtk
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(nAtkLabel, lx, iy)
+    const nAtkLabelW = ctx.measureText(nAtkLabel).width
+    ctx.fillStyle = atkChanged ? '#c06020' : '#4A3B30'
+    ctx.font = atkChanged ? `bold ${10*S}px "PingFang SC",sans-serif` : `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(String(nextAtk), lx + nAtkLabelW, iy)
+
+    // 下一级技能标题 + CD（技能名和CD不变，用普通色）
+    iy += lineH
+    const nextSkillTitle = `技能：${p.skill ? p.skill.name : '无'}`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(nextSkillTitle, lx, iy)
+    const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
+    const nextCdText = `CD ${p.cd}`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
+
+    // 下一级技能描述（仅描述变化时用高亮，否则普通色）
+    const descChanged = nextSkillDesc !== skillDesc
+    nextDescLines.forEach(line => {
+      iy += lineH - 1*S
+      if (descChanged) {
+        _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S, '#c06020')
+      } else {
+        ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'left'
+        ctx.fillText(line, lx + 4*S, iy)
+      }
+    })
+  }
+
+  ctx.restore() // 结束裁剪
+
   g._eventPetDetailCloseRect = [0, 0, W, H]
 }
 
-// ===== 法宝详情弹窗（明亮说明面板） =====
+// 绘制带数值高亮的单行文本（数字用橙色粗体）
+function _drawHighlightLine(ctx, text, x, y, fontSize, S) {
+  const normalColor = '#4A3B30'
+  const highlightColor = '#c06020'
+  const font = `${fontSize}px "PingFang SC",sans-serif`
+  const boldFont = `bold ${fontSize}px "PingFang SC",sans-serif`
+  const numRe = /(\d+[\d.]*%?倍?)/g
+
+  ctx.textAlign = 'left'
+  let cx = x, lastIdx = 0, match
+  numRe.lastIndex = 0
+  while ((match = numRe.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      const before = text.substring(lastIdx, match.index)
+      ctx.fillStyle = normalColor; ctx.font = font
+      ctx.fillText(before, cx, y)
+      cx += ctx.measureText(before).width
+    }
+    ctx.fillStyle = highlightColor; ctx.font = boldFont
+    ctx.fillText(match[0], cx, y)
+    cx += ctx.measureText(match[0]).width
+    lastIdx = match.index + match[0].length
+  }
+  if (lastIdx < text.length) {
+    ctx.fillStyle = normalColor; ctx.font = font
+    ctx.fillText(text.substring(lastIdx), cx, y)
+  }
+  if (lastIdx === 0) {
+    ctx.fillStyle = normalColor; ctx.font = font
+    ctx.fillText(text, x, y)
+  }
+}
+
+// ===== 法宝详情弹窗（程序绘制浅色面板） =====
 function _drawWeaponDetailPopup(g) {
   const { ctx, R, TH, W, H, S } = V
   const wp = g._eventWpnDetailData
   if (!wp) return
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H)
 
-  const cardW = W * 0.72, cardH = 110*S
+  const cardW = W * 0.76
+  const padX = 16*S, padY = 14*S
+  const maxTextW = cardW - 48*S - padX * 2 - 10*S
+  const descLines = wrapText(wp.desc, maxTextW, 10)
+  const cardH = Math.max(90*S, padY * 2 + descLines.length * 14*S + 40*S)
   const cardX = (W - cardW) / 2, cardY = (H - cardH) / 2
+  const rad = 14*S
   R.drawInfoPanel(cardX, cardY, cardW, cardH)
 
-  const iconSz = 48*S
-  const iconX = cardX + 16*S, iconY = cardY + 16*S
+  ctx.save()
+  ctx.beginPath(); R.rr(cardX, cardY, cardW, cardH, rad); ctx.clip()
+
+  const iconSz = 42*S
+  const iconX = cardX + padX, iconY = cardY + padY
   ctx.fillStyle = '#E8E0D8'
   R.rr(iconX, iconY, iconSz, iconSz, 6*S); ctx.fill()
   const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
@@ -1112,19 +1270,19 @@ function _drawWeaponDetailPopup(g) {
     ctx.restore()
   }
 
-  const textX = iconX + iconSz + 14*S
+  const textX = iconX + iconSz + 10*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText(wp.name, textX, cardY + 36*S)
-  ctx.fillStyle = '#4A3B30'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  const descLines = wrapText(wp.desc, cardW - iconSz - 50*S, 11)
-  let dy = cardY + 56*S
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(wp.name, textX, cardY + padY + 14*S)
+  ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  let dy = cardY + padY + 32*S
   descLines.forEach(line => {
     ctx.fillText(line, textX, dy)
-    dy += 16*S
+    dy += 14*S
   })
 
-  // 点击任意位置关闭（无关闭按钮）
+  ctx.restore() // 结束裁剪
+
   g._eventWpnDetailCloseRect = [0, 0, W, H]
 }
 
