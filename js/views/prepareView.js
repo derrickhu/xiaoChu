@@ -4,7 +4,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
-const { getPetStarAtk, MAX_STAR, getPetAvatarPath } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc } = require('../data/pets')
 
 // 背包滚动状态
 let _petBagScrollY = 0
@@ -406,35 +406,205 @@ function drawPrepareTip(g) {
 
   const d = tip.data
   const padX = 14*S, padY = 10*S
-  const tipW = W * 0.78
-  const lineH = 18*S
+  const tipW = W * 0.8
+  const lineH = 16*S
+  const maxTextW = tipW - padX * 2
 
-  let lines = []
   if (tip.type === 'pet') {
-    const ac = ATTR_COLOR[d.attr]
-    const starText = '★'.repeat(d.star || 1) + ((d.star || 1) < MAX_STAR ? '☆'.repeat(MAX_STAR - (d.star || 1)) : '')
-    lines.push({ text: d.name, color: ac ? ac.dk || ac.main : '#3D2B1F', bold: true, size: 15, starSuffix: starText })
-    const tipStarAtk = getPetStarAtk(d)
-    const tipAtkDisp = (d.star || 1) > 1 ? `ATK：${d.atk}→${tipStarAtk}` : `ATK：${d.atk}`
-    lines.push({ text: `__ATTR_ORB__${d.attr}　　${tipAtkDisp}`, color: '#6B5B50', size: 11, attrOrb: d.attr })
-    lines.push({ text: `冷却：${d.cd} 回合`, color: '#8B7B70', size: 11 })
-    if (d.skill) {
-      lines.push({ text: '', size: 6 })
-      lines.push({ text: `技能：${d.skill.name}`, color: '#8B6914', bold: true, size: 12 })
-      const descLines = wrapText(d.skill.desc || '', tipW - padX*2, 11)
-      for (const dl of descLines) {
-        lines.push({ text: dl, color: '#3D2B1F', size: 11 })
-      }
-    }
+    _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g)
   } else if (tip.type === 'weapon') {
-    lines.push({ text: d.name, color: '#8B6914', bold: true, size: 15 })
-    lines.push({ text: '被动效果', color: '#6B5B50', size: 11 })
-    if (d.desc) {
-      lines.push({ text: '', size: 6 })
-      const descLines = wrapText(d.desc, tipW - padX*2, 11)
-      for (const dl of descLines) {
-        lines.push({ text: dl, color: '#3D2B1F', size: 11 })
-      }
+    _drawWeaponTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g)
+  }
+}
+
+// 宠物信息弹窗（含头像）
+function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g) {
+  const curStar = d.star || 1
+  const isMaxStar = curStar >= MAX_STAR
+  const curAtk = getPetStarAtk(d)
+  const skillDesc = getPetSkillDesc(d) || ''
+  const ac = ATTR_COLOR[d.attr]
+
+  // 头像区域尺寸
+  const avSz = 42*S
+  const avPad = 8*S
+  const infoX = tipX => tipX + padX + avSz + avPad  // 头像右侧的文字起点
+  const textMaxW = maxTextW - avSz - avPad  // 头像右侧的可用文字宽度
+
+  const skillDescLines = wrapText(skillDesc, textMaxW - 4*S, 10)
+
+  // 下一级数据
+  let nextAtk = 0, nextSkillDesc = '', nextSkillDescLines = []
+  if (!isMaxStar) {
+    const nextPet = { ...d, star: curStar + 1 }
+    nextAtk = getPetStarAtk(nextPet)
+    nextSkillDesc = getPetSkillDesc(nextPet) || skillDesc
+    nextSkillDescLines = wrapText(nextSkillDesc, maxTextW - 4*S, 10)
+  }
+
+  // 预计算总高度
+  // 头像区域：头像高度与名称+ATK行的较大值
+  const headerTextH = lineH * 2  // 名称行 + ATK行
+  const headerH = Math.max(avSz, headerTextH) + 4*S
+  let totalH = padY * 2
+  totalH += headerH             // 头像+名称+ATK区域
+  totalH += 6*S                 // 间距
+  totalH += lineH               // 技能标题
+  totalH += skillDescLines.length * lineH  // 技能描述
+
+  if (!isMaxStar) {
+    totalH += 8*S              // 分割线上间距
+    totalH += 2*S              // 分割线
+    totalH += 8*S              // 分割线下间距
+    totalH += lineH            // "下一级 ★X" 标题
+    totalH += lineH            // 下一级ATK
+    totalH += lineH            // 下一级技能标题
+    totalH += nextSkillDescLines.length * lineH  // 下一级技能描述
+  }
+
+  const tipX = (W - tipW) / 2
+  const tipY = Math.min(Math.max(tip.y - totalH - 10*S, safeTop + 10*S), H - totalH - 80*S)
+  const rad = 14*S
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
+  ctx.fillRect(0, 0, W, H)
+  R.drawInfoPanel(tipX, tipY, tipW, totalH)
+
+  ctx.save()
+  ctx.beginPath(); R.rr(tipX, tipY, tipW, totalH, rad); ctx.clip()
+
+  let curY = tipY + padY
+  const lx = tipX + padX  // 左边起点
+
+  // === 头像 ===
+  const avX = lx
+  const avY = curY
+  // 头像背景渐变
+  ctx.save()
+  const grd = ctx.createLinearGradient(avX, avY, avX, avY + avSz)
+  grd.addColorStop(0, (ac ? ac.main : '#888') + '40')
+  grd.addColorStop(1, 'transparent')
+  ctx.fillStyle = grd
+  ctx.beginPath(); R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
+  ctx.restore()
+  // 头像图片
+  const petImg = R.getImg(getPetAvatarPath(d))
+  if (petImg && petImg.width > 0) {
+    const iw = petImg.width, ih = petImg.height
+    const dw = avSz - 2, dh = dw * (ih / iw)
+    const dy = avY + 1 + (avSz - 2) - dh
+    ctx.save(); ctx.beginPath(); R.rr(avX + 1, avY + 1, avSz - 2, avSz - 2, 5*S); ctx.clip()
+    ctx.drawImage(petImg, avX + 1, dy, dw, dh)
+    ctx.restore()
+  }
+
+  // === 名称 + 星星（头像右侧，同一行） ===
+  const txL = lx + avSz + avPad  // 文字左边起点
+  curY += lineH
+  const nameFs = 14*S
+  const starStr = '★'.repeat(curStar) + (curStar < MAX_STAR ? '☆'.repeat(MAX_STAR - curStar) : '')
+  ctx.font = `bold ${nameFs}px "PingFang SC",sans-serif`
+  const nameW = ctx.measureText(d.name).width
+  ctx.fillStyle = '#3D2B1F'; ctx.textAlign = 'left'
+  ctx.fillText(d.name, txL, curY - 4*S)
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText(starStr, txL + nameW + 6*S, curY - 4*S)
+
+  // === 属性珠 + ATK（头像右侧，仅当前值） ===
+  curY += lineH
+  const orbR = 5*S
+  const orbX = txL + orbR
+  const orbY = curY - 4*S - orbR*0.4
+  R.drawBead(orbX, orbY, orbR, d.attr, 0)
+  const atkLabel = ' ATK：'
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(atkLabel, orbX + orbR + 2*S, curY - 4*S)
+  const atkLabelW = ctx.measureText(atkLabel).width
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(String(curAtk), orbX + orbR + 2*S + atkLabelW, curY - 4*S)
+
+  // 确保 curY 跳过头像区域
+  curY = Math.max(curY, avY + avSz)
+
+  // === 间距 ===
+  curY += 6*S
+
+  // === 技能标题（技能名 + CD高亮）===
+  curY += lineH
+  const skillTitle = `技能：${d.skill ? d.skill.name : '无'}`
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(skillTitle, lx, curY - 4*S)
+  const skillTitleW = ctx.measureText(skillTitle).width
+  const cdText = `CD ${d.cd}`
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(cdText, lx + skillTitleW + 6*S, curY - 4*S)
+
+  // === 技能描述（数值高亮）===
+  for (const line of skillDescLines) {
+    curY += lineH
+    _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
+  }
+
+  // === 下一级数据（非满星时）===
+  if (!isMaxStar) {
+    curY += 8*S
+    // 分割线
+    ctx.strokeStyle = 'rgba(160,140,100,0.3)'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.moveTo(lx, curY); ctx.lineTo(tipX + tipW - padX, curY); ctx.stroke()
+    curY += 2*S + 8*S
+
+    // "下一级 ★X" 标题
+    curY += lineH
+    const nextStarLabel = `下一级 ${'★'.repeat(curStar + 1)}`
+    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(nextStarLabel, lx, curY - 4*S)
+
+    // 下一级ATK
+    curY += lineH
+    const nAtkLabel = 'ATK：'
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(nAtkLabel, lx, curY - 4*S)
+    const nAtkLabelW = ctx.measureText(nAtkLabel).width
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(String(nextAtk), lx + nAtkLabelW, curY - 4*S)
+
+    // 下一级技能标题
+    curY += lineH
+    const nextSkillTitle = `技能：${d.skill ? d.skill.name : '无'}`
+    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(nextSkillTitle, lx, curY - 4*S)
+
+    // 下一级技能描述（数值高亮）
+    for (const line of nextSkillDescLines) {
+      curY += lineH
+      _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
+    }
+  }
+
+  ctx.restore() // 结束裁剪
+
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH + 14*S)
+
+  ctx.restore()
+  g._prepTipOverlay = true
+}
+
+// 法宝信息弹窗（保持原逻辑）
+function _drawWeaponTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g) {
+  let lines = []
+  lines.push({ text: d.name, color: '#8B6914', bold: true, size: 14 })
+  lines.push({ text: '被动效果', color: '#6B5B50', size: 10 })
+  if (d.desc) {
+    lines.push({ text: '', size: 6 })
+    const descLines = wrapText(d.desc, maxTextW, 10)
+    for (const dl of descLines) {
+      lines.push({ text: dl, color: '#3D2B1F', size: 10 })
     }
   }
 
@@ -443,12 +613,15 @@ function drawPrepareTip(g) {
 
   const tipX = (W - tipW) / 2
   const tipY = Math.min(Math.max(tip.y - totalH - 10*S, safeTop + 10*S), H - totalH - 80*S)
+  const rad = 14*S
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
   ctx.fillRect(0, 0, W, H)
-
   R.drawInfoPanel(tipX, tipY, tipW, totalH)
+
+  ctx.save()
+  ctx.beginPath(); R.rr(tipX, tipY, tipW, totalH, rad); ctx.clip()
 
   let curY = tipY + padY
   ctx.textAlign = 'left'
@@ -457,44 +630,71 @@ function drawPrepareTip(g) {
     curY += lineH
     ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
-    if (l.attrOrb) {
-      const orbR = 6*S
-      const orbX = tipX + padX + orbR
-      const orbY = curY - 4*S - orbR*0.4
-      R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
-      const restText = l.text.replace(`__ATTR_ORB__${l.attrOrb}`, '')
-      ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
-    } else {
-      ctx.fillText(l.text, tipX + padX, curY - 4*S)
-      if (l.starSuffix) {
-        const nameW = ctx.measureText(l.text).width
-        ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        ctx.fillStyle = '#ffd700'
-        ctx.fillText(l.starSuffix, tipX + padX + nameW + 6*S, curY - 4*S)
-      }
-    }
+    ctx.fillText(l.text, tipX + padX, curY - 4*S)
   }
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH + 16*S)
+  ctx.restore()
+
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH + 14*S)
 
   ctx.restore()
   g._prepTipOverlay = true
 }
 
-// 文本换行辅助（从main.js提取的公共工具函数）
-function wrapText(text, maxW, fontSize) {
-  const S = V.S
-  const charW = fontSize * S * 0.55
-  const maxChars = Math.floor(maxW / charW)
-  if (maxChars <= 0) return [text]
-  const result = []
-  let rest = text
-  while (rest.length > 0) {
-    result.push(rest.substring(0, maxChars))
-    rest = rest.substring(maxChars)
+// 绘制带数值高亮的单行文本（数字用橙色粗体）
+function _drawHighlightLine(ctx, text, x, y, fontSize, S) {
+  const normalColor = '#3D2B1F'
+  const highlightColor = '#c06020'
+  const font = `${fontSize}px "PingFang SC",sans-serif`
+  const boldFont = `bold ${fontSize}px "PingFang SC",sans-serif`
+  const numRe = /(\d+[\d.]*%?倍?)/g
+
+  ctx.textAlign = 'left'
+  let cx = x, lastIdx = 0, match
+  numRe.lastIndex = 0
+  while ((match = numRe.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      const before = text.substring(lastIdx, match.index)
+      ctx.fillStyle = normalColor; ctx.font = font
+      ctx.fillText(before, cx, y)
+      cx += ctx.measureText(before).width
+    }
+    ctx.fillStyle = highlightColor; ctx.font = boldFont
+    ctx.fillText(match[0], cx, y)
+    cx += ctx.measureText(match[0]).width
+    lastIdx = match.index + match[0].length
   }
-  return result.length > 0 ? result : [text]
+  if (lastIdx < text.length) {
+    ctx.fillStyle = normalColor; ctx.font = font
+    ctx.fillText(text.substring(lastIdx), cx, y)
+  }
+  if (lastIdx === 0) {
+    ctx.fillStyle = normalColor; ctx.font = font
+    ctx.fillText(text, x, y)
+  }
+}
+
+// 文本换行辅助（按实际像素宽度换行）
+function wrapText(text, maxW, fontSize) {
+  if (!text) return ['']
+  const S = V.S
+  const fullW = fontSize * S
+  const halfW = fontSize * S * 0.55
+  const result = []
+  let line = '', lineW = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    const cw = ch.charCodeAt(0) > 127 ? fullW : halfW
+    if (lineW + cw > maxW && line.length > 0) {
+      result.push(line)
+      line = ch; lineW = cw
+    } else {
+      line += ch; lineW += cw
+    }
+  }
+  if (line) result.push(line)
+  return result.length > 0 ? result : ['']
 }
 
 // 背包滚动触摸处理
