@@ -522,6 +522,89 @@ The interior must be light enough for DARK text (deep brown #3D2B1F, dark gold #
 
 ---
 
+## 十七、小程序展示图（分享卡片 / 商店封面）
+
+**用途**：微信小程序分享卡片封面图、小程序商店展示截图、社交传播宣传图  
+**尺寸**：5:4 横向（如 1280×1024），适配微信分享卡片和小程序详情页展示  
+**文件**：`assets/ui/share_cover.jpg`
+
+**设计目标**：
+- 一眼吸引人点击，传达"仙侠消除+宠物养成+爬塔"的核心玩法
+- 画面精致但不杂乱，焦点集中，信息层次清晰
+- 与游戏内水彩仙侠风格高度统一
+- 适合在微信聊天列表的小尺寸下依然能看清主体
+
+**构图布局**：
+- 左侧 40%：主角修仙者背影/侧身 + 2~3只可爱灵宠环绕
+- 右侧 60%：通天塔在云雾中矗立，金光闪耀
+- 下方 20%：五色（金木水火土）珠子散落排列，暗示消除玩法
+- 上方留空：游戏标题"五行通天塔"金色书法字
+
+```
+A horizontal 5:4 aspect ratio promotional illustration for a Chinese Xianxia mobile game, watercolor ink painting style, warm dreamy atmosphere with golden highlights, visually striking yet clean and uncluttered:
+
+LEFT SIDE (40%) — A young male Xianxia cultivator seen from a dynamic three-quarter back view, wearing a flowing blue-grey Daoist robe with golden cloud trim, black hair in a topknot with a golden hairpin. He stands confidently on a golden cloud, one hand raised toward the tower. Around him, THREE adorable chibi spirit pets (灵宠) float in a cheerful scattered arc: a tiny golden Qilin cub (金) with a jade pendant, a bright orange fox spirit (火) with a red flame tail tip, and a jade-green baby deer (木) with crystalline antlers bearing tiny flowers. All pets are cute, round, big-headed SD style with 2:1 head-body ratio, clean black outlines, vibrant flat colors — matching the game's pet art style. The cultivator and pets together form a compact, visually readable group.
+
+RIGHT SIDE (60%) — A magnificent celestial pagoda tower (通天塔) rising majestically through layered pastel clouds, slightly off-center to the right. The tower has nine tiers, each subtly tinted in five-element colors from bottom to top: brown-amber (earth), red-coral (fire), blue-teal (water), jade-green (wood), champagne-gold (metal). The tower glows with soft golden inner light, with subtle golden Daoist rune patterns (符文) visible on its surface. Wispy ink-wash clouds in pale peach, lavender and cream surround the tower at various heights. Faint golden god-rays stream down from the tower's peak. A few distant floating celestial islands with waterfalls visible in the far background through the mist.
+
+BOTTOM AREA (lower 15%) — Five translucent glowing elemental orbs (五行珠) scattered in a gentle arc across the bottom: a golden metallic orb, a jade-green wood orb, a sapphire-blue water orb, a coral-red fire orb, and an amber-brown earth orb. Each orb is simple, round, with a subtle elemental symbol inside and a soft color-matched glow. They rest on a bed of soft pastel clouds, subtly suggesting the match-3 puzzle gameplay without being literal game UI. A few golden sparkle particles drift around the orbs.
+
+UPPER AREA (top 20%) — Clean ethereal sky with soft warm gradient from pale gold to lavender. The game title "五行通天塔" rendered in elegant Chinese brush calligraphy (行楷 semi-cursive) with warm off-white base color and golden shimmer on stroke edges, positioned in the upper-center area. The five characters have very subtle five-element color tints matching the tower tiers. Faint golden 祥云 (auspicious cloud) wisps frame the title. Below the title, a very small subtitle area for potential tagline text.
+
+OVERALL ATMOSPHERE — Warm, inviting, adventurous, magical. The color palette combines: soft peach (#FADCD9), pale lavender (#E8D5F5), champagne gold (#F5E6C8), warm amber highlights (#D4AF37), with deeper indigo-purple (#1A1430) shadows for contrast. Watercolor paper texture throughout. Soft ink-wash technique with gentle color bleeding at cloud edges. The composition draws the eye naturally from the charismatic pets on the left → up to the cultivator → across to the glowing tower on the right → down to the colorful orbs, creating a natural visual flow.
+
+The image should feel like a beautiful hand-painted scroll illustration that instantly communicates: "a charming Chinese fantasy adventure with cute pets, a mysterious tower to climb, and colorful puzzle elements." NOT cluttered — every element has breathing room. NOT too dark — warm and welcoming. Watercolor ink-wash painting style with Chinese traditional pigment colors. No UI elements, no health bars, no game interface. High resolution, vibrant yet harmonious.
+
+Style references: Genshin Impact promotional art warmth, Chinese mobile game watercolor splash art, Studio Ghibli-inspired charm, traditional Chinese ink painting composition principles (留白 negative space).
+```
+
+---
+
+## 十八、小程序图标（App Icon）
+
+**用途**：微信小程序头像图标，显示于聊天列表、发现页小程序入口、搜索结果、分享卡片左下角等  
+**尺寸**：1:1 正方形（推荐 512×512 或 1024×1024，微信会自动缩放）  
+**文件**：`assets/ui/app_icon.png`
+
+**设计目标**：
+- 极小尺寸（约40×40px显示）下依然清晰可辨识
+- 一眼传达"仙侠 + 五行"的核心主题
+- 与展示图风格统一，水彩仙侠风
+- 图标简洁有力，不超过2个主体元素
+
+**构图布局**：
+- 中心主体：一座简化的通天塔剪影，3~5层，从底到顶渐变五行色（土→火→水→木→金）
+- 塔顶：一颗发光的金色灵珠，散发柔和光晕
+- 背景：深靛紫色（#1A1430）圆形底，外圈一圈淡金色祥云纹边框
+- 塔身两侧：各一片简化的祥云点缀，增加仙气
+
+```
+A square 1:1 app icon for a Chinese Xianxia mobile game called "五行通天塔" (Five Elements Celestial Tower), designed to be recognizable at very small sizes (40×40px), clean and iconic:
+
+BACKGROUND — A perfect circle filled with a rich deep indigo-purple gradient (#1A1430 to #2D1B69), giving a mystical night sky feel. The circle has a thin elegant border ring in champagne gold (#D4AF37) with subtle traditional Chinese auspicious cloud (祥云) pattern embossed into the border. The circular shape sits on a transparent background.
+
+CENTER SUBJECT — A stylized, simplified celestial pagoda tower (通天塔) silhouette, occupying about 60% of the icon height, centered. The tower has 5 distinct tiers, each tier a clean geometric shape with slightly curved traditional Chinese roof eaves. Each tier is colored in a different five-element color from bottom to top:
+- Tier 1 (bottom): warm amber-brown (#C8956C) for Earth (土)
+- Tier 2: coral-red (#E85D4A) for Fire (火)  
+- Tier 3: sapphire-blue (#4A8BC2) for Water (水)
+- Tier 4: jade-green (#5BAD6F) for Wood (木)
+- Tier 5 (top, smallest): champagne-gold (#D4AF37) for Metal (金)
+
+The tower silhouette is clean and graphic — NOT detailed or realistic, but stylized like a logo. Each tier has a subtle inner glow matching its element color. Fine golden Daoist rune lines (符文) are faintly visible on the tower surface, adding mystical detail without clutter.
+
+TOWER TOP — Above the top tier, a single luminous golden orb (灵珠) floats, emitting a soft warm radial glow in concentric circles of gold (#FFD700 to transparent). The orb has a tiny starburst highlight, making it the brightest focal point of the entire icon. Two or three tiny golden sparkle particles float near the orb.
+
+FLANKING ELEMENTS — On each side of the tower (left and right), a small simplified stylized cloud wisp (祥云) in soft pale gold (#F5E6C8, semi-transparent) gently curves upward, framing the tower. These clouds are minimal — just 2-3 swirl strokes each — adding an ethereal feel without adding visual noise.
+
+BOTTOM ACCENT — At the base of the tower, a very subtle bed of soft pastel clouds in lavender (#E8D5F5, low opacity) creates a gentle foundation, suggesting the tower floats in the heavens.
+
+OVERALL STYLE — The icon should look like a polished game logo/emblem. Watercolor ink-painting inspired textures but with clean graphic edges suitable for an app icon. The color scheme is predominantly deep purple background with warm gold and five-element colored accents. The design must read clearly at 40×40px — the tower silhouette and golden orb should be immediately recognizable even at tiny sizes. No text in the icon. No complex details that would become muddy at small sizes.
+
+Style: Chinese Xianxia game app icon, watercolor-meets-flat-design hybrid, elegant and mystical, premium mobile game quality. Think of it as a wax seal or jade pendant design — compact, symbolic, refined.
+```
+
+---
+
 ## 附录：资源文件清单
 
 | 序号 | 资源名称 | 文件路径 | 格式 | 尺寸比例 |
@@ -552,3 +635,5 @@ The interior must be light enough for DARK text (deep brown #3D2B1F, dark gold #
 | 24 | 战斗层数标签框 | `assets/ui/floor_label_bg.png` | PNG（纯黑底抠图） | ~4:1 横向 |
 | 25 | 奖励选择页背景 | `assets/backgrounds/reward_bg.jpg` | JPG | 9:16 竖屏 |
 | 26 | 说明面板背景 | `assets/ui/info_panel_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
+| 27 | 小程序展示图 | `assets/ui/share_cover.jpg` | JPG | 5:4 横向 |
+| 28 | 小程序图标 | `assets/ui/app_icon.png` | PNG（透明底） | 1:1 正方形 |

@@ -7,7 +7,7 @@ const MusicMgr = require('../runtime/music')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
-const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR } = require('../data/pets')
+const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
 
 // 辅助：tryMergePet 后检查是否升到满星，记录图鉴
@@ -41,7 +41,13 @@ function _pickRandomCells(g, count, targetAttr) {
 
 function triggerPetSkill(g, pet, idx) {
   const { S, W, H } = V
-  const sk = pet.skill; if (!sk) return
+  const baseSk = pet.skill; if (!baseSk) return
+  // ★1无技能，需要★2+才能使用
+  if (!petHasSkill(pet)) return
+  // ★3强化：合并覆写数据到技能对象
+  const star = pet.star || 1
+  const override = (star >= 3) ? getStar3Override(pet.id) : null
+  const sk = override ? { ...baseSk, ...override } : baseSk
   let cd = pet.cd
   if (g.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - g.runBuffs.skillCdReducePct / 100)))
   pet.currentCd = cd
@@ -80,7 +86,7 @@ function triggerPetSkill(g, pet, idx) {
     g._skillFlash = {
       petName: pet.name,
       skillName: sk.name,
-      skillDesc: sk.desc || '',
+      skillDesc: getPetSkillDesc(pet) || '',
       color: attrColor,
       timer: 0,
       duration: 36,  // 0.6秒，留足时间阅读描述
@@ -94,7 +100,7 @@ function triggerPetSkill(g, pet, idx) {
 
   switch(sk.type) {
     case 'dmgBoost':
-      g.heroBuffs.push({ type:'dmgBoost', attr:sk.attr, pct:Math.round(sk.pct * sMul), dur:1, bad:false, name:sk.name }); break
+      g.heroBuffs.push({ type:'dmgBoost', attr:sk.attr, pct:Math.round(sk.pct * sMul), dur:sk.dur||1, bad:false, name:sk.name }); break
     case 'convertBead': {
       const { ROWS, COLS } = V
       const targetAttr = sk.attr || pet.attr
@@ -103,6 +109,8 @@ function triggerPetSkill(g, pet, idx) {
         g._beadConvertAnim = { cells, timer: 0, phase: 'charge', duration: 24 }
       }
       if (sk.beadBoost) g.goodBeadsNextTurn = true
+      // ★3附加增伤
+      if (sk.dmgBoost) g.heroBuffs.push({ type:'dmgBoost', attr:targetAttr, pct:Math.round(sk.dmgBoost * sMul), dur:1, bad:false, name:sk.name })
       break
     }
     case 'convertRow': {
@@ -115,8 +123,16 @@ function triggerPetSkill(g, pet, idx) {
           cells.push({ r: row, c, fromAttr: g.board[row][c].attr, toAttr: targetAttr })
         }
       }
+      // ★3额外随机珠子
+      if (sk.extra) {
+        const extraCells = _pickRandomCells(g, sk.extra, targetAttr)
+          .filter(ec => !cells.some(c => c.r === ec.r && c.c === ec.c))
+        cells.push(...extraCells)
+      }
       if (cells.length) g._beadConvertAnim = { cells, timer: 0, phase: 'charge', duration: 24 }
       if (sk.beadBoost) g.goodBeadsNextTurn = true
+      // ★3附加增伤
+      if (sk.dmgBoost) g.heroBuffs.push({ type:'dmgBoost', attr:targetAttr, pct:Math.round(sk.dmgBoost * sMul), dur:1, bad:false, name:sk.name })
       break
     }
     case 'convertCol': {
@@ -128,6 +144,12 @@ function triggerPetSkill(g, pet, idx) {
         if (g.board[r][col] && g.board[r][col].attr !== targetAttr) {
           cells.push({ r, c: col, fromAttr: g.board[r][col].attr, toAttr: targetAttr })
         }
+      }
+      // ★3额外随机珠子
+      if (sk.extra) {
+        const extraCells = _pickRandomCells(g, sk.extra, targetAttr)
+          .filter(ec => !cells.some(c => c.r === ec.r && c.c === ec.c))
+        cells.push(...extraCells)
       }
       if (cells.length) g._beadConvertAnim = { cells, timer: 0, phase: 'charge', duration: 24 }
       break
@@ -148,17 +170,24 @@ function triggerPetSkill(g, pet, idx) {
         }
       }
       if (cells.length) g._beadConvertAnim = { cells, timer: 0, phase: 'charge', duration: 24 }
+      // ★3附加增伤
+      if (sk.dmgBoost) g.heroBuffs.push({ type:'dmgBoost', attr:targetAttr, pct:Math.round(sk.dmgBoost * sMul), dur:1, bad:false, name:sk.name })
       break
     }
     case 'shield': {
       let shieldVal = sk.val || 30
       shieldVal = Math.round(shieldVal * sMul)
       if (sk.bonusPct) shieldVal = Math.round(shieldVal * (1 + sk.bonusPct / 100))
-      g._addShield(shieldVal); break
+      g._addShield(shieldVal)
+      // ★3附加减伤
+      if (sk.reducePct) g.heroBuffs.push({ type:'reduceDmg', pct:sk.reducePct, dur:1, bad:false, name:sk.name })
+      break
     }
     case 'shieldPlus':
       g._addShield(Math.round((sk.val || 40) * sMul))
-      g.heroBuffs.push({ type:'reduceDmg', pct:sk.reducePct||30, dur:1, bad:false, name:sk.name })
+      g.heroBuffs.push({ type:'reduceDmg', pct:sk.reducePct||30, dur:sk.dur||1, bad:false, name:sk.name })
+      // ★3附加反弹
+      if (sk.reflectPct) g.heroBuffs.push({ type:'reflectPct', pct:sk.reflectPct, dur:sk.dur||2, bad:false, name:sk.name })
       break
     case 'shieldReflect':
       g._addShield(Math.round((sk.val || 40) * sMul))
@@ -167,7 +196,10 @@ function triggerPetSkill(g, pet, idx) {
     case 'reduceDmg':
       g.heroBuffs.push({ type:'reduceDmg', pct:sk.pct, dur:2, bad:false, name:sk.name }); break
     case 'stun':
-      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true }); break
+      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true })
+      // ★3附加易伤
+      if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.dur||1, bad:true })
+      break
     case 'stunDot':
       g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true })
       g.enemyBuffs.push({ type:'dot', name:sk.name, dmg:Math.round((sk.dotDmg||30) * sMul), dur:sk.dotDur||3, bad:true, dotType: (pet.attr === 'fire') ? 'burn' : 'poison' })
@@ -175,12 +207,16 @@ function triggerPetSkill(g, pet, idx) {
     case 'stunBreakDef':
       g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur||1, bad:true })
       if (g.enemy) g.enemy.def = 0
+      // ★3附加易伤
+      if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.stunDur||1, bad:true })
       break
     case 'comboPlus':
       g.combo += sk.count || 2; break
     case 'comboPlusNeverBreak':
       g.combo += sk.count || 3
       g.comboNeverBreak = true
+      // ★3附加Combo伤害加成
+      if (sk.comboDmgPct) g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round(sk.comboDmgPct * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'comboNeverBreakPlus':
       g.comboNeverBreak = true
@@ -192,6 +228,8 @@ function triggerPetSkill(g, pet, idx) {
       g.dragTimeLimit += (sk.sec || 3) * 60
       if (sk.attr) g.goodBeadsNextTurn = true
       if (sk.comboNeverBreak) g.comboNeverBreak = true
+      // ★3附加Combo
+      if (sk.bonusCombo) g.combo += sk.bonusCombo
       break
     case 'ignoreDefPct':
       g.heroBuffs.push({ type:'ignoreDefPct', attr:sk.attr, pct:sk.pct, dur:1, bad:false, name:sk.name }); break
@@ -204,6 +242,8 @@ function triggerPetSkill(g, pet, idx) {
     case 'revivePlus':
       g.tempRevive = true
       if (sk.healPct) g._reviveHealPct = sk.healPct
+      // ★3附加无敌
+      if (sk.immuneDur) g.heroBuffs.push({ type:'dmgImmune', dur:sk.immuneDur, bad:false, name:sk.name })
       break
     case 'healPct': {
       const hpOld1 = g.heroHp, oldPct1 = hpOld1 / g.heroMaxHp
@@ -212,6 +252,14 @@ function triggerPetSkill(g, pet, idx) {
         g._heroHpGain = { fromPct: oldPct1, timer: 0 }
         g._playHealEffect()
         g.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${g.heroHp - hpOld1}`, color:'#4dcc4d', t:0, alpha:1 })
+      }
+      // ★3附加净化
+      if (sk.cleanse) {
+        const badBuffs = g.heroBuffs.filter(b => b.bad)
+        for (let i = 0; i < sk.cleanse && badBuffs.length > 0; i++) {
+          const idx = g.heroBuffs.indexOf(badBuffs.pop())
+          if (idx >= 0) g.heroBuffs.splice(idx, 1)
+        }
       }
       break
     }
@@ -263,9 +311,21 @@ function triggerPetSkill(g, pet, idx) {
       if (g.enemy) {
         let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||150) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
+        // ★3无视防御
+        if (sk.ignoreDefPct) {
+          const ignoreDef = Math.round((g.enemy.def || 0) * sk.ignoreDefPct / 100)
+          dmg = Math.max(0, dmg + ignoreDef)  // 相当于少减防御
+        }
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||V.TH.danger, t:0, alpha:1 })
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
+        // ★3附加眩晕
+        if (sk.stunDur) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
+        // ★3附加全体回复
+        if (sk.teamHealPct) {
+          const heal = Math.round(g.heroMaxHp * sk.teamHealPct / 100)
+          g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
+        }
         if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
       }
       break
@@ -324,12 +384,15 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'critDmgUp':
       g.heroBuffs.push({ type:'critDmgUp', pct:Math.round(sk.pct * sMul), dur:1, bad:false, name:sk.name })
-      if (sk.guaranteeCrit) g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:sk.name })
+      if (sk.guaranteeCrit) g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:sk.critDur||1, bad:false, name:sk.name })
       break
     case 'reflectPct':
       g.heroBuffs.push({ type:'reflectPct', pct:sk.pct, dur:sk.dur||2, bad:false, name:sk.name }); break
     case 'immuneCtrl':
-      g.heroBuffs.push({ type:'immuneCtrl', dur:sk.dur||1, bad:false, name:sk.name }); break
+      g.heroBuffs.push({ type:'immuneCtrl', dur:sk.dur||1, bad:false, name:sk.name })
+      // ★3附加护盾
+      if (sk.shieldVal) g._addShield(Math.round(sk.shieldVal * sMul))
+      break
     case 'immuneShield':
       g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur||2, bad:false, name:sk.name })
       g._addShield(Math.round((sk.shieldVal || 50) * sMul))
@@ -365,10 +428,15 @@ function triggerPetSkill(g, pet, idx) {
     case 'purify':
       g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
       if (sk.immuneDur) g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur, bad:false, name:sk.name })
+      // ★3附加治疗
+      if (sk.healPct) {
+        const heal = Math.round(g.heroMaxHp * sk.healPct / 100)
+        g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
+      }
       break
     case 'warGod':
       g.heroBuffs.push({ type:'allAtkUp', pct:Math.round((sk.pct||40) * sMul), dur:sk.dur||3, bad:false, name:sk.name })
-      g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:sk.name })
+      g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:sk.critDur||1, bad:false, name:sk.name })
       break
     case 'replaceBeads': {
       const { ROWS, COLS } = V
@@ -394,6 +462,8 @@ function triggerPetSkill(g, pet, idx) {
       if (sk.regen) g.heroBuffs.push({ type:'regen', name:sk.name, heal:Math.round(sk.regen * sMul), dur:sk.regenDur||2, bad:false })
       // 附带珠子概率大增
       if (sk.beadBoost) g.goodBeadsNextTurn = true
+      // ★3附加心珠回复加成
+      if (sk.heartBoost) g.heroBuffs.push({ type:'heartBoost', mul:1 + sk.heartBoost/100, dur:2, bad:false, name:sk.name })
       break
     }
     case 'teamAttack': {
@@ -456,10 +526,11 @@ function applyBuffReward(g, b) {
   switch(b.buff) {
     case 'allAtkPct':       rb.allAtkPct += b.val; break
     case 'hpMaxPct': {
+      // 增量式：基于当前 heroMaxHp 的百分比增加
+      const inc = Math.round(g.heroMaxHp * b.val / 100)
+      g.heroMaxHp += inc
+      g.heroHp = Math.min(g.heroHp + inc, g.heroMaxHp)
       rb.hpMaxPct += b.val
-      const oldMax = g.heroMaxHp
-      g.heroMaxHp = Math.round(60 * (1 + rb.hpMaxPct / 100))
-      g.heroHp = Math.min(g.heroHp + (g.heroMaxHp - oldMax), g.heroMaxHp)
       break
     }
     case 'heartBoostPct':   rb.heartBoostPct += b.val; break
@@ -510,7 +581,7 @@ function applyShopItem(g, item) {
     case 'getPetByAttr': {
       // 需要选择属性后再调用 applyShopPetByAttr
       // 这里是 fallback（如果直接调用则随机属性）
-      const newPet = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }
+      const newPet = { ...randomPetFromPool(g.sessionPetPool, null, 'shop', getMaxedPetIds(g)), currentCd: 0 }
       const allPets = [...g.pets, ...g.petBag]
       const mergeResult = _mergePetAndDex(g, allPets, newPet)
       if (!mergeResult.merged) {
@@ -576,7 +647,9 @@ function applyShopItem(g, item) {
 // 商店：选择属性后获取灵兽
 function applyShopPetByAttr(g, attr) {
   if (!g.sessionPetPool) return
-  const attrPool = g.sessionPetPool.filter(p => p.attr === attr)
+  const maxedIds = getMaxedPetIds(g)
+  let attrPool = g.sessionPetPool.filter(p => p.attr === attr && !maxedIds.has(p.id))
+  if (attrPool.length === 0) attrPool = g.sessionPetPool.filter(p => p.attr === attr) // 全满星退化
   if (attrPool.length === 0) return
   const picked = attrPool[Math.floor(Math.random() * attrPool.length)]
   const newPet = { ...picked, currentCd: 0 }
@@ -647,7 +720,7 @@ function applyAdventure(g, adv) {
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
-    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p) } break }
+    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool, null, 'adventure', getMaxedPetIds(g)), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p) } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; _pushLog('heartBoostPct', adv.pct); break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; _pushLog('weaponBoostPct', adv.pct); break
@@ -658,14 +731,14 @@ function applyAdventure(g, adv) {
     case 'petAtkUp':       { const i3 = Math.floor(Math.random()*g.pets.length); g.pets[i3].atk = Math.round(g.pets[i3].atk*(1+adv.pct/100)); break }
     case 'goodBeads':      g.goodBeadsNextTurn = true; break
     case 'immuneOnce':     g.immuneOnce = true; break
-    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); const _op = new Set(); if(g.pets) g.pets.forEach(p=>{if(p)_op.add(p.id)}); if(g.petBag) g.petBag.forEach(p=>{if(p)_op.add(p.id)}); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool, _op); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
+    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); const _op = new Set(); if(g.pets) g.pets.forEach(p=>{if(p)_op.add(p.id)}); if(g.petBag) g.petBag.forEach(p=>{if(p)_op.add(p.id)}); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool, _op, getMaxedPetIds(g)); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
   }
 }
 
 function showSkillPreview(g, pet, index) {
   const { S } = V
   const sk = pet.skill
-  if (!sk) return
+  if (!sk || !petHasSkill(pet)) return
   const L = g._getBattleLayout()
   const iconSize = L.iconSize
   const iconY = L.teamBarY + (L.teamBarH - iconSize) / 2
@@ -679,7 +752,7 @@ function showSkillPreview(g, pet, index) {
     pet, index, timer: 0,
     x: popupX, y: popupY,
     skillName: sk.name,
-    skillDesc: sk.desc || '无描述',
+    skillDesc: getPetSkillDesc(pet) || '无描述',
     duration: 180
   }
 }

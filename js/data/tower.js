@@ -53,6 +53,47 @@ const BASE_EVENT_WEIGHTS = {
 // ===== 总层数 =====
 const MAX_FLOOR = 30
 
+// ===== 修仙境界系统（每层通关固定加血量上限，不回血） =====
+// 每项: { name, hpUp } — hpUp 为该层通关后增加的血量上限
+const REALM_TABLE = [
+  /*  1 */ { name:'凡人',       hpUp:0  },
+  /*  2 */ { name:'感气期',     hpUp:8  },
+  /*  3 */ { name:'引气入体',   hpUp:8  },
+  /*  4 */ { name:'凝气初成',   hpUp:8  },
+  /*  5 */ { name:'炼气一层',   hpUp:11 },
+  /*  6 */ { name:'炼气二层',   hpUp:10 },
+  /*  7 */ { name:'炼气三层',   hpUp:10 },
+  /*  8 */ { name:'炼气四层',   hpUp:10 },
+  /*  9 */ { name:'炼气五层',   hpUp:10 },
+  /* 10 */ { name:'筑基初期',   hpUp:15 },
+  /* 11 */ { name:'筑基中期',   hpUp:13 },
+  /* 12 */ { name:'筑基后期',   hpUp:13 },
+  /* 13 */ { name:'筑基圆满',   hpUp:13 },
+  /* 14 */ { name:'开光初期',   hpUp:13 },
+  /* 15 */ { name:'开光圆满',   hpUp:18 },
+  /* 16 */ { name:'融合初期',   hpUp:15 },
+  /* 17 */ { name:'融合后期',   hpUp:15 },
+  /* 18 */ { name:'融合圆满',   hpUp:15 },
+  /* 19 */ { name:'心动初期',   hpUp:15 },
+  /* 20 */ { name:'心动圆满',   hpUp:20 },
+  /* 21 */ { name:'金丹初期',   hpUp:18 },
+  /* 22 */ { name:'金丹中期',   hpUp:18 },
+  /* 23 */ { name:'金丹后期',   hpUp:18 },
+  /* 24 */ { name:'金丹圆满',   hpUp:18 },
+  /* 25 */ { name:'元婴初期',   hpUp:23 },
+  /* 26 */ { name:'元婴中期',   hpUp:20 },
+  /* 27 */ { name:'元婴后期',   hpUp:20 },
+  /* 28 */ { name:'元婴圆满',   hpUp:20 },
+  /* 29 */ { name:'化神初期',   hpUp:20 },
+  /* 30 */ { name:'化神圆满',   hpUp:25 },
+]
+
+// 获取指定层的境界信息
+function getRealmInfo(floor) {
+  const idx = Math.max(0, Math.min(floor - 1, REALM_TABLE.length - 1))
+  return REALM_TABLE[idx]
+}
+
 // ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
 // 调优：ATK全面上调，确保每回合对英雄造成可感知的威胁（8%~15%血量）
 const MONSTER_TIERS = [
@@ -137,8 +178,8 @@ const ENEMY_SKILLS = {
   bossDrain:     { name:'吸星大法', desc:'造成100%攻击力伤害并回复等量生命', type:'bossDrain', atkPct:1.0 },
   bossAnnihil:   { name:'灭世天劫', desc:'造成150%攻击力伤害+破坏4颗灵珠', type:'bossAnnihil', atkPct:1.5, breakCount:4 },
   bossCurse:     { name:'万妖诅咒', desc:'每回合受到固定100点伤害+心珠回复减半,持续3回合', type:'bossCurse', dmg:100, dur:3 },
-  bossUltimate:  { name:'超越·终焉', desc:'造成180%攻击力伤害+封锁全场+眩晕1回合', type:'bossUltimate', atkPct:1.8, sealType:'all', sealDur:2 },
-  bossSealAll:   { name:'万象封灵', desc:'封锁全场所有灵珠,持续1回合', type:'sealAll', dur:1 },
+  bossUltimate:  { name:'超越·终焉', desc:'造成180%攻击力伤害+封锁外围灵珠+眩晕1回合', type:'bossUltimate', atkPct:1.8, sealType:'all', sealDur:2 },
+  bossSealAll:   { name:'万象封灵', desc:'以井字封阵封锁灵珠,持续1回合', type:'sealAll', dur:1 },
   bossSealAttr:  { name:'五行禁锢', desc:'封锁全场指定属性灵珠,持续3回合', type:'sealAttr', dur:3 },
 }
 
@@ -231,8 +272,7 @@ const REWARD_TYPES = {
 const BUFF_POOL_MINOR = [
   { id:'m1',  label:'全队攻击 +12%',          buff:'allAtkPct',       val:12 },
   { id:'m2',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
-  { id:'m3',  label:'血量上限 +12%',          buff:'hpMaxPct',        val:12 },
-  { id:'m4',  label:'血量上限 +18%',          buff:'hpMaxPct',        val:18 },
+  // 血量上限已由境界系统固定提供，从奖励池移除
   { id:'m5',  label:'心珠回复 +20%',          buff:'heartBoostPct',   val:20 },
   { id:'m6',  label:'Combo伤害 +12%',         buff:'comboDmgPct',     val:12 },
   { id:'m7',  label:'3消伤害 +15%',           buff:'elim3DmgPct',     val:15 },
@@ -247,7 +287,7 @@ const BUFF_POOL_MINOR = [
 // 中档（精英战斗掉落）——质变级
 const BUFF_POOL_MEDIUM = [
   { id:'e1',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
-  { id:'e2',  label:'血量上限 +20%',          buff:'hpMaxPct',        val:20 },
+  // 血量上限已由境界系统固定提供，从奖励池移除
   { id:'e3',  label:'心珠回复 +25%',          buff:'heartBoostPct',   val:25 },
   { id:'e4',  label:'Combo伤害 +15%',         buff:'comboDmgPct',     val:15 },
   { id:'e5',  label:'4消伤害 +20%',           buff:'elim4DmgPct',     val:20 },
@@ -266,7 +306,7 @@ const BUFF_POOL_MEDIUM = [
 // 大档（BOSS战掉落）——超级强化，拿到就起飞
 const BUFF_POOL_MAJOR = [
   { id:'M1',  label:'全队攻击 +25%',          buff:'allAtkPct',       val:25 },
-  { id:'M2',  label:'血量上限 +30%',          buff:'hpMaxPct',        val:30 },
+  // 血量上限已由境界系统固定提供，从奖励池移除
   { id:'M3',  label:'心珠回复 +40%',          buff:'heartBoostPct',   val:40 },
   { id:'M4',  label:'Combo伤害 +25%',         buff:'comboDmgPct',     val:25 },
   { id:'M5',  label:'5消伤害 +30%',           buff:'elim5DmgPct',     val:30 },
@@ -288,7 +328,7 @@ const BUFF_POOL_MAJOR = [
 const BUFF_POOL_SPEEDKILL = [
   { id:'s1',  label:'[速通] 回复40%血量',       buff:'healNow',           val:40 },
   { id:'s2',  label:'[速通] 全队攻击 +12%',     buff:'allAtkPct',         val:12 },
-  { id:'s3',  label:'[速通] 血量上限 +15%',     buff:'hpMaxPct',          val:15 },
+  // 血量上限已由境界系统固定提供，从速通池移除
   { id:'s4',  label:'[速通] 心珠效果 +20%',     buff:'heartBoostPct',     val:20 },
   { id:'s5',  label:'[速通] 怪物血量 -8%',      buff:'enemyHpReducePct',  val:8 },
   { id:'s6',  label:'[速通] 转珠时间 +0.8秒',   buff:'extraTimeSec',      val:0.8 },
@@ -460,6 +500,10 @@ function generateFloorEvent(floor) {
   if (floor % 10 === 0) {
     return { type: EVENT_TYPE.BOSS, data: generateBoss(floor) }
   }
+  // 第5层强制精英（保证前期获得法宝的机会）
+  if (floor === 5) {
+    return { type: EVENT_TYPE.ELITE, data: generateElite(floor) }
+  }
 
   // 权重随机事件
   const weights = { ...BASE_EVENT_WEIGHTS }
@@ -530,10 +574,12 @@ function generateFloorEvent(floor) {
 // speedKill: 是否速通（5回合内击败）
 // sessionPetPool: 本局宠物池（15只）
 // ownedPetIds: 已拥有宠物ID集合（用于偏向抽取促进升星）
-function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool, ownedPetIds) {
+function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool, ownedPetIds, maxedPetIds) {
   const rewards = []
   const usedIds = new Set()
-  const _rPet = () => randomPetFromPool(sessionPetPool, ownedPetIds)
+  // 根据事件类型确定宠物获取渠道
+  const petSource = eventType === 'boss' ? 'boss' : eventType === 'elite' ? 'elite' : 'normal'
+  const _rPet = () => randomPetFromPool(sessionPetPool, ownedPetIds, petSource, maxedPetIds)
 
   // 从指定池中随机选一个不重复的
   function pickFrom(pool) {
@@ -556,15 +602,12 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
     rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     rewards.push(pickFrom(BUFF_POOL_MAJOR))
   } else if (eventType === 'elite') {
-    // 精英战斗：2只灵宠 + 1个中档buff 三选一（速通4选1）
-    const petIds = new Set()
-    for (let i = 0; i < 2; i++) {
-      let p = _rPet()
-      let tries = 0
-      while (petIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
-      petIds.add(p.id)
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
-    }
+    // 精英战斗：1只灵宠 + 1件法宝 + 1个中档buff 三选一（速通4选1）
+    const newPet = _rPet()
+    rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
+    let w = randomWeapon(wpnExclude)
+    wpnExclude.add(w.id)
+    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
     // 普通战斗：50%概率掉落宠物（加速build养成）
@@ -588,11 +631,10 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
       let w = randomWeapon(wpnExclude)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     } else if (eventType === 'elite') {
-      let p = _rPet()
-      let tries = 0
       const existIds = new Set(rewards.map(r => r.data && r.data.id))
-      while (existIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
+      existIds.forEach(id => wpnExclude.add(id))
+      let w = randomWeapon(wpnExclude)
+      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     } else {
       const bonus = pickFrom(BUFF_POOL_SPEEDKILL)
       if (bonus) { bonus.isSpeed = true; rewards.push(bonus) }
@@ -632,6 +674,7 @@ module.exports = {
   ALL_BUFF_REWARDS,
   BUFF_POOL_SPEEDKILL,
   MONSTER_NAMES, ELITE_NAMES, BOSS_POOL_10, BOSS_POOL_20, BOSS_POOL_30,
+  REALM_TABLE, getRealmInfo,
 
   // 生成器
   generateMonster,

@@ -536,83 +536,20 @@ class Render {
     }
   }
 
-  // ===== 说明面板（明亮水彩仙侠风，用于宠物/怪物/法宝详情） =====
+  // ===== 说明面板（程序绘制浅色面板，统一风格） =====
   drawInfoPanel(x, y, w, h) {
     const {ctx:c, S} = this
-    const img = this.getImg('assets/ui/info_panel_bg.png')
-    if (img && img.width) {
-      // 九宫格绘制：保持四角装饰不变形
-      const iw = img.width, ih = img.height
-      // 切片边距（取图片短边的30%作为角区域）
-      const slice = Math.min(iw, ih) * 0.3
-      const dSlice = slice * (w / iw) * 0.8  // 目标切片大小，略微缩小保持精致
-      const sl = slice, sr = slice, st = slice, sb = slice
-      const dl = dSlice, dr = dSlice, dt = dSlice, db = dSlice
-
-      // 四角
-      c.drawImage(img, 0, 0, sl, st, x, y, dl, dt)                                    // 左上
-      c.drawImage(img, iw-sr, 0, sr, st, x+w-dr, y, dr, dt)                            // 右上
-      c.drawImage(img, 0, ih-sb, sl, sb, x, y+h-db, dl, db)                            // 左下
-      c.drawImage(img, iw-sr, ih-sb, sr, sb, x+w-dr, y+h-db, dr, db)                   // 右下
-      // 四边
-      c.drawImage(img, sl, 0, iw-sl-sr, st, x+dl, y, w-dl-dr, dt)                      // 上
-      c.drawImage(img, sl, ih-sb, iw-sl-sr, sb, x+dl, y+h-db, w-dl-dr, db)             // 下
-      c.drawImage(img, 0, st, sl, ih-st-sb, x, y+dt, dl, h-dt-db)                      // 左
-      c.drawImage(img, iw-sr, st, sr, ih-st-sb, x+w-dr, y+dt, dr, h-dt-db)             // 右
-      // 中心
-      c.drawImage(img, sl, st, iw-sl-sr, ih-st-sb, x+dl, y+dt, w-dl-dr, h-dt-db)
-    } else {
-      // fallback: 明亮暖色水彩风面板
-      const rad = 16*S
-      c.save()
-      // 主背景：暖色奶白到淡紫渐变
-      const bgGrad = c.createLinearGradient(x, y, x, y + h)
-      bgGrad.addColorStop(0, 'rgba(248,240,228,0.96)')    // 暖奶白
-      bgGrad.addColorStop(0.3, 'rgba(245,235,225,0.95)')   // 淡米色
-      bgGrad.addColorStop(0.7, 'rgba(238,228,240,0.94)')   // 淡薰衣草
-      bgGrad.addColorStop(1, 'rgba(232,220,235,0.93)')     // 浅紫粉
-      c.fillStyle = bgGrad
-      this.rr(x, y, w, h, rad); c.fill()
-
-      // 内层柔光：中心微亮
-      const glowGrad = c.createRadialGradient(x+w*0.5, y+h*0.35, 0, x+w*0.5, y+h*0.35, w*0.6)
-      glowGrad.addColorStop(0, 'rgba(255,248,230,0.3)')    // 淡金柔光
-      glowGrad.addColorStop(1, 'rgba(255,248,230,0)')
-      c.fillStyle = glowGrad
-      this.rr(x, y, w, h, rad); c.fill()
-
-      // 外边框：双线金色描边（仙侠古卷风）
-      c.strokeStyle = 'rgba(201,168,76,0.6)'; c.lineWidth = 2.5*S
-      this.rr(x, y, w, h, rad); c.stroke()
-      // 内描边：淡金内框
-      c.strokeStyle = 'rgba(218,195,130,0.35)'; c.lineWidth = 1*S
-      this.rr(x+4*S, y+4*S, w-8*S, h-8*S, rad-2*S); c.stroke()
-
-      // 顶部装饰线（仿古卷分隔线）
-      const decoY = y + 28*S
-      const decoMargin = 20*S
-      c.strokeStyle = 'rgba(201,168,76,0.3)'; c.lineWidth = 1*S
-      c.beginPath()
-      c.moveTo(x + decoMargin, decoY)
-      c.lineTo(x + w - decoMargin, decoY)
-      c.stroke()
-      // 中心小菱形装饰
-      const cx = x + w*0.5, cy = decoY
-      const ds = 3*S
-      c.fillStyle = 'rgba(201,168,76,0.4)'
-      c.beginPath()
-      c.moveTo(cx, cy-ds); c.lineTo(cx+ds, cy); c.lineTo(cx, cy+ds); c.lineTo(cx-ds, cy)
-      c.closePath(); c.fill()
-
-      // 底部淡金渐变收尾
-      const btmGrad = c.createLinearGradient(x, y+h-30*S, x, y+h)
-      btmGrad.addColorStop(0, 'rgba(218,195,130,0)')
-      btmGrad.addColorStop(1, 'rgba(218,195,130,0.08)')
-      c.fillStyle = btmGrad
-      this.rr(x, y, w, h, rad); c.fill()
-
-      c.restore()
-    }
+    const rad = 14*S
+    // 浅色暖白渐变背景（与图鉴信息框一致）
+    const bgGrad = c.createLinearGradient(x, y, x, y + h)
+    bgGrad.addColorStop(0, 'rgba(248,242,230,0.97)')
+    bgGrad.addColorStop(0.5, 'rgba(244,237,224,0.97)')
+    bgGrad.addColorStop(1, 'rgba(238,230,218,0.97)')
+    c.fillStyle = bgGrad
+    this.rr(x, y, w, h, rad); c.fill()
+    // 柔和金色边框
+    c.strokeStyle = 'rgba(201,168,76,0.4)'; c.lineWidth = 1.5*S
+    this.rr(x, y, w, h, rad); c.stroke()
   }
 
   // ===== 弹窗按钮（图片资源版） =====

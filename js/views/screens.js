@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override } = require('../data/pets')
+const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -829,15 +829,24 @@ function rReward(g) {
       // 技能
       if (p.skill) {
         iy += 18*S
-        ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
-        iy += 16*S
-        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-        const descLines = _wrapText(p.skill.desc, textMaxW, 10)
-        descLines.forEach(line => {
-          ctx.fillText(line, infoX, iy)
+        if (petHasSkill(p)) {
+          ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
+          iy += 16*S
+          ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+          const descLines = _wrapText(getPetSkillDesc(p), textMaxW, 10)
+          descLines.forEach(line => {
+            ctx.fillText(line, infoX, iy)
+            iy += 14*S
+          })
+        } else {
+          ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          ctx.fillText('技能：升至★2解锁', infoX, iy)
+          iy += 16*S
+          ctx.fillStyle = '#706050'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`（${p.skill.name}：${p.skill.desc}）`, infoX, iy)
           iy += 14*S
-        })
+        }
       }
 
       // 背包容量
