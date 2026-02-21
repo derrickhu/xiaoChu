@@ -6,6 +6,7 @@
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
 const { ATTR_COLOR, generateRewards } = require('./data/tower')
+const { getMaxedPetIds } = require('./data/pets')
 const MusicMgr = require('./runtime/music')
 const ViewEnv = require('./views/env')
 const screens = require('./views/screens')
@@ -185,7 +186,8 @@ class Main {
       const ownedPetIds = new Set()
       if (this.pets) this.pets.forEach(p => { if (p) ownedPetIds.add(p.id) })
       if (this.petBag) this.petBag.forEach(p => { if (p) ownedPetIds.add(p.id) })
-      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool, ownedPetIds)
+      const maxedPetIds = getMaxedPetIds(this)
+      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool, ownedPetIds, maxedPetIds)
       this.selectedReward = -1
       this._rewardDetailShow = null
     }
@@ -303,32 +305,26 @@ class Main {
   _wrapText(text, maxW, fontSize) { return prepareView.wrapText(text, maxW, fontSize) }
   _drawEventPetDetail() { eventView.drawEventPetDetail(this) }
   _openRanking() {
-    if (!this.storage.userAuthorized) {
-      // 首次点击需要授权
-      this.storage.requestUserInfo((ok, info) => {
-        if (ok) {
-          // 授权成功，提交当前最高分后进入排行榜
-          if (this.storage.bestFloor > 0) {
-            this.storage.submitScore(
-              this.storage.bestFloor,
-              this.storage.stats.bestFloorPets,
-              this.storage.stats.bestFloorWeapon
-            )
-          }
-          this.rankTab = 'all'
-          this.rankScrollY = 0
-          this.storage.fetchRanking('all', true)
-          this.storage.fetchRanking('daily', true)
-          this.scene = 'ranking'
-        }
-      })
-      return
-    }
+    console.log('[Ranking] Opening ranking page')
+    // 直接进入排行榜页面，无需先授权
     this.rankTab = 'all'
     this.rankScrollY = 0
-    this.storage.fetchRanking('all')
-    this.storage.fetchRanking('daily')
     this.scene = 'ranking'
+    // 如果云已就绪，拉取排行榜数据
+    if (this.storage._cloudReady) {
+      this.storage.fetchRanking('all', true)
+      this.storage.fetchRanking('daily', true)
+    } else {
+      console.warn('[Ranking] Cloud not ready, skipping fetch')
+    }
+    // 如果用户已授权且有最高分，尝试提交分数
+    if (this.storage.userAuthorized && this.storage.bestFloor > 0) {
+      this.storage.submitScore(
+        this.storage.bestFloor,
+        this.storage.stats.bestFloorPets,
+        this.storage.stats.bestFloorWeapon
+      )
+    }
   }
 
   // ===== 视图委托桩 =====
