@@ -1,4 +1,4 @@
-console.log('五行通天塔开始初始化...')
+console.log('灵宠消消塔开始初始化...')
 
 // 分包加载：assets 和 audio 目录作为分包，不占主包体积
 let assetsLoaded = false
