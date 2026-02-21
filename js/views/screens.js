@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetAvatarPath, MAX_STAR, PETS } = require('../data/pets')
+const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override } = require('../data/pets')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -70,6 +70,37 @@ function rLoading(g) {
   ctx.restore()
 }
 
+// 图鉴按钮上的"选宠出战"角标
+function _drawDexBtnBadge(ctx, S, bx, by, bw, bh) {
+  const tag = '选宠出战'
+  const fs = 7 * S
+  const padH = 2 * S, padW = 4 * S
+  const tw = fs * tag.length + padW * 2
+  const th = fs + padH * 2
+  const tx = bx + bw - tw + 2 * S  // 右上偏移
+  const ty = by - th + 3 * S
+  // 红色圆角底
+  const grad = ctx.createLinearGradient(tx, ty, tx, ty + th)
+  grad.addColorStop(0, '#ff5252'); grad.addColorStop(1, '#d32f2f')
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  const r = th * 0.4
+  ctx.moveTo(tx + r, ty); ctx.lineTo(tx + tw - r, ty)
+  ctx.arcTo(tx + tw, ty, tx + tw, ty + r, r)
+  ctx.lineTo(tx + tw, ty + th - r)
+  ctx.arcTo(tx + tw, ty + th, tx + tw - r, ty + th, r)
+  ctx.lineTo(tx + r, ty + th)
+  ctx.arcTo(tx, ty + th, tx, ty + th - r, r)
+  ctx.lineTo(tx, ty + r)
+  ctx.arcTo(tx, ty, tx + r, ty, r)
+  ctx.closePath(); ctx.fill()
+  // 文字
+  ctx.fillStyle = '#fff'
+  ctx.font = `bold ${fs}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(tag, tx + tw / 2, ty + th / 2)
+}
+
 // ===== Title =====
 function _drawImgBtn(ctx, R, img, x, y, w, h, text, fontSize, S) {
   if (img && img.width > 0) {
@@ -125,43 +156,54 @@ function rTitle(g) {
   // 按钮宽度占屏幕60%，高度按 4:1 宽高比
   const btnW = W * 0.6, btnH = btnW / 4
   const btnX = (W - btnW) / 2
-  // 底部小按钮（3个）
-  const gap = 6 * S
-  const smallW = (W * 0.88 - gap * 2) / 3, smallH = smallW / 3.5, smallX = W * 0.06
+
+  // 图鉴按钮（独立一行，较大醒目）
+  const dexW = W * 0.5, dexH = dexW / 4
+  const dexX = (W - dexW) / 2
+  // 底部小按钮（统计+排行并排）
+  const smGap = 8 * S
+  const smW = (W * 0.5 - smGap) / 2, smH = smW / 3.2
+  const smStartX = (W - smW * 2 - smGap) / 2
 
   const hasSave = g.storage.hasSavedRun()
   if (hasSave) {
     const saved = g.storage.loadRunState()
     // 继续挑战
-    const cby = H * 0.48
+    const cby = H * 0.46
     _drawImgBtn(ctx, R, imgContinue, btnX, cby, btnW, btnH, `继续挑战 (第${saved.floor}层)`, 16, S)
     g._titleContinueRect = [btnX, cby, btnW, btnH]
     // 开始挑战
-    const sby = H * 0.60
+    const sby = H * 0.57
     _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 15, S)
     g._titleBtnRect = [btnX, sby, btnW, btnH]
-    // 底部三按钮
-    const rowY = H * 0.72
-    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '图鉴', 13, S)
-    g._dexBtnRect = [smallX, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '统计', 13, S)
-    g._statBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + (smallW + gap)*2, rowY, smallW, smallH, '排行', 13, S)
-    g._rankBtnRect = [smallX + (smallW + gap)*2, rowY, smallW, smallH]
+    // 图鉴（独立一行，醒目）
+    const dexY = H * 0.68
+    _drawImgBtn(ctx, R, imgRank, dexX, dexY, dexW, dexH, '图鉴', 15, S)
+    _drawDexBtnBadge(ctx, S, dexX, dexY, dexW, dexH)
+    g._dexBtnRect = [dexX, dexY, dexW, dexH]
+    // 统计+排行（并排小按钮）
+    const smY = H * 0.78
+    _drawImgBtn(ctx, R, imgRank, smStartX, smY, smW, smH, '统计', 12, S)
+    g._statBtnRect = [smStartX, smY, smW, smH]
+    _drawImgBtn(ctx, R, imgRank, smStartX + smW + smGap, smY, smW, smH, '排行', 12, S)
+    g._rankBtnRect = [smStartX + smW + smGap, smY, smW, smH]
   } else {
     g._titleContinueRect = null
     // 开始挑战
-    const sby = H * 0.55
+    const sby = H * 0.50
     _drawImgBtn(ctx, R, imgStart, btnX, sby, btnW, btnH, '开始挑战', 18, S)
     g._titleBtnRect = [btnX, sby, btnW, btnH]
-    // 底部三按钮
-    const rowY = H * 0.67
-    _drawImgBtn(ctx, R, imgRank, smallX, rowY, smallW, smallH, '图鉴', 13, S)
-    g._dexBtnRect = [smallX, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + smallW + gap, rowY, smallW, smallH, '统计', 13, S)
-    g._statBtnRect = [smallX + smallW + gap, rowY, smallW, smallH]
-    _drawImgBtn(ctx, R, imgRank, smallX + (smallW + gap)*2, rowY, smallW, smallH, '排行', 13, S)
-    g._rankBtnRect = [smallX + (smallW + gap)*2, rowY, smallW, smallH]
+    // 图鉴（独立一行，醒目）
+    const dexY = H * 0.62
+    _drawImgBtn(ctx, R, imgRank, dexX, dexY, dexW, dexH, '图鉴', 15, S)
+    _drawDexBtnBadge(ctx, S, dexX, dexY, dexW, dexH)
+    g._dexBtnRect = [dexX, dexY, dexW, dexH]
+    // 统计+排行（并排小按钮）
+    const smY = H * 0.72
+    _drawImgBtn(ctx, R, imgRank, smStartX, smY, smW, smH, '统计', 12, S)
+    g._statBtnRect = [smStartX, smY, smW, smH]
+    _drawImgBtn(ctx, R, imgRank, smStartX + smW + smGap, smY, smW, smH, '排行', 12, S)
+    g._rankBtnRect = [smStartX + smW + smGap, smY, smW, smH]
   }
 
   if (g.showNewRunConfirm) drawNewRunConfirm(g)
@@ -263,50 +305,84 @@ function rGameover(g) {
 function rRanking(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 12*S
+
+  // ── 标题区 ──
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
   ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('排行榜', W*0.5, safeTop + 40*S)
   ctx.restore()
-  // 装饰分割线
   const rdivW = W*0.22, rdivY = safeTop + 48*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - rdivW, rdivY); ctx.lineTo(W*0.5 + rdivW, rdivY); ctx.stroke()
 
-  const tabY = safeTop + 56*S, tabH = 34*S, tabW = W*0.35
-  const tabAllX = W*0.08, tabDailyX = W*0.57
-  ctx.fillStyle = g.rankTab === 'all' ? '#e6a817' : 'rgba(255,255,255,0.08)'
-  R.rr(tabAllX, tabY, tabW, tabH, 8*S); ctx.fill()
-  ctx.fillStyle = g.rankTab === 'all' ? '#1a1a2e' : TH.sub
-  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('总排行', tabAllX + tabW*0.5, tabY + tabH*0.65)
+  // ── Tab 切换 ──
+  const tabY = safeTop + 56*S, tabH = 32*S, tabW = W*0.36
+  const tabAllX = W*0.07, tabDailyX = W*0.57
+  // 总排行Tab
+  if (g.rankTab === 'all') {
+    const tg = ctx.createLinearGradient(tabAllX, tabY, tabAllX, tabY + tabH)
+    tg.addColorStop(0, '#f0c040'); tg.addColorStop(1, '#d4a020')
+    ctx.fillStyle = tg
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'
+  }
+  R.rr(tabAllX, tabY, tabW, tabH, tabH*0.5); ctx.fill()
+  if (g.rankTab === 'all') {
+    ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
+    R.rr(tabAllX, tabY, tabW, tabH, tabH*0.5); ctx.stroke()
+  }
+  ctx.fillStyle = g.rankTab === 'all' ? '#2a1a00' : TH.sub
+  ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('总排行', tabAllX + tabW*0.5, tabY + tabH*0.62)
   g._rankTabAllRect = [tabAllX, tabY, tabW, tabH]
-  ctx.fillStyle = g.rankTab === 'daily' ? '#e6a817' : 'rgba(255,255,255,0.08)'
-  R.rr(tabDailyX, tabY, tabW, tabH, 8*S); ctx.fill()
-  ctx.fillStyle = g.rankTab === 'daily' ? '#1a1a2e' : TH.sub
-  ctx.fillText('今日排行', tabDailyX + tabW*0.5, tabY + tabH*0.65)
+  // 今日排行Tab
+  if (g.rankTab === 'daily') {
+    const tg2 = ctx.createLinearGradient(tabDailyX, tabY, tabDailyX, tabY + tabH)
+    tg2.addColorStop(0, '#f0c040'); tg2.addColorStop(1, '#d4a020')
+    ctx.fillStyle = tg2
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'
+  }
+  R.rr(tabDailyX, tabY, tabW, tabH, tabH*0.5); ctx.fill()
+  if (g.rankTab === 'daily') {
+    ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
+    R.rr(tabDailyX, tabY, tabW, tabH, tabH*0.5); ctx.stroke()
+  }
+  ctx.fillStyle = g.rankTab === 'daily' ? '#2a1a00' : TH.sub
+  ctx.fillText('今日排行', tabDailyX + tabW*0.5, tabY + tabH*0.62)
   g._rankTabDailyRect = [tabDailyX, tabY, tabW, tabH]
 
-  const listTop = tabY + tabH + 12*S
-  const listBottom = H - 70*S
-  const rowH = 62*S
+  // ── 列表区域 ──
+  const listTop = tabY + tabH + 10*S
+  const myBarH = 52*S
+  const listBottom = H - myBarH - 16*S
+  const rowH = 64*S
   const list = g.rankTab === 'all' ? g.storage.rankAllList : g.storage.rankDailyList
   const myRank = g.rankTab === 'all' ? g.storage.rankAllMyRank : g.storage.rankDailyMyRank
 
-  ctx.fillStyle = 'rgba(255,255,255,0.06)'
-  ctx.fillRect(padX, listTop, W - padX*2, 24*S)
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-  ctx.fillText('排名', padX + 8*S, listTop + 16*S)
-  ctx.fillText('玩家', padX + 50*S, listTop + 16*S)
-  ctx.textAlign = 'right'
-  ctx.fillText('最高层', W - padX - 8*S, listTop + 16*S)
+  // 列表面板背景
+  const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
+  lpbg.addColorStop(0, 'rgba(30,25,18,0.7)'); lpbg.addColorStop(1, 'rgba(20,18,12,0.75)')
+  ctx.fillStyle = lpbg; R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 0.5*S
+  R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.stroke()
 
-  const contentTop = listTop + 26*S
+  // 表头
+  const headerH = 26*S
+  ctx.fillStyle = 'rgba(212,175,55,0.08)'
+  R.rr(padX + 1, listTop + 1, W - padX*2 - 2, headerH, 8*S); ctx.fill()
+  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'; ctx.fillText('排名', padX + 10*S, listTop + 17*S)
+  ctx.fillText('玩家', padX + 52*S, listTop + 17*S)
+  ctx.textAlign = 'right'; ctx.fillText('最高层', W - padX - 10*S, listTop + 17*S)
+
+  const contentTop = listTop + headerH + 2*S
   ctx.save()
-  ctx.beginPath(); ctx.rect(0, contentTop, W, listBottom - contentTop); ctx.clip()
+  ctx.beginPath(); ctx.rect(padX, contentTop, W - padX*2, listBottom - contentTop - 4*S); ctx.clip()
 
   if (g.storage.rankLoading && list.length === 0) {
     ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
@@ -317,102 +393,146 @@ function rRanking(g) {
   } else {
     for (let i = 0; i < list.length; i++) {
       const item = list[i]
-      const ry = contentTop + i * rowH + g.rankScrollY
+      const ry = contentTop + i * rowH + (g.rankScrollY || 0)
       if (ry + rowH < contentTop || ry > listBottom) continue
+
+      // 行背景（前三名特殊高亮）
       if (i < 3) {
-        const medalColors = ['rgba(255,215,0,0.12)', 'rgba(192,192,192,0.10)', 'rgba(205,127,50,0.10)']
-        ctx.fillStyle = medalColors[i]
+        const rowGradColors = [
+          ['rgba(255,215,0,0.12)', 'rgba(255,215,0,0.04)'],
+          ['rgba(200,200,220,0.10)', 'rgba(200,200,220,0.03)'],
+          ['rgba(205,127,50,0.10)', 'rgba(205,127,50,0.03)'],
+        ]
+        const rg = ctx.createLinearGradient(padX, ry, W - padX, ry)
+        rg.addColorStop(0, rowGradColors[i][0]); rg.addColorStop(1, rowGradColors[i][1])
+        ctx.fillStyle = rg
       } else {
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.1)'
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.06)'
       }
-      ctx.fillRect(padX, ry, W - padX*2, rowH - 2*S)
+      ctx.fillRect(padX + 2*S, ry + 1*S, W - padX*2 - 4*S, rowH - 3*S)
+
+      // 排名
       ctx.textAlign = 'left'
       if (i < 3) {
-        // 绘制奖牌圆形
         const medalColors = ['#ffd700', '#c0c0c0', '#cd7f32']
-        const medalX = padX + 18*S, medalY = ry + 24*S, medalR = 12*S
-        ctx.save()
-        // 奖牌底盘
-        const mg = ctx.createRadialGradient(medalX, medalY-2*S, 0, medalX, medalY, medalR)
-        mg.addColorStop(0, medalColors[i]); mg.addColorStop(1, medalColors[i] + '88')
-        ctx.fillStyle = mg
-        ctx.beginPath(); ctx.arc(medalX, medalY, medalR, 0, Math.PI*2); ctx.fill()
+        const medalBg = ['rgba(255,215,0,0.2)', 'rgba(192,192,192,0.15)', 'rgba(205,127,50,0.15)']
+        const mx = padX + 18*S, my = ry + rowH*0.5
+        const mr = 13*S
+        // 奖牌圆底
+        ctx.fillStyle = medalBg[i]
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.fill()
+        ctx.strokeStyle = medalColors[i] + '66'; ctx.lineWidth = 1*S
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.stroke()
         // 数字
-        ctx.fillStyle = i === 0 ? '#5a3a00' : (i === 1 ? '#3a3a3a' : '#3a2000')
-        ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText(`${i+1}`, medalX, medalY)
+        ctx.fillStyle = medalColors[i]; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(`${i + 1}`, mx, my)
         ctx.textBaseline = 'alphabetic'
-        ctx.restore()
       } else {
-        ctx.fillStyle = TH.sub; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`${i + 1}`, padX + 12*S, ry + 28*S)
+        ctx.fillStyle = TH.dim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(`${i + 1}`, padX + 18*S, ry + rowH*0.5 + 4*S)
       }
-      const avatarX = padX + 44*S, avatarY = ry + 6*S, avatarSz = 32*S
+
+      // 头像
+      const avatarX = padX + 40*S, avatarY = ry + (rowH - 34*S)/2, avatarSz = 34*S
+      const avCx = avatarX + avatarSz/2, avCy = avatarY + avatarSz/2
       if (item.avatarUrl) {
         const avatarImg = R.getImg(item.avatarUrl)
         if (avatarImg && avatarImg.width > 0) {
           ctx.save()
-          ctx.beginPath()
-          ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2)
-          ctx.clip()
+          ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.clip()
           ctx.drawImage(avatarImg, avatarX, avatarY, avatarSz, avatarSz)
           ctx.restore()
         } else {
-          ctx.fillStyle = 'rgba(255,255,255,0.1)'
-          ctx.beginPath(); ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2); ctx.fill()
+          ctx.fillStyle = 'rgba(255,255,255,0.08)'
+          ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
         }
       } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.1)'
-        ctx.beginPath(); ctx.arc(avatarX + avatarSz/2, avatarY + avatarSz/2, avatarSz/2, 0, Math.PI*2); ctx.fill()
-        ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText('?', avatarX + avatarSz/2, avatarY + avatarSz/2 + 4*S)
+        ctx.fillStyle = 'rgba(255,255,255,0.08)'
+        ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
+        ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+        ctx.fillText('?', avCx, avCy + 5*S)
       }
+      // 头像边框
+      if (i < 3) {
+        const bc = ['#ffd700', '#c0c0c0', '#cd7f32']
+        ctx.strokeStyle = bc[i] + '88'; ctx.lineWidth = 1.5*S
+        ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
+      }
+
+      // 昵称 + 阵容
+      const textX = avatarX + avatarSz + 8*S
       ctx.textAlign = 'left'
-      ctx.fillStyle = i < 3 ? '#ffd700' : TH.text; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      const nick = (item.nickName || '修士').substring(0, 8)
-      ctx.fillText(nick, avatarX + avatarSz + 8*S, ry + 22*S)
+      ctx.fillStyle = i < 3 ? '#f0dca0' : TH.text; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText((item.nickName || '修士').substring(0, 8), textX, ry + 26*S)
       const petNames = (item.pets || []).map(p => p.name ? p.name.substring(0, 2) : '?').join(' ')
-      const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0,3)}` : ''
+      const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0, 3)}` : ''
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`${petNames} ${wpnName}`, avatarX + avatarSz + 8*S, ry + 40*S)
+      ctx.fillText(`${petNames} ${wpnName}`, textX, ry + 44*S)
+
+      // 层数
       ctx.textAlign = 'right'
-      ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`${item.floor}`, W - padX - 10*S, ry + 24*S)
-      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText('层', W - padX - 10*S, ry + 40*S)
+      ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+      ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+      ctx.fillText(`${item.floor}`, W - padX - 12*S, ry + 30*S)
+      ctx.restore()
+      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('层', W - padX - 12*S, ry + 44*S)
     }
   }
   ctx.restore()
 
-  const myBarY = listBottom + 4*S, myBarH = 40*S
-  ctx.fillStyle = 'rgba(230,168,23,0.12)'
-  ctx.fillRect(padX, myBarY, W - padX*2, myBarH)
-  ctx.strokeStyle = '#e6a81744'; ctx.lineWidth = 1*S
-  R.rr(padX, myBarY, W - padX*2, myBarH, 6*S); ctx.stroke()
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+  // ── 底部我的排名栏 ──
+  const myBarY = listBottom + 6*S
+  const mbg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + myBarH)
+  mbg.addColorStop(0, 'rgba(50,40,20,0.88)'); mbg.addColorStop(1, 'rgba(30,25,12,0.92)')
+  ctx.fillStyle = mbg; R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
+  R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.stroke()
+  // 内高光
+  ctx.save(); ctx.globalAlpha = 0.08
+  const mhlg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + 6*S)
+  mhlg.addColorStop(0, '#fff'); mhlg.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = mhlg; R.rr(padX + 2*S, myBarY + 1, W - padX*2 - 4*S, 6*S, 10*S); ctx.fill()
+  ctx.restore()
+  // 我的信息
   const myNick = g.storage.userInfo ? g.storage.userInfo.nickName : '我'
-  ctx.fillText(`我：${myNick}`, padX + 12*S, myBarY + myBarH*0.6)
-  ctx.textAlign = 'right'
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${myNick}`, padX + 14*S, myBarY + 22*S)
   if (myRank > 0) {
-    ctx.fillText(`第 ${myRank} 名`, W*0.6, myBarY + myBarH*0.6)
+    ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`第 ${myRank} 名`, padX + 14*S, myBarY + 40*S)
   } else {
-    ctx.fillStyle = TH.dim
-    ctx.fillText('未上榜', W*0.6, myBarY + myBarH*0.6)
+    ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText('未上榜', padX + 14*S, myBarY + 40*S)
   }
-  ctx.fillStyle = TH.accent; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`${g.storage.bestFloor} 层`, W - padX - 10*S, myBarY + myBarH*0.6)
+  ctx.textAlign = 'right'
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
+  ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 34*S)
+  ctx.restore()
+  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('层', W - padX - 14*S, myBarY + 34*S)
 
   if (g.storage.rankLoading) {
     ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText('刷新中...', W*0.5, myBarY + myBarH + 14*S)
+    ctx.fillText('刷新中...', W*0.5, myBarY + myBarH + 12*S)
   }
 
+  // ── 返回 & 刷新按钮 ──
   drawBackBtn(g)
   const rfX = W - 68*S, rfY = safeTop + 6*S, rfW = 60*S, rfH = 30*S
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'
-  R.rr(rfX, rfY, rfW, rfH, 6*S); ctx.fill()
-  ctx.fillStyle = g.storage.rankLoading ? TH.dim : TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('刷新', rfX + rfW/2, rfY + rfH*0.65)
+  const rbg = ctx.createLinearGradient(rfX, rfY, rfX, rfY + rfH)
+  rbg.addColorStop(0, 'rgba(40,30,15,0.8)'); rbg.addColorStop(1, 'rgba(25,18,8,0.85)')
+  ctx.fillStyle = rbg; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
+  ctx.strokeStyle = g.storage.rankLoading ? 'rgba(212,175,55,0.2)' : 'rgba(212,175,55,0.5)'
+  ctx.lineWidth = 1*S; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.stroke()
+  ctx.fillStyle = g.storage.rankLoading ? TH.dim : '#f0dca0'
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('刷新', rfX + rfW/2, rfY + rfH/2)
+  ctx.textBaseline = 'alphabetic'
   g._rankRefreshRect = [rfX, rfY, rfW, rfH]
 }
 
@@ -420,70 +540,128 @@ function rRanking(g) {
 function rStats(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
 
-  const padX = 16*S
+  const padX = 14*S
+
+  // ── 标题区 ──
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
   ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('历史统计', W*0.5, safeTop + 40*S)
   ctx.restore()
-  // 装饰分割线
   const sdivW = W*0.22, sdivY = safeTop + 48*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - sdivW, sdivY); ctx.lineTo(W*0.5 + sdivW, sdivY); ctx.stroke()
 
   const st = g.storage.stats
-  const startY = safeTop + 70*S
-  const lineH = 38*S
 
-  const panelH = lineH * 8 + 20*S
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'
-  R.rr(padX, startY - 10*S, W - padX*2, panelH, 10*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
-  R.rr(padX, startY - 10*S, W - padX*2, panelH, 10*S); ctx.stroke()
+  // ── 核心数据：大卡片突出显示 ──
+  const heroY = safeTop + 62*S
+  const heroW = W - padX*2, heroH = 80*S
+  const hbg = ctx.createLinearGradient(padX, heroY, padX, heroY + heroH)
+  hbg.addColorStop(0, 'rgba(50,40,20,0.85)'); hbg.addColorStop(1, 'rgba(30,25,12,0.9)')
+  ctx.fillStyle = hbg; R.rr(padX, heroY, heroW, heroH, 12*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
+  R.rr(padX, heroY, heroW, heroH, 12*S); ctx.stroke()
+  // 高光边
+  ctx.save(); ctx.globalAlpha = 0.1
+  const hlg = ctx.createLinearGradient(padX, heroY, padX, heroY + 8*S)
+  hlg.addColorStop(0, '#fff'); hlg.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = hlg; R.rr(padX + 2*S, heroY + 1, heroW - 4*S, 8*S, 12*S); ctx.fill()
+  ctx.restore()
+  // 最高层数（大号金字）
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${32*S}px "PingFang SC",sans-serif`
+  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.3)'; ctx.shadowBlur = 8*S
+  ctx.fillText(`第 ${g.storage.bestFloor} 层`, W*0.5, heroY + 40*S)
+  ctx.restore()
+  ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('历史最高层数', W*0.5, heroY + 62*S)
 
-  const items = [
-    { label: '历史最高层数', value: `第 ${g.storage.bestFloor} 层`, color: '#ffd700' },
-    { label: '总挑战次数', value: `${g.storage.totalRuns} 次`, color: TH.accent },
-    { label: '总战斗场次', value: `${st.totalBattles} 场`, color: TH.text },
-    { label: '总消除Combo', value: `${st.totalCombos} 次`, color: TH.text },
-    { label: '最高单次Combo', value: `${st.maxCombo} 连`, color: '#ff6b6b' },
-    { label: '平均每场Combo', value: st.totalBattles > 0 ? `${(st.totalCombos / st.totalBattles).toFixed(1)} 次` : '-', color: TH.text },
+  // ── 统计数据：双列卡片 ──
+  const gridY = heroY + heroH + 12*S
+  const colW = (heroW - 8*S) / 2, cardH = 60*S
+  const statCards = [
+    { label: '总挑战次数', value: `${g.storage.totalRuns}`, unit: '次', color: TH.accent },
+    { label: '总战斗场次', value: `${st.totalBattles}`, unit: '场', color: '#4dabff' },
+    { label: '总消除Combo', value: `${st.totalCombos}`, unit: '次', color: '#4dcc4d' },
+    { label: '最高单次Combo', value: `${st.maxCombo}`, unit: '连', color: '#ff6b6b' },
   ]
-
-  items.forEach((item, i) => {
-    const y = startY + i * lineH + 16*S
-    if (i % 2 === 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.03)'
-      ctx.fillRect(padX + 4*S, y - 14*S, W - padX*2 - 8*S, lineH - 2*S)
-    }
+  statCards.forEach((card, i) => {
+    const col = i % 2, row = Math.floor(i / 2)
+    const cx = padX + col * (colW + 8*S)
+    const cy = gridY + row * (cardH + 8*S)
+    // 卡片背景
+    const cbg = ctx.createLinearGradient(cx, cy, cx, cy + cardH)
+    cbg.addColorStop(0, 'rgba(40,35,25,0.75)'); cbg.addColorStop(1, 'rgba(25,22,15,0.82)')
+    ctx.fillStyle = cbg; R.rr(cx, cy, colW, cardH, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 0.5*S
+    R.rr(cx, cy, colW, cardH, 8*S); ctx.stroke()
+    // 数值
+    ctx.textAlign = 'center'
+    ctx.fillStyle = card.color; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+    ctx.fillText(card.value, cx + colW*0.5, cy + 28*S)
+    // 单位
+    ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    const valW = ctx.measureText(card.value).width
     ctx.textAlign = 'left'
-    ctx.fillStyle = TH.sub; ctx.font = `${13*S}px "PingFang SC",sans-serif`
-    ctx.fillText(item.label, padX + 16*S, y)
-    ctx.textAlign = 'right'
-    ctx.fillStyle = item.color; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-    ctx.fillText(item.value, W - padX - 16*S, y)
+    ctx.fillText(card.unit, cx + colW*0.5 + valW*0.5 + 3*S, cy + 28*S)
+    // 标签
+    ctx.textAlign = 'center'
+    ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(card.label, cx + colW*0.5, cy + 48*S)
   })
 
-  const teamY = startY + 6 * lineH + 16*S
+  // 平均Combo条
+  const avgY = gridY + 2 * (cardH + 8*S)
+  const avgH = 36*S
+  const abg = ctx.createLinearGradient(padX, avgY, padX, avgY + avgH)
+  abg.addColorStop(0, 'rgba(40,35,25,0.7)'); abg.addColorStop(1, 'rgba(25,22,15,0.78)')
+  ctx.fillStyle = abg; R.rr(padX, avgY, heroW, avgH, 8*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.12)'; ctx.lineWidth = 0.5*S
+  R.rr(padX, avgY, heroW, avgH, 8*S); ctx.stroke()
   ctx.textAlign = 'left'
-  ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText('最高记录阵容：', padX + 16*S, teamY)
+  ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('平均每场Combo', padX + 14*S, avgY + avgH*0.6)
+  ctx.textAlign = 'right'
+  const avgVal = st.totalBattles > 0 ? (st.totalCombos / st.totalBattles).toFixed(1) : '-'
+  ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${avgVal} 次`, W - padX - 14*S, avgY + avgH*0.6)
 
+  // ── 最高记录阵容 ──
+  const teamY = avgY + avgH + 14*S
+  const teamH = 80*S
+  const tbg = ctx.createLinearGradient(padX, teamY, padX, teamY + teamH)
+  tbg.addColorStop(0, 'rgba(50,40,20,0.8)'); tbg.addColorStop(1, 'rgba(30,25,12,0.85)')
+  ctx.fillStyle = tbg; R.rr(padX, teamY, heroW, teamH, 10*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
+  R.rr(padX, teamY, heroW, teamH, 10*S); ctx.stroke()
+  // 小标题
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('✦ 最高记录阵容 ✦', W*0.5, teamY + 18*S)
   const bfPets = st.bestFloorPets || []
   const bfWeapon = st.bestFloorWeapon
   if (bfPets.length > 0) {
-    const petStr = bfPets.map(p => p.name).join('、')
-    ctx.fillStyle = TH.text; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(petStr, padX + 16*S, teamY + 20*S)
+    // 宠物名横排，带属性色
+    const petW = heroW / Math.max(bfPets.length, 1)
+    bfPets.forEach((p, i) => {
+      const px = padX + petW * i + petW*0.5
+      const ac = ATTR_COLOR[p.attr]
+      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(p.name, px, teamY + 42*S)
+      // 属性色小点
+      ctx.beginPath(); ctx.arc(px, teamY + 50*S, 2.5*S, 0, Math.PI*2)
+      ctx.fillStyle = ac ? ac.main : TH.dim; ctx.fill()
+    })
     if (bfWeapon) {
       ctx.fillStyle = '#ffd700'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`法宝：${bfWeapon.name}`, padX + 16*S, teamY + 38*S)
+      ctx.fillText(`⚔ ${bfWeapon.name}`, W*0.5, teamY + 68*S)
     }
   } else {
-    ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText('暂无记录', padX + 16*S, teamY + 20*S)
+    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText('暂无记录', W*0.5, teamY + 48*S)
   }
 
   drawBackBtn(g)
@@ -998,8 +1176,24 @@ function rDex(g) {
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`已收集：${dex.length} / ${totalPets}`, W*0.5, safeTop + 64*S)
 
+  // 出战提示 + 收集规则提示条
+  const tipY = safeTop + 74*S
+  const tipPadX = 14 * S, tipH = 36 * S
+  const tipX = tipPadX, tipW = W - tipPadX * 2
+  // 暖色半透明底
+  ctx.fillStyle = 'rgba(255,235,180,0.12)'
+  ctx.beginPath(); R.rr(tipX, tipY, tipW, tipH, 6*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); R.rr(tipX, tipY, tipW, tipH, 6*S); ctx.stroke()
+  // 第一行：出战提示（醒目）
+  ctx.fillStyle = '#ffd54f'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('💡 点击已收集灵兽可选择「带它出战」', W*0.5, tipY + 13*S)
+  // 第二行：收集规则
+  ctx.fillStyle = 'rgba(245,230,200,0.65)'; ctx.font = `${8.5*S}px "PingFang SC",sans-serif`
+  ctx.fillText('收集规则：灵兽在冒险中升至满星（★★★）即永久录入图鉴', W*0.5, tipY + 28*S)
+
   // 滚动区域
-  const contentTop = safeTop + 78*S
+  const contentTop = safeTop + 74*S + tipH + 6*S
   const contentBottom = H - 8*S
   const scrollY = g._dexScrollY || 0
 
@@ -1016,6 +1210,7 @@ function rDex(g) {
 
   let y = contentTop + scrollY
   g._dexTotalH = 0  // 用于滚动限制
+  g._dexCellRects = []  // 存储已收集宠物的点击区域
 
   for (const attr of DEX_ATTRS) {
     const pets = PETS[attr]
@@ -1064,6 +1259,10 @@ function rDex(g) {
           ctx.fillStyle = ac.lt; ctx.font = `${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
           const shortName = pet.name.length > 4 ? pet.name.substring(0,4) : pet.name
           ctx.fillText(shortName, cx + cellW/2, cy + cellW - imgPad + 14*S)
+          // 存储点击区域（仅在可视范围内）
+          if (cy + cellH > contentTop && cy < contentBottom) {
+            g._dexCellRects.push({ id: pet.id, attr: attr, x: cx, y: cy, w: cellW, h: cellH })
+          }
         } else {
           // 问号
           ctx.fillStyle = 'rgba(255,255,255,0.08)'
@@ -1085,6 +1284,307 @@ function rDex(g) {
   ctx.restore()
 
   drawBackBtn(g)
+
+  // 宠物详情弹窗（大图+故事）
+  if (g._dexDetailPetId) {
+    _drawDexPetDetail(g)
+  }
+}
+
+// ===== 图鉴宠物详情弹窗 =====
+function _drawDexPetDetail(g) {
+  const { ctx, R, TH, W, H, S, safeTop } = V
+  const petId = g._dexDetailPetId
+  let pet = null, petAttr = ''
+  for (const attr of DEX_ATTRS) {
+    const found = PETS[attr].find(p => p.id === petId)
+    if (found) { pet = found; petAttr = attr; break }
+  }
+  if (!pet) { g._dexDetailPetId = null; return }
+
+  const ac = ATTR_COLOR[petAttr]
+  const lore = getPetLore(petId)
+  // 图鉴始终以满星形态展示
+  const curStar = MAX_STAR
+  const fakePet = { id: petId, star: curStar, attr: petAttr, skill: pet.skill, atk: pet.atk, cd: pet.cd }
+  const curAtk = getPetStarAtk(fakePet)
+  const skillDesc = getPetSkillDesc(fakePet) || pet.skill.desc
+  const isMaxStar = curStar >= MAX_STAR
+
+  // 下一级数据（非满星时）
+  let nextStarAtk = 0, nextSkillDesc = '', nextSkillDescLines = []
+  if (!isMaxStar) {
+    const nextPet = { ...fakePet, star: curStar + 1 }
+    nextStarAtk = getPetStarAtk(nextPet)
+    nextSkillDesc = getPetSkillDesc(nextPet) || pet.skill.desc
+  }
+
+  // 遮罩
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillRect(0, 0, W, H)
+
+  // 面板参数
+  const panelW = W * 0.88
+  const panelX = (W - panelW) / 2
+  const pad = 14*S
+  const maxTextW = panelW - pad * 2
+  const imgSize = Math.min(panelW * 0.48, H * 0.28)
+  const gapH = 6*S
+  const lineH_name = 18*S
+  const lineH_attr = 14*S
+  const lineH_skillTitle = 16*S
+  const lineH_skillDesc = 12*S
+  const lineH_lore = 13*S
+  const closeH = 18*S
+
+  // 预计算文本行
+  const loreLines = _wrapTextDex(lore, maxTextW, 10)
+  const skillDescLines = _wrapTextDex(skillDesc, maxTextW - 8*S, 9)
+  if (!isMaxStar) {
+    nextSkillDescLines = _wrapTextDex(nextSkillDesc, maxTextW - 8*S, 9)
+  }
+
+  const btnH = 34*S
+  let panelH = pad + imgSize + gapH + lineH_name + lineH_attr + gapH
+    + lineH_skillTitle + skillDescLines.length * lineH_skillDesc + gapH
+  // 下一级数据区域（非满星时）
+  if (!isMaxStar) {
+    panelH += gapH + 14*S + lineH_attr + lineH_skillTitle + nextSkillDescLines.length * lineH_skillDesc + gapH
+  }
+  panelH += gapH + loreLines.length * lineH_lore + gapH + btnH + closeH + pad
+
+  const maxPanelH = H - safeTop - 10*S
+  const finalH = Math.min(panelH, maxPanelH)
+  const panelY = Math.max(safeTop + 5*S, (H - finalH) / 2)
+  const rad = 14*S
+
+  // 浅色面板
+  const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + finalH)
+  bgGrad.addColorStop(0, 'rgba(248,242,230,0.97)')
+  bgGrad.addColorStop(0.5, 'rgba(244,237,224,0.97)')
+  bgGrad.addColorStop(1, 'rgba(238,230,218,0.97)')
+  ctx.fillStyle = bgGrad
+  R.rr(panelX, panelY, panelW, finalH, rad); ctx.fill()
+  ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5*S
+  R.rr(panelX, panelY, panelW, finalH, rad); ctx.stroke()
+
+  g._dexDetailRect = [panelX, panelY, panelW, finalH]
+
+  // 裁剪
+  ctx.save()
+  ctx.beginPath(); R.rr(panelX, panelY, panelW, finalH, rad); ctx.clip()
+
+  let curY = panelY + pad
+
+  // 大图
+  const avatarPath = getPetAvatarPath(fakePet)
+  const img = R.getImg(avatarPath)
+  const imgX = (W - imgSize) / 2
+  if (img && img.width > 0) {
+    ctx.save()
+    ctx.beginPath(); R.rr(imgX, curY, imgSize, imgSize, 8*S); ctx.clip()
+    const iR = img.width / img.height
+    let dw = imgSize, dh = imgSize
+    if (iR > 1) { dh = imgSize / iR } else { dw = imgSize * iR }
+    ctx.drawImage(img, imgX + (imgSize - dw) / 2, curY + (imgSize - dh) / 2, dw, dh)
+    ctx.restore()
+  }
+  curY += imgSize + gapH
+
+  // 名称 + 星星（同一行）
+  ctx.textAlign = 'center'
+  const nameFs = 14*S
+  const starStr = '★'.repeat(curStar)
+  ctx.font = `bold ${nameFs}px "PingFang SC",sans-serif`
+  const nameW = ctx.measureText(pet.name).width
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  const starW = ctx.measureText(starStr).width
+  const nameStarGap = 4*S
+  const totalNameW = nameW + nameStarGap + starW
+  const nameStartX = W * 0.5 - totalNameW / 2
+  // 画名字
+  ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${nameFs}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(pet.name, nameStartX, curY + 13*S)
+  // 画星星
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText(starStr, nameStartX + nameW + nameStarGap, curY + 13*S)
+  curY += lineH_name
+
+  // 属性珠 + ATK（仅当前值）
+  const orbR = 6*S
+  const atkLabel = 'ATK：'
+  const atkVal = String(curAtk)
+  ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  const atkLabelW = ctx.measureText(atkLabel).width
+  ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  const atkValW = ctx.measureText(atkVal).width
+  const attrBlockW = orbR * 2 + 6*S + atkLabelW + atkValW
+  const attrStartX = W * 0.5 - attrBlockW / 2
+  R.drawBead(attrStartX + orbR, curY + 8*S, orbR, petAttr, 0)
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(atkLabel, attrStartX + orbR * 2 + 6*S, curY + 11*S)
+  // ATK 数值用高亮色
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(atkVal, attrStartX + orbR * 2 + 6*S + atkLabelW, curY + 11*S)
+  curY += lineH_attr + gapH
+
+  // 技能标题
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  const skillTitle = `技能：${pet.skill.name}`
+  const cdText = `CD ${pet.cd}`
+  ctx.fillText(skillTitle, panelX + pad, curY + 11*S)
+  // CD 用高亮色
+  const skillTitleW = ctx.measureText(skillTitle).width
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(cdText, panelX + pad + skillTitleW + 4*S, curY + 11*S)
+  curY += lineH_skillTitle
+
+  // 技能描述（数值高亮）
+  _drawHighlightedLines(ctx, skillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 9*S, S)
+  curY += skillDescLines.length * lineH_skillDesc
+  curY += gapH
+
+  // 分割线
+  ctx.strokeStyle = 'rgba(160,140,100,0.25)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); ctx.moveTo(panelX + pad, curY); ctx.lineTo(panelX + panelW - pad, curY); ctx.stroke()
+  curY += gapH
+
+  // 下一级数据（非满星时）
+  if (!isMaxStar) {
+    const nextStarLabel = `下一级 ★${curStar + 1}`
+    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(nextStarLabel, panelX + pad, curY + 10*S)
+    curY += 14*S
+    // 下一级ATK
+    const nAtkLabel = 'ATK：'
+    const nAtkVal = String(nextStarAtk)
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(nAtkLabel, panelX + pad, curY + 10*S)
+    const nAtkLabelW = ctx.measureText(nAtkLabel).width
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(nAtkVal, panelX + pad + nAtkLabelW, curY + 10*S)
+    curY += lineH_attr
+    // 下一级技能
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`技能：${pet.skill.name}`, panelX + pad, curY + 10*S)
+    curY += lineH_skillTitle
+    _drawHighlightedLines(ctx, nextSkillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 9*S, S)
+    curY += nextSkillDescLines.length * lineH_skillDesc
+    curY += gapH
+    // 分割线
+    ctx.strokeStyle = 'rgba(160,140,100,0.25)'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.moveTo(panelX + pad, curY); ctx.lineTo(panelX + panelW - pad, curY); ctx.stroke()
+    curY += gapH
+  }
+
+  // 故事
+  ctx.fillStyle = '#5C4A3A'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  loreLines.forEach(line => {
+    ctx.fillText(line, panelX + pad, curY + 10*S)
+    curY += lineH_lore
+  })
+  curY += gapH
+
+  // "带它出战"按钮
+  const btnW = panelW * 0.6
+  const btnX = (W - btnW) / 2
+  const btnY = curY
+  const btnRad = 8*S
+  const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
+  btnGrad.addColorStop(0, '#d4a840')
+  btnGrad.addColorStop(1, '#b8922e')
+  ctx.fillStyle = btnGrad
+  R.rr(btnX, btnY, btnW, btnH, btnRad); ctx.fill()
+  ctx.save()
+  ctx.beginPath(); R.rr(btnX, btnY, btnW, btnH * 0.45, btnRad); ctx.clip()
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'
+  ctx.fillRect(btnX, btnY, btnW, btnH * 0.45)
+  ctx.restore()
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('🎬 带它出战', W * 0.5, btnY + btnH * 0.5)
+  ctx.textBaseline = 'alphabetic'
+  g._dexBattleBtnRect = [btnX, btnY, btnW, btnH]
+
+  ctx.restore() // 结束裁剪
+
+  // 关闭提示
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('点击其他区域关闭', W * 0.5, panelY + finalH - 6*S)
+
+  ctx.restore()
+}
+
+// 绘制带数值高亮的文本行（数字用橙色粗体）
+function _drawHighlightedLines(ctx, lines, x, startY, lineH, fontSize, S) {
+  let y = startY
+  const normalColor = '#5C4A3A'
+  const highlightColor = '#c06020'
+  const font = `${fontSize}px "PingFang SC",sans-serif`
+  const boldFont = `bold ${fontSize}px "PingFang SC",sans-serif`
+  // 匹配数值片段（数字、百分号、倍数等）
+  const numRe = /(\d+[\d.]*%?倍?)/g
+
+  lines.forEach(line => {
+    ctx.textAlign = 'left'
+    let cx = x
+    let lastIdx = 0
+    let match
+    numRe.lastIndex = 0
+    while ((match = numRe.exec(line)) !== null) {
+      // 画数值前的普通文字
+      if (match.index > lastIdx) {
+        const before = line.substring(lastIdx, match.index)
+        ctx.fillStyle = normalColor; ctx.font = font
+        ctx.fillText(before, cx, y + fontSize * 0.9)
+        cx += ctx.measureText(before).width
+      }
+      // 画高亮数值
+      ctx.fillStyle = highlightColor; ctx.font = boldFont
+      ctx.fillText(match[0], cx, y + fontSize * 0.9)
+      cx += ctx.measureText(match[0]).width
+      lastIdx = match.index + match[0].length
+    }
+    // 画剩余文字
+    if (lastIdx < line.length) {
+      ctx.fillStyle = normalColor; ctx.font = font
+      ctx.fillText(line.substring(lastIdx), cx, y + fontSize * 0.9)
+    }
+    // 如果整行没有数字，直接画
+    if (lastIdx === 0) {
+      ctx.fillStyle = normalColor; ctx.font = font
+      ctx.fillText(line, x, y + fontSize * 0.9)
+    }
+    y += lineH
+  })
+}
+
+// 图鉴文本换行辅助（按实际像素宽度换行）
+function _wrapTextDex(text, maxW, fontSize) {
+  if (!text) return ['']
+  const S = V.S
+  const fullW = fontSize * S       // 中文全角字符宽度
+  const halfW = fontSize * S * 0.55 // 英文/数字半角字符宽度
+  const result = []
+  let line = '', lineW = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    const cw = ch.charCodeAt(0) > 127 ? fullW : halfW
+    if (lineW + cw > maxW && line.length > 0) {
+      result.push(line)
+      line = ch; lineW = cw
+    } else {
+      line += ch; lineW += cw
+    }
+  }
+  if (line) result.push(line)
+  return result.length > 0 ? result : ['']
 }
 
 module.exports = {
