@@ -798,6 +798,23 @@ function rEvent(g) {
   }
   curY += 8*S
 
+  // ===== 新手教学后第1层说明提示 =====
+  if (g._tutorialJustDone && g.floor === 1) {
+    const hintW = W * 0.88, hintX = (W - hintW) / 2
+    const hintY = curY
+    ctx.fillStyle = 'rgba(20,30,50,0.85)'
+    R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(100,180,255,0.4)'; ctx.lineWidth = 1
+    R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.stroke()
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText('💡 冒险开始', W*0.5, hintY + 14*S)
+    ctx.fillStyle = '#b0c8e0'; ctx.font = `${9.5*S}px "PingFang SC",sans-serif`
+    ctx.fillText('正式冒险初始携带4只灵兽和1件基础法宝', W*0.5, hintY + 30*S)
+    ctx.fillText('击败怪物可获得新灵兽或法宝，通关30层即为胜利！', W*0.5, hintY + 44*S)
+    curY += 64*S
+  }
+
   // ===== 进入战斗按钮（固定在页面底部） =====
   const goBtnW = W*0.6, goBtnH = goBtnW / 4
   const goBtnX = (W - goBtnW)/2, goBtnY = H - goBtnH - 28*S

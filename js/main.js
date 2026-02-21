@@ -19,6 +19,7 @@ const battleEngine = require('./engine/battle')
 const skillEngine = require('./engine/skills')
 const anim = require('./engine/animations')
 const runMgr = require('./engine/runManager')
+const tutorial = require('./engine/tutorial')
 
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
@@ -178,8 +179,16 @@ class Main {
   // ===== 更新 =====
   update() {
     anim.updateAnimations(this)
-    // victory 状态下懒生成奖励（仅生成一次）
-    if (this.bState === 'victory' && !this.rewards) {
+    // 教学系统更新
+    if (tutorial.isActive()) {
+      tutorial.update(this)
+      // 教学中胜利处理（step 0-2自动切换，step 3允许正常奖励）
+      if (this.bState === 'victory') {
+        if (tutorial.onVictory(this)) return  // 被教学系统接管
+      }
+    }
+    // victory 状态下懒生成奖励（仅生成一次，教学中不生成）
+    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive()) {
       const ownedWpnIds = new Set()
       if (this.weapon) ownedWpnIds.add(this.weapon.id)
       if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
@@ -224,6 +233,8 @@ class Main {
             this._pendingEnemyAtk = { timer: 0, delay: 24 }
           }
           this.bState = 'playerTurn'
+          // 教学多回合切换检查
+          if (tutorial.isActive()) tutorial.onEnemyTurnEnd(this)
         }
       }
     }
@@ -249,6 +260,8 @@ class Main {
           this.bState = 'preEnemy'; this._stateTimer = 0
         } else {
           this.bState = 'playerTurn'; this.dragTimer = 0
+          // 教学多回合切换检查
+          if (tutorial.isActive()) tutorial.onEnemyTurnEnd(this)
         }
       }
     }
@@ -285,6 +298,10 @@ class Main {
     this.dmgFloats.forEach(f => R.drawDmgFloat(f))
     this.skillEffects.forEach(e => R.drawSkillEffect(e))
     if (this.skillCastAnim.active) R.drawSkillCast(this.skillCastAnim)
+    // 教学引导层
+    if (tutorial.isActive() && this.scene === 'battle') {
+      battleView.drawTutorialOverlay(this)
+    }
     ctx.restore()
   }
 
@@ -449,6 +466,8 @@ class Main {
           this._pendingEnemyAtk = { timer: 0, delay: 24 }
         }
         this.bState = 'playerTurn'
+        // 教学多回合切换检查
+        if (tutorial.isActive()) tutorial.onEnemyTurnEnd(this)
       }
     }
     battleEngine.checkAndElim(this)

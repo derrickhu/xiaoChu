@@ -610,17 +610,18 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
     rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
-    // 普通战斗：50%概率掉落宠物（加速build养成）
-    if (Math.random() < 0.50) {
-      const newPet = _rPet()
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
-      rewards.push(pickFrom(BUFF_POOL_MINOR))
-      rewards.push(pickFrom(BUFF_POOL_MINOR))
-    } else {
-      rewards.push(pickFrom(BUFF_POOL_MINOR))
-      rewards.push(pickFrom(BUFF_POOL_MINOR))
-      rewards.push(pickFrom(BUFF_POOL_MINOR))
+    // 普通战斗：2只灵宠 + 1件法宝 三选一（全实物，无buff）
+    const petIds = new Set()
+    for (let i = 0; i < 2; i++) {
+      let p = _rPet()
+      let tries = 0
+      while (petIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
+      petIds.add(p.id)
+      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
     }
+    let w = randomWeapon(wpnExclude)
+    wpnExclude.add(w.id)
+    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
   }
 
   // 速通额外奖励：精英/boss追加同类型第4个选项，普通战追加速通buff
@@ -636,8 +637,12 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
       let w = randomWeapon(wpnExclude)
       rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
     } else {
-      const bonus = pickFrom(BUFF_POOL_SPEEDKILL)
-      if (bonus) { bonus.isSpeed = true; rewards.push(bonus) }
+      // 普通战斗速通：额外奖励1只灵宠（促进升星）
+      let speedPet = _rPet()
+      const existPetIds = new Set(rewards.filter(r => r.type === REWARD_TYPES.NEW_PET).map(r => r.data.id))
+      let tries = 0
+      while (existPetIds.has(speedPet.id) && tries < 20) { speedPet = _rPet(); tries++ }
+      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${speedPet.name}`, data: speedPet, isSpeed: true })
     }
   }
 

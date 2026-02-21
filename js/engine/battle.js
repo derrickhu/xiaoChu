@@ -9,6 +9,7 @@ const {
   ENEMY_SKILLS, EVENT_TYPE, ADVENTURES, getBeadWeights,
 } = require('../data/tower')
 const { getPetStarAtk, petHasSkill } = require('../data/pets')
+const tutorial = require('./tutorial')
 
 // ===== 棋盘 =====
 function initBoard(g) {
@@ -72,6 +73,7 @@ function checkAndElim(g) {
   if (groups.length > 0) {
     if (!g._pendingDmgMap) { g._pendingDmgMap = {}; g._pendingHeal = 0; if (!g.comboNeverBreak) g.combo = 0; g._pendingAttrMaxCount = {} }
     g.elimQueue = groups
+    if (tutorial.isActive()) tutorial.onElim(g)
     startNextElimAnim(g)
   } else if (g.combo > 0) {
     enterPetAtkShow(g)
@@ -700,6 +702,12 @@ function settle(g) {
 function enemyTurn(g) {
   const { S, W, H, TH } = V
   if (!g.enemy || g.enemy.hp <= 0) { g.bState = 'playerTurn'; g.dragTimer = 0; return }
+  // 教学中大部分步骤敌人不攻击
+  if (tutorial.isActive() && !tutorial.shouldEnemyAttack(g)) {
+    g.turnCount++
+    g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
+    return
+  }
   const stunBuff = g.enemyBuffs.find(b => b.type === 'stun')
   if (stunBuff) {
     g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY(), text:'眩晕跳过！', color:TH.info, t:0, alpha:1 })
