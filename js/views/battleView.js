@@ -2,7 +2,7 @@
  * 战斗界面渲染：棋盘、队伍栏、怪物区、Combo、倒计时、胜利/失败覆盖
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES, getRealmInfo, REALM_TABLE } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES, getRealmInfo, REALM_TABLE, MAX_FLOOR } = require('../data/tower')
 const { getPetStarAtk, getPetAvatarPath, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
 
@@ -2288,10 +2288,107 @@ function _shortBuffLabel(label) {
     .replace(/永久/g, '')
 }
 
+// ===== 通关面板（第30层胜利后显示，drawInfoPanel风格）=====
+function _drawClearPanel(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const panelW = W * 0.86
+  const panelX = (W - panelW) / 2
+  const innerPad = 16*S
+
+  // 面板内容高度计算
+  const titleH = 30*S
+  const subtitleH = 24*S
+  const realmH = 22*S
+  const dividerH = 16*S
+  const teamLabelH = 20*S
+  const petRowH = 22*S
+  const wpnRowH = 22*S
+  const bagRowH = 18*S
+  const btnH = 36*S
+  const totalH = innerPad + titleH + subtitleH + realmH + dividerH + teamLabelH + petRowH + wpnRowH + bagRowH + 12*S + btnH + innerPad
+
+  const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
+
+  R.drawInfoPanel(panelX, panelY, panelW, totalH)
+
+  let curY = panelY + innerPad
+
+  // 标题
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#C07000'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  ctx.fillText('通天塔·通关', W*0.5, curY + 20*S)
+  curY += titleH
+
+  // 副标题
+  ctx.fillStyle = '#7A5C30'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText('恭喜修士登顶通天塔！', W*0.5, curY + 14*S)
+  curY += subtitleH
+
+  // 最终境界
+  const realm = getRealmInfo(g.floor)
+  const realmName = realm ? realm.name : '化神圆满'
+  ctx.fillStyle = '#8B7B70'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'
+  const realmLabelX = panelX + innerPad
+  ctx.fillText('最终境界', realmLabelX, curY + 14*S)
+  const realmLabelW = ctx.measureText('最终境界').width
+  ctx.fillStyle = '#C07000'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText(realmName, realmLabelX + realmLabelW + 8*S, curY + 14*S)
+  curY += realmH
+
+  // 分割线
+  curY += 4*S
+  ctx.strokeStyle = 'rgba(160,140,110,0.35)'; ctx.lineWidth = 0.5*S
+  ctx.beginPath()
+  ctx.moveTo(panelX + innerPad, curY)
+  ctx.lineTo(panelX + panelW - innerPad, curY)
+  ctx.stroke()
+  curY += dividerH - 4*S
+
+  // 上场阵容标题
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#8B7B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('通关阵容', W*0.5, curY + 12*S)
+  curY += teamLabelH
+
+  // 宠物列表
+  ctx.textAlign = 'center'
+  if (g.pets && g.pets.length > 0) {
+    const petNames = g.pets.map(p => p.name).join('  ')
+    ctx.fillStyle = '#5C4A3A'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(petNames, W*0.5, curY + 12*S)
+  }
+  curY += petRowH
+
+  // 法宝
+  if (g.weapon) {
+    ctx.fillStyle = '#8B6914'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`法宝·${g.weapon.name}`, W*0.5, curY + 12*S)
+  }
+  curY += wpnRowH
+
+  // 背包信息
+  ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`灵兽背包：${(g.petBag || []).length}只  法宝背包：${(g.weaponBag || []).length}件`, W*0.5, curY + 10*S)
+  curY += bagRowH + 12*S
+
+  // 确认按钮
+  const btnW = (panelW - innerPad*2) * 0.55, confirmBtnH = 30*S
+  const btnX = panelX + (panelW - btnW) / 2, btnY = curY
+  R.drawDialogBtn(btnX, btnY, btnW, confirmBtnH, '返回主页', 'confirm')
+  g._clearConfirmRect = [btnX, btnY, btnW, confirmBtnH]
+}
+
 // ===== 胜利弹窗（内嵌奖励选择）=====
 function drawVictoryOverlay(g) {
   const { ctx, R, TH, W, H, S } = V
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H)
+
+  // ==== 第30层（最终层）胜利：显示通关面板，不显示奖励 ====
+  if (g.floor >= MAX_FLOOR) {
+    _drawClearPanel(g)
+    return
+  }
 
   const hasSpeed = g.lastSpeedKill
   const panelW = W * 0.86
@@ -2308,34 +2405,31 @@ function drawVictoryOverlay(g) {
     return
   }
 
-  // ==== 计算当前层成长信息 ====
+  // ==== 计算通关后即将获得的成长信息（nextFloor中floor+1后才应用） ====
   const floor = g.floor
-  const realm = getRealmInfo(floor)
-  const prevRealm = floor > 1 ? getRealmInfo(floor - 1) : null
-  const realmName = realm ? realm.name : '凡人'
-  const prevRealmName = prevRealm ? prevRealm.name : '凡人'
-  const realmChanged = realmName !== prevRealmName
-  const hpUp = realm ? realm.hpUp : 0
-  // 计算当前实际血量上限（已在 nextFloor 中应用，此处为预览）
+  const nextFL = floor + 1                          // 确认奖励后将进入的层
+  const curRealm = getRealmInfo(floor)              // 当前境界
+  const nextRealm = getRealmInfo(nextFL)            // 下一层境界
+  const curRealmName = curRealm ? curRealm.name : '凡人'
+  const nextRealmName = nextRealm ? nextRealm.name : curRealmName
+  const realmChanged = nextRealmName !== curRealmName
+  const hpUp = nextRealm ? nextRealm.hpUp : 0
   const curMaxHp = g.heroMaxHp
   const nextMaxHp = curMaxHp + hpUp
-  // ATK隐性加成：第6/11/16/21/26层有加成
+  // ATK隐性加成：第6/11/16/21/26层（即nextFL % 5 === 1且nextFL > 1）
   let atkBonus = 0
   const curAtkPct = g.runBuffs ? g.runBuffs.allAtkPct : 0
-  if (floor > 1 && floor % 5 === 0) {
-    const nextFloor = floor + 1
-    if (nextFloor % 5 === 1) {
-      const tier = Math.floor((nextFloor - 1) / 5)
-      atkBonus = 10 + tier * 2
-    }
+  if (nextFL > 1 && nextFL % 5 === 1) {
+    const tier = Math.floor((nextFL - 1) / 5)
+    atkBonus = 10 + tier * 2
   }
 
   // ==== 成长信息行 ====
   const growthLines = []
   if (realmChanged) {
-    growthLines.push({ label: '境界提升', text: `${prevRealmName} → ${realmName}`, color: '#C07000', bold: true })
+    growthLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true })
   } else {
-    growthLines.push({ label: '当前境界', text: realmName, color: '#7A5C30', bold: false })
+    growthLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false })
   }
   if (hpUp > 0) {
     growthLines.push({ label: '血量上限', text: `${curMaxHp} → ${nextMaxHp}`, color: '#27864A', bold: true })
@@ -2344,7 +2438,7 @@ function drawVictoryOverlay(g) {
     growthLines.push({ label: '全队攻击', text: `${curAtkPct}% → ${curAtkPct + atkBonus}%`, color: '#C06020', bold: true })
   }
   // 法宝perFloorBuff提示
-  if (g.weapon && g.weapon.type === 'perFloorBuff' && floor > 0 && floor % g.weapon.per === 0) {
+  if (g.weapon && g.weapon.type === 'perFloorBuff' && nextFL > 1 && (nextFL - 1) % g.weapon.per === 0) {
     if (g.weapon.field === 'atk') {
       const curVal = curAtkPct + atkBonus
       growthLines.push({ label: '法宝加成', text: `攻击 ${curVal}% → ${curVal + g.weapon.pct}%`, color: '#8B6914', bold: true })
