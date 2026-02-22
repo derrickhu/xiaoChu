@@ -37,14 +37,39 @@ function tTitle(g, type, x, y) {
 
 let _prepScrolling = false
 let _prepScrollMoved = false
+let _prepDragWpn = null // 法宝拖拽状态
 
 function tPrepare(g, type, x, y) {
   if (type === 'start') {
     _prepScrollMoved = false
+    // 法宝Tab：检测是否开始拖拽法宝
+    if (g.prepareTab === 'weapon') {
+      if (g.weapon && g._prepCurWpnRect && g._hitRect(x,y,...g._prepCurWpnRect)) {
+        _prepDragWpn = { source:'equipped', index:0, weapon:g.weapon, x, y, startX:x, startY:y, moved:false }
+        g._prepDragWpn = _prepDragWpn
+        return
+      }
+      if (g._prepWpnBagRects) {
+        for (let i = 0; i < g._prepWpnBagRects.length; i++) {
+          const [bx,by,bw,bh] = g._prepWpnBagRects[i]
+          if (g._hitRect(x,y,bx,by,bw,bh) && g.weaponBag[i]) {
+            _prepDragWpn = { source:'bag', index:i, weapon:g.weaponBag[i], x, y, startX:x, startY:y, moved:false }
+            g._prepDragWpn = _prepDragWpn
+            return
+          }
+        }
+      }
+    }
     _prepScrolling = prepBagScrollStart(g, y)
     return
   }
   if (type === 'move') {
+    if (_prepDragWpn) {
+      _prepDragWpn.x = x; _prepDragWpn.y = y
+      const dx = x - _prepDragWpn.startX, dy = y - _prepDragWpn.startY
+      if (dx*dx + dy*dy > 100) _prepDragWpn.moved = true
+      return
+    }
     if (_prepScrolling) {
       prepBagScrollMove(y)
       _prepScrollMoved = true
@@ -52,6 +77,44 @@ function tPrepare(g, type, x, y) {
     return
   }
   // type === 'end'
+  if (_prepDragWpn) {
+    const drag = _prepDragWpn
+    _prepDragWpn = null
+    g._prepDragWpn = null
+    if (drag.moved) {
+      // 查找落点
+      if (drag.source === 'bag') {
+        // 从背包拖到装备位
+        if (g._prepCurWpnRect && g._hitRect(x,y,...g._prepCurWpnRect)) {
+          const old = g.weapon
+          g.weapon = g.weaponBag[drag.index]
+          if (old) { g.weaponBag[drag.index] = old }
+          else { g.weaponBag.splice(drag.index, 1) }
+        }
+      } else {
+        // 从装备位拖到背包某位置
+        if (g._prepWpnBagRects) {
+          for (let i = 0; i < g._prepWpnBagRects.length; i++) {
+            const [bx,by,bw,bh] = g._prepWpnBagRects[i]
+            if (g._hitRect(x,y,bx,by,bw,bh) && g.weaponBag[i]) {
+              const old = g.weapon
+              g.weapon = g.weaponBag[i]
+              if (old) { g.weaponBag[i] = old }
+              return
+            }
+          }
+        }
+      }
+    } else {
+      // 没移动 = 单击 → 查看详情
+      if (drag.source === 'equipped') {
+        g.prepareTip = { type:'weapon', data: drag.weapon, x, y }
+      } else {
+        g.prepareTip = { type:'weapon', data: drag.weapon, x, y }
+      }
+    }
+    return
+  }
   if (_prepScrolling) {
     prepBagScrollEnd()
     _prepScrolling = false
@@ -87,7 +150,6 @@ function tPrepare(g, type, x, y) {
     if (g._prepSwapBtnRect && g._hitRect(x,y,...g._prepSwapBtnRect)) {
       const si = g.prepareSelSlotIdx, bi = g.prepareSelBagIdx
       if (si >= 0 && bi >= 0 && g.petBag[bi]) {
-        // 禁止同ID上场
         if (hasSameIdOnTeam(g.pets, g.petBag[bi].id, si)) return
         const tmp = g.pets[si]
         g.pets[si] = g.petBag[bi]
@@ -98,27 +160,13 @@ function tPrepare(g, type, x, y) {
       }
       return
     }
-  } else {
-    if (g.weapon && g._prepCurWpnRect && g._hitRect(x,y,...g._prepCurWpnRect)) {
-      g.prepareTip = { type:'weapon', data: g.weapon, x, y }; return
-    }
-    if (g._prepWpnBagRects) {
-      for (let i = 0; i < g._prepWpnBagRects.length; i++) {
-        const [bx,by,bw,bh] = g._prepWpnBagRects[i]
-        if (g._hitRect(x,y,bx,by,bw,bh) && g.weaponBag[i]) {
-          const old = g.weapon
-          g.weapon = g.weaponBag[i]
-          if (old) { g.weaponBag[i] = old }
-          else { g.weaponBag.splice(i, 1) }
-          return
-        }
-      }
-    }
   }
   if (g._prepGoBtnRect && g._hitRect(x,y,...g._prepGoBtnRect)) {
     g._enterEvent(); return
   }
 }
+
+
 
 function tEvent(g, type, x, y) {
   // === 弹窗层：只处理 end ===
@@ -414,14 +462,6 @@ function tBattle(g, type, x, y) {
   if (g.bState === 'victory' && type === 'end') {
     // 详情浮层打开时，点击任意位置关闭
     if (g._rewardDetailShow != null) { g._rewardDetailShow = null; return }
-    // 点击宠物/法宝头像查看详情
-    if (g._rewardAvatarRects) {
-      for (const item of g._rewardAvatarRects) {
-        if (g._hitRect(x,y,...item.rect)) {
-          g._rewardDetailShow = { type: item.type, data: item.data }; return
-        }
-      }
-    }
     // 点击确认按钮：应用奖励并进入下一层
     if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
@@ -431,10 +471,18 @@ function tBattle(g, type, x, y) {
       g._nextFloor()
       return
     }
-    // 点击奖励卡片选中
+    // 点击奖励卡片：首次点击选中，已选中状态下再次点击头像查看详情
     if (g._rewardRects) {
       for (let i = 0; i < g._rewardRects.length; i++) {
-        if (g._hitRect(x,y,...g._rewardRects[i])) { g.selectedReward = i; return }
+        if (g._hitRect(x,y,...g._rewardRects[i])) {
+          if (g.selectedReward === i && g._rewardAvatarRects) {
+            const item = g._rewardAvatarRects.find(a => a.idx === i)
+            if (item && g._hitRect(x,y,...item.rect)) {
+              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew }; return
+            }
+          }
+          g.selectedReward = i; return
+        }
       }
     }
     return

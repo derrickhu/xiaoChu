@@ -289,8 +289,18 @@ function rGameover(g) {
     ctx.fillText(p.name, W*0.1 + i*W*0.18, panelY + 42*S)
   })
   if (g.weapon) {
-    ctx.fillStyle = TH.accent; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText(`法宝：${g.weapon.name}`, W*0.5, panelY + 68*S)
+    ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    const _wpnLabel = '法宝·'
+    const _wpnFull = _wpnLabel + g.weapon.name
+    const _wpnFullW = ctx.measureText(_wpnFull).width
+    const _wpnLabelW = ctx.measureText(_wpnLabel).width
+    const _wpnStartX = W*0.5 - _wpnFullW/2
+    ctx.fillStyle = '#e0a020'
+    ctx.textAlign = 'left'
+    ctx.fillText(_wpnLabel, _wpnStartX, panelY + 68*S)
+    ctx.fillStyle = TH.accent
+    ctx.fillText(g.weapon.name, _wpnStartX + _wpnLabelW, panelY + 68*S)
+    ctx.textAlign = 'center'
   }
   ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`灵兽背包：${g.petBag.length}只  法宝背包：${g.weaponBag.length}件`, W*0.5, panelY + 92*S)
@@ -467,7 +477,7 @@ function rRanking(g) {
       ctx.fillStyle = i < 3 ? '#f0dca0' : TH.text; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
       ctx.fillText((item.nickName || '修士').substring(0, 8), textX, ry + 26*S)
       const petNames = (item.pets || []).map(p => p.name ? p.name.substring(0, 2) : '?').join(' ')
-      const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0, 3)}` : ''
+      const wpnName = item.weapon ? `⚔法宝·${item.weapon.name.substring(0, 3)}` : ''
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(`${petNames} ${wpnName}`, textX, ry + 44*S)
 
@@ -656,8 +666,18 @@ function rStats(g) {
       ctx.fillStyle = ac ? ac.main : TH.dim; ctx.fill()
     })
     if (bfWeapon) {
-      ctx.fillStyle = '#ffd700'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`⚔ ${bfWeapon.name}`, W*0.5, teamY + 68*S)
+      ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      const _bfLabel = '法宝·'
+      const _bfLabelW = ctx.measureText(_bfLabel).width
+      const _bfFull = _bfLabel + bfWeapon.name
+      const _bfFullW = ctx.measureText(_bfFull).width
+      const _bfStartX = W*0.5 - _bfFullW/2
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#e0a020'
+      ctx.fillText(_bfLabel, _bfStartX, teamY + 68*S)
+      ctx.fillStyle = '#ffec80'
+      ctx.fillText(bfWeapon.name, _bfStartX + _bfLabelW, teamY + 68*S)
+      ctx.textAlign = 'center'
     }
   } else {
     ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
@@ -724,7 +744,6 @@ function rReward(g) {
     fire:  R.getImg('assets/ui/frame_pet_fire.png'),
     earth: R.getImg('assets/ui/frame_pet_earth.png'),
   }
-  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
 
   g.rewards.forEach((rw, i) => {
     const cy = startY + i*(cardH+gap)
@@ -883,10 +902,7 @@ function rReward(g) {
       }
 
       // 法宝框
-      if (frameWeapon && frameWeapon.width > 0) {
-        const fScale = 1.12, fSz = avSz * fScale, fOff = (fSz - avSz)/2
-        ctx.drawImage(frameWeapon, avX - fOff, avY - fOff, fSz, fSz)
-      }
+      R.drawWeaponFrame(avX, avY, avSz)
 
       // 右侧文字信息
       const infoX = avX + avSz + 14*S
@@ -895,13 +911,14 @@ function rReward(g) {
 
       // 法宝名称
       ctx.textAlign = 'left'
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText(w.name, infoX, iy)
+      const _rwLabel = '法宝·'
+      ctx.fillStyle = '#e0a020'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillText(_rwLabel, infoX, iy)
+      const _rwLabelW = ctx.measureText(_rwLabel).width
+      ctx.fillStyle = '#fff8e0'
+      ctx.fillText(w.name, infoX + _rwLabelW, iy)
 
-      // 法宝类型标签
       const nameW = ctx.measureText(w.name).width
-      ctx.fillStyle = '#ffd700aa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText('法宝', infoX + nameW + 6*S, iy)
 
       // 法宝效果描述
       iy += 20*S

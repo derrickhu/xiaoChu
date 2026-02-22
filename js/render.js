@@ -1538,6 +1538,52 @@ class Render {
       return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
     } catch(e) { return hex }
   }
+
+  // 法宝金色边框（与战斗界面一致）
+  drawWeaponFrame(x, y, size, alpha) {
+    const ctx = this.ctx, S = this.S
+    const a = alpha != null ? alpha : 1
+    ctx.save()
+    if (a < 1) ctx.globalAlpha = a
+    const bPad = 2*S
+    const bx = x - bPad, by = y - bPad, bsz = size + bPad*2, brd = 6*S
+    const goldGrd = ctx.createLinearGradient(bx, by, bx + bsz, by + bsz)
+    goldGrd.addColorStop(0, '#ffd700')
+    goldGrd.addColorStop(0.3, '#ffec80')
+    goldGrd.addColorStop(0.5, '#ffd700')
+    goldGrd.addColorStop(0.7, '#c8a200')
+    goldGrd.addColorStop(1, '#ffd700')
+    ctx.strokeStyle = goldGrd
+    ctx.lineWidth = 3*S
+    this.rr(bx, by, bsz, bsz, brd); ctx.stroke()
+    ctx.strokeStyle = 'rgba(255,236,128,0.5)'
+    ctx.lineWidth = 1*S
+    this.rr(bx + 2*S, by + 2*S, bsz - 4*S, bsz - 4*S, 4*S); ctx.stroke()
+    const cornerOff = 3*S, cornerR = 3.5*S
+    const corners = [
+      [bx + cornerOff, by + cornerOff],
+      [bx + bsz - cornerOff, by + cornerOff],
+      [bx + cornerOff, by + bsz - cornerOff],
+      [bx + bsz - cornerOff, by + bsz - cornerOff],
+    ]
+    corners.forEach(([ccx, ccy]) => {
+      ctx.save()
+      ctx.translate(ccx, ccy)
+      ctx.rotate(Math.PI/4)
+      ctx.fillStyle = '#ffd700'
+      ctx.fillRect(-cornerR, -cornerR, cornerR*2, cornerR*2)
+      ctx.strokeStyle = '#fff8'
+      ctx.lineWidth = 0.5*S
+      ctx.strokeRect(-cornerR, -cornerR, cornerR*2, cornerR*2)
+      ctx.restore()
+    })
+    ctx.shadowColor = '#ffd700'
+    ctx.shadowBlur = 6*S
+    ctx.strokeStyle = 'rgba(255,215,0,0.3)'
+    ctx.lineWidth = 1*S
+    this.rr(bx, by, bsz, bsz, brd); ctx.stroke()
+    ctx.restore()
+  }
 }
 
 module.exports = { Render, A, TH }

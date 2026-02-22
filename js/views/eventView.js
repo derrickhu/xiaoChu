@@ -585,7 +585,6 @@ function rEvent(g) {
   ctx.fillStyle = 'rgba(8,8,20,0.88)'
   R.rr(0, teamBarY, W, teamBarH, 6*S); ctx.fill()
 
-  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
   const framePetMap = {
     metal: R.getImg('assets/ui/frame_pet_metal.png'),
     wood:  R.getImg('assets/ui/frame_pet_wood.png'),
@@ -625,14 +624,8 @@ function rEvent(g) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText('⚔', cx, cy)
       }
-      // 法宝边框（使用frame_weapon图片）
-      if (frameWeapon && frameWeapon.width > 0) {
-        const fSz = teamIconSize * frameScale, fOff2 = (fSz - teamIconSize) / 2
-        ctx.drawImage(frameWeapon, ix - fOff2, teamIconY - fOff2, fSz, fSz)
-      } else {
-        ctx.strokeStyle = '#ffd70088'; ctx.lineWidth = 2*S
-        ctx.strokeRect(ix - 1, teamIconY - 1, teamIconSize + 2, teamIconSize + 2)
-      }
+      // 法宝金色边框
+      R.drawWeaponFrame(ix, teamIconY, teamIconSize)
       g._eventWpnSlots.push({ rect: [ix, teamIconY, teamIconSize, teamIconSize], action: 'detail', type: 'equipped', index: 0 })
     } else {
       // === 宠物槽 ===
@@ -723,10 +716,9 @@ function rEvent(g) {
   ctx.fillText('── 法宝背包 ──', W*0.5, curY)
   curY += 14*S
   ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-  ctx.fillText('点击可替换当前法宝', W*0.5, curY)
+  ctx.fillText('拖动到上方可替换装备', W*0.5, curY)
   curY += 10*S
   if (g.weaponBag.length > 0) {
-    const wpnFrameScale2 = 1.12
     for (let i = 0; i < g.weaponBag.length; i++) {
       const col = i % bagCols
       const row = Math.floor(i / bagCols)
@@ -743,10 +735,7 @@ function rEvent(g) {
         ctx.drawImage(wImg, bx+1, by+1+(bagSlotSize-2-dh), dw, dh)
         ctx.restore()
       }
-      if (frameWeapon && frameWeapon.width > 0) {
-        const fSz = bagSlotSize * wpnFrameScale2, fOff2 = (fSz - bagSlotSize)/2
-        ctx.drawImage(frameWeapon, bx - fOff2, by - fOff2, fSz, fSz)
-      }
+      R.drawWeaponFrame(bx, by, bagSlotSize)
       g._eventWpnSlots.push({ rect: [bx, by, bagSlotSize, bagSlotSize], action: 'equip', type: 'bag', index: i })
     }
     const wpnRows = Math.ceil(g.weaponBag.length / bagCols)
@@ -901,8 +890,13 @@ function _drawWeaponCard(ctx, R, TH, S, x, y, w, h, weapon, isEquipped, slotsArr
     }
     ctx.textAlign = 'left'
     const textX = iconX + iconSz + 8*S
-    ctx.fillStyle = isEquipped ? TH.accent : '#ddd'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(weapon.name, textX, y + h*0.38)
+    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    const _evPfx = '法宝·'
+    ctx.fillStyle = '#e0a020'
+    ctx.fillText(_evPfx, textX, y + h*0.38)
+    const _evPfxW = ctx.measureText(_evPfx).width
+    ctx.fillStyle = isEquipped ? TH.accent : '#ddd'
+    ctx.fillText(weapon.name, textX + _evPfxW, y + h*0.38)
     ctx.fillStyle = TH.sub; ctx.font = `${9*S}px "PingFang SC",sans-serif`
     ctx.fillText(weapon.desc, textX, y + h*0.7)
 
@@ -1315,8 +1309,13 @@ function _drawWeaponDetailPopup(g) {
 
   const textX = iconX + iconSz + 10*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  ctx.fillText(wp.name, textX, cardY + padY + 14*S)
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  const _dtPfx = '法宝·'
+  ctx.fillStyle = '#e0a020'
+  ctx.fillText(_dtPfx, textX, cardY + padY + 14*S)
+  const _dtPfxW = ctx.measureText(_dtPfx).width
+  ctx.fillStyle = '#8B6914'
+  ctx.fillText(wp.name, textX + _dtPfxW, cardY + padY + 14*S)
   ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   let dy = cardY + padY + 32*S
   descLines.forEach(line => {
