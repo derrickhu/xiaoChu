@@ -3,7 +3,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
-const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override } = require('../data/pets')
 
 // ===== 退出确认弹窗 =====
 function drawExitDialog(g) {
@@ -419,10 +419,225 @@ function _wrapTextDialog(text, maxW, fontSize) {
   return result.length > 0 ? result : ['']
 }
 
+// ===== ★3 满星庆祝画面 =====
+function drawStar3Celebration(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const c = g._star3Celebration
+  if (!c) return
+  c.timer++
+  const t = c.timer
+  const pet = c.pet
+
+  // --- 阶段控制 ---
+  // fadeIn: 0~20帧  show: 21~40帧(旧→新变身)  ready: 41+帧(可点击关闭)
+  if (t <= 20) c.phase = 'fadeIn'
+  else if (t <= 40) c.phase = 'show'
+  else c.phase = 'ready'
+
+  // --- 遮罩 ---
+  const maskAlpha = t <= 20 ? t / 20 * 0.85 : 0.85
+  ctx.save()
+  ctx.fillStyle = `rgba(5,5,15,${maskAlpha})`
+  ctx.fillRect(0, 0, W, H)
+
+  if (t < 5) { ctx.restore(); return }  // 前5帧只显示遮罩
+
+  const cx = W * 0.5, cy = H * 0.38
+  const ac = ATTR_COLOR[pet.attr]
+  const mainColor = ac ? ac.main : '#ffd700'
+
+  // --- 粒子系统 ---
+  if (t >= 22 && t <= 50 && t % 2 === 0) {
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const speed = 1.5 + Math.random() * 3
+      c.particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed * S,
+        vy: Math.sin(angle) * speed * S - 1.5 * S,
+        life: 40 + Math.random() * 30,
+        t: 0,
+        size: (2 + Math.random() * 3) * S,
+        color: Math.random() > 0.5 ? '#ffd700' : mainColor,
+      })
+    }
+  }
+  c.particles = c.particles.filter(p => {
+    p.t++
+    p.x += p.vx; p.y += p.vy
+    p.vy += 0.06 * S
+    p.vx *= 0.98
+    return p.t < p.life
+  })
+  c.particles.forEach(p => {
+    const alpha = Math.max(0, 1 - p.t / p.life)
+    ctx.globalAlpha = alpha * 0.8
+    ctx.fillStyle = p.color
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 - p.t / p.life * 0.5), 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = alpha * 0.3
+    ctx.fillStyle = '#fff'
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2); ctx.fill()
+  })
+  ctx.globalAlpha = 1
+
+  // --- 中心光晕 ---
+  if (t >= 20) {
+    const burstP = Math.min(1, (t - 20) / 15)
+    const glowR = (60 + burstP * 80) * S
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR)
+    grd.addColorStop(0, mainColor + (burstP < 1 ? 'aa' : '44'))
+    grd.addColorStop(0.4, mainColor + '33')
+    grd.addColorStop(1, 'transparent')
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = grd
+    ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI * 2); ctx.fill()
+    ctx.globalCompositeOperation = 'source-over'
+  }
+
+  // --- 宠物头像 ---
+  const portraitSize = 120 * S
+  const portraitX = cx - portraitSize / 2
+  const portraitY = cy - portraitSize / 2
+
+  if (t < 24) {
+    // 旧形象（★2）: 缩小居中
+    const oldSize = 80 * S
+    const fakePetOld = { id: pet.id, star: 2 }
+    const oldAvatar = R.getImg(getPetAvatarPath(fakePetOld))
+    const ox = cx - oldSize / 2, oy = cy - oldSize / 2
+    const fadeOutA = t >= 20 ? Math.max(0, 1 - (t - 20) / 4) : 1
+    ctx.globalAlpha = Math.min(1, (t - 5) / 10) * fadeOutA
+    // 圆角裁剪
+    ctx.save()
+    ctx.beginPath(); R.rr(ox, oy, oldSize, oldSize, 10 * S); ctx.clip()
+    ctx.fillStyle = ac ? ac.bg : '#1a1a2e'; ctx.fillRect(ox, oy, oldSize, oldSize)
+    if (oldAvatar && oldAvatar.width > 0) {
+      const aw = oldAvatar.width, ah = oldAvatar.height
+      const dw = oldSize, dh = dw * (ah / aw)
+      ctx.drawImage(oldAvatar, ox, oy + oldSize - dh, dw, dh)
+    }
+    ctx.restore()
+    ctx.globalAlpha = 1
+  } else {
+    // 新形象（★3水墨国风）: 弹跳缩放入场
+    const entryT = t - 24
+    let scale = 1
+    if (entryT < 8) {
+      const p = entryT / 8
+      scale = p < 0.4 ? 1.4 - 0.6 * (p / 0.4) :
+              p < 0.7 ? 0.8 + 0.3 * ((p - 0.4) / 0.3) :
+              1.1 - 0.1 * ((p - 0.7) / 0.3)
+    }
+    const newAvatar = R.getImg(getPetAvatarPath(pet))
+    const sSize = portraitSize * scale
+    const sx = cx - sSize / 2, sy = cy - sSize / 2
+    // 边框光晕
+    ctx.save()
+    ctx.shadowColor = mainColor; ctx.shadowBlur = 20 * S
+    ctx.beginPath(); R.rr(sx, sy, sSize, sSize, 12 * S); ctx.clip()
+    ctx.fillStyle = ac ? ac.bg : '#1a1a2e'; ctx.fillRect(sx, sy, sSize, sSize)
+    if (newAvatar && newAvatar.width > 0) {
+      const aw = newAvatar.width, ah = newAvatar.height
+      const dw = sSize, dh = dw * (ah / aw)
+      ctx.drawImage(newAvatar, sx, sy + sSize - dh, dw, dh)
+    }
+    ctx.restore()
+    // 属性边框
+    ctx.save()
+    ctx.strokeStyle = mainColor; ctx.lineWidth = 2.5 * S
+    ctx.shadowColor = mainColor; ctx.shadowBlur = 8 * S
+    ctx.beginPath(); R.rr(sx, sy, sSize, sSize, 12 * S); ctx.stroke()
+    ctx.restore()
+  }
+
+  // --- ★★★ 星级逐颗亮起 ---
+  if (t >= 28) {
+    const starY = cy + portraitSize / 2 + 20 * S
+    const starSpacing = 22 * S
+    const starFontSize = 20 * S
+    ctx.font = `bold ${starFontSize}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    for (let si = 0; si < 3; si++) {
+      const starX = cx + (si - 1) * starSpacing
+      const starDelay = si * 5
+      const starT = t - 28 - starDelay
+      if (starT < 0) {
+        ctx.fillStyle = 'rgba(100,100,100,0.3)'
+        ctx.fillText('★', starX, starY)
+      } else {
+        const sScale = starT < 6 ? 1 + (1.5 - 1) * Math.max(0, 1 - starT / 6) : 1
+        ctx.save()
+        ctx.translate(starX, starY)
+        ctx.scale(sScale, sScale)
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2 * S
+        ctx.strokeText('★', 0, 0)
+        ctx.fillStyle = '#ffd700'
+        ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 10 * S
+        ctx.fillText('★', 0, 0)
+        ctx.restore()
+      }
+    }
+  }
+
+  // --- 标题文字 ---
+  if (t >= 38) {
+    const titleAlpha = Math.min(1, (t - 38) / 12)
+    ctx.globalAlpha = titleAlpha
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+
+    // "图鉴解锁！"
+    const titleY = cy - portraitSize / 2 - 36 * S
+    ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3 * S
+    ctx.strokeText('✦ 图鉴解锁 ✦', cx, titleY)
+    ctx.fillStyle = '#ffd700'
+    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12 * S
+    ctx.fillText('✦ 图鉴解锁 ✦', cx, titleY)
+    ctx.shadowBlur = 0
+
+    // 宠物名称
+    const nameY = cy + portraitSize / 2 + 50 * S
+    const attrName = ATTR_NAME[pet.attr] || ''
+    ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = mainColor
+    ctx.fillText(`${attrName}·${pet.name}`, cx, nameY)
+
+    // 满星形态
+    ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#ccc'
+    ctx.fillText('达到满星，解锁终极形态！', cx, nameY + 20 * S)
+
+    // ★3技能强化说明
+    const s3 = getStar3Override(pet.id)
+    if (s3 && s3.desc) {
+      ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#ffa040'
+      ctx.fillText(`★3技能：${s3.desc}`, cx, nameY + 40 * S)
+    }
+
+    ctx.globalAlpha = 1
+  }
+
+  // --- "点击继续" 提示 ---
+  if (c.phase === 'ready') {
+    const blinkA = 0.4 + 0.4 * Math.sin(t * 0.08)
+    ctx.globalAlpha = blinkA
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = '#aaa'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('— 点击屏幕继续 —', cx, H - 40 * S)
+    ctx.globalAlpha = 1
+    // 保存全屏点击区域
+    g._star3CelebDismissRect = [0, 0, W, H]
+  }
+
+  ctx.restore()
+}
+
 module.exports = {
   drawExitDialog,
   drawRunBuffDetailDialog,
   drawEnemyDetailDialog,
   drawWeaponDetailDialog,
   drawBattlePetDetailDialog,
+  drawStar3Celebration,
 }

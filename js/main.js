@@ -259,6 +259,7 @@ class Main {
           this.skillEffects.push({ x:ViewEnv.W*0.5, y:ViewEnv.H*0.5, text:'被眩晕！跳过操作', color:'#ff4444', t:0, alpha:1 })
           this.bState = 'preEnemy'; this._stateTimer = 0
         } else {
+          battleEngine.onPlayerTurnStart(this)
           this.bState = 'playerTurn'; this.dragTimer = 0
           // 教学多回合切换检查
           if (tutorial.isActive()) tutorial.onEnemyTurnEnd(this)
@@ -301,6 +302,10 @@ class Main {
     // 教学引导层
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
+    }
+    // ★3满星庆祝画面（覆盖在奖励界面之上）
+    if (this._star3Celebration) {
+      dialogs.drawStar3Celebration(this)
     }
     ctx.restore()
   }

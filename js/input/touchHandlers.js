@@ -169,6 +169,11 @@ function tPrepare(g, type, x, y) {
 
 
 function tEvent(g, type, x, y) {
+  // ★3满星庆祝画面（商店升星触发）
+  if (type === 'end' && g._star3Celebration && g._star3Celebration.phase === 'ready') {
+    g._star3Celebration = null; return
+  }
+  if (g._star3Celebration) return
   // === 弹窗层：只处理 end ===
   if (type === 'end') {
     if (g._eventPetDetail != null) {
@@ -179,9 +184,24 @@ function tEvent(g, type, x, y) {
     }
   }
 
-  // === 拖拽灵宠 ===
+  // === 拖拽灵宠 / 法宝 ===
   const drag = g._eventDragPet
+  const wpnDrag = g._eventDragWpn
   if (type === 'start') {
+    // 检测是否按在法宝上开始拖拽
+    if (g._eventWpnSlots) {
+      for (const slot of g._eventWpnSlots) {
+        if (g._hitRect(x, y, ...slot.rect)) {
+          let wp = null
+          if (slot.type === 'equipped') wp = g.weapon
+          else if (slot.type === 'bag' && slot.index < g.weaponBag.length) wp = g.weaponBag[slot.index]
+          if (wp) {
+            g._eventDragWpn = { source: slot.type, index: slot.index, weapon: wp, x, y, startX: x, startY: y, moved: false }
+          }
+          return
+        }
+      }
+    }
     // 检测是否按在灵宠上开始拖拽
     if (g._eventPetSlots) {
       for (const slot of g._eventPetSlots) {
@@ -205,11 +225,41 @@ function tEvent(g, type, x, y) {
       const dx = x - drag.startX, dy = y - drag.startY
       if (dx*dx + dy*dy > 100) drag.moved = true
     }
+    if (wpnDrag) {
+      wpnDrag.x = x; wpnDrag.y = y
+      const dx = x - wpnDrag.startX, dy = y - wpnDrag.startY
+      if (dx*dx + dy*dy > 100) wpnDrag.moved = true
+    }
     return
   }
 
   if (type === 'end') {
-    // 拖拽结束 — 检测落点
+    // 法宝拖拽结束
+    if (wpnDrag) {
+      if (wpnDrag.moved) {
+        // 查找落点是否在法宝槽上
+        let dropSlot = null
+        if (g._eventWpnSlots) {
+          for (const slot of g._eventWpnSlots) {
+            if (g._hitRect(x, y, ...slot.rect)) { dropSlot = slot; break }
+          }
+        }
+        if (dropSlot && dropSlot !== undefined) {
+          _doEventWpnSwap(g, wpnDrag, dropSlot)
+        }
+      } else {
+        // 没有移动 = 单击 → 查看详情
+        const wp = wpnDrag.source === 'equipped' ? g.weapon : g.weaponBag[wpnDrag.index]
+        if (wp) {
+          g._eventWpnDetail = true
+          g._eventWpnDetailData = wp
+        }
+      }
+      g._eventDragWpn = null
+      return
+    }
+
+    // 灵宠拖拽结束 — 检测落点
     if (drag) {
       if (drag.moved) {
         // 查找落点目标
@@ -236,29 +286,6 @@ function tEvent(g, type, x, y) {
 
     // === 非拖拽的 end 事件 ===
     if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
-
-    // 法宝操作
-    if (g._eventWpnSlots) {
-      for (const slot of g._eventWpnSlots) {
-        if (slot.action === 'equip' && g._hitRect(x,y,...slot.rect)) {
-          const old = g.weapon
-          g.weapon = g.weaponBag[slot.index]
-          if (old) { g.weaponBag[slot.index] = old }
-          else { g.weaponBag.splice(slot.index, 1) }
-          return
-        }
-      }
-      for (const slot of g._eventWpnSlots) {
-        if (slot.action === 'detail' && g._hitRect(x,y,...slot.rect)) {
-          const wp = slot.type === 'equipped' ? g.weapon : g.weaponBag[slot.index]
-          if (wp) {
-            g._eventWpnDetail = true
-            g._eventWpnDetailData = wp
-          }
-          return
-        }
-      }
-    }
 
     // 进入战斗 / 非战斗事件内联交互
     if (g._eventBtnRect && g._hitRect(x,y,...g._eventBtnRect)) {
@@ -411,6 +438,30 @@ function _doEventPetSwap(g, drag, drop) {
   }
 }
 
+// 法宝拖拽交换：装备↔背包
+function _doEventWpnSwap(g, drag, drop) {
+  if (drag.source === drop.type) return  // 同区域不交换
+  if (drag.source === 'equipped' && drop.type === 'bag') {
+    // 装备 → 背包位置
+    const bi = drop.index
+    if (bi < g.weaponBag.length) {
+      const tmp = g.weapon
+      g.weapon = g.weaponBag[bi]
+      g.weaponBag[bi] = tmp
+    } else {
+      g.weaponBag.push(g.weapon)
+      g.weapon = null
+    }
+  } else if (drag.source === 'bag' && drop.type === 'equipped') {
+    // 背包 → 装备位置
+    const bi = drag.index
+    const old = g.weapon
+    g.weapon = g.weaponBag[bi]
+    if (old) { g.weaponBag[bi] = old }
+    else { g.weaponBag.splice(bi, 1) }
+  }
+}
+
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
   // === 教学系统拦截 ===
@@ -460,6 +511,14 @@ function tBattle(g, type, x, y) {
   // [DEV] 秒杀按钮已禁用
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
+    // ★3满星庆祝画面：点击关闭后进入下一层
+    if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
+      g._star3Celebration = null
+      g._nextFloor()
+      return
+    }
+    // 庆祝动画播放中，忽略点击
+    if (g._star3Celebration) return
     // 详情浮层打开时，点击任意位置关闭
     if (g._rewardDetailShow != null) { g._rewardDetailShow = null; return }
     // 点击确认按钮：应用奖励并进入下一层
@@ -468,6 +527,8 @@ function tBattle(g, type, x, y) {
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
       g._applyReward(g.rewards[g.selectedReward])
+      // 如果触发了★3庆祝，暂停在庆祝画面，不立刻进下一层
+      if (g._star3Celebration) return
       g._nextFloor()
       return
     }
@@ -638,6 +699,13 @@ function tBattle(g, type, x, y) {
 
 function tReward(g, type, x, y) {
   if (type !== 'end') return
+  // ★3满星庆祝画面：点击关闭后进入下一层
+  if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
+    g._star3Celebration = null
+    g._nextFloor()
+    return
+  }
+  if (g._star3Celebration) return
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
   if (g._rewardRects) {
     for (let i = 0; i < g._rewardRects.length; i++) {
@@ -646,6 +714,7 @@ function tReward(g, type, x, y) {
   }
   if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
     g._applyReward(g.rewards[g.selectedReward])
+    if (g._star3Celebration) return
     g._nextFloor()
   }
 }

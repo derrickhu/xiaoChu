@@ -16,6 +16,33 @@ let _contentH = 0         // 内容总高度
 let _viewH = 0            // 可视区高度
 let _lastFloor = -1       // 用于检测楼层变化时重置滚动
 
+// ===== NEW / UP 角标绘制 =====
+function _drawBadge(ctx, S, x, y, size, text, bgColor) {
+  const bW = text.length > 2 ? 20*S : 16*S
+  const bH = 10*S
+  const bX = x + size - bW - 1*S
+  const bY = y + 1*S
+  ctx.save()
+  ctx.fillStyle = bgColor
+  ctx.beginPath()
+  const r = 3*S
+  ctx.moveTo(bX + r, bY); ctx.lineTo(bX + bW - r, bY)
+  ctx.arcTo(bX + bW, bY, bX + bW, bY + r, r)
+  ctx.lineTo(bX + bW, bY + bH - r)
+  ctx.arcTo(bX + bW, bY + bH, bX + bW - r, bY + bH, r)
+  ctx.lineTo(bX + r, bY + bH)
+  ctx.arcTo(bX, bY + bH, bX, bY + bH - r, r)
+  ctx.lineTo(bX, bY + r)
+  ctx.arcTo(bX, bY, bX + r, bY, r)
+  ctx.closePath(); ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(text, bX + bW/2, bY + bH/2)
+  ctx.textBaseline = 'alphabetic'
+  ctx.restore()
+}
+
 function rEvent(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawRewardBg(g.af)
@@ -608,6 +635,8 @@ function rEvent(g) {
 
     if (i === 0) {
       // === 法宝槽 ===
+      const isWpnDragSrc = g._eventDragWpn && g._eventDragWpn.source === 'equipped'
+      if (isWpnDragSrc) ctx.globalAlpha = 0.3
       ctx.fillStyle = g.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
       ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
       if (g.weapon) {
@@ -626,7 +655,12 @@ function rEvent(g) {
       }
       // 法宝金色边框
       R.drawWeaponFrame(ix, teamIconY, teamIconSize)
+      // NEW 角标：本次奖励获得的新法宝
+      if (g._lastRewardInfo && g._lastRewardInfo.type === 'newWeapon' && g.weapon && g.weapon.id === g._lastRewardInfo.weaponId) {
+        _drawBadge(ctx, S, ix, teamIconY, teamIconSize, 'NEW', '#e04040')
+      }
       g._eventWpnSlots.push({ rect: [ix, teamIconY, teamIconSize, teamIconSize], action: 'detail', type: 'equipped', index: 0 })
+      if (isWpnDragSrc) ctx.globalAlpha = 1
     } else {
       // === 宠物槽 ===
       const petIdx = i - 1
@@ -662,6 +696,24 @@ function rEvent(g) {
           ctx.fillStyle = '#ffd700'
           ctx.fillText(starText, ix + 2*S, teamIconY + teamIconSize - 2*S)
           ctx.textBaseline = 'alphabetic'
+          ctx.restore()
+        }
+        // NEW / UP 角标
+        const ri = g._lastRewardInfo
+        if (ri && ri.petId === p.id) {
+          if (ri.type === 'newPet') _drawBadge(ctx, S, ix, teamIconY, teamIconSize, 'NEW', '#e04040')
+          else if (ri.type === 'starUp') _drawBadge(ctx, S, ix, teamIconY, teamIconSize, 'UP', '#30b050')
+        }
+        // 弱点属性高亮：敌人弱点对应属性的宠物闪烁边框提醒
+        const _weakAttr = COUNTER_BY[e.attr]
+        if (_weakAttr && p.attr === _weakAttr) {
+          const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.08)
+          const wac = ATTR_COLOR[_weakAttr]
+          ctx.save()
+          ctx.strokeStyle = wac ? wac.main : '#4dff4d'
+          ctx.lineWidth = 2.5*S
+          ctx.globalAlpha = 0.4 + 0.6 * pulse
+          ctx.strokeRect(ix - 1, teamIconY - 1, teamIconSize + 2, teamIconSize + 2)
           ctx.restore()
         }
       } else {
@@ -725,6 +777,8 @@ function rEvent(g) {
       const bx = teamSidePad + col*(bagSlotSize+bagGap)
       const by = curY + row*(bagSlotSize+bagGap)
       const wp = g.weaponBag[i]
+      const isWBDragSrc = g._eventDragWpn && g._eventDragWpn.source === 'bag' && g._eventDragWpn.index === i
+      if (isWBDragSrc) ctx.globalAlpha = 0.3
       ctx.fillStyle = 'rgba(15,15,30,0.6)'
       ctx.fillRect(bx+1, by+1, bagSlotSize-2, bagSlotSize-2)
       const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
@@ -736,6 +790,11 @@ function rEvent(g) {
         ctx.restore()
       }
       R.drawWeaponFrame(bx, by, bagSlotSize)
+      // NEW 角标：本次奖励获得的新法宝
+      if (g._lastRewardInfo && g._lastRewardInfo.type === 'newWeapon' && wp.id === g._lastRewardInfo.weaponId) {
+        _drawBadge(ctx, S, bx, by, bagSlotSize, 'NEW', '#e04040')
+      }
+      if (isWBDragSrc) ctx.globalAlpha = 1
       g._eventWpnSlots.push({ rect: [bx, by, bagSlotSize, bagSlotSize], action: 'equip', type: 'bag', index: i })
     }
     const wpnRows = Math.ceil(g.weaponBag.length / bagCols)
@@ -770,6 +829,25 @@ function rEvent(g) {
       if (isDragSource) ctx.globalAlpha = 0.3
       _drawPetIconCompact(ctx, R, TH, S, bx, by, bagIconSize, g.petBag[i], framePetMap, bagFrameSize, bagFrameOff, false)
       if (isDragSource) ctx.globalAlpha = 1
+      // NEW / UP 角标
+      const bPet = g.petBag[i]
+      const bri = g._lastRewardInfo
+      if (bri && bri.petId === bPet.id) {
+        if (bri.type === 'newPet') _drawBadge(ctx, S, bx, by, bagIconSize, 'NEW', '#e04040')
+        else if (bri.type === 'starUp') _drawBadge(ctx, S, bx, by, bagIconSize, 'UP', '#30b050')
+      }
+      // 弱点属性高亮
+      const _bWeakAttr = COUNTER_BY[e.attr]
+      if (_bWeakAttr && bPet.attr === _bWeakAttr) {
+        const bPulse = 0.5 + 0.5 * Math.sin(g.af * 0.08)
+        const bwac = ATTR_COLOR[_bWeakAttr]
+        ctx.save()
+        ctx.strokeStyle = bwac ? bwac.main : '#4dff4d'
+        ctx.lineWidth = 2.5*S
+        ctx.globalAlpha = 0.4 + 0.6 * bPulse
+        ctx.strokeRect(bx - 1, by - 1, bagIconSize + 2, bagIconSize + 2)
+        ctx.restore()
+      }
       if (drag && drag.source === 'team') {
         if (g._hitRect && g._hitRect(drag.x, drag.y, bx, by, bagIconSize, bagIconSize)) {
           ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
@@ -844,6 +922,24 @@ function rEvent(g) {
     const dragFOff = (dragFSz - dragSz) / 2
     ctx.globalAlpha = 0.85
     _drawPetIcon(ctx, R, TH, S, drag.x - dragSz/2, drag.y - dragSz/2, dragSz, drag.pet, framePetMap, dragFSz, dragFOff, false)
+    ctx.globalAlpha = 1
+  }
+
+  // 拖拽中的法宝跟随手指绘制
+  const wpnDrag = g._eventDragWpn
+  if (wpnDrag && wpnDrag.weapon) {
+    const dragSz = teamIconSize * 0.9
+    ctx.globalAlpha = 0.85
+    const dx = wpnDrag.x - dragSz/2, dy = wpnDrag.y - dragSz/2
+    ctx.fillStyle = '#1a1510'
+    ctx.fillRect(dx+1, dy+1, dragSz-2, dragSz-2)
+    const wImg = R.getImg(`assets/equipment/fabao_${wpnDrag.weapon.id}.png`)
+    if (wImg && wImg.width > 0) {
+      ctx.save(); ctx.beginPath(); ctx.rect(dx+1, dy+1, dragSz-2, dragSz-2); ctx.clip()
+      ctx.drawImage(wImg, dx+1, dy+1, dragSz-2, dragSz-2)
+      ctx.restore()
+    }
+    R.drawWeaponFrame(dx, dy, dragSz)
     ctx.globalAlpha = 1
   }
 

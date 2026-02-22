@@ -623,20 +623,14 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (g.heroHp > oldHp) { g._heroHpGain = { fromPct: oldPct, timer: 0 }; g._playHealEffect() }
   }
   g._pendingHealApplied = false
-  if (g.weapon && g.weapon.type === 'regenPct') {
-    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.weapon.pct / 100))
-  }
-  if (g.runBuffs.regenPerTurn > 0) {
-    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + g.runBuffs.regenPerTurn)
-  }
-  g.heroBuffs.forEach(b => {
-    if (b.type === 'regen' && b.heal > 0) {
-      g.heroHp = Math.min(g.heroMaxHp, g.heroHp + b.heal)
-      g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${b.heal}`, color:'#88ff88', t:0, alpha:1 })
-    }
-  })
   if (g.weapon && g.weapon.type === 'comboHeal' && g.combo > 0) {
-    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.weapon.pct / 100 * g.combo))
+    const chAmt = Math.round(g.heroMaxHp * g.weapon.pct / 100 * g.combo)
+    const chOld = g.heroHp
+    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + chAmt)
+    if (g.heroHp > chOld) {
+      g._heroHpGain = { fromPct: chOld / g.heroMaxHp, timer: 0 }
+      g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - chOld}`, color:'#88ff88', t:0, alpha:1 })
+    }
   }
   // 胜利判定
   if (g.enemy && g.enemy.hp <= 0) {
@@ -647,12 +641,22 @@ function applyFinalDamage(g, dmgMap, heal) {
     g._enemyHitFlash = 14
     g.shakeT = 12; g.shakeI = 8
     if (g.weapon && g.weapon.type === 'onKillHeal') {
+      const okOld = g.heroHp
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.weapon.pct / 100))
+      if (g.heroHp > okOld) {
+        g._heroHpGain = { fromPct: okOld / g.heroMaxHp, timer: 0 }
+        g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - okOld}`, color:'#4dcc4d', t:0, alpha:1 })
+      }
     }
     // 宠物技能onKillHeal buff：击杀回血
     g.heroBuffs.forEach(b => {
       if (b.type === 'onKillHeal') {
+        const bkOld = g.heroHp
         g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * b.pct / 100))
+        if (g.heroHp > bkOld) {
+          g._heroHpGain = { fromPct: bkOld / g.heroMaxHp, timer: 0 }
+          g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - bkOld}`, color:'#4dcc4d', t:0, alpha:1 })
+        }
       }
     })
     if (g.runBuffs.postBattleHealPct > 0) {
@@ -663,6 +667,36 @@ function applyFinalDamage(g, dmgMap, heal) {
     return
   }
   settle(g)
+}
+
+// ===== 我方回合开始：每回合触发的回血/回复效果 =====
+function onPlayerTurnStart(g) {
+  const { S, W, H } = V
+  let totalHeal = 0
+  // 法宝：万寿青莲 regenPct 每回合回血
+  if (g.weapon && g.weapon.type === 'regenPct') {
+    totalHeal += Math.round(g.heroMaxHp * g.weapon.pct / 100)
+  }
+  // 奖励buff：每回合回血
+  if (g.runBuffs.regenPerTurn > 0) {
+    totalHeal += g.runBuffs.regenPerTurn
+  }
+  // 宠物技能buff：regen类每回合回血
+  g.heroBuffs.forEach(b => {
+    if (b.type === 'regen' && b.heal > 0) {
+      totalHeal += b.heal
+    }
+  })
+  if (totalHeal > 0 && g.heroHp < g.heroMaxHp) {
+    const oldHp = g.heroHp
+    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + totalHeal)
+    const actual = g.heroHp - oldHp
+    if (actual > 0) {
+      g._heroHpGain = { fromPct: oldHp / g.heroMaxHp, timer: 0 }
+      g._playHealEffect()
+      g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${actual}`, color:'#4dcc4d', t:0, alpha:1 })
+    }
+  }
 }
 
 // ===== 回合结算 =====
@@ -693,6 +727,8 @@ function settle(g) {
     }
   }
   g.comboNeverBreak = false
+  // 每回合回血（万寿青莲/regen buff等）
+  onPlayerTurnStart(g)
   // 立即进入玩家回合，敌人攻击延迟在背景执行
   g._pendingEnemyAtk = { timer: 0, delay: 24 }
   g._enemyWarning = 15  // 敌人回合预警红闪
@@ -1028,6 +1064,7 @@ function enterBattle(g, enemyData) {
   const { S, COLS, ROWS } = V
   g.enemy = { ...enemyData }
   g._baseHeroMaxHp = g.heroMaxHp
+  g._lastRewardInfo = null  // 进入战斗后清除奖励角标
   if (g.weapon && g.weapon.type === 'hpMaxUp') {
     const inc = Math.round(g.heroMaxHp * g.weapon.pct / 100)
     g.heroMaxHp += inc; g.heroHp += inc
@@ -1086,5 +1123,5 @@ module.exports = {
   findMatchesSeparate, enterPetAtkShow,
   executeAttack, calcCrit, applyFinalDamage,
   settle, enemyTurn, applyEnemySkill,
-  enterBattle,
+  enterBattle, onPlayerTurnStart,
 }
