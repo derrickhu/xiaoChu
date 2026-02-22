@@ -42,10 +42,15 @@ class Storage {
     // 排行榜缓存
     this.rankAllList = []
     this.rankDailyList = []
+    this.rankDexList = []
+    this.rankComboList = []
     this.rankAllMyRank = -1
     this.rankDailyMyRank = -1
+    this.rankDexMyRank = -1
+    this.rankComboMyRank = -1
     this.rankLoading = false
     this.rankLastFetch = 0    // 上次拉取时间戳
+    this.rankLastFetchTab = '' // 上次拉取的tab
     this._load()
     this._loadUserInfo()
     this._initCloud()
@@ -58,11 +63,15 @@ class Storage {
   get settings()    { return this._d.settings }
 
   // 更新最高层数
-  updateBestFloor(floor, pets, weapon) {
+  updateBestFloor(floor, pets, weapon, totalTurns) {
     if (floor > this._d.bestFloor) {
       this._d.bestFloor = floor
       this._d.stats.bestFloorPets = (pets || []).map(p => ({ name: p.name, attr: p.attr, atk: p.atk }))
       this._d.stats.bestFloorWeapon = weapon ? { name: weapon.name } : null
+    }
+    // 记录最快通关回合数（仅通关时，即totalTurns > 0）
+    if (totalTurns > 0 && (!this._d.stats.bestTotalTurns || totalTurns < this._d.stats.bestTotalTurns)) {
+      this._d.stats.bestTotalTurns = totalTurns
     }
     this._d.totalRuns++
     this._save()
@@ -310,7 +319,7 @@ class Storage {
 
   // ===== 排行榜 =====
   // 提交分数到排行榜
-  async submitScore(floor, pets, weapon) {
+  async submitScore(floor, pets, weapon, totalTurns) {
     if (!this._cloudReady || !this.userAuthorized) return
     try {
       await wx.cloud.callFunction({
@@ -322,6 +331,9 @@ class Storage {
           floor,
           pets: (pets || []).map(p => ({ name: p.name, attr: p.attr })),
           weapon: weapon ? { name: weapon.name } : null,
+          totalTurns: totalTurns || 0,
+          petDexCount: (this._d.petDex || []).length,
+          maxCombo: this._d.stats.maxCombo || 0,
         }
       })
     } catch(e) {
@@ -329,26 +341,45 @@ class Storage {
     }
   }
 
-  // 拉取排行榜（带30秒缓存）
+  // 单独提交图鉴/连击排行（非通关时也可以触发）
+  async submitDexAndCombo() {
+    if (!this._cloudReady || !this.userAuthorized) return
+    try {
+      await wx.cloud.callFunction({
+        name: 'ranking',
+        data: {
+          action: 'submitDexCombo',
+          nickName: this.userInfo.nickName,
+          avatarUrl: this.userInfo.avatarUrl,
+          petDexCount: (this._d.petDex || []).length,
+          maxCombo: this._d.stats.maxCombo || 0,
+        }
+      })
+    } catch(e) {
+      console.warn('[Ranking] 提交图鉴/连击失败:', e)
+    }
+  }
+
+  // 拉取排行榜（带30秒缓存，支持4个tab）
   async fetchRanking(tab, force) {
     const now = Date.now()
-    if (!force && now - this.rankLastFetch < 30000 && (tab === 'all' ? this.rankAllList.length : this.rankDailyList.length) > 0) {
-      return // 30秒内不重复拉取
+    const listMap = { all: 'rankAllList', daily: 'rankDailyList', dex: 'rankDexList', combo: 'rankComboList' }
+    const listKey = listMap[tab] || 'rankAllList'
+    if (!force && now - this.rankLastFetch < 30000 && this.rankLastFetchTab === tab && this[listKey].length > 0) {
+      return
     }
     if (this.rankLoading) return
     this.rankLoading = true
     try {
-      const action = tab === 'all' ? 'getAll' : 'getDaily'
+      const actionMap = { all: 'getAll', daily: 'getDaily', dex: 'getDex', combo: 'getCombo' }
+      const action = actionMap[tab] || 'getAll'
       const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
       if (r.result && r.result.code === 0) {
-        if (tab === 'all') {
-          this.rankAllList = r.result.list || []
-          this.rankAllMyRank = r.result.myRank || -1
-        } else {
-          this.rankDailyList = r.result.list || []
-          this.rankDailyMyRank = r.result.myRank || -1
-        }
+        this[listKey] = r.result.list || []
+        const rankKey = listKey.replace('List', 'MyRank')
+        this[rankKey] = r.result.myRank || -1
         this.rankLastFetch = now
+        this.rankLastFetchTab = tab
       }
     } catch(e) {
       console.warn('[Ranking] 拉取失败:', e)

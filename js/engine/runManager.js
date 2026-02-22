@@ -69,7 +69,7 @@ function startRun(g) {
   g.tempRevive = false; g.immuneOnce = false; g.comboNeverBreak = false
   g.weaponReviveUsed = false; g.goodBeadsNextTurn = false
   g.adReviveUsed = false
-  g.turnCount = 0; g.combo = 0
+  g.turnCount = 0; g.combo = 0; g.runTotalTurns = 0
   g.storage._d.totalRuns++; g.storage._save()
   // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
   if (tutorial.needsTutorial()) {
@@ -157,10 +157,10 @@ function restoreBattleHpMax(g) {
 function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
-  g.storage.updateBestFloor(finalFloor, g.pets, g.weapon)
+  g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
   g.storage.clearRunState()
   if (g.storage.userAuthorized) {
-    g.storage.submitScore(finalFloor, g.pets, g.weapon)
+    g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
   }
   if (g.cleared) {
     MusicMgr.playLevelUp()
@@ -188,6 +188,7 @@ function saveAndExit(g) {
     skipNextBattle: g.skipNextBattle, nextStunEnemy: g.nextStunEnemy, nextDmgDouble: g.nextDmgDouble,
     tempRevive: g.tempRevive, immuneOnce: g.immuneOnce, comboNeverBreak: g.comboNeverBreak,
     weaponReviveUsed: g.weaponReviveUsed, goodBeadsNextTurn: g.goodBeadsNextTurn,
+    runTotalTurns: g.runTotalTurns || 0,
     curEvent: g.curEvent ? JSON.parse(JSON.stringify(g.curEvent)) : null,
   }
   g.storage.saveRunState(runState)
@@ -222,6 +223,7 @@ function resumeRun(g) {
   g.comboNeverBreak = s.comboNeverBreak || false
   g.weaponReviveUsed = s.weaponReviveUsed || false
   g.goodBeadsNextTurn = s.goodBeadsNextTurn || false
+  g.runTotalTurns = s.runTotalTurns || 0
   g.turnCount = 0; g.combo = 0
   g.curEvent = s.curEvent
   g.storage.clearRunState()

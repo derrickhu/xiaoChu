@@ -170,6 +170,10 @@ class Main {
     const loop = () => { this.af++; try { this.update(); this.render() } catch(e) { console.error('loop error:', e) }; requestAnimationFrame(loop) }
     requestAnimationFrame(loop)
 
+    // 注册微信分享能力
+    wx.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
+    wx.onShareAppMessage(() => this._getShareData())
+
     // 预加载关键图片（Loading背景、首页背景、标题Logo、按钮）
     const criticalImages = [
       'assets/backgrounds/loading_bg.jpg',
@@ -289,7 +293,7 @@ class Main {
     anim.updateBattleAnims(this)
     anim.updateHpAnims(this)
     anim.updateSkillPreview(this)
-    if (this.scene === 'ranking' && this.af % 3600 === 0) {
+    if (this.scene === 'ranking' && this.af % 7200 === 0) {
       this.storage.fetchRanking(this.rankTab, true)
     }
     // title场景：预置授权按钮；非title场景：销毁
@@ -355,7 +359,6 @@ class Main {
     this.scene = 'ranking'
     if (this.storage._cloudReady) {
       this.storage.fetchRanking('all', true)
-      this.storage.fetchRanking('daily', true)
     } else {
       console.warn('[Ranking] Cloud not ready, skipping fetch')
     }
@@ -363,8 +366,10 @@ class Main {
       this.storage.submitScore(
         this.storage.bestFloor,
         this.storage.stats.bestFloorPets,
-        this.storage.stats.bestFloorWeapon
+        this.storage.stats.bestFloorWeapon,
+        this.storage.stats.bestTotalTurns || 0
       )
+      this.storage.submitDexAndCombo()
     }
   }
 
@@ -603,6 +608,109 @@ class Main {
   _onDefeat() { runMgr.onDefeat(this, W, H) }
   _doAdRevive() { runMgr.doAdRevive(this, W, H) }
   _adReviveCallback() { runMgr.adReviveCallback(this, W, H) }
+
+  // ===== 分享 =====
+  _getShareData() {
+    const st = this.storage.stats
+    const floor = this.storage.bestFloor
+    const isCleared = floor >= 30
+    const title = isCleared
+      ? `我已通关五行通天塔！最速${st.bestTotalTurns || '??'}回合，你能超越吗？`
+      : `我已攻到通天塔第${floor}层，你能比我更强吗？`
+    return { title, imageUrl: 'assets/backgrounds/home_bg.jpg' }
+  }
+
+  _shareStats() {
+    const st = this.storage.stats
+    const floor = this.storage.bestFloor
+    const isCleared = floor >= 30
+    const dexCount = (this.storage.petDex || []).length
+    const bestTurns = st.bestTotalTurns || 0
+
+    // 生成分享图：用离屏 Canvas 绘制战绩卡片
+    try {
+      const shareCanvas = wx.createCanvas()
+      const sw = 500, sh = 400
+      shareCanvas.width = sw; shareCanvas.height = sh
+      const sctx = shareCanvas.getContext('2d')
+
+      // 背景渐变
+      const bg = sctx.createLinearGradient(0, 0, 0, sh)
+      bg.addColorStop(0, '#1a1520'); bg.addColorStop(0.5, '#2a2030'); bg.addColorStop(1, '#15120d')
+      sctx.fillStyle = bg; sctx.fillRect(0, 0, sw, sh)
+
+      // 装饰边框
+      sctx.strokeStyle = 'rgba(212,175,55,0.4)'; sctx.lineWidth = 2
+      sctx.strokeRect(12, 12, sw - 24, sh - 24)
+      sctx.strokeStyle = 'rgba(212,175,55,0.15)'; sctx.lineWidth = 1
+      sctx.strokeRect(18, 18, sw - 36, sh - 36)
+
+      // 标题
+      sctx.textAlign = 'center'
+      sctx.fillStyle = '#f5e6c8'; sctx.font = 'bold 28px "PingFang SC",sans-serif'
+      sctx.fillText('五行通天塔 · 战绩', sw/2, 55)
+      // 金色分隔线
+      sctx.strokeStyle = 'rgba(212,175,55,0.5)'; sctx.lineWidth = 1
+      sctx.beginPath(); sctx.moveTo(120, 70); sctx.lineTo(sw - 120, 70); sctx.stroke()
+
+      // 核心成就
+      sctx.fillStyle = '#ffd700'; sctx.font = 'bold 36px "PingFang SC",sans-serif'
+      sctx.fillText(isCleared ? '✦ 已通关 ✦' : `✦ 第 ${floor} 层 ✦`, sw/2, 120)
+
+      // 数据行
+      const dataY = 165
+      const lineH = 42
+      const labels = [
+        { l: '最速通关', v: bestTurns > 0 ? `${bestTurns} 回合` : '未通关', c: bestTurns > 0 ? '#ff6b6b' : '#888' },
+        { l: '图鉴收集', v: `${dexCount}/100`, c: '#4dcc4d' },
+        { l: '最高连击', v: `${st.maxCombo} Combo`, c: '#ff6b6b' },
+        { l: '总挑战', v: `${this.storage.totalRuns} 次`, c: '#4dabff' },
+      ]
+      labels.forEach((d, i) => {
+        const y = dataY + i * lineH
+        sctx.textAlign = 'left'
+        sctx.fillStyle = 'rgba(240,220,160,0.6)'; sctx.font = '18px "PingFang SC",sans-serif'
+        sctx.fillText(d.l, 60, y)
+        sctx.textAlign = 'right'
+        sctx.fillStyle = d.c; sctx.font = 'bold 22px "PingFang SC",sans-serif'
+        sctx.fillText(d.v, sw - 60, y)
+      })
+
+      // 阵容
+      const bfPets = st.bestFloorPets || []
+      if (bfPets.length > 0) {
+        const ty = dataY + labels.length * lineH + 10
+        sctx.textAlign = 'center'
+        sctx.fillStyle = 'rgba(240,220,160,0.4)'; sctx.font = '14px "PingFang SC",sans-serif'
+        sctx.fillText('最高记录阵容', sw/2, ty)
+        const petNames = bfPets.map(p => p.name).join(' · ')
+        sctx.fillStyle = '#f0dca0'; sctx.font = 'bold 16px "PingFang SC",sans-serif'
+        sctx.fillText(petNames, sw/2, ty + 22)
+      }
+
+      // 底部
+      sctx.textAlign = 'center'
+      sctx.fillStyle = 'rgba(212,175,55,0.3)'; sctx.font = '13px "PingFang SC",sans-serif'
+      sctx.fillText('快来挑战通天塔吧！', sw/2, sh - 25)
+
+      // 转为临时文件路径并分享
+      const tempPath = `${wx.env.USER_DATA_PATH}/share_stats.png`
+      const imgData = shareCanvas.toDataURL('image/png')
+      const base64 = imgData.replace(/^data:image\/png;base64,/, '')
+      const fs = wx.getFileSystemManager()
+      fs.writeFileSync(tempPath, base64, 'base64')
+
+      wx.shareAppMessage({
+        title: isCleared
+          ? `我已通关五行通天塔！最速${bestTurns || '??'}回合，来挑战！`
+          : `我已攻到通天塔第${floor}层，你能超越吗？`,
+        imageUrl: tempPath,
+      })
+    } catch(e) {
+      console.warn('[Share] 生成分享图失败，使用默认分享:', e)
+      wx.shareAppMessage(this._getShareData())
+    }
+  }
 
   _hitRect(x,y,rx,ry,rw,rh) { return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh }
 }
