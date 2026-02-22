@@ -744,6 +744,216 @@ OVERALL — DRAMATIC, POWERFUL, EYE-CATCHING. Think OLED screen optimized — da
 
 ---
 
+## 十九、分享卡片图（3种场景）
+
+> **整体要求**：微信分享卡片在聊天列表中显示非常小（约 300×240 的缩略图），所以设计必须**大字、高对比、视觉冲击力强**，在小尺寸下依然能看清核心信息。不使用 Canvas 动态绘制，直接用预设计的精美图片作为分享封面。
+
+**通用尺寸**：5:4 横向（如 1280×1024），适配微信分享卡片标准比例  
+**通用格式**：JPG（高质量压缩，控制在 128KB 以内加快分享加载）
+
+### 19.1 默认邀请分享卡片
+
+**用途**：用户通过微信右上角「···」菜单点击「转发给朋友」时的默认分享封面图  
+**设计目标**：吸引从未玩过的人点击，传达"好玩、可爱、有趣"的第一印象  
+**文件**：`assets/share/share_default.jpg`  
+**风格**：明亮欢快、色彩缤纷、Q萌可爱风——像一张糖果色海报广告
+
+```
+A horizontal 5:4 aspect ratio share card image for a Chinese Xianxia mobile puzzle game, designed to be eye-catching and irresistible even at thumbnail size (300×240px), BRIGHT and COLORFUL candy-poster style — NOT the dark moody game UI style:
+
+BACKGROUND — Vivid warm gradient from brilliant golden-orange (#FFB347) at the bottom to bright sky blue (#64B5F6) at the top, with fluffy white and pale pink cartoon clouds scattered throughout. The background is SATURATED and CHEERFUL like a candy advertisement. Rainbow-tinted light rays burst from the center-right area. Scattered golden sparkle particles and tiny colorful confetti pieces float everywhere. Overall feeling: JOYFUL, FESTIVE, ENERGETIC.
+
+LEFT SIDE (45%) — THREE adorable chibi spirit pets (灵宠) in a stacked/overlapping playful group pose, each LARGE and clearly visible even at small sizes:
+- Top: A golden Qilin cub with sparkly star-eyes, wearing a tiny golden crown, jumping excitedly with arms raised — bright warm gold (#FFD54F) body
+- Middle: A jade-green baby dragon with big turquoise doe eyes, happily hugging a glowing five-color orb — vivid emerald green (#4CAF50)
+- Bottom: A coral-red phoenix chick with rosy cheeks and tiny flame wings spread wide — brilliant orange-red (#FF5722)
+All pets are LARGE (each ~30% of image height), super cute SD proportions (3:1 head-body ratio), bold clean black outlines, vibrant flat colors, visible sparkle highlights in eyes. They should be the FIRST thing you notice.
+
+RIGHT SIDE (55%) — The celestial pagoda tower in a simplified, BRIGHT, cartoon style (NOT dark/moody), rendered in vivid five-element rainbow colors with each tier glowing brightly. The tower is partially behind colorful clouds, looking magical and inviting. Above the tower, a LARGE blazing golden starburst. Around the tower, floating colorful elemental orbs trailing rainbow light streams.
+
+TOP AREA — Game title "灵宠消消塔" in LARGE bold Chinese characters, warm cream-white with thick golden outline and subtle drop shadow for maximum readability at small size. The characters are BIG — occupying ~15% of image height. Below the title: "快来一起冒险吧!" in smaller but still clearly readable warm white text.
+
+BOTTOM AREA — A row of five LARGE colorful elemental orbs (gold, green, blue, red, amber) bouncing playfully, each with a cute cartoon face (simple dot-eyes and smile), suggesting the match-3 gameplay in a fun way. Behind the orbs: a golden banner ribbon with warm glow.
+
+OVERALL — This card should look like a BRIGHT, FUN, PLAYFUL game advertisement. Think: mobile game ad that makes you want to tap immediately. Color palette is WARM and VIVID: golden orange, sky blue, candy pink, emerald green, coral red. Everything is HIGH CONTRAST and SATURATED. The cute pets are the star — they sell the game. ABSOLUTELY NO dark backgrounds, no moody atmosphere. This is pure joy and color. Must read clearly at tiny thumbnail size in WeChat chat list.
+
+Style references: Candy Crush promotional banners, cute Chinese mobile game ads, Supercell game marketing art (Clash Royale cards), Japanese gacha game splash screens — bright, colorful, irresistible.
+```
+
+### 19.2 战绩炫耀分享卡片
+
+**用途**：用户在「我的战绩」页面点击「分享战绩给好友」时的分享封面图，代码会在图片上叠加动态数据文字  
+**设计目标**：让人看到好友的成就后产生好奇和竞争欲，"他都打到这了，我也要试试"  
+**文件**：`assets/share/share_stats.jpg`  
+**风格**：深色大气、金光闪耀、成就感/荣誉感——像游戏内的荣誉证书或段位卡
+
+**布局约束**（代码会在对应区域绘制动态文字）：
+- 顶部 15%：标题区域，留给代码绘制"五行通天塔·战绩"
+- 中部左 25~45%：大号成就数字区，留给代码绘制"第 XX 层"
+- 中部右 55~75%：数据列表区，留给代码绘制统计数据行
+- 底部 15%：行动号召区，留给代码绘制"快来挑战通天塔吧！"
+
+```
+A horizontal 5:4 aspect ratio share card BACKGROUND image for displaying game achievement data, designed as an elegant dark luxury certificate/honor card, Chinese Xianxia style — this image serves as a BACKGROUND TEMPLATE where dynamic text will be overlaid by code:
+
+OVERALL LAYOUT — The card is divided into visual zones with decorative elements that FRAME empty spaces for text overlay. The design must leave CLEAN, UNCLUTTERED AREAS for text while being visually rich in the decorative borders and corners.
+
+BACKGROUND — Rich deep gradient from dark indigo-purple (#0E0A1E) at edges to slightly warmer plum-black (#1A1230) in the center. A very subtle radial golden glow emanates from the upper-center area at ~8% opacity, creating a warm spotlight effect. Fine watercolor paper texture throughout. Faint traditional Chinese cloud-and-wave pattern (云水纹) as a watermark at ~4% opacity across the entire surface, like a luxury certificate paper.
+
+DECORATIVE FRAME — An ornate golden border system:
+- Outer border: elegant ink-brush gold line (#D4AF37) with subtle thickness variation, ~20px from edges
+- Inner border: thinner pale gold line (#E8D5A0) with ~8px gap from outer border
+- Corner ornaments: elaborate golden 祥云 (auspicious cloud) and ruyi (如意) flourishes at all four corners, extending ~15% into the card. These are the most detailed decorative elements — beautiful Chinese traditional gold filigree patterns
+- Top center: a decorative golden crown/lotus motif with radiating golden light rays, serving as a title header ornament. Below it, a thin horizontal golden divider line
+
+LEFT DECORATIVE ZONE (0~20%) — A vertical decorative strip:
+- A stylized golden celestial pagoda tower silhouette running vertically along the left side at ~10% opacity, serving as a watermark/background element
+- Small golden ruyi knot patterns at 1/3 and 2/3 height positions
+- Thin vertical golden accent line separating this zone from the center
+
+CENTER AREA (20~80%) — MUST BE RELATIVELY CLEAN for text overlay:
+- Upper center (15~30% height): clean dark space with only very faint golden radiance, reserved for title text
+- Middle area (30~70% height): clean dark space with extremely subtle horizontal lines (like ruled paper lines at ~3% opacity in pale gold) suggesting data rows. A very faint vertical divider at ~50% width, separating left achievement zone from right data zone
+- Lower area (70~85% height): clean dark space with faint golden cloud wisps at bottom edge
+
+BOTTOM DECORATIVE ZONE (85~100%) — A horizontal decorative footer:
+- Warm amber-gold watercolor wash gradient at ~15% opacity
+- Small golden flame/phoenix wing motifs at left and right ends
+- Center area clean for call-to-action text overlay
+- A thin golden horizontal divider line at the top of this zone
+
+RIGHT DECORATIVE ZONE (80~100%) — A subtle vertical accent:
+- Faint golden bamboo leaf pattern at ~5% opacity
+- Small golden sparkle clusters near corners
+- Mirror-balanced with left zone but lighter/simpler
+
+AMBIENT DETAILS — Scattered tiny golden sparkle particles concentrated near the borders and corners (~20 particles total, not cluttered). Very subtle warm golden vignette around the edges. Faint ink-wash cloud wisps in dark purple-grey drifting across the background at ~3% opacity.
+
+OVERALL — This should look like a PREMIUM luxury certificate or honor card background — dark, elegant, gold-accented, prestigious. Think: a royal decree from a celestial emperor, or a Michelin star certificate in Chinese xianxia style. The design is ALL about the ornate golden frame and decorative elements creating an impression of prestige, while the CENTER is intentionally clean and dark for code-rendered dynamic text (white, gold, colored text will be drawn on top). Must be beautiful even before any text is added. High resolution, watercolor ink-wash style with metallic gold accents.
+```
+
+### 19.3 通关庆典分享卡片
+
+**用途**：玩家通关（到达30层）后分享时使用的特殊封面图，代码会在图片上叠加"已通关"等动态文字  
+**设计目标**：极致的荣耀感和视觉冲击力，让看到的人都想"我也要通关"  
+**文件**：`assets/share/share_cleared.jpg`  
+**风格**：华丽庆典、金光万丈、烟花绽放——像游戏内的通关CG/大成就解锁画面
+
+**布局约束**（代码会在对应区域绘制动态文字）：
+- 顶部 20%：留空给代码绘制"✦ 通关 ✦"大字
+- 中部 50%：华丽装饰背景（塔顶、金龙、烟花等），留适当空间给数据文字
+- 底部 20%：行动号召区
+
+```
+A horizontal 5:4 aspect ratio share card BACKGROUND image for a GAME COMPLETION celebration, designed as a spectacular triumphant achievement screen, Chinese Xianxia fantasy style — the most visually impressive card in the game:
+
+BACKGROUND — Dynamic dramatic gradient: deep cosmic purple-black (#080418) at the outer edges rapidly transitioning to rich warm purple (#2A1050) in the middle ring, then to a BLAZING golden-amber center (#8B6914 at 30% opacity) creating a powerful radial burst effect. The overall impression should be of light EXPLODING from the center outward. Faint celestial star field visible in the darker outer areas — tiny twinkling stars in various colors.
+
+CENTRAL SPECTACLE — The visual focus is a magnificent scene of triumph:
+- A stylized celestial pagoda tower top (just the upper 3 tiers visible) in gleaming gold, BURSTING through clouds from the bottom-center. The tower glows with intense golden inner light, with visible golden energy veins and Daoist rune patterns (符文) pulsing across its surface
+- From the tower peak, SPECTACULAR golden light rays explode outward in all directions, like a sunrise of pure golden energy. The rays are long, bright, and dramatic — extending to the edges of the image. Some rays have rainbow prismatic edges (red, blue, green tints)
+- FIREWORKS: multiple spectacular Chinese-style fireworks (烟花) bursting in the upper area — large golden chrysanthemum bursts, smaller colorful starbursts in five-element colors (gold, green, blue, red, amber). Each firework is rendered in vivid, SATURATED colors with trailing sparks. At least 5-7 distinct firework bursts at various sizes and stages
+- GOLDEN DRAGON: a magnificent Chinese dragon (金龙) coiled around or flying above the tower top, rendered in brilliant gold with glowing amber eyes and flowing mane. The dragon is stylized in traditional Chinese art style but with vibrant cartoon clarity — not realistic, but majestic and impressive. It should be clearly visible but not obscure the center text area
+- Swirling golden cloud formations (祥云) billow dramatically from both sides, lit from within by golden and amber light, creating a frame around the central spectacle
+
+SPIRIT PETS — 3-4 adorable chibi spirit pets floating/flying in celebration around the scene:
+- A golden Qilin cub riding a firework trail, cheering with arms up
+- A red phoenix chick with wings spread wide, trailing golden sparkles
+- A blue water fox dancing on a golden cloud
+- A green baby dragon doing a happy backflip
+The pets are rendered in the cute SD style but GLOWING with golden auras — they look like they're celebrating victory. Each pet is small (~8% of image) and positioned around the periphery, not blocking the center.
+
+TOP AREA (0~20%) — Spectacular but with CENTER CLEAN for text overlay:
+- Left and right sides: firework bursts and golden cloud formations
+- Center: CLEAN dark space (the golden radial glow serves as backdrop) where code will render "✦ 通关 ✦" text. A very subtle golden sparkle rain falling in this area
+- A decorative golden laurel wreath (月桂花环) or Chinese victory garland frame loosely encircling the center text area at ~15% opacity — suggesting "champion" without being too prominent
+
+MIDDLE AREA (20~70%) — The most visually spectacular zone:
+- The tower, dragon, fireworks, and light rays are all concentrated here
+- However, TWO clean vertical strips at ~35% and ~65% width positions remain relatively uncluttered for potential data text overlay (semi-transparent darker patches where the golden glow is slightly subdued)
+- Golden confetti and sparkle particles EVERYWHERE in this zone
+
+BOTTOM AREA (70~100%) — Gradually settling from spectacular to warm glow:
+- Golden cloud formations forming a soft floor
+- Fading firework trails and settling sparkle particles  
+- Center area (bottom 15%) relatively clean with warm golden glow for call-to-action text
+- Left and right: small golden lanterns (灯笼) and celebration streamers as decorative accents
+
+AMBIENT EFFECTS THROUGHOUT:
+- Hundreds of golden sparkle particles of various sizes floating everywhere
+- Colorful confetti pieces (gold, red, green, blue) scattered across the image
+- Subtle golden lens flare effects near the tower peak
+- Warm golden atmospheric haze creating depth and dimension
+- Very faint Chinese ink-wash texture underlying everything, maintaining the watercolor aesthetic
+
+OVERALL — This must be the most SPECTACULAR, IMPRESSIVE, VISUALLY STUNNING image in the entire game asset collection. It should make the viewer go "WOW" and feel genuine awe. Think: end-game celebration cutscene meets New Year's Eve fireworks show meets imperial dragon dance festival. The golden color is DOMINANT — this is a shower of gold and light. Every element screams TRIUMPH and CELEBRATION. Must still read well at thumbnail size (300×240px) — the golden explosion and fireworks should be visible even tiny. High resolution, watercolor-meets-digital-painting style, maximum visual impact.
+
+Style references: Genshin Impact wish animation golden screen, League of Legends ranked achievement splash, Chinese New Year celebration posters, Imperial palace golden hall ceiling paintings, fireworks photography composite.
+```
+
+### 19.4 分享复活求助卡片
+
+**用途**：玩家第一次死亡时，点击「分享复活」按钮转发给好友的分享封面图  
+**设计目标**：用Q萌搞笑的画风制造"好想帮忙"的冲动——灵宠们委屈求助的样子既可爱又好笑，让人忍不住点进来看看  
+**文件**：`assets/share/share_revive.jpg`  
+**风格**：Q萌搞笑求助风——与默认邀请卡同属明亮可爱体系，但用夸张的"委屈巴巴"表情和温暖色调传达求助感，像表情包一样让人会心一笑
+
+**设计要点**：
+- 与游戏整体Q萌画风保持一致，**不用暗黑写实风格**
+- 灵宠们是主角——用夸张可爱的委屈/求助表情卖萌，让人心软想帮忙
+- 颜色明亮温暖，以暖橙、淡紫、奶白为主，带一点点"呜呜"的搞笑氛围
+- 核心文字"快来救我！"要在缩略图下清晰可辨
+
+```
+A horizontal 5:4 aspect ratio share card image for a CUTE REVIVAL REQUEST scenario in a Chinese Xianxia mobile puzzle game, designed in an ADORABLE, FUNNY, HEARTWARMING style that matches the game's chibi/Q-cute aesthetic — must make viewers think "aww I want to help!" even at thumbnail size (300×240px):
+
+BACKGROUND — Warm, soft gradient from pale peach-pink (#FFE4D6) at the top to light lavender-purple (#E8D5F0) at the bottom, with fluffy pastel clouds scattered throughout. The overall tone is WARM, SOFT, and INVITING — like a cute sticker or emoji card. Scattered tiny golden sparkle particles and small white star shapes float gently. A few cartoon bandaid (创可贴) stickers and tiny hearts are scattered decoratively in the background at ~15% opacity, adding to the "help me heal" theme. Faint soft-focus bokeh circles in warm peach and lavender.
+
+CENTER (main focus, 60% of image) — THREE adorable chibi spirit pets in an exaggerated "we need help!" group pose, LARGE and clearly visible, super cute SD proportions (3:1 head-body ratio):
+
+- CENTER-TOP: A golden Qilin cub sitting down with HUGE teary puppy-dog eyes (泪汪汪), comically oversized tear drops sparkling at the corners of its eyes, a tiny cartoon bandaid on its cheek, holding up a small hand-written sign that says "救命" (help) in wobbly childlike handwriting. Its expression is the classic "委屈巴巴" meme face — pouty lower lip, big shimmering eyes. A small golden crown sits crooked/tilted on its head.
+
+- CENTER-LEFT: A red phoenix chick lying dramatically on its back with X-shaped dizzy eyes (one eye X, one eye swirl spiral), tongue sticking out slightly, tiny cartoon stars and swirls circling above its head — the classic "knocked out" anime pose. Its small flame wings are droopy and dim. A tiny speech bubble near it says "呜呜~" in cute handwritten style. Despite being "KO'd", it still looks ADORABLE and funny, not sad.
+
+- CENTER-RIGHT: A jade-green baby dragon with big worried eyes, frantically waving its tiny arms, with exaggerated motion lines around its hands showing panic. It has a tiny red cross (十字) first-aid hat on its head, playing "nurse dragon" trying to help its friends. A small heart with a crack in it floats above the dragon, with tiny sparkle particles suggesting it's trying to heal.
+
+All three pets are LARGE (together occupying ~50% of the image area), with bold clean outlines, vibrant flat colors, and maximum cuteness. They should look like LINE/WeChat sticker characters — the kind you want to screenshot and share.
+
+TOP AREA — The text "快来救我！" in LARGE bold rounded Chinese characters, warm coral-orange (#FF6B4A) with white outline and soft drop shadow, slightly tilted at a playful angle. The font style is rounded and bubbly (圆体), matching the cute aesthetic. Below it in smaller warm brown text: "好友助力·满血重生" with tiny golden sparkles around it. A decorative element: two small cartoon hands reaching toward each other from left and right sides of the text (like the "reaching hands" meme), one hand golden (the player), one hand pink with a heart (the friend being asked for help).
+
+LEFT DECORATIVE AREA — A simplified cute version of the celestial pagoda tower, rendered in soft pastel gold and cream colors with rounded edges (not sharp/dramatic), partially hidden behind a fluffy cloud. A small cartoon flag on top of the tower with a heart symbol. The tower looks friendly and inviting, not imposing.
+
+RIGHT DECORATIVE AREA — Floating five-element orbs in pastel candy colors (soft gold, mint green, baby blue, coral pink, warm amber), each with a simple cute face — but they look sleepy/dizzy with half-closed eyes and tiny "zzz" marks, matching the "knocked out" theme. They're arranged in a gentle arc.
+
+BOTTOM AREA — A warm golden-cream banner ribbon with soft edges, containing smaller text space. Decorative elements: tiny cartoon hearts, sparkles, and a small "SOS" in a cute speech bubble. Two small spirit pet paw prints in soft gold as decorative accents.
+
+AMBIENT DETAILS:
+- Soft warm bokeh light circles in peach and lavender throughout
+- Tiny floating hearts (some cracked/bandaged — cute detail) scattered around
+- Small golden sparkle particles concentrated near the pets
+- Cartoon-style "action lines" radiating softly from behind the pets for emphasis
+- Very subtle confetti in pastel colors at the edges
+
+COLOR PALETTE — Warm and soft, matching the game's friendly aesthetic:
+- Primary: warm peach (#FFB89A), soft lavender (#D4B5E8), cream white (#FFF8F0)
+- Secondary: coral orange (#FF6B4A), soft gold (#FFD54F), mint green (#A8E6CF)
+- Accent: pastel pink hearts, baby blue highlights
+- The overall palette is WARM, SOFT, and CHEERFUL — even though it's a "help me" card, it feels lighthearted and fun
+
+EMOTIONAL DESIGN — This card should trigger THREE reactions:
+1. "哈哈好可爱" — The exaggerated cute expressions make people smile/laugh
+2. "好想帮忙啊" — The puppy-dog eyes and "救命" sign tug at heartstrings
+3. "这是什么游戏？好可爱" — The charming art style makes non-players curious
+
+Think: WeChat sticker pack meets cute mobile game ad. The tone is LIGHTHEARTED and FUNNY — it's a "help me" card that makes people SMILE, not feel heavy. Like sending a friend a cute crying cat meme — it's asking for help but in an endearing, shareable way.
+
+MUST READ AT THUMBNAIL SIZE: The "快来救我！" text, the Qilin's teary eyes holding the "救命" sign, and the knocked-out phoenix should all be clearly visible even at 300×240px. Big shapes, high contrast against the soft background, bold outlines.
+
+Style references: LINE Friends / Kakao Friends sticker art, Molly (泡泡玛特) figure expressions, cute Chinese mobile game chibi art (明日方舟 chibi operators, 原神 Q版), WeChat emoticon packs, Japanese kawaii gacha game promotional art.
+```
+
+---
+
 ## 附录：资源文件清单
 
 | 序号 | 资源名称 | 文件路径 | 格式 | 尺寸比例 |
@@ -777,3 +987,7 @@ OVERALL — DRAMATIC, POWERFUL, EYE-CATCHING. Think OLED screen optimized — da
 | 27 | 说明面板背景 | `assets/ui/info_panel_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
 | 28 | 小程序展示图 | `assets/ui/share_cover.jpg` | JPG | 5:4 横向 |
 | 29 | 小程序图标 | `assets/ui/app_icon.png` | PNG（成品图） | 1:1 正方形 |
+| 30 | 默认邀请分享卡片 | `assets/share/share_default.jpg` | JPG | 5:4 横向 |
+| 31 | 战绩炫耀分享卡片 | `assets/share/share_stats.jpg` | JPG | 5:4 横向 |
+| 32 | 通关庆典分享卡片 | `assets/share/share_cleared.jpg` | JPG | 5:4 横向 |
+| 33 | 分享复活求助卡片 | `assets/share/share_revive.jpg` | JPG | 5:4 横向 |
