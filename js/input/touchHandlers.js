@@ -466,6 +466,12 @@ function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
   // === 教学系统拦截 ===
   if (tutorial.isActive()) {
+    // 跳过按钮检测（非总结页）
+    if (!tutorial.isSummary() && type === 'end' && g._tutorialSkipRect && g._hitRect(x, y, ...g._tutorialSkipRect)) {
+      g._tutorialSkipRect = null
+      tutorial.skip(g)
+      return
+    }
     // 总结页点击
     if (tutorial.isSummary()) {
       if (type === 'end') tutorial.onSummaryTap(g)
@@ -795,7 +801,7 @@ function tDex(g, type, x, y) {
       if (g._dexBattleBtnRect) {
         const [bx, by, bw, bh] = g._dexBattleBtnRect
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-          // 模拟广告观看（同复活逻辑），然后带指定宠物开局
+          // TODO: 接入广告后，在此处调用激励视频广告，播放完成后再执行下方逻辑
           const petId = g._dexDetailPetId
           g._dexDetailPetId = null
           g._dexBattleBtnRect = null

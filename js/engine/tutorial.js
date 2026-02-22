@@ -492,6 +492,14 @@ function getGuideData() {
   }
 }
 
+// 跳过整个教学
+function skip(g) {
+  if (!_active) return
+  _active = false
+  _summaryShown = false
+  finish(g)
+}
+
 // 检查是否需要教学
 function needsTutorial() {
   try {
@@ -503,5 +511,5 @@ module.exports = {
   STEPS,
   isActive, getStep, getPhase, isSummary, needsTutorial,
   start, finish, update, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
-  onElim, onEnemyTurnEnd, canDrag, shouldEnemyAttack, getGuideData,
+  onElim, onEnemyTurnEnd, canDrag, shouldEnemyAttack, getGuideData, skip,
 }
