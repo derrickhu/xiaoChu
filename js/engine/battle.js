@@ -101,27 +101,9 @@ function startNextElimAnim(g) {
     g._comboFlash = 16
     g._comboAnim.scale = 3.5; g._comboAnim._initScale = 3.5
   }
-  // ★ Combo里程碑奖励：护盾随层数动态缩放（前期低盾保紧张感，后期高盾防暴毙）
-  if (g.combo === 5) {
-    const shieldVal = 5 + (g.floor || 1) * 2
-    g._addShield(shieldVal)
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:`5连击！护盾+${shieldVal}`, color:'#40e8ff', t:0, alpha:1, scale:1.8, _initScale:1.8 })
-  } else if (g.combo === 8) {
-    g.heroBuffs.push({ type:'allAtkUp', pct:40, dur:1, bad:false, name:'连击之力' })
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'8连击！攻击+40%', color:'#ff8c00', t:0, alpha:1, scale:2.0, _initScale:2.0 })
-  } else if (g.combo === 12) {
-    g.heroBuffs.push({ type:'allDmgUp', pct:80, dur:1, bad:false, name:'超级连击' })
-    g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'连击暴击' })
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:'12连击！全力爆发！', color:'#ff2050', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
-  } else if (g.combo === 16) {
-    const shieldVal16 = 10 + (g.floor || 1) * 3
-    g.heroBuffs.push({ type:'allDmgUp', pct:120, dur:1, bad:false, name:'极限连击' })
-    g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:1, bad:false, name:'极限暴击' })
-    const megaHeal = Math.round(g.heroMaxHp * 0.15)
-    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + megaHeal)
-    g._addShield(shieldVal16)
-    g.skillEffects.push({ x:W*0.5, y:g.boardY+40*S, text:`16连击！极限合击！盾+${shieldVal16}`, color:'#ff00ff', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
-  }
+  // ★ Combo里程碑：仅保留视觉特效提示，不再给予隐藏的buff/护盾/回血
+  // （原设计：5连护盾、8连攻击+40%、12连伤害+80%+暴击、16连伤害+120%+暴击+回血+盾）
+  // 去掉原因：玩家无法感知来源，combo不断技能配合下数值爆炸
   // 粒子
   const pCount = (g.combo >= 12 ? 40 : g.combo >= 8 ? 28 : g.combo >= 5 ? 18 : 10) + (isTierBreak ? 20 : 0)
   const pCx = W * 0.5, pCy = g.boardY + (ROWS * g.cellSize) * 0.32
@@ -331,7 +313,11 @@ function enterPetAtkShow(g) {
   g._stateTimer = 0
   g.petAtkNums = []
   const dmgMap = g._pendingDmgMap || {}
-  const comboMul = 1 + (g.combo - 1) * 0.35
+  // combo伤害倍率递减
+  let comboMul
+  if (g.combo <= 8) comboMul = 1 + (g.combo - 1) * 0.35
+  else if (g.combo <= 12) comboMul = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
+  else comboMul = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   const { critRate, critDmg } = calcCrit(g)
   const isCrit = critRate > 0 && (critRate >= 100 || Math.random() * 100 < critRate)
@@ -484,7 +470,11 @@ function calcCrit(g) {
 
 function applyFinalDamage(g, dmgMap, heal) {
   const { S, W, H, TH } = V
-  const comboMul = 1 + (g.combo - 1) * 0.35
+  // combo伤害倍率递减
+  let comboMul
+  if (g.combo <= 8) comboMul = 1 + (g.combo - 1) * 0.35
+  else if (g.combo <= 12) comboMul = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
+  else comboMul = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   let isCrit, critMul
   if (g._pendingCrit != null) {

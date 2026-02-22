@@ -800,32 +800,13 @@ function _drawRageBar(g, eAreaTop, eAreaBottom) {
     ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR + 1 * S, 0, Math.PI * 2); ctx.stroke()
     ctx.restore()
   }
-  // 图标内火焰符号 🔥 用绘制代替文字，画一个简笔火焰
-  ctx.save()
-  ctx.translate(iconCX, iconCY)
-  const fS = iconR * 0.55  // 火焰缩放
-  ctx.beginPath()
-  ctx.moveTo(0, -fS * 1.1)
-  ctx.bezierCurveTo(fS * 0.5, -fS * 0.5, fS * 0.7, fS * 0.2, fS * 0.35, fS * 0.8)
-  ctx.quadraticCurveTo(fS * 0.15, fS * 0.4, 0, fS * 0.1)
-  ctx.quadraticCurveTo(-fS * 0.15, fS * 0.4, -fS * 0.35, fS * 0.8)
-  ctx.bezierCurveTo(-fS * 0.7, fS * 0.2, -fS * 0.5, -fS * 0.5, 0, -fS * 1.1)
-  ctx.closePath()
-  const flameGrd = ctx.createLinearGradient(0, -fS, 0, fS * 0.8)
-  if (ready) {
-    flameGrd.addColorStop(0, '#ffdd44')
-    flameGrd.addColorStop(0.5, '#ff6030')
-    flameGrd.addColorStop(1, '#cc2010')
-  } else if (pct > 0) {
-    flameGrd.addColorStop(0, '#ff9966')
-    flameGrd.addColorStop(0.5, '#cc4422')
-    flameGrd.addColorStop(1, '#661510')
-  } else {
-    flameGrd.addColorStop(0, 'rgba(160,100,80,0.6)')
-    flameGrd.addColorStop(1, 'rgba(80,40,30,0.4)')
-  }
-  ctx.fillStyle = flameGrd; ctx.fill()
-  ctx.restore()
+  // 图标内"怒"字
+  ctx.fillStyle = ready ? '#ffdd44' : (pct > 0 ? '#ff9966' : 'rgba(180,140,120,0.7)')
+  ctx.font = `bold ${iconR * 1.1}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  if (ready) { ctx.shadowColor = '#ff4020'; ctx.shadowBlur = 4 * S }
+  ctx.fillText('怒', iconCX, iconCY)
+  ctx.shadowBlur = 0
 
   // ---- 底槽（暗色圆角条 + 精致边框） ----
   // 外层阴影
@@ -932,8 +913,15 @@ function _drawCombo(g, cellSize, boardTop) {
   // 低combo弱化透明度
   const lowAlphaMul = isLow ? 0.5 : 1.0
 
-  // 预算伤害数据
-  const comboMulVal = 1 + (g.combo - 1) * 0.35
+  // 预算伤害数据（递减公式与battle.js一致）
+  let comboMulVal
+  if (g.combo <= 8) {
+    comboMulVal = 1 + (g.combo - 1) * 0.35
+  } else if (g.combo <= 12) {
+    comboMulVal = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
+  } else {
+    comboMulVal = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
+  }
   const comboBonusPct = g.runBuffs.comboDmgPct || 0
   const totalMul = comboMulVal * (1 + comboBonusPct / 100)
   const extraPct = Math.round((totalMul - 1) * 100)
@@ -2977,14 +2965,14 @@ function drawAdReviveOverlay(g) {
   ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
   ctx.fillText('修士陨落', W*0.5, panelY + 40*S)
   ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  ctx.fillText('🎬 观看广告，满血复活！', W*0.5, panelY + 72*S)
+  ctx.fillText('是否满血复活？', W*0.5, panelY + 72*S)
   ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`当前第 ${g.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('每轮通关仅有一次复活机会', W*0.5, panelY + 116*S)
   const btnW = panelW * 0.7, btnH = 44*S
   const btnX = (W - btnW) / 2, btnY = panelY + 140*S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '▶ 观看广告复活', 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '满血复活', 'confirm')
   g._adReviveBtnRect = [btnX, btnY, btnW, btnH]
   const skipW = panelW * 0.5, skipH = 36*S
   const skipX = (W - skipW) / 2, skipY = panelY + 196*S
@@ -2998,6 +2986,23 @@ function drawTutorialOverlay(g) {
   const { ctx, R, TH, W, H, S } = V
   const data = tutorial.getGuideData()
   if (!data) return
+
+  // ---- 跳过按钮（非总结页时显示） ----
+  if (!data.isSummary) {
+    const skipW = 60*S, skipH = 28*S
+    const skipX = W - skipW - 12*S, skipY = 10*S
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    R.rr(skipX, skipY, skipW, skipH, 6*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
+    R.rr(skipX, skipY, skipW, skipH, 6*S); ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('跳过', skipX + skipW/2, skipY + skipH/2)
+    ctx.restore()
+    // 存储按钮位置供触摸检测
+    g._tutorialSkipRect = [skipX, skipY, skipW, skipH]
+  }
 
   // ---- 总结页 ----
   if (data.isSummary) {
