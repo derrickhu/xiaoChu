@@ -92,6 +92,35 @@ function rEvent(g) {
   }
   curY += 18*S
 
+  // ===== 境界提升提示（进入新层时显示，带淡出动画） =====
+  if (g._realmUpInfo) {
+    g._realmUpInfo.timer++
+    const ri = g._realmUpInfo
+    const fadeDur = 180  // 约3秒后开始淡出
+    const fadeOutDur = 60  // 1秒淡出
+    let alpha = 1
+    if (ri.timer > fadeDur) {
+      alpha = Math.max(0, 1 - (ri.timer - fadeDur) / fadeOutDur)
+    }
+    if (alpha > 0) {
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.textAlign = 'center'
+      // 境界名称
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`境界提升：${ri.prevName} → ${ri.name}`, W*0.5, curY)
+      // 血量上限提升
+      if (ri.hpUp > 0) {
+        ctx.fillStyle = '#4dcc4d'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`血量上限 +${ri.hpUp}`, W*0.5, curY + 16*S)
+      }
+      ctx.restore()
+      curY += ri.hpUp > 0 ? 36*S : 20*S
+    } else {
+      g._realmUpInfo = null  // 动画结束，清除
+    }
+  }
+
   // ===== 非战斗层保持原逻辑 =====
   g._eventPetRects = []
   g._eventEditPetRect = null
@@ -377,7 +406,7 @@ function rEvent(g) {
 
     // === 休息：直接显示选项卡片 ===
     if (ev.type === 'rest') {
-      R.drawBg(g.af)
+      R.drawRestBg(g.af)
       // 重绘顶部
       let ty = safeTop + 32*S
       ctx.textAlign = 'center'

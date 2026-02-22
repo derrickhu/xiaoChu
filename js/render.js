@@ -48,6 +48,41 @@ class Render {
     return img
   }
 
+  /**
+   * 预加载关键图片，返回 Promise
+   * @param {string[]} paths - 图片路径数组
+   * @param {function} [onProgress] - 进度回调 (loaded, total)
+   * @returns {Promise<void>}
+   */
+  preloadImages(paths, onProgress) {
+    let loaded = 0
+    const total = paths.length
+    if (total === 0) return Promise.resolve()
+    return new Promise((resolve) => {
+      let settled = false
+      // 超时保底：最多等待 5 秒
+      const timeout = setTimeout(() => {
+        if (!settled) { settled = true; console.log(`[Preload] timeout, ${loaded}/${total} loaded`); resolve() }
+      }, 5000)
+      paths.forEach(p => {
+        const img = this.getImg(p)
+        if (img.width > 0) {
+          loaded++
+          if (onProgress) onProgress(loaded, total)
+          if (loaded >= total && !settled) { settled = true; clearTimeout(timeout); resolve() }
+          return
+        }
+        const onDone = () => {
+          loaded++
+          if (onProgress) onProgress(loaded, total)
+          if (loaded >= total && !settled) { settled = true; clearTimeout(timeout); resolve() }
+        }
+        img.onload = onDone
+        img.onerror = onDone  // 加载失败也继续
+      })
+    })
+  }
+
   // ===== 背景 =====
   drawBg(frame) {
     const {ctx:c,W,H,S} = this
@@ -90,6 +125,18 @@ class Render {
     const {ctx:c,W,H} = this
     c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/shop_bg.jpg')
+    if (img && img.width > 0) {
+      this._drawCoverImg(img, 0, 0, W, H)
+      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+    } else {
+      this.drawBg(frame)
+    }
+  }
+
+  drawRestBg(frame) {
+    const {ctx:c,W,H} = this
+    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    const img = this.getImg('assets/backgrounds/rest_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
       c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()

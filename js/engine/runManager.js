@@ -99,9 +99,17 @@ function nextFloor(g) {
   if (g.floor > 1) {
     g.realmLevel = g.floor
     const realm = getRealmInfo(g.floor)
+    const prevRealm = getRealmInfo(g.floor - 1)
     if (realm && realm.hpUp > 0) {
       g.heroMaxHp += realm.hpUp
       // 不回血，仅增加上限
+    }
+    // 记录境界提升信息用于UI展示
+    g._realmUpInfo = {
+      name: realm.name,
+      prevName: prevRealm ? prevRealm.name : '',
+      hpUp: realm.hpUp,
+      timer: 0
     }
   }
   // 攻击隐性加成：每过5层自动获得攻击加成（保证输出跟得上怪物膨胀）
@@ -260,6 +268,12 @@ function onDefeat(g, W, H) {
 }
 
 function doAdRevive(g, W, H) {
+  // TODO: 接入广告后，在此处调用 wx.createRewardedVideoAd，
+  // 广告播放完成（onClose isEnded=true）后再调用 adReviveCallback
+  // 示例：
+  // const ad = wx.createRewardedVideoAd({ adUnitId: 'YOUR_AD_UNIT_ID' })
+  // ad.onClose(res => { if (res && res.isEnded) adReviveCallback(g, W, H) })
+  // ad.show().catch(() => ad.load().then(() => ad.show()))
   adReviveCallback(g, W, H)
 }
 

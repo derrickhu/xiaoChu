@@ -153,16 +153,44 @@ Overall: prestigious, competitive feel appropriate for leaderboard. Clean, elega
 **尺寸**：竖屏 9:16（如 1080×1920）  
 **文件**：`assets/backgrounds/shop_bg.jpg`
 
+**风格参考**：与 loading_bg.jpg 统一——明亮温暖、色彩丰富、Q版灵宠出镜、粉金暖色天空、柔和卡通线条
+
 ```
-A vertical 9:16 mobile game background for a mystical shop scene, Chinese xianxia watercolor ink painting style, warm and mysterious atmosphere:
+A vertical 9:16 mobile game background for a magical shop scene, bright cheerful Chinese xianxia cartoon style matching the loading screen aesthetic — warm, colorful, inviting, NOT dark:
 
-Upper area (top 20%) — a softly glowing ancient wooden signboard or silk banner faintly visible in the misty background, subtle golden lantern light filtering through from above. Ethereal mist and faint ink-wash clouds in warm amber and soft purple tones.
+Upper area (top 20%) — a bright warm sky with soft pastel gradient from pale gold (#F5E6C8) to gentle peach-pink (#FADCD9). Fluffy stylized golden and cream-white clouds (祥云 style, rounded cartoon shapes with clean outlines) drifting across. Warm golden sunlight filtering from above with soft god-rays. A decorative ancient Chinese wooden signboard hangs from golden chains at the top center, painted in warm red-brown with gold trim — reading-area placeholder (no text). Two small red-and-gold paper lanterns (灯笼) flanking the signboard, glowing warmly.
 
-Middle area — a dreamy impression of an ancient celestial merchant's alcove: faint watercolor silhouettes of wooden shelves along both sides holding glowing mystical items (jade bottles, scrolls, luminous orbs). The shelves are soft, blurred, and atmospheric — NOT detailed or distracting. A warm amber-gold glow emanates from the center, suggesting magical merchandise. Subtle floating golden dust particles. The overall tone is warm but subdued (dark burgundy-purple #3D2040 base with warm golden accents) to allow semi-transparent UI cards to be readable on top.
+Middle area — a cheerful celestial marketplace scene viewed from inside a cozy immortal's shop pavilion: the left and right edges show warm wooden shelf frames (light honey-brown wood with golden decorative carvings) holding colorful glowing magical items — jade-green potion bottles, golden scrolls, luminous blue orbs, pink crystal gems, amber elixir vials. The shelves are rendered in clean cartoon style with bold outlines, colorful but slightly blurred/soft-focus to not compete with UI overlays. Between the shelves, a warm open space with a soft peach-cream floor glow. A tiny adorable chibi spirit fox (Q版灵狐) merchant sits on a cushion in the background center-right, wearing a tiny golden merchant hat, looking cute and welcoming. Scattered floating golden sparkle particles and tiny glowing fireflies (warm gold). The overall palette is WARM and BRIGHT: honey-amber wood, soft peach, cream-gold light, with colorful magical item accents.
 
-Lower area (bottom 35%) — gradually fading into deeper darkness with soft purple-brown gradient. Faint suggestion of an ancient stone floor with subtle watercolor texture. A few scattered golden sparkle particles.
+Lower area (bottom 30%) — warm cream-gold gradient fading to soft peach (#FADCD9 to #F5E6C8). Faint watercolor cloud wisps along the bottom. A few colorful sparkle particles (gold, pink, blue) scattered near the bottom. Simple and clean enough for UI buttons to be placed on top. The floor area suggests warm ancient stone tiles with a soft golden glow.
 
-Overall: mysterious, inviting, warm. Like entering a hidden immortal's treasure shop in the clouds. Color palette: deep plum-purple, warm amber-gold highlights, soft burgundy. Watercolor ink-wash style with gentle luminosity. NOT too bright — this is a background for overlaid UI elements. No characters, no text, no UI elements. Subtle watercolor paper texture throughout.
+Overall: bright, warm, cheerful, inviting — like visiting a magical candy shop in the clouds. The atmosphere should match the loading screen's joyful, colorful energy. Color palette: warm honey-gold, soft peach-pink, cream white, with colorful magical item accents (jade green, sapphire blue, ruby red). Clean cartoon line-art style with bold outlines, soft watercolor color fills, bright pastel tones. NOT dark, NOT gloomy — this is a happy place to shop. No text, no UI elements. The image has a 35% dark semi-transparent overlay applied in-game for UI readability, so the source image should be BRIGHT and VIBRANT.
+
+Style references: match the loading_bg.jpg aesthetic — bright sky, golden clouds, warm pastel palette, cute chibi characters, clean cartoon outlines, cheerful magical atmosphere.
+```
+
+---
+
+## 五·二、休息之地背景图
+
+**用途**：休息之地页面的全屏背景（顶部标题、中间休息选项卡片、底部按钮）  
+**尺寸**：竖屏 9:16（如 1080×1920）  
+**文件**：`assets/backgrounds/rest_bg.jpg`
+
+**风格参考**：与 loading_bg.jpg 统一——明亮温暖、色彩丰富、Q版灵宠出镜、柔和卡通线条，偏宁静温馨
+
+```
+A vertical 9:16 mobile game background for a peaceful rest area scene, bright warm Chinese xianxia cartoon style matching the loading screen aesthetic — serene, cozy, heartwarming, NOT dark:
+
+Upper area (top 20%) — a gentle sunset/golden-hour sky with warm gradient from soft lavender-pink (#E8D5F5) at the top to pale peach-gold (#F5DFC8) below. Fluffy stylized clouds in soft pink, cream, and pale gold tones (rounded cartoon shapes with clean outlines), backlit by warm golden light. A few distant birds (仙鹤 silhouettes) flying gracefully across the sky. Tiny golden sparkle particles drifting in the warm air.
+
+Middle area — a dreamy celestial resting garden scene: a beautiful floating island platform with lush green grass, dotted with small pink and white wildflowers (桃花 peach blossoms scattered). In the center-background, a graceful ancient pavilion (凉亭) with curved traditional Chinese rooftops in warm red-brown and gold trim, partially veiled by soft pastel clouds. Warm paper lanterns (soft peach and gold) hanging from the pavilion eaves, glowing gently. On the left side, a small ancient stone well or spring pool with luminous blue-green healing water glowing softly, with tiny sparkle particles rising from the water. On the right side, a cozy arrangement: a bamboo mat with silk cushions in soft lavender and peach, and a tiny adorable chibi spirit tortoise (Q版灵龟) napping peacefully on a cloud-cushion, with a tiny "zzz" sleep bubble — cute and relaxing. A few cherry blossom petals (花瓣) float gently in the air. Soft green bamboo stalks frame both sides. The overall palette is WARM and SERENE: soft greens, peach-pink, lavender, warm gold, cream.
+
+Lower area (bottom 30%) — soft warm gradient from pale sage-green (#E8F0E4) to cream-peach (#FFF5E8). Gentle watercolor cloud wisps and scattered pink flower petals drifting downward. A few golden sparkle particles. Clean and simple for UI overlay.
+
+Overall: peaceful, warm, nurturing, restful — like finding a hidden fairy garden to heal and recover. The atmosphere should evoke comfort and safety while maintaining the loading screen's cheerful, colorful energy. Color palette: soft sage green, warm peach-pink, gentle lavender, cream gold, with healing blue-green water accents. Clean cartoon line-art style with bold outlines, soft watercolor fills, bright pastel tones. NOT dark — this is a place of warmth and healing. No text, no UI elements. A 35% dark overlay will be applied in-game for readability, so the source should be BRIGHT and WARM.
+
+Style references: match the loading_bg.jpg aesthetic — warm pastel sky, golden light, cute chibi spirit pets, clean cartoon outlines, gentle magical atmosphere. Think of it as a celestial hot-spring garden or fairy rest stop.
 ```
 
 ---
@@ -173,16 +201,20 @@ Overall: mysterious, inviting, warm. Like entering a hidden immortal's treasure 
 **尺寸**：竖屏 9:16（如 1080×1920）  
 **文件**：`assets/backgrounds/adventure_bg.jpg`
 
+**风格参考**：与 loading_bg.jpg 统一——色彩丰富、Q版灵宠出镜、卡通线条，偏神秘奇幻但仍然明亮
+
 ```
-A vertical 9:16 mobile game background for a mysterious encounter/adventure event scene, Chinese xianxia watercolor ink painting style, ethereal and wondrous atmosphere:
+A vertical 9:16 mobile game background for a mysterious adventure encounter scene, bright colorful Chinese xianxia cartoon style matching the loading screen aesthetic — wondrous, magical, slightly mystical but NOT dark or gloomy:
 
-Upper area (top 25%) — a mystical night sky with soft watercolor aurora in pale green, lavender, and gentle gold. Faint constellation patterns and tiny star sparkles. Wispy ink-wash clouds drifting across a deep indigo-blue sky (#1A1A3D).
+Upper area (top 25%) — a twilight fantasy sky with beautiful gradient from soft indigo-purple (#C8B8E8) at the top through lavender (#D8CCF0) to warm peach-gold (#F5DFC8) near the horizon. Stylized fluffy clouds in soft purple, pink, and cream-gold tones (rounded cartoon shapes with clean outlines). A large luminous full moon partially visible in the upper-left, glowing with a warm golden-white halo. Scattered stars rendered as cute twinkling sparkles (golden and silver). Faint aurora-like streaks of soft green and lavender light across the sky.
 
-Middle area — a dreamlike scene of a hidden celestial clearing: faint watercolor impression of an ancient glowing spirit formation (法阵) on the ground, rendered as soft concentric circles of pale blue-green light with subtle Taoist talisman patterns. Gentle luminous mist rising from the formation. On both sides, blurred ink-wash silhouettes of ancient twisted pine trees and mystical rocks, framing the central space. Floating ethereal firefly-like light orbs (pale gold and soft cyan) drifting lazily. The overall tone is cool and mystical (deep teal-indigo base with soft cyan-green and gold accents) — subdued enough for overlaid text to remain readable.
+Middle area — a wondrous hidden clearing in a celestial forest: the scene shows an ancient mystical stone circle (法阵) on the ground, rendered as a glowing circular pattern with soft cyan-blue (#7DD8E8) and pale gold light, with cute simplified Taoist symbols (not scary, playful cartoon style). The stone circle glows warmly upward. Flanking both sides: beautiful ancient trees with twisted trunks (warm brown with golden bark highlights) and luminous leaves in mixed jade-green and soft purple-pink tones, like magical cherry-blossom-meets-wisteria trees. Colorful floating firefly-like light orbs (soft gold, cyan, pink) drift lazily throughout the scene. In the background center, a faint mystical gateway or torii-like arch in soft golden stone, partially veiled by luminous mist, suggesting the unknown adventure ahead. A tiny adorable chibi spirit phoenix chick (Q版凤凰雏) perches curiously on a glowing mushroom (pastel pink cap, golden stem) to the lower-right, looking excited and curious. Scattered glowing flower petals in cyan and gold float in the air.
 
-Lower area (bottom 35%) — soft gradient into deeper indigo darkness. Faint watercolor impression of moss-covered ancient stone path. Scattered pale blue luminous particles fading downward.
+Lower area (bottom 30%) — a gentle transition from the mystical clearing to soft warm ground: mossy ancient stone path in warm grey-green with tiny glowing blue mushrooms along the edges. Soft luminous mist (warm peach-gold) hovering near the ground. Gradient fading to soft cream-lavender (#EDE3F5) at the bottom. Clean enough for UI overlay.
 
-Overall: mysterious, wondrous, slightly eerie but not threatening — like stumbling upon a hidden magical place during a journey. Color palette: deep indigo-blue, soft teal-cyan, pale gold accents, faint green luminescence. Watercolor ink-wash style. NOT too bright — serves as background for overlaid UI text. No characters, no text, no UI elements. Subtle watercolor paper texture.
+Overall: wondrous, magical, exciting, mysterious but FRIENDLY — like discovering a secret fairy grove during an adventure. NOT dark or threatening — the mystery is delightful and inviting, matching the loading screen's cheerful spirit. Color palette: soft indigo-purple, warm peach-gold, luminous cyan-blue, jade green, with pink and golden sparkle accents. Clean cartoon line-art style with bold outlines, soft watercolor color fills, vibrant pastel tones. The overall brightness level should be MEDIUM-HIGH — lighter than typical "mystery" scenes because a 35% dark overlay will be applied in-game. No text, no UI elements.
+
+Style references: match the loading_bg.jpg aesthetic — colorful sky, magical atmosphere, cute chibi spirit pet, clean cartoon outlines, warm yet wondrous. Think Studio Ghibli's magical forests meets Chinese xianxia fairy tales.
 ```
 
 ---
@@ -578,6 +610,8 @@ Style references: Genshin Impact promotional art warmth, Chinese mobile game wat
 - 背景：深靛紫色（#1A1430）圆形底，外圈一圈淡金色祥云纹边框
 - 塔身两侧：各一片简化的祥云点缀，增加仙气
 
+### 方案A：暗夜仙侠风（当前方案，偏暗沉）
+
 ```
 A square 1:1 app icon for a Chinese Xianxia mobile game called "灵宠消消塔" (Spirit Pet Match Tower), designed to be recognizable at very small sizes (40×40px), clean and iconic, emphasizing both cute spirit pets and tower climbing:
 
@@ -605,6 +639,109 @@ OVERALL STYLE — The icon should look like a polished game logo/emblem. Waterco
 Style: Chinese Xianxia game app icon, watercolor-meets-flat-design hybrid, elegant and mystical with a touch of cuteness from the spirit pet, premium mobile game quality. Think of it as a wax seal or jade pendant design — compact, symbolic, refined.
 ```
 
+### 方案B：金辉暖阳风（暖色高饱和，金红橙为主）
+
+```
+A square 1:1 app icon for a Chinese Xianxia mobile game, designed for maximum visual impact at small sizes (40×40px), warm and vibrant golden-red color scheme, eye-catching on WeChat app list:
+
+BACKGROUND — The entire square canvas is filled with a radiant warm gradient from deep rich crimson-red (#8B1A1A) at the bottom to brilliant amber-gold (#D4920A) at the top, like a glorious sunrise behind celestial mountains. The gradient is VIVID and SATURATED — no dull or muted tones. A thin circular border ring in bright polished gold (#FFD700) with subtle auspicious cloud (祥云) engravings, creating a premium emblem feel. The warm golden light should feel like it's radiating outward from the center.
+
+CENTER SUBJECT — A stylized celestial pagoda tower occupying ~55% of the icon height, centered. The tower has 5 tiers with BRIGHT, VIVID five-element colors that POP against the warm background:
+- Tier 1 (bottom): vivid amber-orange (#E8960A) for Earth (土), with warm glow
+- Tier 2: brilliant scarlet-red (#FF4444) for Fire (火), with fiery inner glow
+- Tier 3: vivid cerulean-blue (#2E9AFF) for Water (水), bright contrast against warm bg
+- Tier 4: vibrant emerald-green (#3ACC5C) for Wood (木), fresh and eye-catching
+- Tier 5 (top): gleaming bright gold (#FFD700) for Metal (金), the crown jewel
+
+Each tier has a STRONG inner glow and crisp edges. The tower design is bold and graphic — clean geometric shapes with traditional Chinese curved roof eaves, high contrast, reads like a logo mark.
+
+PET ACCENT — In the lower-left, a single adorable chibi spirit pet (灵宠): a tiny round golden Qilin cub with BIG sparkly eyes, rosy cheeks, bright golden body (#FFD54F), clean bold outlines. The pet is vibrant and cute — its warm golden color harmonizes with the background while its big eyes draw attention.
+
+TOWER TOP — A blazing golden orb (灵珠) above the peak, emitting strong radial golden rays (#FFD700 → #FFF8DC → transparent). Prominent starburst highlight with multiple golden sparkle particles. This is the BRIGHTEST point of the icon — like a miniature sun crowning the tower.
+
+FLANKING — Stylized golden cloud wisps (祥云) on each side, rendered in bright warm gold (#FFD700) with good opacity, more visible than subtle. Small red-orange flame-like energy wisps trailing upward from behind the tower, adding dynamism and energy.
+
+BOTTOM — A bed of warm luminous clouds in peach-orange (#FFB366) and soft gold. Three tiny five-element orbs (using the same vivid colors as the tower tiers) nestled in the clouds, glowing brightly.
+
+OVERALL — VIBRANT, WARM, ENERGETIC. The dominant palette is rich crimson, brilliant gold, and fiery amber — like a golden sunset or celestial flame. Every element should be HIGH CONTRAST and HIGH SATURATION. The icon must STAND OUT in a sea of app icons. No text. Clean graphic design with bold colors. Think premium Chinese fantasy RPG game icon — the kind that makes you want to tap it immediately. Polished, vivid, warm, inviting, with a touch of cuteness from the Qilin pet.
+```
+
+### 方案C：五彩流光风（五行色彩缤纷，活泼吸睛）
+
+```
+A square 1:1 app icon for a Chinese Xianxia mobile game, designed for maximum color impact and instant recognition at small sizes (40×40px), COLORFUL and VIBRANT with all five element colors prominently featured:
+
+BACKGROUND — A dynamic radial gradient from deep royal purple (#3A1078) at the edges to a luminous warm violet (#6B3FA0) in the center, creating depth and richness. A ring of FIVE colored light segments around the circular border, each segment glowing in a vivid five-element color: gold, green, blue, red, amber — like a magical rotating aura. The border ring itself is bright gold (#FFD700) with these colored light accents bleeding outward, creating a rainbow halo effect that is VIVID and attention-grabbing.
+
+CENTER SUBJECT — A celestial pagoda tower occupying ~50% icon height, centered. The tower design is BOLD and COLORFUL:
+- Each of the 5 tiers is painted in a VIVID, SATURATED five-element color:
+  - Tier 1: bright amber (#FF9900) with golden sparkles
+  - Tier 2: vivid coral-red (#FF5252) with tiny flame accents
+  - Tier 3: electric blue (#29B6F6) with water ripple shimmer
+  - Tier 4: brilliant emerald (#4CAF50) with leaf sparkle accents
+  - Tier 5: gleaming gold (#FFC107) with metallic sheen
+- Each tier GLOWS brightly with its own color, creating a stack of colorful light. The overall tower looks like a magical rainbow beacon. Clean graphic style with bold outlines.
+
+PET ACCENT — TWO tiny chibi spirit pets flanking the tower base: a round golden Qilin cub (left) and a tiny red phoenix chick (right), both with big shiny eyes, rosy cheeks, vibrant flat colors, bold clean outlines. Their presence adds cuteness and liveliness. Each pet's color matches their element (gold and red), adding to the rainbow effect.
+
+TOWER TOP — A large brilliant golden starburst above the peak, with concentric rings of rainbow-tinted light (gold → red → blue → green cycling outward at low opacity). Multiple golden and multicolored sparkle particles radiating outward. This focal point is DAZZLING — the eye-magnet of the icon.
+
+SURROUNDING ELEMENTS — Five floating elemental orbs arranged in a subtle arc around the tower (like orbiting satellites): each orb is small but BRIGHTLY glowing in its element color (gold, green, blue, red, amber), with tiny trailing light streaks suggesting orbital motion. Soft colorful clouds in pastel pink, lavender, and light cyan drift at the base.
+
+OVERALL — COLORFUL, PLAYFUL, MAGICAL, PREMIUM. This icon should look like a kaleidoscope of beautiful Chinese fantasy colors. The five-element color scheme (金木水火土) should be IMMEDIATELY apparent — this is a game about five elements. Every color is at HIGH SATURATION. The design is clean and graphic despite being colorful — no muddy blending, each color zone is crisp. No text. The icon radiates energy and fun, making it irresistible to tap. Think of it as a magical gemstone or celestial artifact glowing with rainbow elemental power.
+```
+
+### 方案D：青碧仙境风（清新翠绿蓝，国风仙气）
+
+```
+A square 1:1 app icon for a Chinese Xianxia mobile game, designed for a fresh, mystical, distinctly Chinese fantasy aesthetic at small sizes (40×40px), dominated by vivid jade-green and celestial blue with golden accents:
+
+BACKGROUND — The entire canvas filled with a lush gradient from deep teal (#0D5C63) at the bottom to a luminous celestial cyan-blue (#1A8FA8) in the upper area, evoking a mystical jade mountain spring or immortal's grotto. The colors are SATURATED and VIVID — a refreshing cool palette that stands out among warm-toned game icons. A thin circular border in bright jade-gold (#B8D700 blending to #FFD700), with tiny cloud scroll patterns, giving a precious jade artifact feel.
+
+CENTER SUBJECT — A celestial pagoda tower occupying ~55% height, centered. The tower is painted in a harmonious cool-warm scheme:
+- Base tiers in warm amber (#E8A838) and coral (#E86850), grounding with warmth
+- Middle tiers in vivid cyan-blue (#2BB5D9) and emerald green (#32B866)
+- Top tier and peak in gleaming bright gold (#FFD700)
+- Each tier has visible Chinese architectural details (curved eaves, lantern silhouettes) rendered as clean graphic shapes. The tower GLOWS with a soft cyan-green inner light, like a jade structure lit from within.
+
+PET ACCENT — A single adorable chibi spirit pet in the foreground-bottom: a cute jade-green baby dragon (木/水灵宠) with big luminous turquoise eyes, tiny crystal antlers, chubby round body, clean bold outlines. The pet is VIVID jade-green (#3ACC5C) with cyan (#40E0D0) accents — perfectly harmonizing with the cool background while being irresistibly cute. Its eyes sparkle with tiny star highlights.
+
+TOWER TOP — A brilliant golden orb with a halo of cyan-green light rings, creating a unique jade-gold glow effect. Golden sparkle particles mixed with tiny cyan light motes, like fireflies around a sacred jade artifact.
+
+FLANKING — Stylized cloud wisps in TWO tones: jade-green translucent clouds (left) and golden luminous clouds (right), creating visual contrast and balance. Behind the tower, faint ink-wash mountain silhouettes in dark teal, adding depth.
+
+BOTTOM — Luminous cyan-green mist with scattered tiny five-element orbs glowing through the fog. A subtle reflection effect below the tower, like still water.
+
+OVERALL — FRESH, MYSTICAL, DISTINCTLY CHINESE. The jade-green and celestial-blue palette is unique and refreshing — it stands out from the typical red-gold Chinese game icons. The colors are VIVID and SATURATED but harmonious. The icon feels like a precious jade artifact or a window into an immortal's realm. No text. Clean graphic design. Premium quality with a cool, refreshing, magical atmosphere. Think: jade pendant meets celestial observatory — serene yet eye-catching.
+```
+
+### 方案E：烈焰霸气风（暗底+高亮火焰，强视觉冲击）
+
+```
+A square 1:1 app icon for a Chinese Xianxia mobile game, designed for MAXIMUM visual impact and stop-scrolling effect at small sizes (40×40px), dramatic dark background with blazing bright elements, high contrast:
+
+BACKGROUND — Deep black-purple (#0A0515) filling the entire canvas, extremely dark to maximize contrast with bright foreground elements. A thin circular border alternating between bright gold (#FFD700) and glowing ember-orange (#FF6B1A), with tiny flame-like decorative notches, giving an intense powerful feel. The dark background makes every bright element POP dramatically.
+
+CENTER SUBJECT — A celestial pagoda tower occupying ~55% height, engulfed in spectacular visual effects:
+- The tower itself is dark silhouette (#1A1030) with each tier's EDGES and ROOF EAVES outlined in BLAZING five-element neon-bright colors:
+  - Tier 1 edge: brilliant amber-orange (#FFA500) with glow
+  - Tier 2 edge: intense crimson-red (#FF2D2D) with ember particles
+  - Tier 3 edge: electric neon-blue (#00B4FF) with water shimmer
+  - Tier 4 edge: vivid lime-green (#39FF14) with leaf sparkles
+  - Tier 5 edge: blazing gold (#FFD700) with metallic flash
+- The effect is like the tower is RADIATING elemental energy from every tier — bright neon outlines against dark body, extremely high contrast. Visible elemental energy streams flowing upward along the tower surface.
+
+PET ACCENT — A single chibi spirit pet (golden Qilin cub) in the lower area, but rendered with a DRAMATIC golden glow aura — the pet itself is warm gold (#FFD54F) with bright white highlights and a strong golden outer glow, making it look like a small burning star. Big sparkling eyes with visible light reflection. The pet radiates warmth and energy against the dark background.
+
+TOWER TOP — An EXPLOSIVE golden starburst at the peak, with long bright rays extending outward in all directions. The rays have rainbow-tinted tips (red, blue, green) suggesting elemental power. Multiple sizes of golden sparkle particles scattered across the upper portion. This is a DRAMATIC focal point — like a supernova crowning the tower.
+
+ENERGY EFFECTS — Visible swirling energy streams in five element colors orbiting the tower at various heights, like magical aurora trails. These colored light streams are BRIGHT and VIVID against the dark background. Tiny ember-like particles of various elemental colors drifting upward throughout the icon.
+
+BOTTOM — Dark mist with subtle colored light patches from below, as if elemental energy seeps from the ground. The five elemental orbs glow intensely at the base, each casting its own colored light pool on the surrounding dark mist.
+
+OVERALL — DRAMATIC, POWERFUL, EYE-CATCHING. Think OLED screen optimized — dark blacks with BLAZING bright colors create maximum visual impact. The icon should feel like a small explosion of magical energy contained in a frame. No text. The extreme contrast between the near-black background and the neon-bright five-element colors ensures this icon POPS in any app list. Premium quality, bold and dramatic. Think: a magical artifact glowing with barely contained elemental power in darkness.
+```
+
 ---
 
 ## 附录：资源文件清单
@@ -619,23 +756,24 @@ Style: Chinese Xianxia game app icon, watercolor-meets-flat-design hybrid, elega
 | 6 | 历史统计按钮 | `assets/ui/btn_history.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
 | 7 | 排行榜按钮 | `assets/ui/btn_rank.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
 | 8 | 商店背景 | `assets/backgrounds/shop_bg.jpg` | JPG | 9:16 竖屏 |
-| 9 | 奇遇事件背景 | `assets/backgrounds/adventure_bg.jpg` | JPG | 9:16 竖屏 |
-| 10 | 棋盘深色格 | `assets/backgrounds/board_bg_dark.jpg` | JPG | 1:1 |
-| 11 | 棋盘浅色格 | `assets/backgrounds/board_bg_light.jpg` | JPG | 1:1 |
-| 12 | 金属性灵宠框 | `assets/ui/frame_pet_metal.png` | PNG（品红底抠图） | 1:1 |
-| 13 | 木属性灵宠框 | `assets/ui/frame_pet_wood.png` | PNG（品红底抠图） | 1:1 |
-| 14 | 水属性灵宠框 | `assets/ui/frame_pet_water.png` | PNG（品红底抠图） | 1:1 |
-| 15 | 火属性灵宠框 | `assets/ui/frame_pet_fire.png` | PNG（品红底抠图） | 1:1 |
-| 16 | 土属性灵宠框 | `assets/ui/frame_pet_earth.png` | PNG（品红底抠图） | 1:1 |
-| 17 | 法宝通用框 | `assets/ui/frame_weapon.png` | PNG（品红底抠图） | 1:1 |
-| 18 | 弹窗面板背景 | `assets/ui/dialog_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
-| 19 | 确认按钮 | `assets/ui/btn_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
-| 20 | 取消按钮 | `assets/ui/btn_cancel.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
-| 21 | 战斗胜利弹窗背景 | `assets/ui/victory_panel_bg.png` | PNG（纯黑底抠图） | ~5:2 横向 |
-| 22 | 奖励加成卡片背景框 | `assets/ui/reward_card_bg.png` | PNG（纯黑底抠图） | ~7:1 宽扁 |
-| 23 | 奖励确认按钮 | `assets/ui/btn_reward_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
-| 24 | 战斗层数标签框 | `assets/ui/floor_label_bg.png` | PNG（纯黑底抠图） | ~4:1 横向 |
-| 25 | 奖励选择页背景 | `assets/backgrounds/reward_bg.jpg` | JPG | 9:16 竖屏 |
-| 26 | 说明面板背景 | `assets/ui/info_panel_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
-| 27 | 小程序展示图 | `assets/ui/share_cover.jpg` | JPG | 5:4 横向 |
-| 28 | 小程序图标 | `assets/ui/app_icon.png` | PNG（成品图） | 1:1 正方形 |
+| 9 | 休息之地背景 | `assets/backgrounds/rest_bg.jpg` | JPG | 9:16 竖屏 |
+| 10 | 奇遇事件背景 | `assets/backgrounds/adventure_bg.jpg` | JPG | 9:16 竖屏 |
+| 11 | 棋盘深色格 | `assets/backgrounds/board_bg_dark.jpg` | JPG | 1:1 |
+| 12 | 棋盘浅色格 | `assets/backgrounds/board_bg_light.jpg` | JPG | 1:1 |
+| 13 | 金属性灵宠框 | `assets/ui/frame_pet_metal.png` | PNG（品红底抠图） | 1:1 |
+| 14 | 木属性灵宠框 | `assets/ui/frame_pet_wood.png` | PNG（品红底抠图） | 1:1 |
+| 15 | 水属性灵宠框 | `assets/ui/frame_pet_water.png` | PNG（品红底抠图） | 1:1 |
+| 16 | 火属性灵宠框 | `assets/ui/frame_pet_fire.png` | PNG（品红底抠图） | 1:1 |
+| 17 | 土属性灵宠框 | `assets/ui/frame_pet_earth.png` | PNG（品红底抠图） | 1:1 |
+| 18 | 法宝通用框 | `assets/ui/frame_weapon.png` | PNG（品红底抠图） | 1:1 |
+| 19 | 弹窗面板背景 | `assets/ui/dialog_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
+| 20 | 确认按钮 | `assets/ui/btn_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 21 | 取消按钮 | `assets/ui/btn_cancel.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 22 | 战斗胜利弹窗背景 | `assets/ui/victory_panel_bg.png` | PNG（纯黑底抠图） | ~5:2 横向 |
+| 23 | 奖励加成卡片背景框 | `assets/ui/reward_card_bg.png` | PNG（纯黑底抠图） | ~7:1 宽扁 |
+| 24 | 奖励确认按钮 | `assets/ui/btn_reward_confirm.png` | PNG（纯黑底抠图） | ~3.5:1 横向 |
+| 25 | 战斗层数标签框 | `assets/ui/floor_label_bg.png` | PNG（纯黑底抠图） | ~4:1 横向 |
+| 26 | 奖励选择页背景 | `assets/backgrounds/reward_bg.jpg` | JPG | 9:16 竖屏 |
+| 27 | 说明面板背景 | `assets/ui/info_panel_bg.png` | PNG（纯黑底抠图） | ~4:3 横向 |
+| 28 | 小程序展示图 | `assets/ui/share_cover.jpg` | JPG | 5:4 横向 |
+| 29 | 小程序图标 | `assets/ui/app_icon.png` | PNG（成品图） | 1:1 正方形 |
