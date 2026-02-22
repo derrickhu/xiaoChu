@@ -227,7 +227,7 @@ function startNextElimAnim(g) {
     const { W, S } = V
     g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:ATTR_COLOR[attr]?.main||'#ff6347', t:0, alpha:1 })
     g.shakeT = 6; g.shakeI = 4
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
@@ -624,7 +624,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   }
   // 胜利判定
   if (g.enemy && g.enemy.hp <= 0) {
-    g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5
+    g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
     g.bState = 'victory'; MusicMgr.playVictory()
     // 触发敌人死亡爆裂特效
     g._enemyDeathAnim = { timer: 0, duration: 45 }
@@ -744,7 +744,7 @@ function enemyTurn(g) {
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${b.dmg}`, color:'#a040a0', t:0, alpha:1 })
       }
     })
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
@@ -833,7 +833,7 @@ function enemyTurn(g) {
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + heal)
     }
   })
-  if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
   g.turnCount++
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0

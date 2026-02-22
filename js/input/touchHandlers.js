@@ -787,8 +787,10 @@ function tRanking(g, type, x, y) {
   }
   if (type === 'move') {
     const dy = y - (g._rankTouchStartY || y)
-    const list = g.rankTab === 'all' ? g.storage.rankAllList : g.storage.rankDailyList
-    const rowH = 62*S
+    const tab = g.rankTab || 'all'
+    const listMap = { all: 'rankAllList', daily: 'rankDailyList', dex: 'rankDexList', combo: 'rankComboList' }
+    const list = g.storage[listMap[tab]] || []
+    const rowH = 64*S
     const maxScroll = 0
     const minScroll = -Math.max(0, list.length * rowH - (H - 70*S - safeTop - 130*S))
     g.rankScrollY = Math.max(minScroll, Math.min(maxScroll, g._rankScrollStart + dy))
@@ -799,13 +801,21 @@ function tRanking(g, type, x, y) {
   if (dy > 10*S) return
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.scene = 'title'; return }
   if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) { g.storage.fetchRanking(g.rankTab, true); return }
-  if (g._rankTabAllRect && g._hitRect(x, y, ...g._rankTabAllRect)) { g.rankTab = 'all'; g.rankScrollY = 0; g.storage.fetchRanking('all'); return }
-  if (g._rankTabDailyRect && g._hitRect(x, y, ...g._rankTabDailyRect)) { g.rankTab = 'daily'; g.rankScrollY = 0; g.storage.fetchRanking('daily'); return }
+  // 4-Tab 切换
+  if (g._rankTabRects) {
+    for (const key of ['all', 'daily', 'dex', 'combo']) {
+      const rect = g._rankTabRects[key]
+      if (rect && g._hitRect(x, y, ...rect)) {
+        g.rankTab = key; g.rankScrollY = 0; g.storage.fetchRanking(key); return
+      }
+    }
+  }
 }
 
 function tStats(g, type, x, y) {
   if (type !== 'end') return
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.scene = 'title'; return }
+  if (g._statsShareBtnRect && g._hitRect(x, y, ...g._statsShareBtnRect)) { g._shareStats(); return }
 }
 
 function tDex(g, type, x, y) {

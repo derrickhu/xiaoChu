@@ -317,6 +317,7 @@ function rRanking(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 12*S
+  const tab = g.rankTab || 'all'
 
   // ── 标题区 ──
   ctx.save()
@@ -324,54 +325,69 @@ function rRanking(g) {
   ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('排行榜', W*0.5, safeTop + 40*S)
   ctx.restore()
+  // 刷新按钮（紧跟标题文字右侧）
+  ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+  const titleW = ctx.measureText('排行榜').width || 66*S
+  const rfW = 40*S, rfH = 22*S
+  const rfX = W*0.5 + titleW/2 + 8*S
+  const rfY = safeTop + 40*S - rfH*0.7
+  ctx.fillStyle = g.storage.rankLoading ? 'rgba(40,30,15,0.5)' : 'rgba(40,30,15,0.75)'
+  R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
+  ctx.strokeStyle = g.storage.rankLoading ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.35)'
+  ctx.lineWidth = 0.5*S; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.stroke()
+  ctx.fillStyle = g.storage.rankLoading ? 'rgba(240,220,160,0.35)' : 'rgba(240,220,160,0.8)'
+  ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(g.storage.rankLoading ? '刷新中' : '刷新', rfX + rfW/2, rfY + rfH/2)
+  ctx.textBaseline = 'alphabetic'
+  g._rankRefreshRect = [rfX, rfY, rfW, rfH]
   const rdivW = W*0.22, rdivY = safeTop + 48*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - rdivW, rdivY); ctx.lineTo(W*0.5 + rdivW, rdivY); ctx.stroke()
 
-  // ── Tab 切换 ──
-  const tabY = safeTop + 56*S, tabH = 32*S, tabW = W*0.36
-  const tabAllX = W*0.07, tabDailyX = W*0.57
-  // 总排行Tab
-  if (g.rankTab === 'all') {
-    const tg = ctx.createLinearGradient(tabAllX, tabY, tabAllX, tabY + tabH)
-    tg.addColorStop(0, '#f0c040'); tg.addColorStop(1, '#d4a020')
-    ctx.fillStyle = tg
-  } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'
-  }
-  R.rr(tabAllX, tabY, tabW, tabH, tabH*0.5); ctx.fill()
-  if (g.rankTab === 'all') {
-    ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
-    R.rr(tabAllX, tabY, tabW, tabH, tabH*0.5); ctx.stroke()
-  }
-  ctx.fillStyle = g.rankTab === 'all' ? '#2a1a00' : TH.sub
-  ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('总排行', tabAllX + tabW*0.5, tabY + tabH*0.62)
-  g._rankTabAllRect = [tabAllX, tabY, tabW, tabH]
-  // 今日排行Tab
-  if (g.rankTab === 'daily') {
-    const tg2 = ctx.createLinearGradient(tabDailyX, tabY, tabDailyX, tabY + tabH)
-    tg2.addColorStop(0, '#f0c040'); tg2.addColorStop(1, '#d4a020')
-    ctx.fillStyle = tg2
-  } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'
-  }
-  R.rr(tabDailyX, tabY, tabW, tabH, tabH*0.5); ctx.fill()
-  if (g.rankTab === 'daily') {
-    ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
-    R.rr(tabDailyX, tabY, tabW, tabH, tabH*0.5); ctx.stroke()
-  }
-  ctx.fillStyle = g.rankTab === 'daily' ? '#2a1a00' : TH.sub
-  ctx.fillText('今日排行', tabDailyX + tabW*0.5, tabY + tabH*0.62)
-  g._rankTabDailyRect = [tabDailyX, tabY, tabW, tabH]
+  // ── 4-Tab 切换 ──
+  const tabY = safeTop + 56*S, tabH = 28*S
+  const tabs = [
+    { key: 'all', label: '速通榜' },
+    { key: 'daily', label: '今日榜' },
+    { key: 'dex', label: '图鉴榜' },
+    { key: 'combo', label: '连击榜' },
+  ]
+  const tabGap = 6*S
+  const totalTabW = W - padX*2 - tabGap*(tabs.length-1)
+  const singleTabW = totalTabW / tabs.length
+  g._rankTabRects = {}
+  tabs.forEach((t, i) => {
+    const tx = padX + i * (singleTabW + tabGap)
+    const isActive = tab === t.key
+    if (isActive) {
+      const tg = ctx.createLinearGradient(tx, tabY, tx, tabY + tabH)
+      tg.addColorStop(0, '#f0c040'); tg.addColorStop(1, '#d4a020')
+      ctx.fillStyle = tg
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+    }
+    R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.fill()
+    if (isActive) {
+      ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
+      R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.stroke()
+    }
+    ctx.fillStyle = isActive ? '#2a1a00' : TH.sub
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText(t.label, tx + singleTabW*0.5, tabY + tabH*0.65)
+    g._rankTabRects[t.key] = [tx, tabY, singleTabW, tabH]
+  })
 
   // ── 列表区域 ──
   const listTop = tabY + tabH + 10*S
   const myBarH = 52*S
   const listBottom = H - myBarH - 16*S
   const rowH = 64*S
-  const list = g.rankTab === 'all' ? g.storage.rankAllList : g.storage.rankDailyList
-  const myRank = g.rankTab === 'all' ? g.storage.rankAllMyRank : g.storage.rankDailyMyRank
+
+  // 根据Tab选择数据
+  const listMap = { all: 'rankAllList', daily: 'rankDailyList', dex: 'rankDexList', combo: 'rankComboList' }
+  const rankMap = { all: 'rankAllMyRank', daily: 'rankDailyMyRank', dex: 'rankDexMyRank', combo: 'rankComboMyRank' }
+  const list = g.storage[listMap[tab]] || []
+  const myRank = g.storage[rankMap[tab]] || -1
 
   // 列表面板背景
   const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
@@ -380,14 +396,17 @@ function rRanking(g) {
   ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 0.5*S
   R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.stroke()
 
-  // 表头
+  // 表头（根据Tab显示不同列）
   const headerH = 26*S
   ctx.fillStyle = 'rgba(212,175,55,0.08)'
   R.rr(padX + 1, listTop + 1, W - padX*2 - 2, headerH, 8*S); ctx.fill()
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'left'; ctx.fillText('排名', padX + 10*S, listTop + 17*S)
   ctx.fillText('玩家', padX + 52*S, listTop + 17*S)
-  ctx.textAlign = 'right'; ctx.fillText('最高层', W - padX - 10*S, listTop + 17*S)
+  ctx.textAlign = 'right'
+  if (tab === 'dex') ctx.fillText('图鉴数', W - padX - 10*S, listTop + 17*S)
+  else if (tab === 'combo') ctx.fillText('最高连击', W - padX - 10*S, listTop + 17*S)
+  else ctx.fillText('成绩', W - padX - 10*S, listTop + 17*S)
 
   const contentTop = listTop + headerH + 2*S
   ctx.save()
@@ -420,92 +439,142 @@ function rRanking(g) {
       }
       ctx.fillRect(padX + 2*S, ry + 1*S, W - padX*2 - 4*S, rowH - 3*S)
 
-      // 排名
-      ctx.textAlign = 'left'
-      if (i < 3) {
-        const medalColors = ['#ffd700', '#c0c0c0', '#cd7f32']
-        const medalBg = ['rgba(255,215,0,0.2)', 'rgba(192,192,192,0.15)', 'rgba(205,127,50,0.15)']
-        const mx = padX + 18*S, my = ry + rowH*0.5
-        const mr = 13*S
-        // 奖牌圆底
-        ctx.fillStyle = medalBg[i]
-        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.fill()
-        ctx.strokeStyle = medalColors[i] + '66'; ctx.lineWidth = 1*S
-        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.stroke()
-        // 数字
-        ctx.fillStyle = medalColors[i]; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText(`${i + 1}`, mx, my)
-        ctx.textBaseline = 'alphabetic'
-      } else {
-        ctx.fillStyle = TH.dim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'
-        ctx.fillText(`${i + 1}`, padX + 18*S, ry + rowH*0.5 + 4*S)
-      }
+      // 排名序号（奖牌）
+      _drawRankMedal(ctx, R, TH, S, padX, ry, rowH, i)
 
       // 头像
       const avatarX = padX + 40*S, avatarY = ry + (rowH - 34*S)/2, avatarSz = 34*S
-      const avCx = avatarX + avatarSz/2, avCy = avatarY + avatarSz/2
-      if (item.avatarUrl) {
-        const avatarImg = R.getImg(item.avatarUrl)
-        if (avatarImg && avatarImg.width > 0) {
-          ctx.save()
-          ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.clip()
-          ctx.drawImage(avatarImg, avatarX, avatarY, avatarSz, avatarSz)
-          ctx.restore()
-        } else {
-          ctx.fillStyle = 'rgba(255,255,255,0.08)'
-          ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
-        }
-      } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.08)'
-        ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
-        ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText('?', avCx, avCy + 5*S)
-      }
-      // 头像边框
-      if (i < 3) {
-        const bc = ['#ffd700', '#c0c0c0', '#cd7f32']
-        ctx.strokeStyle = bc[i] + '88'; ctx.lineWidth = 1.5*S
-        ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
-      }
+      _drawAvatar(ctx, R, TH, S, item.avatarUrl, avatarX, avatarY, avatarSz, i)
 
-      // 昵称 + 阵容
+      // 昵称 + 副信息
       const textX = avatarX + avatarSz + 8*S
       ctx.textAlign = 'left'
       ctx.fillStyle = i < 3 ? '#f0dca0' : TH.text; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
       ctx.fillText((item.nickName || '修士').substring(0, 8), textX, ry + 26*S)
-      const petNames = (item.pets || []).map(p => p.name ? p.name.substring(0, 2) : '?').join(' ')
-      const wpnName = item.weapon ? `⚔法宝·${item.weapon.name.substring(0, 3)}` : ''
-      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`${petNames} ${wpnName}`, textX, ry + 44*S)
 
-      // 层数
-      ctx.textAlign = 'right'
-      ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
-      ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
-      ctx.fillText(`${item.floor}`, W - padX - 12*S, ry + 30*S)
-      ctx.restore()
+      // 副信息行（根据Tab不同）
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText('层', W - padX - 12*S, ry + 44*S)
+      if (tab === 'all' || tab === 'daily') {
+        const petNames = (item.pets || []).map(p => p.name ? p.name.substring(0, 2) : '?').join(' ')
+        const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0, 3)}` : ''
+        ctx.fillText(`${petNames} ${wpnName}`, textX, ry + 44*S)
+      } else if (tab === 'dex') {
+        ctx.fillText(`已收集 ${item.petDexCount || 0}/100`, textX, ry + 44*S)
+      } else if (tab === 'combo') {
+        ctx.fillText(`最高连击记录`, textX, ry + 44*S)
+      }
+
+      // 右侧数值（根据Tab不同）
+      ctx.textAlign = 'right'
+      if (tab === 'all' || tab === 'daily') {
+        // 速通榜：通关者显示回合数，未通关者显示层数
+        if (item.floor >= 30 && item.totalTurns > 0) {
+          ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+          ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+          ctx.fillText(`${item.totalTurns}`, W - padX - 12*S, ry + 28*S)
+          ctx.restore()
+          ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.fillText('回合通关', W - padX - 12*S, ry + 44*S)
+        } else {
+          ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+          ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+          ctx.fillText(`${item.floor}`, W - padX - 12*S, ry + 30*S)
+          ctx.restore()
+          ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.fillText('层', W - padX - 12*S, ry + 44*S)
+        }
+      } else if (tab === 'dex') {
+        const dexCount = item.petDexCount || 0
+        ctx.fillStyle = i < 3 ? '#ffd700' : '#4dcc4d'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+        ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+        ctx.fillText(`${dexCount}`, W - padX - 12*S, ry + 30*S)
+        ctx.restore()
+        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText('/100', W - padX - 12*S, ry + 44*S)
+      } else if (tab === 'combo') {
+        const combo = item.maxCombo || 0
+        ctx.fillStyle = i < 3 ? '#ffd700' : '#ff6b6b'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+        ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+        ctx.fillText(`${combo}`, W - padX - 12*S, ry + 30*S)
+        ctx.restore()
+        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText('连击', W - padX - 12*S, ry + 44*S)
+      }
     }
   }
   ctx.restore()
 
   // ── 底部我的排名栏 ──
   const myBarY = listBottom + 6*S
+  _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab)
+
+  drawBackBtn(g)
+}
+
+// 绘制排名奖牌/序号
+function _drawRankMedal(ctx, R, TH, S, padX, ry, rowH, i) {
+  ctx.textAlign = 'left'
+  if (i < 3) {
+    const medalColors = ['#ffd700', '#c0c0c0', '#cd7f32']
+    const medalBg = ['rgba(255,215,0,0.2)', 'rgba(192,192,192,0.15)', 'rgba(205,127,50,0.15)']
+    const mx = padX + 18*S, my = ry + rowH*0.5
+    const mr = 13*S
+    ctx.fillStyle = medalBg[i]
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.fill()
+    ctx.strokeStyle = medalColors[i] + '66'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.stroke()
+    ctx.fillStyle = medalColors[i]; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(`${i + 1}`, mx, my)
+    ctx.textBaseline = 'alphabetic'
+  } else {
+    ctx.fillStyle = TH.dim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText(`${i + 1}`, padX + 18*S, ry + rowH*0.5 + 4*S)
+  }
+}
+
+// 绘制头像
+function _drawAvatar(ctx, R, TH, S, avatarUrl, avatarX, avatarY, avatarSz, rankIdx) {
+  const avCx = avatarX + avatarSz/2, avCy = avatarY + avatarSz/2
+  if (avatarUrl) {
+    const avatarImg = R.getImg(avatarUrl)
+    if (avatarImg && avatarImg.width > 0) {
+      ctx.save()
+      ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.clip()
+      ctx.drawImage(avatarImg, avatarX, avatarY, avatarSz, avatarSz)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'
+      ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
+    }
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
+    ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('?', avCx, avCy + 5*S)
+  }
+  if (rankIdx < 3) {
+    const bc = ['#ffd700', '#c0c0c0', '#cd7f32']
+    ctx.strokeStyle = bc[rankIdx] + '88'; ctx.lineWidth = 1.5*S
+    ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
+  }
+}
+
+// 底部我的排名栏
+function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) {
   const mbg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + myBarH)
   mbg.addColorStop(0, 'rgba(50,40,20,0.88)'); mbg.addColorStop(1, 'rgba(30,25,12,0.92)')
   ctx.fillStyle = mbg; R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.fill()
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
   R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.stroke()
-  // 内高光
   ctx.save(); ctx.globalAlpha = 0.08
   const mhlg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + 6*S)
   mhlg.addColorStop(0, '#fff'); mhlg.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = mhlg; R.rr(padX + 2*S, myBarY + 1, W - padX*2 - 4*S, 6*S, 10*S); ctx.fill()
   ctx.restore()
-  // 我的信息（头像 + 昵称）
+
+  // 头像
   const myAvatarSz = 36*S
   const myAvX = padX + 10*S, myAvY = myBarY + (myBarH - myAvatarSz) / 2
   const myAvCx = myAvX + myAvatarSz/2, myAvCy = myAvY + myAvatarSz/2
@@ -529,10 +598,10 @@ function rRanking(g) {
     ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('我', myAvCx, myAvCy + 5*S)
   }
-  // 金色头像边框
   ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1.5*S
   ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
 
+  // 昵称 + 排名
   const myTextX = myAvX + myAvatarSz + 8*S
   const myNick = g.storage.userInfo ? g.storage.userInfo.nickName : '我'
   ctx.textAlign = 'left'
@@ -545,32 +614,43 @@ function rRanking(g) {
     ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('未上榜', myTextX, myBarY + 40*S)
   }
+
+  // 右侧我的数值
   ctx.textAlign = 'right'
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
-  ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 34*S)
-  ctx.restore()
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-  ctx.fillText('层', W - padX - 14*S, myBarY + 34*S)
-
-  if (g.storage.rankLoading) {
-    ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText('刷新中...', W*0.5, myBarY + myBarH + 12*S)
+  if (tab === 'all' || tab === 'daily') {
+    const bestTurns = g.storage.stats.bestTotalTurns
+    if (g.storage.bestFloor >= 30 && bestTurns > 0) {
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
+      ctx.fillText(`${bestTurns}`, W - padX - 30*S, myBarY + 30*S)
+      ctx.restore()
+      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText('回合通关', W - padX - 14*S, myBarY + 44*S)
+    } else {
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
+      ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 34*S)
+      ctx.restore()
+      ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText('层', W - padX - 14*S, myBarY + 34*S)
+    }
+  } else if (tab === 'dex') {
+    const dexCount = (g.storage.petDex || []).length
+    ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(77,204,77,0.2)'; ctx.shadowBlur = 4*S
+    ctx.fillText(`${dexCount}`, W - padX - 38*S, myBarY + 34*S)
+    ctx.restore()
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('/100', W - padX - 14*S, myBarY + 34*S)
+  } else if (tab === 'combo') {
+    const mc = g.storage.stats.maxCombo || 0
+    ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(255,107,107,0.2)'; ctx.shadowBlur = 4*S
+    ctx.fillText(`${mc}`, W - padX - 46*S, myBarY + 34*S)
+    ctx.restore()
+    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('连击', W - padX - 14*S, myBarY + 34*S)
   }
-
-  // ── 返回 & 刷新按钮 ──
-  drawBackBtn(g)
-  const rfX = W - 68*S, rfY = safeTop + 6*S, rfW = 60*S, rfH = 30*S
-  const rbg = ctx.createLinearGradient(rfX, rfY, rfX, rfY + rfH)
-  rbg.addColorStop(0, 'rgba(40,30,15,0.8)'); rbg.addColorStop(1, 'rgba(25,18,8,0.85)')
-  ctx.fillStyle = rbg; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
-  ctx.strokeStyle = g.storage.rankLoading ? 'rgba(212,175,55,0.2)' : 'rgba(212,175,55,0.5)'
-  ctx.lineWidth = 1*S; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.stroke()
-  ctx.fillStyle = g.storage.rankLoading ? TH.dim : '#f0dca0'
-  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('刷新', rfX + rfW/2, rfY + rfH/2)
-  ctx.textBaseline = 'alphabetic'
-  g._rankRefreshRect = [rfX, rfY, rfW, rfH]
 }
 
 // ===== Stats =====
@@ -580,120 +660,152 @@ function rStats(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 14*S
+  const st = g.storage.stats
+  const heroW = W - padX*2
 
   // ── 标题区 ──
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
   ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('历史统计', W*0.5, safeTop + 40*S)
+  ctx.fillText('我的战绩', W*0.5, safeTop + 40*S)
   ctx.restore()
   const sdivW = W*0.22, sdivY = safeTop + 48*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - sdivW, sdivY); ctx.lineTo(W*0.5 + sdivW, sdivY); ctx.stroke()
 
-  const st = g.storage.stats
-
-  // ── 核心数据：大卡片突出显示 ──
-  const heroY = safeTop + 62*S
-  const heroW = W - padX*2, heroH = 80*S
+  // ── 核心成就：大卡片（最高层 + 最快通关）──
+  const heroY = safeTop + 58*S
+  const heroH = 70*S
   const hbg = ctx.createLinearGradient(padX, heroY, padX, heroY + heroH)
-  hbg.addColorStop(0, 'rgba(50,40,20,0.85)'); hbg.addColorStop(1, 'rgba(30,25,12,0.9)')
+  hbg.addColorStop(0, 'rgba(50,40,20,0.88)'); hbg.addColorStop(1, 'rgba(30,25,12,0.92)')
   ctx.fillStyle = hbg; R.rr(padX, heroY, heroW, heroH, 12*S); ctx.fill()
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
   R.rr(padX, heroY, heroW, heroH, 12*S); ctx.stroke()
-  // 高光边
   ctx.save(); ctx.globalAlpha = 0.1
   const hlg = ctx.createLinearGradient(padX, heroY, padX, heroY + 8*S)
   hlg.addColorStop(0, '#fff'); hlg.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = hlg; R.rr(padX + 2*S, heroY + 1, heroW - 4*S, 8*S, 12*S); ctx.fill()
   ctx.restore()
-  // 最高层数（大号金字）
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${32*S}px "PingFang SC",sans-serif`
-  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.3)'; ctx.shadowBlur = 8*S
-  ctx.fillText(`第 ${g.storage.bestFloor} 层`, W*0.5, heroY + 40*S)
-  ctx.restore()
-  ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('历史最高层数', W*0.5, heroY + 62*S)
 
-  // ── 统计数据：双列卡片 ──
-  const gridY = heroY + heroH + 12*S
-  const colW = (heroW - 8*S) / 2, cardH = 60*S
+  // 左侧：最高层数
+  const bestFloor = g.storage.bestFloor
+  const isCleared = bestFloor >= 30
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
+  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.3)'; ctx.shadowBlur = 6*S
+  ctx.fillText(isCleared ? '通关' : `第 ${bestFloor} 层`, W*0.3, heroY + 34*S)
+  ctx.restore()
+  ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText(isCleared ? '已登顶通天塔' : '最高层数', W*0.3, heroY + 52*S)
+
+  // 分隔线
+  ctx.strokeStyle = 'rgba(212,175,55,0.2)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); ctx.moveTo(W*0.5, heroY + 12*S); ctx.lineTo(W*0.5, heroY + heroH - 12*S); ctx.stroke()
+
+  // 右侧：最快通关 / 暂无
+  const bestTurns = st.bestTotalTurns || 0
+  if (bestTurns > 0) {
+    ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(255,107,107,0.3)'; ctx.shadowBlur = 6*S
+    ctx.fillText(`${bestTurns}`, W*0.7, heroY + 34*S)
+    ctx.restore()
+    ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('最速通关回合', W*0.7, heroY + 52*S)
+  } else {
+    ctx.fillStyle = TH.dim; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    ctx.fillText('—', W*0.7, heroY + 34*S)
+    ctx.fillStyle = 'rgba(240,220,160,0.4)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('通关后解锁', W*0.7, heroY + 52*S)
+  }
+
+  // ── 6项统计数据：三列两行 ──
+  const gridY = heroY + heroH + 10*S
+  const colCount = 3, rowCount = 2
+  const colGap = 6*S, rowGap = 6*S
+  const colW = (heroW - colGap * (colCount - 1)) / colCount
+  const cardH = 56*S
+  const dexCount = (g.storage.petDex || []).length
+  const avgVal = st.totalBattles > 0 ? (st.totalCombos / st.totalBattles).toFixed(1) : '0'
   const statCards = [
-    { label: '总挑战次数', value: `${g.storage.totalRuns}`, unit: '次', color: TH.accent },
-    { label: '总战斗场次', value: `${st.totalBattles}`, unit: '场', color: '#4dabff' },
-    { label: '总消除Combo', value: `${st.totalCombos}`, unit: '次', color: '#4dcc4d' },
-    { label: '最高单次Combo', value: `${st.maxCombo}`, unit: '连', color: '#ff6b6b' },
+    { label: '总挑战', value: `${g.storage.totalRuns}`, unit: '次', color: TH.accent },
+    { label: '总战斗', value: `${st.totalBattles}`, unit: '场', color: '#4dabff' },
+    { label: '图鉴收集', value: `${dexCount}`, unit: '/100', color: '#4dcc4d' },
+    { label: '最高连击', value: `${st.maxCombo}`, unit: '连', color: '#ff6b6b' },
+    { label: '总Combo', value: `${st.totalCombos}`, unit: '次', color: '#e0a020' },
+    { label: '场均Combo', value: `${avgVal}`, unit: '次', color: '#c084fc' },
   ]
   statCards.forEach((card, i) => {
-    const col = i % 2, row = Math.floor(i / 2)
-    const cx = padX + col * (colW + 8*S)
-    const cy = gridY + row * (cardH + 8*S)
-    // 卡片背景
+    const col = i % colCount, row = Math.floor(i / colCount)
+    const cx = padX + col * (colW + colGap)
+    const cy = gridY + row * (cardH + rowGap)
     const cbg = ctx.createLinearGradient(cx, cy, cx, cy + cardH)
     cbg.addColorStop(0, 'rgba(40,35,25,0.75)'); cbg.addColorStop(1, 'rgba(25,22,15,0.82)')
     ctx.fillStyle = cbg; R.rr(cx, cy, colW, cardH, 8*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 0.5*S
+    ctx.strokeStyle = 'rgba(212,175,55,0.12)'; ctx.lineWidth = 0.5*S
     R.rr(cx, cy, colW, cardH, 8*S); ctx.stroke()
-    // 数值
     ctx.textAlign = 'center'
-    ctx.fillStyle = card.color; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
-    ctx.fillText(card.value, cx + colW*0.5, cy + 28*S)
-    // 单位
-    ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-    const valW = ctx.measureText(card.value).width
+    ctx.fillStyle = card.color; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+    ctx.fillText(card.value, cx + colW*0.5, cy + 24*S)
+    ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
+    const valW2 = ctx.measureText(card.value).width
     ctx.textAlign = 'left'
-    ctx.fillText(card.unit, cx + colW*0.5 + valW*0.5 + 3*S, cy + 28*S)
-    // 标签
+    ctx.fillText(card.unit, cx + colW*0.5 + valW2*0.5 + 2*S, cy + 24*S)
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText(card.label, cx + colW*0.5, cy + 48*S)
+    ctx.fillStyle = 'rgba(240,220,160,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(card.label, cx + colW*0.5, cy + 43*S)
   })
 
-  // 平均Combo条
-  const avgY = gridY + 2 * (cardH + 8*S)
-  const avgH = 36*S
-  const abg = ctx.createLinearGradient(padX, avgY, padX, avgY + avgH)
-  abg.addColorStop(0, 'rgba(40,35,25,0.7)'); abg.addColorStop(1, 'rgba(25,22,15,0.78)')
-  ctx.fillStyle = abg; R.rr(padX, avgY, heroW, avgH, 8*S); ctx.fill()
+  // ── 图鉴进度条 ──
+  const barY = gridY + rowCount * (cardH + rowGap) + 4*S
+  const barH = 30*S
+  const barBg = ctx.createLinearGradient(padX, barY, padX, barY + barH)
+  barBg.addColorStop(0, 'rgba(40,35,25,0.7)'); barBg.addColorStop(1, 'rgba(25,22,15,0.78)')
+  ctx.fillStyle = barBg; R.rr(padX, barY, heroW, barH, 8*S); ctx.fill()
   ctx.strokeStyle = 'rgba(212,175,55,0.12)'; ctx.lineWidth = 0.5*S
-  R.rr(padX, avgY, heroW, avgH, 8*S); ctx.stroke()
+  R.rr(padX, barY, heroW, barH, 8*S); ctx.stroke()
+  // 进度条
+  const pbX = padX + 80*S, pbY = barY + 10*S, pbW = heroW - 94*S, pbH = 10*S
+  ctx.fillStyle = 'rgba(255,255,255,0.06)'
+  R.rr(pbX, pbY, pbW, pbH, pbH*0.5); ctx.fill()
+  const pct = Math.min(dexCount / 100, 1)
+  if (pct > 0) {
+    const pg = ctx.createLinearGradient(pbX, pbY, pbX + pbW * pct, pbY)
+    pg.addColorStop(0, '#4dcc4d'); pg.addColorStop(1, '#80ff80')
+    ctx.fillStyle = pg
+    R.rr(pbX, pbY, pbW * pct, pbH, pbH*0.5); ctx.fill()
+  }
   ctx.textAlign = 'left'
-  ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('平均每场Combo', padX + 14*S, avgY + avgH*0.6)
+  ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('图鉴进度', padX + 10*S, barY + barH*0.62)
   ctx.textAlign = 'right'
-  const avgVal = st.totalBattles > 0 ? (st.totalCombos / st.totalBattles).toFixed(1) : '-'
-  ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`${avgVal} 次`, W - padX - 14*S, avgY + avgH*0.6)
+  ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${dexCount}/100`, W - padX - 10*S, barY + barH*0.62)
 
   // ── 最高记录阵容 ──
-  const teamY = avgY + avgH + 14*S
-  const teamH = 80*S
+  const teamY = barY + barH + 10*S
+  const teamH = 70*S
   const tbg = ctx.createLinearGradient(padX, teamY, padX, teamY + teamH)
   tbg.addColorStop(0, 'rgba(50,40,20,0.8)'); tbg.addColorStop(1, 'rgba(30,25,12,0.85)')
   ctx.fillStyle = tbg; R.rr(padX, teamY, heroW, teamH, 10*S); ctx.fill()
   ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
   R.rr(padX, teamY, heroW, teamH, 10*S); ctx.stroke()
-  // 小标题
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('✦ 最高记录阵容 ✦', W*0.5, teamY + 18*S)
+  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('✦ 最高记录阵容 ✦', W*0.5, teamY + 16*S)
   const bfPets = st.bestFloorPets || []
   const bfWeapon = st.bestFloorWeapon
   if (bfPets.length > 0) {
-    // 宠物名横排，带属性色
     const petW = heroW / Math.max(bfPets.length, 1)
     bfPets.forEach((p, i) => {
       const px = padX + petW * i + petW*0.5
       const ac = ATTR_COLOR[p.attr]
-      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.fillText(p.name, px, teamY + 42*S)
-      // 属性色小点
-      ctx.beginPath(); ctx.arc(px, teamY + 50*S, 2.5*S, 0, Math.PI*2)
+      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(p.name, px, teamY + 38*S)
+      ctx.beginPath(); ctx.arc(px, teamY + 45*S, 2.5*S, 0, Math.PI*2)
       ctx.fillStyle = ac ? ac.main : TH.dim; ctx.fill()
     })
     if (bfWeapon) {
-      ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      ctx.font = `${10*S}px "PingFang SC",sans-serif`
       const _bfLabel = '法宝·'
       const _bfLabelW = ctx.measureText(_bfLabel).width
       const _bfFull = _bfLabel + bfWeapon.name
@@ -701,15 +813,35 @@ function rStats(g) {
       const _bfStartX = W*0.5 - _bfFullW/2
       ctx.textAlign = 'left'
       ctx.fillStyle = '#e0a020'
-      ctx.fillText(_bfLabel, _bfStartX, teamY + 68*S)
+      ctx.fillText(_bfLabel, _bfStartX, teamY + 60*S)
       ctx.fillStyle = '#ffec80'
-      ctx.fillText(bfWeapon.name, _bfStartX + _bfLabelW, teamY + 68*S)
+      ctx.fillText(bfWeapon.name, _bfStartX + _bfLabelW, teamY + 60*S)
       ctx.textAlign = 'center'
     }
   } else {
     ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText('暂无记录', W*0.5, teamY + 48*S)
+    ctx.fillText('暂无记录', W*0.5, teamY + 42*S)
   }
+
+  // ── 分享战绩按钮 ──
+  const shareBtnW = W*0.56, shareBtnH = 40*S
+  const shareBtnX = (W - shareBtnW) / 2
+  const shareBtnY = teamY + teamH + 14*S
+  const sbg = ctx.createLinearGradient(shareBtnX, shareBtnY, shareBtnX, shareBtnY + shareBtnH)
+  sbg.addColorStop(0, '#f0c040'); sbg.addColorStop(1, '#d4a020')
+  ctx.fillStyle = sbg; R.rr(shareBtnX, shareBtnY, shareBtnW, shareBtnH, shareBtnH*0.5); ctx.fill()
+  ctx.strokeStyle = 'rgba(212,175,55,0.6)'; ctx.lineWidth = 1.5*S
+  R.rr(shareBtnX, shareBtnY, shareBtnW, shareBtnH, shareBtnH*0.5); ctx.stroke()
+  ctx.save(); ctx.globalAlpha = 0.15
+  const shlg = ctx.createLinearGradient(shareBtnX, shareBtnY, shareBtnX, shareBtnY + shareBtnH*0.4)
+  shlg.addColorStop(0, '#fff'); shlg.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = shlg; R.rr(shareBtnX + 2*S, shareBtnY + 1, shareBtnW - 4*S, shareBtnH*0.4, shareBtnH*0.5); ctx.fill()
+  ctx.restore()
+  ctx.fillStyle = '#2a1a00'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('📤 分享战绩给好友', shareBtnX + shareBtnW/2, shareBtnY + shareBtnH/2)
+  ctx.textBaseline = 'alphabetic'
+  g._statsShareBtnRect = [shareBtnX, shareBtnY, shareBtnW, shareBtnH]
 
   drawBackBtn(g)
 }
