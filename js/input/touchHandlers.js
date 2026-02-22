@@ -4,7 +4,7 @@
  */
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
-const { generateRewards } = require('../data/tower')
+const { generateRewards, MAX_FLOOR } = require('../data/tower')
 const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 const tutorial = require('../engine/tutorial')
@@ -30,7 +30,14 @@ function tTitle(g, type, x, y) {
     g._startRun(); return
   }
   if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { console.log('[Touch] Stats button clicked'); g.scene = 'stats'; return }
-  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) { console.log('[Touch] Rank button clicked'); g._openRanking(); return }
+  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) {
+    // 未授权时排行按钮上有透明UserInfoButton，canvas不处理（让UserInfoButton拦截）
+    if (!g.storage.userAuthorized && g.storage._userInfoBtn) {
+      console.log('[Touch] Rank button clicked but UserInfoButton active, skip canvas handler')
+      return
+    }
+    console.log('[Touch] Rank button clicked'); g._openRanking(); return
+  }
   if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { console.log('[Touch] Dex button clicked'); g._dexScrollY = 0; g.scene = 'dex'; return }
   console.log('[Touch] Title tap missed, rankBtnRect exists?', !!g._rankBtnRect)
 }
@@ -517,6 +524,14 @@ function tBattle(g, type, x, y) {
   // [DEV] 秒杀按钮已禁用
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
+    // 第30层通关面板：点击确认直接结束
+    if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
+      if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
+      g.cleared = true
+      g._endRun()
+      return
+    }
+    if (g.floor >= MAX_FLOOR) return  // 通关面板上不响应其他点击
     // ★3满星庆祝画面：点击关闭后进入下一层
     if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
       g._star3Celebration = null

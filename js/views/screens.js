@@ -505,17 +505,45 @@ function rRanking(g) {
   mhlg.addColorStop(0, '#fff'); mhlg.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = mhlg; R.rr(padX + 2*S, myBarY + 1, W - padX*2 - 4*S, 6*S, 10*S); ctx.fill()
   ctx.restore()
-  // 我的信息
+  // 我的信息（头像 + 昵称）
+  const myAvatarSz = 36*S
+  const myAvX = padX + 10*S, myAvY = myBarY + (myBarH - myAvatarSz) / 2
+  const myAvCx = myAvX + myAvatarSz/2, myAvCy = myAvY + myAvatarSz/2
+  const myAvatarUrl = g.storage.userInfo ? g.storage.userInfo.avatarUrl : ''
+  if (myAvatarUrl) {
+    const myAvImg = R.getImg(myAvatarUrl)
+    if (myAvImg && myAvImg.width > 0) {
+      ctx.save()
+      ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2, 0, Math.PI*2); ctx.clip()
+      ctx.drawImage(myAvImg, myAvX, myAvY, myAvatarSz, myAvatarSz)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'
+      ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2, 0, Math.PI*2); ctx.fill()
+      ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText('我', myAvCx, myAvCy + 5*S)
+    }
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2, 0, Math.PI*2); ctx.fill()
+    ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('我', myAvCx, myAvCy + 5*S)
+  }
+  // 金色头像边框
+  ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1.5*S
+  ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
+
+  const myTextX = myAvX + myAvatarSz + 8*S
   const myNick = g.storage.userInfo ? g.storage.userInfo.nickName : '我'
   ctx.textAlign = 'left'
   ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`${myNick}`, padX + 14*S, myBarY + 22*S)
+  ctx.fillText(`${myNick}`, myTextX, myBarY + 22*S)
   if (myRank > 0) {
     ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`第 ${myRank} 名`, padX + 14*S, myBarY + 40*S)
+    ctx.fillText(`第 ${myRank} 名`, myTextX, myBarY + 40*S)
   } else {
     ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText('未上榜', padX + 14*S, myBarY + 40*S)
+    ctx.fillText('未上榜', myTextX, myBarY + 40*S)
   }
   ctx.textAlign = 'right'
   ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`

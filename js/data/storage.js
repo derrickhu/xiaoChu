@@ -139,10 +139,22 @@ class Storage {
     try {
       const raw = wx.getStorageSync('wxtower_userinfo')
       if (raw) {
-        this.userInfo = JSON.parse(raw)
-        this.userAuthorized = true
+        const info = JSON.parse(raw)
+        // 验证数据有效性：过滤掉之前getUserProfile返回的无效默认值
+        if (info && info.nickName && info.nickName !== '微信用户' && info.avatarUrl && info.avatarUrl.length > 10) {
+          this.userInfo = info
+          this.userAuthorized = true
+          console.log('[Storage] 已加载用户信息:', info.nickName)
+        } else {
+          console.warn('[Storage] 缓存的用户信息无效，清除:', info)
+          wx.removeStorageSync('wxtower_userinfo')
+          this.userInfo = null
+          this.userAuthorized = false
+        }
       }
-    } catch(e) {}
+    } catch(e) {
+      console.warn('[Storage] 加载用户信息失败:', e)
+    }
   }
 
   _saveUserInfo(info) {
@@ -152,38 +164,148 @@ class Storage {
   }
 
   // 微信用户信息授权（头像+昵称）
-  requestUserInfo(callback) {
-    // 微信小游戏使用 wx.getUserInfo（需用户主动触发）
-    // 这里通过 wx.createUserInfoButton 实现
-    // 但 canvas 游戏中无法直接用 button，所以用 getUserProfile
-    wx.getUserProfile({
-      desc: '用于排行榜展示',
-      success: (res) => {
-        const info = {
-          nickName: res.userInfo.nickName,
-          avatarUrl: res.userInfo.avatarUrl,
+  // 小游戏必须通过 createUserInfoButton 获取真实头像昵称
+  // 预创建透明按钮覆盖在排行按钮上，用户点击即触发授权
+  // rect: { left, top, width, height } — 逻辑像素（CSS像素）
+  showUserInfoBtn(rect, callback) {
+    this.destroyUserInfoBtn()
+    console.log('[UserInfoBtn] 开始创建, rect:', JSON.stringify(rect))
+    try {
+      const btn = wx.createUserInfoButton({
+        type: 'text',
+        text: '',
+        style: {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          backgroundColor: 'rgba(0,0,0,0)',
+          borderColor: 'rgba(0,0,0,0)',
+          borderWidth: 0,
+          borderRadius: 0,
+          color: 'rgba(0,0,0,0)',
+          fontSize: 1,
+          textAlign: 'center',
+          lineHeight: rect.height,
+        },
+        withCredentials: false,
+      })
+      console.log('[UserInfoBtn] 创建成功, btn:', !!btn)
+      this._userInfoBtn = btn
+      this._userInfoBtnCallback = callback
+      btn.onTap((res) => {
+        console.log('[UserInfoBtn] onTap触发, res:', JSON.stringify(res))
+        btn.destroy()
+        this._userInfoBtn = null
+        const cb = this._userInfoBtnCallback
+        this._userInfoBtnCallback = null
+
+        // 检查是否因隐私API未配置导致失败
+        const errMsg = res.errMsg || ''
+        if (errMsg.indexOf('no privacy api permission') !== -1 || res.err_code === -12034) {
+          console.warn('[UserInfo] 隐私API未配置，需在公众平台配置用户隐私保护指引')
+          // 隐私API未配置时直接放行进入排行榜
+          if (cb) cb(false, null)
+          return
         }
-        this._saveUserInfo(info)
-        if (callback) callback(true, info)
-      },
-      fail: (err) => {
-        console.warn('用户拒绝授权:', err)
-        // getUserProfile 不支持时，尝试 getUserInfo
-        wx.getUserInfo({
-          success: (res2) => {
-            const info = {
-              nickName: res2.userInfo.nickName,
-              avatarUrl: res2.userInfo.avatarUrl,
-            }
-            this._saveUserInfo(info)
-            if (callback) callback(true, info)
-          },
-          fail: () => {
-            if (callback) callback(false, null)
+
+        if (res.userInfo && res.userInfo.nickName && res.userInfo.nickName !== '微信用户') {
+          const info = {
+            nickName: res.userInfo.nickName,
+            avatarUrl: res.userInfo.avatarUrl,
           }
-        })
-      }
+          console.log('[UserInfoBtn] 获取到用户信息:', info.nickName, info.avatarUrl)
+          this._saveUserInfo(info)
+          if (cb) cb(true, info)
+        } else if (res.errMsg && res.errMsg.indexOf('fail') !== -1) {
+          // 用户拒绝授权 → 尝试引导去设置页
+          console.warn('[UserInfo] 授权失败，尝试openSetting')
+          this._tryOpenSetting(cb)
+        } else {
+          console.warn('[UserInfo] 未获取到有效信息，跳过')
+          if (cb) cb(false, null)
+        }
+      })
+    } catch(e) {
+      console.warn('[UserInfo] createUserInfoButton失败:', e)
+      if (callback) callback(false, null)
+    }
+  }
+
+  // 引导用户到设置页开启 userInfo 授权
+  _tryOpenSetting(callback) {
+    wx.getSetting({
+      success: (settingRes) => {
+        console.log('[UserInfo] getSetting:', JSON.stringify(settingRes.authSetting))
+        if (settingRes.authSetting['scope.userInfo'] === false) {
+          // 之前明确拒绝过，需要引导到设置页
+          wx.showModal({
+            title: '授权提示',
+            content: '需要获取您的昵称和头像用于排行榜展示，请在设置中开启',
+            confirmText: '去设置',
+            cancelText: '暂不',
+            success: (modalRes) => {
+              if (modalRes.confirm) {
+                wx.openSetting({
+                  success: (openRes) => {
+                    console.log('[UserInfo] openSetting result:', JSON.stringify(openRes.authSetting))
+                    if (openRes.authSetting['scope.userInfo']) {
+                      // 用户在设置中开启了授权，重新获取信息
+                      wx.getUserInfo({
+                        success: (infoRes) => {
+                          if (infoRes.userInfo && infoRes.userInfo.nickName !== '微信用户') {
+                            const info = {
+                              nickName: infoRes.userInfo.nickName,
+                              avatarUrl: infoRes.userInfo.avatarUrl,
+                            }
+                            this._saveUserInfo(info)
+                            if (callback) callback(true, info)
+                          } else {
+                            if (callback) callback(false, null)
+                          }
+                        },
+                        fail: () => { if (callback) callback(false, null) }
+                      })
+                    } else {
+                      if (callback) callback(false, null)
+                    }
+                  },
+                  fail: () => { if (callback) callback(false, null) }
+                })
+              } else {
+                if (callback) callback(false, null)
+              }
+            },
+            fail: () => { if (callback) callback(false, null) }
+          })
+        } else {
+          // 未被明确拒绝，可能是首次（但 userInfo 为空），直接放行
+          console.warn('[UserInfo] 授权状态非拒绝但信息为空，跳过')
+          if (callback) callback(false, null)
+        }
+      },
+      fail: () => { if (callback) callback(false, null) }
     })
+  }
+
+  // 更新按钮位置（排行按钮位置可能因有无存档而变化）
+  updateUserInfoBtnPos(rect) {
+    if (!this._userInfoBtn) return
+    try {
+      this._userInfoBtn.style.left = rect.left
+      this._userInfoBtn.style.top = rect.top
+      this._userInfoBtn.style.width = rect.width
+      this._userInfoBtn.style.height = rect.height
+    } catch(e) {}
+  }
+
+  // 销毁授权按钮
+  destroyUserInfoBtn() {
+    if (this._userInfoBtn) {
+      try { this._userInfoBtn.destroy() } catch(e) {}
+      this._userInfoBtn = null
+      this._userInfoBtnCallback = null
+    }
   }
 
   // ===== 排行榜 =====

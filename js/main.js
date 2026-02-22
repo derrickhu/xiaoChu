@@ -5,7 +5,7 @@
  */
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
-const { ATTR_COLOR, generateRewards } = require('./data/tower')
+const { ATTR_COLOR, generateRewards, MAX_FLOOR } = require('./data/tower')
 const { getMaxedPetIds } = require('./data/pets')
 const MusicMgr = require('./runtime/music')
 const ViewEnv = require('./views/env')
@@ -206,8 +206,8 @@ class Main {
         if (tutorial.onVictory(this)) return  // 被教学系统接管
       }
     }
-    // victory 状态下懒生成奖励（仅生成一次，教学中不生成）
-    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive()) {
+    // victory 状态下懒生成奖励（仅生成一次，教学中不生成，最终层不生成）
+    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive() && this.floor < MAX_FLOOR) {
       const ownedWpnIds = new Set()
       if (this.weapon) ownedWpnIds.add(this.weapon.id)
       if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
@@ -292,6 +292,8 @@ class Main {
     if (this.scene === 'ranking' && this.af % 3600 === 0) {
       this.storage.fetchRanking(this.rankTab, true)
     }
+    // title场景：预置授权按钮；非title场景：销毁
+    this._updateTitleAuthBtn()
   }
 
   // ===== 渲染入口 =====
@@ -347,24 +349,55 @@ class Main {
   _drawEventPetDetail() { eventView.drawEventPetDetail(this) }
   _openRanking() {
     console.log('[Ranking] Opening ranking page')
-    // 直接进入排行榜页面，无需先授权
+    this.storage.destroyUserInfoBtn()
     this.rankTab = 'all'
     this.rankScrollY = 0
     this.scene = 'ranking'
-    // 如果云已就绪，拉取排行榜数据
     if (this.storage._cloudReady) {
       this.storage.fetchRanking('all', true)
       this.storage.fetchRanking('daily', true)
     } else {
       console.warn('[Ranking] Cloud not ready, skipping fetch')
     }
-    // 如果用户已授权且有最高分，尝试提交分数
     if (this.storage.userAuthorized && this.storage.bestFloor > 0) {
       this.storage.submitScore(
         this.storage.bestFloor,
         this.storage.stats.bestFloorPets,
         this.storage.stats.bestFloorWeapon
       )
+    }
+  }
+
+  // 在title场景中，如果用户未授权，预创建透明按钮覆盖排行按钮
+  _updateTitleAuthBtn() {
+    if (this.scene !== 'title') {
+      this.storage.destroyUserInfoBtn()
+      return
+    }
+    if (this.storage.userAuthorized) {
+      this.storage.destroyUserInfoBtn()
+      return
+    }
+    const btnRect = this._rankBtnRect
+    if (!btnRect) return
+    const cssRect = {
+      left: btnRect[0] / dpr,
+      top: btnRect[1] / dpr,
+      width: btnRect[2] / dpr,
+      height: btnRect[3] / dpr,
+    }
+    if (!this.storage._userInfoBtn) {
+      // 首次创建透明授权按钮覆盖排行按钮
+      console.log('[AuthBtn] 创建透明授权按钮, cssRect:', JSON.stringify(cssRect), 'canvasRect:', JSON.stringify(btnRect))
+      this.storage.showUserInfoBtn(cssRect, (ok, info) => {
+        console.log('[AuthBtn] 授权回调, ok:', ok, 'info:', info)
+        if (ok) {
+          console.log('[Ranking] 授权成功:', info.nickName, info.avatarUrl)
+        } else {
+          console.warn('[Ranking] 用户拒绝授权，以游客身份进入排行榜')
+        }
+        this._openRanking()
+      })
     }
   }
 
