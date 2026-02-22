@@ -227,7 +227,7 @@ function drawWeaponDetailDialog(g) {
   const maxTextW = tipW - padX * 2
 
   let lines = []
-  lines.push({ text: w.name, color: '#8B6914', bold: true, size: 14, h: lineH + 2*S })
+  lines.push({ text: w.name, color: '#8B6914', bold: true, size: 14, h: lineH + 2*S, wpnPrefix: true })
   lines.push({ text: '', size: 0, h: 4*S })
   lines.push({ text: '法宝效果：', color: '#8B6914', bold: true, size: 11, h: smallLineH })
   const descLines = _wrapTextDialog(w.desc || '无', maxTextW - 8*S, 10)
@@ -271,9 +271,16 @@ function drawWeaponDetailDialog(g) {
   lines.forEach(l => {
     if (l.size === 0) { curY += l.h; return }
     curY += l.h
-    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
-    ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    let tx = tipX + padX
+    if (l.wpnPrefix) {
+      const pfx = '法宝·'
+      ctx.fillStyle = '#e0a020'
+      ctx.fillText(pfx, tx, curY - 4*S)
+      tx += ctx.measureText(pfx).width
+    }
+    ctx.fillStyle = l.color || '#3D2B1F'
+    ctx.fillText(l.text, tx, curY - 4*S)
   })
 
   ctx.restore() // 结束裁剪

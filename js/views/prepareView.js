@@ -278,8 +278,7 @@ function _drawPetTab(g, padX, contentY) {
 
 function _drawWeaponTab(g, padX, contentY) {
   const { ctx, R, TH, W, H, S } = V
-  const frameWeapon = R.getImg('assets/ui/frame_weapon.png')
-  const frameScale = 1.12
+  const drag = g._prepDragWpn
 
   // 当前装备法宝（单个大图标）
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
@@ -289,7 +288,9 @@ function _drawWeaponTab(g, padX, contentY) {
   const curTextH = 28*S
   if (g.weapon) {
     const sx = padX, sy = curWpnY
-    const cx = sx + curIconSz*0.5, cy = sy + curIconSz*0.5
+    const cx = sx + curIconSz*0.5
+    const isDragSource = drag && drag.source === 'equipped'
+    if (isDragSource) ctx.globalAlpha = 0.3
     ctx.fillStyle = 'rgba(30,25,18,0.85)'
     ctx.fillRect(sx+1, sy+1, curIconSz-2, curIconSz-2)
     const curWpnImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
@@ -300,43 +301,54 @@ function _drawWeaponTab(g, padX, contentY) {
       ctx.drawImage(curWpnImg, sx+1, sy+1+(curIconSz-2-dh), dw, dh)
       ctx.restore()
     }
-    if (frameWeapon && frameWeapon.width > 0) {
-      const fSz = curIconSz * frameScale, fOff = (fSz - curIconSz)/2
-      ctx.drawImage(frameWeapon, sx - fOff, sy - fOff, fSz, fSz)
-    }
-    ctx.strokeStyle = TH.accent; ctx.lineWidth = 2*S
-    ctx.strokeRect(sx-1, sy-1, curIconSz+2, curIconSz+2)
+    R.drawWeaponFrame(sx, sy, curIconSz)
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(g.weapon.name.substring(0,5), cx, sy+curIconSz+3*S)
+    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    const _cpLabel = '法宝·'
+    const _cpFull = _cpLabel + g.weapon.name.substring(0,4)
+    const _cpFullW = ctx.measureText(_cpFull).width
+    const _cpLabelW = ctx.measureText(_cpLabel).width
+    const _cpStartX = cx - _cpFullW/2
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#e0a020'
+    ctx.fillText(_cpLabel, _cpStartX, sy+curIconSz+3*S)
+    ctx.fillStyle = TH.accent
+    ctx.fillText(g.weapon.name.substring(0,4), _cpStartX + _cpLabelW, sy+curIconSz+3*S)
     ctx.textBaseline = 'alphabetic'
+    if (isDragSource) ctx.globalAlpha = 1
     g._prepCurWpnRect = [sx, sy, curIconSz, curIconSz + curTextH]
+    // 从背包拖到装备位时的高亮
+    if (drag && drag.source === 'bag' && g._hitRect(drag.x, drag.y, sx, sy, curIconSz, curIconSz)) {
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
+      ctx.strokeRect(sx - 1, sy - 1, curIconSz + 2, curIconSz + 2)
+    }
   } else {
     ctx.fillStyle = TH.card
     R.rr(padX, curWpnY, curIconSz, curIconSz, 6*S); ctx.fill()
-    if (frameWeapon && frameWeapon.width > 0) {
-      ctx.save(); ctx.globalAlpha = 0.35
-      const fSz = curIconSz * frameScale, fOff = (fSz - curIconSz)/2
-      ctx.drawImage(frameWeapon, padX - fOff, curWpnY - fOff, fSz, fSz)
-      ctx.restore()
-    }
+    R.drawWeaponFrame(padX, curWpnY, curIconSz, 0.35)
     ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('无', padX + curIconSz*0.5, curWpnY + curIconSz*0.5)
     ctx.textBaseline = 'alphabetic'
-    g._prepCurWpnRect = null
+    g._prepCurWpnRect = [padX, curWpnY, curIconSz, curIconSz + curTextH]
+    // 从背包拖到空装备位时的高亮
+    if (drag && drag.source === 'bag' && g._hitRect(drag.x, drag.y, padX, curWpnY, curIconSz, curIconSz)) {
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
+      ctx.strokeRect(padX - 1, curWpnY - 1, curIconSz + 2, curIconSz + 2)
+    }
   }
 
   // 法宝背包（网格布局，参照灵宠背包）
   const wBagLabelY = curWpnY + curIconSz + curTextH + 14*S
   ctx.fillStyle = TH.sub; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
   ctx.fillText(`背包法宝（${g.weaponBag.length}件）：`, padX, wBagLabelY)
-  const wBagY = wBagLabelY + 16*S
+  // 操作提示
+  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('拖动到上方可替换装备', W*0.5, wBagLabelY + 13*S)
+  const wBagY = wBagLabelY + 28*S
   const bagGap = 4*S
   const bagIcon = Math.floor((W - padX*2 - bagGap*3) / 4)
   const bagTextH = 28*S
-  const bFrameSz = bagIcon * frameScale
-  const bfOff = (bFrameSz - bagIcon) / 2
 
   // 计算法宝背包滚动
   const wBagBottomLimit = H - 60*S - 18*S - 12*S - 58*S
@@ -361,7 +373,9 @@ function _drawWeaponTab(g, padX, contentY) {
   for (let i = 0; i < g.weaponBag.length; i++) {
     const bx = padX + (i%4)*(bagIcon+bagGap), by = wBagY + Math.floor(i/4)*(bagIcon+bagTextH+bagGap)
     const wp = g.weaponBag[i]
-    const bcx = bx + bagIcon*0.5, bcy = by + bagIcon*0.5
+    const bcx = bx + bagIcon*0.5
+    const isDragSrc = drag && drag.source === 'bag' && drag.index === i
+    if (isDragSrc) ctx.globalAlpha = 0.3
     ctx.fillStyle = 'rgba(30,25,18,0.85)'
     ctx.fillRect(bx+1, by+1, bagIcon-2, bagIcon-2)
     const bagWpnImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
@@ -372,14 +386,27 @@ function _drawWeaponTab(g, padX, contentY) {
       ctx.drawImage(bagWpnImg, bx+1, by+1+(bagIcon-2-bdH), bdW, bdH)
       ctx.restore()
     }
-    if (frameWeapon && frameWeapon.width > 0) {
-      ctx.drawImage(frameWeapon, bx - bfOff, by - bfOff, bFrameSz, bFrameSz)
-    }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-    ctx.fillStyle = TH.accent; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(wp.name.substring(0,5), bcx, by+bagIcon+3*S)
+    R.drawWeaponFrame(bx, by, bagIcon)
+    ctx.textBaseline = 'top'
+    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    const _bpLabel = '法宝·'
+    const _bpFull = _bpLabel + wp.name.substring(0,4)
+    const _bpFullW = ctx.measureText(_bpFull).width
+    const _bpLabelW = ctx.measureText(_bpLabel).width
+    const _bpStartX = bcx - _bpFullW/2
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#e0a020'
+    ctx.fillText(_bpLabel, _bpStartX, by+bagIcon+3*S)
+    ctx.fillStyle = TH.accent
+    ctx.fillText(wp.name.substring(0,4), _bpStartX + _bpLabelW, by+bagIcon+3*S)
     ctx.textBaseline = 'alphabetic'
+    if (isDragSrc) ctx.globalAlpha = 1
     g._prepWpnBagRects.push([bx, by - _wpnBagScrollY, bagIcon, bagIcon + bagTextH])
+    // 从装备位拖到背包item上的高亮
+    if (drag && drag.source === 'equipped' && g._hitRect(drag.x, drag.y, bx, by - _wpnBagScrollY, bagIcon, bagIcon)) {
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*S
+      ctx.strokeRect(bx - 1, by - 1, bagIcon + 2, bagIcon + 2)
+    }
   }
   if (g.weaponBag.length === 0) {
     ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
@@ -396,6 +423,25 @@ function _drawWeaponTab(g, padX, contentY) {
     const barX = W - 6*S
     ctx.fillStyle = 'rgba(255,255,255,0.3)'
     R.rr(barX, barY, 4*S, barH, 2*S); ctx.fill()
+  }
+
+  // 拖拽中的法宝跟随手指绘制
+  if (drag && drag.weapon && drag.moved) {
+    const dragSz = curIconSz * 0.9
+    const dx = drag.x - dragSz/2, dy = drag.y - dragSz/2
+    ctx.globalAlpha = 0.85
+    ctx.fillStyle = 'rgba(30,25,18,0.85)'
+    ctx.fillRect(dx+1, dy+1, dragSz-2, dragSz-2)
+    const dragImg = R.getImg(`assets/equipment/fabao_${drag.weapon.id}.png`)
+    if (dragImg && dragImg.width > 0) {
+      ctx.save(); ctx.beginPath(); ctx.rect(dx+1, dy+1, dragSz-2, dragSz-2); ctx.clip()
+      const daw = dragImg.width, dah = dragImg.height
+      const ddw = dragSz - 2, ddh = ddw * (dah / daw)
+      ctx.drawImage(dragImg, dx+1, dy+1+(dragSz-2-ddh), ddw, ddh)
+      ctx.restore()
+    }
+    R.drawWeaponFrame(dx, dy, dragSz)
+    ctx.globalAlpha = 1
   }
 }
 
@@ -632,7 +678,7 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
 // 法宝信息弹窗（保持原逻辑）
 function _drawWeaponTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g) {
   let lines = []
-  lines.push({ text: d.name, color: '#8B6914', bold: true, size: 14 })
+  lines.push({ text: d.name, color: '#8B6914', bold: true, size: 14, wpnPrefix: true })
   lines.push({ text: '被动效果', color: '#6B5B50', size: 10 })
   if (d.desc) {
     lines.push({ text: '', size: 6 })
@@ -662,9 +708,16 @@ function _drawWeaponTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, line
   for (const l of lines) {
     if (l.size === 6) { curY += 6*S; continue }
     curY += lineH
-    ctx.fillStyle = l.color || '#3D2B1F'
     ctx.font = `${l.bold ? 'bold ' : ''}${l.size*S}px "PingFang SC",sans-serif`
-    ctx.fillText(l.text, tipX + padX, curY - 4*S)
+    let tx = tipX + padX
+    if (l.wpnPrefix) {
+      const pfx = '法宝·'
+      ctx.fillStyle = '#e0a020'
+      ctx.fillText(pfx, tx, curY - 4*S)
+      tx += ctx.measureText(pfx).width
+    }
+    ctx.fillStyle = l.color || '#3D2B1F'
+    ctx.fillText(l.text, tx, curY - 4*S)
   }
 
   ctx.restore()
