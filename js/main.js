@@ -21,7 +21,8 @@ const anim = require('./engine/animations')
 const runMgr = require('./engine/runManager')
 const tutorial = require('./engine/tutorial')
 
-const canvas = wx.createCanvas()
+// 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
+const canvas = GameGlobal.__mainCanvas || wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const _winInfo = wx.getWindowInfo()
 const _devInfo = wx.getDeviceInfo()
@@ -136,6 +137,8 @@ class Main {
     this.goodBeadsNextTurn = false
 
     this._loadStart = Date.now()
+    this._loadReady = false  // 关键资源是否加载完毕
+    this._loadPct = 0        // 实际加载进度
     this._pressedBtn = null
     // 长按预览
     this._petLongPressTimer = null
@@ -166,6 +169,22 @@ class Main {
 
     const loop = () => { this.af++; try { this.update(); this.render() } catch(e) { console.error('loop error:', e) }; requestAnimationFrame(loop) }
     requestAnimationFrame(loop)
+
+    // 预加载关键图片（Loading背景、首页背景、标题Logo、按钮）
+    const criticalImages = [
+      'assets/backgrounds/loading_bg.jpg',
+      'assets/backgrounds/home_bg.jpg',
+      'assets/ui/title_logo.png',
+      'assets/ui/btn_start.png',
+      'assets/ui/btn_continue.png',
+      'assets/ui/btn_rank.png',
+    ]
+    R.preloadImages(criticalImages, (loaded, total) => {
+      this._loadPct = loaded / total
+    }).then(() => {
+      console.log('[Preload] critical images ready')
+      this._loadReady = true
+    })
   }
 
   // ===== Run管理（委托到 runManager）=====
@@ -202,7 +221,7 @@ class Main {
     }
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
-      if (elapsed > 1000) {
+      if (this._loadReady && elapsed > 500) {
         this.scene = 'title'; MusicMgr.playBgm()
       }
     }

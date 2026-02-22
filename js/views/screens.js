@@ -11,9 +11,8 @@ function rLoading(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawLoadingBg(g.af)
 
-  // 简单的加载动画进度条（基于时间流逝）
-  const elapsed = Date.now() - g._loadStart
-  const pct = Math.min(1, elapsed / 1000)
+  // 使用实际资源加载进度（由 preloadImages 回调更新）
+  const pct = g._loadPct || 0
 
   // 进度条参数 — 位于画面底部
   const barW = W * 0.6
@@ -1032,9 +1031,7 @@ function rShop(g) {
 // ===== Rest =====
 function rRest(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawBg(g.af)
-  // 半透明暖色叠加
-  ctx.fillStyle = 'rgba(80,60,30,0.15)'; ctx.fillRect(0, 0, W, H)
+  R.drawRestBg(g.af)
   // 标题
   ctx.save()
   ctx.textAlign = 'center'
@@ -1534,7 +1531,7 @@ function _drawDexPetDetail(g) {
   ctx.restore()
   ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('🎬 带它出战', W * 0.5, btnY + btnH * 0.5)
+  ctx.fillText('带它出战', W * 0.5, btnY + btnH * 0.5)
   ctx.textBaseline = 'alphabetic'
   g._dexBattleBtnRect = [btnX, btnY, btnW, btnH]
 

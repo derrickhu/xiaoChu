@@ -6,7 +6,7 @@
  */
 
 const LOCAL_KEY = 'wxtower_v1'
-const CLOUD_ENV = 'cloud1-9glro17fb6f566a8'
+const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
