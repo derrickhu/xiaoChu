@@ -489,6 +489,8 @@ function triggerPetSkill(g, pet, idx) {
 // ===== 奖励应用 =====
 function applyReward(g, rw) {
   if (!rw) return
+  // 记录本次奖励结果，供事件页显示 NEW/UP 角标
+  g._lastRewardInfo = null
   switch(rw.type) {
     case REWARD_TYPES.NEW_PET: {
       const newPet = { ...rw.data, star: rw.data.star || 1, currentCd: 0 }
@@ -496,12 +498,26 @@ function applyReward(g, rw) {
       const mergeResult = _mergePetAndDex(g, allPets, newPet)
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
+        g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
+      } else if (mergeResult.target) {
+        // 已有同ID宠物→升星
+        g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
+        // 升至★3满星：触发庆祝画面
+        if ((mergeResult.target.star || 1) >= MAX_STAR) {
+          g._star3Celebration = {
+            pet: mergeResult.target,
+            timer: 0,
+            phase: 'fadeIn',  // fadeIn → show → ready
+            particles: [],
+          }
+        }
       }
       break
     }
     case REWARD_TYPES.NEW_WEAPON: {
       const newWpn = { ...rw.data }
       g.weaponBag.push(newWpn)
+      g._lastRewardInfo = { type: 'newWeapon', weaponId: newWpn.id }
       break
     }
     case REWARD_TYPES.BUFF:
@@ -666,7 +682,15 @@ function applyShopStarUp(g, petIdx) {
   if (!p) return false
   if ((p.star || 1) >= 3) return false
   p.star = (p.star || 1) + 1
-  if (p.star >= MAX_STAR) g.storage.addPetDex(p.id)
+  if (p.star >= MAX_STAR) {
+    g.storage.addPetDex(p.id)
+    g._star3Celebration = {
+      pet: p,
+      timer: 0,
+      phase: 'fadeIn',
+      particles: [],
+    }
+  }
   return true
 }
 
