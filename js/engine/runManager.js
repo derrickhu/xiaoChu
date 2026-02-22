@@ -270,12 +270,14 @@ function onDefeat(g, W, H) {
 }
 
 function doAdRevive(g, W, H) {
-  // TODO: 接入广告后，在此处调用 wx.createRewardedVideoAd，
-  // 广告播放完成（onClose isEnded=true）后再调用 adReviveCallback
-  // 示例：
-  // const ad = wx.createRewardedVideoAd({ adUnitId: 'YOUR_AD_UNIT_ID' })
-  // ad.onClose(res => { if (res && res.isEnded) adReviveCallback(g, W, H) })
-  // ad.show().catch(() => ad.load().then(() => ad.show()))
+  // 分享复活：转发给好友后获得满血复活
+  wx.shareAppMessage({
+    title: `我在通天塔第${g.floor}层倒下了，快来助我一臂之力！`,
+    imageUrl: 'assets/share/share_revive.jpg',
+  })
+  // 分享回调：分享成功后触发复活
+  // 注意：微信不保证分享成功回调的可靠性，为保证用户体验，
+  // 调用 shareAppMessage 后即视为分享成功，给予复活奖励
   adReviveCallback(g, W, H)
 }
 
