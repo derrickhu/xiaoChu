@@ -2507,13 +2507,20 @@ function drawVictoryOverlay(g) {
     const isSpeedBuff = rw.isSpeed === true
     const cxCenter = ix + avatarSz / 2
 
-    // 选中高亮背景
+    // 选中高亮背景（加强视觉效果）
     if (selected) {
       ctx.save()
-      ctx.fillStyle = 'rgba(201,168,76,0.2)'
-      R.rr(ix - 4*S, iy - 4*S, avatarSz + 8*S, avatarSz + 8*S, 8*S); ctx.fill()
-      ctx.strokeStyle = 'rgba(201,168,76,0.8)'; ctx.lineWidth = 2*S
-      R.rr(ix - 4*S, iy - 4*S, avatarSz + 8*S, avatarSz + 8*S, 8*S); ctx.stroke()
+      // 外发光
+      ctx.shadowColor = 'rgba(212,175,55,0.6)'; ctx.shadowBlur = 10*S
+      ctx.fillStyle = 'rgba(201,168,76,0.3)'
+      R.rr(ix - 6*S, iy - 6*S, avatarSz + 12*S, avatarSz + 12*S, 10*S); ctx.fill()
+      ctx.shadowBlur = 0
+      // 金色粗边框
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3*S
+      R.rr(ix - 6*S, iy - 6*S, avatarSz + 12*S, avatarSz + 12*S, 10*S); ctx.stroke()
+      // 内层亮边
+      ctx.strokeStyle = 'rgba(255,235,180,0.5)'; ctx.lineWidth = 1*S
+      R.rr(ix - 3*S, iy - 3*S, avatarSz + 6*S, avatarSz + 6*S, 7*S); ctx.stroke()
       ctx.restore()
     }
 
