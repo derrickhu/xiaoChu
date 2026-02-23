@@ -8,6 +8,7 @@ const { generateRewards, MAX_FLOOR } = require('../data/tower')
 const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 const tutorial = require('../engine/tutorial')
+const runMgr = require('../engine/runManager')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
@@ -544,17 +545,6 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
-  // [DEV] 跳过战斗按钮
-  if (type === 'end' && g._devKillRect && g._hitRect(x,y,...g._devKillRect) && g.enemy) {
-    g.enemy.hp = 0
-    g.lastTurnCount = g.turnCount; g.lastSpeedKill = false; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
-    g.bState = 'victory'; g.dragging = false; g.dragAttr = null
-    g._enemyDeathAnim = { timer: 0, duration: 45 }; g._enemyHitFlash = 14
-    g.shakeT = 12; g.shakeI = 8
-    g.runBuffs.nextDmgReducePct = 0
-    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReducePct')
-    return
-  }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     // 第30层通关面板：点击确认直接结束
@@ -596,6 +586,38 @@ function tBattle(g, type, x, y) {
     if (g._adReviveBtnRect && g._hitRect(x,y,...g._adReviveBtnRect)) { g._doAdRevive(); return }
     if (g._adReviveSkipRect && g._hitRect(x,y,...g._adReviveSkipRect)) { g.adReviveUsed = true; g.bState = 'defeat'; return }
     return
+  }
+  // 道具菜单交互（优先拦截所有触摸）
+  if (g._showItemMenu && type === 'end') {
+    // 分享获取后短暂冷却，防止分享返回时误触使用
+    if (g._itemObtainCooldown && Date.now() - g._itemObtainCooldown < 800) {
+      return
+    }
+    let hitItem = false
+    if (g._itemMenuRects) {
+      for (const item of g._itemMenuRects) {
+        if (g._hitRect(x, y, ...item.rect)) {
+          if (item.action === 'obtain') {
+            // 分享获取道具（不立即使用）
+            if (item.key === 'reset') runMgr.obtainItemReset(g)
+            else if (item.key === 'heal') runMgr.obtainItemHeal(g)
+            g._itemObtainCooldown = Date.now()
+          } else if (item.action === 'use') {
+            // 使用已获取的道具
+            if (item.key === 'reset') runMgr.useItemReset(g)
+            else if (item.key === 'heal') runMgr.useItemHeal(g)
+          }
+          hitItem = true; break
+        }
+      }
+    }
+    if (!hitItem) g._showItemMenu = false
+    return
+  }
+  // 宝箱道具按钮
+  if (type === 'end' && g.bState === 'playerTurn' && !g.dragging
+      && g._chestBtnRect && g._hitRect(x, y, ...g._chestBtnRect)) {
+    g._showItemMenu = true; return
   }
   // 全局增益图标
   if (type === 'end' && g.bState !== 'victory' && g.bState !== 'defeat' && g._runBuffIconRects) {

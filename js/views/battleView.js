@@ -389,21 +389,45 @@ function rBattle(g) {
     g._exitBtnRect = null
   }
 
-  // [DEV] 调试跳过战斗按钮
+  // 宝箱道具按钮（敌人区域右下角）
   if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
-    const devX = exitBtnX + exitBtnSize + 6*S, devY = exitBtnY
-    const devW = 48*S, devH = exitBtnSize
-    ctx.fillStyle = 'rgba(255,60,60,0.45)'
-    R.rr(devX, devY, devW, devH, 6*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(255,100,100,0.5)'; ctx.lineWidth = 1
-    R.rr(devX, devY, devW, devH, 6*S); ctx.stroke()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('跳过', devX + devW*0.5, devY + devH*0.5)
-    ctx.textBaseline = 'alphabetic'
-    g._devKillRect = [devX, devY, devW, devH]
+    const chestSz = 36*S
+    const chestX = W - chestSz - 8*S
+    const chestY = eAreaBottom - chestSz - 34*S
+    // 统计道具状态：未全部用光时显示红点提醒
+    const allUsed = g.itemResetUsed && g.itemHealUsed
+    const pendingCount = (!g.itemResetUsed ? 1 : 0) + (!g.itemHealUsed ? 1 : 0)  // 未用完的道具数（含未获取+已获取未用）
+    // 背景
+    ctx.save()
+    ctx.globalAlpha = allUsed ? 0.4 : 0.85
+    const chestImg = R.getImg('assets/ui/icon_chest.png')
+    if (chestImg && chestImg.width > 0) {
+      ctx.drawImage(chestImg, chestX, chestY, chestSz, chestSz)
+    } else {
+      ctx.fillStyle = 'rgba(80,50,20,0.8)'
+      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.fill()
+      ctx.strokeStyle = '#d4a844'; ctx.lineWidth = 1.5*S
+      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.stroke()
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('📦', chestX + chestSz*0.5, chestY + chestSz*0.5)
+      ctx.textBaseline = 'alphabetic'
+    }
+    ctx.restore()
+    // 红点提醒角标（未全部用光时显示）
+    if (!allUsed) {
+      const badgeSz = 12*S
+      const bx = chestX + chestSz - badgeSz*0.3, by = chestY - badgeSz*0.3
+      ctx.fillStyle = '#e04040'
+      ctx.beginPath(); ctx.arc(bx, by, badgeSz*0.5, 0, Math.PI*2); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(`${pendingCount}`, bx, by)
+      ctx.textBaseline = 'alphabetic'
+    }
+    g._chestBtnRect = [chestX, chestY, chestSz, chestSz]
   } else {
-    g._devKillRect = null
+    g._chestBtnRect = null
   }
 
   // 队伍栏
@@ -449,6 +473,8 @@ function rBattle(g) {
   if (g.showBattlePetDetail != null) g._drawBattlePetDetailDialog()
   if (g.skillPreview) _drawSkillPreviewPopup(g)
   if (g.runBuffDetail) g._drawRunBuffDetailDialog()
+  // 道具选择菜单（最顶层，覆盖一切）
+  if (g._showItemMenu) _drawItemMenu(g)
 }
 
 // ===== 宠物攻击技能光波特效 =====
@@ -2612,6 +2638,141 @@ function _wrapTextBV(text, maxW, fontSize) {
   }
   if (line) result.push(line)
   return result.length > 0 ? result : [text]
+}
+
+// ===== 道具选择菜单 =====
+function _drawItemMenu(g) {
+  const { ctx, R, TH, W, H, S } = V
+  // 半透明遮罩
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H)
+
+  const menuW = W * 0.78
+  const itemH = 64*S
+  const padY = 14*S, padX = 14*S
+  const gap = 10*S
+  const titleH = 30*S
+  const menuH = padY + titleH + itemH * 2 + gap + padY + 20*S
+  const menuX = (W - menuW) / 2
+  const menuY = (H - menuH) / 2
+
+  // 手绘面板底板（不依赖图片）
+  ctx.save()
+  // 外层阴影
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 16*S; ctx.shadowOffsetY = 4*S
+  // 底板
+  ctx.fillStyle = '#1a1410'
+  R.rr(menuX, menuY, menuW, menuH, 10*S); ctx.fill()
+  ctx.shadowColor = 'transparent'
+  // 内层渐变
+  const grad = ctx.createLinearGradient(menuX, menuY, menuX, menuY + menuH)
+  grad.addColorStop(0, 'rgba(60,45,30,0.95)')
+  grad.addColorStop(0.5, 'rgba(35,25,15,0.95)')
+  grad.addColorStop(1, 'rgba(45,35,20,0.95)')
+  ctx.fillStyle = grad
+  R.rr(menuX + 2*S, menuY + 2*S, menuW - 4*S, menuH - 4*S, 9*S); ctx.fill()
+  // 金色描边
+  ctx.strokeStyle = '#c8a84e'; ctx.lineWidth = 2*S
+  R.rr(menuX, menuY, menuW, menuH, 10*S); ctx.stroke()
+  // 内描边
+  ctx.strokeStyle = 'rgba(200,168,78,0.25)'; ctx.lineWidth = 1*S
+  R.rr(menuX + 4*S, menuY + 4*S, menuW - 8*S, menuH - 8*S, 8*S); ctx.stroke()
+  ctx.restore()
+
+  // 标题
+  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.fillText('灵宝匣', W * 0.5, menuY + padY + 16*S)
+
+  let cy = menuY + padY + titleH
+
+  // 道具列表
+  const items = [
+    { key: 'reset', name: '乾坤重置', desc: '重排棋盘上所有灵珠', obtained: g.itemResetObtained, used: g.itemResetUsed, icon: 'assets/ui/icon_item_reset.png', color: '#66ccff' },
+    { key: 'heal',  name: '回春妙术', desc: '立即恢复全部气血', obtained: g.itemHealObtained, used: g.itemHealUsed, icon: 'assets/ui/icon_item_heal.png', color: '#44ff88' },
+  ]
+
+  g._itemMenuRects = []
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    const iy = cy + i * (itemH + gap)
+    const isUsed = it.used
+    const isObtained = it.obtained && !it.used
+    const isHealFull = it.key === 'heal' && g.heroHp >= g.heroMaxHp
+    const isDisabled = isUsed || (isObtained && isHealFull)
+
+    // 卡片背景
+    ctx.save()
+    ctx.globalAlpha = isDisabled ? 0.4 : 1.0
+    ctx.fillStyle = 'rgba(40,30,20,0.85)'
+    R.rr(menuX + padX, iy, menuW - padX*2, itemH, 8*S); ctx.fill()
+    ctx.strokeStyle = isDisabled ? 'rgba(100,100,100,0.4)' : it.color
+    ctx.lineWidth = 1.5*S
+    R.rr(menuX + padX, iy, menuW - padX*2, itemH, 8*S); ctx.stroke()
+
+    // 图标
+    const iconSz = 42*S
+    const iconX = menuX + padX + 10*S
+    const iconY = iy + (itemH - iconSz) / 2
+    const itemImg = R.getImg(it.icon)
+    if (itemImg && itemImg.width > 0) {
+      ctx.drawImage(itemImg, iconX, iconY, iconSz, iconSz)
+    } else {
+      ctx.fillStyle = it.color; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(it.key === 'reset' ? '🔄' : '💚', iconX + iconSz*0.5, iconY + iconSz*0.5)
+      ctx.textBaseline = 'alphabetic'
+    }
+    // 已获取未使用：图标右上角红点"1"提醒
+    if (isObtained && !isHealFull) {
+      const dotSz = 10*S
+      const dx = iconX + iconSz - dotSz*0.2, dy = iconY - dotSz*0.2
+      ctx.fillStyle = '#e04040'
+      ctx.beginPath(); ctx.arc(dx, dy, dotSz*0.5, 0, Math.PI*2); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('1', dx, dy)
+      ctx.textBaseline = 'alphabetic'
+    }
+
+    // 名称
+    const textX = iconX + iconSz + 10*S
+    ctx.fillStyle = it.color; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillText(it.name, textX, iy + itemH * 0.38)
+
+    // 描述
+    ctx.fillStyle = '#bbb'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(it.desc, textX, iy + itemH * 0.62)
+
+    // 状态标签
+    ctx.textAlign = 'right'
+    if (isUsed) {
+      ctx.fillStyle = '#888'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('已使用', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
+    } else if (isObtained) {
+      if (isHealFull) {
+        ctx.fillStyle = '#888'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText('气血已满', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
+      } else {
+        ctx.fillStyle = '#44ff88'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText('点击使用', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
+      }
+    } else {
+      ctx.fillStyle = '#e8c870'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText('分享获取', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
+    }
+
+    ctx.restore()
+
+    if (!isDisabled) {
+      const action = isObtained ? 'use' : 'obtain'
+      g._itemMenuRects.push({ rect: [menuX + padX, iy, menuW - padX*2, itemH], key: it.key, action })
+    }
+  }
+
+  // 关闭提示
+  ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillText('点击空白处关闭', W * 0.5, menuY + menuH - 10*S)
 }
 
 // 宠物/法宝详情浮层（从奖励选择弹窗中点击头像触发）

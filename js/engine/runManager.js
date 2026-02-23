@@ -31,6 +31,12 @@ function makeDefaultRunBuffs() {
 function startRun(g) {
   g.floor = 0
   g.cleared = false
+  // 道具系统：每局最多各用一次，需先分享获取再使用
+  g.itemResetObtained = false  // 乾坤重置 — 已获取（分享后）
+  g.itemResetUsed = false      // 乾坤重置 — 已使用
+  g.itemHealObtained = false   // 回春妙术 — 已获取（分享后）
+  g.itemHealUsed = false       // 回春妙术 — 已使用
+  g._showItemMenu = false      // 道具菜单显示状态
   // 生成本局宠物池（每属性5只，共25只），所有宠物获取从此池抽取
   g.sessionPetPool = generateSessionPetPool()
   g.pets = generateStarterPets(g.sessionPetPool)
@@ -189,6 +195,8 @@ function saveAndExit(g) {
     tempRevive: g.tempRevive, immuneOnce: g.immuneOnce, comboNeverBreak: g.comboNeverBreak,
     weaponReviveUsed: g.weaponReviveUsed, goodBeadsNextTurn: g.goodBeadsNextTurn,
     runTotalTurns: g.runTotalTurns || 0,
+    itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
+    itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
     curEvent: g.curEvent ? JSON.parse(JSON.stringify(g.curEvent)) : null,
   }
   g.storage.saveRunState(runState)
@@ -224,6 +232,12 @@ function resumeRun(g) {
   g.weaponReviveUsed = s.weaponReviveUsed || false
   g.goodBeadsNextTurn = s.goodBeadsNextTurn || false
   g.runTotalTurns = s.runTotalTurns || 0
+  // 道具状态恢复
+  g.itemResetObtained = s.itemResetObtained || false
+  g.itemResetUsed = s.itemResetUsed || false
+  g.itemHealObtained = s.itemHealObtained || false
+  g.itemHealUsed = s.itemHealUsed || false
+  g._showItemMenu = false
   g.turnCount = 0; g.combo = 0
   g.curEvent = s.curEvent
   g.storage.clearRunState()
@@ -291,8 +305,56 @@ function adReviveCallback(g, W, H) {
   g.bState = 'playerTurn'; g.dragTimer = 0
 }
 
+// ===== 道具系统 =====
+// 分享获取道具（标记为已获取，不立即使用）
+function obtainItemReset(g) {
+  if (g.itemResetObtained || g.itemResetUsed) return false
+  wx.shareAppMessage({
+    title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
+    imageUrl: 'assets/share/share_default.jpg',
+  })
+  g.itemResetObtained = true
+  MusicMgr.playReward()
+  return true
+}
+
+function obtainItemHeal(g) {
+  if (g.itemHealObtained || g.itemHealUsed) return false
+  wx.shareAppMessage({
+    title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
+    imageUrl: 'assets/share/share_default.jpg',
+  })
+  g.itemHealObtained = true
+  MusicMgr.playReward()
+  return true
+}
+
+// 使用已获取的道具
+function useItemReset(g) {
+  if (!g.itemResetObtained || g.itemResetUsed || g.bState !== 'playerTurn' || g.dragging) return false
+  g.itemResetUsed = true
+  g._showItemMenu = false
+  const { initBoard } = require('./battle')
+  initBoard(g)
+  g.skillEffects.push({ x: require('../views/env').W*0.5, y: require('../views/env').H*0.5, text:'乾坤重置！', color:'#66ccff', t:0, alpha:1 })
+  MusicMgr.playReward()
+  return true
+}
+
+function useItemHeal(g) {
+  if (!g.itemHealObtained || g.itemHealUsed || g.bState !== 'playerTurn' || g.dragging) return false
+  if (g.heroHp >= g.heroMaxHp) return false
+  g.itemHealUsed = true
+  g._showItemMenu = false
+  g.heroHp = g.heroMaxHp
+  g.skillEffects.push({ x: require('../views/env').W*0.5, y: require('../views/env').H*0.5, text:'回春妙术！', color:'#44ff88', t:0, alpha:1 })
+  MusicMgr.playRevive()
+  return true
+}
+
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
   startRun, nextFloor, restoreBattleHpMax, endRun, saveAndExit, resumeRun,
   onDefeat, doAdRevive, adReviveCallback,
+  obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
 }
