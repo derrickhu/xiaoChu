@@ -355,25 +355,26 @@ class Main {
   _drawPrepareTip() { prepareView.drawPrepareTip(this) }
   _wrapText(text, maxW, fontSize) { return prepareView.wrapText(text, maxW, fontSize) }
   _drawEventPetDetail() { eventView.drawEventPetDetail(this) }
-  _openRanking() {
+  async _openRanking() {
     console.log('[Ranking] Opening ranking page')
     this.storage.destroyUserInfoBtn()
     this.rankTab = 'all'
     this.rankScrollY = 0
     this.scene = 'ranking'
     if (this.storage._cloudReady) {
+      // 先提交最新数据（包括速通、图鉴、连击），再拉取排行
+      if (this.storage.userAuthorized && this.storage.bestFloor > 0) {
+        await this.storage.submitScore(
+          this.storage.bestFloor,
+          this.storage.stats.bestFloorPets,
+          this.storage.stats.bestFloorWeapon,
+          this.storage.stats.bestTotalTurns || 0
+        )
+        await this.storage.submitDexAndCombo()
+      }
       this.storage.fetchRanking('all', true)
     } else {
       console.warn('[Ranking] Cloud not ready, skipping fetch')
-    }
-    if (this.storage.userAuthorized && this.storage.bestFloor > 0) {
-      this.storage.submitScore(
-        this.storage.bestFloor,
-        this.storage.stats.bestFloorPets,
-        this.storage.stats.bestFloorWeapon,
-        this.storage.stats.bestTotalTurns || 0
-      )
-      this.storage.submitDexAndCombo()
     }
   }
 

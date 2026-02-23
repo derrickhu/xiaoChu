@@ -1,5 +1,5 @@
 // 云函数：排行榜（提交分数 + 查询排行）
-// 支持4种排行：速通榜(all)、今日榜(daily)、图鉴榜(dex)、连击榜(combo)
+// 支持3种排行：速通榜(all)、图鉴榜(dex)、连击榜(combo)
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
@@ -15,10 +15,6 @@ exports.main = async (event, context) => {
     const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = event
     if (!floor || floor <= 0) return { code: -1, msg: '无效层数' }
 
-    const now = new Date()
-    const cnNow = new Date(now.getTime() + 8 * 60 * 60 * 1000)
-    const today = `${cnNow.getFullYear()}-${String(cnNow.getMonth()+1).padStart(2,'0')}-${String(cnNow.getDate()).padStart(2,'0')}`
-
     const baseRecord = {
       nickName: nickName || '修士',
       avatarUrl: avatarUrl || '',
@@ -26,14 +22,31 @@ exports.main = async (event, context) => {
       pets: (pets || []).slice(0, 5).map(p => ({ name: p.name, attr: p.attr })),
       weapon: weapon ? { name: weapon.name } : null,
       totalTurns: totalTurns || 0,
-      date: today,
       timestamp: db.serverDate(),
     }
 
     try {
       // 更新总排行/速通榜（通关者按回合数升序，未通关按层数降序）
       const existing = await db.collection('rankAll').where({ _openid: openid }).get()
-      if (existing.data.length > 0) {
+      if (existing.data.length > 1) {
+        // 去重：保留最佳记录，删除多余的
+        const sorted = existing.data.sort((a, b) => {
+          if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
+          return 1
+        })
+        for (let i = 1; i < sorted.length; i++) {
+          await db.collection('rankAll').doc(sorted[i]._id).remove()
+        }
+        const old = sorted[0]
+        const isBetter = _isBetterScore(floor, totalTurns, old.floor, old.totalTurns)
+        if (isBetter) {
+          await db.collection('rankAll').doc(old._id).update({ data: baseRecord })
+        } else {
+          await db.collection('rankAll').doc(old._id).update({
+            data: { nickName: baseRecord.nickName, avatarUrl: baseRecord.avatarUrl }
+          })
+        }
+      } else if (existing.data.length === 1) {
         const old = existing.data[0]
         const isBetter = _isBetterScore(floor, totalTurns, old.floor, old.totalTurns)
         if (isBetter) {
@@ -45,18 +58,6 @@ exports.main = async (event, context) => {
         }
       } else {
         await db.collection('rankAll').add({ data: baseRecord })
-      }
-
-      // 更新今日排行
-      const todayExist = await db.collection('rankDaily').where({ _openid: openid, date: today }).get()
-      if (todayExist.data.length > 0) {
-        const old = todayExist.data[0]
-        const isBetter = _isBetterScore(floor, totalTurns, old.floor, old.totalTurns)
-        if (isBetter) {
-          await db.collection('rankDaily').doc(old._id).update({ data: baseRecord })
-        }
-      } else {
-        await db.collection('rankDaily').add({ data: baseRecord })
       }
 
       // 同时更新图鉴榜和连击榜
@@ -81,84 +82,41 @@ exports.main = async (event, context) => {
   }
 
   // ===== 查询速通榜（总排行）=====
+  // 排序规则：层数高的在前，层数相同时回合数少的在前
   if (action === 'getAll') {
     try {
-      // 先按floor降序，通关者（floor>=30）再按totalTurns升序
-      // 云数据库不支持复杂排序，先取所有通关者+未通关者分开排
-      const cleared = await db.collection('rankAll')
-        .where({ floor: _.gte(30) })
-        .orderBy('totalTurns', 'asc')
-        .limit(50)
-        .get()
-      const notCleared = await db.collection('rankAll')
-        .where({ floor: _.lt(30) })
+      // 云数据库不支持多字段混合排序，取全部后在内存中排序
+      const res = await db.collection('rankAll')
         .orderBy('floor', 'desc')
-        .limit(50)
+        .limit(100)
         .get()
-      const list = [...cleared.data, ...notCleared.data].slice(0, 50)
+      const list = res.data.sort((a, b) => {
+        if (a.floor !== b.floor) return b.floor - a.floor  // 层数高的在前
+        // 层数相同：有回合数的优于没回合数的，都有则回合数少的在前
+        const aT = a.totalTurns || 0, bT = b.totalTurns || 0
+        if (aT > 0 && bT > 0) return aT - bT
+        if (aT > 0) return -1
+        if (bT > 0) return 1
+        return 0
+      }).slice(0, 50)
 
       // 查自己的排名
       let myRank = -1
       const myRes = await db.collection('rankAll').where({ _openid: openid }).get()
       if (myRes.data.length > 0) {
         const my = myRes.data[0]
-        if (my.floor >= 30 && my.totalTurns > 0) {
-          // 通关者：排在所有通关且回合更少的人后面
-          const betterCount = await db.collection('rankAll').where({
-            floor: _.gte(30),
+        // 比自己成绩好的：层数更高的 + 层数相同但回合更少的
+        const higherFloor = await db.collection('rankAll').where({
+          floor: _.gt(my.floor)
+        }).count()
+        let sameFloorBetter = { total: 0 }
+        if (my.totalTurns > 0) {
+          sameFloorBetter = await db.collection('rankAll').where({
+            floor: _.eq(my.floor),
             totalTurns: _.gt(0).and(_.lt(my.totalTurns))
           }).count()
-          myRank = betterCount.total + 1
-        } else {
-          // 未通关者：排在所有通关者后面 + 层数更高的未通关者后面
-          const clearedCount = await db.collection('rankAll').where({ floor: _.gte(30) }).count()
-          const higherCount = await db.collection('rankAll').where({
-            floor: _.lt(30).and(_.gt(my.floor))
-          }).count()
-          myRank = clearedCount.total + higherCount.total + 1
         }
-      }
-      return { code: 0, list, myRank }
-    } catch (e) {
-      return { code: -1, msg: e.message, list: [] }
-    }
-  }
-
-  // ===== 查询今日排行 =====
-  if (action === 'getDaily') {
-    const now = new Date()
-    const cnNow = new Date(now.getTime() + 8 * 60 * 60 * 1000)
-    const today = `${cnNow.getFullYear()}-${String(cnNow.getMonth()+1).padStart(2,'0')}-${String(cnNow.getDate()).padStart(2,'0')}`
-    try {
-      const cleared = await db.collection('rankDaily')
-        .where({ date: today, floor: _.gte(30) })
-        .orderBy('totalTurns', 'asc')
-        .limit(50)
-        .get()
-      const notCleared = await db.collection('rankDaily')
-        .where({ date: today, floor: _.lt(30) })
-        .orderBy('floor', 'desc')
-        .limit(50)
-        .get()
-      const list = [...cleared.data, ...notCleared.data].slice(0, 50)
-
-      let myRank = -1
-      const myRes = await db.collection('rankDaily').where({ _openid: openid, date: today }).get()
-      if (myRes.data.length > 0) {
-        const my = myRes.data[0]
-        if (my.floor >= 30 && my.totalTurns > 0) {
-          const betterCount = await db.collection('rankDaily').where({
-            date: today, floor: _.gte(30),
-            totalTurns: _.gt(0).and(_.lt(my.totalTurns))
-          }).count()
-          myRank = betterCount.total + 1
-        } else {
-          const clearedCount = await db.collection('rankDaily').where({ date: today, floor: _.gte(30) }).count()
-          const higherCount = await db.collection('rankDaily').where({
-            date: today, floor: _.lt(30).and(_.gt(my.floor))
-          }).count()
-          myRank = clearedCount.total + higherCount.total + 1
-        }
+        myRank = higherFloor.total + sameFloorBetter.total + 1
       }
       return { code: 0, list, myRank }
     } catch (e) {
@@ -214,7 +172,7 @@ function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
   // 通关 > 未通关
   if (newFloor >= 30 && oldFloor < 30) return true
   if (newFloor < 30 && oldFloor >= 30) return false
-  // 都通关：回合数更少更好
+  // 都通关：有回合数的优于没回合数的，都有则回合数更少更好
   if (newFloor >= 30 && oldFloor >= 30) {
     if (newTurns > 0 && oldTurns > 0) return newTurns < oldTurns
     if (newTurns > 0) return true
@@ -224,7 +182,7 @@ function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
   return newFloor > oldFloor
 }
 
-// 更新图鉴榜和连击榜
+// 更新图鉴榜和连击榜（带去重逻辑）
 async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo) {
   // 图鉴榜
   if (petDexCount > 0) {
@@ -233,7 +191,18 @@ async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxComb
       nickName, avatarUrl, petDexCount,
       timestamp: db.serverDate(),
     }
-    if (dexExist.data.length > 0) {
+    if (dexExist.data.length > 1) {
+      // 去重
+      const sorted = dexExist.data.sort((a, b) => (b.petDexCount || 0) - (a.petDexCount || 0))
+      for (let i = 1; i < sorted.length; i++) {
+        await db.collection('rankDex').doc(sorted[i]._id).remove()
+      }
+      if (petDexCount >= (sorted[0].petDexCount || 0)) {
+        await db.collection('rankDex').doc(sorted[0]._id).update({ data: dexRecord })
+      } else {
+        await db.collection('rankDex').doc(sorted[0]._id).update({ data: { nickName, avatarUrl } })
+      }
+    } else if (dexExist.data.length === 1) {
       if (petDexCount >= (dexExist.data[0].petDexCount || 0)) {
         await db.collection('rankDex').doc(dexExist.data[0]._id).update({ data: dexRecord })
       } else {
@@ -253,7 +222,18 @@ async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxComb
       nickName, avatarUrl, maxCombo,
       timestamp: db.serverDate(),
     }
-    if (comboExist.data.length > 0) {
+    if (comboExist.data.length > 1) {
+      // 去重
+      const sorted = comboExist.data.sort((a, b) => (b.maxCombo || 0) - (a.maxCombo || 0))
+      for (let i = 1; i < sorted.length; i++) {
+        await db.collection('rankCombo').doc(sorted[i]._id).remove()
+      }
+      if (maxCombo > (sorted[0].maxCombo || 0)) {
+        await db.collection('rankCombo').doc(sorted[0]._id).update({ data: comboRecord })
+      } else {
+        await db.collection('rankCombo').doc(sorted[0]._id).update({ data: { nickName, avatarUrl } })
+      }
+    } else if (comboExist.data.length === 1) {
       if (maxCombo > (comboExist.data[0].maxCombo || 0)) {
         await db.collection('rankCombo').doc(comboExist.data[0]._id).update({ data: comboRecord })
       } else {

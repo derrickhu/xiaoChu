@@ -42,11 +42,9 @@ class Storage {
     this.userAuthorized = false
     // 排行榜缓存
     this.rankAllList = []
-    this.rankDailyList = []
     this.rankDexList = []
     this.rankComboList = []
     this.rankAllMyRank = -1
-    this.rankDailyMyRank = -1
     this.rankDexMyRank = -1
     this.rankComboMyRank = -1
     this.rankLoading = false
@@ -374,7 +372,7 @@ class Storage {
   // 拉取排行榜（带30秒缓存，支持4个tab）
   async fetchRanking(tab, force) {
     const now = Date.now()
-    const listMap = { all: 'rankAllList', daily: 'rankDailyList', dex: 'rankDexList', combo: 'rankComboList' }
+    const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     const listKey = listMap[tab] || 'rankAllList'
     if (!force && now - this.rankLastFetch < 30000 && this.rankLastFetchTab === tab && this[listKey].length > 0) {
       return
@@ -382,7 +380,7 @@ class Storage {
     if (this.rankLoading) return
     this.rankLoading = true
     try {
-      const actionMap = { all: 'getAll', daily: 'getDaily', dex: 'getDex', combo: 'getCombo' }
+      const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getAll'
       const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
       if (r.result && r.result.code === 0) {
