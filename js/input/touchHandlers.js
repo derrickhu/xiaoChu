@@ -312,41 +312,54 @@ function tEvent(g, type, x, y) {
     // 商店交互（新版：属性选择/灵兽选择/商品点击）
     const ev = g.curEvent
     if (ev && ev.type === 'shop') {
-      // 属性选择面板
+      // 属性选择面板（点击选中，确认执行）
       if (g._shopSelectAttr) {
+        // 确认按钮
+        if (g._shopAttrConfirmRect && g._shopAttrSelectedVal && g._hitRect(x,y,...g._shopAttrConfirmRect)) {
+          g._applyShopPetByAttr(g._shopAttrSelectedVal)
+          g._shopSelectAttr = false
+          g._shopSelectAttrItem = null
+          g._shopAttrSelectedVal = null
+          return
+        }
+        // 点击属性按钮 → 选中/切换
         if (g._shopAttrRects) {
           for (const rect of g._shopAttrRects) {
             if (g._hitRect(x,y,rect[0],rect[1],rect[2],rect[3])) {
-              const attr = rect[4]
-              g._applyShopPetByAttr(attr)
-              g._shopSelectAttr = false
-              g._shopSelectAttrItem = null
+              g._shopAttrSelectedVal = rect[4]
               return
             }
           }
         }
         if (g._shopAttrCancelRect && g._hitRect(x,y,...g._shopAttrCancelRect)) {
-          g._shopSelectAttr = false; g._shopSelectAttrItem = null; return
+          g._shopSelectAttr = false; g._shopSelectAttrItem = null; g._shopAttrSelectedVal = null; return
         }
         return  // 面板打开时不响应其他点击
       }
-      // 灵兽选择面板
+      // 灵兽选择面板（点击选中，确认执行）
       if (g._shopSelectPet) {
+        // 确认按钮
+        if (g._shopPetConfirmRect && g._shopPetSelectedIdx != null && g._hitRect(x,y,...g._shopPetConfirmRect)) {
+          const petIdx = g._shopPetSelectedIdx
+          const selectType = g._shopSelectPet.type
+          if (selectType === 'starUp') g._applyShopStarUp(petIdx)
+          else if (selectType === 'upgradePet') g._applyShopUpgradePet(petIdx, g._shopSelectPet.pct)
+          else if (selectType === 'cdReduce') g._applyShopCdReduce(petIdx)
+          g._shopSelectPet = null
+          g._shopPetSelectedIdx = null
+          return
+        }
+        // 点击灵兽头像 → 选中/切换
         if (g._shopPetRects) {
           for (const rect of g._shopPetRects) {
             if (g._hitRect(x,y,rect[0],rect[1],rect[2],rect[3])) {
-              const petIdx = rect[4]
-              const selectType = g._shopSelectPet.type
-              if (selectType === 'starUp') g._applyShopStarUp(petIdx)
-              else if (selectType === 'upgradePet') g._applyShopUpgradePet(petIdx, g._shopSelectPet.pct)
-              else if (selectType === 'cdReduce') g._applyShopCdReduce(petIdx)
-              g._shopSelectPet = null
+              g._shopPetSelectedIdx = rect[4]
               return
             }
           }
         }
         if (g._shopPetCancelRect && g._hitRect(x,y,...g._shopPetCancelRect)) {
-          g._shopSelectPet = null; return
+          g._shopSelectPet = null; g._shopPetSelectedIdx = null; return
         }
         return  // 面板打开时不响应其他点击
       }
@@ -370,16 +383,16 @@ function tEvent(g, type, x, y) {
             g._eventShopUsedCount = shopUsedCount + 1
             // 需要选择的效果：弹出面板
             if (item.effect === 'getPetByAttr') {
-              g._shopSelectAttr = true; g._shopSelectAttrItem = item; return
+              g._shopSelectAttr = true; g._shopSelectAttrItem = item; g._shopAttrSelectedVal = null; return
             }
             if (item.effect === 'starUp') {
-              g._shopSelectPet = { type: 'starUp' }; return
+              g._shopSelectPet = { type: 'starUp' }; g._shopPetSelectedIdx = null; return
             }
             if (item.effect === 'upgradePet') {
-              g._shopSelectPet = { type: 'upgradePet', pct: item.pct || 25 }; return
+              g._shopSelectPet = { type: 'upgradePet', pct: item.pct || 25 }; g._shopPetSelectedIdx = null; return
             }
             if (item.effect === 'cdReduce') {
-              g._shopSelectPet = { type: 'cdReduce' }; return
+              g._shopSelectPet = { type: 'cdReduce' }; g._shopPetSelectedIdx = null; return
             }
             // 直接生效的效果
             g._applyShopItem(item)
@@ -521,7 +534,17 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
-  // [DEV] 秒杀按钮已禁用
+  // [DEV] 跳过战斗按钮
+  if (type === 'end' && g._devKillRect && g._hitRect(x,y,...g._devKillRect) && g.enemy) {
+    g.enemy.hp = 0
+    g.lastTurnCount = g.turnCount; g.lastSpeedKill = false; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
+    g.bState = 'victory'; g.dragging = false; g.dragAttr = null
+    g._enemyDeathAnim = { timer: 0, duration: 45 }; g._enemyHitFlash = 14
+    g.shakeT = 12; g.shakeI = 8
+    g.runBuffs.nextDmgReducePct = 0
+    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReducePct')
+    return
+  }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     // 第30层通关面板：点击确认直接结束
@@ -560,7 +583,7 @@ function tBattle(g, type, x, y) {
           if (g.selectedReward === i && g._rewardAvatarRects) {
             const item = g._rewardAvatarRects.find(a => a.idx === i)
             if (item && g._hitRect(x,y,...item.rect)) {
-              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew }; return
+              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew, label: item.label }; return
             }
           }
           g.selectedReward = i; return

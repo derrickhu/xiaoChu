@@ -299,23 +299,23 @@ function drawBattlePetDetailDialog(g) {
   const ac = ATTR_COLOR[p.attr]
   const sk = p.skill
   const padX = 16*S, padY = 14*S
-  const lineH = 18*S, smallLineH = 15*S
+  const lineH = 22*S, smallLineH = 18*S
   const tipW = W * 0.84
   const maxTextW = tipW - padX * 2
 
   let lines = []
   const starText = '★'.repeat(p.star || 1) + (p.star < MAX_STAR ? '☆'.repeat(MAX_STAR - (p.star || 1)) : '')
-  lines.push({ text: p.name, color: '#3D2B1F', bold: true, size: 14, h: lineH + 2*S, starSuffix: starText })
+  lines.push({ text: p.name, color: '#3D2B1F', bold: true, size: 16, h: lineH + 2*S, starSuffix: starText })
   const starAtk = getPetStarAtk(p)
   const atkDisplay = (p.star || 1) > 1 ? `${p.atk}→${starAtk}` : `${p.atk}`
-  lines.push({ text: `__ATTR_ORB__${p.attr}　ATK：${atkDisplay}`, color: '#6B5B50', size: 10, h: smallLineH, attrOrb: p.attr })
+  lines.push({ text: `__ATTR_ORB__${p.attr}　ATK：${atkDisplay}`, color: '#6B5B50', size: 12, h: smallLineH, attrOrb: p.attr })
   lines.push({ text: '', size: 0, h: 4*S })
 
   if (sk && petHasSkill(p)) {
-    lines.push({ text: `技能：${sk.name}`, color: '#7A5C30', bold: true, size: 11, h: lineH })
-    const descLines = _wrapTextDialog(getPetSkillDesc(p) || '无描述', maxTextW - 8*S, 10)
+    lines.push({ text: `技能：${sk.name}`, color: '#B8860B', bold: true, size: 14, h: lineH })
+    const descLines = _wrapTextDialog(getPetSkillDesc(p) || '无描述', maxTextW - 8*S, 12)
     descLines.forEach(dl => {
-      lines.push({ text: dl, color: '#3D2B1F', size: 10, h: smallLineH })
+      lines.push({ text: dl, color: '#2A1F10', bold: true, size: 12, h: smallLineH })
     })
     lines.push({ text: '', size: 0, h: 3*S })
     let cdBase = p.cd
@@ -325,27 +325,22 @@ function drawBattlePetDetailDialog(g) {
     }
     const cdReduced = cdActual < cdBase
     const cdText = cdReduced ? `冷却：${cdActual}回合（原${cdBase}，CD缩短${g.runBuffs.skillCdReducePct}%）` : `冷却：${cdBase}回合`
-    lines.push({ text: cdText, color: '#6B5B50', size: 9, h: smallLineH })
+    lines.push({ text: cdText, color: '#6B5B50', size: 11, h: smallLineH })
     const ready = p.currentCd <= 0
     if (ready) {
-      lines.push({ text: '✦ 技能已就绪，上划头像发动技能！', color: '#27864A', bold: true, size: 10, h: smallLineH })
+      lines.push({ text: '✦ 技能已就绪，上划头像发动技能！', color: '#27864A', bold: true, size: 12, h: smallLineH })
     } else {
-      lines.push({ text: `◈ 冷却中：还需 ${p.currentCd} 回合`, color: '#C07000', size: 10, h: smallLineH })
+      lines.push({ text: `◈ 冷却中：还需 ${p.currentCd} 回合`, color: '#C07000', size: 12, h: smallLineH })
     }
   } else if (sk && !petHasSkill(p)) {
-    // ★1 有技能定义但未解锁
-    lines.push({ text: '技能：未解锁', color: '#8B7B70', bold: true, size: 11, h: lineH })
-    lines.push({ text: `升至★2解锁：${sk.name}`, color: '#A08060', size: 10, h: smallLineH })
-    const descLines = _wrapTextDialog(sk.desc || '', maxTextW - 8*S, 10)
-    descLines.forEach(dl => {
-      lines.push({ text: dl, color: '#9B8B80', size: 10, h: smallLineH })
-    })
+    // ★1 有技能定义但未解锁 — 只显示未解锁，不展示下一级技能描述
+    lines.push({ text: '技能：未解锁（升至★2解锁）', color: '#8B7B70', bold: true, size: 13, h: lineH })
   } else {
-    lines.push({ text: '该宠物没有主动技能', color: '#8B7B70', size: 10, h: smallLineH })
+    lines.push({ text: '该宠物没有主动技能', color: '#8B7B70', size: 12, h: smallLineH })
   }
 
   lines.push({ text: '', size: 0, h: 4*S })
-  lines.push({ text: '提示：消除对应属性珠时该宠物发动攻击', color: '#8B7B70', size: 9, h: smallLineH })
+  lines.push({ text: '提示：消除对应属性珠时该宠物发动攻击', color: '#8B7B70', size: 11, h: smallLineH })
 
   let totalH = padY * 2
   lines.forEach(l => { totalH += l.h })
@@ -384,7 +379,7 @@ function drawBattlePetDetailDialog(g) {
       if (l.starSuffix) {
         const nameW = ctx.measureText(l.text).width
         ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-        ctx.fillStyle = '#ffd700'
+        ctx.fillStyle = '#C89510'
         ctx.fillText(l.starSuffix, tipX + padX + nameW + 4*S, curY - 4*S)
       }
     }
@@ -392,7 +387,7 @@ function drawBattlePetDetailDialog(g) {
 
   ctx.restore() // 结束裁剪
 
-  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 6*S)
   ctx.restore()
 }

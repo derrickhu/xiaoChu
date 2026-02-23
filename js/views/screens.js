@@ -996,10 +996,10 @@ function rReward(g) {
         const ownedStar = ownedPet.star || 1
         const starDisp = '★'.repeat(ownedStar) + (ownedStar < MAX_STAR ? '☆'.repeat(MAX_STAR - ownedStar) : '')
         if (ownedStar >= MAX_STAR) {
-          ctx.fillStyle = '#C07000'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#C07000'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
           ctx.fillText(`已拥有 ${starDisp}（已满星）`, infoX, iy)
         } else {
-          ctx.fillStyle = '#27864A'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#27864A'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
           ctx.fillText(`已拥有 ${starDisp}　选择则升至${ownedStar+1}星`, infoX, iy)
         }
       }
@@ -1105,19 +1105,46 @@ function rReward(g) {
       ctx.fillText(`背包 ${g.weaponBag.length}件`, cardX + cardW - 12*S, cy + cardH - 8*S)
 
     } else {
-      // ====== 普通Buff卡片（保持原样式但更紧凑） ======
+      // ====== 普通Buff卡片：图标 + 文字 ======
+      const buffData = rw.data || {}
+      const buffKey = buffData.buff || ''
       let typeTag = '', tagColor = '#999'
       if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#e0c070' }
       else { typeTag = '加成'; tagColor = '#8ab4d8' }
 
+      // buff图标（左侧）
+      const iconSz = Math.min(36*S, cardH - 12*S)
+      const iconX = cardX + 14*S, iconY = cy + (cardH - iconSz) / 2
+      const BUFF_ICON_IMGS = {
+        allAtkPct:'buff_icon_atk', allDmgPct:'buff_icon_atk', counterDmgPct:'buff_icon_atk', skillDmgPct:'buff_icon_atk',
+        healNow:'buff_icon_heal', postBattleHeal:'buff_icon_heal', regenPerTurn:'buff_icon_heal',
+        dmgReducePct:'buff_icon_def', nextDmgReduce:'buff_icon_def', grantShield:'buff_icon_def', immuneOnce:'buff_icon_def',
+        comboDmgPct:'buff_icon_elim', elim3DmgPct:'buff_icon_elim', elim4DmgPct:'buff_icon_elim', elim5DmgPct:'buff_icon_elim', bonusCombo:'buff_icon_elim',
+        extraTimeSec:'buff_icon_time', skillCdReducePct:'buff_icon_time', resetAllCd:'buff_icon_time',
+        hpMaxPct:'buff_icon_hp',
+        enemyAtkReducePct:'buff_icon_weaken', enemyHpReducePct:'buff_icon_weaken', eliteAtkReducePct:'buff_icon_weaken',
+        eliteHpReducePct:'buff_icon_weaken', bossAtkReducePct:'buff_icon_weaken', bossHpReducePct:'buff_icon_weaken',
+        nextStunEnemy:'buff_icon_weaken', stunDurBonus:'buff_icon_weaken',
+        extraRevive:'buff_icon_special', skipNextBattle:'buff_icon_special', nextFirstTurnDouble:'buff_icon_special', heartBoostPct:'buff_icon_special',
+      }
+      const iconName = BUFF_ICON_IMGS[buffKey]
+      const iconImg = iconName ? R.getImg(`assets/ui/${iconName}.png`) : null
+      if (iconImg && iconImg.width > 0) {
+        ctx.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
+      }
+
+      // 类型标签（图标右上方）
+      const textX = iconX + iconSz + 10*S
       ctx.fillStyle = tagColor; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-      ctx.fillText(typeTag, cardX + 14*S, cy + cardH*0.4)
+      ctx.fillText(typeTag, textX, cy + cardH*0.38)
 
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-      ctx.fillText(rw.label, W*0.5, cy + cardH*0.55)
+      // 名称（居中偏右）
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillText(rw.label, textX, cy + cardH*0.62)
 
-      ctx.fillStyle = '#999'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText('全队永久生效', W*0.5, cy + cardH*0.8)
+      // 底部提示
+      ctx.fillStyle = '#999'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillText('全队永久生效', textX, cy + cardH*0.85)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])
   })
@@ -1523,9 +1550,9 @@ function _drawDexPetDetail(g) {
 
   // 预计算文本行
   const loreLines = _wrapTextDex(lore, maxTextW, 10)
-  const skillDescLines = _wrapTextDex(skillDesc, maxTextW - 8*S, 9)
+  const skillDescLines = _wrapTextDex(skillDesc, maxTextW - 8*S, 10)
   if (!isMaxStar) {
-    nextSkillDescLines = _wrapTextDex(nextSkillDesc, maxTextW - 8*S, 9)
+    nextSkillDescLines = _wrapTextDex(nextSkillDesc, maxTextW - 8*S, 10)
   }
 
   const btnH = 34*S
@@ -1591,7 +1618,7 @@ function _drawDexPetDetail(g) {
   ctx.textAlign = 'left'
   ctx.fillText(pet.name, nameStartX, curY + 13*S)
   // 画星星
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#C89510'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(starStr, nameStartX + nameW + nameStarGap, curY + 13*S)
   curY += lineH_name
 
@@ -1606,11 +1633,11 @@ function _drawDexPetDetail(g) {
   const attrBlockW = orbR * 2 + 6*S + atkLabelW + atkValW
   const attrStartX = W * 0.5 - attrBlockW / 2
   R.drawBead(attrStartX + orbR, curY + 8*S, orbR, petAttr, 0)
-  ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'left'
   ctx.fillText(atkLabel, attrStartX + orbR * 2 + 6*S, curY + 11*S)
   // ATK 数值用高亮色
-  ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(atkVal, attrStartX + orbR * 2 + 6*S + atkLabelW, curY + 11*S)
   curY += lineH_attr + gapH
 
@@ -1627,7 +1654,7 @@ function _drawDexPetDetail(g) {
   curY += lineH_skillTitle
 
   // 技能描述（数值高亮）
-  _drawHighlightedLines(ctx, skillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 9*S, S)
+  _drawHighlightedLines(ctx, skillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 10*S, S)
   curY += skillDescLines.length * lineH_skillDesc
   curY += gapH
 
@@ -1639,24 +1666,24 @@ function _drawDexPetDetail(g) {
   // 下一级数据（非满星时）
   if (!isMaxStar) {
     const nextStarLabel = `下一级 ★${curStar + 1}`
-    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
     ctx.fillText(nextStarLabel, panelX + pad, curY + 10*S)
     curY += 14*S
     // 下一级ATK
     const nAtkLabel = 'ATK：'
     const nAtkVal = String(nextStarAtk)
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(nAtkLabel, panelX + pad, curY + 10*S)
     const nAtkLabelW = ctx.measureText(nAtkLabel).width
-    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(nAtkVal, panelX + pad + nAtkLabelW, curY + 10*S)
     curY += lineH_attr
     // 下一级技能
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`技能：${pet.skill.name}`, panelX + pad, curY + 10*S)
     curY += lineH_skillTitle
-    _drawHighlightedLines(ctx, nextSkillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 9*S, S)
+    _drawHighlightedLines(ctx, nextSkillDescLines, panelX + pad + 4*S, curY, lineH_skillDesc, 10*S, S)
     curY += nextSkillDescLines.length * lineH_skillDesc
     curY += gapH
     // 分割线
@@ -1666,7 +1693,7 @@ function _drawDexPetDetail(g) {
   }
 
   // 故事
-  ctx.fillStyle = '#5C4A3A'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#5C4A3A'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'left'
   loreLines.forEach(line => {
     ctx.fillText(line, panelX + pad, curY + 10*S)

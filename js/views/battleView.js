@@ -388,8 +388,22 @@ function rBattle(g) {
     g._exitBtnRect = null
   }
 
-  // [DEV] 调试按钮已移除
-  g._devKillRect = null
+  // [DEV] 调试跳过战斗按钮
+  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
+    const devX = exitBtnX + exitBtnSize + 6*S, devY = exitBtnY
+    const devW = 48*S, devH = exitBtnSize
+    ctx.fillStyle = 'rgba(255,60,60,0.45)'
+    R.rr(devX, devY, devW, devH, 6*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,100,100,0.5)'; ctx.lineWidth = 1
+    R.rr(devX, devY, devW, devH, 6*S); ctx.stroke()
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('跳过', devX + devW*0.5, devY + devH*0.5)
+    ctx.textBaseline = 'alphabetic'
+    g._devKillRect = [devX, devY, devW, devH]
+  } else {
+    g._devKillRect = null
+  }
 
   // 队伍栏
   drawTeamBar(g, teamBarY, teamBarH, iconSize)
@@ -2245,10 +2259,18 @@ function drawRunBuffIcons(g, topY, bottomY) {
     ctx.strokeStyle = isDebuff ? 'rgba(255,100,100,0.5)' : 'rgba(100,255,150,0.4)'
     ctx.lineWidth = 1*S
     R.rr(leftX, iy, iconSz, iconSz, 4*S); ctx.stroke()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(it.label, leftX + iconSz/2, iy + iconSz*0.38)
-    ctx.textBaseline = 'alphabetic'
+
+    // 图标（优先用图片，回退用文字缩写）
+    const iconInfo = _getBuffIcon(R, it.buff)
+    if (iconInfo.type === 'img') {
+      const imgSz = iconSz * 0.7
+      ctx.drawImage(iconInfo.img, leftX + (iconSz - imgSz)/2, iy + iconSz*0.06, imgSz, imgSz)
+    } else {
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(it.label, leftX + iconSz/2, iy + iconSz*0.38)
+      ctx.textBaseline = 'alphabetic'
+    }
     const valTxt = it.buff === 'extraTimeSec' ? `+${it.val.toFixed(1)}` :
                    it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                    `${it.val > 0 ? '+' : ''}${it.val}%`
@@ -2262,7 +2284,44 @@ function drawRunBuffIcons(g, topY, bottomY) {
   }
 }
 
-// ===== buff类型图标映射 =====
+// ===== buff类型 → 图标图片路径映射 =====
+const BUFF_ICON_IMG_MAP = {
+  allAtkPct:       'assets/ui/buff_icon_atk.png',
+  allDmgPct:       'assets/ui/buff_icon_atk.png',
+  counterDmgPct:   'assets/ui/buff_icon_atk.png',
+  skillDmgPct:     'assets/ui/buff_icon_atk.png',
+  healNow:         'assets/ui/buff_icon_heal.png',
+  postBattleHeal:  'assets/ui/buff_icon_heal.png',
+  regenPerTurn:    'assets/ui/buff_icon_heal.png',
+  dmgReducePct:    'assets/ui/buff_icon_def.png',
+  nextDmgReduce:   'assets/ui/buff_icon_def.png',
+  grantShield:     'assets/ui/buff_icon_def.png',
+  immuneOnce:      'assets/ui/buff_icon_def.png',
+  comboDmgPct:     'assets/ui/buff_icon_elim.png',
+  elim3DmgPct:     'assets/ui/buff_icon_elim.png',
+  elim4DmgPct:     'assets/ui/buff_icon_elim.png',
+  elim5DmgPct:     'assets/ui/buff_icon_elim.png',
+  bonusCombo:      'assets/ui/buff_icon_elim.png',
+  extraTimeSec:    'assets/ui/buff_icon_time.png',
+  skillCdReducePct:'assets/ui/buff_icon_time.png',
+  resetAllCd:      'assets/ui/buff_icon_time.png',
+  hpMaxPct:        'assets/ui/buff_icon_hp.png',
+  enemyAtkReducePct:'assets/ui/buff_icon_weaken.png',
+  enemyHpReducePct:'assets/ui/buff_icon_weaken.png',
+  enemyDefReducePct:'assets/ui/buff_icon_weaken.png',
+  eliteAtkReducePct:'assets/ui/buff_icon_weaken.png',
+  eliteHpReducePct:'assets/ui/buff_icon_weaken.png',
+  bossAtkReducePct:'assets/ui/buff_icon_weaken.png',
+  bossHpReducePct: 'assets/ui/buff_icon_weaken.png',
+  nextStunEnemy:   'assets/ui/buff_icon_weaken.png',
+  stunDurBonus:    'assets/ui/buff_icon_weaken.png',
+  extraRevive:     'assets/ui/buff_icon_special.png',
+  skipNextBattle:  'assets/ui/buff_icon_special.png',
+  nextFirstTurnDouble:'assets/ui/buff_icon_special.png',
+  heartBoostPct:   'assets/ui/buff_icon_special.png',
+}
+
+// emoji回退映射（图片未加载时使用）
 const BUFF_ICON_MAP = {
   allAtkPct:       '⚔️', allDmgPct:       '⚔️',
   heartBoostPct:   '💗', comboDmgPct:     '🔥',
@@ -2277,6 +2336,16 @@ const BUFF_ICON_MAP = {
   nextDmgReduce:   '🛡️', extraRevive:     '♻️',
   grantShield:     '🛡️', resetAllCd:      '⏳', skipNextBattle:  '🚫',
   immuneOnce:      '✨', nextFirstTurnDouble:'⚔️', nextStunEnemy:   '💫',
+}
+
+// 获取buff图标：优先用图片，回退用emoji
+function _getBuffIcon(R, buffKey) {
+  const imgPath = BUFF_ICON_IMG_MAP[buffKey]
+  if (imgPath) {
+    const img = R.getImg(imgPath)
+    if (img && img.width > 0) return { type: 'img', img }
+  }
+  return { type: 'emoji', emoji: BUFF_ICON_MAP[buffKey] || '✦' }
 }
 
 // ===== buff标签简短化 =====
@@ -2460,7 +2529,8 @@ function drawVictoryOverlay(g) {
 
   // 奖励项：全部横排头像框，1:1正方形
   const avatarSz = Math.min(48*S, (panelW - innerPad*2 - (rewardCount-1)*10*S) / rewardCount)
-  const cardAreaH = avatarSz + 20*S  // 头像框 + NEW标签空间
+  const labelLineH = 14*S  // 图标下方标题行高
+  const cardAreaH = avatarSz + labelLineH + 20*S  // 头像框 + 标题 + NEW标签空间
 
   const fixedH = innerPad + titleH + speedLineH + growthAreaH + dividerH + subTitleH + btnAreaH + innerPad
   const totalH = Math.min(H * 0.88, fixedH + cardAreaH)
@@ -2583,6 +2653,11 @@ function drawVictoryOverlay(g) {
       }
       g._rewardAvatarRects[g._rewardAvatarRects.length - 1].isNew = isNew
 
+      // 图标下方标题
+      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
+      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      ctx.fillText('灵兽', cxCenter, iy + avatarSz + labelLineH - 2*S)
+
     } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
       // ==== 法宝：头像框 ====
       const w = rw.data
@@ -2606,11 +2681,16 @@ function drawVictoryOverlay(g) {
       }
       g._rewardAvatarRects[g._rewardAvatarRects.length - 1].isNew = isNew
 
+      // 图标下方标题
+      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
+      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      ctx.fillText('法宝', cxCenter, iy + avatarSz + labelLineH - 2*S)
+
     } else {
-      // ==== 加成类奖励 — 1:1方框占位 ====
+      // ==== 加成类奖励 — 1:1方框 + 图标占满 ====
       const buffData = rw.data
       const buffKey = buffData ? buffData.buff : ''
-      const icon = BUFF_ICON_MAP[buffKey] || '✦'
+      const iconInfo = _getBuffIcon(R, buffKey)
 
       ctx.save()
       ctx.fillStyle = isSpeedBuff ? 'rgba(224,192,112,0.2)' : 'rgba(200,190,175,0.3)'
@@ -2619,21 +2699,31 @@ function drawVictoryOverlay(g) {
       ctx.lineWidth = 1*S
       R.rr(ix, iy, avatarSz, avatarSz, 6*S); ctx.stroke()
 
-      // buff图标居中
-      ctx.font = `${avatarSz*0.4}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillStyle = '#5C4A3A'
-      ctx.fillText(icon, cxCenter, iy + avatarSz * 0.42)
+      // buff图标占满整个格子（无内边距，与宠物/法宝一致）
+      if (iconInfo.type === 'img') {
+        ctx.save()
+        R.rr(ix, iy, avatarSz, avatarSz, 6*S); ctx.clip()
+        ctx.drawImage(iconInfo.img, ix, iy, avatarSz, avatarSz)
+        ctx.restore()
+      } else {
+        ctx.font = `${avatarSz*0.55}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#5C4A3A'
+        ctx.fillText(iconInfo.emoji, cxCenter, iy + avatarSz * 0.48)
+      }
+      ctx.textBaseline = 'alphabetic'
+      ctx.restore()
 
-      // 简短文字（方框内下方）
+      // 图标下方标题（格子外面）
+      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
+      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
       const shortLabel = _shortBuffLabel(rw.label)
       const maxLabelLen = 6
       const displayLabel = shortLabel.length > maxLabelLen ? shortLabel.substring(0, maxLabelLen) : shortLabel
-      ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
-      ctx.fillStyle = '#5C4A3A'
-      ctx.fillText(displayLabel, cxCenter, iy + avatarSz * 0.78)
-      ctx.textBaseline = 'alphabetic'
-      ctx.restore()
+      ctx.fillText(displayLabel, cxCenter, iy + avatarSz + labelLineH - 2*S)
+
+      // 注册点击区域（用于弹出buff详情）
+      g._rewardAvatarRects.push({ idx: i, rect: [ix, iy, avatarSz, avatarSz], type: 'buff', data: buffData, label: rw.label })
 
       // 速通小标签
       if (isSpeedBuff) {
@@ -2642,7 +2732,7 @@ function drawVictoryOverlay(g) {
     }
   })
 
-  curY += avatarSz + 8*S
+  curY += avatarSz + labelLineH + 8*S
 
   // ---- 确认按钮 ----
   if (g.selectedReward >= 0) {
@@ -2763,7 +2853,7 @@ function _drawRewardDetailOverlay(g) {
     const isMaxStar = curStar >= MAX_STAR
     const curAtk = getPetStarAtk(displayPet)
     const skillDesc = petHasSkill(displayPet) ? (getPetSkillDesc(displayPet) || (displayPet.skill ? displayPet.skill.desc : '')) : ''
-    const descLines = skillDesc ? _wrapTextBV(skillDesc, maxTextW - 4*S, 9) : []
+    const descLines = skillDesc ? _wrapTextBV(skillDesc, maxTextW - 4*S, 10) : []
 
     // 下一级数据
     let nextAtk = 0, nextSkillDesc = '', nextDescLines = []
@@ -2832,7 +2922,7 @@ function _drawRewardDetailOverlay(g) {
     ctx.fillText(displayPet.name, txL, iy)
     const nameW = ctx.measureText(displayPet.name).width
     const starStr = '★'.repeat(curStar) + (curStar < MAX_STAR ? '☆'.repeat(MAX_STAR - curStar) : '')
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#C89510'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(starStr, txL + nameW + 6*S, iy)
     if (isNew) {
       const newTxt = 'NEW'
@@ -2867,12 +2957,12 @@ function _drawRewardDetailOverlay(g) {
       ctx.fillText(`CD ${displayPet.cd}`, lx + skillTitleW + 6*S, iy)
       descLines.forEach(line => {
         iy += lineH - 1*S
-        ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'left'
         ctx.fillText(line, lx + 4*S, iy)
       })
     } else {
-      ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
       ctx.fillText('技能：升至★2解锁', lx, iy)
       // NEW宠物：展示★2解锁后的具体技能描述
@@ -2891,7 +2981,7 @@ function _drawRewardDetailOverlay(g) {
         ctx.fillText(`CD ${displayPet.cd}`, lx + 4*S + unlockTitleW + 6*S, iy)
         nextDescLines.forEach(line => {
           iy += lineH - 1*S
-          ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'left'
           ctx.fillText(line, lx + 8*S, iy)
         })
@@ -2908,7 +2998,7 @@ function _drawRewardDetailOverlay(g) {
       // "升星后 ★X" 标题
       iy += lineH
       const nextStarLabel = `选择后即将升星 ${'★'.repeat(curStar + 1)}`
-      ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
       ctx.fillText(nextStarLabel, lx, iy)
 
@@ -2938,14 +3028,14 @@ function _drawRewardDetailOverlay(g) {
         ctx.fillText(`CD ${displayPet.cd}`, lx + nextSkillTitleW + 6*S, iy)
         nextDescLines.forEach(line => {
           iy += lineH - 1*S
-          ctx.fillStyle = '#c06020'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#c06020'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'left'
           ctx.fillText(line, lx + 4*S, iy)
         })
       } else if (nextHasSkill) {
         iy += lineH
         const nextSkillTitle = `技能：${displayPet.skill ? displayPet.skill.name : '无'}`
-        ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'left'
         ctx.fillText(nextSkillTitle, lx, iy)
         const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
@@ -2955,9 +3045,9 @@ function _drawRewardDetailOverlay(g) {
         nextDescLines.forEach(line => {
           iy += lineH - 1*S
           if (descChanged) {
-            ctx.fillStyle = '#c06020'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
           } else {
-            ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
           }
           ctx.textAlign = 'left'
           ctx.fillText(line, lx + 4*S, iy)
@@ -2966,7 +3056,7 @@ function _drawRewardDetailOverlay(g) {
     }
 
     ctx.restore()
-    ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('点击任意位置关闭', W*0.5, tipY2 + cardH - 6*S)
 
   } else if (detail.type === 'weapon') {
@@ -2976,12 +3066,12 @@ function _drawRewardDetailOverlay(g) {
     lines.push({ text: w.name, color: '#8B6914', bold: true, size: 14, h: lineH + 2*S, wpnPrefix: true })
     lines.push({ text: '', size: 0, h: 4*S })
     if (w.desc) {
-      const descLines = _wrapTextBV(w.desc, tipW - padX*2 - 8*S, 10)
-      descLines.forEach(dl => lines.push({ text: dl, color: '#3D2B1F', size: 10, h: smallLineH }))
+      const descLines = _wrapTextBV(w.desc, tipW - padX*2 - 8*S, 11)
+      descLines.forEach(dl => lines.push({ text: dl, color: '#3D2B1F', size: 11, h: smallLineH }))
     }
     if (w.attr) {
       lines.push({ text: '', size: 0, h: 3*S })
-      lines.push({ text: `对应属性：${ATTR_NAME[w.attr] || w.attr}`, color: '#6B5B50', size: 9, h: smallLineH, attrOrb: w.attr })
+      lines.push({ text: `对应属性：${ATTR_NAME[w.attr] || w.attr}`, color: '#6B5B50', size: 10, h: smallLineH, attrOrb: w.attr })
     }
 
     let totalH = padY * 2 + 18*S
@@ -3016,8 +3106,139 @@ function _drawRewardDetailOverlay(g) {
       }
     })
     ctx.restore()
-    ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#9B8B80'; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('点击任意位置关闭', W*0.5, tipY + totalH - 6*S)
+
+  } else if (detail.type === 'buff') {
+    // ===== Buff加成详情弹窗 =====
+    const buffData = detail.data || {}
+    const buffKey = buffData.buff || ''
+    const label = detail.label || buffData.label || '加成'
+    const val = buffData.val || 0
+    const lineH = 16*S
+
+    // 格式化数值显示
+    let valText = ''
+    if (buffKey === 'extraTimeSec') valText = `+${val.toFixed ? val.toFixed(1) : val} 秒`
+    else if (['bonusCombo','stunDurBonus','extraRevive','regenPerTurn'].includes(buffKey)) valText = `+${val}`
+    else if (['healNow','postBattleHeal','grantShield'].includes(buffKey)) valText = `${val}${buffKey === 'grantShield' ? ' 点护盾' : '% 血量'}`
+    else if (['skipNextBattle','resetAllCd','immuneOnce','nextFirstTurnDouble','nextStunEnemy'].includes(buffKey)) valText = '一次性效果'
+    else valText = `+${val}%`
+
+    // buff类别名称
+    const BUFF_CATEGORY = {
+      allAtkPct:'攻击强化', allDmgPct:'攻击强化', counterDmgPct:'攻击强化', skillDmgPct:'攻击强化',
+      healNow:'生命回复', postBattleHeal:'生命回复', regenPerTurn:'生命回复',
+      dmgReducePct:'防御减伤', nextDmgReduce:'防御减伤', grantShield:'防御减伤', immuneOnce:'防御减伤',
+      comboDmgPct:'消除增幅', elim3DmgPct:'消除增幅', elim4DmgPct:'消除增幅', elim5DmgPct:'消除增幅', bonusCombo:'消除增幅',
+      extraTimeSec:'时间操控', skillCdReducePct:'时间操控', resetAllCd:'时间操控',
+      hpMaxPct:'血量强化',
+      enemyAtkReducePct:'削弱敌人', enemyHpReducePct:'削弱敌人', eliteAtkReducePct:'削弱敌人',
+      eliteHpReducePct:'削弱敌人', bossAtkReducePct:'削弱敌人', bossHpReducePct:'削弱敌人',
+      nextStunEnemy:'削弱敌人', stunDurBonus:'削弱敌人',
+      extraRevive:'特殊效果', skipNextBattle:'特殊效果', nextFirstTurnDouble:'特殊效果', heartBoostPct:'特殊效果',
+    }
+    const category = BUFF_CATEGORY[buffKey] || '加成'
+    const catColors = {
+      '攻击强化':'#c06020', '生命回复':'#2d8a4e', '防御减伤':'#3a6aaa',
+      '消除增幅':'#b88a20', '时间操控':'#7a5aaa', '血量强化':'#2d8a4e',
+      '削弱敌人':'#7a4aaa', '特殊效果':'#b8881e',
+    }
+    const catColor = catColors[category] || '#6B5B50'
+
+    // 描述文字
+    const BUFF_DESC = {
+      allAtkPct:'全队消除攻击伤害按百分比提升', allDmgPct:'全队所有伤害按百分比提升',
+      counterDmgPct:'五行克制额外伤害提升', skillDmgPct:'灵兽技能伤害提升',
+      healNow:'立即回复当前最大血量的一定比例', postBattleHeal:'每场战斗胜利后回复一定比例血量',
+      regenPerTurn:'每回合结算后自动回复固定生命值',
+      dmgReducePct:'受到所有伤害降低（永久生效）', nextDmgReduce:'下一场战斗受到伤害降低（单场）',
+      grantShield:'立即获得护盾，吸收等量伤害', immuneOnce:'免疫下一次敌方控制技能',
+      comboDmgPct:'Combo连击倍率额外加成', elim3DmgPct:'3消基础伤害倍率提升',
+      elim4DmgPct:'4消伤害倍率提升', elim5DmgPct:'5消伤害倍率提升',
+      bonusCombo:'每回合首次消除额外增加连击数',
+      extraTimeSec:'转珠操作时间增加', skillCdReducePct:'灵兽技能冷却回合缩短',
+      resetAllCd:'立即重置所有灵兽技能冷却',
+      hpMaxPct:'主角最大血量按百分比提升（立即生效）',
+      enemyAtkReducePct:'所有怪物攻击力降低', enemyHpReducePct:'所有怪物血量降低',
+      eliteAtkReducePct:'精英怪攻击力降低', eliteHpReducePct:'精英怪血量降低',
+      bossAtkReducePct:'BOSS攻击力降低', bossHpReducePct:'BOSS血量降低',
+      nextStunEnemy:'下一场战斗敌人开局眩晕', stunDurBonus:'5消眩晕效果延长回合数',
+      extraRevive:'获得额外复活机会', skipNextBattle:'直接跳过下一场普通战斗',
+      nextFirstTurnDouble:'下场战斗首回合伤害翻倍', heartBoostPct:'心珠回复效果提升',
+    }
+    const desc = BUFF_DESC[buffKey] || '全队永久生效'
+    const descLines = _wrapTextBV(desc, tipW - padX*2, 10)
+
+    // 计算卡片高度（无图标，无单独数值行）
+    let cardH = padY * 2
+    cardH += lineH  // 类别
+    cardH += lineH + 4*S  // 名称（含高亮数值）
+    cardH += 6*S    // 分割线
+    cardH += descLines.length * (lineH - 2*S)  // 描述
+    cardH += 20*S   // 关闭提示
+    cardH = Math.max(cardH, 80*S)
+
+    const tipX = (W - tipW) / 2, tipY = (H - cardH) / 2
+    const rad = 14*S
+    R.drawInfoPanel(tipX, tipY, tipW, cardH)
+
+    ctx.save()
+    ctx.beginPath(); R.rr(tipX, tipY, tipW, cardH, rad); ctx.clip()
+
+    let iy = tipY + padY
+    const lx = tipX + padX
+
+    // 类别标签（不再显示图标）
+    ctx.textAlign = 'center'
+    ctx.fillStyle = catColor; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(category, W/2, iy)
+    iy += lineH
+
+    // 名称（数值部分用醒目颜色高亮）
+    const nameText = label.replace(/^\[速通\]\s*/, '')
+    const numMatch = nameText.match(/(.*?)([\+\-－＋]?\d+[\.\d]*%?\s*[^\d]*)$/)
+    if (numMatch && numMatch[2]) {
+      // 拆分：前半段普通色 + 后半段(含数值)高亮
+      const prefix = numMatch[1]
+      const numPart = numMatch[2]
+      ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      const prefixW = ctx.measureText(prefix).width
+      const numW = ctx.measureText(numPart).width
+      const totalW = prefixW + numW
+      const startX = W/2 - totalW/2
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#3D2B1F'
+      ctx.fillText(prefix, startX, iy)
+      // 数值部分：醒目大字 + 发光
+      ctx.save()
+      ctx.shadowColor = catColor; ctx.shadowBlur = 6*S
+      ctx.fillStyle = catColor; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      ctx.fillText(numPart, startX + prefixW, iy)
+      ctx.restore()
+      ctx.textAlign = 'center'
+    } else {
+      ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillText(nameText, W/2, iy)
+    }
+    iy += lineH + 4*S
+
+    // 分割线
+    ctx.strokeStyle = 'rgba(160,140,100,0.25)'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.moveTo(lx, iy); ctx.lineTo(tipX + tipW - padX, iy); ctx.stroke()
+    iy += 6*S
+
+    // 描述
+    descLines.forEach(line => {
+      iy += lineH - 2*S
+      ctx.fillStyle = '#5C4A3A'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(line, W/2, iy)
+    })
+
+    ctx.restore()
+    ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('点击任意位置关闭', W*0.5, tipY + cardH - 6*S)
   }
   ctx.restore()
 }
