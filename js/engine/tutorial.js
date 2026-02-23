@@ -228,7 +228,7 @@ function _setupStep(g) {
   g.enemyBuffs = []
   g.bState = 'playerTurn'
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null
-  g.combo = 0; g.turnCount = 0; g.rage = 0; g._rageReady = false
+  g.combo = 0; g.turnCount = 0
   g.enemySkillCd = -1; g._nextEnemySkill = null
   g.lastSpeedKill = false; g.lastTurnCount = 0
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
