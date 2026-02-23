@@ -35,15 +35,17 @@ const STEPS = [
     board: [
       ['w','f','e','s','w','f'],
       ['s','e','w','f','e','s'],
-      ['f','m','m','s','w','e'],
-      ['e','w','s','f','m','w'],
-      ['w','f','e','s','f','e'],
+      ['f','m','m','w','e','w'],
+      ['e','f','s','w','s','e'],
+      ['w','s','e','f','e','m'],
     ],
-    guide: { fromR:3, fromC:4, toR:2, toC:3, path:[[3,4],[3,3],[2,3]] },
+    // 拖[4,5]金珠沿L形长路径到[2,3]：经过5格，沿途连续交换
+    // 最终Row2: f,m,m,m,e,e → 3连金消除
+    guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
     enemy: { name:'训练木偶', attr:'wood', hp:1, maxHp:1, atk:0, def:0, skills:[], avatar:'enemies/mon_w_1', _tutorial:true },
     msg: [
-      { text:'按住灵珠拖动，与路径上的灵珠交换位置', timing:'start' },
-      { text:'3颗同色灵珠连成一排即可消除攻击！', timing:'afterElim' },
+      { text:'按住灵珠沿路径拖动，沿途灵珠会依次交换！', timing:'start' },
+      { text:'灵珠归位，三连消除！这就是转珠！', timing:'afterElim' },
     ],
   },
   {
