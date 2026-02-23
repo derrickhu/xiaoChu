@@ -328,6 +328,10 @@ class Main {
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
     }
+    // 宠物获得/升星提示弹窗（奖励等途径）
+    if (this._petObtainedPopup) {
+      eventView.drawPetObtainedPopup(this, this._petObtainedPopup)
+    }
     // ★3满星庆祝画面（覆盖在奖励界面之上）
     if (this._star3Celebration) {
       dialogs.drawStar3Celebration(this)

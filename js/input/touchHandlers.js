@@ -183,6 +183,10 @@ function tEvent(g, type, x, y) {
   if (g._star3Celebration) return
   // === 弹窗层：只处理 end ===
   if (type === 'end') {
+    // 商店灵兽获得弹窗
+    if (g._shopPetObtained) {
+      g._shopPetObtained = null; return
+    }
     if (g._eventPetDetail != null) {
       g._eventPetDetail = null; g._eventPetDetailData = null; return
     }
@@ -190,6 +194,8 @@ function tEvent(g, type, x, y) {
       g._eventWpnDetail = null; g._eventWpnDetailData = null; return
     }
   }
+  // 弹窗打开时屏蔽其他交互
+  if (g._shopPetObtained) return
 
   // === 拖拽灵宠 / 法宝 ===
   const drag = g._eventDragPet
@@ -376,6 +382,10 @@ function tEvent(g, type, x, y) {
             if (shopUsedCount === 1) {
               const cost = Math.round(g.heroHp * 15 / 100)
               g.heroHp = Math.max(1, g.heroHp - cost)
+              // 血量减少飘字提醒
+              if (cost > 0) {
+                g.dmgFloats.push({ x: V.W * 0.5, y: V.H * 0.35, text: `-${cost} HP`, color: '#ff4444', t: 0, alpha: 1, scale: 1.1 })
+              }
             }
             // 标记已购买
             g._eventShopUsedItems = g._eventShopUsedItems || []
@@ -555,6 +565,12 @@ function tBattle(g, type, x, y) {
       return
     }
     if (g.floor >= MAX_FLOOR) return  // 通关面板上不响应其他点击
+    // 宠物获得/升星弹窗：点击关闭后进入下一层
+    if (g._petObtainedPopup) {
+      g._petObtainedPopup = null
+      g._nextFloor()
+      return
+    }
     // ★3满星庆祝画面：点击关闭后进入下一层
     if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
       g._star3Celebration = null
@@ -571,8 +587,8 @@ function tBattle(g, type, x, y) {
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
       g._applyReward(g.rewards[g.selectedReward])
-      // 如果触发了★3庆祝，暂停在庆祝画面，不立刻进下一层
-      if (g._star3Celebration) return
+      // 如果触发了★3庆祝或宠物获得弹窗，暂停不立刻进下一层
+      if (g._star3Celebration || g._petObtainedPopup) return
       g._nextFloor()
       return
     }
@@ -725,7 +741,8 @@ function tBattle(g, type, x, y) {
       MusicMgr.playPickUp()
     }
   } else if (type === 'move' && g.dragging) {
-    g.dragCurX = x; g.dragCurY = y
+    g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))
+    g.dragCurY = Math.max(by, Math.min(by + ROWS * cs, y))
     const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
     if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed)) {
       const or = g.dragR, oc = g.dragC
@@ -743,6 +760,12 @@ function tBattle(g, type, x, y) {
 
 function tReward(g, type, x, y) {
   if (type !== 'end') return
+  // 宠物获得/升星弹窗：点击关闭后进入下一层
+  if (g._petObtainedPopup) {
+    g._petObtainedPopup = null
+    g._nextFloor()
+    return
+  }
   // ★3满星庆祝画面：点击关闭后进入下一层
   if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null
@@ -758,7 +781,7 @@ function tReward(g, type, x, y) {
   }
   if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
     g._applyReward(g.rewards[g.selectedReward])
-    if (g._star3Celebration) return
+    if (g._star3Celebration || g._petObtainedPopup) return
     g._nextFloor()
   }
 }
@@ -886,6 +909,7 @@ function tDex(g, type, x, y) {
     for (const cell of g._dexCellRects) {
       if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
         g._dexDetailPetId = cell.id
+        g.storage.markDexSeen(cell.id)
         return
       }
     }

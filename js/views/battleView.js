@@ -2110,41 +2110,28 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
     ctx.restore()
   }
 
-  // --- 3. 破甲（防御为0）：裂纹特效 ---
+  // --- 3. 破甲（防御为0）：脚下碎盾标记 ---
   if (g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0) {
     ctx.save()
-    ctx.globalAlpha = 0.6 + 0.15 * Math.sin(af * 0.1)
-    ctx.strokeStyle = '#ff4444'
-    ctx.lineWidth = 2 * S
-    ctx.shadowColor = '#ff0000'
-    ctx.shadowBlur = 4 * S
+    const bkAlpha = 0.55 + 0.15 * Math.sin(af * 0.08)
+    ctx.globalAlpha = bkAlpha
 
-    // 几道裂纹
-    const cracks = [
-      [0.5, 0.25, 0.3, 0.55, 0.55, 0.45],
-      [0.5, 0.25, 0.7, 0.5, 0.6, 0.7],
-      [0.45, 0.4, 0.25, 0.65],
-      [0.55, 0.35, 0.75, 0.6],
-    ]
-    cracks.forEach(c => {
-      ctx.beginPath()
-      ctx.moveTo(imgX + imgW * c[0], imgY + imgH * c[1])
-      for (let j = 2; j < c.length; j += 2) {
-        ctx.lineTo(imgX + imgW * c[j], imgY + imgH * c[j + 1])
-      }
-      ctx.stroke()
-    })
+    // 敌人脚下绘制向下箭头+「破防」文字标记
+    const tagW = 36 * S, tagH = 14 * S
+    const tagX = cx - tagW / 2
+    const tagY = imgY + imgH - 4 * S
 
-    // 碎片飘散粒子
-    for (let i = 0; i < 4; i++) {
-      const px = imgX + imgW * (0.3 + (i / 4) * 0.4)
-      const py = imgY + imgH * 0.3 + Math.sin(af * 0.05 + i * 2) * imgH * 0.15
-      ctx.globalAlpha = 0.4 + 0.2 * Math.sin(af * 0.08 + i)
-      ctx.fillStyle = '#ff6644'
-      ctx.fillRect(px - 2 * S, py - 1 * S, 4 * S, 2 * S)
-    }
+    // 标签背景（深红半透明圆角矩形）
+    ctx.fillStyle = 'rgba(180,40,40,0.75)'
+    R.rr(tagX, tagY, tagW, tagH, 3 * S); ctx.fill()
 
-    ctx.shadowBlur = 0
+    // 「破防」文字
+    ctx.fillStyle = '#ffdddd'
+    ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('破防', cx, tagY + tagH / 2)
+    ctx.textBaseline = 'alphabetic'
+
     ctx.globalAlpha = 1
     ctx.restore()
   }
@@ -2370,8 +2357,12 @@ function _drawClearPanel(g) {
   const realmH = 22*S
   const dividerH = 16*S
   const teamLabelH = 20*S
-  const petRowH = 22*S
-  const wpnRowH = 22*S
+  const petIconSz = 36*S       // 宠物头像尺寸
+  const petNameH = 16*S        // 宠物名称行高
+  const petRowH = petIconSz + petNameH + 6*S  // 头像+名称+间距
+  const wpnIconSz = 36*S       // 法宝图标尺寸
+  const wpnNameH = 16*S
+  const wpnRowH = wpnIconSz + wpnNameH + 6*S
   const bagRowH = 18*S
   const btnH = 36*S
   const totalH = innerPad + titleH + subtitleH + realmH + dividerH + teamLabelH + petRowH + wpnRowH + bagRowH + 12*S + btnH + innerPad
@@ -2420,19 +2411,62 @@ function _drawClearPanel(g) {
   ctx.fillText('通关阵容', W*0.5, curY + 12*S)
   curY += teamLabelH
 
-  // 宠物列表
-  ctx.textAlign = 'center'
+  // 宠物列表（头像 + 名称）
   if (g.pets && g.pets.length > 0) {
-    const petNames = g.pets.map(p => p.name).join('  ')
-    ctx.fillStyle = '#5C4A3A'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(petNames, W*0.5, curY + 12*S)
+    const petCount = g.pets.length
+    const petGap = 8*S
+    const petSlotW = petIconSz
+    const totalPetW = petCount * petSlotW + (petCount - 1) * petGap
+    let px = (W - totalPetW) / 2
+    for (let pi = 0; pi < petCount; pi++) {
+      const p = g.pets[pi]
+      const ac = ATTR_COLOR[p.attr]
+      // 头像背景
+      ctx.fillStyle = ac ? ac.bg : '#E8E0D8'
+      R.rr(px, curY, petIconSz, petIconSz, 5*S); ctx.fill()
+      // 头像图片
+      const petImg = R.getImg(getPetAvatarPath(p))
+      if (petImg && petImg.width > 0) {
+        ctx.save()
+        ctx.beginPath(); R.rr(px+1, curY+1, petIconSz-2, petIconSz-2, 4*S); ctx.clip()
+        const aw = petImg.width, ah = petImg.height
+        const dw = petIconSz - 2, dh = dw * (ah / aw)
+        ctx.drawImage(petImg, px+1, curY+1+(petIconSz-2-dh), dw, dh)
+        ctx.restore()
+      }
+      // 属性色边框
+      ctx.strokeStyle = ac ? ac.border : '#C0A880'; ctx.lineWidth = 1.5*S
+      R.rr(px, curY, petIconSz, petIconSz, 5*S); ctx.stroke()
+      // 名称
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#5C4A3A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(p.name, px + petIconSz/2, curY + petIconSz + 11*S)
+      px += petSlotW + petGap
+    }
   }
   curY += petRowH
 
-  // 法宝
+  // 法宝（图标 + 名称）
   if (g.weapon) {
-    ctx.fillStyle = '#8B6914'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`法宝·${g.weapon.name}`, W*0.5, curY + 12*S)
+    const w = g.weapon
+    const wx = (W - wpnIconSz) / 2
+    // 法宝图标背景
+    ctx.fillStyle = '#1a1510'
+    R.rr(wx, curY, wpnIconSz, wpnIconSz, 5*S); ctx.fill()
+    // 法宝图片
+    const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
+    if (wpnImg && wpnImg.width > 0) {
+      ctx.save()
+      ctx.beginPath(); R.rr(wx+1, curY+1, wpnIconSz-2, wpnIconSz-2, 4*S); ctx.clip()
+      const dw = wpnIconSz - 2, dh = dw * (wpnImg.height / wpnImg.width)
+      ctx.drawImage(wpnImg, wx+1, curY+1+(wpnIconSz-2-dh), dw, dh)
+      ctx.restore()
+    }
+    R.drawWeaponFrame(wx, curY, wpnIconSz)
+    // 法宝名称
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#8B6914'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`法宝·${w.name}`, W*0.5, curY + wpnIconSz + 11*S)
   }
   curY += wpnRowH
 
