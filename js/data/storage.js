@@ -25,6 +25,7 @@ function defaultPersist() {
       sfxOn: true,
     },
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
+    petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
   }
 }
 
@@ -103,6 +104,16 @@ class Storage {
     if (!this._d.petDex) this._d.petDex = []
     if (!this._d.petDex.includes(petId)) {
       this._d.petDex.push(petId)
+      this._save()
+    }
+  }
+
+  // 图鉴：标记宠物已查看详情（红点消失）
+  get petDexSeen() { return this._d.petDexSeen || [] }
+  markDexSeen(petId) {
+    if (!this._d.petDexSeen) this._d.petDexSeen = []
+    if (!this._d.petDexSeen.includes(petId)) {
+      this._d.petDexSeen.push(petId)
       this._save()
     }
   }

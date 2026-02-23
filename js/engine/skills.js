@@ -499,17 +499,23 @@ function applyReward(g, rw) {
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
         g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
+        // 获得新宠物：弹出提示
+        g._petObtainedPopup = { pet: { ...newPet }, type: 'new' }
       } else if (mergeResult.target) {
         // 已有同ID宠物→升星
         g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
+        const newStar = mergeResult.target.star || 1
         // 升至★3满星：触发庆祝画面
-        if ((mergeResult.target.star || 1) >= MAX_STAR) {
+        if (newStar >= MAX_STAR) {
           g._star3Celebration = {
             pet: mergeResult.target,
             timer: 0,
             phase: 'fadeIn',  // fadeIn → show → ready
             particles: [],
           }
+        } else {
+          // 升至★2：弹出提示（★3已有图鉴解锁庆祝，不重复显示）
+          g._petObtainedPopup = { pet: { ...mergeResult.target }, type: 'starUp' }
         }
       }
       break
@@ -673,6 +679,12 @@ function applyShopPetByAttr(g, attr) {
   const mergeResult = _mergePetAndDex(g, allPets, newPet)
   if (!mergeResult.merged) {
     g.petBag.push(newPet)
+    g._shopPetObtained = { pet: { ...newPet }, type: 'new' }
+  } else if (mergeResult.target) {
+    g._shopPetObtained = { pet: { ...mergeResult.target }, type: mergeResult.maxed ? 'maxed' : 'starUp' }
+    if ((mergeResult.target.star || 1) >= MAX_STAR) {
+      g._star3Celebration = { pet: mergeResult.target, timer: 0, phase: 'fadeIn', particles: [] }
+    }
   }
 }
 

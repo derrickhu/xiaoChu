@@ -1473,6 +1473,17 @@ function rDex(g) {
           if (cy + cellH > contentTop && cy < contentBottom) {
             g._dexCellRects.push({ id: pet.id, attr: attr, x: cx, y: cy, w: cellW, h: cellH })
           }
+          // 新获得未查看的红点
+          const seen = g.storage.petDexSeen
+          if (!seen.includes(pet.id)) {
+            const dotR = 4*S
+            const dotX = cx + cellW - imgPad - dotR + 2*S
+            const dotY = cy + imgPad + dotR - 2*S
+            ctx.fillStyle = '#e04040'
+            ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI*2); ctx.fill()
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1*S
+            ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI*2); ctx.stroke()
+          }
         } else {
           // 问号
           ctx.fillStyle = 'rgba(255,255,255,0.08)'

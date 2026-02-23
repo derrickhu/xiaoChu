@@ -161,6 +161,16 @@ function drawEnemyDetailDialog(g) {
     })
   }
 
+  // 破防状态（法宝镇妖宝塔：def被置0但不在enemyBuffs中）
+  const hasBreakDef = g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0
+  if (hasBreakDef) {
+    if (!(g.enemyBuffs && g.enemyBuffs.length > 0)) {
+      lines.push({ text: '', size: 0, h: 4*S })
+      lines.push({ text: '敌方状态：', color: '#C0392B', bold: true, size: 11, h: smallLineH })
+    }
+    lines.push({ text: `· 破防（防御 ${g.enemy.baseDef} → 0）`, color: '#C0392B', size: 9, h: smallLineH - 2*S })
+  }
+
   if (g.heroBuffs && g.heroBuffs.length > 0) {
     lines.push({ text: '', size: 0, h: 4*S })
     lines.push({ text: '己方状态：', color: '#2E6DA4', bold: true, size: 11, h: smallLineH })
