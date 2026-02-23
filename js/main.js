@@ -298,6 +298,8 @@ class Main {
     }
     // title场景：预置授权按钮；非title场景：销毁
     this._updateTitleAuthBtn()
+    // title场景：预置反馈按钮；非title场景：销毁
+    this._updateFeedbackBtn()
   }
 
   // ===== 渲染入口 =====
@@ -408,6 +410,51 @@ class Main {
         }
         this._openRanking()
       })
+    }
+  }
+
+  // 在title场景中，创建透明反馈按钮覆盖在Canvas"意见反馈"上
+  _updateFeedbackBtn() {
+    if (this.scene !== 'title' || this.showNewRunConfirm) {
+      this._destroyFeedbackBtn(); return
+    }
+    const rect = this._feedbackBtnRect
+    if (!rect) { this._destroyFeedbackBtn(); return }
+    const cssRect = {
+      left: rect[0] / dpr, top: rect[1] / dpr,
+      width: rect[2] / dpr, height: rect[3] / dpr,
+    }
+    if (!this._feedbackBtn) {
+      try {
+        const btn = wx.createFeedbackButton({
+          type: 'text', text: '',
+          style: {
+            left: cssRect.left, top: cssRect.top,
+            width: cssRect.width, height: cssRect.height,
+            backgroundColor: 'rgba(0,0,0,0)',
+            borderColor: 'rgba(0,0,0,0)', borderWidth: 0, borderRadius: 0,
+            color: 'rgba(0,0,0,0)', fontSize: 1, lineHeight: cssRect.height,
+          },
+        })
+        this._feedbackBtn = btn
+        btn.show()
+      } catch(e) {
+        console.warn('[Feedback] createFeedbackButton 失败:', e)
+      }
+    } else {
+      try {
+        this._feedbackBtn.style.left = cssRect.left
+        this._feedbackBtn.style.top = cssRect.top
+        this._feedbackBtn.style.width = cssRect.width
+        this._feedbackBtn.style.height = cssRect.height
+      } catch(e) {}
+    }
+  }
+
+  _destroyFeedbackBtn() {
+    if (this._feedbackBtn) {
+      try { this._feedbackBtn.hide(); this._feedbackBtn.destroy() } catch(e) {}
+      this._feedbackBtn = null
     }
   }
 

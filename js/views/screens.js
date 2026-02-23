@@ -134,6 +134,25 @@ function _drawImgBtn(ctx, R, img, x, y, w, h, text, fontSize, S) {
   }
 }
 
+// 意见反馈文字按钮（低调风格）
+function _drawFeedbackBtn(ctx, S, W, y) {
+  const text = '意见反馈'
+  const fs = 10*S
+  ctx.save()
+  ctx.font = `${fs}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+  ctx.fillStyle = 'rgba(210,190,160,0.7)'
+  ctx.fillText('📝 ' + text, W*0.5, y + 3*S)
+  // 下划线
+  const tw = ctx.measureText('📝 ' + text).width
+  ctx.strokeStyle = 'rgba(210,190,160,0.35)'; ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(W*0.5 - tw*0.5, y + fs + 5*S)
+  ctx.lineTo(W*0.5 + tw*0.5, y + fs + 5*S)
+  ctx.stroke()
+  ctx.restore()
+}
+
 function rTitle(g) {
   const { ctx, R, TH, W, H, S } = V
   R.drawHomeBg(g.af)
@@ -186,6 +205,10 @@ function rTitle(g) {
     g._statBtnRect = [smStartX, smY, smW, smH]
     _drawImgBtn(ctx, R, imgRank, smStartX + smW + smGap, smY, smW, smH, '排行', 12, S)
     g._rankBtnRect = [smStartX + smW + smGap, smY, smW, smH]
+    // 意见反馈（底部小文字按钮）
+    const fbY = smY + smH + 12*S
+    _drawFeedbackBtn(ctx, S, W, fbY)
+    g._feedbackBtnRect = [W*0.5 - 40*S, fbY, 80*S, 22*S]
   } else {
     g._titleContinueRect = null
     // 开始挑战
@@ -203,6 +226,10 @@ function rTitle(g) {
     g._statBtnRect = [smStartX, smY, smW, smH]
     _drawImgBtn(ctx, R, imgRank, smStartX + smW + smGap, smY, smW, smH, '排行', 12, S)
     g._rankBtnRect = [smStartX + smW + smGap, smY, smW, smH]
+    // 意见反馈（底部小文字按钮）
+    const fbY = smY + smH + 12*S
+    _drawFeedbackBtn(ctx, S, W, fbY)
+    g._feedbackBtnRect = [W*0.5 - 40*S, fbY, 80*S, 22*S]
   }
 
   if (g.showNewRunConfirm) drawNewRunConfirm(g)
