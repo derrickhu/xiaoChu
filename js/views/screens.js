@@ -454,9 +454,18 @@ function rRanking(g) {
       // 副信息行（根据Tab不同）
       ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
       if (tab === 'all') {
-        const petNames = (item.pets || []).map(p => p.name ? p.name.substring(0, 2) : '?').join(' ')
-        const wpnName = item.weapon ? `⚔${item.weapon.name.substring(0, 3)}` : ''
-        ctx.fillText(`${petNames} ${wpnName}`, textX, ry + 44*S)
+        const petNames = (item.pets || []).map(p => p.name || '?').join(' ')
+        const wpnName = item.weapon ? `⚔${item.weapon.name}` : ''
+        const subText = `${petNames} ${wpnName}`
+        const maxSubW = W - padX - 12*S - 30*S - textX
+        const subW = ctx.measureText(subText).width
+        if (subW > maxSubW && maxSubW > 0) {
+          ctx.save()
+          const subScale = maxSubW / subW
+          ctx.font = `${Math.max(7, Math.floor(9 * subScale))*S}px "PingFang SC",sans-serif`
+        }
+        ctx.fillText(subText, textX, ry + 44*S)
+        if (subW > maxSubW && maxSubW > 0) ctx.restore()
       } else if (tab === 'dex') {
         ctx.fillText(`已收集 ${item.petDexCount || 0}/100`, textX, ry + 44*S)
       } else if (tab === 'combo') {
