@@ -1163,7 +1163,12 @@ function rReward(g) {
     }
     g._rewardConfirmRect = [bx, by, bw, bh]
   }
-  drawBackBtn(g)
+  // 从战斗胜利进入奖励页时不显示返回按钮
+  if (g.bState !== 'victory') {
+    drawBackBtn(g)
+  } else {
+    g._backBtnRect = null
+  }
 }
 
 // ===== Shop =====
@@ -1734,7 +1739,7 @@ function _drawDexPetDetail(g) {
   ctx.restore()
   ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('带它出战', W * 0.5, btnY + btnH * 0.5)
+  ctx.fillText('带它出战（1星）', W * 0.5, btnY + btnH * 0.5)
   ctx.textBaseline = 'alphabetic'
   g._dexBattleBtnRect = [btnX, btnY, btnW, btnH]
 

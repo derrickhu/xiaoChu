@@ -499,8 +499,9 @@ function applyReward(g, rw) {
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
         g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
-        // 获得新宠物：弹出提示
+        // 获得新宠物：弹出提示 + 音效
         g._petObtainedPopup = { pet: { ...newPet }, type: 'new' }
+        MusicMgr.playPetObtained()
       } else if (mergeResult.target) {
         // 已有同ID宠物→升星
         g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
@@ -513,9 +514,11 @@ function applyReward(g, rw) {
             phase: 'fadeIn',  // fadeIn → show → ready
             particles: [],
           }
+          MusicMgr.playStar3Unlock()
         } else {
-          // 升至★2：弹出提示（★3已有图鉴解锁庆祝，不重复显示）
+          // 升至★2：弹出提示（★3已有图鉴解锁庆祝，不重复显示）+ 音效
           g._petObtainedPopup = { pet: { ...mergeResult.target }, type: 'starUp' }
+          MusicMgr.playPetObtained()
         }
       }
       break
@@ -680,10 +683,14 @@ function applyShopPetByAttr(g, attr) {
   if (!mergeResult.merged) {
     g.petBag.push(newPet)
     g._shopPetObtained = { pet: { ...newPet }, type: 'new' }
+    MusicMgr.playPetObtained()
   } else if (mergeResult.target) {
     g._shopPetObtained = { pet: { ...mergeResult.target }, type: mergeResult.maxed ? 'maxed' : 'starUp' }
     if ((mergeResult.target.star || 1) >= MAX_STAR) {
       g._star3Celebration = { pet: mergeResult.target, timer: 0, phase: 'fadeIn', particles: [] }
+      MusicMgr.playStar3Unlock()
+    } else {
+      MusicMgr.playPetObtained()
     }
   }
 }
@@ -702,6 +709,7 @@ function applyShopStarUp(g, petIdx) {
       phase: 'fadeIn',
       particles: [],
     }
+    MusicMgr.playStar3Unlock()
   }
   return true
 }
