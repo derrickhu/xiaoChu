@@ -615,8 +615,8 @@ class Main {
     const floor = this.storage.bestFloor
     const isCleared = floor >= 30
     const title = isCleared
-      ? `我已通关五行通天塔！最速${st.bestTotalTurns || '??'}回合，你能超越吗？`
-      : `我已攻到通天塔第${floor}层，你能比我更强吗？`
+      ? `我已通关灵宠消消塔！最速${st.bestTotalTurns || '??'}回合，你能超越吗？`
+      : `我已攻到消消塔第${floor}层，你能比我更强吗？`
     return { title, imageUrl: isCleared ? 'assets/share/share_cleared.jpg' : 'assets/share/share_default.jpg' }
   }
 
@@ -639,51 +639,58 @@ class Main {
         // 绘制预设背景图
         sctx.drawImage(bgImg, 0, 0, sw, sh)
 
-        // 标题
-        sctx.textAlign = 'center'
-        sctx.fillStyle = '#f5e6c8'; sctx.font = `bold ${Math.round(sw*0.056)}px "PingFang SC",sans-serif`
-        sctx.fillText('五行通天塔 · 战绩', sw/2, sh*0.14)
+        // 内容区域边距（避开边框装饰）
+        const padL = sw * 0.15, padR = sw * 0.85
 
-        // 核心成就（左侧大字）
-        sctx.fillStyle = '#ffd700'; sctx.font = `bold ${Math.round(sw*0.072)}px "PingFang SC",sans-serif`
+        // ── 标题（顶部皇冠下方）──
         sctx.textAlign = 'center'
-        sctx.fillText(isCleared ? '✦ 已通关 ✦' : `✦ 第 ${floor} 层 ✦`, sw*0.35, sh*0.38)
+        sctx.fillStyle = '#f5e6c8'; sctx.font = `bold ${Math.round(sw*0.050)}px "PingFang SC",sans-serif`
+        sctx.fillText('灵宠消消塔 · 战绩', sw/2, sh*0.15)
 
-        // 数据行（右侧区域）
-        const dataX = sw * 0.55, dataRX = sw * 0.88
-        const dataStartY = sh * 0.30, lineH = sh * 0.095
+        // ── 核心成就（居中大字，在标题和数据之间）──
+        sctx.fillStyle = '#ffd700'; sctx.font = `bold ${Math.round(sw*0.080)}px "PingFang SC",sans-serif`
+        sctx.textAlign = 'center'
+        sctx.save()
+        sctx.shadowColor = 'rgba(255,215,0,0.4)'; sctx.shadowBlur = sw * 0.015
+        sctx.fillText(isCleared ? '✦ 已通关 ✦' : `✦ 第 ${floor} 层 ✦`, sw/2, sh*0.30)
+        sctx.restore()
+
+        // ── 4行数据（对齐背景线条，标签左对齐，数值右对齐）──
+        const dataStartY = sh * 0.40, lineH = sh * 0.105
         const labels = [
           { l: '最速通关', v: bestTurns > 0 ? `${bestTurns} 回合` : '未通关', c: bestTurns > 0 ? '#ff6b6b' : '#999' },
-          { l: '图鉴收集', v: `${dexCount}/100`, c: '#4dcc4d' },
+          { l: '图鉴收集', v: `${dexCount} / 100`, c: '#4dcc4d' },
           { l: '最高连击', v: `${st.maxCombo} Combo`, c: '#ff6b6b' },
-          { l: '总挑战', v: `${this.storage.totalRuns} 次`, c: '#4dabff' },
+          { l: '总挑战数', v: `${this.storage.totalRuns} 次`, c: '#4dabff' },
         ]
+        const labelFont = `${Math.round(sw*0.034)}px "PingFang SC",sans-serif`
+        const valueFont = `bold ${Math.round(sw*0.040)}px "PingFang SC",sans-serif`
         labels.forEach((d, i) => {
           const y = dataStartY + i * lineH
           sctx.textAlign = 'left'
-          sctx.fillStyle = 'rgba(240,220,160,0.7)'; sctx.font = `${Math.round(sw*0.034)}px "PingFang SC",sans-serif`
-          sctx.fillText(d.l, dataX, y)
+          sctx.fillStyle = 'rgba(240,220,160,0.65)'; sctx.font = labelFont
+          sctx.fillText(d.l, padL, y)
           sctx.textAlign = 'right'
-          sctx.fillStyle = d.c; sctx.font = `bold ${Math.round(sw*0.042)}px "PingFang SC",sans-serif`
-          sctx.fillText(d.v, dataRX, y)
+          sctx.fillStyle = d.c; sctx.font = valueFont
+          sctx.fillText(d.v, padR, y)
         })
 
-        // 阵容
+        // ── 阵容（数据行下方）──
         const bfPets = st.bestFloorPets || []
         if (bfPets.length > 0) {
-          const ty = sh * 0.72
+          const ty = dataStartY + labels.length * lineH + sh * 0.02
           sctx.textAlign = 'center'
-          sctx.fillStyle = 'rgba(240,220,160,0.5)'; sctx.font = `${Math.round(sw*0.026)}px "PingFang SC",sans-serif`
-          sctx.fillText('最高记录阵容', sw/2, ty)
+          sctx.fillStyle = 'rgba(240,220,160,0.45)'; sctx.font = `${Math.round(sw*0.024)}px "PingFang SC",sans-serif`
+          sctx.fillText('— 最高记录阵容 —', sw/2, ty)
           const petNames = bfPets.map(p => p.name).join(' · ')
-          sctx.fillStyle = '#f0dca0'; sctx.font = `bold ${Math.round(sw*0.030)}px "PingFang SC",sans-serif`
-          sctx.fillText(petNames, sw/2, ty + sh*0.05)
+          sctx.fillStyle = '#f0dca0'; sctx.font = `bold ${Math.round(sw*0.028)}px "PingFang SC",sans-serif`
+          sctx.fillText(petNames, sw/2, ty + sh*0.045)
         }
 
-        // 底部号召
+        // ── 底部金色横幅文字 ──
         sctx.textAlign = 'center'
-        sctx.fillStyle = 'rgba(240,220,160,0.6)'; sctx.font = `${Math.round(sw*0.028)}px "PingFang SC",sans-serif`
-        sctx.fillText('快来挑战通天塔吧！', sw/2, sh*0.92)
+        sctx.fillStyle = '#3a2a10'; sctx.font = `bold ${Math.round(sw*0.030)}px "PingFang SC",sans-serif`
+        sctx.fillText('快来挑战消消塔吧！', sw/2, sh*0.925)
 
         // 转为临时文件路径并分享
         const tempPath = `${wx.env.USER_DATA_PATH}/share_stats.png`
@@ -694,8 +701,8 @@ class Main {
 
         wx.shareAppMessage({
           title: isCleared
-            ? `我已通关五行通天塔！最速${bestTurns || '??'}回合，来挑战！`
-            : `我已攻到通天塔第${floor}层，你能超越吗？`,
+            ? `我已通关灵宠消消塔！最速${bestTurns || '??'}回合，来挑战！`
+            : `我已攻到消消塔第${floor}层，你能超越吗？`,
           imageUrl: tempPath,
         })
       }

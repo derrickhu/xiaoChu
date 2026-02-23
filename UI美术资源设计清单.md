@@ -991,3 +991,113 @@ Style references: LINE Friends / Kakao Friends sticker art, Molly (泡泡玛特)
 | 31 | 战绩炫耀分享卡片 | `assets/share/share_stats.jpg` | JPG | 5:4 横向 |
 | 32 | 通关庆典分享卡片 | `assets/share/share_cleared.jpg` | JPG | 5:4 横向 |
 | 33 | 分享复活求助卡片 | `assets/share/share_revive.jpg` | JPG | 5:4 横向 |
+
+---
+
+## 20. Buff奖励图标
+
+**用途**：战斗胜利后三选一奖励中，数值buff类奖励的图标（灵兽和法宝已有头像框，buff类目前只有emoji占位）  
+**使用位置**：战斗内胜利面板横排选择框、全屏奖励选择页卡片左侧、左侧全局增益图标列  
+**设计目标**：精简、一眼可辨类别，与游戏仙侠Q萌风格统一  
+**文件路径**：`assets/ui/buff_icon_[类别].png`  
+**尺寸**：64×64px PNG（带透明通道）  
+**风格统一要求**：
+- 所有图标使用统一的**圆角方形底板**（约56×56内容区 + 4px透明边距），底板颜色根据类别区分
+- 图标线条简洁，主体为**单一核心符号**，不超过2种颜色
+- 线条粗度统一（2~3px），风格类似游戏内五行属性珠的简笔仙侠风
+- 不需要文字，纯图形符号
+
+### 8大类图标
+
+| # | 类别 | 文件名 | 底板色 | 涵盖的buff字段 | 图标设计 |
+|---|------|--------|--------|---------------|---------|
+| 1 | 攻击强化 | `buff_icon_atk.png` | 暖红 `#5C2020` | allAtkPct, allDmgPct, counterDmgPct, skillDmgPct | 一把向上的小剑，剑身发淡金光芒 |
+| 2 | 生命回复 | `buff_icon_heal.png` | 翠绿 `#1E4A2A` | healNow, postBattleHeal, regenPerTurn, fullHeal | 一颗心形，中间有个小十字，淡绿色发光 |
+| 3 | 防御减伤 | `buff_icon_def.png` | 靛蓝 `#1E2A4A` | dmgReducePct, nextDmgReduce, grantShield, immuneOnce | 一面小盾牌，中间一个圆形宝石，淡蓝色 |
+| 4 | 消除增幅 | `buff_icon_elim.png` | 橙黄 `#4A3A1E` | comboDmgPct, elim3DmgPct, elim4DmgPct, elim5DmgPct, bonusCombo | 三颗品字排列的珠子，中间闪一道连线光，代表消除连击 |
+| 5 | 时间操控 | `buff_icon_time.png` | 淡紫 `#3A2A4A` | extraTimeSec, skillCdReducePct, resetAllCd | 一个简笔沙漏，上半流沙中，淡紫色调 |
+| 6 | 血量强化 | `buff_icon_hp.png` | 深绿 `#2A4A2A` | hpMaxPct | 一颗大心形加一个向上箭头（↑），表示上限提升，深绿底 |
+| 7 | 削弱敌人 | `buff_icon_weaken.png` | 暗紫 `#2A1E3A` | enemyAtkReducePct, enemyHpReducePct, eliteAtkReducePct, eliteHpReducePct, bossAtkReducePct, bossHpReducePct, nextStunEnemy, stunDurBonus | 一个裂开的骷髅/怪物轮廓，带向下箭头（↓），暗紫色 |
+| 8 | 特殊效果 | `buff_icon_special.png` | 金色 `#4A3A10` | extraRevive, skipNextBattle, nextFirstTurnDouble, heartBoostPct | 一颗六芒星/仙符，金色发光，代表稀有特殊效果 |
+
+### 图标Prompt（统一风格，一次生成8个）
+
+```
+A sprite sheet of 8 game buff icons (arranged in a 4×2 grid on transparent background), each icon is 64×64 pixels, designed for a Chinese Xianxia-themed cute mobile puzzle game. ALL icons share the same unified style:
+
+UNIFIED STYLE RULES:
+- Each icon sits on a ROUNDED SQUARE base plate (52×52px content area, 6px corner radius) with a subtle inner glow
+- Icon artwork is a SINGLE clean symbol centered on the base plate, using bold simplified line art (2-3px stroke)
+- Maximum 2 colors per icon (main color + highlight/accent)
+- Style: simplified Chinese ink-brush meets modern flat game UI — clean, readable at 32px display size
+- NO text, NO complex details — each icon must be identifiable at thumbnail size
+- Slight paper/parchment texture on base plates for Xianxia feel
+- Consistent 1px dark border on all base plates
+
+THE 8 ICONS (left-to-right, top-to-bottom):
+
+1. ATTACK BOOST (warm red base #5C2020):
+   A small upward-pointing jian sword (Chinese straight sword) in gold (#FFD700), with 2-3 tiny sparkle lines radiating from the blade tip. Simple, bold silhouette.
+
+2. HEALING (jade green base #1E4A2A):
+   A heart shape in soft pink-red (#FF8888) with a small white cross (+) in the center. 2-3 tiny green healing particles floating up from the top.
+
+3. DEFENSE (indigo blue base #1E2A4A):
+   A simple shield shape in light blue (#88BBFF) with a small circular gem in the center. Clean outline, slightly rounded edges.
+
+4. ELIMINATION BOOST (amber base #4A3A1E):
+   Three small orbs arranged in a triangle/pin formation (representing puzzle pieces), connected by a thin golden lightning line between them. Orbs in warm orange (#FFAA44).
+
+5. TIME CONTROL (soft purple base #3A2A4A):
+   A simple hourglass shape in lavender (#BB99FF), with tiny sand particles visible in the upper chamber. Clean geometric design.
+
+6. HP MAX UP (deep green base #2A4A2A):
+   A large heart shape in bright green (#66DD66) with a bold upward arrow (↑) overlapping the top-right of the heart. Arrow in white.
+
+7. ENEMY WEAKEN (dark purple base #2A1E3A):
+   A simplified monster/skull face outline in pale purple (#AA88CC) with a downward arrow (↓) next to it. The face has X-eyes or cracked appearance.
+
+8. SPECIAL EFFECT (gold base #4A3A10):
+   A six-pointed star (hexagram) in bright gold (#FFD700) with a subtle glow effect. Center has a tiny Yin-Yang or Bagua symbol hint.
+
+IMPORTANT: All 8 icons must look like they belong to the SAME icon set — consistent line weight, consistent padding within base plates, consistent level of detail. They should work as a cohesive set when displayed together in the game UI.
+
+Output: PNG with transparent background, 256×128 total (4 columns × 2 rows, each cell 64×64).
+```
+
+### buff字段 → 图标映射表（代码使用）
+
+| buff字段 | 图标类别 | 图标文件 |
+|----------|---------|---------|
+| `allAtkPct` | 攻击强化 | `buff_icon_atk.png` |
+| `allDmgPct` | 攻击强化 | `buff_icon_atk.png` |
+| `counterDmgPct` | 攻击强化 | `buff_icon_atk.png` |
+| `skillDmgPct` | 攻击强化 | `buff_icon_atk.png` |
+| `healNow` | 生命回复 | `buff_icon_heal.png` |
+| `postBattleHeal` | 生命回复 | `buff_icon_heal.png` |
+| `regenPerTurn` | 生命回复 | `buff_icon_heal.png` |
+| `dmgReducePct` | 防御减伤 | `buff_icon_def.png` |
+| `nextDmgReduce` | 防御减伤 | `buff_icon_def.png` |
+| `grantShield` | 防御减伤 | `buff_icon_def.png` |
+| `immuneOnce` | 防御减伤 | `buff_icon_def.png` |
+| `comboDmgPct` | 消除增幅 | `buff_icon_elim.png` |
+| `elim3DmgPct` | 消除增幅 | `buff_icon_elim.png` |
+| `elim4DmgPct` | 消除增幅 | `buff_icon_elim.png` |
+| `elim5DmgPct` | 消除增幅 | `buff_icon_elim.png` |
+| `bonusCombo` | 消除增幅 | `buff_icon_elim.png` |
+| `extraTimeSec` | 时间操控 | `buff_icon_time.png` |
+| `skillCdReducePct` | 时间操控 | `buff_icon_time.png` |
+| `resetAllCd` | 时间操控 | `buff_icon_time.png` |
+| `hpMaxPct` | 血量强化 | `buff_icon_hp.png` |
+| `enemyAtkReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `enemyHpReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `eliteAtkReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `eliteHpReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `bossAtkReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `bossHpReducePct` | 削弱敌人 | `buff_icon_weaken.png` |
+| `nextStunEnemy` | 削弱敌人 | `buff_icon_weaken.png` |
+| `stunDurBonus` | 削弱敌人 | `buff_icon_weaken.png` |
+| `extraRevive` | 特殊效果 | `buff_icon_special.png` |
+| `skipNextBattle` | 特殊效果 | `buff_icon_special.png` |
+| `nextFirstTurnDouble` | 特殊效果 | `buff_icon_special.png` |
+| `heartBoostPct` | 特殊效果 | `buff_icon_special.png` |

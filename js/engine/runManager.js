@@ -272,7 +272,7 @@ function onDefeat(g, W, H) {
 function doAdRevive(g, W, H) {
   // 分享复活：转发给好友后获得满血复活
   wx.shareAppMessage({
-    title: `我在通天塔第${g.floor}层倒下了，快来助我一臂之力！`,
+    title: `我在消消塔第${g.floor}层倒下了，快来助我一臂之力！`,
     imageUrl: 'assets/share/share_revive.jpg',
   })
   // 分享回调：分享成功后触发复活

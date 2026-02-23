@@ -92,34 +92,8 @@ function rEvent(g) {
   }
   curY += 18*S
 
-  // ===== 境界提升提示（进入新层时显示，带淡出动画） =====
-  if (g._realmUpInfo) {
-    g._realmUpInfo.timer++
-    const ri = g._realmUpInfo
-    const fadeDur = 180  // 约3秒后开始淡出
-    const fadeOutDur = 60  // 1秒淡出
-    let alpha = 1
-    if (ri.timer > fadeDur) {
-      alpha = Math.max(0, 1 - (ri.timer - fadeDur) / fadeOutDur)
-    }
-    if (alpha > 0) {
-      ctx.save()
-      ctx.globalAlpha = alpha
-      ctx.textAlign = 'center'
-      // 境界名称
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`境界提升：${ri.prevName} → ${ri.name}`, W*0.5, curY)
-      // 血量上限提升
-      if (ri.hpUp > 0) {
-        ctx.fillStyle = '#4dcc4d'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`血量上限 +${ri.hpUp}`, W*0.5, curY + 16*S)
-      }
-      ctx.restore()
-      curY += ri.hpUp > 0 ? 36*S : 20*S
-    } else {
-      g._realmUpInfo = null  // 动画结束，清除
-    }
-  }
+  // 境界提升提示已移除，直接清除数据
+  if (g._realmUpInfo) g._realmUpInfo = null
 
   // ===== 非战斗层保持原逻辑 =====
   g._eventPetRects = []
@@ -166,11 +140,17 @@ function rEvent(g) {
       // 重绘顶部
       let ty = safeTop + 32*S
       ctx.textAlign = 'center'
-      ctx.fillStyle = TH.accent; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
+      ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(`── 第 ${g.floor} 层 ──`, W*0.5, ty)
+      ctx.restore()
       ty += 22*S
-      ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 2*S
+      ctx.fillStyle = '#e8d0a0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('神秘商店', W*0.5, ty)
+      ctx.restore()
 
       // 状态提示
       const shopUsedCount = g._eventShopUsedCount || 0
@@ -187,58 +167,76 @@ function rEvent(g) {
       } else {
         hintText = '已选完'
       }
-      ctx.fillStyle = shopUsedCount >= 2 ? TH.dim : '#ffd700'; ctx.font = `${13*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = shopUsedCount >= 2 ? 'rgba(180,160,130,0.5)' : '#ffd080'
+      ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
       ctx.fillText(hintText, W*0.5, safeTop + 90*S)
 
       const items = ev.data
       if (items && !g._shopSelectAttr && !g._shopSelectPet) {
-        const cardW = W*0.84, cardH = 60*S, gap = 8*S, startY = safeTop + 100*S
+        const cardW = W*0.84, cardH = 60*S, gap = 8*S, startY = safeTop + 116*S
         g._eventShopRects = []
-        const RARITY_COLORS = { normal:'rgba(40,60,40,0.85)', rare:'rgba(40,40,80,0.85)', epic:'rgba(80,40,80,0.85)' }
-        const RARITY_BORDERS = { normal:'rgba(100,200,100,0.4)', rare:'rgba(100,150,255,0.5)', epic:'rgba(220,100,255,0.6)' }
+        // 暖色系卡片配色（与古风背景协调）
+        const RARITY_COLORS = { normal:'rgba(60,45,30,0.82)', rare:'rgba(50,40,55,0.85)', epic:'rgba(70,35,45,0.85)' }
+        const RARITY_BORDERS = { normal:'rgba(200,170,110,0.45)', rare:'rgba(180,160,220,0.5)', epic:'rgba(220,140,160,0.55)' }
         const RARITY_LABELS = { normal:'', rare:'稀有', epic:'史诗' }
         items.forEach((item, i) => {
           const cy = startY + i*(cardH+gap)
           const isUsed = g._eventShopUsedItems && g._eventShopUsedItems.includes(i)
           const canBuy = !isUsed && shopUsedCount < 2
-          ctx.fillStyle = isUsed ? 'rgba(30,30,30,0.6)' : (RARITY_COLORS[item.rarity] || TH.card)
+          ctx.fillStyle = isUsed ? 'rgba(50,40,30,0.6)' : (RARITY_COLORS[item.rarity] || 'rgba(60,45,30,0.82)')
           R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.fill()
-          ctx.strokeStyle = isUsed ? 'rgba(80,80,80,0.3)' : (RARITY_BORDERS[item.rarity] || 'rgba(200,180,140,0.3)')
+          ctx.strokeStyle = isUsed ? 'rgba(120,100,70,0.25)' : (RARITY_BORDERS[item.rarity] || 'rgba(200,170,110,0.4)')
           ctx.lineWidth = 1*S
           R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.stroke()
 
-          // 稀有度标签
+          // 稀有度标签（卡片左侧外挂角标，不与名称重叠）
           const rarityLabel = RARITY_LABELS[item.rarity]
-          if (rarityLabel && !isUsed) {
+          const hasTag = !!rarityLabel && !isUsed
+          const nameIndent = W*0.08 + 14*S  // 默认名称起点
+          let nameX = nameIndent
+          if (hasTag) {
             ctx.save()
-            const tagW = ctx.measureText(rarityLabel).width + 12*S
-            const tagH = 16*S
-            const tagX = W*0.08 + 6*S, tagY = cy + 4*S
-            ctx.fillStyle = item.rarity === 'epic' ? 'rgba(180,60,220,0.8)' : 'rgba(60,100,200,0.8)'
-            R.rr(tagX, tagY, tagW, tagH, 3*S); ctx.fill()
-            ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-            ctx.textAlign = 'center'
-            ctx.fillText(rarityLabel, tagX + tagW/2, tagY + tagH*0.65)
+            ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+            const tagText = rarityLabel
+            const tagW = ctx.measureText(tagText).width + 14*S
+            const tagH = 18*S
+            const tagX = W*0.08, tagY = cy
+            // 左上角标签条（圆角左上+右下）
+            ctx.beginPath()
+            ctx.moveTo(tagX + 8*S, tagY)
+            ctx.lineTo(tagX + tagW, tagY)
+            ctx.lineTo(tagX + tagW, tagY + tagH - 4*S)
+            ctx.quadraticCurveTo(tagX + tagW, tagY + tagH, tagX + tagW - 4*S, tagY + tagH)
+            ctx.lineTo(tagX + 8*S, tagY + tagH)
+            ctx.lineTo(tagX + 8*S, tagY)
+            ctx.closePath()
+            ctx.fillStyle = item.rarity === 'epic' ? 'rgba(180,60,90,0.92)' : 'rgba(80,70,160,0.92)'
+            ctx.fill()
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'
+            ctx.fillText(tagText, tagX + 8*S + (tagW - 8*S)/2, tagY + tagH*0.68)
             ctx.restore()
+            nameX = tagX + tagW + 6*S  // 名称右移，避开标签
           }
 
           // 名称和描述
           ctx.globalAlpha = isUsed ? 0.4 : 1
-          ctx.fillStyle = isUsed ? TH.dim : '#fff'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-          ctx.fillText(item.name, W*0.08 + 14*S, cy + 24*S)
-          ctx.fillStyle = isUsed ? TH.dim : TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-          ctx.fillText(item.desc, W*0.08 + 14*S, cy + 42*S)
+          ctx.fillStyle = isUsed ? 'rgba(180,160,130,0.5)' : '#f5e6c8'
+          ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+          ctx.fillText(item.name, nameX, cy + 24*S)
+          ctx.fillStyle = isUsed ? 'rgba(180,160,130,0.4)' : 'rgba(220,200,170,0.75)'
+          ctx.font = `${10*S}px "PingFang SC",sans-serif`
+          ctx.fillText(item.desc, nameIndent, cy + 42*S)
 
           // 费用标签（右侧）
           ctx.textAlign = 'right'
           if (isUsed) {
-            ctx.fillStyle = TH.dim; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = 'rgba(180,160,130,0.5)'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
             ctx.fillText('已选', W*0.08 + cardW - 12*S, cy + 34*S)
           } else if (shopUsedCount === 0) {
-            ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = '#e0c060'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
             ctx.fillText('免费', W*0.08 + cardW - 12*S, cy + 34*S)
           } else if (shopUsedCount === 1) {
-            ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = '#e07050'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
             ctx.fillText(`-${15}%血`, W*0.08 + cardW - 12*S, cy + 34*S)
           }
           ctx.globalAlpha = 1
@@ -252,17 +250,16 @@ function rEvent(g) {
         })
       }
 
-      // === 属性选择面板（灵兽招募时弹出） ===
+      // === 属性选择面板（灵兽招募时弹出，点击选中+确认流程） ===
       if (g._shopSelectAttr) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
-        const panelW = W*0.8, panelH = 160*S
-        const panelX = (W - panelW)/2, panelY = H*0.35
-        ctx.fillStyle = 'rgba(20,20,40,0.95)'
-        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.fill()
-        ctx.strokeStyle = 'rgba(200,180,140,0.5)'; ctx.lineWidth = 1*S
-        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.stroke()
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H)
+        const selectedAttr = g._shopAttrSelectedVal  // 当前选中的属性（undefined=未选）
+        const hasAttrSelected = !!selectedAttr
+        const panelW = W*0.8, panelH = hasAttrSelected ? 190*S : 160*S
+        const panelX = (W - panelW)/2, panelY = H*0.33
+        R.drawInfoPanel(panelX, panelY, panelW, panelH)
 
-        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText('选择灵兽属性', W*0.5, panelY + 28*S)
 
@@ -276,38 +273,59 @@ function rEvent(g) {
         attrs.forEach((attr, i) => {
           const bx = btnStartX + i * (btnW + btnGap)
           const ac = ATTR_COLOR[attr]
-          ctx.fillStyle = ac ? ac.bg : '#222'
+          const isAttrSel = (selectedAttr === attr)
+          ctx.fillStyle = isAttrSel ? 'rgba(255,245,220,0.85)' : 'rgba(245,235,215,0.6)'
           R.rr(bx, btnY, btnW, btnH, 8*S); ctx.fill()
-          ctx.strokeStyle = ac ? ac.main : '#666'; ctx.lineWidth = 1.5*S
-          R.rr(bx, btnY, btnW, btnH, 8*S); ctx.stroke()
+          if (isAttrSel) {
+            ctx.save()
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3*S
+            ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8*S
+            R.rr(bx, btnY, btnW, btnH, 8*S); ctx.stroke()
+            ctx.restore()
+          } else {
+            ctx.strokeStyle = ac ? ac.main : '#999'; ctx.lineWidth = 1.5*S
+            R.rr(bx, btnY, btnW, btnH, 8*S); ctx.stroke()
+          }
           // 属性球
           R.drawBead(bx + btnW/2, btnY + btnH*0.35, 10*S, attr, 0)
-          ctx.fillStyle = ac ? ac.main : '#ccc'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = ac ? ac.dk : '#666'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'
           ctx.fillText(attrNames[attr], bx + btnW/2, btnY + btnH*0.82)
           g._shopAttrRects.push([bx, btnY, btnW, btnH, attr])
         })
 
-        // 取消按钮
-        const cancelY = btnY + btnH + 16*S
-        const cancelW = 80*S, cancelH = 32*S
-        R.drawBtn((W-cancelW)/2, cancelY, cancelW, cancelH, '取消', TH.dim, 12)
-        g._shopAttrCancelRect = [(W-cancelW)/2, cancelY, cancelW, cancelH]
+        // 按钮区：取消 + 确认（选中后才显示确认）
+        const attrBtnAreaY = btnY + btnH + 16*S
+        if (hasAttrSelected) {
+          const confirmW = 80*S, confirmH = 32*S, cancelW = 80*S, cancelH = 32*S, btnGapX = 20*S
+          const totalBW = confirmW + cancelW + btnGapX
+          const startBX = (W - totalBW) / 2
+          R.drawBtn(startBX, attrBtnAreaY, cancelW, cancelH, '取消', '#a0896a', 12)
+          g._shopAttrCancelRect = [startBX, attrBtnAreaY, cancelW, cancelH]
+          R.drawBtn(startBX + cancelW + btnGapX, attrBtnAreaY, confirmW, confirmH, '确定', '#b08840', 12)
+          g._shopAttrConfirmRect = [startBX + cancelW + btnGapX, attrBtnAreaY, confirmW, confirmH]
+        } else {
+          const cancelW = 80*S, cancelH = 32*S
+          R.drawBtn((W-cancelW)/2, attrBtnAreaY, cancelW, cancelH, '取消', '#a0896a', 12)
+          g._shopAttrCancelRect = [(W-cancelW)/2, attrBtnAreaY, cancelW, cancelH]
+          g._shopAttrConfirmRect = null
+        }
       }
 
-      // === 灵兽选择面板（升星/强化/减CD时弹出） ===
+      // === 灵兽选择面板（升星/强化/减CD时弹出，点击选中+确认流程） ===
       if (g._shopSelectPet) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
-        const panelW = W*0.85, panelH = 200*S
-        const panelX = (W - panelW)/2, panelY = H*0.3
-        ctx.fillStyle = 'rgba(20,20,40,0.95)'
-        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.fill()
-        ctx.strokeStyle = 'rgba(200,180,140,0.5)'; ctx.lineWidth = 1*S
-        R.rr(panelX, panelY, panelW, panelH, 10*S); ctx.stroke()
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H)
+        const selectedIdx = g._shopPetSelectedIdx  // 当前选中的灵兽index（undefined=未选）
+        const hasSelected = selectedIdx != null
+        // 面板高度动态计算：标题28 + 间距20 + 灵兽行(48+24) + 间距 + [详情56] + 按钮36 + 底部间距
+        const panelW = W*0.85
+        const basePanelH = hasSelected ? (48*S + 48*S + 24*S + 30*S + 56*S + 40*S + 20*S) : (48*S + 48*S + 24*S + 30*S + 40*S + 16*S)
+        const panelX = (W - panelW)/2, panelY = H*0.22
+        R.drawInfoPanel(panelX, panelY, panelW, basePanelH)
 
         const selectType = g._shopSelectPet.type  // 'starUp' | 'upgradePet' | 'cdReduce'
         const titleMap = { starUp:'选择灵兽升星', upgradePet:'选择灵兽强化', cdReduce:'选择灵兽减CD' }
-        ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText(titleMap[selectType] || '选择灵兽', W*0.5, panelY + 28*S)
 
@@ -335,6 +353,8 @@ function rEvent(g) {
           if (selectType === 'starUp' && (p.star || 1) >= 3) { canSelect = false; dimReason = '已满星' }
           if (selectType === 'cdReduce' && p.cd <= 2) { canSelect = false; dimReason = 'CD已最低' }
 
+          const isSelected = (selectedIdx === i)
+
           ctx.globalAlpha = canSelect ? 1 : 0.4
           ctx.fillStyle = ac2 ? ac2.bg : '#1a1a2e'
           ctx.fillRect(px, py2, petSlotSz, petSlotSz)
@@ -352,6 +372,14 @@ function rEvent(g) {
             const fs = petSlotSz*1.12, fo = (fs-petSlotSz)/2
             ctx.drawImage(pf, px-fo, py2-fo, fs, fs)
           }
+          // 选中高亮边框
+          if (isSelected) {
+            ctx.save()
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3*S
+            ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8*S
+            R.rr(px-2*S, py2-2*S, petSlotSz+4*S, petSlotSz+4*S, 4*S); ctx.stroke()
+            ctx.restore()
+          }
           // 星级
           if ((p.star||1) >= 1) {
             ctx.save()
@@ -367,17 +395,17 @@ function rEvent(g) {
           ctx.globalAlpha = 1
 
           // 名字和信息
-          ctx.fillStyle = canSelect ? (ac2 ? ac2.main : '#ccc') : TH.dim
+          ctx.fillStyle = canSelect ? (ac2 ? ac2.main : '#8B6914') : 'rgba(180,160,130,0.5)'
           ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
           ctx.fillText(p.name.substring(0,4), px+petSlotSz/2, py2+petSlotSz+12*S)
           if (selectType === 'starUp') {
-            ctx.fillStyle = canSelect ? '#ffd700' : TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = canSelect ? '#c09830' : 'rgba(180,160,130,0.5)'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(canSelect ? `★${p.star||1}→★${(p.star||1)+1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
           } else if (selectType === 'upgradePet') {
-            ctx.fillStyle = '#ff9040'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = '#c07030'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(`ATK:${p.atk}→${Math.round(p.atk*1.25)}`, px+petSlotSz/2, py2+petSlotSz+22*S)
           } else if (selectType === 'cdReduce') {
-            ctx.fillStyle = canSelect ? '#40ccff' : TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
+            ctx.fillStyle = canSelect ? '#508090' : 'rgba(180,160,130,0.5)'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
             ctx.fillText(canSelect ? `CD:${p.cd}→${p.cd-1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
           }
 
@@ -386,16 +414,49 @@ function rEvent(g) {
           }
         })
 
-        // 取消按钮
-        const cancelY2 = petRowY + petSlotSz + 36*S
-        const cancelW2 = 80*S, cancelH2 = 32*S
-        R.drawBtn((W-cancelW2)/2, cancelY2, cancelW2, cancelH2, '取消', TH.dim, 12)
-        g._shopPetCancelRect = [(W-cancelW2)/2, cancelY2, cancelW2, cancelH2]
+        // 选中后显示详情描述区
+        let bottomY = petRowY + petSlotSz + 30*S
+        if (hasSelected && g.pets[selectedIdx]) {
+          const sp = g.pets[selectedIdx]
+          const descY = petRowY + petSlotSz + 30*S
+          ctx.save()
+          ctx.fillStyle = 'rgba(92,58,30,0.12)'
+          R.rr(panelX + 12*S, descY, panelW - 24*S, 48*S, 6*S); ctx.fill()
+          ctx.restore()
+          ctx.textAlign = 'center'
+          ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          let detailText = sp.name
+          if (selectType === 'starUp') detailText += `  ★${sp.star||1} → ★${(sp.star||1)+1}`
+          else if (selectType === 'upgradePet') detailText += `  ATK ${sp.atk} → ${Math.round(sp.atk*1.25)}`
+          else if (selectType === 'cdReduce') detailText += `  CD ${sp.cd} → ${sp.cd-1}`
+          ctx.fillText(detailText, W*0.5, descY + 18*S)
+          ctx.fillStyle = 'rgba(92,58,30,0.6)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          const skillDesc = sp.skillDesc || sp.skill || ''
+          ctx.fillText(skillDesc.substring(0, 30), W*0.5, descY + 35*S)
+          bottomY = descY + 56*S
+        }
+
+        // 按钮区：取消 + 确认（选中后才显示确认）
+        const btnAreaY = bottomY + 4*S
+        if (hasSelected) {
+          const confirmW = 80*S, confirmH = 32*S, cancelW2 = 80*S, cancelH2 = 32*S, btnGapX = 20*S
+          const totalW = confirmW + cancelW2 + btnGapX
+          const startBtnX = (W - totalW) / 2
+          R.drawBtn(startBtnX, btnAreaY, cancelW2, cancelH2, '取消', '#a0896a', 12)
+          g._shopPetCancelRect = [startBtnX, btnAreaY, cancelW2, cancelH2]
+          R.drawBtn(startBtnX + cancelW2 + btnGapX, btnAreaY, confirmW, confirmH, '确定', '#b08840', 12)
+          g._shopPetConfirmRect = [startBtnX + cancelW2 + btnGapX, btnAreaY, confirmW, confirmH]
+        } else {
+          const cancelW2 = 80*S, cancelH2 = 32*S
+          R.drawBtn((W-cancelW2)/2, btnAreaY, cancelW2, cancelH2, '取消', '#a0896a', 12)
+          g._shopPetCancelRect = [(W-cancelW2)/2, btnAreaY, cancelW2, cancelH2]
+          g._shopPetConfirmRect = null
+        }
       }
 
       const bx = W*0.3, by = H*0.88, bw = W*0.4, bh = 40*S
       if (!g._shopSelectAttr && !g._shopSelectPet) {
-        R.drawBtn(bx, by, bw, bh, '离开', TH.info, 14)
+        R.drawBtn(bx, by, bw, bh, '离开', '#b08840', 14)
         g._eventBtnRect = [bx, by, bw, bh]
       } else {
         g._eventBtnRect = null
@@ -488,24 +549,37 @@ function rEvent(g) {
   // 属性文字
   ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${ATTR_NAME[e.attr]}属性`, infoX, infoY)
-  // 弱点 & 抵抗（下一行，用属性球）
-  infoY += 18*S
-  const orbR2 = 6*S
+  // 弱点 & 抵抗（下一行，用属性球，增大显示）
+  infoY += 22*S
+  const orbR2 = 8*S
   let bx = infoX
   const weakAttr = COUNTER_BY[e.attr]
   if (weakAttr) {
-    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText('弱:', bx, infoY)
-    bx += ctx.measureText('弱:').width + 4*S
-    R.drawBead(bx + orbR2, infoY - 3*S, orbR2, weakAttr, 0)
-    bx += orbR2*2 + 10*S
+    ctx.fillStyle = '#ddd'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText('弱点:', bx, infoY)
+    bx += ctx.measureText('弱点:').width + 5*S
+    // 弱点球发光特效
+    ctx.save()
+    const _af = g.af || 0
+    const glowAlpha = 0.4 + 0.3 * Math.sin(_af * 0.08)
+    ctx.shadowColor = ATTR_COLOR[weakAttr]?.main || '#fff'
+    ctx.shadowBlur = 10*S * glowAlpha
+    R.drawBead(bx + orbR2, infoY - 4*S, orbR2, weakAttr, 0)
+    ctx.shadowBlur = 0
+    // 外圈脉冲光环
+    ctx.globalAlpha = glowAlpha * 0.5
+    ctx.strokeStyle = ATTR_COLOR[weakAttr]?.lt || '#fff'
+    ctx.lineWidth = 1.5*S
+    ctx.beginPath(); ctx.arc(bx + orbR2, infoY - 4*S, orbR2 + 3*S, 0, Math.PI*2); ctx.stroke()
+    ctx.restore()
+    bx += orbR2*2 + 14*S
   }
   const resistAttr = COUNTER_MAP[e.attr]
   if (resistAttr) {
-    ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText('抗:', bx, infoY)
-    bx += ctx.measureText('抗:').width + 4*S
-    R.drawBead(bx + orbR2, infoY - 3*S, orbR2, resistAttr, 0)
+    ctx.fillStyle = '#999'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText('抵抗:', bx, infoY)
+    bx += ctx.measureText('抵抗:').width + 5*S
+    R.drawBead(bx + orbR2, infoY - 4*S, orbR2, resistAttr, 0)
   }
   curY = cardTop + cardH + 8*S
 
@@ -1249,7 +1323,7 @@ function drawEventPetDetail(g) {
   ctx.fillText(p.name, txL, iy)
   const nameW = ctx.measureText(p.name).width
   const starStr = '★'.repeat(curStar) + (curStar < MAX_STAR ? '☆'.repeat(MAX_STAR - curStar) : '')
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#C89510'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.fillText(starStr, txL + nameW + 6*S, iy)
 
   // === 属性珠 + ATK（仅当前值，数值高亮） ===
@@ -1273,20 +1347,20 @@ function drawEventPetDetail(g) {
   iy += lineH
   if (petHasSkill(p)) {
     const skillTitle = `技能：${p.skill.name}`
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
     ctx.fillText(skillTitle, lx, iy)
     const skillTitleW = ctx.measureText(skillTitle).width
     const cdText = `CD ${p.cd}`
-    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(cdText, lx + skillTitleW + 6*S, iy)
     // === 技能描述（数值高亮） ===
     descLines.forEach(line => {
       iy += lineH - 1*S
-      _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S)
+      _drawHighlightLine(ctx, line, lx + 4*S, iy, 10*S, S)
     })
   } else {
-    ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
     ctx.fillText('技能：升至★2解锁', lx, iy)
   }
@@ -1302,7 +1376,7 @@ function drawEventPetDetail(g) {
     // "下一级 ★X" 标题
     iy += lineH
     const nextStarLabel = `下一级 ${'★'.repeat(curStar + 1)}`
-    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
     ctx.fillText(nextStarLabel, lx, iy)
 
@@ -1310,11 +1384,11 @@ function drawEventPetDetail(g) {
     iy += lineH
     const nAtkLabel = 'ATK：'
     const atkChanged = nextAtk !== curAtk
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(nAtkLabel, lx, iy)
     const nAtkLabelW = ctx.measureText(nAtkLabel).width
     ctx.fillStyle = atkChanged ? '#c06020' : '#4A3B30'
-    ctx.font = atkChanged ? `bold ${10*S}px "PingFang SC",sans-serif` : `${10*S}px "PingFang SC",sans-serif`
+    ctx.font = atkChanged ? `bold ${11*S}px "PingFang SC",sans-serif` : `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(String(nextAtk), lx + nAtkLabelW, iy)
 
     // 下一级技能
@@ -1325,37 +1399,37 @@ function drawEventPetDetail(g) {
       // ★1→★2：新解锁技能，用高亮醒目色
       iy += lineH
       const nextSkillTitle = `解锁技能：${p.skill.name}`
-      ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
       ctx.fillText(nextSkillTitle, lx, iy)
       const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
       const nextCdText = `CD ${p.cd}`
-      ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
       ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
       // 技能描述用高亮
       nextDescLines.forEach(line => {
         iy += lineH - 1*S
-        _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S, '#c06020')
+        _drawHighlightLine(ctx, line, lx + 4*S, iy, 10*S, S, '#c06020')
       })
     } else if (nextHasSkill) {
       // ★2→★3：技能名和CD不变，用普通色
       iy += lineH
       const nextSkillTitle = `技能：${p.skill ? p.skill.name : '无'}`
-      ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'left'
       ctx.fillText(nextSkillTitle, lx, iy)
       const nextSkillTitleW = ctx.measureText(nextSkillTitle).width
       const nextCdText = `CD ${p.cd}`
-      ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
       ctx.fillText(nextCdText, lx + nextSkillTitleW + 6*S, iy)
       // 下一级技能描述（仅描述变化时用高亮，否则普通色）
       const descChanged = nextSkillDesc !== skillDesc
       nextDescLines.forEach(line => {
         iy += lineH - 1*S
         if (descChanged) {
-          _drawHighlightLine(ctx, line, lx + 4*S, iy, 9*S, S, '#c06020')
+          _drawHighlightLine(ctx, line, lx + 4*S, iy, 10*S, S, '#c06020')
         } else {
-          ctx.fillStyle = '#4A3B30'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#4A3B30'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'left'
           ctx.fillText(line, lx + 4*S, iy)
         }

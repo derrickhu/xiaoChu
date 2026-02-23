@@ -554,7 +554,7 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
   const nameW = ctx.measureText(d.name).width
   ctx.fillStyle = '#3D2B1F'; ctx.textAlign = 'left'
   ctx.fillText(d.name, txL, curY - 4*S)
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#C89510'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(starStr, txL + nameW + 6*S, curY - 4*S)
 
   // === 属性珠 + ATK（头像右侧，仅当前值） ===
@@ -586,12 +586,12 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
     ctx.fillText(skillTitle, lx, curY - 4*S)
     const skillTitleW = ctx.measureText(skillTitle).width
     const cdText = `CD ${d.cd}`
-    ctx.fillStyle = '#c06020'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#c06020'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(cdText, lx + skillTitleW + 6*S, curY - 4*S)
     // === 技能描述（数值高亮）===
     for (const line of skillDescLines) {
       curY += lineH
-      _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 10*S, S)
+      _drawHighlightLine(ctx, line, lx + 4*S, curY - 4*S, 11*S, S)
     }
   } else {
     ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
@@ -607,22 +607,27 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
     ctx.beginPath(); ctx.moveTo(lx, curY); ctx.lineTo(tipX + tipW - padX, curY); ctx.stroke()
     curY += 2*S + 8*S
 
-    // "下一级 ★X" 标题
+    // "下一级 ★X" 标题（星星单独用深琥珀金色）
     curY += lineH
-    const nextStarLabel = `下一级 ${'★'.repeat(curStar + 1)}`
-    ctx.fillStyle = '#8B6E4E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    const nextStarPrefix = '下一级 '
+    const nextStarIcons = '★'.repeat(curStar + 1)
+    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'
-    ctx.fillText(nextStarLabel, lx, curY - 4*S)
+    ctx.fillStyle = '#8B6E4E'
+    ctx.fillText(nextStarPrefix, lx, curY - 4*S)
+    const nextPrefixW = ctx.measureText(nextStarPrefix).width
+    ctx.fillStyle = '#C89510'
+    ctx.fillText(nextStarIcons, lx + nextPrefixW, curY - 4*S)
 
     // 下一级ATK（ATK总是变化，用醒目色）
     curY += lineH
     const nAtkLabel = 'ATK：'
     const atkChanged = nextAtk !== curAtk
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(nAtkLabel, lx, curY - 4*S)
     const nAtkLabelW = ctx.measureText(nAtkLabel).width
     ctx.fillStyle = atkChanged ? '#c06020' : '#4A3B30'
-    ctx.font = atkChanged ? `bold ${10*S}px "PingFang SC",sans-serif` : `${10*S}px "PingFang SC",sans-serif`
+    ctx.font = atkChanged ? `bold ${11*S}px "PingFang SC",sans-serif` : `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(String(nextAtk), lx + nAtkLabelW, curY - 4*S)
 
     // 下一级技能

@@ -123,11 +123,11 @@ class Render {
 
   drawShopBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#1a1008'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/shop_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
+      c.save(); c.globalAlpha=0.25; c.fillStyle='#0a0800'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -1565,25 +1565,31 @@ class Render {
     c.drawImage(img, dx, dy, dw, dh)
   }
 
+  // 工具 - 解析颜色为 [r,g,b]
+  _parseColor(c) {
+    if (c.startsWith('#')) {
+      return [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)]
+    }
+    const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+    if (m) return [+m[1], +m[2], +m[3]]
+    return [128,128,128]
+  }
+
   // 工具 - 颜色加深
-  _darken(hex) {
+  _darken(color) {
     try {
-      const r = parseInt(hex.slice(1,3),16)*0.7
-      const g = parseInt(hex.slice(3,5),16)*0.7
-      const b = parseInt(hex.slice(5,7),16)*0.7
-      return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
-    } catch(e) { return hex }
+      const [r,g,b] = this._parseColor(color)
+      return `rgb(${Math.round(r*0.7)},${Math.round(g*0.7)},${Math.round(b*0.7)})`
+    } catch(e) { return color }
   }
 
   // 工具 - 颜色提亮
-  _lighten(hex, amount) {
+  _lighten(color, amount) {
     try {
       const amt = amount || 0.3
-      const r = Math.min(255, parseInt(hex.slice(1,3),16) + 255*amt)
-      const g = Math.min(255, parseInt(hex.slice(3,5),16) + 255*amt)
-      const b = Math.min(255, parseInt(hex.slice(5,7),16) + 255*amt)
-      return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
-    } catch(e) { return hex }
+      const [r,g,b] = this._parseColor(color)
+      return `rgb(${Math.min(255,Math.round(r+255*amt))},${Math.min(255,Math.round(g+255*amt))},${Math.min(255,Math.round(b+255*amt))})`
+    } catch(e) { return color }
   }
 
   // 法宝金色边框（与战斗界面一致）
