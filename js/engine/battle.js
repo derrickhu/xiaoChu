@@ -560,18 +560,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
   }
   if (g.nextDmgDouble) g.nextDmgDouble = false
-  // ===== 怒气爆发：满100怒气时自动释放，伤害翻倍+少量回血+动态护盾 =====
-  if (g._rageReady && totalDmg > 0) {
-    totalDmg = Math.round(totalDmg * 2)
-    g.rage = 0; g._rageReady = false
-    const rageHeal = Math.round(g.heroMaxHp * 0.10)
-    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + rageHeal)
-    const rageShield = (g.floor || 1) * 2
-    g._addShield(rageShield)
-    g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()-60*S, text:'怒气爆发！伤害×2！', color:'#ff2020', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
-    g.shakeT = 16; g.shakeI = 10
-    g._comboFlash = 14
-  }
+
   if (totalDmg > 0 && g.enemy) {
     const oldPct = g.enemy.hp / g.enemy.maxHp
     g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
@@ -1072,7 +1061,7 @@ function enterBattle(g, enemyData) {
   g.enemyBuffs = []
   g.bState = 'playerTurn'
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除上次奖励
-  g.combo = 0; g.turnCount = 0; g.rage = 0; g._rageReady = false; g._lowHpBurstShown = false
+  g.combo = 0; g.turnCount = 0; g._lowHpBurstShown = false
   // ===== 怪物技能倒计时：计算距下次释放还需几回合 =====
   g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0) ? 3 : -1  // 首次在第3回合触发，初始倒计时3
   // 预选首次释放的技能（用于UI预警）
