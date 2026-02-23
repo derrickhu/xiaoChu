@@ -94,7 +94,7 @@ function nextFloor(g) {
     endRun(g)
     return
   }
-  if (g.floor > 1) MusicMgr.playLevelUp()
+  if (g.floor > 1) MusicMgr.playNextFloor()
   // ===== 修仙境界成长：每层固定增加血量上限（不回血），攻击仍保留每5层隐性加成 =====
   if (g.floor > 1) {
     g.realmLevel = g.floor

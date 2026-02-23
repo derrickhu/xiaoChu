@@ -5,6 +5,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES, getRealmInfo, REALM_TABLE, MAX_FLOOR } = require('../data/tower')
 const { getPetStarAtk, getPetAvatarPath, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
+const MusicMgr = require('../runtime/music')
 
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
@@ -2353,33 +2354,28 @@ function drawVictoryOverlay(g) {
     return
   }
 
+  // ==== 初始化胜利动画计时器 ====
+  if (g._victoryAnimTimer == null) g._victoryAnimTimer = 0
+  g._victoryAnimTimer++
+  const vt = g._victoryAnimTimer
+  const animDuration = 30  // 数值滚动动画总帧数
+
   const hasSpeed = g.lastSpeedKill
   const panelW = W * 0.86
   const panelX = (W - panelW) / 2
   const innerPad = 16*S
 
-  // 如果奖励尚未生成，只显示胜利标题
-  if (!g.rewards || g.rewards.length === 0) {
-    const miniH = 60*S, miniY = (H - miniH) / 2
-    R.drawInfoPanel(panelX, miniY, panelW, miniH)
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-    ctx.fillText('战斗胜利', W*0.5, miniY + miniH*0.55)
-    return
-  }
-
-  // ==== 计算通关后即将获得的成长信息（nextFloor中floor+1后才应用） ====
+  // ==== 计算通关后即将获得的成长信息 ====
   const floor = g.floor
-  const nextFL = floor + 1                          // 确认奖励后将进入的层
-  const curRealm = getRealmInfo(floor)              // 当前境界
-  const nextRealm = getRealmInfo(nextFL)            // 下一层境界
+  const nextFL = floor + 1
+  const curRealm = getRealmInfo(floor)
+  const nextRealm = getRealmInfo(nextFL)
   const curRealmName = curRealm ? curRealm.name : '凡人'
   const nextRealmName = nextRealm ? nextRealm.name : curRealmName
   const realmChanged = nextRealmName !== curRealmName
   const hpUp = nextRealm ? nextRealm.hpUp : 0
   const curMaxHp = g.heroMaxHp
   const nextMaxHp = curMaxHp + hpUp
-  // ATK隐性加成：第6/11/16/21/26层（即nextFL % 5 === 1且nextFL > 1）
   let atkBonus = 0
   const curAtkPct = g.runBuffs ? g.runBuffs.allAtkPct : 0
   if (nextFL > 1 && nextFL % 5 === 1) {
@@ -2387,47 +2383,50 @@ function drawVictoryOverlay(g) {
     atkBonus = 10 + tier * 2
   }
 
-  // ==== 成长信息行 ====
+  // ==== 成长信息行（含动画数值） ====
   const growthLines = []
+  const animProgress = Math.min(1, vt / animDuration)
+  const easeP = 1 - Math.pow(1 - animProgress, 3)  // ease-out cubic
+
   if (realmChanged) {
-    growthLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true })
+    growthLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true, hasAnim: false })
   } else {
-    growthLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false })
+    growthLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false, hasAnim: false })
   }
   if (hpUp > 0) {
-    growthLines.push({ label: '血量上限', text: `${curMaxHp} → ${nextMaxHp}`, color: '#27864A', bold: true })
+    const animVal = Math.round(curMaxHp + hpUp * easeP)
+    growthLines.push({ label: '血量上限', text: `${curMaxHp} → ${animVal}`, color: '#27864A', bold: true, hasAnim: true, from: curMaxHp, to: nextMaxHp, cur: animVal })
   }
   if (atkBonus > 0) {
-    growthLines.push({ label: '全队攻击', text: `${curAtkPct}% → ${curAtkPct + atkBonus}%`, color: '#C06020', bold: true })
+    const animVal = Math.round((curAtkPct + atkBonus * easeP) * 10) / 10
+    growthLines.push({ label: '全队攻击', text: `${curAtkPct}% → ${animVal}%`, color: '#C06020', bold: true, hasAnim: true })
   }
-  // 法宝perFloorBuff提示
   if (g.weapon && g.weapon.type === 'perFloorBuff' && nextFL > 1 && (nextFL - 1) % g.weapon.per === 0) {
     if (g.weapon.field === 'atk') {
       const curVal = curAtkPct + atkBonus
-      growthLines.push({ label: '法宝加成', text: `攻击 ${curVal}% → ${curVal + g.weapon.pct}%`, color: '#8B6914', bold: true })
+      const animVal = Math.round((curVal + g.weapon.pct * easeP) * 10) / 10
+      growthLines.push({ label: '法宝加成', text: `攻击 ${curVal}% → ${animVal}%`, color: '#8B6914', bold: true, hasAnim: true })
     } else if (g.weapon.field === 'hpMax') {
       const inc = Math.round(nextMaxHp * g.weapon.pct / 100)
-      growthLines.push({ label: '法宝加成', text: `血量 ${nextMaxHp} → ${nextMaxHp + inc}`, color: '#8B6914', bold: true })
+      const animVal = Math.round(nextMaxHp + inc * easeP)
+      growthLines.push({ label: '法宝加成', text: `血量 ${nextMaxHp} → ${animVal}`, color: '#8B6914', bold: true, hasAnim: true })
     }
   }
 
-  // ==== 布局计算 ====
-  const rewardCount = g.rewards.length
+  // 播放数值滚动音效（每5帧一次，快节奏）
+  if (vt <= animDuration && vt % 5 === 1 && growthLines.some(l => l.hasAnim)) {
+    MusicMgr.playNumberTick()
+  }
+
+  // ==== 布局计算（只有上半部分信息+血条，不含奖励选项） ====
   const titleH = 26*S
   const speedLineH = hasSpeed ? 16*S : 0
-  const growthLineH = 20*S
+  const growthLineH = 22*S
   const growthAreaH = growthLines.length * growthLineH + 6*S
-  const dividerH = 14*S
-  const subTitleH = 16*S
-  const btnAreaH = 36*S
+  const hpBarSectionH = 36*S  // 血条区域高度
+  const tipH = 24*S  // "点击继续"提示
 
-  // 奖励项：全部横排头像框，1:1正方形
-  const avatarSz = Math.min(48*S, (panelW - innerPad*2 - (rewardCount-1)*10*S) / rewardCount)
-  const labelLineH = 14*S  // 图标下方标题行高
-  const cardAreaH = avatarSz + labelLineH + 20*S  // 头像框 + 标题 + NEW标签空间
-
-  const fixedH = innerPad + titleH + speedLineH + growthAreaH + dividerH + subTitleH + btnAreaH + innerPad
-  const totalH = Math.min(H * 0.88, fixedH + cardAreaH)
+  const totalH = innerPad + titleH + speedLineH + growthAreaH + hpBarSectionH + tipH + innerPad
   const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
 
   R.drawInfoPanel(panelX, panelY, panelW, totalH)
@@ -2447,208 +2446,97 @@ function drawVictoryOverlay(g) {
     curY += speedLineH
   }
 
-  // ==== 成长信息区（无emoji，大字体，前后值箭头）====
+  // ==== 成长信息区（带数值滚动动画）====
   const growthX = panelX + innerPad
-  const growthMaxW = panelW - innerPad * 2
   growthLines.forEach(line => {
     curY += growthLineH
     ctx.textAlign = 'left'
-    // 标签
     ctx.fillStyle = '#8B7B70'
     ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(line.label, growthX, curY - 4*S)
     const labelW = ctx.measureText(line.label).width
-    // 值（右侧）
     ctx.fillStyle = line.color
-    ctx.font = `${line.bold ? 'bold ' : ''}${12*S}px "PingFang SC",sans-serif`
-    ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+    ctx.font = `${line.bold ? 'bold ' : ''}${13*S}px "PingFang SC",sans-serif`
+    // 动画中的数值使用更大字号并带发光
+    if (line.hasAnim && animProgress < 1) {
+      ctx.save()
+      ctx.shadowColor = line.color; ctx.shadowBlur = 6*S
+      ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+      ctx.shadowBlur = 0
+      ctx.restore()
+    } else {
+      ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+    }
   })
   curY += 6*S
 
-  // ==== 分割线 ====
-  curY += 4*S
-  ctx.strokeStyle = 'rgba(160,140,110,0.35)'; ctx.lineWidth = 0.5*S
-  ctx.beginPath()
-  ctx.moveTo(panelX + innerPad, curY)
-  ctx.lineTo(panelX + panelW - innerPad, curY)
-  ctx.stroke()
-  curY += 4*S
-
-  // ==== 子标题 ====
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#8B7B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-  ctx.fillText('选择一项奖励', W*0.5, curY + 10*S)
-  curY += subTitleH
-
-  // ==== 奖励选项（横排头像框）====
-  g._rewardRects = []
-  g._rewardAvatarRects = []
-
-  const framePetMap = {
-    metal: R.getImg('assets/ui/frame_pet_metal.png'),
-    wood:  R.getImg('assets/ui/frame_pet_wood.png'),
-    water: R.getImg('assets/ui/frame_pet_water.png'),
-    fire:  R.getImg('assets/ui/frame_pet_fire.png'),
-    earth: R.getImg('assets/ui/frame_pet_earth.png'),
-  }
-
-  const gap = 10*S
-  const totalItemW = rewardCount * avatarSz + (rewardCount - 1) * gap
-  const startX = (W - totalItemW) / 2
-
-  // 判断"从来没有获得过"：宠物不在当前队伍/背包中；法宝不在装备/背包中
-  const allOwnedPets = [...(g.pets || []), ...(g.petBag || [])]
-  const allOwnedWpns = [...(g.weapon ? [g.weapon] : []), ...(g.weaponBag || [])]
-
-  g.rewards.forEach((rw, i) => {
-    const ix = startX + i * (avatarSz + gap)
-    const iy = curY
-    const selected = g.selectedReward === i
-    const isSpeedBuff = rw.isSpeed === true
-    const cxCenter = ix + avatarSz / 2
-
-    // 选中高亮背景（加强视觉效果）
-    if (selected) {
-      ctx.save()
-      // 外发光
-      ctx.shadowColor = 'rgba(212,175,55,0.6)'; ctx.shadowBlur = 10*S
-      ctx.fillStyle = 'rgba(201,168,76,0.3)'
-      R.rr(ix - 6*S, iy - 6*S, avatarSz + 12*S, avatarSz + 12*S, 10*S); ctx.fill()
-      ctx.shadowBlur = 0
-      // 金色粗边框
-      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3*S
-      R.rr(ix - 6*S, iy - 6*S, avatarSz + 12*S, avatarSz + 12*S, 10*S); ctx.stroke()
-      // 内层亮边
-      ctx.strokeStyle = 'rgba(255,235,180,0.5)'; ctx.lineWidth = 1*S
-      R.rr(ix - 3*S, iy - 3*S, avatarSz + 6*S, avatarSz + 6*S, 7*S); ctx.stroke()
-      ctx.restore()
+  // ==== 血条展示（展示提升后血条现状）====
+  if (hpUp > 0) {
+    curY += 4*S
+    const hpBarW = panelW - innerPad * 4
+    const hpBarX = panelX + innerPad * 2
+    const hpBarH = 16*S
+    const heroHp = g.heroHp
+    // 动画：血条上限从当前值过渡到新值
+    const animMaxHp = Math.round(curMaxHp + hpUp * easeP)
+    const hpPct = Math.min(1, heroHp / animMaxHp)
+    // 血条背景槽
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'
+    R.rr(hpBarX, curY, hpBarW, hpBarH, hpBarH/2); ctx.fill()
+    // 血量填充（绿色渐变）
+    const fillW = hpBarW * hpPct
+    if (fillW > 0) {
+      const hpGrd = ctx.createLinearGradient(hpBarX, curY, hpBarX, curY + hpBarH)
+      hpGrd.addColorStop(0, '#5ddd5d')
+      hpGrd.addColorStop(0.5, '#3cb83c')
+      hpGrd.addColorStop(1, '#2a9a2a')
+      ctx.fillStyle = hpGrd
+      R.rr(hpBarX, curY, fillW, hpBarH, hpBarH/2); ctx.fill()
+      // 高光
+      ctx.globalAlpha = 0.3
+      ctx.fillStyle = '#fff'
+      R.rr(hpBarX + 2*S, curY + 1*S, fillW - 4*S, hpBarH * 0.35, hpBarH/2); ctx.fill()
+      ctx.globalAlpha = 1
     }
-
-    g._rewardRects.push([ix - 4*S, iy - 4*S, avatarSz + 8*S, avatarSz + 8*S])
-
-    if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
-      // ==== 灵兽：头像框 ====
-      const p = rw.data
-      const ac = ATTR_COLOR[p.attr]
-
-      ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
-      R.rr(ix, iy, avatarSz, avatarSz, 4*S); ctx.fill()
-      const petAvatar = R.getImg(getPetAvatarPath(p))
-      if (petAvatar && petAvatar.width > 0) {
-        ctx.save(); R.rr(ix+1, iy+1, avatarSz-2, avatarSz-2, 3*S); ctx.clip()
-        const dw = avatarSz - 2, dh = dw * (petAvatar.height/petAvatar.width)
-        ctx.drawImage(petAvatar, ix+1, iy+1+(avatarSz-2-dh), dw, dh)
-        ctx.restore()
-      }
-      const petFrame = framePetMap[p.attr] || framePetMap.metal
-      if (petFrame && petFrame.width > 0) {
-        const fSz = avatarSz * 1.12, fOff = (fSz - avatarSz)/2
-        ctx.drawImage(petFrame, ix - fOff, iy - fOff, fSz, fSz)
-      }
-      g._rewardAvatarRects.push({ idx: i, rect: [ix, iy, avatarSz, avatarSz], type: 'pet', data: p })
-
-      // NEW标识：当前队伍和背包中没有此宠物
-      const isNew = !allOwnedPets.some(op => op.id === p.id)
-      if (isNew) {
-        _drawNewBadge(ctx, S, ix + avatarSz, iy + avatarSz)
-      }
-      g._rewardAvatarRects[g._rewardAvatarRects.length - 1].isNew = isNew
-
-      // 图标下方标题
-      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
-      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      ctx.fillText('灵兽', cxCenter, iy + avatarSz + labelLineH - 2*S)
-
-    } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
-      // ==== 法宝：头像框 ====
-      const w = rw.data
-
-      ctx.fillStyle = '#2a2030'
-      R.rr(ix, iy, avatarSz, avatarSz, 4*S); ctx.fill()
-      const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
-      if (wpnImg && wpnImg.width > 0) {
-        ctx.save(); R.rr(ix+1, iy+1, avatarSz-2, avatarSz-2, 3*S); ctx.clip()
-        const dw = avatarSz - 2, dh = dw * (wpnImg.height/wpnImg.width)
-        ctx.drawImage(wpnImg, ix+1, iy+1+(avatarSz-2-dh), dw, dh)
-        ctx.restore()
-      }
-      R.drawWeaponFrame(ix, iy, avatarSz)
-      g._rewardAvatarRects.push({ idx: i, rect: [ix, iy, avatarSz, avatarSz], type: 'weapon', data: w })
-
-      // NEW标识：当前装备和背包中没有此法宝
-      const isNew = !allOwnedWpns.some(ow => ow.id === w.id)
-      if (isNew) {
-        _drawNewBadge(ctx, S, ix + avatarSz, iy + avatarSz)
-      }
-      g._rewardAvatarRects[g._rewardAvatarRects.length - 1].isNew = isNew
-
-      // 图标下方标题
-      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
-      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      ctx.fillText('法宝', cxCenter, iy + avatarSz + labelLineH - 2*S)
-
-    } else {
-      // ==== 加成类奖励 — 1:1方框 + 图标占满 ====
-      const buffData = rw.data
-      const buffKey = buffData ? buffData.buff : ''
-      const iconInfo = _getBuffIcon(R, buffKey)
-
-      ctx.save()
-      ctx.fillStyle = isSpeedBuff ? 'rgba(224,192,112,0.2)' : 'rgba(200,190,175,0.3)'
-      R.rr(ix, iy, avatarSz, avatarSz, 6*S); ctx.fill()
-      ctx.strokeStyle = isSpeedBuff ? 'rgba(192,150,60,0.5)' : 'rgba(180,170,155,0.5)'
-      ctx.lineWidth = 1*S
-      R.rr(ix, iy, avatarSz, avatarSz, 6*S); ctx.stroke()
-
-      // buff图标占满整个格子（无内边距，与宠物/法宝一致）
-      if (iconInfo.type === 'img') {
-        ctx.save()
-        R.rr(ix, iy, avatarSz, avatarSz, 6*S); ctx.clip()
-        ctx.drawImage(iconInfo.img, ix, iy, avatarSz, avatarSz)
-        ctx.restore()
-      } else {
-        ctx.font = `${avatarSz*0.55}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillStyle = '#5C4A3A'
-        ctx.fillText(iconInfo.emoji, cxCenter, iy + avatarSz * 0.48)
-      }
-      ctx.textBaseline = 'alphabetic'
-      ctx.restore()
-
-      // 图标下方标题（格子外面）
-      ctx.textAlign = 'center'; ctx.fillStyle = '#6B5B50'
-      ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      const shortLabel = _shortBuffLabel(rw.label)
-      const maxLabelLen = 6
-      const displayLabel = shortLabel.length > maxLabelLen ? shortLabel.substring(0, maxLabelLen) : shortLabel
-      ctx.fillText(displayLabel, cxCenter, iy + avatarSz + labelLineH - 2*S)
-
-      // 注册点击区域（用于弹出buff详情）
-      g._rewardAvatarRects.push({ idx: i, rect: [ix, iy, avatarSz, avatarSz], type: 'buff', data: buffData, label: rw.label })
-
-      // 速通小标签
-      if (isSpeedBuff) {
-        _drawSpeedBadge(ctx, S, ix + avatarSz - 2*S, iy - 2*S)
+    // 新增血量上限部分（橙色闪烁提示）
+    if (animProgress > 0 && animMaxHp > curMaxHp) {
+      const oldPct = heroHp / curMaxHp
+      const newBarStart = hpBarW * Math.min(1, heroHp / animMaxHp)
+      // 标注上限增长区间（用虚线标出新上限范围）
+      const newMaxPct = hpUp * easeP / animMaxHp
+      const growStart = hpBarW * (1 - newMaxPct)
+      const growW = hpBarW * newMaxPct
+      if (growW > 0) {
+        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(vt * 0.15)
+        ctx.fillStyle = '#ffa500'
+        R.rr(hpBarX + growStart, curY, growW, hpBarH, hpBarH/2); ctx.fill()
+        ctx.globalAlpha = 1
       }
     }
-  })
-
-  curY += avatarSz + labelLineH + 8*S
-
-  // ---- 确认按钮 ----
-  if (g.selectedReward >= 0) {
-    const btnW = (panelW - innerPad*2) * 0.55, btnH = 30*S
-    const btnX = panelX + (panelW - btnW) / 2, btnY = curY
-    R.drawDialogBtn(btnX, btnY, btnW, btnH, '确认选择', 'confirm')
-    g._rewardConfirmRect = [btnX, btnY, btnW, btnH]
-  } else {
-    g._rewardConfirmRect = null
+    // 数字
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`${heroHp} / ${animMaxHp}`, hpBarX + hpBarW/2, curY + hpBarH * 0.72)
+    ctx.restore()
+    curY += hpBarH + 4*S
   }
 
-  // ---- 宠物/法宝详情浮层 ----
-  if (g._rewardDetailShow != null) {
-    _drawRewardDetailOverlay(g)
+  // ==== "点击屏幕继续" 提示（动画结束后显示）====
+  if (vt > animDuration + 10) {
+    const blinkA = 0.4 + 0.4 * Math.sin(vt * 0.08)
+    ctx.save()
+    ctx.globalAlpha = blinkA
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#8B7B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('— 点击屏幕选择奖励 —', W*0.5, panelY + totalH - innerPad + 2*S)
+    ctx.restore()
   }
+
+  // 注册全屏点击区域（动画结束后可点击）
+  g._victoryTapReady = vt > animDuration + 10
+  g._rewardRects = null
+  g._rewardConfirmRect = null
 }
 
 // NEW角标（右下角）

@@ -308,6 +308,21 @@ class MusicManager {
     this._playSfx('audio/levelup.wav', 0.5)
   }
 
+  /** 进入下一层：崭新开始感，上行明亮和弦 */
+  playNextFloor() {
+    if (!this.enabled) return
+    // 第一声：清亮的起始音（Do高八度）
+    this._playSfxEx('audio/skill.wav', 0.4, 1.3)
+    // 第二声：40ms后上行到Mi，增添向上感
+    setTimeout(() => {
+      if (this.enabled) this._playSfxEx('audio/reward.wav', 0.45, 1.5)
+    }, 40)
+    // 第三声：90ms后到Sol，完成大三和弦，明亮开阔
+    setTimeout(() => {
+      if (this.enabled) this._playSfxEx('audio/levelup.wav', 0.4, 1.3)
+    }, 90)
+  }
+
   playVictory() {
     if (!this.enabled) return
     this._playSfx('audio/victory.wav', 0.6)
@@ -316,6 +331,29 @@ class MusicManager {
   playReward() {
     if (!this.enabled) return
     this._playSfx('audio/reward.wav', 0.5)
+  }
+
+  /** 数值翻转音效（用于胜利面板数值滚动动画）：快节奏清脆短促 */
+  playNumberTick() {
+    if (!this.enabled) return
+    this._playSfxEx('audio/combo.mp3', 0.3, 2.0)
+  }
+
+  /** 新宠物获得/宠物升星提示音效：明亮清脆的叮咚声 */
+  playPetObtained() {
+    if (!this.enabled) return
+    // 第一声：高音清脆叮
+    this._playSfxEx('audio/reward.wav', 0.55, 1.6)
+    // 第二声：延迟80ms，更高音的回响
+    setTimeout(() => {
+      if (this.enabled) this._playSfxEx('audio/levelup.wav', 0.45, 1.4)
+    }, 80)
+  }
+
+  /** 三星图鉴解锁庆祝音效 */
+  playStar3Unlock() {
+    if (!this.enabled) return
+    this._playSfx('audio/update3.mp3', 0.7)
   }
 
   playGameOver() {

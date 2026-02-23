@@ -564,7 +564,7 @@ function tBattle(g, type, x, y) {
       g._endRun()
       return
     }
-    if (g.floor >= MAX_FLOOR) return  // 通关面板上不响应其他点击
+    if (g.floor >= MAX_FLOOR) return
     // 宠物获得/升星弹窗：点击关闭后进入下一层
     if (g._petObtainedPopup) {
       g._petObtainedPopup = null
@@ -577,36 +577,14 @@ function tBattle(g, type, x, y) {
       g._nextFloor()
       return
     }
-    // 庆祝动画播放中，忽略点击
     if (g._star3Celebration) return
-    // 详情浮层打开时，点击任意位置关闭
-    if (g._rewardDetailShow != null) { g._rewardDetailShow = null; return }
-    // 点击确认按钮：应用奖励并进入下一层
-    if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
-      if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
-      g._restoreBattleHpMax()
-      g.heroBuffs = []; g.enemyBuffs = []
-      g._applyReward(g.rewards[g.selectedReward])
-      // 如果触发了★3庆祝或宠物获得弹窗，暂停不立刻进下一层
-      if (g._star3Celebration || g._petObtainedPopup) return
-      g._nextFloor()
+    // 点击任意处：动画结束后跳转到独立奖励选择页面
+    if (g._victoryTapReady && g.rewards && g.rewards.length > 0) {
+      g.selectedReward = -1
+      g._victoryAnimTimer = null  // 重置动画计时器
+      g.scene = 'reward'
+      MusicMgr.playReward()
       return
-    }
-    // 点击奖励卡片：同时选中并弹出详情
-    if (g._rewardRects) {
-      for (let i = 0; i < g._rewardRects.length; i++) {
-        if (g._hitRect(x,y,...g._rewardRects[i])) {
-          g.selectedReward = i
-          // 同时弹出详情
-          if (g._rewardAvatarRects) {
-            const item = g._rewardAvatarRects.find(a => a.idx === i)
-            if (item) {
-              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew, label: item.label }
-            }
-          }
-          return
-        }
-      }
     }
     return
   }
@@ -782,6 +760,12 @@ function tReward(g, type, x, y) {
     }
   }
   if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
+    // 从战斗胜利进入奖励页时，需要清理战斗状态
+    if (g.bState === 'victory') {
+      if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
+      g._restoreBattleHpMax()
+      g.heroBuffs = []; g.enemyBuffs = []
+    }
     g._applyReward(g.rewards[g.selectedReward])
     if (g._star3Celebration || g._petObtainedPopup) return
     g._nextFloor()
