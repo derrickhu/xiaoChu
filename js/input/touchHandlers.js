@@ -592,17 +592,19 @@ function tBattle(g, type, x, y) {
       g._nextFloor()
       return
     }
-    // 点击奖励卡片：首次点击选中，已选中状态下再次点击头像查看详情
+    // 点击奖励卡片：同时选中并弹出详情
     if (g._rewardRects) {
       for (let i = 0; i < g._rewardRects.length; i++) {
         if (g._hitRect(x,y,...g._rewardRects[i])) {
-          if (g.selectedReward === i && g._rewardAvatarRects) {
+          g.selectedReward = i
+          // 同时弹出详情
+          if (g._rewardAvatarRects) {
             const item = g._rewardAvatarRects.find(a => a.idx === i)
-            if (item && g._hitRect(x,y,...item.rect)) {
-              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew, label: item.label }; return
+            if (item) {
+              g._rewardDetailShow = { type: item.type, data: item.data, isNew: !!item.isNew, label: item.label }
             }
           }
-          g.selectedReward = i; return
+          return
         }
       }
     }
@@ -834,7 +836,7 @@ function tRanking(g, type, x, y) {
   if (type === 'move') {
     const dy = y - (g._rankTouchStartY || y)
     const tab = g.rankTab || 'all'
-    const listMap = { all: 'rankAllList', daily: 'rankDailyList', dex: 'rankDexList', combo: 'rankComboList' }
+    const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     const list = g.storage[listMap[tab]] || []
     const rowH = 64*S
     const maxScroll = 0
@@ -849,7 +851,7 @@ function tRanking(g, type, x, y) {
   if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) { g.storage.fetchRanking(g.rankTab, true); return }
   // 4-Tab 切换
   if (g._rankTabRects) {
-    for (const key of ['all', 'daily', 'dex', 'combo']) {
+    for (const key of ['all', 'dex', 'combo']) {
       const rect = g._rankTabRects[key]
       if (rect && g._hitRect(x, y, ...rect)) {
         g.rankTab = key; g.rankScrollY = 0; g.storage.fetchRanking(key); return

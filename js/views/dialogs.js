@@ -127,7 +127,8 @@ function drawEnemyDetailDialog(g) {
 
   let lines = []
   const typeTag = e.isBoss ? '【BOSS】' : (e.isElite ? '【精英】' : '')
-  lines.push({ text: `${typeTag}${e.name}`, color: '#3D2B1F', bold: true, size: 14, h: lineH + 2*S })
+  const tagColor = e.isBoss ? '#C0392B' : (e.isElite ? '#7B2FBE' : null)
+  lines.push({ text: `${typeTag}${e.name}`, color: '#3D2B1F', bold: true, size: 14, h: lineH + 2*S, typeTag, tagColor })
   lines.push({ text: `__ATTR_ORB__${e.attr}　　第 ${g.floor} 层`, color: '#6B5B50', size: 10, h: smallLineH, attrOrb: e.attr })
   lines.push({ text: `HP：${Math.round(e.hp)} / ${Math.round(e.maxHp)}　ATK：${e.atk}　DEF：${e.def || 0}`, color: '#3D2B1F', size: 10, h: smallLineH })
 
@@ -214,6 +215,13 @@ function drawEnemyDetailDialog(g) {
       R.drawBead(orbX, orbY, orbR, l.attrOrb, 0)
       const restText = l.text.replace(`__ATTR_ORB__${l.attrOrb}`, '')
       ctx.fillText(restText, orbX + orbR + 4*S, curY - 4*S)
+    } else if (l.typeTag && l.tagColor) {
+      // 精英/BOSS标签用醒目颜色
+      ctx.fillStyle = l.tagColor
+      ctx.fillText(l.typeTag, tipX + padX, curY - 4*S)
+      const tagW = ctx.measureText(l.typeTag).width
+      ctx.fillStyle = l.color || '#3D2B1F'
+      ctx.fillText(l.text.replace(l.typeTag, ''), tipX + padX + tagW, curY - 4*S)
     } else {
       ctx.fillText(l.text, tipX + padX, curY - 4*S)
     }
