@@ -82,7 +82,7 @@ exports.main = async (event, context) => {
   }
 
   // ===== 查询速通榜（总排行）=====
-  // 排序规则：层数高的在前，层数相同时回合数少的在前
+  // 排序规则：层数高的在前，层数相同时回合数少的在前，都相同时更新时间靠后的在前
   if (action === 'getAll') {
     try {
       // 云数据库不支持多字段混合排序，取全部后在内存中排序
@@ -90,15 +90,21 @@ exports.main = async (event, context) => {
         .orderBy('floor', 'desc')
         .limit(100)
         .get()
-      const list = res.data.sort((a, b) => {
-        if (a.floor !== b.floor) return b.floor - a.floor  // 层数高的在前
-        // 层数相同：有回合数的优于没回合数的，都有则回合数少的在前
+      // 按 _openid 去重：同一用户保留最佳记录
+      const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+        if (a.floor !== b.floor) return b.floor - a.floor
         const aT = a.totalTurns || 0, bT = b.totalTurns || 0
-        if (aT > 0 && bT > 0) return aT - bT
-        if (aT > 0) return -1
-        if (bT > 0) return 1
-        return 0
-      }).slice(0, 50)
+        if (aT !== bT) {
+          if (aT > 0 && bT > 0) return aT - bT
+          if (aT > 0) return -1
+          if (bT > 0) return 1
+        }
+        // 层数和回合都相同：更新时间靠后的在前
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
+        return bTime - aTime
+      })
+      const list = deduped.slice(0, 50)
 
       // 查自己的排名
       let myRank = -1
@@ -129,8 +135,17 @@ exports.main = async (event, context) => {
     try {
       const res = await db.collection('rankDex')
         .orderBy('petDexCount', 'desc')
-        .limit(50)
+        .limit(100)
         .get()
+      // 按 _openid 去重：同一用户保留图鉴数最高的
+      const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+        if ((b.petDexCount || 0) !== (a.petDexCount || 0)) return (b.petDexCount || 0) - (a.petDexCount || 0)
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
+        return bTime - aTime
+      })
+      const list = deduped.slice(0, 50)
+
       let myRank = -1
       const myRes = await db.collection('rankDex').where({ _openid: openid }).get()
       if (myRes.data.length > 0) {
@@ -138,7 +153,7 @@ exports.main = async (event, context) => {
         const betterCount = await db.collection('rankDex').where({ petDexCount: _.gt(myCount) }).count()
         myRank = betterCount.total + 1
       }
-      return { code: 0, list: res.data, myRank }
+      return { code: 0, list, myRank }
     } catch (e) {
       return { code: -1, msg: e.message, list: [] }
     }
@@ -149,8 +164,17 @@ exports.main = async (event, context) => {
     try {
       const res = await db.collection('rankCombo')
         .orderBy('maxCombo', 'desc')
-        .limit(50)
+        .limit(100)
         .get()
+      // 按 _openid 去重：同一用户保留最高连击的
+      const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+        if ((b.maxCombo || 0) !== (a.maxCombo || 0)) return (b.maxCombo || 0) - (a.maxCombo || 0)
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
+        return bTime - aTime
+      })
+      const list = deduped.slice(0, 50)
+
       let myRank = -1
       const myRes = await db.collection('rankCombo').where({ _openid: openid }).get()
       if (myRes.data.length > 0) {
@@ -158,13 +182,31 @@ exports.main = async (event, context) => {
         const betterCount = await db.collection('rankCombo').where({ maxCombo: _.gt(myCombo) }).count()
         myRank = betterCount.total + 1
       }
-      return { code: 0, list: res.data, myRank }
+      return { code: 0, list, myRank }
     } catch (e) {
       return { code: -1, msg: e.message, list: [] }
     }
   }
 
   return { code: -1, msg: '未知操作' }
+}
+
+// 按 _openid 去重：同一用户只保留最佳记录（由 compareFn 决定排序）
+function _deduplicateByOpenid(records, compareFn) {
+  const map = {}
+  for (const r of records) {
+    const key = r._openid
+    if (!key) continue
+    if (!map[key]) {
+      map[key] = r
+    } else {
+      // compareFn 返回 <0 表示 a 更好
+      if (compareFn(r, map[key]) < 0) {
+        map[key] = r
+      }
+    }
+  }
+  return Object.values(map).sort(compareFn)
 }
 
 // 判断新成绩是否优于旧成绩

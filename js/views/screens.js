@@ -868,7 +868,7 @@ function rReward(g) {
   const evtType = g.curEvent ? g.curEvent.type : ''
   let title = '战斗胜利 - 选择奖励'
   if (evtType === 'elite') title = '精英击败 - 选择灵兽'
-  else if (evtType === 'boss') title = 'BOSS击败 - 选择法宝'
+  else if (evtType === 'boss') title = 'BOSS击败 - 选择奖励'
   // 标题：米金色书法风
   const titleBaseY = safeTop + 58*S
   ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
@@ -1107,12 +1107,18 @@ function rReward(g) {
       // ====== 普通Buff卡片：图标 + 文字 ======
       const buffData = rw.data || {}
       const buffKey = buffData.buff || ''
+      // 根据图标分类显示不同加成类型名称
+      const BUFF_TYPE_NAMES = {
+        buff_icon_atk: '攻击加成', buff_icon_heal: '治疗加成', buff_icon_def: '防御加成',
+        buff_icon_elim: '消除加成', buff_icon_time: '时间加成', buff_icon_hp: '血量加成',
+        buff_icon_weaken: '削弱加成', buff_icon_special: '特殊加成',
+      }
       let typeTag = '', tagColor = '#999'
       if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#e0c070' }
       else { typeTag = '加成'; tagColor = '#8ab4d8' }
 
-      // buff图标（左侧）
-      const iconSz = Math.min(36*S, cardH - 12*S)
+      // buff图标（左侧，放大）
+      const iconSz = Math.min(48*S, cardH - 10*S)
       const iconX = cardX + 14*S, iconY = cy + (cardH - iconSz) / 2
       const BUFF_ICON_IMGS = {
         allAtkPct:'buff_icon_atk', allDmgPct:'buff_icon_atk', counterDmgPct:'buff_icon_atk', skillDmgPct:'buff_icon_atk',
@@ -1130,6 +1136,10 @@ function rReward(g) {
       const iconImg = iconName ? R.getImg(`assets/ui/${iconName}.png`) : null
       if (iconImg && iconImg.width > 0) {
         ctx.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
+      }
+      // 根据图标类型覆盖加成名称
+      if (!isSpeedBuff && iconName && BUFF_TYPE_NAMES[iconName]) {
+        typeTag = BUFF_TYPE_NAMES[iconName]
       }
 
       // 类型标签（图标右上方）

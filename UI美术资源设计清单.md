@@ -1101,3 +1101,57 @@ Output: PNG with transparent background, 256×128 total (4 columns × 2 rows, ea
 | `skipNextBattle` | 特殊效果 | `buff_icon_special.png` |
 | `nextFirstTurnDouble` | 特殊效果 | `buff_icon_special.png` |
 | `heartBoostPct` | 特殊效果 | `buff_icon_special.png` |
+
+---
+
+## 21. 道具系统图标
+
+**用途**：战斗界面右下角宝箱按钮 + 道具选择菜单中的道具图标  
+**使用位置**：战斗场景敌人区域右下角（宝箱入口按钮）、道具菜单弹窗卡片左侧（道具图标）  
+**设计目标**：一眼辨识，与游戏仙侠Q萌风格统一，色调温暖有质感  
+**文件路径**：`assets/ui/icon_chest.png`、`assets/ui/icon_item_reset.png`、`assets/ui/icon_item_heal.png`  
+**尺寸**：64×64px PNG（带透明通道）
+
+### 3个图标详细设计
+
+| # | 图标名称 | 文件名 | 设计描述 |
+|---|---------|--------|---------|
+| 1 | 灵宝匣（宝箱） | `icon_chest.png` | 一个Q版仙侠风小宝箱，箱体为深木色带金属包边，箱盖微微打开露出金光。箱体正面有一个小锁扣/太极纹章装饰。整体圆润Q萌，发淡金色光芒，底色透明。线条2-3px，简笔仙侠风。 |
+| 2 | 乾坤重置 | `icon_item_reset.png` | 圆角方形底板（淡蓝色 `#1E3A5A`），中央一个八卦/太极图案，两条弧形箭头环绕形成旋转循环符号。箭头为亮蓝色（`#66CCFF`）带白色高光。代表"天地翻转、重排乾坤"。简洁2-3px线条，无文字。 |
+| 3 | 回春妙术 | `icon_item_heal.png` | 圆角方形底板（翠绿色 `#1E4A2A`），中央一朵盛开的灵芝/莲花，花瓣为嫩绿色（`#44FF88`）带白色高光，花心有一个小小的心形或十字符号。2-3条向上飘散的绿色光点代表治愈灵气。简洁2-3px线条，无文字。 |
+
+### 图标Prompt（统一风格，一次生成3个）
+
+```
+A sprite sheet of 3 game item icons (arranged in a 1×3 row on transparent background), each icon is 64×64 pixels, designed for a Chinese Xianxia-themed cute mobile puzzle game. ALL icons share the same unified style:
+
+UNIFIED STYLE RULES:
+- Clean, bold simplified line art (2-3px stroke), cute and readable at 32px display size
+- Style: simplified Chinese ink-brush meets modern flat game UI — Xianxia Q-cute (仙侠Q萌)
+- NO text, NO complex details — each icon must be identifiable at thumbnail size
+- Slight paper/parchment texture feel, warm and magical atmosphere
+- Consistent 1px dark border on base plates where applicable
+
+THE 3 ICONS (left-to-right):
+
+1. TREASURE CHEST (灵宝匣) — NO base plate, standalone icon:
+   A cute rounded treasure chest made of dark wood (#5A3A1E) with golden metal trim (#D4A844). The lid is slightly ajar, revealing a bright golden glow (#FFD700) emanating from inside. A small Taiji (太极) symbol ornament on the front latch. The chest has a warm, inviting magical feel. Rounded corners, cute proportions (slightly wider than tall). 2-3 tiny gold sparkle particles around the opening.
+
+2. BOARD RESET (乾坤重置) — on rounded square base plate (light blue-navy #1E3A5A):
+   Two curved arrows forming a circular rotation symbol (♻-like but with only 2 arrows), colored in bright cyan (#66CCFF) with white highlights on arrow tips. In the center of the rotation, a tiny simplified Bagua/Taiji motif. Represents "heaven and earth reshuffled." Clean geometric design.
+
+3. FULL HEAL (回春妙术) — on rounded square base plate (jade green #1E4A2A):
+   A blooming Lingzhi mushroom (灵芝) or lotus flower in bright green (#44FF88) with white petal highlights. A small heart or cross symbol at the flower's center in pink-white. 2-3 tiny green healing particles floating upward from the flower. Represents magical healing spring. Soft, soothing feel.
+
+IMPORTANT: All 3 icons must look like they belong to the SAME icon set as the existing buff icons — consistent line weight, consistent level of detail. The treasure chest is a standalone button icon (no base plate), while the two item icons have base plates matching the buff icon style.
+
+Output: PNG with transparent background, 192×64 total (3 columns × 1 row, each cell 64×64).
+```
+
+### 附录资源清单补充
+
+| 序号 | 资源名称 | 文件路径 | 格式 | 尺寸比例 |
+|------|---------|----------|------|---------|
+| 34 | 灵宝匣图标 | `assets/ui/icon_chest.png` | PNG（透明底） | 1:1 正方形 |
+| 35 | 乾坤重置图标 | `assets/ui/icon_item_reset.png` | PNG（透明底） | 1:1 正方形 |
+| 36 | 回春妙术图标 | `assets/ui/icon_item_heal.png` | PNG（透明底） | 1:1 正方形 |
