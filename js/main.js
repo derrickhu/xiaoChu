@@ -358,26 +358,28 @@ class Main {
   _wrapText(text, maxW, fontSize) { return prepareView.wrapText(text, maxW, fontSize) }
   _drawEventPetDetail() { eventView.drawEventPetDetail(this) }
   async _openRanking() {
-    console.log('[Ranking] Opening ranking page')
+    console.log('[Ranking] Opening ranking page, cloudReady=', this.storage._cloudReady)
     this.storage.destroyUserInfoBtn()
     this.rankTab = 'all'
     this.rankScrollY = 0
     this.scene = 'ranking'
+    // 即使云未就绪也尝试拉取（fetchRanking内部会检查cloudReady）
     if (this.storage._cloudReady) {
       // 先提交最新数据（包括速通、图鉴、连击），再拉取排行
       if (this.storage.userAuthorized && this.storage.bestFloor > 0) {
-        await this.storage.submitScore(
-          this.storage.bestFloor,
-          this.storage.stats.bestFloorPets,
-          this.storage.stats.bestFloorWeapon,
-          this.storage.stats.bestTotalTurns || 0
-        )
-        await this.storage.submitDexAndCombo()
+        try {
+          await this.storage.submitScore(
+            this.storage.bestFloor,
+            this.storage.stats.bestFloorPets,
+            this.storage.stats.bestFloorWeapon,
+            this.storage.stats.bestTotalTurns || 0
+          )
+          await this.storage.submitDexAndCombo()
+        } catch(e) { console.error('[Ranking] 提交出错:', e) }
       }
-      this.storage.fetchRanking('all', true)
-    } else {
-      console.warn('[Ranking] Cloud not ready, skipping fetch')
     }
+    // 无论提交是否成功，都尝试拉取排行榜
+    this.storage.fetchRanking('all', true)
   }
 
   // 在title场景中，如果用户未授权，预创建透明按钮覆盖排行按钮
