@@ -329,9 +329,13 @@ class Storage {
   // ===== 排行榜 =====
   // 提交分数到排行榜
   async submitScore(floor, pets, weapon, totalTurns) {
-    if (!this._cloudReady || !this.userAuthorized) return
+    if (!this._cloudReady || !this.userAuthorized) {
+      console.warn('[Ranking] 提交跳过: cloudReady=', this._cloudReady, 'authorized=', this.userAuthorized)
+      return
+    }
     try {
-      await wx.cloud.callFunction({
+      console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns)
+      const r = await wx.cloud.callFunction({
         name: 'ranking',
         data: {
           action: 'submit',
@@ -345,8 +349,9 @@ class Storage {
           maxCombo: this._d.stats.maxCombo || 0,
         }
       })
+      console.log('[Ranking] 提交结果:', r.result)
     } catch(e) {
-      console.warn('[Ranking] 提交失败:', e)
+      console.error('[Ranking] 提交失败:', e.message || e)
     }
   }
 
@@ -371,6 +376,10 @@ class Storage {
 
   // 拉取排行榜（带30秒缓存，支持4个tab）
   async fetchRanking(tab, force) {
+    if (!this._cloudReady) {
+      console.warn('[Ranking] 云环境未就绪，跳过拉取')
+      return
+    }
     const now = Date.now()
     const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     const listKey = listMap[tab] || 'rankAllList'
@@ -382,16 +391,20 @@ class Storage {
     try {
       const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getAll'
+      console.log('[Ranking] 开始拉取:', action)
       const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
+      console.log('[Ranking] 拉取结果:', JSON.stringify(r.result).slice(0, 200))
       if (r.result && r.result.code === 0) {
         this[listKey] = r.result.list || []
         const rankKey = listKey.replace('List', 'MyRank')
         this[rankKey] = r.result.myRank || -1
         this.rankLastFetch = now
         this.rankLastFetchTab = tab
+      } else {
+        console.warn('[Ranking] 云函数返回错误:', r.result)
       }
     } catch(e) {
-      console.warn('[Ranking] 拉取失败:', e)
+      console.error('[Ranking] 拉取失败:', e.message || e)
     }
     this.rankLoading = false
   }
@@ -478,11 +491,39 @@ class Storage {
         if (cloudTime > localTime) {
           delete cloud._id
           delete cloud._openid
-          Object.assign(this._d, cloud)
+          // 深度合并：逐层合并嵌套对象，避免覆盖本地新增字段
+          this._deepMerge(this._d, cloud)
           wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
+          console.log('[Storage] 云端数据已合并到本地')
         }
       }
     } catch(e) { console.warn('Sync from cloud error:', e) }
+  }
+
+  // 深度合并：cloud 的值覆盖 target，但对嵌套对象递归合并
+  // 保留 target 中有但 cloud 中没有的字段（如后来新增的 bestTotalTurns）
+  _deepMerge(target, source) {
+    for (const key of Object.keys(source)) {
+      const sv = source[key]
+      const tv = target[key]
+      if (sv && typeof sv === 'object' && !Array.isArray(sv) && tv && typeof tv === 'object' && !Array.isArray(tv)) {
+        this._deepMerge(tv, sv)
+      } else {
+        // 数值字段：保留较大/较好的值（bestFloor取大，bestTotalTurns取小且>0）
+        if (key === 'bestFloor') {
+          target[key] = Math.max(tv || 0, sv || 0)
+        } else if (key === 'bestTotalTurns') {
+          if ((tv || 0) > 0 && (sv || 0) > 0) target[key] = Math.min(tv, sv)
+          else target[key] = (tv || 0) > 0 ? tv : (sv || 0)
+        } else if (key === 'maxCombo') {
+          target[key] = Math.max(tv || 0, sv || 0)
+        } else if (key === 'totalBattles' || key === 'totalCombos' || key === 'totalRuns') {
+          target[key] = Math.max(tv || 0, sv || 0)
+        } else {
+          target[key] = sv
+        }
+      }
+    }
   }
 
   async _syncToCloud() {
