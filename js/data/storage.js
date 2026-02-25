@@ -393,8 +393,12 @@ class Storage {
       const action = actionMap[tab] || 'getAll'
       console.log('[Ranking] 开始拉取:', action)
       const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
-      console.log('[Ranking] 拉取结果:', JSON.stringify(r.result).slice(0, 200))
+      console.log('[Ranking] 拉取结果:', JSON.stringify(r.result).slice(0, 800))
+      if (r.result && r.result.debug) {
+        console.log('[Ranking] DEBUG:', JSON.stringify(r.result.debug))
+      }
       if (r.result && r.result.code === 0) {
+        console.log('[Ranking] 获取到', (r.result.list || []).length, '条记录, myRank=', r.result.myRank)
         this[listKey] = r.result.list || []
         const rankKey = listKey.replace('List', 'MyRank')
         this[rankKey] = r.result.myRank || -1
@@ -531,11 +535,19 @@ class Storage {
     try {
       const db = wx.cloud.database()
       const col = db.collection('playerData')
+      // 用 _openid 查询（云开发自动注入的字段，最可靠）
       const res = await col.where({ _openid: this._openid }).get()
       const saveData = { ...this._d, _updateTime: Date.now() }
       delete saveData._id
       delete saveData._openid
-      if (res.data && res.data.length > 0) {
+      if (res.data && res.data.length > 1) {
+        // 有多条记录，去重：更新第一条，删除多余的
+        await col.doc(res.data[0]._id).update({ data: saveData })
+        for (let i = 1; i < res.data.length; i++) {
+          try { await col.doc(res.data[i]._id).remove() } catch(e) {}
+        }
+        console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
+      } else if (res.data && res.data.length === 1) {
         await col.doc(res.data[0]._id).update({ data: saveData })
       } else {
         await col.add({ data: saveData })

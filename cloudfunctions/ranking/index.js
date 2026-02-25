@@ -16,6 +16,7 @@ exports.main = async (event, context) => {
     if (!floor || floor <= 0) return { code: -1, msg: '无效层数' }
 
     const baseRecord = {
+      uid: openid,
       nickName: nickName || '修士',
       avatarUrl: avatarUrl || '',
       floor,
@@ -26,8 +27,11 @@ exports.main = async (event, context) => {
     }
 
     try {
-      // 更新总排行/速通榜（通关者按回合数升序，未通关按层数降序）
-      const existing = await db.collection('rankAll').where({ _openid: openid }).get()
+      // 同时用 _openid 和 uid 查找，避免漏查导致重复插入
+      const existing = await db.collection('rankAll').where(_.or([
+        { _openid: openid },
+        { uid: openid }
+      ])).get()
       if (existing.data.length > 1) {
         // 去重：保留最佳记录，删除多余的
         const sorted = existing.data.sort((a, b) => {
@@ -82,16 +86,40 @@ exports.main = async (event, context) => {
   }
 
   // ===== 查询速通榜（总排行）=====
-  // 排序规则：层数高的在前，层数相同时回合数少的在前，都相同时更新时间靠后的在前
   if (action === 'getAll') {
+    const debug = {}
     try {
-      // 云数据库不支持多字段混合排序，取全部后在内存中排序
-      const res = await db.collection('rankAll')
+      debug.openid = openid
+
+      // 先清理当前用户的重复记录
+      const myAll = await db.collection('rankAll').where(_.or([
+        { _openid: openid },
+        { uid: openid }
+      ])).get()
+      if (myAll.data.length > 1) {
+        const sorted = myAll.data.sort((a, b) => {
+          if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
+          return 1
+        })
+        for (let i = 1; i < sorted.length; i++) {
+          try { await db.collection('rankAll').doc(sorted[i]._id).remove() } catch(e) {}
+        }
+        debug.cleanedDuplicates = myAll.data.length - 1
+      }
+
+      const getRes = await db.collection('rankAll')
         .orderBy('floor', 'desc')
         .limit(100)
         .get()
-      // 按 _openid 去重：同一用户保留最佳记录
-      const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+      debug.getCount = getRes.data.length
+
+      const records = getRes.data
+      if (records.length === 0) {
+        return { code: 0, list: [], myRank: -1, debug }
+      }
+
+      // 构建排行列表（脱敏后返回给客户端）
+      const deduped = _deduplicateByOpenid(records, (a, b) => {
         if (a.floor !== b.floor) return b.floor - a.floor
         const aT = a.totalTurns || 0, bT = b.totalTurns || 0
         if (aT !== bT) {
@@ -99,19 +127,26 @@ exports.main = async (event, context) => {
           if (aT > 0) return -1
           if (bT > 0) return 1
         }
-        // 层数和回合都相同：更新时间靠后的在前
         const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
         const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
         return bTime - aTime
       })
+      debug.dedupedCount = deduped.length
       const list = deduped.slice(0, 50)
 
-      // 查自己的排名
+      // 查自己排名：用 or 同时匹配 uid 和 _openid
       let myRank = -1
-      const myRes = await db.collection('rankAll').where({ _openid: openid }).get()
+      const myRes = await db.collection('rankAll').where(_.or([
+        { uid: openid },
+        { _openid: openid }
+      ])).get()
+      debug.myCount = myRes.data.length
       if (myRes.data.length > 0) {
-        const my = myRes.data[0]
-        // 比自己成绩好的：层数更高的 + 层数相同但回合更少的
+        // 取最佳记录
+        const my = myRes.data.sort((a, b) => {
+          if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
+          return 1
+        })[0]
         const higherFloor = await db.collection('rankAll').where({
           floor: _.gt(my.floor)
         }).count()
@@ -124,9 +159,9 @@ exports.main = async (event, context) => {
         }
         myRank = higherFloor.total + sameFloorBetter.total + 1
       }
-      return { code: 0, list, myRank }
+      return { code: 0, list, myRank, debug }
     } catch (e) {
-      return { code: -1, msg: e.message, list: [] }
+      return { code: -1, msg: e.message, list: [], debug, stack: e.stack }
     }
   }
 
@@ -137,7 +172,6 @@ exports.main = async (event, context) => {
         .orderBy('petDexCount', 'desc')
         .limit(100)
         .get()
-      // 按 _openid 去重：同一用户保留图鉴数最高的
       const deduped = _deduplicateByOpenid(res.data, (a, b) => {
         if ((b.petDexCount || 0) !== (a.petDexCount || 0)) return (b.petDexCount || 0) - (a.petDexCount || 0)
         const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
@@ -147,9 +181,12 @@ exports.main = async (event, context) => {
       const list = deduped.slice(0, 50)
 
       let myRank = -1
-      const myRes = await db.collection('rankDex').where({ _openid: openid }).get()
+      const myRes = await db.collection('rankDex').where(_.or([
+        { uid: openid },
+        { _openid: openid }
+      ])).get()
       if (myRes.data.length > 0) {
-        const myCount = myRes.data[0].petDexCount
+        const myCount = myRes.data.sort((a, b) => (b.petDexCount || 0) - (a.petDexCount || 0))[0].petDexCount
         const betterCount = await db.collection('rankDex').where({ petDexCount: _.gt(myCount) }).count()
         myRank = betterCount.total + 1
       }
@@ -166,7 +203,6 @@ exports.main = async (event, context) => {
         .orderBy('maxCombo', 'desc')
         .limit(100)
         .get()
-      // 按 _openid 去重：同一用户保留最高连击的
       const deduped = _deduplicateByOpenid(res.data, (a, b) => {
         if ((b.maxCombo || 0) !== (a.maxCombo || 0)) return (b.maxCombo || 0) - (a.maxCombo || 0)
         const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
@@ -176,9 +212,12 @@ exports.main = async (event, context) => {
       const list = deduped.slice(0, 50)
 
       let myRank = -1
-      const myRes = await db.collection('rankCombo').where({ _openid: openid }).get()
+      const myRes = await db.collection('rankCombo').where(_.or([
+        { uid: openid },
+        { _openid: openid }
+      ])).get()
       if (myRes.data.length > 0) {
-        const myCombo = myRes.data[0].maxCombo
+        const myCombo = myRes.data.sort((a, b) => (b.maxCombo || 0) - (a.maxCombo || 0))[0].maxCombo
         const betterCount = await db.collection('rankCombo').where({ maxCombo: _.gt(myCombo) }).count()
         myRank = betterCount.total + 1
       }
@@ -191,16 +230,15 @@ exports.main = async (event, context) => {
   return { code: -1, msg: '未知操作' }
 }
 
-// 按 _openid 去重：同一用户只保留最佳记录（由 compareFn 决定排序）
+// 按用户去重：优先用 _openid，没有则用 uid 字段，都没有则用 _id（不跳过）
 function _deduplicateByOpenid(records, compareFn) {
   const map = {}
   for (const r of records) {
-    const key = r._openid
+    const key = r._openid || r.uid || r._id
     if (!key) continue
     if (!map[key]) {
       map[key] = r
     } else {
-      // compareFn 返回 <0 表示 a 更好
       if (compareFn(r, map[key]) < 0) {
         map[key] = r
       }
@@ -228,9 +266,12 @@ function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
 async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo) {
   // 图鉴榜
   if (petDexCount > 0) {
-    const dexExist = await db.collection('rankDex').where({ _openid: openid }).get()
+    const dexExist = await db.collection('rankDex').where(_.or([
+      { _openid: openid },
+      { uid: openid }
+    ])).get()
     const dexRecord = {
-      nickName, avatarUrl, petDexCount,
+      uid: openid, nickName, avatarUrl, petDexCount,
       timestamp: db.serverDate(),
     }
     if (dexExist.data.length > 1) {
@@ -259,9 +300,12 @@ async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxComb
 
   // 连击榜
   if (maxCombo > 0) {
-    const comboExist = await db.collection('rankCombo').where({ _openid: openid }).get()
+    const comboExist = await db.collection('rankCombo').where(_.or([
+      { _openid: openid },
+      { uid: openid }
+    ])).get()
     const comboRecord = {
-      nickName, avatarUrl, maxCombo,
+      uid: openid, nickName, avatarUrl, maxCombo,
       timestamp: db.serverDate(),
     }
     if (comboExist.data.length > 1) {
