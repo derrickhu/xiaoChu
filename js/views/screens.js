@@ -440,7 +440,12 @@ function rRanking(g) {
 
   if (g.storage.rankLoading && list.length === 0) {
     ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText('加载中...', W*0.5, contentTop + 60*S)
+    const msg = g.storage.rankLoadingMsg || '加载中...'
+    ctx.fillText(msg, W*0.5, contentTop + 60*S)
+    // 加载动画：三个点闪烁
+    const dots = '.'.repeat(Math.floor(Date.now() / 400) % 4)
+    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillText(dots, W*0.5, contentTop + 85*S)
   } else if (list.length === 0) {
     ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('暂无数据', W*0.5, contentTop + 60*S)

@@ -12,6 +12,7 @@ exports.main = async (event, context) => {
 
   // ===== 提交/更新分数（通关时调用）=====
   if (action === 'submit') {
+    const t0 = Date.now()
     const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = event
     if (!floor || floor <= 0) return { code: -1, msg: '无效层数' }
 
@@ -32,6 +33,7 @@ exports.main = async (event, context) => {
         { _openid: openid },
         { uid: openid }
       ])).get()
+      console.log('[submit] 查已有记录:', existing.data.length, '条, 耗时', Date.now() - t0, 'ms')
       if (existing.data.length > 1) {
         // 去重：保留最佳记录，删除多余的
         const sorted = existing.data.sort((a, b) => {
@@ -67,9 +69,10 @@ exports.main = async (event, context) => {
       // 同时更新图鉴榜和连击榜
       await _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo)
 
-      return { code: 0, msg: '提交成功' }
+      console.log('[submit] 完成, 总耗时', Date.now() - t0, 'ms')
+      return { code: 0, msg: '提交成功', ms: Date.now() - t0 }
     } catch (e) {
-      console.error('排行榜提交失败:', e)
+      console.error('排行榜提交失败:', e, '耗时', Date.now() - t0, 'ms')
       return { code: -1, msg: e.message }
     }
   }
@@ -85,40 +88,127 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ===== 查询速通榜（总排行）=====
-  if (action === 'getAll') {
-    const debug = {}
+  // ===== 提交 + 查询一体化（减少云函数调用次数）=====
+  if (action === 'submitAndGetAll') {
+    const t0 = Date.now()
+    const debug = { openid }
     try {
-      debug.openid = openid
-
-      // 先清理当前用户的重复记录
-      const myAll = await db.collection('rankAll').where(_.or([
-        { _openid: openid },
-        { uid: openid }
-      ])).get()
-      if (myAll.data.length > 1) {
-        const sorted = myAll.data.sort((a, b) => {
-          if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
-          return 1
-        })
-        for (let i = 1; i < sorted.length; i++) {
-          try { await db.collection('rankAll').doc(sorted[i]._id).remove() } catch(e) {}
+      // 1. 提交分数（如果有）
+      const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = event
+      if (floor && floor > 0) {
+        const baseRecord = {
+          uid: openid,
+          nickName: nickName || '修士',
+          avatarUrl: avatarUrl || '',
+          floor,
+          pets: (pets || []).slice(0, 5).map(p => ({ name: p.name, attr: p.attr })),
+          weapon: weapon ? { name: weapon.name } : null,
+          totalTurns: totalTurns || 0,
+          timestamp: db.serverDate(),
         }
-        debug.cleanedDuplicates = myAll.data.length - 1
+        const existing = await db.collection('rankAll').where(_.or([
+          { _openid: openid }, { uid: openid }
+        ])).get()
+        if (existing.data.length > 1) {
+          const sorted = existing.data.sort((a, b) => _isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns) ? -1 : 1)
+          for (let i = 1; i < sorted.length; i++) {
+            await db.collection('rankAll').doc(sorted[i]._id).remove()
+          }
+          const old = sorted[0]
+          if (_isBetterScore(floor, totalTurns, old.floor, old.totalTurns)) {
+            await db.collection('rankAll').doc(old._id).update({ data: baseRecord })
+          } else {
+            await db.collection('rankAll').doc(old._id).update({ data: { nickName: baseRecord.nickName, avatarUrl: baseRecord.avatarUrl } })
+          }
+        } else if (existing.data.length === 1) {
+          const old = existing.data[0]
+          if (_isBetterScore(floor, totalTurns, old.floor, old.totalTurns)) {
+            await db.collection('rankAll').doc(old._id).update({ data: baseRecord })
+          } else {
+            await db.collection('rankAll').doc(old._id).update({ data: { nickName: baseRecord.nickName, avatarUrl: baseRecord.avatarUrl } })
+          }
+        } else {
+          await db.collection('rankAll').add({ data: baseRecord })
+        }
+        debug.submitMs = Date.now() - t0
+
+        // 同时更新图鉴榜和连击榜（并行）
+        await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo)
+        debug.dexComboMs = Date.now() - t0
       }
 
+      // 2. 拉取排行榜
       const getRes = await db.collection('rankAll')
         .orderBy('floor', 'desc')
         .limit(100)
         .get()
       debug.getCount = getRes.data.length
+      debug.fetchMs = Date.now() - t0
 
       const records = getRes.data
       if (records.length === 0) {
+        debug.totalMs = Date.now() - t0
         return { code: 0, list: [], myRank: -1, debug }
       }
 
-      // 构建排行列表（脱敏后返回给客户端）
+      const deduped = _deduplicateByOpenid(records, _rankAllComparator)
+      debug.dedupedCount = deduped.length
+      const list = deduped.slice(0, 50)
+
+      // 3. 从已拉到的数据中找自己排名
+      let myRank = -1
+      const idx = deduped.findIndex(r => (r._openid === openid || r.uid === openid))
+      if (idx >= 0) {
+        myRank = idx + 1
+        debug.myFoundIn = 'cache'
+      } else {
+        // 不在前100条里
+        const myRes = await db.collection('rankAll').where(_.or([
+          { uid: openid }, { _openid: openid }
+        ])).get()
+        debug.myCount = myRes.data.length
+        if (myRes.data.length > 0) {
+          const my = myRes.data.sort((a, b) => _isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns) ? -1 : 1)[0]
+          const [higherFloor, sameFloorBetter] = await Promise.all([
+            db.collection('rankAll').where({ floor: _.gt(my.floor) }).count(),
+            my.totalTurns > 0
+              ? db.collection('rankAll').where({ floor: _.eq(my.floor), totalTurns: _.gt(0).and(_.lt(my.totalTurns)) }).count()
+              : Promise.resolve({ total: 0 })
+          ])
+          myRank = higherFloor.total + sameFloorBetter.total + 1
+          debug.myFoundIn = 'query'
+        }
+      }
+      debug.totalMs = Date.now() - t0
+      return { code: 0, list, myRank, debug }
+    } catch (e) {
+      debug.totalMs = Date.now() - t0
+      return { code: -1, msg: e.message, list: [], debug }
+    }
+  }
+
+  // ===== 查询速通榜（总排行）=====
+  if (action === 'getAll') {
+    const debug = {}
+    const t0 = Date.now()
+    try {
+      debug.openid = openid
+
+      // 拉取排行榜（1次DB查询）
+      const getRes = await db.collection('rankAll')
+        .orderBy('floor', 'desc')
+        .limit(100)
+        .get()
+      debug.getCount = getRes.data.length
+      debug.fetchMs = Date.now() - t0
+
+      const records = getRes.data
+      if (records.length === 0) {
+        debug.totalMs = Date.now() - t0
+        return { code: 0, list: [], myRank: -1, debug }
+      }
+
+      // 构建排行列表
       const deduped = _deduplicateByOpenid(records, (a, b) => {
         if (a.floor !== b.floor) return b.floor - a.floor
         const aT = a.totalTurns || 0, bT = b.totalTurns || 0
@@ -134,33 +224,58 @@ exports.main = async (event, context) => {
       debug.dedupedCount = deduped.length
       const list = deduped.slice(0, 50)
 
-      // 查自己排名：用 or 同时匹配 uid 和 _openid
+      // 先尝试从已有的 100 条数据中找到自己（避免额外查询）
       let myRank = -1
-      const myRes = await db.collection('rankAll').where(_.or([
-        { uid: openid },
-        { _openid: openid }
-      ])).get()
-      debug.myCount = myRes.data.length
-      if (myRes.data.length > 0) {
-        // 取最佳记录
-        const my = myRes.data.sort((a, b) => {
-          if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
-          return 1
-        })[0]
-        const higherFloor = await db.collection('rankAll').where({
-          floor: _.gt(my.floor)
-        }).count()
-        let sameFloorBetter = { total: 0 }
-        if (my.totalTurns > 0) {
-          sameFloorBetter = await db.collection('rankAll').where({
-            floor: _.eq(my.floor),
-            totalTurns: _.gt(0).and(_.lt(my.totalTurns))
-          }).count()
+      let myRecord = records.find(r => r._openid === openid || r.uid === openid)
+      if (myRecord) {
+        // 直接从 deduped 列表中算排名
+        const idx = deduped.findIndex(r => (r._openid === openid || r.uid === openid))
+        if (idx >= 0) {
+          myRank = idx + 1
+        } else {
+          // 数据在 100 条内但被去重掉了，用 count 查
+          const [higherFloor, sameFloorBetter] = await Promise.all([
+            db.collection('rankAll').where({ floor: _.gt(myRecord.floor) }).count(),
+            myRecord.totalTurns > 0
+              ? db.collection('rankAll').where({
+                  floor: _.eq(myRecord.floor),
+                  totalTurns: _.gt(0).and(_.lt(myRecord.totalTurns))
+                }).count()
+              : Promise.resolve({ total: 0 })
+          ])
+          myRank = higherFloor.total + sameFloorBetter.total + 1
         }
-        myRank = higherFloor.total + sameFloorBetter.total + 1
+        debug.myFoundIn = 'cache'
+      } else {
+        // 不在前 100 条里，需要额外查询（1次DB）
+        const myRes = await db.collection('rankAll').where(_.or([
+          { uid: openid },
+          { _openid: openid }
+        ])).get()
+        debug.myCount = myRes.data.length
+        if (myRes.data.length > 0) {
+          const my = myRes.data.sort((a, b) => {
+            if (_isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns)) return -1
+            return 1
+          })[0]
+          // 两次 count 并行查询
+          const [higherFloor, sameFloorBetter] = await Promise.all([
+            db.collection('rankAll').where({ floor: _.gt(my.floor) }).count(),
+            my.totalTurns > 0
+              ? db.collection('rankAll').where({
+                  floor: _.eq(my.floor),
+                  totalTurns: _.gt(0).and(_.lt(my.totalTurns))
+                }).count()
+              : Promise.resolve({ total: 0 })
+          ])
+          myRank = higherFloor.total + sameFloorBetter.total + 1
+          debug.myFoundIn = 'query'
+        }
       }
+      debug.totalMs = Date.now() - t0
       return { code: 0, list, myRank, debug }
     } catch (e) {
+      debug.totalMs = Date.now() - t0
       return { code: -1, msg: e.message, list: [], debug, stack: e.stack }
     }
   }
@@ -228,6 +343,20 @@ exports.main = async (event, context) => {
   }
 
   return { code: -1, msg: '未知操作' }
+}
+
+// 速通榜排序比较器
+function _rankAllComparator(a, b) {
+  if (a.floor !== b.floor) return b.floor - a.floor
+  const aT = a.totalTurns || 0, bT = b.totalTurns || 0
+  if (aT !== bT) {
+    if (aT > 0 && bT > 0) return aT - bT
+    if (aT > 0) return -1
+    if (bT > 0) return 1
+  }
+  const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
+  const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
+  return bTime - aTime
 }
 
 // 按用户去重：优先用 _openid，没有则用 uid 字段，都没有则用 _id（不跳过）
