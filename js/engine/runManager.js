@@ -167,6 +167,7 @@ function endRun(g) {
   g.storage.clearRunState()
   if (g.storage.userAuthorized) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
+    g.storage.submitDexAndCombo()
   }
   if (g.cleared) {
     MusicMgr.playLevelUp()

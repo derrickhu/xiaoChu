@@ -48,6 +48,7 @@ class Storage {
     this.rankDexMyRank = -1
     this.rankComboMyRank = -1
     this.rankLoading = false
+    this.rankLoadingMsg = ''   // 加载状态详细提示
     this.rankLastFetch = 0    // 上次拉取时间戳
     this.rankLastFetchTab = '' // 上次拉取的tab
     this._load()
@@ -333,6 +334,7 @@ class Storage {
       console.warn('[Ranking] 提交跳过: cloudReady=', this._cloudReady, 'authorized=', this.userAuthorized)
       return
     }
+    const t0 = Date.now()
     try {
       console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns)
       const r = await wx.cloud.callFunction({
@@ -349,16 +351,20 @@ class Storage {
           maxCombo: this._d.stats.maxCombo || 0,
         }
       })
-      console.log('[Ranking] 提交结果:', r.result)
+      console.log('[Ranking] 提交分数完成, 耗时', Date.now() - t0, 'ms, 结果:', JSON.stringify(r.result).slice(0, 200))
+      // 提交成功后清掉缓存，下次打开排行榜会重新拉取最新数据
+      this.rankLastFetch = 0
     } catch(e) {
-      console.error('[Ranking] 提交失败:', e.message || e)
+      console.error('[Ranking] 提交分数失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
     }
   }
 
   // 单独提交图鉴/连击排行（非通关时也可以触发）
   async submitDexAndCombo() {
     if (!this._cloudReady || !this.userAuthorized) return
+    const t0 = Date.now()
     try {
+      console.log('[Ranking] 提交图鉴/连击: dex=', (this._d.petDex || []).length, 'combo=', this._d.stats.maxCombo || 0)
       await wx.cloud.callFunction({
         name: 'ranking',
         data: {
@@ -369,8 +375,9 @@ class Storage {
           maxCombo: this._d.stats.maxCombo || 0,
         }
       })
+      console.log('[Ranking] 提交图鉴/连击完成, 耗时', Date.now() - t0, 'ms')
     } catch(e) {
-      console.warn('[Ranking] 提交图鉴/连击失败:', e)
+      console.warn('[Ranking] 提交图鉴/连击失败, 耗时', Date.now() - t0, 'ms:', e)
     }
   }
 
@@ -384,16 +391,20 @@ class Storage {
     const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     const listKey = listMap[tab] || 'rankAllList'
     if (!force && now - this.rankLastFetch < 30000 && this.rankLastFetchTab === tab && this[listKey].length > 0) {
+      console.log('[Ranking] 命中缓存, 跳过拉取:', tab)
       return
     }
     if (this.rankLoading) return
     this.rankLoading = true
+    this.rankLoadingMsg = '拉取排行中...'
+    const t0 = Date.now()
     try {
       const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getAll'
       console.log('[Ranking] 开始拉取:', action)
       const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
-      console.log('[Ranking] 拉取结果:', JSON.stringify(r.result).slice(0, 800))
+      const elapsed = Date.now() - t0
+      console.log('[Ranking] 拉取完成, 耗时', elapsed, 'ms, 结果:', JSON.stringify(r.result).slice(0, 800))
       if (r.result && r.result.debug) {
         console.log('[Ranking] DEBUG:', JSON.stringify(r.result.debug))
       }
@@ -402,15 +413,58 @@ class Storage {
         this[listKey] = r.result.list || []
         const rankKey = listKey.replace('List', 'MyRank')
         this[rankKey] = r.result.myRank || -1
-        this.rankLastFetch = now
+        this.rankLastFetch = Date.now()
         this.rankLastFetchTab = tab
       } else {
         console.warn('[Ranking] 云函数返回错误:', r.result)
       }
     } catch(e) {
-      console.error('[Ranking] 拉取失败:', e.message || e)
+      console.error('[Ranking] 拉取失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
     }
     this.rankLoading = false
+    this.rankLoadingMsg = ''
+  }
+
+  // 一体化：提交分数 + 拉取排行（一次云函数调用）
+  async fetchRankingCombined(tab, needSubmit) {
+    if (!this._cloudReady) return
+    this.rankLoading = true
+    this.rankLoadingMsg = needSubmit ? '提交并加载中...' : '加载排行中...'
+    const t0 = Date.now()
+    try {
+      const data = { action: 'submitAndGetAll' }
+      if (needSubmit && this.userAuthorized) {
+        data.nickName = this.userInfo.nickName
+        data.avatarUrl = this.userInfo.avatarUrl
+        data.floor = this.bestFloor
+        data.pets = (this.stats.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr }))
+        data.weapon = this.stats.bestFloorWeapon ? { name: this.stats.bestFloorWeapon.name } : null
+        data.totalTurns = this.stats.bestTotalTurns || 0
+        data.petDexCount = (this._d.petDex || []).length
+        data.maxCombo = this._d.stats.maxCombo || 0
+      }
+      console.log('[Ranking] 一体化调用, needSubmit=', needSubmit)
+      const r = await wx.cloud.callFunction({ name: 'ranking', data })
+      const elapsed = Date.now() - t0
+      console.log('[Ranking] 一体化完成, 耗时', elapsed, 'ms')
+      if (r.result && r.result.debug) {
+        console.log('[Ranking] DEBUG:', JSON.stringify(r.result.debug))
+      }
+      if (r.result && r.result.code === 0) {
+        const listKey = 'rankAllList'
+        this[listKey] = r.result.list || []
+        this.rankAllMyRank = r.result.myRank || -1
+        this.rankLastFetch = Date.now()
+        this.rankLastFetchTab = 'all'
+        console.log('[Ranking] 获取到', this[listKey].length, '条记录, myRank=', this.rankAllMyRank)
+      } else {
+        console.warn('[Ranking] 云函数返回错误:', r.result)
+      }
+    } catch(e) {
+      console.error('[Ranking] 一体化调用失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
+    }
+    this.rankLoading = false
+    this.rankLoadingMsg = ''
   }
 
   _load() {
@@ -468,6 +522,26 @@ class Storage {
     if (this._pendingSync) {
       this._pendingSync = false
       this._syncToCloud()
+    }
+    // 预热：后台静默拉取排行榜，让云函数实例保持热状态 + 提前缓存数据
+    this._preheatRanking()
+  }
+
+  async _preheatRanking() {
+    try {
+      const t0 = Date.now()
+      console.log('[Ranking] 预热: 后台静默拉取排行榜...')
+      const r = await wx.cloud.callFunction({ name: 'ranking', data: { action: 'getAll' } })
+      const elapsed = Date.now() - t0
+      if (r.result && r.result.code === 0) {
+        this.rankAllList = r.result.list || []
+        this.rankAllMyRank = r.result.myRank || -1
+        this.rankLastFetch = Date.now()
+        this.rankLastFetchTab = 'all'
+        console.log('[Ranking] 预热完成, 耗时', elapsed, 'ms, 记录数:', this.rankAllList.length)
+      }
+    } catch(e) {
+      console.warn('[Ranking] 预热失败(不影响使用):', e.message || e)
     }
   }
 
