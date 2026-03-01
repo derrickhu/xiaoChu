@@ -1379,83 +1379,46 @@ function drawBackBtn(g) {
   g._backBtnRect = [bx, by, btnW, btnH]
 }
 
-// ===== 首页"开始挑战"确认弹窗（浅色暖白金边风格） =====
+// ===== 首页"开始挑战"确认弹窗（info_panel_bg图片版） =====
 function drawNewRunConfirm(g) {
   const { ctx, R, TH, W, H, S } = V
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.76, ph = 175*S
+  const pw = W * 0.82, ph = 175*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  const rad = 14*S
 
-  ctx.save()
-  // 外层投影
-  ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 16*S; ctx.shadowOffsetY = 4*S
-  // 浅暖白渐变底板
-  const bg = ctx.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(252,247,238,0.98)')
-  bg.addColorStop(0.5, 'rgba(248,242,230,0.98)')
-  bg.addColorStop(1, 'rgba(242,235,220,0.98)')
-  ctx.fillStyle = bg
-  R.rr(px, py, pw, ph, rad); ctx.fill()
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
-
-  // 柔和金色边框
-  ctx.strokeStyle = 'rgba(201,168,76,0.45)'; ctx.lineWidth = 1.5*S
-  R.rr(px, py, pw, ph, rad); ctx.stroke()
-
-  // 顶部金色装饰线
-  ctx.strokeStyle = 'rgba(180,150,60,0.3)'; ctx.lineWidth = 1*S
-  ctx.beginPath()
-  ctx.moveTo(px + pw*0.15, py + 38*S)
-  ctx.lineTo(px + pw*0.85, py + 38*S)
-  ctx.stroke()
-  // 装饰线中心菱形
-  const diaX = px + pw*0.5, diaY = py + 38*S, diaR = 3*S
-  ctx.fillStyle = 'rgba(201,168,76,0.5)'
-  ctx.beginPath()
-  ctx.moveTo(diaX, diaY - diaR); ctx.lineTo(diaX + diaR, diaY)
-  ctx.lineTo(diaX, diaY + diaR); ctx.lineTo(diaX - diaR, diaY)
-  ctx.closePath(); ctx.fill()
+  // 面板背景图
+  const panelImg = R.getImg('assets/ui/info_panel_bg.png')
+  if (panelImg && panelImg.width > 0) {
+    ctx.drawImage(panelImg, px, py, pw, ph)
+  } else {
+    const rad = 14*S
+    ctx.fillStyle = 'rgba(248,242,230,0.97)'
+    R.rr(px, py, pw, ph, rad); ctx.fill()
+    ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5*S
+    R.rr(px, py, pw, ph, rad); ctx.stroke()
+  }
 
   // 标题
   ctx.textAlign = 'center'
   ctx.fillStyle = '#6B5014'
   ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  ctx.fillText('开始新挑战', px + pw*0.5, py + 28*S)
+  ctx.fillText('开始新挑战', px + pw*0.5, py + 32*S)
 
   // 说明文字
   ctx.fillStyle = '#7B7060'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 58*S)
+  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 68*S)
   ctx.fillStyle = '#C0392B'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 78*S)
+  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 88*S)
 
-  // 按钮
-  const btnW = pw * 0.30, btnH = 30*S, gap = 16*S
+  // 按钮（使用图片资源）
+  const btnW = pw * 0.34, btnH = 34*S, gap = 14*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 108*S
-
-  // 取消按钮 — 浅灰扁平
-  ctx.fillStyle = '#ede8de'
-  R.rr(btn1X, btnY, btnW, btnH, btnH*0.5); ctx.fill()
-  ctx.strokeStyle = 'rgba(180,165,130,0.45)'; ctx.lineWidth = 1*S
-  R.rr(btn1X, btnY, btnW, btnH, btnH*0.5); ctx.stroke()
-  ctx.fillStyle = '#8B7B60'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('取消', btn1X + btnW*0.5, btnY + btnH*0.5)
+  const btnY = py + 110*S
+  R.drawDialogBtn(btn1X, btnY, btnW, btnH, '取消', 'cancel')
   g._newRunCancelRect = [btn1X, btnY, btnW, btnH]
-
-  // 确认按钮 — 暖金扁平
-  ctx.fillStyle = '#d4a840'
-  R.rr(btn2X, btnY, btnW, btnH, btnH*0.5); ctx.fill()
-  ctx.strokeStyle = 'rgba(160,130,40,0.35)'; ctx.lineWidth = 1*S
-  R.rr(btn2X, btnY, btnW, btnH, btnH*0.5); ctx.stroke()
-  ctx.fillStyle = '#4A3010'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText('确认开始', btn2X + btnW*0.5, btnY + btnH*0.5)
+  R.drawDialogBtn(btn2X, btnY, btnW, btnH, '确认开始', 'confirm')
   g._newRunConfirmRect = [btn2X, btnY, btnW, btnH]
-
-  ctx.textBaseline = 'alphabetic'
-  ctx.restore()
 }
 
 // ===== Dex（灵兽图鉴） =====
