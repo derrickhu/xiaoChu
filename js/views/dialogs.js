@@ -9,44 +9,44 @@ const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath,
 function drawExitDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.78, ph = 200*S
+  const pw = W * 0.78, ph = 185*S
   const px = (W - pw) / 2, py = (H - ph) / 2
   R.drawDialogPanel(px, py, pw, ph)
 
-  // 标题 — 暗金色仙侠风
+  // 标题 — 暗金色仙侠风（下移避开顶部花纹）
   ctx.textAlign = 'center'
   ctx.fillStyle = '#f0e0c0'
-  ctx.font = `bold ${17*S}px "PingFang SC",sans-serif`
+  ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-  ctx.fillText('退出战斗', px + pw*0.5, py + 36*S)
+  ctx.fillText('退出战斗', px + pw*0.5, py + 46*S)
   ctx.restore()
 
   // 副标题
   ctx.fillStyle = 'rgba(200,190,170,0.7)'
   ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('请选择退出方式', px + pw*0.5, py + 58*S)
+  ctx.fillText('请选择退出方式', px + pw*0.5, py + 66*S)
 
-  // 两个主按钮
-  const btnW = pw * 0.38, btnH = 42*S, gap = 12*S
+  // 两个主按钮（缩小）
+  const btnW = pw * 0.34, btnH = 34*S, gap = 12*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 84*S
+  const btnY = py + 86*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
 
-  // 取消按钮 — 使用半透明描边风格
-  const cancelW = pw * 0.36, cancelH = 34*S
-  const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 16*S
+  // 取消按钮 — 使用半透明描边风格（缩小）
+  const cancelW = pw * 0.30, cancelH = 28*S
+  const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 14*S
   ctx.save()
   ctx.fillStyle = 'rgba(40,35,50,0.6)'
-  R.rr(cancelX, cancelY, cancelW, cancelH, 8*S); ctx.fill()
+  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.fill()
   ctx.strokeStyle = 'rgba(180,170,150,0.3)'; ctx.lineWidth = 1*S
-  R.rr(cancelX, cancelY, cancelW, cancelH, 8*S); ctx.stroke()
+  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.stroke()
   ctx.fillStyle = 'rgba(200,190,170,0.6)'
-  ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('取消', cancelX + cancelW*0.5, cancelY + cancelH*0.5)
   ctx.textBaseline = 'alphabetic'
