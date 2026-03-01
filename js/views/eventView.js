@@ -121,12 +121,20 @@ function rEvent(g) {
       ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('奇遇', W*0.5, ty)
 
-      ctx.fillStyle = TH.text; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
       ctx.fillText(ev.data.name, W*0.5, H*0.35)
-      ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#f0e8d8'; ctx.font = `${14*S}px "PingFang SC",sans-serif`
       ctx.fillText(ev.data.desc, W*0.5, H*0.43)
-      ctx.fillStyle = TH.success; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText('效果已生效！', W*0.5, H*0.52)
+      // 显示具体获得结果（法宝名/灵兽名等）
+      if (g._adventureResult) {
+        ctx.fillStyle = '#ffd54f'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+        ctx.fillText(g._adventureResult, W*0.5, H*0.50)
+      }
+      ctx.fillStyle = '#5ddd5d'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillText('效果已生效！', W*0.5, g._adventureResult ? H*0.57 : H*0.52)
+      ctx.restore()
       const bx = W*0.3, by = H*0.65, bw = W*0.4, bh = 44*S
       R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
       g._eventBtnRect = [bx, by, bw, bh]

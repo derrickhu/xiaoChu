@@ -652,10 +652,11 @@ class Main {
     const st = this.storage.stats
     const floor = this.storage.bestFloor
     const isCleared = floor >= 30
+    const dexCount = (this.storage.petDex || []).length
     const title = isCleared
-      ? `我已通关灵宠消消塔！最速${st.bestTotalTurns || '??'}回合，你能超越吗？`
-      : `我已攻到消消塔第${floor}层，你能比我更强吗？`
-    return { title, imageUrl: isCleared ? 'assets/share/share_cleared.jpg' : 'assets/share/share_default.jpg' }
+      ? `${st.bestTotalTurns ? st.bestTotalTurns + '回合' : ''}通关五行通天塔！收集${dexCount}只灵兽，你敢来挑战吗？`
+      : `我已攻到消消塔第${floor}层，收集了${dexCount}只灵兽，你能比我更强吗？`
+    return { title, imageUrl: isCleared ? 'assets/share/share_cover.jpg' : 'assets/share/share_default.jpg' }
   }
 
   _shareStats() {
@@ -665,94 +666,22 @@ class Main {
     const dexCount = (this.storage.petDex || []).length
     const bestTurns = st.bestTotalTurns || 0
 
-    // 加载预设背景图，在上面叠加动态数据文字
-    try {
-      const bgImg = wx.createImage()
-      bgImg.onload = () => {
-        const shareCanvas = wx.createCanvas()
-        const sw = bgImg.width || 500, sh = bgImg.height || 400
-        shareCanvas.width = sw; shareCanvas.height = sh
-        const sctx = shareCanvas.getContext('2d')
-
-        // 绘制预设背景图
-        sctx.drawImage(bgImg, 0, 0, sw, sh)
-
-        // 内容区域边距（避开边框装饰）
-        const padL = sw * 0.15, padR = sw * 0.85
-
-        // ── 标题（顶部皇冠下方）──
-        sctx.textAlign = 'center'
-        sctx.fillStyle = '#f5e6c8'; sctx.font = `bold ${Math.round(sw*0.050)}px "PingFang SC",sans-serif`
-        sctx.fillText('灵宠消消塔 · 战绩', sw/2, sh*0.15)
-
-        // ── 核心成就（居中大字，在标题和数据之间）──
-        sctx.fillStyle = '#ffd700'; sctx.font = `bold ${Math.round(sw*0.080)}px "PingFang SC",sans-serif`
-        sctx.textAlign = 'center'
-        sctx.save()
-        sctx.shadowColor = 'rgba(255,215,0,0.4)'; sctx.shadowBlur = sw * 0.015
-        sctx.fillText(isCleared ? '✦ 已通关 ✦' : `✦ 第 ${floor} 层 ✦`, sw/2, sh*0.30)
-        sctx.restore()
-
-        // ── 4行数据（对齐背景线条，标签左对齐，数值右对齐）──
-        const dataStartY = sh * 0.40, lineH = sh * 0.105
-        const labels = [
-          { l: '最速通关', v: bestTurns > 0 ? `${bestTurns} 回合` : '未通关', c: bestTurns > 0 ? '#ff6b6b' : '#999' },
-          { l: '图鉴收集', v: `${dexCount} / 100`, c: '#4dcc4d' },
-          { l: '最高连击', v: `${st.maxCombo} Combo`, c: '#ff6b6b' },
-          { l: '总挑战数', v: `${this.storage.totalRuns} 次`, c: '#4dabff' },
+    const titles = isCleared
+      ? [
+          `五行通天塔已通关！${bestTurns ? bestTurns + '回合极速登顶，' : ''}收集${dexCount}只灵兽，你敢来挑战吗？`,
+          `${bestTurns ? '仅用' + bestTurns + '回合' : '已'}通关消消塔！${dexCount}只灵兽助我登顶，不服来战！`,
+          `通天塔30层全通关！最高${st.maxCombo}连击，${dexCount}只灵兽收入囊中，等你来超越！`,
         ]
-        const labelFont = `${Math.round(sw*0.034)}px "PingFang SC",sans-serif`
-        const valueFont = `bold ${Math.round(sw*0.040)}px "PingFang SC",sans-serif`
-        labels.forEach((d, i) => {
-          const y = dataStartY + i * lineH
-          sctx.textAlign = 'left'
-          sctx.fillStyle = 'rgba(240,220,160,0.65)'; sctx.font = labelFont
-          sctx.fillText(d.l, padL, y)
-          sctx.textAlign = 'right'
-          sctx.fillStyle = d.c; sctx.font = valueFont
-          sctx.fillText(d.v, padR, y)
-        })
+      : [
+          `我已攻到消消塔第${floor}层，收集了${dexCount}只灵兽，最高${st.maxCombo}连击！你能超越吗？`,
+          `消消塔第${floor}层！${dexCount}只灵兽助阵，${bestTurns ? bestTurns + '回合最速记录，' : ''}来挑战我吧！`,
+          `五行通天塔第${floor}层，最高${st.maxCombo}连击！收集${dexCount}只灵兽，你敢来比吗？`,
+        ]
 
-        // ── 阵容（数据行下方）──
-        const bfPets = st.bestFloorPets || []
-        if (bfPets.length > 0) {
-          const ty = dataStartY + labels.length * lineH + sh * 0.02
-          sctx.textAlign = 'center'
-          sctx.fillStyle = 'rgba(240,220,160,0.45)'; sctx.font = `${Math.round(sw*0.024)}px "PingFang SC",sans-serif`
-          sctx.fillText('— 最高记录阵容 —', sw/2, ty)
-          const petNames = bfPets.map(p => p.name).join(' · ')
-          sctx.fillStyle = '#f0dca0'; sctx.font = `bold ${Math.round(sw*0.028)}px "PingFang SC",sans-serif`
-          sctx.fillText(petNames, sw/2, ty + sh*0.045)
-        }
-
-        // ── 底部金色横幅文字 ──
-        sctx.textAlign = 'center'
-        sctx.fillStyle = '#3a2a10'; sctx.font = `bold ${Math.round(sw*0.030)}px "PingFang SC",sans-serif`
-        sctx.fillText('快来挑战消消塔吧！', sw/2, sh*0.925)
-
-        // 转为临时文件路径并分享
-        const tempPath = `${wx.env.USER_DATA_PATH}/share_stats.png`
-        const imgData = shareCanvas.toDataURL('image/png')
-        const base64 = imgData.replace(/^data:image\/png;base64,/, '')
-        const fs = wx.getFileSystemManager()
-        fs.writeFileSync(tempPath, base64, 'base64')
-
-        wx.shareAppMessage({
-          title: isCleared
-            ? `我已通关灵宠消消塔！最速${bestTurns || '??'}回合，来挑战！`
-            : `我已攻到消消塔第${floor}层，你能超越吗？`,
-          imageUrl: tempPath,
-        })
-      }
-      bgImg.onerror = () => {
-        console.warn('[Share] 加载分享背景图失败，使用默认分享')
-        wx.shareAppMessage(this._getShareData())
-      }
-      bgImg.src = 'assets/share/share_stats.jpg'
-    } catch(e) {
-      console.warn('[Share] 生成分享图失败，使用默认分享:', e)
-      wx.shareAppMessage(this._getShareData())
-    }
+    wx.shareAppMessage({
+      title: titles[Math.floor(Math.random() * titles.length)],
+      imageUrl: 'assets/share/share_cover.jpg',
+    })
   }
 
   _hitRect(x,y,rx,ry,rw,rh) { return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh }

@@ -611,12 +611,16 @@ function applyShopItem(g, item) {
       const mergeResult = _mergePetAndDex(g, allPets, newPet)
       if (!mergeResult.merged) {
         g.petBag.push(newPet)
+        g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
+      } else {
+        g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target ? mergeResult.target.id : newPet.id }
       }
       break
     }
     case 'getWeapon': {
       const newWpn = randomWeapon()
       g.weaponBag.push(newWpn)
+      g._lastRewardInfo = { type: 'newWeapon', weaponId: newWpn.id }
       break
     }
     case 'fullHeal':
@@ -634,6 +638,7 @@ function applyShopItem(g, item) {
       if (candidates.length > 0) {
         const p = candidates[Math.floor(Math.random() * candidates.length)]
         p.star = (p.star || 1) + 1
+        g._lastRewardInfo = { type: 'starUp', petId: p.id }
       }
       break
     }
@@ -683,9 +688,11 @@ function applyShopPetByAttr(g, attr) {
   if (!mergeResult.merged) {
     g.petBag.push(newPet)
     g._shopPetObtained = { pet: { ...newPet }, type: 'new' }
+    g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
     MusicMgr.playPetObtained()
   } else if (mergeResult.target) {
     g._shopPetObtained = { pet: { ...mergeResult.target }, type: mergeResult.maxed ? 'maxed' : 'starUp' }
+    g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
     if ((mergeResult.target.star || 1) >= MAX_STAR) {
       g._star3Celebration = { pet: mergeResult.target, timer: 0, phase: 'fadeIn', particles: [] }
       MusicMgr.playStar3Unlock()
@@ -701,6 +708,7 @@ function applyShopStarUp(g, petIdx) {
   if (!p) return false
   if ((p.star || 1) >= 3) return false
   p.star = (p.star || 1) + 1
+  g._lastRewardInfo = { type: 'starUp', petId: p.id }
   if (p.star >= MAX_STAR) {
     g.storage.addPetDex(p.id)
     g._star3Celebration = {
@@ -754,7 +762,7 @@ function applyAdventure(g, adv) {
     case 'allAtkUp':      g.runBuffs.allAtkPct += adv.pct; _pushLog('allAtkPct', adv.pct); break
     case 'healPct':        g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp*adv.pct/100)); break
     case 'hpMaxUp':        { const inc = Math.round(g.heroMaxHp*adv.pct/100); g.heroMaxHp += inc; g.heroHp += inc; break }
-    case 'getWeapon':      { const w = randomWeapon(); g.weaponBag.push(w); break }
+    case 'getWeapon':      { const w = randomWeapon(); g.weaponBag.push(w); g._adventureResult = `获得法宝「${w.name}」`; g._lastRewardInfo = { type: 'newWeapon', weaponId: w.id }; break }
     case 'skipBattle':     g.skipNextBattle = true; break
     case 'fullHeal':       g.heroHp = g.heroMaxHp; break
     case 'extraTime':      g.runBuffs.extraTimeSec += adv.sec; _pushLog('extraTimeSec', adv.sec); break
@@ -764,7 +772,7 @@ function applyAdventure(g, adv) {
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
-    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool, null, 'adventure', getMaxedPetIds(g)), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p) } break }
+    case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool, null, 'adventure', getMaxedPetIds(g)), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p); g._adventureResult = `获得灵兽「${p.name}」`; g._lastRewardInfo = { type: 'newPet', petId: p.id } } else { g._adventureResult = `「${p.name}」升星！`; g._lastRewardInfo = { type: 'starUp', petId: p.id } } break }
     case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; _pushLog('heartBoostPct', adv.pct); break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; _pushLog('weaponBoostPct', adv.pct); break

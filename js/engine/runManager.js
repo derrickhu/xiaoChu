@@ -143,6 +143,7 @@ function nextFloor(g) {
   resetPrepBagScroll()
   g._eventPetDetail = null
   g._adventureApplied = false
+  g._adventureResult = null
   g._eventShopUsed = false
   g._eventShopUsedCount = 0
   g._eventShopUsedItems = null
@@ -248,6 +249,7 @@ function resumeRun(g) {
   resetPrepBagScroll()
   g._eventPetDetail = null
   g._adventureApplied = false
+  g._adventureResult = null
   g._eventShopUsed = false
   g._eventShopUsedCount = 0
   g._eventShopUsedItems = null

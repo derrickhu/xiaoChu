@@ -708,44 +708,35 @@ function rStats(g) {
   const heroY = safeTop + 58*S
   const heroH = 70*S
   const hbg = ctx.createLinearGradient(padX, heroY, padX, heroY + heroH)
-  hbg.addColorStop(0, 'rgba(50,40,20,0.88)'); hbg.addColorStop(1, 'rgba(30,25,12,0.92)')
+  hbg.addColorStop(0, 'rgba(252,247,238,0.95)'); hbg.addColorStop(1, 'rgba(244,237,222,0.95)')
   ctx.fillStyle = hbg; R.rr(padX, heroY, heroW, heroH, 12*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
+  ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5*S
   R.rr(padX, heroY, heroW, heroH, 12*S); ctx.stroke()
-  ctx.save(); ctx.globalAlpha = 0.1
-  const hlg = ctx.createLinearGradient(padX, heroY, padX, heroY + 8*S)
-  hlg.addColorStop(0, '#fff'); hlg.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.fillStyle = hlg; R.rr(padX + 2*S, heroY + 1, heroW - 4*S, 8*S, 12*S); ctx.fill()
-  ctx.restore()
 
   // 左侧：最高层数
   const bestFloor = g.storage.bestFloor
   const isCleared = bestFloor >= 30
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
-  ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.3)'; ctx.shadowBlur = 6*S
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
   ctx.fillText(isCleared ? '通关' : `第 ${bestFloor} 层`, W*0.3, heroY + 34*S)
-  ctx.restore()
-  ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#9B8B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText(isCleared ? '已登顶通天塔' : '最高层数', W*0.3, heroY + 52*S)
 
   // 分隔线
-  ctx.strokeStyle = 'rgba(212,175,55,0.2)'; ctx.lineWidth = 1*S
+  ctx.strokeStyle = 'rgba(201,168,76,0.3)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5, heroY + 12*S); ctx.lineTo(W*0.5, heroY + heroH - 12*S); ctx.stroke()
 
   // 右侧：最快通关 / 暂无
   const bestTurns = st.bestTotalTurns || 0
   if (bestTurns > 0) {
-    ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(255,107,107,0.3)'; ctx.shadowBlur = 6*S
+    ctx.fillStyle = '#C0392B'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${bestTurns}`, W*0.7, heroY + 34*S)
-    ctx.restore()
-    ctx.fillStyle = 'rgba(240,220,160,0.6)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#9B8B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('最速通关回合', W*0.7, heroY + 52*S)
   } else {
-    ctx.fillStyle = TH.dim; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#bbb0a0'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
     ctx.fillText('—', W*0.7, heroY + 34*S)
-    ctx.fillStyle = 'rgba(240,220,160,0.4)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#bbb0a0'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('通关后解锁', W*0.7, heroY + 52*S)
   }
 
@@ -769,34 +760,39 @@ function rStats(g) {
     const col = i % colCount, row = Math.floor(i / colCount)
     const cx = padX + col * (colW + colGap)
     const cy = gridY + row * (cardH + rowGap)
-    const cbg = ctx.createLinearGradient(cx, cy, cx, cy + cardH)
-    cbg.addColorStop(0, 'rgba(40,35,25,0.75)'); cbg.addColorStop(1, 'rgba(25,22,15,0.82)')
-    ctx.fillStyle = cbg; R.rr(cx, cy, colW, cardH, 8*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(212,175,55,0.12)'; ctx.lineWidth = 0.5*S
+    ctx.fillStyle = 'rgba(248,242,230,0.93)'
+    R.rr(cx, cy, colW, cardH, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(201,168,76,0.25)'; ctx.lineWidth = 0.5*S
     R.rr(cx, cy, colW, cardH, 8*S); ctx.stroke()
     ctx.textAlign = 'center'
     ctx.fillStyle = card.color; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-    ctx.fillText(card.value, cx + colW*0.5, cy + 24*S)
-    ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
     const valW2 = ctx.measureText(card.value).width
+    // 数值+单位整体居中
+    const unitFont = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.font = unitFont
+    const unitW = ctx.measureText(card.unit).width
+    const totalW = valW2 + 3*S + unitW
+    const valX = cx + (colW - totalW) / 2 + valW2 / 2
+    ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+    ctx.fillText(card.value, valX, cy + 24*S)
+    ctx.fillStyle = '#8B7B60'; ctx.font = unitFont
     ctx.textAlign = 'left'
-    ctx.fillText(card.unit, cx + colW*0.5 + valW2*0.5 + 2*S, cy + 24*S)
+    ctx.fillText(card.unit, valX + valW2/2 + 3*S, cy + 24*S)
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(240,220,160,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B40'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
     ctx.fillText(card.label, cx + colW*0.5, cy + 43*S)
   })
 
   // ── 图鉴进度条 ──
   const barY = gridY + rowCount * (cardH + rowGap) + 4*S
   const barH = 30*S
-  const barBg = ctx.createLinearGradient(padX, barY, padX, barY + barH)
-  barBg.addColorStop(0, 'rgba(40,35,25,0.7)'); barBg.addColorStop(1, 'rgba(25,22,15,0.78)')
-  ctx.fillStyle = barBg; R.rr(padX, barY, heroW, barH, 8*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.12)'; ctx.lineWidth = 0.5*S
+  ctx.fillStyle = 'rgba(248,242,230,0.93)'
+  R.rr(padX, barY, heroW, barH, 8*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(201,168,76,0.25)'; ctx.lineWidth = 0.5*S
   R.rr(padX, barY, heroW, barH, 8*S); ctx.stroke()
   // 进度条
   const pbX = padX + 80*S, pbY = barY + 10*S, pbW = heroW - 94*S, pbH = 10*S
-  ctx.fillStyle = 'rgba(255,255,255,0.06)'
+  ctx.fillStyle = 'rgba(0,0,0,0.06)'
   R.rr(pbX, pbY, pbW, pbH, pbH*0.5); ctx.fill()
   const pct = Math.min(dexCount / 100, 1)
   if (pct > 0) {
@@ -806,22 +802,21 @@ function rStats(g) {
     R.rr(pbX, pbY, pbW * pct, pbH, pbH*0.5); ctx.fill()
   }
   ctx.textAlign = 'left'
-  ctx.fillStyle = 'rgba(240,220,160,0.55)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#8B7B60'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('图鉴进度', padX + 10*S, barY + barH*0.62)
   ctx.textAlign = 'right'
-  ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#2d8c2d'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${dexCount}/100`, W - padX - 10*S, barY + barH*0.62)
 
   // ── 最高记录阵容 ──
   const teamY = barY + barH + 10*S
   const teamH = 70*S
-  const tbg = ctx.createLinearGradient(padX, teamY, padX, teamY + teamH)
-  tbg.addColorStop(0, 'rgba(50,40,20,0.8)'); tbg.addColorStop(1, 'rgba(30,25,12,0.85)')
-  ctx.fillStyle = tbg; R.rr(padX, teamY, heroW, teamH, 10*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
+  ctx.fillStyle = 'rgba(248,242,230,0.93)'
+  R.rr(padX, teamY, heroW, teamH, 10*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(201,168,76,0.3)'; ctx.lineWidth = 1*S
   R.rr(padX, teamY, heroW, teamH, 10*S); ctx.stroke()
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('✦ 最高记录阵容 ✦', W*0.5, teamY + 16*S)
   const bfPets = st.bestFloorPets || []
   const bfWeapon = st.bestFloorWeapon
@@ -843,34 +838,30 @@ function rStats(g) {
       const _bfFullW = ctx.measureText(_bfFull).width
       const _bfStartX = W*0.5 - _bfFullW/2
       ctx.textAlign = 'left'
-      ctx.fillStyle = '#e0a020'
+      ctx.fillStyle = '#8B6914'
       ctx.fillText(_bfLabel, _bfStartX, teamY + 60*S)
-      ctx.fillStyle = '#ffec80'
+      ctx.fillStyle = '#6B5014'
       ctx.fillText(bfWeapon.name, _bfStartX + _bfLabelW, teamY + 60*S)
       ctx.textAlign = 'center'
     }
   } else {
-    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#bbb0a0'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
     ctx.fillText('暂无记录', W*0.5, teamY + 42*S)
   }
 
-  // ── 分享战绩按钮 ──
-  const shareBtnW = W*0.56, shareBtnH = 40*S
+  // ── 分享战绩按钮（暖金扁平风格） ──
+  const shareBtnW = W*0.52, shareBtnH = 36*S
   const shareBtnX = (W - shareBtnW) / 2
   const shareBtnY = teamY + teamH + 14*S
-  const sbg = ctx.createLinearGradient(shareBtnX, shareBtnY, shareBtnX, shareBtnY + shareBtnH)
-  sbg.addColorStop(0, '#f0c040'); sbg.addColorStop(1, '#d4a020')
-  ctx.fillStyle = sbg; R.rr(shareBtnX, shareBtnY, shareBtnW, shareBtnH, shareBtnH*0.5); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.6)'; ctx.lineWidth = 1.5*S
+  ctx.save()
+  ctx.fillStyle = '#d4a840'
+  R.rr(shareBtnX, shareBtnY, shareBtnW, shareBtnH, shareBtnH*0.5); ctx.fill()
+  ctx.strokeStyle = 'rgba(160,130,40,0.35)'; ctx.lineWidth = 1*S
   R.rr(shareBtnX, shareBtnY, shareBtnW, shareBtnH, shareBtnH*0.5); ctx.stroke()
-  ctx.save(); ctx.globalAlpha = 0.15
-  const shlg = ctx.createLinearGradient(shareBtnX, shareBtnY, shareBtnX, shareBtnY + shareBtnH*0.4)
-  shlg.addColorStop(0, '#fff'); shlg.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.fillStyle = shlg; R.rr(shareBtnX + 2*S, shareBtnY + 1, shareBtnW - 4*S, shareBtnH*0.4, shareBtnH*0.5); ctx.fill()
-  ctx.restore()
-  ctx.fillStyle = '#2a1a00'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#4A3010'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('📤 分享战绩给好友', shareBtnX + shareBtnW/2, shareBtnY + shareBtnH/2)
+  ctx.fillText('分享战绩给好友', shareBtnX + shareBtnW/2, shareBtnY + shareBtnH/2)
+  ctx.restore()
   ctx.textBaseline = 'alphabetic'
   g._statsShareBtnRect = [shareBtnX, shareBtnY, shareBtnW, shareBtnH]
 
@@ -1339,15 +1330,20 @@ function rAdventure(g) {
   ctx.fillText(g.adventureData.name, W*0.5, panelY + 42*S)
   // 描述
   ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-  ctx.fillStyle = '#e8d8b8'; ctx.font = `${13*S}px "PingFang SC",sans-serif`
-  ctx.fillText(g.adventureData.desc, W*0.5, panelY + 76*S)
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3*S
+  ctx.fillStyle = '#fff'; ctx.font = `${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(g.adventureData.desc, W*0.5, panelY + 72*S)
+  // 显示具体获得结果
+  if (g._adventureResult) {
+    ctx.fillStyle = '#ffd54f'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.fillText(g._adventureResult, W*0.5, panelY + 94*S)
+  }
   ctx.restore()
   // 效果标记
   ctx.save()
-  ctx.shadowColor = 'rgba(212,175,55,0.3)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText('✦ 效果已生效 ✦', W*0.5, panelY + 116*S)
+  ctx.shadowColor = 'rgba(212,175,55,0.4)'; ctx.shadowBlur = 4*S
+  ctx.fillStyle = '#ffe066'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('✦ 效果已生效 ✦', W*0.5, panelY + (g._adventureResult ? 120 : 116)*S)
   ctx.restore()
   const bx = W*0.3, by = H*0.68, bw = W*0.4, bh = 44*S
   R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
@@ -1383,33 +1379,83 @@ function drawBackBtn(g) {
   g._backBtnRect = [bx, by, btnW, btnH]
 }
 
-// ===== 首页"开始挑战"确认弹窗 =====
+// ===== 首页"开始挑战"确认弹窗（浅色暖白金边风格） =====
 function drawNewRunConfirm(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.78, ph = 200*S
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H)
+  const pw = W * 0.76, ph = 175*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  R.drawDialogPanel(px, py, pw, ph)
+  const rad = 14*S
+
+  ctx.save()
+  // 外层投影
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 16*S; ctx.shadowOffsetY = 4*S
+  // 浅暖白渐变底板
+  const bg = ctx.createLinearGradient(px, py, px, py + ph)
+  bg.addColorStop(0, 'rgba(252,247,238,0.98)')
+  bg.addColorStop(0.5, 'rgba(248,242,230,0.98)')
+  bg.addColorStop(1, 'rgba(242,235,220,0.98)')
+  ctx.fillStyle = bg
+  R.rr(px, py, pw, ph, rad); ctx.fill()
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+
+  // 柔和金色边框
+  ctx.strokeStyle = 'rgba(201,168,76,0.45)'; ctx.lineWidth = 1.5*S
+  R.rr(px, py, pw, ph, rad); ctx.stroke()
+
+  // 顶部金色装饰线
+  ctx.strokeStyle = 'rgba(180,150,60,0.3)'; ctx.lineWidth = 1*S
+  ctx.beginPath()
+  ctx.moveTo(px + pw*0.15, py + 38*S)
+  ctx.lineTo(px + pw*0.85, py + 38*S)
+  ctx.stroke()
+  // 装饰线中心菱形
+  const diaX = px + pw*0.5, diaY = py + 38*S, diaR = 3*S
+  ctx.fillStyle = 'rgba(201,168,76,0.5)'
+  ctx.beginPath()
+  ctx.moveTo(diaX, diaY - diaR); ctx.lineTo(diaX + diaR, diaY)
+  ctx.lineTo(diaX, diaY + diaR); ctx.lineTo(diaX - diaR, diaY)
+  ctx.closePath(); ctx.fill()
 
   // 标题
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('开始新挑战', px + pw*0.5, py + 48*S)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#6B5014'
+  ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  ctx.fillText('开始新挑战', px + pw*0.5, py + 28*S)
 
   // 说明文字
-  ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 72*S)
-  ctx.fillStyle = '#e8a840'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 92*S)
+  ctx.fillStyle = '#7B7060'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('当前有未完成的挑战进度', px + pw*0.5, py + 58*S)
+  ctx.fillStyle = '#C0392B'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('开始新挑战将清空之前的记录！', px + pw*0.5, py + 78*S)
 
   // 按钮
-  const btnW = pw * 0.32, btnH = 34*S, gap = 14*S
+  const btnW = pw * 0.30, btnH = 30*S, gap = 16*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 124*S
-  R.drawDialogBtn(btn1X, btnY, btnW, btnH, '取消', 'cancel')
+  const btnY = py + 108*S
+
+  // 取消按钮 — 浅灰扁平
+  ctx.fillStyle = '#ede8de'
+  R.rr(btn1X, btnY, btnW, btnH, btnH*0.5); ctx.fill()
+  ctx.strokeStyle = 'rgba(180,165,130,0.45)'; ctx.lineWidth = 1*S
+  R.rr(btn1X, btnY, btnW, btnH, btnH*0.5); ctx.stroke()
+  ctx.fillStyle = '#8B7B60'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('取消', btn1X + btnW*0.5, btnY + btnH*0.5)
   g._newRunCancelRect = [btn1X, btnY, btnW, btnH]
-  R.drawDialogBtn(btn2X, btnY, btnW, btnH, '确认开始', 'confirm')
+
+  // 确认按钮 — 暖金扁平
+  ctx.fillStyle = '#d4a840'
+  R.rr(btn2X, btnY, btnW, btnH, btnH*0.5); ctx.fill()
+  ctx.strokeStyle = 'rgba(160,130,40,0.35)'; ctx.lineWidth = 1*S
+  R.rr(btn2X, btnY, btnW, btnH, btnH*0.5); ctx.stroke()
+  ctx.fillStyle = '#4A3010'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText('确认开始', btn2X + btnW*0.5, btnY + btnH*0.5)
   g._newRunConfirmRect = [btn2X, btnY, btnW, btnH]
+
+  ctx.textBaseline = 'alphabetic'
+  ctx.restore()
 }
 
 // ===== Dex（灵兽图鉴） =====
@@ -1612,7 +1658,7 @@ function _drawDexPetDetail(g) {
   const closeH = 18*S
 
   // 预计算文本行
-  const loreLines = _wrapTextDex(lore, maxTextW, 10)
+  const loreLines = _wrapTextDex(lore, maxTextW, 11)
   const skillDescLines = _wrapTextDex(skillDesc, maxTextW - 8*S, 10)
   if (!isMaxStar) {
     nextSkillDescLines = _wrapTextDex(nextSkillDesc, maxTextW - 8*S, 10)
