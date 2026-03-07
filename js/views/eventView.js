@@ -45,7 +45,7 @@ function _drawBadge(ctx, S, x, y, size, text, bgColor) {
 
 function rEvent(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawRewardBg(g.af)
+  R.drawEventBg(g.af)
   const ev = g.curEvent
   if (!ev) return
   const padX = 12*S
@@ -519,9 +519,9 @@ function rEvent(g) {
 
   // --- 敌人信息卡（紧凑版） ---
   const cardX = padX, cardW = W - padX*2, cardTop = curY, cardH = 90*S
-  ctx.fillStyle = 'rgba(15,15,30,0.75)'
+  ctx.fillStyle = 'rgba(255,248,230,0.88)'
   R.rr(cardX, cardTop, cardW, cardH, 10*S); ctx.fill()
-  ctx.strokeStyle = ac ? ac.main + '66' : 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1
+  ctx.strokeStyle = ac ? ac.main + '55' : 'rgba(180,160,120,0.35)'; ctx.lineWidth = 1.5*S
   R.rr(cardX, cardTop, cardW, cardH, 10*S); ctx.stroke()
 
   const avatarSize = 60*S
@@ -551,11 +551,11 @@ function rEvent(g) {
   const infoX = avatarX + avatarSize + 12*S
   let infoY = cardTop + 24*S
   ctx.textAlign = 'left'
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = ac ? ac.dk : '#3D2B1F'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText(e.name, infoX, infoY)
   infoY += 20*S
   // 属性文字
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = ac ? ac.dk : '#5C4A3A'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${ATTR_NAME[e.attr]}属性`, infoX, infoY)
   // 弱点 & 抵抗（下一行，用属性球，增大显示）
   infoY += 22*S
@@ -563,7 +563,7 @@ function rEvent(g) {
   let bx = infoX
   const weakAttr = COUNTER_BY[e.attr]
   if (weakAttr) {
-    ctx.fillStyle = '#ddd'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#5C4A3A'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
     ctx.fillText('弱点:', bx, infoY)
     bx += ctx.measureText('弱点:').width + 5*S
     // 弱点球发光特效
@@ -584,7 +584,7 @@ function rEvent(g) {
   }
   const resistAttr = COUNTER_MAP[e.attr]
   if (resistAttr) {
-    ctx.fillStyle = '#999'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#7A6A5A'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
     ctx.fillText('抵抗:', bx, infoY)
     bx += ctx.measureText('抵抗:').width + 5*S
     R.drawBead(bx + orbR2, infoY - 4*S, orbR2, resistAttr, 0)
@@ -611,7 +611,7 @@ function rEvent(g) {
 
   // ===== 己方队伍标题 =====
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5B40'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 己方队伍 ──', W*0.5, curY)
   curY += 14*S
 
@@ -621,9 +621,9 @@ function rEvent(g) {
   const _realmName = _realm ? _realm.name : ''
   if (_realmName) {
     ctx.save()
-    ctx.fillStyle = '#e8d5b0'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 2*S
+    ctx.shadowColor = 'rgba(255,255,255,0.5)'; ctx.shadowBlur = 0
     const _rlW = ctx.measureText(_realmName).width + 6*S
     ctx.fillText(_realmName, padX, curY + hpBarH * 0.5)
     ctx.restore()
@@ -696,7 +696,7 @@ function rEvent(g) {
         for (let i = 0; i < items.length; i++) {
           if (i > 0) dx += ctx.measureText(sep).width
           const tw = ctx.measureText(items[i].text).width
-          ctx.fillStyle = items[i].isDebuff ? '#ff8888' : '#88ff99'
+          ctx.fillStyle = items[i].isDebuff ? '#C0392B' : '#27864A'
           ctx.textAlign = 'left'
           ctx.fillText(items[i].text, dx, dy)
           dx += tw
@@ -720,8 +720,10 @@ function rEvent(g) {
   const teamIconY = teamBarY + (teamBarH - teamIconSize) / 2
 
   // 队伍栏背景
-  ctx.fillStyle = 'rgba(8,8,20,0.88)'
+  ctx.fillStyle = 'rgba(255,248,230,0.82)'
   R.rr(0, teamBarY, W, teamBarH, 6*S); ctx.fill()
+  ctx.strokeStyle = 'rgba(180,160,120,0.3)'; ctx.lineWidth = 1*S
+  R.rr(0, teamBarY, W, teamBarH, 6*S); ctx.stroke()
 
   const framePetMap = {
     metal: R.getImg('assets/ui/frame_pet_metal.png'),
@@ -748,7 +750,7 @@ function rEvent(g) {
       // === 法宝槽 ===
       const isWpnDragSrc = g._eventDragWpn && g._eventDragWpn.source === 'equipped'
       if (isWpnDragSrc) ctx.globalAlpha = 0.3
-      ctx.fillStyle = g.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
+      ctx.fillStyle = g.weapon ? '#f0e8d8' : 'rgba(240,232,216,0.8)'
       ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
       if (g.weapon) {
         const wpnImg = R.getImg(`assets/equipment/fabao_${g.weapon.id}.png`)
@@ -759,7 +761,7 @@ function rEvent(g) {
         }
         ctx.restore()
       } else {
-        ctx.fillStyle = 'rgba(80,70,60,0.3)'
+        ctx.fillStyle = 'rgba(140,120,80,0.4)'
         ctx.font = `${teamIconSize*0.26}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillText('⚔', cx, cy)
@@ -828,7 +830,7 @@ function rEvent(g) {
           ctx.restore()
         }
       } else {
-        ctx.fillStyle = 'rgba(18,18,30,0.6)'
+        ctx.fillStyle = 'rgba(220,210,190,0.5)'
         ctx.fillRect(ix + 1, teamIconY + 1, teamIconSize - 2, teamIconSize - 2)
         if (petFrame && petFrame.width > 0) {
           ctx.save(); ctx.globalAlpha = 0.35
@@ -875,10 +877,10 @@ function rEvent(g) {
 
   // --- 法宝背包 ---
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5B40'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 法宝背包 ──', W*0.5, curY)
   curY += 14*S
-  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = 'rgba(120,105,80,0.6)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('拖动到上方可替换装备', W*0.5, curY)
   curY += 10*S
   if (g.weaponBag.length > 0) {
@@ -890,7 +892,7 @@ function rEvent(g) {
       const wp = g.weaponBag[i]
       const isWBDragSrc = g._eventDragWpn && g._eventDragWpn.source === 'bag' && g._eventDragWpn.index === i
       if (isWBDragSrc) ctx.globalAlpha = 0.3
-      ctx.fillStyle = 'rgba(15,15,30,0.6)'
+      ctx.fillStyle = 'rgba(240,232,216,0.7)'
       ctx.fillRect(bx+1, by+1, bagSlotSize-2, bagSlotSize-2)
       const wImg = R.getImg(`assets/equipment/fabao_${wp.id}.png`)
       if (wImg && wImg.width > 0) {
@@ -912,17 +914,17 @@ function rEvent(g) {
     curY += wpnRows * (bagSlotSize + bagGap) + 6*S
   } else {
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(120,105,80,0.45)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
     curY += bagSlotSize*0.8 + 6*S
   }
 
   // --- 灵宠背包 ---
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#d0c0a0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5B40'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('── 灵宠背包 ──', W*0.5, curY)
   curY += 14*S
-  ctx.fillStyle = 'rgba(200,180,140,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = 'rgba(120,105,80,0.6)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('拖动到上方队伍可交换', W*0.5, curY)
   curY += 10*S
   if (g.petBag.length > 0) {
@@ -970,7 +972,7 @@ function rEvent(g) {
     curY += bagRows * (bagIconSize + bagGap)
   } else {
     ctx.textAlign = 'center'
-    ctx.fillStyle = 'rgba(200,180,140,0.4)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(120,105,80,0.45)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('空', W*0.5, curY + bagSlotSize*0.4)
     curY += bagSlotSize*0.8
   }
@@ -980,14 +982,14 @@ function rEvent(g) {
   if (g._tutorialJustDone && g.floor === 1) {
     const hintW = W * 0.88, hintX = (W - hintW) / 2
     const hintY = curY
-    ctx.fillStyle = 'rgba(20,30,50,0.85)'
+    ctx.fillStyle = 'rgba(255,248,230,0.92)'
     R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(100,180,255,0.4)'; ctx.lineWidth = 1
+    ctx.strokeStyle = 'rgba(46,109,164,0.4)'; ctx.lineWidth = 1
     R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.stroke()
     ctx.textAlign = 'center'
-    ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#2E6DA4'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('💡 冒险开始', W*0.5, hintY + 14*S)
-    ctx.fillStyle = '#b0c8e0'; ctx.font = `${9.5*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#4A6A8A'; ctx.font = `${9.5*S}px "PingFang SC",sans-serif`
     ctx.fillText('正式冒险初始携带4只灵兽和1件基础法宝', W*0.5, hintY + 30*S)
     ctx.fillText('击败怪物可获得新灵兽或法宝，通关30层即为胜利！', W*0.5, hintY + 44*S)
     curY += 64*S

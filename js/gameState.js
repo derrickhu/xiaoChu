@@ -119,7 +119,10 @@ function initState(g) {
   g.skillPreview = null
   g.showExitDialog = false
   g.showNewRunConfirm = false
-  g.showMorePanel = false    // 首页「更多」面板
+  g.showMorePanel = false         // 首页「更多」面板
+  g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
+  g.titleMode = 'tower'           // 首页当前展示的模式：'tower' | 'stage'
+  g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
 
   // ===== 排行榜 =====
