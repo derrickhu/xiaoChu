@@ -608,11 +608,12 @@ function tBattle(g, type, x, y) {
   }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
-    // 第30层通关面板：点击确认直接结束
+    // 第30层通关面板：点击确认直接回首页（跳过gameover页面）
     if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g.cleared = true
       g._endRun()
+      g.scene = 'title'
       return
     }
     if (g.floor >= MAX_FLOOR) return
