@@ -462,6 +462,24 @@ function rBattle(g) {
     _drawEnemyTurnBanner(g)
   }
 
+  // [DEBUG] 一键跳过战斗按钮
+  if (g.bState !== 'victory' && g.bState !== 'defeat') {
+    const dbW = 56*S, dbH = 22*S, dbX = 8*S, dbY = eAreaBottom - dbH - 8*S
+    ctx.save()
+    ctx.globalAlpha = 0.55
+    ctx.fillStyle = '#222'
+    R.rr(dbX, dbY, dbW, dbH, 6*S); ctx.fill()
+    ctx.globalAlpha = 1
+    ctx.fillStyle = '#ff6'
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('跳过▶', dbX + dbW/2, dbY + dbH/2)
+    ctx.restore()
+    g._debugSkipRect = [dbX, dbY, dbW, dbH]
+  } else {
+    g._debugSkipRect = null
+  }
+
   // 胜利/失败覆盖（教学中由教学overlay接管，不显示正常胜利面板）
   if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
