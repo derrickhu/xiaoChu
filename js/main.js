@@ -78,6 +78,9 @@ class Main {
       'assets/ui/btn_start.png',
       'assets/ui/btn_continue.png',
       'assets/ui/btn_rank.png',
+      'assets/ui/btn_bg.png',
+      'assets/ui/btn_mode_switch.png',
+      'assets/ui/lock.png',
       // 底部导航栏图标及背景
       'assets/ui/nav_bar_bg.png',
       'assets/ui/nav_hero.png',

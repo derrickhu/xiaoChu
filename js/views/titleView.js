@@ -274,7 +274,17 @@ function drawStartBtn(g) {
     ctx.fillStyle = 'rgba(140,140,160,0.6)'
     ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('🔒 即将开放', btnX + btnW / 2, btnY + btnH / 2)
+    const lockImg = R.getImg('assets/ui/lock.png')
+    const lockSz = 18 * S
+    const textX = btnX + btnW / 2
+    const textY = btnY + btnH / 2
+    if (lockImg && lockImg.width > 0) {
+      const totalW = lockSz + 4 * S + ctx.measureText('即将开放').width
+      ctx.drawImage(lockImg, textX - totalW / 2, textY - lockSz / 2, lockSz, lockSz)
+      ctx.fillText('即将开放', textX - totalW / 2 + lockSz + 4 * S + ctx.measureText('即将开放').width / 2, textY)
+    } else {
+      ctx.fillText('🔒 即将开放', textX, textY)
+    }
 
     g._startBtnRect = null
   }
@@ -380,46 +390,73 @@ function drawModeSwitchBtn(g) {
   const targetMode = MODE_CFG[mode].switchKey
   const targetCfg = MODE_CFG[targetMode]
 
-  // 正方形图标：图案区 + 文字标签（参考参考图精英模式图标样式）
-  const iconSize  = L.modeSwitchH          // 图案区边长（正方形）
-  const labelSize = 11 * S                 // 标签文字高度
-  const gap       = 4 * S
-  const btnW      = iconSize               // 整体宽度 = 图标边长
-  const btnH      = iconSize + gap + labelSize
-  const btnX      = L.pad
-  const btnY      = L.modeSwitchY
+  // 竖排布局：图标在上 + 文字在下，整体左上偏移
+  const iconSize  = L.modeSwitchH * 0.72   // 图标缩小
+  const labelSize = 11 * S
+  const vGap      = 3 * S                  // 图标与文字垂直间距
+  const btnBgImg  = R.getImg('assets/ui/btn_bg.png')
+  const rawBgW    = (btnBgImg && btnBgImg.width > 0 && btnBgImg.height > 0)
+    ? iconSize * (btnBgImg.width / btnBgImg.height)
+    : iconSize
+  const bgW       = Math.max(iconSize, Math.min(rawBgW, iconSize * 2.2))
+  const btnH      = iconSize + vGap + labelSize
+  const btnX      = L.pad - 4 * S          // 往左偏移
+  const btnY      = L.modeSwitchY - 6 * S   // 往上偏移
+  const btnW      = bgW
 
   ctx.save()
 
-  // 半透明深色圆角背景框
-  ctx.fillStyle = 'rgba(20,18,38,0.75)'
-  R.rr(btnX, btnY, iconSize, iconSize, 10 * S); ctx.fill()
-  ctx.strokeStyle = 'rgba(200,180,120,0.45)'; ctx.lineWidth = 1.5 * S
-  R.rr(btnX, btnY, iconSize, iconSize, 10 * S); ctx.stroke()
-
-  // 优先使用素材图片，否则绘制 emoji 占位
-  const btnImg = R.getImg('assets/ui/btn_mode_switch.png')
-  const cx = btnX + iconSize / 2
-  const cy = btnY + iconSize / 2
-  if (btnImg && btnImg.width > 0) {
-    const pad = 6 * S
-    ctx.drawImage(btnImg, btnX + pad, btnY + pad, iconSize - pad * 2, iconSize - pad * 2)
+  // 背景图覆盖图标区域
+  if (btnBgImg && btnBgImg.width > 0) {
+    ctx.drawImage(btnBgImg, btnX, btnY, bgW, iconSize)
   } else {
-    ctx.fillStyle = 'rgba(255,210,80,0.92)'
-    ctx.font = `${iconSize * 0.52}px sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('⇆', cx, cy)
+    ctx.fillStyle = 'rgba(20,18,38,0.75)'
+    R.rr(btnX, btnY, bgW, iconSize, 8 * S); ctx.fill()
+    ctx.strokeStyle = 'rgba(200,180,120,0.45)'; ctx.lineWidth = 1.5 * S
+    R.rr(btnX, btnY, bgW, iconSize, 8 * S); ctx.stroke()
   }
 
-  // 文字标签（显示目标模式名称，叠在图标下方）
-  const labelY = btnY + iconSize + gap + labelSize * 0.5
+  // 切换图标
+  const btnImg = R.getImg('assets/ui/btn_mode_switch.png')
+  const icx = btnX + bgW / 2
+  const icy = btnY + iconSize / 2
+  if (btnImg && btnImg.width > 0) {
+    const pad = 4 * S
+    const drawSz = iconSize - pad * 2
+
+    ctx.save()
+    ctx.shadowColor = 'rgba(255,200,80,0.6)'
+    ctx.shadowBlur = 6 * S
+    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1.5 * S
+    ctx.globalAlpha = 0.5
+    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
+    ctx.restore()
+
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'
+    ctx.shadowBlur = 3 * S
+    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1.5 * S
+    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
+    ctx.shadowColor = 'transparent'
+    ctx.globalAlpha = 0.35
+    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = 'rgba(255,210,80,0.92)'
+    ctx.font = `${iconSize * 0.48}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('⇆', icx, icy)
+  }
+
+  // 文字标签在图标下方居中
+  const labelY = btnY + iconSize + vGap + labelSize * 0.5
   ctx.fillStyle = 'rgba(255,235,160,0.95)'
   ctx.strokeStyle = 'rgba(20,10,40,0.7)'
   ctx.lineWidth = 2.5 * S
   ctx.font = `bold ${labelSize}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.strokeText(targetCfg.name, cx, labelY)
-  ctx.fillText(targetCfg.name, cx, labelY)
+  ctx.strokeText(targetCfg.name, icx, labelY)
+  ctx.fillText(targetCfg.name, icx, labelY)
 
   g._modeSwitchRect = [btnX, btnY, btnW, btnH]
   ctx.restore()
@@ -541,6 +578,17 @@ function drawBottomBar(g) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         ctx.fillStyle = '#fff'
         ctx.fillText(item.icon, iconCX, iconCY)
+      }
+
+      // locked 项右下角叠加锁图标
+      if (isLocked) {
+        const lockImg = R.getImg('assets/ui/lock.png')
+        const lockSz = drawSize * 0.36
+        if (lockImg && lockImg.width > 0) {
+          ctx.globalAlpha = 0.85
+          ctx.drawImage(lockImg, iconCX + drawSize * 0.12, drawTop + drawSize * 0.58, lockSz, lockSz)
+          ctx.globalAlpha = isLocked ? 0.38 : 1
+        }
       }
 
       const labelSize = 11 * S
