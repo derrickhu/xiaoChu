@@ -6,6 +6,8 @@ const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_M
 const { getPetStarAtk, getPetAvatarPath, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
 const MusicMgr = require('../runtime/music')
+const Particles = require('../engine/particles')
+const FXComposer = require('../engine/effectComposer')
 
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
@@ -114,6 +116,16 @@ function rBattle(g) {
         ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
         ctx.globalCompositeOperation = 'source-over'
         ctx.globalAlpha = 1
+      }
+      // 受击红色染色脉冲
+      if (g._enemyTintFlash > 0) {
+        const tintAlpha = (g._enemyTintFlash / 8) * 0.3
+        ctx.save()
+        ctx.globalAlpha = tintAlpha
+        ctx.globalCompositeOperation = 'source-atop'
+        ctx.fillStyle = '#ff2244'
+        ctx.fillRect(imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+        ctx.restore()
       }
       ctx.restore()
 
@@ -1370,6 +1382,8 @@ function drawBoard(g) {
         ctx.globalAlpha = 0.3
       }
       let drawX = x, drawY = y
+      // 掉落补间偏移
+      if (cell._dropOffY) drawY += cell._dropOffY
       if (g.swapAnim) {
         const sa = g.swapAnim, t = sa.t/sa.dur
         if (sa.r1===r && sa.c1===c) { drawX = x+(sa.c2-sa.c1)*cs*t; drawY = y+(sa.r2-sa.r1)*cs*t }
@@ -1532,7 +1546,7 @@ function drawBoard(g) {
     g._dragTrailParticles = null
   }
 
-  // 消除冲击波纹（多层扩散 + 属性色碎片粒子，匹配16帧消除）
+  // 消除冲击波纹（增强版：多层扩散 + 辉光 + 粒子引擎爆发）
   if (g.elimAnimCells && g.elimAnimTimer <= 16) {
     const eP = g.elimAnimTimer / 16
     const elimAttrColor = ATTR_COLOR[g.elimAnimCells[0]?.attr]?.main || '#ffffff'
@@ -1540,45 +1554,65 @@ function drawBoard(g) {
     g.elimAnimCells.forEach(ec => { eCx += bx + ec.c*cs + cs*0.5; eCy += by + ec.r*cs + cs*0.5 })
     eCx /= g.elimAnimCells.length; eCy /= g.elimAnimCells.length
     ctx.save()
-    // 主波纹（较快扩散）
-    const waveR = cs * (0.5 + eP * 2.5)
-    ctx.globalAlpha = (1 - eP) * 0.55
+    // 中心辉光光斑
+    const glowRadius = cs * (0.8 + eP * 1.5)
+    FXComposer.drawGlowSpot(ctx, eCx, eCy, glowRadius, elimAttrColor, (1 - eP) * 0.5)
+    // 主波纹（较快扩散，加粗）
+    const waveR = cs * (0.5 + eP * 2.8)
+    ctx.globalAlpha = (1 - eP) * 0.65
     ctx.strokeStyle = elimAttrColor
-    ctx.lineWidth = (3 - eP * 2) * S
+    ctx.lineWidth = (4 - eP * 3) * S
     ctx.beginPath(); ctx.arc(eCx, eCy, waveR, 0, Math.PI*2); ctx.stroke()
     // 内层波纹（稍慢，跟随）
-    if (eP > 0.1) {
-      const innerP = (eP - 0.1) / 0.9
-      const waveR2 = cs * (0.3 + innerP * 2)
-      ctx.globalAlpha = (1 - innerP) * 0.35
-      ctx.lineWidth = (2 - innerP * 1.5) * S
+    if (eP > 0.08) {
+      const innerP = (eP - 0.08) / 0.92
+      const waveR2 = cs * (0.3 + innerP * 2.2)
+      ctx.globalAlpha = (1 - innerP) * 0.4
+      ctx.lineWidth = (2.5 - innerP * 1.5) * S
       ctx.beginPath(); ctx.arc(eCx, eCy, waveR2, 0, Math.PI*2); ctx.stroke()
     }
-    // 4+消额外强波纹
-    if (g.elimAnimCells.length >= 4 && eP > 0.15) {
-      const outerP = (eP - 0.15) / 0.85
-      const waveR3 = cs * (0.6 + outerP * 3)
-      ctx.globalAlpha = (1 - outerP) * 0.25
-      ctx.lineWidth = (2.5 - outerP * 2) * S
+    // 4+消额外强波纹 + 辉光
+    if (g.elimAnimCells.length >= 4 && eP > 0.12) {
+      const outerP = (eP - 0.12) / 0.88
+      const waveR3 = cs * (0.6 + outerP * 3.5)
+      ctx.globalAlpha = (1 - outerP) * 0.3
+      ctx.lineWidth = (3 - outerP * 2.5) * S
       ctx.strokeStyle = '#fff'
       ctx.beginPath(); ctx.arc(eCx, eCy, waveR3, 0, Math.PI*2); ctx.stroke()
+      FXComposer.drawGlowSpot(ctx, eCx, eCy, waveR3 * 0.6, elimAttrColor, (1 - outerP) * 0.3)
     }
-    // 消除爆散粒子（在消除中后期，从消除中心向外射出小光点）
+    // 在消除第3帧用粒子引擎发射一次纹理粒子（仅触发一次）
+    if (g.elimAnimTimer === 3 && !g._elimParticlesFired) {
+      g._elimParticlesFired = true
+      const elimCount = g.elimAnimCells.length
+      const pCount = elimCount >= 5 ? 24 : elimCount >= 4 ? 16 : 10
+      const comboMul = Math.min(2, 1 + (g.combo || 0) * 0.05)
+      Particles.burst({
+        x: eCx, y: eCy, count: Math.round(pCount * comboMul),
+        speed: (3 + elimCount * 0.5) * S, size: (3 + elimCount * 0.3) * S,
+        life: 18 + elimCount * 3, gravity: 0.1 * S, drag: 0.96,
+        colors: ['#fff', elimAttrColor, elimAttrColor, '#ffe8b0'],
+        shape: elimCount >= 5 ? 'star' : 'glow',
+      })
+    }
+    // 传统爆散粒子保留作为补充
     if (eP > 0.25 && eP < 0.85) {
       const sparkP = (eP - 0.25) / 0.6
       const sparkCount = g.elimAnimCells.length >= 5 ? 10 : g.elimAnimCells.length >= 4 ? 7 : 5
       for (let si = 0; si < sparkCount; si++) {
         const angle = (si / sparkCount) * Math.PI * 2 + g.elimAnimTimer * 0.2
-        const dist = cs * (0.3 + sparkP * 1.8)
+        const dist = cs * (0.3 + sparkP * 2)
         const sx = eCx + Math.cos(angle) * dist
         const sy = eCy + Math.sin(angle) * dist
-        const sparkR = (1.5 + (si % 3) * 0.5) * S * (1 - sparkP * 0.6)
-        ctx.globalAlpha = (1 - sparkP) * 0.75
+        const sparkR = (2 + (si % 3) * 0.6) * S * (1 - sparkP * 0.5)
+        ctx.globalAlpha = (1 - sparkP) * 0.8
         ctx.fillStyle = si % 3 === 0 ? '#fff' : elimAttrColor
         ctx.beginPath(); ctx.arc(sx, sy, sparkR, 0, Math.PI*2); ctx.fill()
       }
     }
     ctx.restore()
+  } else if (!g.elimAnimCells) {
+    g._elimParticlesFired = false
   }
 }
 

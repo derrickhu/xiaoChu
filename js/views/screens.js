@@ -991,13 +991,13 @@ function rReward(g) {
 
     // 卷轴亮底 vs 降级深底的文字配色切换
     const _darkText = _useScrollBg
-    const _txtMain   = _darkText ? '#3D2B1F' : '#FFF2D0'
-    const _txtSub    = _darkText ? '#5C4A3A' : 'rgba(235,225,200,0.9)'
-    const _txtDim    = _darkText ? '#7A6A5A' : 'rgba(220,205,170,0.75)'
-    const _txtGold   = _darkText ? '#8B6914' : '#FFD870'
-    const _txtGreen  = _darkText ? '#27864A' : '#6EEE9A'
-    const _txtOrange = _darkText ? '#C07000' : '#F0C050'
-    const _txtStroke = _darkText ? null : 'rgba(30,20,5,0.6)'
+    const _txtMain   = _darkText ? '#2A1A10' : '#FFF2D0'
+    const _txtSub    = _darkText ? '#3F3025' : 'rgba(235,225,200,0.9)'
+    const _txtDim    = _darkText ? '#4A3A2E' : 'rgba(220,205,170,0.75)'
+    const _txtGold   = _darkText ? '#7A590A' : '#FFD870'
+    const _txtGreen  = _darkText ? '#1E7A42' : '#6EEE9A'
+    const _txtOrange = _darkText ? '#A85C00' : '#F0C050'
+    const _txtStroke = _darkText ? 'rgba(255,248,232,0.7)' : 'rgba(30,20,5,0.6)'
 
     // 卷轴模式下头像右移，避开左侧木轴
     const _contentPadL = _useScrollBg ? 38*S : 12*S
@@ -1037,69 +1037,102 @@ function rReward(g) {
         ctx.drawImage(petFrame, avX - fOff, avY - fOff, fSz, fSz)
       }
 
+      // 已拥有判断（用于头像下方星级 & 名称后升星标注）
+      const allOwned = [...(g.pets || []), ...(g.petBag || [])]
+      const ownedPet = allOwned.find(op => op.id === p.id)
+
+      // 头像下方标签：已拥有显示星级，未拥有显示"新"
+      ctx.textAlign = 'center'
+      if (ownedPet) {
+        const ownedStar = ownedPet.star || 1
+        const starFontSz = 12*S
+        const starGap = 14*S
+        const totalStarW = ownedStar * starGap
+        const starStartX = avX + avSz/2 - totalStarW/2 + starGap/2
+        const starY = avY + avSz + 15*S
+        ctx.save()
+        ctx.font = `bold ${starFontSz}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        for (let si = 0; si < ownedStar; si++) {
+          const sx = starStartX + si * starGap
+          ctx.strokeStyle = '#3A2A10'; ctx.lineWidth = 3*S
+          ctx.strokeText('★', sx, starY)
+          ctx.fillStyle = '#FFD700'
+          ctx.fillText('★', sx, starY)
+        }
+        ctx.restore()
+      } else {
+        ctx.save()
+        const newX = avX + avSz/2, newY = avY + avSz + 15*S
+        ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillStyle = '#E04040'
+        ctx.fillText('新', newX, newY)
+        ctx.restore()
+      }
+
       // 右侧文字信息
       const _contentPadR = _useScrollBg ? 32*S : 10*S
       const infoX = avX + avSz + 14*S
       const textMaxW = cardX + cardW - infoX - _contentPadR
       let iy = cy + 36*S
 
-      // 名称 + 属性标签
+      // 名称 + 属性球 + 升星标注
       ctx.textAlign = 'left'
       ctx.fillStyle = _txtMain; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
       if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 2 * S; ctx.strokeText(p.name, infoX, iy) }
       ctx.fillText(p.name, infoX, iy)
-      const nameW = ctx.measureText(p.name).width
+      let nameEndX = infoX + ctx.measureText(p.name).width
       const orbR = 7*S
-      R.drawBead(infoX + nameW + 7*S + orbR, iy - orbR*0.4, orbR, p.attr, 0)
+      R.drawBead(nameEndX + 7*S + orbR, iy - orbR*0.4, orbR, p.attr, 0)
+      nameEndX += 7*S + orbR*2 + 4*S
+
+      if (ownedPet) {
+        const ownedStar = ownedPet.star || 1
+        if (ownedStar >= MAX_STAR) {
+          ctx.fillStyle = _txtOrange; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+          ctx.fillText('已满星', nameEndX, iy)
+        } else {
+          ctx.fillStyle = _txtGreen; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`可升至${ownedStar+1}星`, nameEndX, iy)
+        }
+      }
 
       // ATK + CD
       iy += 22*S
       ctx.fillStyle = _txtSub; ctx.font = `${13*S}px "PingFang SC",sans-serif`
       ctx.fillText(`ATK: ${p.atk}    CD: ${p.cd}回合`, infoX, iy)
 
-      // 已拥有标注
-      const allOwned = [...(g.pets || []), ...(g.petBag || [])]
-      const ownedPet = allOwned.find(op => op.id === p.id)
-      if (ownedPet) {
-        iy += 20*S
-        const ownedStar = ownedPet.star || 1
-        const starDisp = '★'.repeat(ownedStar) + (ownedStar < MAX_STAR ? '☆'.repeat(MAX_STAR - ownedStar) : '')
-        if (ownedStar >= MAX_STAR) {
-          ctx.fillStyle = _txtOrange; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`已拥有 ${starDisp}（已满星）`, infoX, iy)
-        } else {
-          ctx.fillStyle = _txtGreen; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`已拥有 ${starDisp}　选择则升至${ownedStar+1}星`, infoX, iy)
-        }
-      }
-
       // 技能
       if (p.skill) {
         iy += 20*S
         if (petHasSkill(p)) {
           ctx.fillStyle = _txtGold; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText(`技能：${p.skill.name}`, infoX, iy) }
           ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
           iy += 18*S
           ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
           const descLines = _wrapText(getPetSkillDesc(p), textMaxW, 12)
           descLines.forEach(line => {
+            if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
             ctx.fillText(line, infoX, iy)
             iy += 16*S
           })
         } else {
           ctx.fillStyle = _txtDim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText('技能：升至★2解锁', infoX, iy) }
           ctx.fillText('技能：升至★2解锁', infoX, iy)
           iy += 18*S
           ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`（${p.skill.name}：${p.skill.desc}）`, infoX, iy)
-          iy += 16*S
+          const lockedSkillLines = _wrapText(`（${p.skill.name}：${p.skill.desc}）`, textMaxW, 12)
+          lockedSkillLines.forEach(line => {
+            if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
+            ctx.fillText(line, infoX, iy)
+            iy += 16*S
+          })
+          iy -= 16*S
         }
       }
-
-      // 背包容量
-      ctx.textAlign = 'right'
-      ctx.fillStyle = _txtDim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`背包 ${g.petBag.length}只`, cardX + cardW - _contentPadR, cy + cardH - 10*S)
 
     } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
       // ====== 法宝卡片：图标 + 详细信息 ======
@@ -1158,6 +1191,7 @@ function rReward(g) {
       if (w.desc) {
         const descLines = _wrapText(w.desc, textMaxW, 13)
         descLines.forEach(line => {
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
           ctx.fillText(line, infoX, iy)
           iy += 18*S
         })
@@ -1166,16 +1200,12 @@ function rReward(g) {
       // 属性相关提示（属性球代替文字）
       if (w.attr) {
         ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+        if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText('对应属性：', infoX, iy) }
         ctx.fillText('对应属性：', infoX, iy)
         const labelW = ctx.measureText('对应属性：').width
         const orbR = 7*S
         R.drawBead(infoX + labelW + orbR, iy - orbR*0.4, orbR, w.attr, 0)
       }
-
-      // 背包容量
-      ctx.textAlign = 'right'
-      ctx.fillStyle = _txtDim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`背包 ${g.weaponBag.length}件`, cardX + cardW - _contentPadR, cy + cardH - 10*S)
 
     } else {
       // ====== 普通Buff卡片：图标 + 文字 ======
@@ -1219,14 +1249,17 @@ function rReward(g) {
       // 类型标签（图标右上方）
       const textX = iconX + iconSz + 10*S
       ctx.fillStyle = tagColor; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(typeTag, textX, cy + cardH*0.38) }
       ctx.fillText(typeTag, textX, cy + cardH*0.38)
 
       // 名称（居中偏右）
       ctx.fillStyle = _txtMain; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText(rw.label, textX, cy + cardH*0.62) }
       ctx.fillText(rw.label, textX, cy + cardH*0.62)
 
       // 底部提示
       ctx.fillStyle = _txtDim; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText('全队永久生效', textX, cy + cardH*0.84) }
       ctx.fillText('全队永久生效', textX, cy + cardH*0.84)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])

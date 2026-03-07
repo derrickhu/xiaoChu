@@ -3,6 +3,8 @@
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
+const Particles = require('./engine/particles')
+const FXComposer = require('./engine/effectComposer')
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -1252,48 +1254,73 @@ class Render {
       case 'slash': {
         c.globalAlpha = Math.min(1, (1-p)*2)
         const slashX = W * 0.2 + p * W * 0.6
-        const slashW = 120*S
-        const g = c.createLinearGradient(slashX-slashW/2, 0, slashX+slashW/2, 0)
-        g.addColorStop(0, 'transparent')
-        g.addColorStop(0.3, clr+'88')
-        g.addColorStop(0.5, '#fff')
-        g.addColorStop(0.7, clr+'88')
-        g.addColorStop(1, 'transparent')
-        c.fillStyle = g
+        const slashW = 140*S
+        // 辉光拖尾
+        FXComposer.drawGlowSpot(c, slashX, ty, slashW*0.3, clr, (1-p)*0.4)
+        const slG = c.createLinearGradient(slashX-slashW/2, 0, slashX+slashW/2, 0)
+        slG.addColorStop(0, 'transparent')
+        slG.addColorStop(0.2, clr+'66')
+        slG.addColorStop(0.4, clr+'cc')
+        slG.addColorStop(0.5, '#fff')
+        slG.addColorStop(0.6, clr+'cc')
+        slG.addColorStop(0.8, clr+'66')
+        slG.addColorStop(1, 'transparent')
+        c.fillStyle = slG
         c.save()
         c.translate(slashX, ty)
         c.rotate(-0.3)
-        c.fillRect(-slashW/2, -3*S, slashW, 6*S)
-        for (let i=0; i<5; i++) {
-          const px = (Math.random()-0.5)*slashW*0.8
-          const py = (Math.random()-0.5)*30*S
-          const pr = 2*S + Math.random()*3*S
-          c.globalAlpha = Math.random()*0.6*(1-p)
-          c.fillStyle = clr
-          c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
-        }
+        c.fillRect(-slashW/2, -4*S, slashW, 8*S)
+        // 斩击细线（双层）
+        c.globalAlpha = (1-p) * 0.6
+        c.fillStyle = '#fff'
+        c.fillRect(-slashW*0.4, -1*S, slashW*0.8, 2*S)
         c.restore()
+        // 命中时发射粒子
+        if (p > 0.3 && p < 0.35 && !anim._slashParticlesFired) {
+          anim._slashParticlesFired = true
+          Particles.burst({
+            x: tx, y: ty, count: 12, speed: 4*S, size: 3*S,
+            life: 15, gravity: 0.08*S, colors: ['#fff', clr], shape: 'glow',
+          })
+        }
         break
       }
       case 'burst': {
         const cx = tx, cy = ty
-        const maxR = 80*S
+        const maxR = 90*S
         const r = p * maxR
-        c.globalAlpha = (1-p)*0.8
-        c.strokeStyle = clr; c.lineWidth = (1-p)*8*S
+        // 中心辉光
+        FXComposer.drawGlowSpot(c, cx, cy, r * 0.8, clr, (1-p)*0.5)
+        c.globalAlpha = (1-p)*0.85
+        c.strokeStyle = clr; c.lineWidth = (1-p)*10*S
         c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.stroke()
-        c.globalAlpha = (1-p)*0.3
+        // 内层光环
+        c.globalAlpha = (1-p)*0.4
         const rg = c.createRadialGradient(cx, cy, 0, cx, cy, r)
-        rg.addColorStop(0, '#fff'); rg.addColorStop(0.4, clr); rg.addColorStop(1, 'transparent')
+        rg.addColorStop(0, '#fff'); rg.addColorStop(0.3, clr+'cc'); rg.addColorStop(0.7, clr+'44'); rg.addColorStop(1, 'transparent')
         c.fillStyle = rg; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.fill()
-        for (let i=0; i<8; i++) {
-          const angle = (Math.PI*2/8)*i + frame*0.02
-          const dist = r * (0.5 + Math.random()*0.5)
-          const px2 = cx + Math.cos(angle)*dist
-          const py2 = cy + Math.sin(angle)*dist
-          c.globalAlpha = (1-p)*0.5
-          c.fillStyle = i%2===0 ? '#fff' : clr
-          c.beginPath(); c.arc(px2, py2, (1-p)*4*S, 0, Math.PI*2); c.fill()
+        // 径向光线
+        c.save()
+        c.translate(cx, cy)
+        for (let i=0; i<12; i++) {
+          const angle = (Math.PI*2/12)*i + p*0.8
+          const lineLen = r * (0.4 + Math.random()*0.5)
+          c.globalAlpha = (1-p)*0.4
+          c.strokeStyle = i%3===0 ? '#fff' : clr
+          c.lineWidth = (2 - p*1.5)*S
+          c.beginPath()
+          c.moveTo(Math.cos(angle)*r*0.2, Math.sin(angle)*r*0.2)
+          c.lineTo(Math.cos(angle)*lineLen, Math.sin(angle)*lineLen)
+          c.stroke()
+        }
+        c.restore()
+        // 粒子爆发
+        if (p > 0.15 && p < 0.2 && !anim._burstParticlesFired) {
+          anim._burstParticlesFired = true
+          Particles.burst({
+            x: cx, y: cy, count: 18, speed: 5*S, size: 3.5*S,
+            life: 20, gravity: 0.06*S, colors: ['#fff', clr, clr], shape: 'star',
+          })
         }
         break
       }
@@ -1321,45 +1348,57 @@ class Render {
       }
       case 'enemyAtk': {
         const cx = tx, cy = ty
-        // 第一阶段：冲击波扩散（更大范围）
-        const impactR = 40*S + p*80*S
-        c.globalAlpha = (1-p)*0.8
+        // 冲击波扩散
+        const impactR = 45*S + p*90*S
+        c.globalAlpha = (1-p)*0.85
         const ig = c.createRadialGradient(cx, cy, 0, cx, cy, impactR)
         ig.addColorStop(0, '#ff2244')
-        ig.addColorStop(0.3, '#ff4d6acc')
-        ig.addColorStop(0.6, '#ff4d6a44')
+        ig.addColorStop(0.25, '#ff4d6acc')
+        ig.addColorStop(0.5, '#ff4d6a66')
         ig.addColorStop(1, 'transparent')
         c.fillStyle = ig; c.beginPath(); c.arc(cx, cy, impactR, 0, Math.PI*2); c.fill()
-        // 交叉斜线冲击（更醒目）
+        // 辉光光斑
+        FXComposer.drawGlowSpot(c, cx, cy, impactR * 0.6, '#ff2244', (1-p)*0.35)
+        // 交叉冲击线（更多更醒目）
         c.save()
         c.translate(cx, cy)
-        for (let i=0; i<8; i++) {
-          const ang = (Math.PI*2/8)*i + p*0.5
-          const lineLen = 30*S + p*60*S
-          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.7})`
-          c.lineWidth = (3 - p*2)*S
+        for (let i=0; i<10; i++) {
+          const ang = (Math.PI*2/10)*i + p*0.6
+          const lineLen = 35*S + p*70*S
+          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.75})`
+          c.lineWidth = (3.5 - p*2.5)*S
           c.beginPath()
-          c.moveTo(Math.cos(ang)*15*S, Math.sin(ang)*15*S)
+          c.moveTo(Math.cos(ang)*12*S, Math.sin(ang)*12*S)
           c.lineTo(Math.cos(ang)*lineLen, Math.sin(ang)*lineLen)
           c.stroke()
         }
         c.restore()
-        // 中心闪光
-        if (p < 0.3) {
-          c.globalAlpha = (0.3-p)/0.3 * 0.9
+        // 中心闪光（更亮更大）
+        if (p < 0.25) {
+          const flashP = p / 0.25
+          c.globalAlpha = (1 - flashP) * 0.95
           c.fillStyle = '#fff'
-          c.beginPath(); c.arc(cx, cy, (20-p*40)*S, 0, Math.PI*2); c.fill()
+          const flashR = Math.max(1*S, (25 - flashP*25)*S)
+          c.beginPath(); c.arc(cx, cy, flashR, 0, Math.PI*2); c.fill()
         }
-        // 碎片粒子
-        c.globalAlpha = (1-p)*0.6
+        // 粒子爆发
+        if (p > 0.1 && p < 0.15 && !anim._enemyAtkParticlesFired) {
+          anim._enemyAtkParticlesFired = true
+          Particles.burst({
+            x: cx, y: cy, count: 15, speed: 5*S, size: 3*S,
+            life: 18, gravity: 0.12*S, colors: ['#fff', '#ff4d6a', '#ff6677'], shape: 'glow',
+          })
+        }
+        // 碎片粒子（手绘补充）
+        c.globalAlpha = (1-p)*0.65
         for (let i=0; i<10; i++) {
           const pAng = (Math.PI*2/10)*i + i*0.3
-          const dist = 20*S + p*70*S + i*5*S
+          const dist = 20*S + p*75*S + i*5*S
           const px = cx + Math.cos(pAng)*dist
           const py = cy + Math.sin(pAng)*dist + p*20*S
-          const pr = (3-p*2.5)*S
+          const pr = Math.max(0.5*S, (3.5-p*2.8)*S)
           c.fillStyle = i%3===0 ? '#fff' : '#ff6677'
-          c.beginPath(); c.arc(px, py, Math.max(0.5*S, pr), 0, Math.PI*2); c.fill()
+          c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
         break
       }
@@ -1388,7 +1427,7 @@ class Render {
           const seed = i*60
           const px = cx2 + Math.cos(seed)*shieldR*(0.3+Math.random()*0.5)
           const py = cy2 - p*40*S - i*8*S
-          const pr = (2+Math.random()*2)*S*(1-p)
+          const pr = Math.max(0, (2+Math.random()*2)*S*(1-p))
           c.fillStyle = i%2===0 ? '#fff' : clr
           c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
@@ -1423,7 +1462,7 @@ class Render {
           const py2 = cy3 + Math.sin(angle2)*dist2
           c.globalAlpha = Math.max(0, fadeAlpha2)*0.5
           c.fillStyle = '#fff'
-          c.beginPath(); c.arc(px2, py2, (1-p)*3*S, 0, Math.PI*2); c.fill()
+          c.beginPath(); c.arc(px2, py2, Math.max(0, (1-p)*3*S), 0, Math.PI*2); c.fill()
         }
         break
       }

@@ -10,6 +10,8 @@ const {
 } = require('../data/tower')
 const { getPetStarAtk, petHasSkill } = require('../data/pets')
 const tutorial = require('./tutorial')
+const { tween, Ease } = require('./tween')
+const Particles = require('./particles')
 
 // ===== 棋盘 =====
 function initBoard(g) {
@@ -47,24 +49,48 @@ function cellAttr(g, r, c) {
 function fillBoard(g) {
   const { ROWS, COLS } = V
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
-  // beadRateUp效果也在fillBoard中生效
   if (g.goodBeadsNextTurn) {
     g.goodBeadsNextTurn = false
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
   }
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
+  // 记录每列最大掉落距离（用于瀑布错开延迟）
+  let maxDrop = 0
   for (let c = 0; c < COLS; c++) {
     let writeRow = ROWS - 1
     for (let r = ROWS-1; r >= 0; r--) {
       if (g.board[r][c]) {
-        if (writeRow !== r) { g.board[writeRow][c] = g.board[r][c]; g.board[r][c] = null }
+        const dropDist = writeRow - r
+        if (writeRow !== r) {
+          g.board[writeRow][c] = g.board[r][c]; g.board[r][c] = null
+          // 已有珠子下落补间
+          if (dropDist > 0) _startDropTween(g, g.board[writeRow][c], dropDist, c)
+        }
+        if (dropDist > maxDrop) maxDrop = dropDist
         writeRow--
       }
     }
+    // 新生成的珠子从顶部外掉入
     for (let r = writeRow; r >= 0; r--) {
-      g.board[r][c] = { attr: pool[Math.floor(Math.random()*pool.length)], sealed: false }
+      const cell = { attr: pool[Math.floor(Math.random()*pool.length)], sealed: false }
+      g.board[r][c] = cell
+      const dropDist = writeRow + 1 - r + 1 // 从屏幕外掉入
+      _startDropTween(g, cell, dropDist, c)
+      if (dropDist > maxDrop) maxDrop = dropDist
     }
   }
+  g._dropMaxDist = maxDrop
+}
+
+/** 为珠子启动掉落补间动画 */
+function _startDropTween(g, cell, dropDist, col) {
+  const cs = g.cellSize || 1
+  const offsetY = -dropDist * cs
+  cell._dropOffY = offsetY
+  // 瀑布错开：每列 20ms 延迟
+  const delay = col * 0.02
+  const duration = 0.2 + dropDist * 0.04
+  tween(cell, { _dropOffY: 0 }, duration, Ease.outBounce, { delay })
 }
 
 // ===== 消除核心 =====
@@ -140,6 +166,13 @@ function startNextElimAnim(g) {
         t: 0, gravity: 0.05 * S, type: 'circle'
       })
     }
+    // 粒子引擎增强：里程碑环形纹理粒子爆发
+    Particles.ring({
+      x: pCx, y: pCy,
+      count: ringCount, speed: (5 + g.combo * 0.3) * S,
+      size: (4 + g.combo * 0.2) * S, life: 30, gravity: 0.03 * S,
+      colors: ringColors, shape: 'star', drag: 0.97,
+    })
   }
   MusicMgr.playComboHit(g.combo)
   if (isTierBreak) MusicMgr.playComboMilestone(g.combo)
@@ -246,7 +279,16 @@ function processElim(g) {
 
 function processDropAnim(g) {
   g.dropAnimTimer++
-  if (g.dropAnimTimer >= 10) {
+  // 等待补间动画完成（基于最大掉落距离估算帧数），最少12帧保底
+  const minFrames = Math.max(12, Math.ceil(((g._dropMaxDist || 1) * 0.04 + 0.2 + 0.12) * 60))
+  if (g.dropAnimTimer >= minFrames) {
+    // 清除所有残留的掉落偏移
+    const { ROWS, COLS } = V
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (g.board[r] && g.board[r][c]) g.board[r][c]._dropOffY = 0
+      }
+    }
     const groups = findMatchesSeparate(g)
     if (groups.length > 0) {
       g.elimQueue = groups

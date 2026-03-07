@@ -18,6 +18,8 @@ function updateAnimations(g) {
   }
   // 英雄受击红闪
   if (g._heroHurtFlash > 0) g._heroHurtFlash--
+  // 敌方受击染色
+  if (g._enemyTintFlash > 0) g._enemyTintFlash--
   // 敌人回合预警
   if (g._enemyWarning > 0) g._enemyWarning--
   // Boss入场特效
