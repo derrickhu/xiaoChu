@@ -14,9 +14,9 @@ Object.keys(BEAD_ATTR_COLOR).forEach(k => {
 
 // 主题色
 const TH = {
-  bg:'#0b0b15', card:'rgba(22,22,38,0.92)', cardB:'rgba(60,60,90,0.3)',
-  text:'#eee', sub:'rgba(200,200,210,0.7)', dim:'rgba(140,140,160,0.5)',
-  accent:'#ffd700', danger:'#ff4d6a', success:'#4dcc4d', info:'#4dabff',
+  bg:'#0b0b15', card:'rgba(255,248,230,0.88)', cardB:'rgba(180,160,120,0.35)',
+  text:'#3D2B1F', sub:'rgba(100,85,65,0.85)', dim:'rgba(130,115,95,0.7)',
+  accent:'#8B6914', danger:'#C0392B', success:'#27864A', info:'#2E6DA4',
   hard:'#ff8c00', extreme:'#ff4d6a',
 }
 
@@ -123,11 +123,10 @@ class Render {
 
   drawShopBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#1a1008'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/shop_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.25; c.fillStyle='#0a0800'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -135,11 +134,10 @@ class Render {
 
   drawRestBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#e8f0e8'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/rest_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -147,11 +145,10 @@ class Render {
 
   drawAdventureBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f0ead8'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/adventure_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -159,14 +156,66 @@ class Render {
 
   drawRewardBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/reward_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
+  }
+
+  drawEventBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/event_bg.jpg') || this.getImg('assets/backgrounds/event_bg.png')
+    if (img && img.width > 0) {
+      this._drawCoverImg(img, 0, 0, W, H)
+      return
+    }
+    // 代码绘制：深红暗金战斗氛围
+    const bg = c.createRadialGradient(W*0.5, H*0.42, H*0.05, W*0.5, H*0.42, H*0.72)
+    bg.addColorStop(0, '#3A1A18')
+    bg.addColorStop(0.6, '#2A100E')
+    bg.addColorStop(1, '#1A0C0A')
+    c.fillStyle = bg; c.fillRect(0,0,W,H)
+
+    // 顶部烈焰裂隙光
+    const topGlow = c.createLinearGradient(0,0,0,H*0.25)
+    topGlow.addColorStop(0,'rgba(212,160,64,0.28)')
+    topGlow.addColorStop(0.5,'rgba(139,32,32,0.18)')
+    topGlow.addColorStop(1,'rgba(139,32,32,0)')
+    c.fillStyle = topGlow; c.fillRect(0,0,W,H*0.25)
+
+    // 底部余烬
+    const botGlow = c.createLinearGradient(0,H*0.78,0,H)
+    botGlow.addColorStop(0,'rgba(139,32,32,0)')
+    botGlow.addColorStop(0.6,'rgba(139,32,32,0.12)')
+    botGlow.addColorStop(1,'rgba(212,160,64,0.2)')
+    c.fillStyle = botGlow; c.fillRect(0,H*0.78,W,H*0.22)
+
+    // 四角暗红光晕
+    const corners = [[0,0],[W,0],[0,H],[W,H]]
+    corners.forEach(([cx,cy]) => {
+      const g = c.createRadialGradient(cx, cy, 0, cx, cy, W*0.5)
+      g.addColorStop(0, 'rgba(139,32,32,0.15)')
+      g.addColorStop(1, 'rgba(139,32,32,0)')
+      c.fillStyle = g; c.fillRect(0,0,W,H)
+    })
+
+    // 上升余烬粒子
+    c.save()
+    for (let i = 0; i < 30; i++) {
+      const px = ((i * 137.5 + 23) % W)
+      const baseY = ((i * 97.3 + 41) % H)
+      const drift = (frame * 0.3 + i * 50) % H
+      const py = (H - drift + baseY) % H
+      const alpha = 0.15 + 0.1 * Math.sin(frame * 0.05 + i)
+      c.fillStyle = i % 3 === 0
+        ? `rgba(212,160,64,${alpha})`
+        : `rgba(200,80,40,${alpha * 0.7})`
+      c.beginPath(); c.arc(px, py, 1 + (i % 2) * 0.5, 0, Math.PI*2); c.fill()
+    }
+    c.restore()
   }
 
   // 各主题的背景色调配置

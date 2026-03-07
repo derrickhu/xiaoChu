@@ -892,17 +892,17 @@ function rReward(g) {
   let title = '战斗胜利 - 选择奖励'
   if (evtType === 'elite') title = '精英击败 - 选择灵兽'
   else if (evtType === 'boss') title = 'BOSS击败 - 选择奖励'
-  // 标题：米金色书法风
+  // 标题
   const titleBaseY = safeTop + 58*S
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
   ctx.fillText(title, W*0.5, titleBaseY)
   // 标题下方装饰分割线
   const divW = W*0.36, divY = titleBaseY + 6*S
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
+  ctx.strokeStyle = 'rgba(139,105,20,0.4)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - divW, divY); ctx.lineTo(W*0.5 + divW, divY); ctx.stroke()
   let headerOffset = 0
   if (g.lastSpeedKill) {
-    ctx.fillStyle = '#e8a840'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6914'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
     ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁`, W*0.5, titleBaseY + 22*S)
     headerOffset = 22*S
   }
@@ -934,14 +934,14 @@ function rReward(g) {
     // 卡片背景
     let bgColor = TH.card
     let borderColor = selected ? TH.accent : TH.cardB
-    if (isSpeedBuff) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
+    if (isSpeedBuff) bgColor = selected ? 'rgba(255,245,210,0.95)' : 'rgba(255,248,230,0.88)'
     else if (rw.type === REWARD_TYPES.NEW_PET) {
       const ac = ATTR_COLOR[rw.data.attr]
-      bgColor = selected ? (ac ? ac.main + '33' : 'rgba(77,204,77,0.2)') : (ac ? ac.bg + 'cc' : 'rgba(77,204,77,0.08)')
+      bgColor = selected ? 'rgba(255,250,220,0.95)' : 'rgba(255,248,230,0.88)'
       if (selected && ac) borderColor = ac.main
     }
-    else if (rw.type === REWARD_TYPES.NEW_WEAPON) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
-    else if (rw.type === REWARD_TYPES.BUFF) bgColor = selected ? 'rgba(77,171,255,0.2)' : 'rgba(77,171,255,0.06)'
+    else if (rw.type === REWARD_TYPES.NEW_WEAPON) bgColor = selected ? 'rgba(255,245,210,0.95)' : 'rgba(255,248,230,0.88)'
+    else if (rw.type === REWARD_TYPES.BUFF) bgColor = selected ? 'rgba(240,248,255,0.95)' : 'rgba(255,248,230,0.88)'
 
     const rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
     if (rewardCardBg && rewardCardBg.width) {
@@ -998,7 +998,7 @@ function rReward(g) {
 
       // 名称 + 属性标签
       ctx.textAlign = 'left'
-      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = ac ? ac.dk : '#3D2B1F'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText(p.name, infoX, iy)
       const nameW = ctx.measureText(p.name).width
       // 属性球代替文字
@@ -1030,7 +1030,7 @@ function rReward(g) {
       if (p.skill) {
         iy += 18*S
         if (petHasSkill(p)) {
-          ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = '#8B6914'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
           ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
           iy += 16*S
           ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
@@ -1062,7 +1062,7 @@ function rReward(g) {
       const avY = cy + (cardH - avSz) / 2
 
       // 法宝图标背景
-      ctx.fillStyle = '#2a2030'
+      ctx.fillStyle = '#f0e8d8'
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
       // 法宝图标（尝试加载图片）
@@ -1093,10 +1093,10 @@ function rReward(g) {
       // 法宝名称
       ctx.textAlign = 'left'
       const _rwLabel = '法宝·'
-      ctx.fillStyle = '#e0a020'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#8B6914'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText(_rwLabel, infoX, iy)
       const _rwLabelW = ctx.measureText(_rwLabel).width
-      ctx.fillStyle = '#fff8e0'
+      ctx.fillStyle = '#3D2B1F'
       ctx.fillText(w.name, infoX + _rwLabelW, iy)
 
       const nameW = ctx.measureText(w.name).width
@@ -1136,9 +1136,9 @@ function rReward(g) {
         buff_icon_elim: '消除加成', buff_icon_time: '时间加成', buff_icon_hp: '血量加成',
         buff_icon_weaken: '削弱加成', buff_icon_special: '特殊加成',
       }
-      let typeTag = '', tagColor = '#999'
-      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#e0c070' }
-      else { typeTag = '加成'; tagColor = '#8ab4d8' }
+      let typeTag = '', tagColor = '#7A6A5A'
+      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#8B6914' }
+      else { typeTag = '加成'; tagColor = '#2E6DA4' }
 
       // buff图标（左侧，放大）
       const iconSz = Math.min(48*S, cardH - 10*S)
@@ -1171,11 +1171,11 @@ function rReward(g) {
       ctx.fillText(typeTag, textX, cy + cardH*0.38)
 
       // 名称（居中偏右）
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
       ctx.fillText(rw.label, textX, cy + cardH*0.62)
 
       // 底部提示
-      ctx.fillStyle = '#999'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillStyle = '#7A6A5A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
       ctx.fillText('全队永久生效', textX, cy + cardH*0.85)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])

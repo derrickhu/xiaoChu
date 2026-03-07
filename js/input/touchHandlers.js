@@ -28,7 +28,33 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ② 新挑战确认弹窗
+  // ② 开始/继续确认弹窗
+  if (g.showTitleStartDialog) {
+    const hasSave = g.storage.hasSavedRun()
+    if (hasSave) {
+      // 继续挑战
+      if (g._dialogContinueRect && g._hitRect(x, y, ...g._dialogContinueRect)) {
+        g.showTitleStartDialog = false; g._resumeRun(); return
+      }
+      // 重新挑战：直接清档开新局（已并入单弹窗确认）
+      if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
+        g.showTitleStartDialog = false; g.storage.clearRunState(); g._startRun(); return
+      }
+    } else {
+      // 取消
+      if (g._dialogCancelRect && g._hitRect(x, y, ...g._dialogCancelRect)) {
+        g.showTitleStartDialog = false; return
+      }
+      // 开始挑战
+      if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
+        g.showTitleStartDialog = false; g._startRun(); return
+      }
+    }
+    // 点击遮罩关闭
+    g.showTitleStartDialog = false; return
+  }
+
+  // ③ 新挑战确认弹窗（兼容旧状态，首页不再主动触发）
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
       g.showNewRunConfirm = false; g.storage.clearRunState(); g._startRun(); return
@@ -39,35 +65,32 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ③ 左卡片：继续/开始挑战
-  if (g._titleContinueRect && g._hitRect(x,y,...g._titleContinueRect)) { g._resumeRun(); return }
-  if (g._titleBtnRect && g._hitRect(x,y,...g._titleBtnRect)) {
-    if (g.storage.hasSavedRun()) { g.showNewRunConfirm = true; return }
-    g._startRun(); return
+  // ④ 开始按钮（通天塔模式）
+  if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
+    g.showNewRunConfirm = false
+    g.showTitleStartDialog = true; return
   }
 
-  // ④ 右卡片（锁定提示）
-  if (g._fixedStageRect && g._hitRect(x,y,...g._fixedStageRect)) {
-    console.log('[Touch] Fixed stage locked'); return
+  // ⑤ 左下角模式切换浮钮
+  if (g._modeSwitchRect && g._hitRect(x,y,...g._modeSwitchRect)) {
+    g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
   }
 
-  // ⑤ 底部常驻栏 5 个按钮
+  // ⑥ 底部 7 标签导航
+  // 标签顺序：0=主角 1=灵宠 2=图鉴 3=通天塔(中心) 4=排行 5=统计 6=更多
   const barRects = g._bottomBarRects || []
-  // 按钮顺序：0=灵宠 1=图鉴 2=统计 3=排行 4=更多
   for (let i = 0; i < barRects.length; i++) {
     if (!g._hitRect(x, y, ...barRects[i])) continue
     switch (i) {
-      case 0: // 灵宠（锁定）
-        console.log('[Touch] Pets locked'); return
-      case 1: // 图鉴
-        g._dexScrollY = 0; g.scene = 'dex'; return
-      case 2: // 统计
-        g.scene = 'stats'; return
-      case 3: // 排行
+      case 0: return // 主角（锁定）
+      case 1: return // 灵宠（锁定）
+      case 2: g._dexScrollY = 0; g.scene = 'dex'; return
+      case 3: g.titleMode = 'tower'; return // 通天塔（中心）
+      case 4: // 排行
         if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
         g._openRanking(); return
-      case 4: // 更多
-        g.showMorePanel = true; return
+      case 5: g.scene = 'stats'; return
+      case 6: g.showMorePanel = true; return
     }
   }
 }

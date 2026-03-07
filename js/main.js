@@ -78,6 +78,14 @@ class Main {
       'assets/ui/btn_start.png',
       'assets/ui/btn_continue.png',
       'assets/ui/btn_rank.png',
+      // 底部导航栏图标及背景
+      'assets/ui/nav_bar_bg.png',
+      'assets/ui/nav_hero.png',
+      'assets/ui/nav_icons.png',
+      'assets/ui/nav_dex.png',
+      'assets/ui/nav_rank.png',
+      'assets/ui/nav_stats.png',
+      'assets/ui/nav_more.png',
     ]
     R.preloadImages(criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
@@ -255,6 +263,7 @@ class Main {
     if (this.scene === 'gameover' || this.scene === 'ranking' || this.scene === 'stats') {
       this.scene = 'title'
       this.showMorePanel = false
+      this.showTitleStartDialog = false
     } else {
       this._saveAndExit()
     }
