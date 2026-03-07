@@ -121,22 +121,59 @@ function rEvent(g) {
       ctx.fillStyle = TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
       ctx.fillText('奇遇', W*0.5, ty)
 
+      // 文字区半透明底板，提升可读性
+      const txtPanelW = W * 0.78, txtPanelH = 130*S
+      const txtPanelX = (W - txtPanelW) / 2, txtPanelY = H*0.28
       ctx.save()
-      ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = 'rgba(20,15,10,0.55)'
+      R.rr(txtPanelX, txtPanelY, txtPanelW, txtPanelH, 12*S); ctx.fill()
+      ctx.restore()
+
+      ctx.save()
+      ctx.textAlign = 'center'
+      // 奇遇名称 — 加粗描边增强清晰度
+      ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3*S
+      ctx.strokeText(ev.data.name, W*0.5, H*0.35)
+      ctx.fillStyle = '#fff'
       ctx.fillText(ev.data.name, W*0.5, H*0.35)
-      ctx.fillStyle = '#f0e8d8'; ctx.font = `${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText(ev.data.desc, W*0.5, H*0.43)
+      // 描述文字 — 增大字号并加描边
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
+      ctx.strokeText(ev.data.desc, W*0.5, H*0.42)
+      ctx.fillStyle = '#f0e8d8'
+      ctx.fillText(ev.data.desc, W*0.5, H*0.42)
       // 显示具体获得结果（法宝名/灵兽名等）
       if (g._adventureResult) {
-        ctx.fillStyle = '#ffd54f'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-        ctx.fillText(g._adventureResult, W*0.5, H*0.50)
+        ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
+        ctx.strokeText(g._adventureResult, W*0.5, H*0.49)
+        ctx.fillStyle = '#ffd54f'
+        ctx.fillText(g._adventureResult, W*0.5, H*0.49)
       }
-      ctx.fillStyle = '#5ddd5d'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText('效果已生效！', W*0.5, g._adventureResult ? H*0.57 : H*0.52)
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
+      const effectY = g._adventureResult ? H*0.56 : H*0.50
+      ctx.strokeText('效果已生效！', W*0.5, effectY)
+      ctx.fillStyle = '#5ddd5d'
+      ctx.fillText('效果已生效！', W*0.5, effectY)
       ctx.restore()
-      const bx = W*0.3, by = H*0.65, bw = W*0.4, bh = 44*S
-      R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
+
+      // 使用事件页面的按钮图片资源
+      const bw = W*0.5, bh = bw / 4
+      const bx = (W - bw)/2, by = H*0.65
+      const btnImg = R.getImg('assets/ui/btn_start.png')
+      if (btnImg && btnImg.width > 0) {
+        ctx.drawImage(btnImg, bx, by, bw, bh)
+      } else {
+        R.drawBtn(bx, by, bw, bh, '继续', TH.accent, 16)
+      }
+      ctx.save()
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4*S
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      ctx.fillText('继续', W*0.5, by + bh*0.5)
+      ctx.restore()
       g._eventBtnRect = [bx, by, bw, bh]
       drawBackBtn(g)
       return
@@ -175,13 +212,42 @@ function rEvent(g) {
       } else {
         hintText = '已选完'
       }
-      ctx.fillStyle = shopUsedCount >= 2 ? 'rgba(180,160,130,0.5)' : '#ffd080'
-      ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.fillText(hintText, W*0.5, safeTop + 90*S)
+      // 提示文字加底板，避免被背景装饰遮挡
+      const hintY = safeTop + 116*S
+      ctx.save()
+      const hintW = ctx.measureText(hintText).width || W*0.5
+      const hintPadX = 16*S, hintPadY = 8*S
+      ctx.fillStyle = 'rgba(255,245,225,0.75)'
+      R.rr(W*0.5 - hintW/2 - hintPadX, hintY - 13*S - hintPadY, hintW + hintPadX*2, 18*S + hintPadY*2, 8*S); ctx.fill()
+      ctx.restore()
+      ctx.fillStyle = shopUsedCount >= 2 ? 'rgba(140,120,90,0.7)' : '#5C3A1E'
+      ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText(hintText, W*0.5, hintY)
+
+      // 商店UI复用奖励页素材：卷轴卡片 + 确认按钮
+      const shopScrollBg = R.getImg('assets/ui/reward_card_bg.png')
+      const useShopScroll = !!(shopScrollBg && shopScrollBg.width > 0)
+      const rewardConfirmBtn = R.getImg('assets/ui/btn_reward_confirm.png')
+      const drawShopConfirmBtn = (bx, by, bw, bh, label, disabled) => {
+        const canUseImgBtn = rewardConfirmBtn && rewardConfirmBtn.width > 0
+        if (canUseImgBtn) {
+          ctx.save()
+          if (disabled) ctx.globalAlpha = 0.55
+          ctx.drawImage(rewardConfirmBtn, bx, by, bw, bh)
+          ctx.fillStyle = '#4A2020'
+          ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillText(label, bx + bw*0.5, by + bh*0.48)
+          ctx.textBaseline = 'alphabetic'
+          ctx.restore()
+        } else {
+          R.drawBtn(bx, by, bw, bh, label, disabled ? '#8f8f8f' : '#b08840', 12)
+        }
+      }
 
       const items = ev.data
       if (items && !g._shopSelectAttr && !g._shopSelectPet) {
-        const cardW = W*0.84, cardH = 60*S, gap = 8*S, startY = safeTop + 116*S
+        const cardW = W*0.84, cardH = 62*S, gap = 8*S, startY = safeTop + 156*S
         g._eventShopRects = []
         // 暖色系卡片配色（与古风背景协调）
         const RARITY_COLORS = { normal:'rgba(60,45,30,0.82)', rare:'rgba(50,40,55,0.85)', epic:'rgba(70,35,45,0.85)' }
@@ -191,11 +257,24 @@ function rEvent(g) {
           const cy = startY + i*(cardH+gap)
           const isUsed = g._eventShopUsedItems && g._eventShopUsedItems.includes(i)
           const canBuy = !isUsed && shopUsedCount < 2
-          ctx.fillStyle = isUsed ? 'rgba(50,40,30,0.6)' : (RARITY_COLORS[item.rarity] || 'rgba(60,45,30,0.82)')
-          R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.fill()
-          ctx.strokeStyle = isUsed ? 'rgba(120,100,70,0.25)' : (RARITY_BORDERS[item.rarity] || 'rgba(200,170,110,0.4)')
-          ctx.lineWidth = 1*S
-          R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.stroke()
+          if (useShopScroll) {
+            const scrollPadX = 6*S
+            const scrollX = W*0.08 - scrollPadX
+            const scrollW = cardW + scrollPadX*2
+            ctx.save()
+            if (isUsed) ctx.globalAlpha = 0.58
+            ctx.shadowColor = 'rgba(60,40,15,0.28)'
+            ctx.shadowBlur = 8*S
+            ctx.shadowOffsetY = 2*S
+            ctx.drawImage(shopScrollBg, scrollX, cy, scrollW, cardH)
+            ctx.restore()
+          } else {
+            ctx.fillStyle = isUsed ? 'rgba(50,40,30,0.6)' : (RARITY_COLORS[item.rarity] || 'rgba(60,45,30,0.82)')
+            R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.fill()
+            ctx.strokeStyle = isUsed ? 'rgba(120,100,70,0.25)' : (RARITY_BORDERS[item.rarity] || 'rgba(200,170,110,0.4)')
+            ctx.lineWidth = 1*S
+            R.rr(W*0.08, cy, cardW, cardH, 8*S); ctx.stroke()
+          }
 
           // 稀有度标签（卡片左侧外挂角标，不与名称重叠）
           const rarityLabel = RARITY_LABELS[item.rarity]
@@ -228,24 +307,25 @@ function rEvent(g) {
 
           // 名称和描述
           ctx.globalAlpha = isUsed ? 0.4 : 1
-          ctx.fillStyle = isUsed ? 'rgba(180,160,130,0.5)' : '#f5e6c8'
+          ctx.fillStyle = isUsed ? 'rgba(95,78,58,0.5)' : (useShopScroll ? '#2F2117' : '#f5e6c8')
           ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
           ctx.fillText(item.name, nameX, cy + 24*S)
-          ctx.fillStyle = isUsed ? 'rgba(180,160,130,0.4)' : 'rgba(220,200,170,0.75)'
+          ctx.fillStyle = isUsed ? 'rgba(110,95,75,0.45)' : (useShopScroll ? '#4A3A2E' : 'rgba(220,200,170,0.75)')
           ctx.font = `${10*S}px "PingFang SC",sans-serif`
           ctx.fillText(item.desc, nameIndent, cy + 42*S)
 
-          // 费用标签（右侧）
+          // 费用标签（右侧，留出卷轴边框空间）
+          const costX = W*0.08 + cardW - 28*S
           ctx.textAlign = 'right'
           if (isUsed) {
-            ctx.fillStyle = 'rgba(180,160,130,0.5)'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-            ctx.fillText('已选', W*0.08 + cardW - 12*S, cy + 34*S)
+            ctx.fillStyle = useShopScroll ? 'rgba(110,95,75,0.7)' : 'rgba(180,160,130,0.5)'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+            ctx.fillText('已选', costX, cy + 34*S)
           } else if (shopUsedCount === 0) {
-            ctx.fillStyle = '#e0c060'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-            ctx.fillText('免费', W*0.08 + cardW - 12*S, cy + 34*S)
+            ctx.fillStyle = useShopScroll ? '#9B6A00' : '#e0c060'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+            ctx.fillText('免费', costX, cy + 34*S)
           } else if (shopUsedCount === 1) {
-            ctx.fillStyle = '#e07050'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-            ctx.fillText(`-${15}%血`, W*0.08 + cardW - 12*S, cy + 34*S)
+            ctx.fillStyle = useShopScroll ? '#B14A2C' : '#e07050'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+            ctx.fillText(`-${15}%血`, costX, cy + 34*S)
           }
           ctx.globalAlpha = 1
           ctx.textAlign = 'center'
@@ -310,7 +390,7 @@ function rEvent(g) {
           const startBX = (W - totalBW) / 2
           R.drawBtn(startBX, attrBtnAreaY, cancelW, cancelH, '取消', '#a0896a', 12)
           g._shopAttrCancelRect = [startBX, attrBtnAreaY, cancelW, cancelH]
-          R.drawBtn(startBX + cancelW + btnGapX, attrBtnAreaY, confirmW, confirmH, '确定', '#b08840', 12)
+          drawShopConfirmBtn(startBX + cancelW + btnGapX, attrBtnAreaY, confirmW, confirmH, '确定', false)
           g._shopAttrConfirmRect = [startBX + cancelW + btnGapX, attrBtnAreaY, confirmW, confirmH]
         } else {
           const cancelW = 80*S, cancelH = 32*S
@@ -452,7 +532,7 @@ function rEvent(g) {
           const startBtnX = (W - totalW) / 2
           R.drawBtn(startBtnX, btnAreaY, cancelW2, cancelH2, '取消', '#a0896a', 12)
           g._shopPetCancelRect = [startBtnX, btnAreaY, cancelW2, cancelH2]
-          R.drawBtn(startBtnX + cancelW2 + btnGapX, btnAreaY, confirmW, confirmH, '确定', '#b08840', 12)
+          drawShopConfirmBtn(startBtnX + cancelW2 + btnGapX, btnAreaY, confirmW, confirmH, '确定', false)
           g._shopPetConfirmRect = [startBtnX + cancelW2 + btnGapX, btnAreaY, confirmW, confirmH]
         } else {
           const cancelW2 = 80*S, cancelH2 = 32*S
@@ -464,7 +544,7 @@ function rEvent(g) {
 
       const bx = W*0.3, by = H*0.88, bw = W*0.4, bh = 40*S
       if (!g._shopSelectAttr && !g._shopSelectPet) {
-        R.drawBtn(bx, by, bw, bh, '离开', '#b08840', 14)
+        drawShopConfirmBtn(bx, by, bw, bh, '离开', false)
         g._eventBtnRect = [bx, by, bw, bh]
       } else {
         g._eventBtnRect = null
