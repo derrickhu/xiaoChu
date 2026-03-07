@@ -44,7 +44,10 @@ function initState(g) {
   g._comboFlash = 0
   g._petFinalDmg = {}
   g._petAtkRollTimer = 0
-  g.shakeT = 0; g.shakeI = 0
+  g.shakeT = 0; g.shakeI = 0; g.shakeDecay = 0.85
+  g._hitStopFrames = 0
+  g._screenFlash = 0; g._screenFlashMax = 1; g._screenFlashColor = '#fff'
+  g._enemyTintFlash = 0
   g.heroAttackAnim = { active:false, progress:0, duration:24 }
   g.enemyHurtAnim  = { active:false, progress:0, duration:18 }
   g.heroHurtAnim   = { active:false, progress:0, duration:18 }

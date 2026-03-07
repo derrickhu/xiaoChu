@@ -8,50 +8,49 @@ const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath,
 // ===== 退出确认弹窗 =====
 function drawExitDialog(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.78, ph = 185*S
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H)
+  const pw = W * 0.82, ph = 155*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  R.drawDialogPanel(px, py, pw, ph)
+  const panelImg = R.getImg('assets/ui/info_panel_bg.png')
+  if (panelImg && panelImg.width > 0) {
+    ctx.drawImage(panelImg, px, py, pw, ph)
+  } else {
+    const rad = 14 * S
+    ctx.fillStyle = 'rgba(248,242,230,0.97)'
+    R.rr(px, py, pw, ph, rad); ctx.fill()
+    ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5 * S
+    R.rr(px, py, pw, ph, rad); ctx.stroke()
+  }
 
-  // 标题 — 暗金色仙侠风（下移避开顶部花纹）
+  // 取消交互：点击任意位置取消（按钮区域优先由触摸逻辑先处理）
+  g._exitCancelRect = [0, 0, W, H]
+
+  // 标题
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#f0e0c0'
+  ctx.fillStyle = '#6B5014'
   ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-  ctx.fillText('退出战斗', px + pw*0.5, py + 46*S)
-  ctx.restore()
+  ctx.fillText('退出战斗', px + pw*0.5, py + 32*S)
 
-  // 副标题
-  ctx.fillStyle = 'rgba(200,190,170,0.7)'
+  // 说明文字
+  ctx.fillStyle = '#7B7060'
   ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('请选择退出方式', px + pw*0.5, py + 66*S)
+  ctx.fillText('请选择退出方式', px + pw*0.5, py + 60*S)
+  ctx.fillStyle = '#C0392B'
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
+  ctx.fillStyle = '#8A7A62'
+  ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击任意位置取消', px + pw*0.5, py + 94*S)
 
-  // 两个主按钮（缩小）
+  // 按钮
   const btnW = pw * 0.34, btnH = 34*S, gap = 12*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 86*S
+  const btnY = py + 106*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
-
-  // 取消按钮 — 使用半透明描边风格（缩小）
-  const cancelW = pw * 0.30, cancelH = 28*S
-  const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 14*S
-  ctx.save()
-  ctx.fillStyle = 'rgba(40,35,50,0.6)'
-  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.fill()
-  ctx.strokeStyle = 'rgba(180,170,150,0.3)'; ctx.lineWidth = 1*S
-  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.stroke()
-  ctx.fillStyle = 'rgba(200,190,170,0.6)'
-  ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('取消', cancelX + cancelW*0.5, cancelY + cancelH*0.5)
-  ctx.textBaseline = 'alphabetic'
-  ctx.restore()
-  g._exitCancelRect = [cancelX, cancelY, cancelW, cancelH]
 }
 
 // ===== 全局增益详情弹窗 =====

@@ -33,6 +33,11 @@ function playHeroAttack(g, skillName, attr, type) {
   g.heroAttackAnim = { active:true, progress:0, duration:24 }
   g.enemyHurtAnim  = { active:true, progress:0, duration:18 }
   g._enemyHitFlash = 12
+  g._enemyTintFlash = 8
+  // 顿帧：命中时短暂冻结增强打击感
+  g._hitStopFrames = 3
+  // 屏幕闪白
+  g._screenFlash = 4; g._screenFlashMax = 4; g._screenFlashColor = '#fff'
   const color = ATTR_COLOR[attr]?.main || TH.accent
   const eCenterY = getEnemyCenterY()
   g.skillCastAnim = { active:true, progress:0, duration:30, type:type||'slash', color, skillName:skillName||'', targetX:V.W*0.5, targetY:eCenterY }
@@ -41,6 +46,10 @@ function playHeroAttack(g, skillName, attr, type) {
 function playEnemyAttack(g) {
   g.enemyAttackAnim = { active:true, progress:0, duration:20 }
   g.heroHurtAnim    = { active:true, progress:0, duration:18 }
+  g._hitStopFrames = 2
+  // 受击闪红
+  g._screenFlash = 3; g._screenFlashMax = 3; g._screenFlashColor = '#ff2244'
+  g._heroHurtFlash = 10
   const L = getBattleLayout()
   g.skillCastAnim = { active:true, progress:0, duration:30, type:'enemyAtk', color:TH.danger, skillName:'', targetX:V.W*0.5, targetY:L.hpBarY }
 }

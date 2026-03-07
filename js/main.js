@@ -26,6 +26,8 @@ const { initState } = require('./gameState')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
 const share = require('./share')
+const TweenMgr = require('./engine/tween')
+const Particles = require('./engine/particles')
 
 const canvas = GameGlobal.__mainCanvas || wx.createCanvas()
 const ctx = canvas.getContext('2d')
@@ -65,7 +67,21 @@ class Main {
       wx.onTouchEnd(e => this.onTouch('end', e))
     }
 
-    const loop = () => { this.af++; try { this.update(); this.render() } catch(e) { console.error('loop error:', e) }; requestAnimationFrame(loop) }
+    this.dt = 0; this.timeScale = 1.0
+    let _lastTime = 0
+    const loop = (now) => {
+      if (_lastTime === 0) _lastTime = now
+      const rawDt = Math.min((now - _lastTime) / 1000, 0.05)
+      _lastTime = now
+      this.dt = rawDt * this.timeScale
+      this.af++
+      try {
+        // 顿帧（hit-stop）：冻结游戏逻辑但保持渲染
+        if (this._hitStopFrames > 0) { this._hitStopFrames--; TweenMgr.updateTweens(this.dt); Particles.update(); this.render(); requestAnimationFrame(loop); return }
+        this.update(); this.render()
+      } catch(e) { console.error('loop error:', e) }
+      requestAnimationFrame(loop)
+    }
     requestAnimationFrame(loop)
 
     wx.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
@@ -108,6 +124,8 @@ class Main {
 
   // ===== 更新 =====
   update() {
+    TweenMgr.updateTweens(this.dt)
+    Particles.update()
     anim.updateAnimations(this)
     if (tutorial.isActive()) {
       tutorial.update(this)
@@ -201,8 +219,14 @@ class Main {
   // ===== 渲染入口 =====
   render() {
     ctx.clearRect(0, 0, W, H)
-    const sx = this.shakeT > 0 ? (Math.random()-0.5)*this.shakeI*S : 0
-    const sy = this.shakeT > 0 ? (Math.random()-0.5)*this.shakeI*S : 0
+    let sx = 0, sy = 0
+    if (this.shakeT > 0) {
+      // 方向性震屏 + 指数衰减
+      const decay = Math.pow(this.shakeDecay || 0.85, (1 - this.shakeT / (this.shakeT + 1)))
+      const intensity = this.shakeI * S * decay
+      sx = Math.sin(this.shakeT * 7.3) * intensity
+      sy = Math.cos(this.shakeT * 5.9) * intensity * 0.7
+    }
     ctx.save(); ctx.translate(sx, sy)
     switch(this.scene) {
       case 'loading': screens.rLoading(this); break
@@ -219,9 +243,20 @@ class Main {
       case 'stats': screens.rStats(this); break
       case 'dex': screens.rDex(this); break
     }
+    // 粒子系统绘制
+    Particles.draw(ctx)
     this.dmgFloats.forEach(f => R.drawDmgFloat(f))
     this.skillEffects.forEach(e => R.drawSkillEffect(e))
     if (this.skillCastAnim.active) R.drawSkillCast(this.skillCastAnim)
+    // 屏幕闪白（伤害反馈）
+    if (this._screenFlash > 0) {
+      const flashAlpha = this._screenFlash / this._screenFlashMax * 0.35
+      ctx.save(); ctx.globalAlpha = flashAlpha
+      ctx.fillStyle = this._screenFlashColor || '#fff'
+      ctx.fillRect(0, 0, W, H)
+      ctx.restore()
+      this._screenFlash--
+    }
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
     }
