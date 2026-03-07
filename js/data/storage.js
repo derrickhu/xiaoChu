@@ -8,9 +8,13 @@
 const LOCAL_KEY = 'wxtower_v1'
 const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
+// 当前存档版本号，每次结构变更时递增
+const CURRENT_VERSION = 1
+
 // 持久化数据（跨局保留）
 function defaultPersist() {
   return {
+    _version: CURRENT_VERSION,
     bestFloor: 0,         // 历史最高层数
     totalRuns: 0,         // 总挑战次数
     stats: {
@@ -26,6 +30,30 @@ function defaultPersist() {
     },
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
+  }
+}
+
+/**
+ * 存档迁移注册表：key 为源版本号，value 为迁移函数
+ * 每个迁移函数接收 data 并就地修改，将其升级到下一个版本
+ * 示例：当 CURRENT_VERSION 升至 2 时，在此添加 migrations[1] = (d) => { ... }
+ */
+const migrations = {
+  // 未来迁移示例（Phase 1 经验系统可能用到）：
+  // 1: (d) => { d.xp = 0; d.level = 1; d._version = 2 },
+}
+
+/** 从 oldVer 逐步迁移到 CURRENT_VERSION */
+function runMigrations(data) {
+  let v = data._version || 0
+  while (v < CURRENT_VERSION) {
+    const fn = migrations[v]
+    if (fn) {
+      console.log(`[Storage] 执行迁移 v${v} → v${v + 1}`)
+      fn(data)
+    }
+    v++
+    data._version = v
   }
 }
 
@@ -66,7 +94,7 @@ class Storage {
   updateBestFloor(floor, pets, weapon, totalTurns) {
     if (floor > this._d.bestFloor) {
       this._d.bestFloor = floor
-      this._d.stats.bestFloorPets = (pets || []).map(p => ({ name: p.name, attr: p.attr, atk: p.atk }))
+      this._d.stats.bestFloorPets = (pets || []).map(p => ({ id: p.id, name: p.name, attr: p.attr, atk: p.atk, star: p.star || 1 }))
       this._d.stats.bestFloorWeapon = weapon ? { name: weapon.name } : null
     }
     // 记录最快通关回合数（仅通关时，即totalTurns > 0）
@@ -472,10 +500,16 @@ class Storage {
       const raw = wx.getStorageSync(LOCAL_KEY)
       if (raw) {
         this._d = JSON.parse(raw)
+        // 补全新版本新增的默认字段
         const def = defaultPersist()
         Object.keys(def).forEach(k => {
           if (this._d[k] === undefined) this._d[k] = def[k]
         })
+        // 版本迁移：旧存档升级到当前版本
+        if ((this._d._version || 0) < CURRENT_VERSION) {
+          runMigrations(this._d)
+          this._save()
+        }
       } else {
         this._d = defaultPersist()
       }
@@ -569,8 +603,11 @@ class Storage {
         if (cloudTime > localTime) {
           delete cloud._id
           delete cloud._openid
-          // 深度合并：逐层合并嵌套对象，避免覆盖本地新增字段
           this._deepMerge(this._d, cloud)
+          // 云端数据可能版本较低，合并后确保迁移到最新
+          if ((this._d._version || 0) < CURRENT_VERSION) {
+            runMigrations(this._d)
+          }
           wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
           console.log('[Storage] 云端数据已合并到本地')
         }

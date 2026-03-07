@@ -12,35 +12,64 @@ const runMgr = require('../engine/runManager')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
-  const { S } = V
-  // 新挑战确认弹窗（优先级最高）
+
+  // ① 「更多」面板（最高优先级）
+  if (g.showMorePanel) {
+    const panelY = g._morePanelY
+    if (panelY && y < panelY) { g.showMorePanel = false; return }
+    const rects = g._morePanelRects || {}
+    if (rects.sfx && g._hitRect(x, y, ...rects.sfx)) {
+      g.storage.toggleSfx(); MusicMgr.toggleSfx(); return
+    }
+    if (rects.bgm && g._hitRect(x, y, ...rects.bgm)) {
+      g.storage.toggleBgm(); MusicMgr.toggleBgm(); return
+    }
+    // 意见反馈由微信原生按钮拦截，canvas 不处理
+    return
+  }
+
+  // ② 新挑战确认弹窗
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
-      g.showNewRunConfirm = false
-      g.storage.clearRunState()
-      g._startRun(); return
+      g.showNewRunConfirm = false; g.storage.clearRunState(); g._startRun(); return
     }
     if (g._newRunCancelRect && g._hitRect(x,y,...g._newRunCancelRect)) {
       g.showNewRunConfirm = false; return
     }
     return
   }
+
+  // ③ 左卡片：继续/开始挑战
   if (g._titleContinueRect && g._hitRect(x,y,...g._titleContinueRect)) { g._resumeRun(); return }
   if (g._titleBtnRect && g._hitRect(x,y,...g._titleBtnRect)) {
     if (g.storage.hasSavedRun()) { g.showNewRunConfirm = true; return }
     g._startRun(); return
   }
-  if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { console.log('[Touch] Stats button clicked'); g.scene = 'stats'; return }
-  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) {
-    // 未授权时排行按钮上有透明UserInfoButton，canvas不处理（让UserInfoButton拦截）
-    if (!g.storage.userAuthorized && g.storage._userInfoBtn) {
-      console.log('[Touch] Rank button clicked but UserInfoButton active, skip canvas handler')
-      return
-    }
-    console.log('[Touch] Rank button clicked'); g._openRanking(); return
+
+  // ④ 右卡片（锁定提示）
+  if (g._fixedStageRect && g._hitRect(x,y,...g._fixedStageRect)) {
+    console.log('[Touch] Fixed stage locked'); return
   }
-  if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { console.log('[Touch] Dex button clicked'); g._dexScrollY = 0; g.scene = 'dex'; return }
-  console.log('[Touch] Title tap missed, rankBtnRect exists?', !!g._rankBtnRect)
+
+  // ⑤ 底部常驻栏 5 个按钮
+  const barRects = g._bottomBarRects || []
+  // 按钮顺序：0=灵宠 1=图鉴 2=统计 3=排行 4=更多
+  for (let i = 0; i < barRects.length; i++) {
+    if (!g._hitRect(x, y, ...barRects[i])) continue
+    switch (i) {
+      case 0: // 灵宠（锁定）
+        console.log('[Touch] Pets locked'); return
+      case 1: // 图鉴
+        g._dexScrollY = 0; g.scene = 'dex'; return
+      case 2: // 统计
+        g.scene = 'stats'; return
+      case 3: // 排行
+        if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
+        g._openRanking(); return
+      case 4: // 更多
+        g.showMorePanel = true; return
+    }
+  }
 }
 
 let _prepScrolling = false
