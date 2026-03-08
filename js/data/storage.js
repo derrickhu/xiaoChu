@@ -179,6 +179,9 @@ class Storage {
   // ===== 修炼系统 =====
   get cultivation() { return this._d.cultivation }
 
+  get selectedAvatar() { return this._d.selectedAvatar || 'boy1' }
+  setSelectedAvatar(id) { this._d.selectedAvatar = id; this._save() }
+
   /** 消耗1修炼点升级指定属性，返回是否成功 */
   upgradeCultivation(key) {
     const { CULT_CONFIG } = require('./cultivationConfig')

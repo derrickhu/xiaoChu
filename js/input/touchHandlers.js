@@ -9,6 +9,7 @@ const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 const tutorial = require('../engine/tutorial')
 const runMgr = require('../engine/runManager')
+const { killExpBase } = require('../data/cultivationConfig')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
@@ -39,7 +40,6 @@ function tTitle(g, type, x, y) {
       // 重新挑战：先结算已有经验再清档开新局
       if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
         g.showTitleStartDialog = false
-        const { settleExp } = require('../engine/runManager')
         const saved = g.storage.loadRunState()
         if (saved) {
           g.floor = saved.floor; g.cleared = false
@@ -47,7 +47,7 @@ function tTitle(g, type, x, y) {
           g._runElimExp = saved._runElimExp || 0
           g._runComboExp = saved._runComboExp || 0
           g._runKillExp = saved._runKillExp || 0
-          settleExp(g)
+          runMgr.settleExp(g)
         }
         g.storage.clearRunState(); g._startRun(); return
       }
@@ -69,7 +69,6 @@ function tTitle(g, type, x, y) {
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
       g.showNewRunConfirm = false
-      const { settleExp: _settle } = require('../engine/runManager')
       const _saved = g.storage.loadRunState()
       if (_saved) {
         g.floor = _saved.floor; g.cleared = false
@@ -77,7 +76,7 @@ function tTitle(g, type, x, y) {
         g._runElimExp = _saved._runElimExp || 0
         g._runComboExp = _saved._runComboExp || 0
         g._runKillExp = _saved._runKillExp || 0
-        _settle(g)
+        runMgr.settleExp(g)
       }
       g.storage.clearRunState(); g._startRun(); return
     }
@@ -617,8 +616,7 @@ function tBattle(g, type, x, y) {
       MusicMgr.stopBossBgm()
       g.showExitDialog = false
       // 重新开局前按当前层失败结算经验
-      const { settleExp } = require('../engine/runManager')
-      settleExp(g)
+      runMgr.settleExp(g)
       g.storage.clearRunState(); g._startRun(); return
     }
     if (g._exitCancelRect && g._hitRect(x,y,...g._exitCancelRect)) { g.showExitDialog = false; return }
@@ -634,9 +632,7 @@ function tBattle(g, type, x, y) {
     if (g.enemy) {
       g.enemy.hp = 0
       // 补充击杀经验（模拟正常击杀流程）
-      const base = g.enemy.isBoss ? 30 + g.floor * 4
-        : g.enemy.isElite ? 15 + g.floor * 3
-        : 5 + g.floor * 2
+      const base = killExpBase(g.enemy, g.floor)
       g.runExp = (g.runExp || 0) + base
       g._runKillExp = (g._runKillExp || 0) + base
       // 补充一些模拟消除经验（跳过了实际消除过程）
