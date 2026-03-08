@@ -401,6 +401,11 @@ function rBattle(g) {
     g._exitBtnRect = null
   }
 
+  // ===== 经验指示器（退出按钮下方）=====
+  if (!tutorial.isActive() && g.bState !== 'none') {
+    _drawExpIndicator(g, exitBtnX, exitBtnY + exitBtnSize + 6*S, exitBtnSize, S)
+  }
+
   // 宝箱道具按钮（敌人区域右下角）
   if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
     const chestSz = 36*S
@@ -451,6 +456,9 @@ function rBattle(g) {
   drawBoard(g)
   // 消除飘字
   g.elimFloats.forEach(f => R.drawElimFloat(f))
+
+  // 经验飘字（飞向左上角）
+  _drawExpFloats(g)
 
   // Combo显示
   _drawCombo(g, cellSize, boardTop)
@@ -2462,37 +2470,48 @@ function drawVictoryOverlay(g) {
   }
 
   // ==== 成长信息行（含动画数值） ====
-  const growthLines = []
+  const inRunLines = []   // 局内加成
+  const outRunLines = []  // 局外加成
   const animProgress = Math.min(1, vt / animDuration)
   const easeP = 1 - Math.pow(1 - animProgress, 3)  // ease-out cubic
 
+  // ---- 局内加成 ----
   if (realmChanged) {
-    growthLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true, hasAnim: false })
+    inRunLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true, hasAnim: false })
   } else {
-    growthLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false, hasAnim: false })
+    inRunLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false, hasAnim: false })
   }
   if (hpUp > 0) {
     const animVal = Math.round(curMaxHp + hpUp * easeP)
-    growthLines.push({ label: '血量上限', text: `${curMaxHp} → ${animVal}`, color: '#27864A', bold: true, hasAnim: true, from: curMaxHp, to: nextMaxHp, cur: animVal })
+    inRunLines.push({ label: '血量上限', text: `${curMaxHp} → ${animVal}`, color: '#27864A', bold: true, hasAnim: true, from: curMaxHp, to: nextMaxHp, cur: animVal })
   }
   if (atkBonus > 0) {
     const animVal = Math.round((curAtkPct + atkBonus * easeP) * 10) / 10
-    growthLines.push({ label: '全队攻击', text: `${curAtkPct}% → ${animVal}%`, color: '#C06020', bold: true, hasAnim: true })
+    inRunLines.push({ label: '全队攻击', text: `${curAtkPct}% → ${animVal}%`, color: '#C06020', bold: true, hasAnim: true })
   }
   if (g.weapon && g.weapon.type === 'perFloorBuff' && nextFL > 1 && (nextFL - 1) % g.weapon.per === 0) {
     if (g.weapon.field === 'atk') {
       const curVal = curAtkPct + atkBonus
       const animVal = Math.round((curVal + g.weapon.pct * easeP) * 10) / 10
-      growthLines.push({ label: '法宝加成', text: `攻击 ${curVal}% → ${animVal}%`, color: '#8B6914', bold: true, hasAnim: true })
+      inRunLines.push({ label: '法宝加成', text: `攻击 ${curVal}% → ${animVal}%`, color: '#8B6914', bold: true, hasAnim: true })
     } else if (g.weapon.field === 'hpMax') {
       const inc = Math.round(nextMaxHp * g.weapon.pct / 100)
       const animVal = Math.round(nextMaxHp + inc * easeP)
-      growthLines.push({ label: '法宝加成', text: `血量 ${nextMaxHp} → ${animVal}`, color: '#8B6914', bold: true, hasAnim: true })
+      inRunLines.push({ label: '法宝加成', text: `血量 ${nextMaxHp} → ${animVal}`, color: '#8B6914', bold: true, hasAnim: true })
     }
   }
 
+  // ---- 局外加成（修炼经验） ----
+  const floorExp = (g.runExp || 0) - (g._floorStartExp || 0)
+  if (floorExp > 0) {
+    const animExp = Math.round(floorExp * easeP)
+    outRunLines.push({ label: '修炼经验', text: `+${animExp}`, color: '#6A5ACD', bold: true, hasAnim: true })
+  }
+
+  const allLines = [...inRunLines, ...outRunLines]
+
   // 播放数值滚动音效（每5帧一次，快节奏）
-  if (vt <= animDuration && vt % 5 === 1 && growthLines.some(l => l.hasAnim)) {
+  if (vt <= animDuration && vt % 5 === 1 && allLines.some(l => l.hasAnim)) {
     MusicMgr.playNumberTick()
   }
 
@@ -2500,9 +2519,12 @@ function drawVictoryOverlay(g) {
   const titleH = 26*S
   const speedLineH = hasSpeed ? 16*S : 0
   const growthLineH = 22*S
-  const growthAreaH = growthLines.length * growthLineH + 6*S
-  const hpBarSectionH = 36*S  // 血条区域高度
-  const tipH = 24*S  // "点击继续"提示
+  const sectionTitleH = 20*S  // 区块小标题高度
+  const inRunAreaH = inRunLines.length > 0 ? sectionTitleH + inRunLines.length * growthLineH : 0
+  const outRunAreaH = outRunLines.length > 0 ? sectionTitleH + outRunLines.length * growthLineH : 0
+  const growthAreaH = inRunAreaH + outRunAreaH + 6*S
+  const hpBarSectionH = 36*S
+  const tipH = 24*S
 
   const totalH = innerPad + titleH + speedLineH + growthAreaH + hpBarSectionH + tipH + innerPad
   const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
@@ -2524,28 +2546,49 @@ function drawVictoryOverlay(g) {
     curY += speedLineH
   }
 
-  // ==== 成长信息区（带数值滚动动画）====
+  // ==== 成长信息区（按局内/局外分区，带数值滚动动画）====
   const growthX = panelX + innerPad
-  growthLines.forEach(line => {
-    curY += growthLineH
+
+  // 绘制一组信息行的通用函数
+  function _drawGrowthLines(lines) {
+    lines.forEach(line => {
+      curY += growthLineH
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#8B7B70'
+      ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      ctx.fillText(line.label, growthX, curY - 4*S)
+      const labelW = ctx.measureText(line.label).width
+      ctx.fillStyle = line.color
+      ctx.font = `${line.bold ? 'bold ' : ''}${13*S}px "PingFang SC",sans-serif`
+      if (line.hasAnim && animProgress < 1) {
+        ctx.save()
+        ctx.shadowColor = line.color; ctx.shadowBlur = 6*S
+        ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+        ctx.shadowBlur = 0
+        ctx.restore()
+      } else {
+        ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+      }
+    })
+  }
+
+  // ---- 局内加成区 ----
+  if (inRunLines.length > 0) {
     ctx.textAlign = 'left'
-    ctx.fillStyle = '#8B7B70'
-    ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText(line.label, growthX, curY - 4*S)
-    const labelW = ctx.measureText(line.label).width
-    ctx.fillStyle = line.color
-    ctx.font = `${line.bold ? 'bold ' : ''}${13*S}px "PingFang SC",sans-serif`
-    // 动画中的数值使用更大字号并带发光
-    if (line.hasAnim && animProgress < 1) {
-      ctx.save()
-      ctx.shadowColor = line.color; ctx.shadowBlur = 6*S
-      ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
-      ctx.shadowBlur = 0
-      ctx.restore()
-    } else {
-      ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
-    }
-  })
+    ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText('▸ 本局加成', growthX, curY + sectionTitleH - 6*S)
+    curY += sectionTitleH
+    _drawGrowthLines(inRunLines)
+  }
+
+  // ---- 局外加成区 ----
+  if (outRunLines.length > 0) {
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText('▸ 修炼收益', growthX, curY + sectionTitleH - 6*S)
+    curY += sectionTitleH
+    _drawGrowthLines(outRunLines)
+  }
   curY += 6*S
 
   // ==== 血条展示（展示提升后血条现状）====
@@ -3680,6 +3723,82 @@ function drawTutorialOverlay(g) {
       ctx.restore()
     }
 
+  }
+}
+
+// ===== 经验指示器 =====
+function _drawExpIndicator(g, x, y, w, S) {
+  const { ctx, TH } = V
+  const exp = g.runExp || 0
+  const pulse = g._expIndicatorPulse || 0
+  const sc = pulse > 0 ? 1 + 0.3 * (pulse / 12) : 1
+
+  const cx = x + w * 0.5
+  const cy = y + w * 0.4
+  // 记录图标中心位置供飘字飞向
+  g._expIndicatorX = cx
+  g._expIndicatorY = cy
+
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(sc, sc)
+  ctx.translate(-cx, -cy)
+
+  // 背景圆
+  ctx.fillStyle = pulse > 0 ? 'rgba(212,168,67,0.35)' : 'rgba(0,0,0,0.4)'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 14*S, 0, Math.PI*2)
+  ctx.fill()
+  // 边框
+  ctx.strokeStyle = pulse > 0 ? 'rgba(255,215,0,0.8)' : 'rgba(212,175,55,0.4)'
+  ctx.lineWidth = 1.2*S
+  ctx.beginPath()
+  ctx.arc(cx, cy, 14*S, 0, Math.PI*2)
+  ctx.stroke()
+  // "EXP" 文字
+  ctx.fillStyle = pulse > 0 ? '#FFD700' : '#E8D5A3'
+  ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('EXP', cx, cy - 3*S)
+  // 数字
+  ctx.fillStyle = '#fff'
+  ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${exp}`, cx, cy + 7*S)
+
+  ctx.restore()
+}
+
+// ===== 经验飘字绘制 =====
+function _drawExpFloats(g) {
+  const { ctx, S } = V
+  const floats = g._expFloats
+  if (!floats || floats.length === 0) return
+
+  for (const f of floats) {
+    if (f.alpha <= 0) continue
+    const p = Math.min(f.t / f.duration, 1)
+    // easeInQuad 先慢后快（吸入感）
+    const ep = p * p
+    // 贝塞尔控制点：起点正上方偏移，模拟弧线
+    const cpX = f.startX + (f.targetX - f.startX) * 0.3
+    const cpY = f.startY - 40 * S
+    // 二次贝塞尔插值
+    const t = ep
+    const oneMinusT = 1 - t
+    const curX = oneMinusT * oneMinusT * f.startX + 2 * oneMinusT * t * cpX + t * t * f.targetX
+    const curY = oneMinusT * oneMinusT * f.startY + 2 * oneMinusT * t * cpY + t * t * f.targetY
+
+    ctx.save()
+    // 越接近目标越小越透明
+    const scale = 1 - ep * 0.5
+    ctx.globalAlpha = f.alpha * (1 - ep * 0.3)
+    ctx.fillStyle = f.color || '#FFD700'
+    ctx.font = `bold ${Math.round(12 * scale)*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2*S
+    ctx.strokeText(f.text, curX, curY)
+    ctx.fillText(f.text, curX, curY)
+    ctx.restore()
   }
 }
 

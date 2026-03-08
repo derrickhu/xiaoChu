@@ -62,6 +62,14 @@ function initState(g) {
   g._counterFlash = null
   g._bossEntrance = 0
 
+  // ===== 经验反馈特效 =====
+  g._expFloats = []           // 飞行中的经验飘字 { x, y, startX, startY, targetX, targetY, text, t, duration, alpha, color }
+  g._expIndicatorPulse = 0    // 经验图标脉冲倒计时帧
+  g._expIndicatorX = 0        // 经验图标中心坐标（由 battleView 写入）
+  g._expIndicatorY = 0
+  g._floorStartExp = 0        // 本层开始时的 runExp 快照
+  g._floorExpSummary = null    // 过层经验汇总 { amount, timer }
+
   // ===== Roguelike Run 状态 =====
   g.floor = 0
   g.pets = []

@@ -9,7 +9,7 @@ const LOCAL_KEY = 'wxtower_v1'
 const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 1
+const CURRENT_VERSION = 3
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -30,6 +30,15 @@ function defaultPersist() {
     },
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
+    cultivation: {
+      level: 0,              // 人物等级
+      exp: 0,                // 当前等级已积累经验
+      totalExpEarned: 0,     // 历史累计获得经验（统计用）
+      skillPoints: 0,        // 可用修炼点
+      levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
+      realmBreakSeen: 0,     // 已看过突破动画的最高境界索引
+    },
+    selectedAvatar: 'boy1',  // 当前选择的头像ID
   }
 }
 
@@ -39,8 +48,30 @@ function defaultPersist() {
  * 示例：当 CURRENT_VERSION 升至 2 时，在此添加 migrations[1] = (d) => { ... }
  */
 const migrations = {
-  // 未来迁移示例（Phase 1 经验系统可能用到）：
-  // 1: (d) => { d.xp = 0; d.level = 1; d._version = 2 },
+  1: (d) => {
+    if (!d.cultivation) {
+      d.cultivation = {
+        level: 0, exp: 0, totalExpEarned: 0, skillPoints: 0,
+        levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
+        realmBreakSeen: 0,
+      }
+    }
+  },
+  // v2→v3：修炼系统从"经验直接消耗"改为"等级+加点制"
+  2: (d) => {
+    const cult = d.cultivation || {}
+    const { usedPoints: calcUsed } = require('./cultivationConfig')
+    const used = calcUsed(cult.levels || {})
+    // 已分配的点数 = 已用点数（保留已有修炼进度）
+    // 将旧版剩余经验折算为新版经验（保底不亏）
+    cult.level = used                // 等级 = 已投入点数（确保不丢失进度）
+    cult.skillPoints = 0             // 已用完（之前每次升级都消耗了经验）
+    cult.exp = cult.exp || 0         // 保留旧版余额作为新版当前经验
+    cult.totalExpEarned = cult.totalExpEarned || 0
+    if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
+    if (cult.realmBreakSeen === undefined) cult.realmBreakSeen = 0
+    d.cultivation = cult
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -143,6 +174,50 @@ class Storage {
       this._d.petDexSeen.push(petId)
       this._save()
     }
+  }
+
+  // ===== 修炼系统 =====
+  get cultivation() { return this._d.cultivation }
+
+  /** 消耗1修炼点升级指定属性，返回是否成功 */
+  upgradeCultivation(key) {
+    const { CULT_CONFIG } = require('./cultivationConfig')
+    const cfg = CULT_CONFIG[key]
+    if (!cfg) return false
+    const cult = this._d.cultivation
+    if (cult.skillPoints <= 0) return false
+    const nextLv = cult.levels[key] + 1
+    if (nextLv > cfg.maxLv) return false
+    cult.skillPoints--
+    cult.levels[key] = nextLv
+    this._save()
+    return true
+  }
+
+  /**
+   * 增加修炼经验并自动升级，返回升级次数
+   * 每升一级获得 1 修炼点
+   */
+  addCultExp(amount) {
+    if (amount <= 0) return 0
+    const { MAX_LEVEL, expToNextLevel } = require('./cultivationConfig')
+    const cult = this._d.cultivation
+    if (cult.level == null) cult.level = 0
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    cult.exp += amount
+    cult.totalExpEarned += amount
+    let levelUps = 0
+    while (cult.level < MAX_LEVEL) {
+      const needed = expToNextLevel(cult.level)
+      if (cult.exp < needed) break
+      cult.exp -= needed
+      cult.level++
+      cult.skillPoints++
+      levelUps++
+    }
+    // 满级后经验仍然累积（显示用），但不再升级
+    this._save()
+    return levelUps
   }
 
   // ===== 局内暂存（暂存退出用）=====
@@ -510,6 +585,8 @@ class Storage {
           runMigrations(this._d)
           this._save()
         }
+        // 确保 cultivation 字段完整（防止迁移失败或字段缺失）
+        this._ensureCultivationFields()
       } else {
         this._d = defaultPersist()
       }
@@ -517,6 +594,20 @@ class Storage {
       console.warn('Storage load error:', e)
       this._d = defaultPersist()
     }
+  }
+
+  // 补全 cultivation 子字段（兼容任何版本的存档残缺）
+  _ensureCultivationFields() {
+    const cult = this._d.cultivation
+    if (!cult) { this._d.cultivation = defaultPersist().cultivation; return }
+    if (cult.level == null) cult.level = 0
+    if (cult.exp == null) cult.exp = 0
+    if (cult.totalExpEarned == null) cult.totalExpEarned = 0
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
+    if (cult.realmBreakSeen == null) cult.realmBreakSeen = 0
+    // 头像选择默认值
+    if (!this._d.selectedAvatar) this._d.selectedAvatar = 'boy1'
   }
 
   _save() {

@@ -331,9 +331,109 @@ function rGameover(g) {
   ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`灵兽背包：${g.petBag.length}只  法宝背包：${g.weaponBag.length}件`, W*0.5, panelY + 92*S)
 
-  const bx = W*0.25, by = panelY + panelH + 20*S, bw = W*0.5, bh = 48*S
+  // 修炼经验获得展示
+  let expPanelBottom = panelY + panelH
+  if (g._lastRunExp != null && g._lastRunExp > 0) {
+    const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
+    const cult = g.storage.cultivation
+    const levelUps = g._lastRunLevelUps || 0
+    const expH = levelUps > 0 ? 96*S : 80*S
+    const expY = panelY + panelH + 10*S
+    const epx = (W - panelW)/2
+    const epBg = ctx.createLinearGradient(epx, expY, epx, expY + expH)
+    epBg.addColorStop(0, 'rgba(50,40,20,0.7)'); epBg.addColorStop(1, 'rgba(30,25,12,0.75)')
+    ctx.fillStyle = epBg; R.rr(epx, expY, panelW, expH, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 1*S
+    R.rr(epx, expY, panelW, expH, 8*S); ctx.stroke()
+
+    ctx.textAlign = 'center'
+    // 经验获得
+    ctx.fillStyle = '#E8D5A3'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`获得修炼经验 +${g._lastRunExp}`, W*0.5, expY + 16*S)
+
+    // 经验明细
+    const d = g._lastRunExpDetail
+    if (d) {
+      ctx.fillStyle = '#A89878'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      const details = []
+      if (d.elimExp > 0) details.push(`消除+${d.elimExp}`)
+      if (d.comboExp > 0) details.push(`连击+${d.comboExp}`)
+      if (d.killExp > 0) details.push(`击杀+${d.killExp}`)
+      if (d.layerExp > 0) details.push(`层数+${d.layerExp}`)
+      if (d.clearBonus > 0) details.push(`通关+${d.clearBonus}`)
+      ctx.fillText(details.join('  '), W*0.5, expY + 32*S)
+      if (!d.isCleared) {
+        ctx.fillStyle = '#886655'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`(未通关保底 60%)`, W*0.5, expY + 44*S)
+      }
+    }
+
+    // 升级提示
+    let curLine = d && !d.isCleared ? 56*S : 48*S
+    if (levelUps > 0) {
+      ctx.fillStyle = '#FFD700'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.shadowColor = 'rgba(255,215,0,0.4)'; ctx.shadowBlur = 6*S
+      ctx.fillText(`升级！Lv.${g._lastRunPrevLevel || 0} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W*0.5, expY + curLine)
+      ctx.shadowBlur = 0
+      curLine += 16*S
+    }
+
+    // 经验条 + 等级
+    const barX = epx + 14*S, barW = panelW - 28*S, barH = 10*S
+    const barY = expY + curLine
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    R.rr(barX, barY, barW, barH, barH/2); ctx.fill()
+    if (cult.level < MAX_LEVEL) {
+      const needed = expToNextLevel(cult.level)
+      const pct = Math.min(cult.exp / needed, 1)
+      if (pct > 0) {
+        const fillW = Math.max(barH, barW * pct)
+        const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY)
+        barGrad.addColorStop(0, '#d4a843'); barGrad.addColorStop(1, '#f0c860')
+        ctx.fillStyle = barGrad
+        R.rr(barX, barY, fillW, barH, barH/2); ctx.fill()
+      }
+      ctx.fillStyle = '#C8B78A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}`, epx + panelW - 14*S, barY + barH + 12*S)
+    } else {
+      const barGrad = ctx.createLinearGradient(barX, barY, barX + barW, barY)
+      barGrad.addColorStop(0, '#d4a843'); barGrad.addColorStop(1, '#f0c860')
+      ctx.fillStyle = barGrad
+      R.rr(barX, barY, barW, barH, barH/2); ctx.fill()
+      ctx.fillStyle = '#C8B78A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`Lv.${cult.level} 已满级`, epx + panelW - 14*S, barY + barH + 12*S)
+    }
+    ctx.textAlign = 'center'
+    // 境界
+    ctx.fillStyle = '#8a7a5a'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(`${currentRealm(cult.level).name}`, epx + 14*S, barY + barH + 12*S)
+    ctx.textAlign = 'center'
+
+    expPanelBottom = expY + expH
+  }
+
+  const bx = W*0.25, by = expPanelBottom + 16*S, bw = W*0.5, bh = 48*S
   R.drawBtn(bx, by, bw, bh, g.cleared ? '再次挑战' : '重新挑战', TH.accent, 18)
   g._goBtnRect = [bx, by, bw, bh]
+
+  // "前往修炼"快捷按钮
+  if (g._lastRunExp > 0) {
+    const { hasCultUpgradeAvailable } = require('./cultivationView')
+    if (hasCultUpgradeAvailable(g.storage)) {
+      const cbw = W*0.35, cbh = 36*S
+      const cbx = (W - cbw)/2, cby = by + bh + 10*S
+      R.drawBtn(cbx, cby, cbw, cbh, '前往修炼', '#6a5a3a', 14)
+      g._cultBtnRect = [cbx, cby, cbw, cbh]
+    } else {
+      g._cultBtnRect = null
+    }
+  } else {
+    g._cultBtnRect = null
+  }
+
   drawBackBtn(g)
 }
 

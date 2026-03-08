@@ -76,11 +76,28 @@ function startRun(g) {
   g.weaponReviveUsed = false; g.goodBeadsNextTurn = false
   g.adReviveUsed = false
   g.turnCount = 0; g.combo = 0; g.runTotalTurns = 0
+  // 修炼经验：局内累积字段初始化
+  g.runExp = 0; g._runElimExp = 0; g._runComboExp = 0; g._runKillExp = 0
+  g._floorStartExp = 0; g._floorExpSummary = null; g._expFloats = []
   g.storage._d.totalRuns++; g.storage._save()
   // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
   if (tutorial.needsTutorial()) {
     tutorial.start(g)
     return
+  }
+  // 固定关卡模式：应用修炼加成
+  if (g.battleMode === 'stage') {
+    const cult = g.storage.cultivation
+    const { effectValue } = require('../data/cultivationConfig')
+    g.heroMaxHp  += effectValue('body', cult.levels.body)
+    g.heroHp      = g.heroMaxHp
+    g.heroShield  = effectValue('sense', cult.levels.sense)
+    g.dragTimeLimit += Math.round(effectValue('wisdom', cult.levels.wisdom) * 60)
+    g._cultDmgReduce = effectValue('defense', cult.levels.defense)
+    g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+  } else {
+    g._cultDmgReduce = 0
+    g._cultHeartBase = 0
   }
   g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
   nextFloor(g)
@@ -149,6 +166,15 @@ function nextFloor(g) {
   g._eventShopUsedItems = null
   g._shopSelectAttr = false
   g._shopSelectPet = null
+  // 过层经验汇总：计算本层获得经验
+  const floorExp = (g.runExp || 0) - (g._floorStartExp || 0)
+  if (floorExp > 0 && g.floor > 1) {
+    g._floorExpSummary = { amount: floorExp, timer: 120 }
+  } else {
+    g._floorExpSummary = null
+  }
+  g._floorStartExp = g.runExp || 0
+  g._expFloats = []
   g.scene = 'event'
 }
 
@@ -161,6 +187,33 @@ function restoreBattleHpMax(g) {
   g._baseHeroMaxHp = null
 }
 
+/**
+ * 经验结算（可独立于 endRun 调用，如重新开局时）
+ * 按失败处理：保留 60% 经验
+ */
+function settleExp(g) {
+  const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+  const layerExp = finalFloor * 3
+  const clearBonus = g.cleared ? 500 : 0
+  const rawTotal = (g.runExp || 0) + layerExp + clearBonus
+  const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * 0.6)
+  const prevLevel = g.storage.cultivation.level || 0
+  const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
+  g._lastRunExp = finalExp
+  g._lastRunLevelUps = levelUps
+  g._lastRunPrevLevel = prevLevel
+  g._lastRunExpDetail = {
+    elimExp: g._runElimExp || 0,
+    comboExp: g._runComboExp || 0,
+    killExp: g._runKillExp || 0,
+    layerExp,
+    clearBonus,
+    rawTotal,
+    isCleared: g.cleared,
+  }
+  return finalExp
+}
+
 function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
@@ -170,6 +223,7 @@ function endRun(g) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
     g.storage.submitDexAndCombo()
   }
+  settleExp(g)
   if (g.cleared) {
     MusicMgr.playLevelUp()
   } else {
@@ -197,6 +251,8 @@ function saveAndExit(g) {
     tempRevive: g.tempRevive, immuneOnce: g.immuneOnce, comboNeverBreak: g.comboNeverBreak,
     weaponReviveUsed: g.weaponReviveUsed, goodBeadsNextTurn: g.goodBeadsNextTurn,
     runTotalTurns: g.runTotalTurns || 0,
+    runExp: g.runExp || 0, _runElimExp: g._runElimExp || 0,
+    _runComboExp: g._runComboExp || 0, _runKillExp: g._runKillExp || 0,
     itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
     itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
     curEvent: g.curEvent ? JSON.parse(JSON.stringify(g.curEvent)) : null,
@@ -241,6 +297,17 @@ function resumeRun(g) {
   g.itemHealUsed = s.itemHealUsed || false
   g._showItemMenu = false
   g.turnCount = 0; g.combo = 0
+  // 恢复修炼经验累积
+  g.runExp = s.runExp || 0; g._runElimExp = s._runElimExp || 0
+  g._runComboExp = s._runComboExp || 0; g._runKillExp = s._runKillExp || 0
+  // 恢复修炼加成（固定关卡模式）
+  g._cultDmgReduce = 0; g._cultHeartBase = 0
+  if (g.battleMode === 'stage') {
+    const cult = g.storage.cultivation
+    const { effectValue } = require('../data/cultivationConfig')
+    g._cultDmgReduce = effectValue('defense', cult.levels.defense)
+    g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+  }
   g.curEvent = s.curEvent
   g.storage.clearRunState()
   g.prepareTab = 'pets'
@@ -357,7 +424,7 @@ function useItemHeal(g) {
 
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
-  startRun, nextFloor, restoreBattleHpMax, endRun, saveAndExit, resumeRun,
+  startRun, nextFloor, restoreBattleHpMax, settleExp, endRun, saveAndExit, resumeRun,
   onDefeat, doAdRevive, adReviveCallback,
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
 }

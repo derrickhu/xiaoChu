@@ -36,9 +36,20 @@ function tTitle(g, type, x, y) {
       if (g._dialogContinueRect && g._hitRect(x, y, ...g._dialogContinueRect)) {
         g.showTitleStartDialog = false; g._resumeRun(); return
       }
-      // 重新挑战：直接清档开新局（已并入单弹窗确认）
+      // 重新挑战：先结算已有经验再清档开新局
       if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
-        g.showTitleStartDialog = false; g.storage.clearRunState(); g._startRun(); return
+        g.showTitleStartDialog = false
+        const { settleExp } = require('../engine/runManager')
+        const saved = g.storage.loadRunState()
+        if (saved) {
+          g.floor = saved.floor; g.cleared = false
+          g.runExp = saved.runExp || 0
+          g._runElimExp = saved._runElimExp || 0
+          g._runComboExp = saved._runComboExp || 0
+          g._runKillExp = saved._runKillExp || 0
+          settleExp(g)
+        }
+        g.storage.clearRunState(); g._startRun(); return
       }
     } else {
       // 取消
@@ -57,7 +68,18 @@ function tTitle(g, type, x, y) {
   // ③ 新挑战确认弹窗（兼容旧状态，首页不再主动触发）
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
-      g.showNewRunConfirm = false; g.storage.clearRunState(); g._startRun(); return
+      g.showNewRunConfirm = false
+      const { settleExp: _settle } = require('../engine/runManager')
+      const _saved = g.storage.loadRunState()
+      if (_saved) {
+        g.floor = _saved.floor; g.cleared = false
+        g.runExp = _saved.runExp || 0
+        g._runElimExp = _saved._runElimExp || 0
+        g._runComboExp = _saved._runComboExp || 0
+        g._runKillExp = _saved._runKillExp || 0
+        _settle(g)
+      }
+      g.storage.clearRunState(); g._startRun(); return
     }
     if (g._newRunCancelRect && g._hitRect(x,y,...g._newRunCancelRect)) {
       g.showNewRunConfirm = false; return
@@ -77,12 +99,18 @@ function tTitle(g, type, x, y) {
   }
 
   // ⑥ 底部 7 标签导航
-  // 标签顺序：0=主角 1=灵宠 2=图鉴 3=通天塔(中心) 4=排行 5=统计 6=更多
+  // 标签顺序：0=修炼 1=灵宠 2=图鉴 3=通天塔(中心) 4=排行 5=统计 6=更多
   const barRects = g._bottomBarRects || []
   for (let i = 0; i < barRects.length; i++) {
     if (!g._hitRect(x, y, ...barRects[i])) continue
     switch (i) {
-      case 0: return // 主角（锁定）
+      case 0: { // 修炼洞府
+        const cv = require('../views/cultivationView')
+        cv.resetScroll()
+        g.scene = 'cultivation'
+        cv.checkRealmBreak(g)
+        return
+      }
       case 1: return // 灵宠（锁定）
       case 2: g._dexScrollY = 0; g.scene = 'dex'; return
       case 3: g.titleMode = 'tower'; return // 通天塔（中心）
@@ -587,7 +615,11 @@ function tBattle(g, type, x, y) {
     if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) { g._saveAndExit(); return }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
       MusicMgr.stopBossBgm()
-      g.showExitDialog = false; g.storage.clearRunState(); g._startRun(); return
+      g.showExitDialog = false
+      // 重新开局前按当前层失败结算经验
+      const { settleExp } = require('../engine/runManager')
+      settleExp(g)
+      g.storage.clearRunState(); g._startRun(); return
     }
     if (g._exitCancelRect && g._hitRect(x,y,...g._exitCancelRect)) { g.showExitDialog = false; return }
     return
@@ -599,7 +631,19 @@ function tBattle(g, type, x, y) {
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
   // [DEBUG] 一键跳过战斗
   if (type === 'end' && g._debugSkipRect && g._hitRect(x,y,...g._debugSkipRect)) {
-    if (g.enemy) g.enemy.hp = 0
+    if (g.enemy) {
+      g.enemy.hp = 0
+      // 补充击杀经验（模拟正常击杀流程）
+      const base = g.enemy.isBoss ? 30 + g.floor * 4
+        : g.enemy.isElite ? 15 + g.floor * 3
+        : 5 + g.floor * 2
+      g.runExp = (g.runExp || 0) + base
+      g._runKillExp = (g._runKillExp || 0) + base
+      // 补充一些模拟消除经验（跳过了实际消除过程）
+      const simElim = 10 + g.floor * 2
+      g.runExp = (g.runExp || 0) + simElim
+      g._runElimExp = (g._runElimExp || 0) + simElim
+    }
     g.lastTurnCount = g.turnCount || 1
     g.lastSpeedKill = true
     g.runTotalTurns = (g.runTotalTurns || 0) + (g.turnCount || 1)
@@ -890,7 +934,14 @@ function tAdventure(g, type, x, y) {
 function tGameover(g, type, x, y) {
   if (type !== 'end') return
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
-  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.scene = 'title' }
+  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.scene = 'title'; return }
+  if (g._cultBtnRect && g._hitRect(x,y,...g._cultBtnRect)) {
+    const cultView = require('../views/cultivationView')
+    cultView.resetScroll()
+    g.scene = 'cultivation'
+    cultView.checkRealmBreak(g)
+    return
+  }
 }
 
 function tRanking(g, type, x, y) {

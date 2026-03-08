@@ -11,6 +11,7 @@ const MusicMgr = require('./runtime/music')
 const TinyEmitter = require('./libs/tinyemitter')
 const ViewEnv = require('./views/env')
 const screens = require('./views/screens')
+const cultView = require('./views/cultivationView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
 const eventView = require('./views/eventView')
@@ -242,6 +243,7 @@ class Main {
       case 'ranking': screens.rRanking(this); break
       case 'stats': screens.rStats(this); break
       case 'dex': screens.rDex(this); break
+      case 'cultivation': cultView.rCultivation(this); break
     }
     // 粒子系统绘制
     Particles.draw(ctx)
@@ -287,6 +289,7 @@ class Main {
       case 'ranking': touchH.tRanking(this,type,x,y); break
       case 'stats': touchH.tStats(this,type,x,y); break
       case 'dex': touchH.tDex(this,type,x,y); break
+      case 'cultivation': cultView.tCultivation(this,x,y,type); break
     }
   }
 
