@@ -8,7 +8,7 @@ const { PETS, getPetAvatarPath } = require('../data/pets')
 
 // 底部 7 标签定义（index=3 为中心凸起按钮）
 const BAR_ITEMS = [
-  { key: 'hero',   label: '主角',  icon: '👤', locked: true, img: 'assets/ui/nav_hero.png' },
+  { key: 'cultivation', label: '修炼', icon: '☯', img: 'assets/ui/nav_hero.png' },
   { key: 'pets',   label: '灵宠',  icon: '🐾', locked: true, img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
   { key: 'battle', label: '战斗',  icon: '⚔',  center: true },
@@ -496,6 +496,7 @@ function drawBottomBar(g) {
   // 判断当前选中的标签 key
   const activeKey = (() => {
     if (g.scene === 'title') return (g.titleMode === 'tower' || !g.titleMode) ? 'battle' : 'stage'
+    if (g.scene === 'cultivation') return 'cultivation'
     if (g.scene === 'dex') return 'dex'
     if (g.scene === 'ranking') return 'rank'
     if (g.scene === 'stats') return 'stats'
@@ -514,20 +515,24 @@ function drawBottomBar(g) {
       const circleR = L.bottomBarH * 0.36
       const circleCY = L.bottomBarY + L.bottomBarH * 0.40
 
-      // 选中时：外层光晕环
-      if (isActive) {
-        ctx.beginPath(); ctx.arc(cx, circleCY, circleR + 4 * S, 0, Math.PI * 2)
-        ctx.strokeStyle = 'rgba(255,240,120,0.9)'; ctx.lineWidth = 2.5 * S; ctx.stroke()
-        ctx.beginPath(); ctx.arc(cx, circleCY, circleR + 7 * S, 0, Math.PI * 2)
-        ctx.strokeStyle = 'rgba(255,230,80,0.3)'; ctx.lineWidth = 3 * S; ctx.stroke()
-      }
-
       const grad = ctx.createRadialGradient(cx, circleCY, 0, cx, circleCY, circleR)
       grad.addColorStop(0, '#ffe066')
       grad.addColorStop(0.6, '#d4a84b')
       grad.addColorStop(1, '#8b6010')
+
+      // 选中时：整个按钮带发光绘制
+      if (isActive) {
+        ctx.save()
+        ctx.shadowColor = '#FFE080'
+        ctx.shadowBlur = 22 * S
+        ctx.beginPath(); ctx.arc(cx, circleCY, circleR, 0, Math.PI * 2)
+        ctx.fillStyle = grad; ctx.fill()
+        ctx.restore()
+      } else {
+        ctx.beginPath(); ctx.arc(cx, circleCY, circleR, 0, Math.PI * 2)
+        ctx.fillStyle = grad; ctx.fill()
+      }
       ctx.beginPath(); ctx.arc(cx, circleCY, circleR, 0, Math.PI * 2)
-      ctx.fillStyle = grad; ctx.fill()
       ctx.strokeStyle = 'rgba(255,230,100,0.6)'; ctx.lineWidth = 2 * S; ctx.stroke()
 
       const battleImg = R.getImg('assets/ui/nav_battle.png')
@@ -559,19 +564,20 @@ function drawBottomBar(g) {
       const iconTop = L.bottomBarY + L.bottomBarH * 0.04
       const iconCY = iconTop + iconSize / 2
 
-      // 选中状态：图标放大 10% + 圆形高亮背景
-      const scale = isActive ? 1.10 : 1.0
+      // 选中状态：图标放大 + 外轮廓发光
+      const scale = isActive ? 1.12 : 1.0
       const drawSize = iconSize * scale
       const drawTop = iconCY - drawSize / 2
 
-      if (isActive && !isLocked) {
-        ctx.beginPath(); ctx.arc(iconCX, iconCY, drawSize * 0.54, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,240,160,0.18)'; ctx.fill()
-        ctx.strokeStyle = 'rgba(255,230,100,0.75)'; ctx.lineWidth = 2 * S; ctx.stroke()
-      }
-
       const navImg = item.img ? R.getImg(item.img) : null
       if (navImg && navImg.width > 0) {
+        if (isActive && !isLocked) {
+          ctx.save()
+          ctx.shadowColor = '#FFE080'
+          ctx.shadowBlur = 18 * S
+          ctx.drawImage(navImg, iconCX - drawSize / 2, drawTop, drawSize, drawSize)
+          ctx.restore()
+        }
         ctx.drawImage(navImg, iconCX - drawSize / 2, drawTop, drawSize, drawSize)
       } else {
         ctx.font = `${drawSize * 0.7}px "PingFang SC",sans-serif`
@@ -610,6 +616,16 @@ function drawBottomBar(g) {
         const dex = g.storage.petDex || []
         const seen = g.storage.petDexSeen || []
         if (dex.length > seen.length) {
+          ctx.globalAlpha = 1
+          ctx.beginPath()
+          ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)
+          ctx.fillStyle = '#ff4444'; ctx.fill()
+        }
+      }
+      // 修炼红点：有可升级项时显示
+      if (item.key === 'cultivation') {
+        const { hasCultUpgradeAvailable } = require('./cultivationView')
+        if (hasCultUpgradeAvailable(g.storage)) {
           ctx.globalAlpha = 1
           ctx.beginPath()
           ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)
@@ -720,4 +736,4 @@ function rTitle(g) {
   drawTitleStartDialog(g)
 }
 
-module.exports = { rTitle, getLayout, BAR_ITEMS }
+module.exports = { rTitle, getLayout, BAR_ITEMS, drawBottomBar }

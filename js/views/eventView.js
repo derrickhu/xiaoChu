@@ -95,6 +95,21 @@ function rEvent(g) {
   // 境界提升提示已移除，直接清除数据
   if (g._realmUpInfo) g._realmUpInfo = null
 
+  // 过层经验汇总飘字（短暂显示后淡出）
+  if (g._floorExpSummary && g._floorExpSummary.timer > 0) {
+    const fs = g._floorExpSummary
+    const fadePct = fs.timer < 30 ? fs.timer / 30 : 1
+    ctx.save()
+    ctx.globalAlpha = fadePct * 0.9
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#FFD700'
+    ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
+    ctx.fillText(`上层获得经验 +${fs.amount}`, W*0.5, curY - 4*S)
+    ctx.shadowBlur = 0
+    ctx.restore()
+  }
+
   // ===== 非战斗层保持原逻辑 =====
   g._eventPetRects = []
   g._eventEditPetRect = null

@@ -13,6 +13,34 @@ const tutorial = require('./tutorial')
 const { tween, Ease } = require('./tween')
 const Particles = require('./particles')
 
+// 击杀经验（统一调用避免遗漏）
+function _addKillExp(g) {
+  if (!g.enemy) return
+  const { S, W } = V
+  const base = g.enemy.isBoss ? 30 + g.floor * 4
+    : g.enemy.isElite ? 15 + g.floor * 3
+    : 5 + g.floor * 2
+  g.runExp = (g.runExp || 0) + base
+  g._runKillExp = (g._runKillExp || 0) + base
+  // 击杀经验飘字：从敌人区域中心飞出
+  if (g._expFloats) {
+    const ex = W * 0.5
+    const ey = (V.safeTop || 0) + 80 * S
+    g._expFloats.push({
+      startX: ex, startY: ey,
+      targetX: g._expIndicatorX || 30 * S, targetY: g._expIndicatorY || 60 * S,
+      text: `+${base}`, t: 0, duration: 36,
+      alpha: 1, color: '#FF8C00',
+    })
+    // 击杀粒子爆发
+    Particles.burst({
+      x: ex, y: ey, count: 8, speed: 3 * S,
+      size: 4 * S, life: 20, gravity: 0.1 * S,
+      colors: ['#FFD700', '#FFA500', '#fff'], shape: 'star',
+    })
+  }
+}
+
 // ===== 棋盘 =====
 function initBoard(g) {
   const { ROWS, COLS } = V
@@ -117,8 +145,34 @@ function startNextElimAnim(g) {
   }
   const group = g.elimQueue.shift()
   const { attr, count, cells } = group
+  // 修炼经验：每组消除累加
+  const elimExp = count >= 5 ? 3 : count >= 4 ? 2 : 1
+  g.runExp = (g.runExp || 0) + elimExp
+  g._runElimExp = (g._runElimExp || 0) + elimExp
   // 移除combo断链：所有消除都计入combo（大幅提升爽感）
   g.combo++
+  // 修炼经验：每段 combo
+  g.runExp += 2
+  g._runComboExp = (g._runComboExp || 0) + 2
+  // 经验飘字：从消除中心飞向左上角指示器
+  if (g._expFloats && cells.length > 0) {
+    let sumX = 0, sumY = 0
+    for (const cell of cells) {
+      sumX += g.boardX + cell.c * g.cellSize + g.cellSize * 0.5
+      sumY += g.boardY + cell.r * g.cellSize + g.cellSize * 0.5
+    }
+    const cx = sumX / cells.length, cy = sumY / cells.length
+    const totalExp = elimExp + 2
+    // 限制同屏飘字数量
+    if (g._expFloats.length < 6) {
+      g._expFloats.push({
+        startX: cx, startY: cy,
+        targetX: g._expIndicatorX || 30 * S, targetY: g._expIndicatorY || 60 * S,
+        text: `+${totalExp}`, t: 0, duration: 28,
+        alpha: 1, color: '#FFD700',
+      })
+    }
+  }
   // Combo弹出动画
   g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
   g._comboFlash = g.combo >= 5 ? 12 : 8
@@ -195,7 +249,8 @@ function startNextElimAnim(g) {
   // 消除数值飘字
   let elimDisplayVal = 0, elimDisplayColor = '#fff'
   if (attr === 'heart') {
-    let heal = (12 + Math.floor(g.floor * 0.8)) * elimMul
+    let healBase = 12 + Math.floor(g.floor * 0.8) + (g._cultHeartBase || 0)
+    let heal = healBase * elimMul
     heal *= 1 + g.runBuffs.heartBoostPct / 100
     if (g.weapon && g.weapon.type === 'heartBoost') heal *= 1 + g.weapon.pct / 100
     // 宠物技能heartBoost buff：心珠效果翻倍
@@ -260,7 +315,7 @@ function startNextElimAnim(g) {
     const { W, S } = V
     g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:ATTR_COLOR[attr]?.main||'#ff6347', t:0, alpha:1 })
     g.shakeT = 6; g.shakeI = 4
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
@@ -655,6 +710,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   }
   // 胜利判定
   if (g.enemy && g.enemy.hp <= 0) {
+    _addKillExp(g)
     g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
     g.bState = 'victory'; MusicMgr.playVictory()
     // 触发敌人死亡爆裂特效
@@ -775,7 +831,7 @@ function enemyTurn(g) {
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${b.dmg}`, color:'#a040a0', t:0, alpha:1 })
       }
     })
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
@@ -797,6 +853,8 @@ function enemyTurn(g) {
   reducePct += g.runBuffs.dmgReducePct
   if (g.runBuffs.nextDmgReducePct > 0) reducePct += g.runBuffs.nextDmgReducePct
   atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
+  // 修炼根骨：固定值减伤（仅固定关卡模式）
+  if (g._cultDmgReduce > 0) atkDmg -= g._cultDmgReduce
   atkDmg = Math.max(0, atkDmg)
   if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
     const blocked = atkDmg
@@ -864,7 +922,7 @@ function enemyTurn(g) {
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + heal)
     }
   })
-  if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
   g.turnCount++
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
