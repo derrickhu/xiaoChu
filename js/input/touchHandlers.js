@@ -86,8 +86,15 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ④ 开始按钮（通天塔模式）
+  // ④ 开始按钮
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
+    if ((g.titleMode || 'tower') === 'stage') {
+      // 固定关卡模式：进入关卡选择
+      const { resetScroll } = require('../views/stageSelectView')
+      resetScroll()
+      g.scene = 'stageSelect'
+      return
+    }
     g.showNewRunConfirm = false
     g.showTitleStartDialog = true; return
   }
@@ -110,7 +117,14 @@ function tTitle(g, type, x, y) {
         cv.checkRealmBreak(g)
         return
       }
-      case 1: return // 灵宠（锁定）
+      case 1: // 灵宠池
+        if (g.storage.petPoolCount > 0) {
+          g._petPoolFilter = 'all'
+          g._petPoolScroll = 0
+          g._petPoolDetail = null
+          g.scene = 'petPool'
+        }
+        return
       case 2: g._dexScrollY = 0; g.scene = 'dex'; return
       case 3: g.titleMode = 'tower'; return // 通天塔（中心）
       case 4: // 排行
@@ -258,7 +272,9 @@ function tPrepare(g, type, x, y) {
 function tEvent(g, type, x, y) {
   // ★3满星庆祝画面（商店升星触发）
   if (type === 'end' && g._star3Celebration && g._star3Celebration.phase === 'ready') {
-    g._star3Celebration = null; return
+    g._star3Celebration = null
+    if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null }
+    return
   }
   if (g._star3Celebration) return
   // === 弹窗层：只处理 end ===
@@ -648,6 +664,21 @@ function tBattle(g, type, x, y) {
   }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
+    // 固定关卡模式：波次推进或结算
+    if (g.battleMode === 'stage') {
+      if (g._victoryTapReady) {
+        const stageMgr = require('../engine/stageManager')
+        if (!stageMgr.isLastWave(g)) {
+          // 进入波间过渡
+          g.bState = 'waveTransition'
+          g._waveTransTimer = 60
+        } else {
+          stageMgr.settleStage(g)
+        }
+      }
+      return
+    }
+    // 肉鸽模式：原有逻辑
     // 第30层通关面板：点击确认直接回首页（跳过gameover页面）
     if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
@@ -663,13 +694,18 @@ function tBattle(g, type, x, y) {
       g._nextFloor()
       return
     }
-    // ★3满星庆祝画面：点击关闭后进入下一层
+    // ★3满星庆祝画面：点击关闭后检查待显示弹窗
     if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
       g._star3Celebration = null
+      if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
       g._nextFloor()
       return
     }
     if (g._star3Celebration) return
+    // 灵宠入池弹窗
+    if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._nextFloor(); return }
+    // 碎片获得弹窗
+    if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._nextFloor(); return }
     // 点击任意处：动画结束后跳转到独立奖励选择页面
     if (g._victoryTapReady && g.rewards && g.rewards.length > 0) {
       g.selectedReward = -1
@@ -680,7 +716,20 @@ function tBattle(g, type, x, y) {
     }
     return
   }
+  // 波间过渡：点击快速跳过
+  if (g.bState === 'waveTransition' && type === 'end') {
+    g._waveTransTimer = 0
+    return
+  }
   if (g.bState === 'defeat' && type === 'end') {
+    // 固定关卡失败结算
+    if (g.battleMode === 'stage') {
+      if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) {
+        const stageMgr = require('../engine/stageManager')
+        stageMgr.settleStageDefeat(g)
+      }
+      return
+    }
     if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm(); g._endRun(); return }
   }
   // 广告复活
@@ -870,13 +919,17 @@ function tReward(g, type, x, y) {
     g._nextFloor()
     return
   }
-  // ★3满星庆祝画面：点击关闭后进入下一层
+  // ★3满星庆祝画面：点击关闭后检查待显示弹窗
   if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null
+    if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
     g._nextFloor()
     return
   }
   if (g._star3Celebration) return
+  // 灵宠入池 / 碎片获得弹窗
+  if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._nextFloor(); return }
+  if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._nextFloor(); return }
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
   if (g._rewardRects) {
     for (let i = 0; i < g._rewardRects.length; i++) {
@@ -884,14 +937,13 @@ function tReward(g, type, x, y) {
     }
   }
   if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
-    // 从战斗胜利进入奖励页时，需要清理战斗状态
     if (g.bState === 'victory') {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
     }
     g._applyReward(g.rewards[g.selectedReward])
-    if (g._star3Celebration || g._petObtainedPopup) return
+    if (g._star3Celebration || g._petObtainedPopup || g._petPoolEntryPopup || g._fragmentObtainedPopup) return
     g._nextFloor()
   }
 }
@@ -936,6 +988,11 @@ function tGameover(g, type, x, y) {
     cultView.resetScroll()
     g.scene = 'cultivation'
     cultView.checkRealmBreak(g)
+    return
+  }
+  if (g._petPoolBtnRect && g._hitRect(x,y,...g._petPoolBtnRect)) {
+    g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+    g.scene = 'petPool'
     return
   }
 }

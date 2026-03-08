@@ -10,11 +10,28 @@ const {
 const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
 
-// 辅助：tryMergePet 后检查是否升到满星，记录图鉴
+// 辅助：tryMergePet 后检查是否升到满星，记录图鉴 + 灵宠池入池/碎片
 function _mergePetAndDex(g, allPets, newPet) {
   const result = tryMergePet(allPets, newPet)
   if (result.merged && result.target && (result.target.star || 1) >= MAX_STAR) {
+    const alreadyInDex = (g.storage.petDex || []).includes(result.target.id)
     g.storage.addPetDex(result.target.id)
+
+    if (!alreadyInDex) {
+      // 首次★3图鉴 → 入池（★1 Lv.5 + 2碎片）
+      const added = g.storage.addToPetPool(result.target.id, 'roguelike')
+      if (added) {
+        // 延迟到★3庆祝动画关闭后再弹入池提示
+        g._pendingPoolEntry = { petId: result.target.id }
+      }
+    } else {
+      // 再次★3 → 给碎片（仅已入池的宠物）
+      const inPool = g.storage.petPool.find(p => p.id === result.target.id)
+      if (inPool) {
+        g.storage.addFragments(result.target.id, 5)
+        g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
+      }
+    }
   }
   return result
 }

@@ -9,7 +9,7 @@ const { PETS, getPetAvatarPath } = require('../data/pets')
 // 底部 7 标签定义（index=3 为中心凸起按钮）
 const BAR_ITEMS = [
   { key: 'cultivation', label: '修炼', icon: '☯', img: 'assets/ui/nav_hero.png' },
-  { key: 'pets',   label: '灵宠',  icon: '🐾', locked: true, img: 'assets/ui/nav_icons.png' },
+  { key: 'pets',   label: '灵宠',  icon: '🐾', img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
   { key: 'battle', label: '战斗',  icon: '⚔',  center: true },
   { key: 'rank',   label: '排行',  icon: '🏆', img: 'assets/ui/nav_rank.png' },
@@ -263,30 +263,42 @@ function drawStartBtn(g) {
     ctx.textBaseline = 'middle'
     ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
   } else {
-    // 固定关卡：灰色锁定按钮
+    // 固定关卡模式
     const btnW = W * 0.55
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
     const btnY = L.startBtnY
+    const poolCount = g.storage.petPoolCount
+    const canPlay = poolCount >= 5
 
-    ctx.fillStyle = 'rgba(100,100,120,0.35)'
-    R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
-    ctx.fillStyle = 'rgba(140,140,160,0.6)'
-    ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const lockImg = R.getImg('assets/ui/lock.png')
-    const lockSz = 18 * S
-    const textX = btnX + btnW / 2
-    const textY = btnY + btnH / 2
-    if (lockImg && lockImg.width > 0) {
-      const totalW = lockSz + 4 * S + ctx.measureText('即将开放').width
-      ctx.drawImage(lockImg, textX - totalW / 2, textY - lockSz / 2, lockSz, lockSz)
-      ctx.fillText('即将开放', textX - totalW / 2 + lockSz + 4 * S + ctx.measureText('即将开放').width / 2, textY)
+    if (canPlay) {
+      // 可游玩：显示开始挑战按钮
+      const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
+      grad.addColorStop(0, '#8ac8ff'); grad.addColorStop(1, '#4a8acc')
+      ctx.fillStyle = grad
+      R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
+      ctx.fillStyle = '#1a2a3c'
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('选择关卡', btnX + btnW / 2, btnY + btnH / 2)
+      g._startBtnRect = [btnX, btnY, btnW, btnH]
+
+      // 体力显示
+      const stamina = g.storage.currentStamina
+      const maxSt = g.storage.maxStamina
+      ctx.fillStyle = '#8ac8ff'
+      ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`⚡${stamina}/${maxSt}`, W / 2, L.progressY + L.progressH / 2)
     } else {
-      ctx.fillText('🔒 即将开放', textX, textY)
+      // 未解锁
+      ctx.fillStyle = 'rgba(100,100,120,0.35)'
+      R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
+      ctx.fillStyle = 'rgba(140,140,160,0.6)'
+      ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(`🔒 灵宠池需 ${5 - poolCount} 只解锁`, btnX + btnW / 2, btnY + btnH / 2)
+      g._startBtnRect = null
     }
-
-    g._startBtnRect = null
   }
 
   ctx.restore()
@@ -497,6 +509,7 @@ function drawBottomBar(g) {
   const activeKey = (() => {
     if (g.scene === 'title') return (g.titleMode === 'tower' || !g.titleMode) ? 'battle' : 'stage'
     if (g.scene === 'cultivation') return 'cultivation'
+    if (g.scene === 'petPool') return 'pets'
     if (g.scene === 'dex') return 'dex'
     if (g.scene === 'ranking') return 'rank'
     if (g.scene === 'stats') return 'stats'
@@ -506,7 +519,8 @@ function drawBottomBar(g) {
   for (let i = 0; i < BAR_ITEMS.length; i++) {
     const item = BAR_ITEMS[i]
     const cx = i * slotW + slotW / 2
-    const isLocked = !!item.locked
+    // 灵宠标签：首只入池后解锁
+    const isLocked = item.key === 'pets' ? g.storage.petPoolCount === 0 : !!item.locked
     const isCenter = !!item.center
     const isActive = item.key === activeKey
 
@@ -616,6 +630,23 @@ function drawBottomBar(g) {
         const dex = g.storage.petDex || []
         const seen = g.storage.petDexSeen || []
         if (dex.length > seen.length) {
+          ctx.globalAlpha = 1
+          ctx.beginPath()
+          ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)
+          ctx.fillStyle = '#ff4444'; ctx.fill()
+        }
+      }
+      // 灵宠池红点：有宠物可升星时显示
+      if (item.key === 'pets' && !isLocked) {
+        const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ } = require('../data/petPoolConfig')
+        const pool = g.storage.petPool || []
+        const hasUpgradeable = pool.some(p => {
+          const nextStar = (p.star || 1) + 1
+          const fragCost = POOL_STAR_FRAG_COST[nextStar]
+          const lvReq = POOL_STAR_LV_REQ[nextStar]
+          return fragCost && lvReq && p.fragments >= fragCost && p.level >= lvReq
+        })
+        if (hasUpgradeable) {
           ctx.globalAlpha = 1
           ctx.beginPath()
           ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)

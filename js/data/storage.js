@@ -9,7 +9,7 @@ const LOCAL_KEY = 'wxtower_v1'
 const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 3
+const CURRENT_VERSION = 6
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -39,6 +39,19 @@ function defaultPersist() {
       realmBreakSeen: 0,     // 已看过突破动画的最高境界索引
     },
     selectedAvatar: 'boy1',  // 当前选择的头像ID
+    // Phase 2：灵宠池
+    petPool: [],             // 灵宠池宠物列表
+    petExpPool: 0,           // 共享宠物经验池（未分配）
+    // Phase 2：体力系统（仅固定关卡消耗，肉鸽不消耗）
+    stamina: {
+      current: 100,
+      max: 100,
+      lastRecoverTime: 0,   // 首次进入时初始化为 Date.now()
+    },
+    // Phase 3：固定关卡
+    stageClearRecord: {},    // { 'stage_1_1': { cleared: true, bestRating: 'S', clearCount: 5 } }
+    dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
+    savedStageTeam: [],      // 持久化保存的编队（灵宠ID列表）
   }
 }
 
@@ -62,15 +75,28 @@ const migrations = {
     const cult = d.cultivation || {}
     const { usedPoints: calcUsed } = require('./cultivationConfig')
     const used = calcUsed(cult.levels || {})
-    // 已分配的点数 = 已用点数（保留已有修炼进度）
-    // 将旧版剩余经验折算为新版经验（保底不亏）
-    cult.level = used                // 等级 = 已投入点数（确保不丢失进度）
-    cult.skillPoints = 0             // 已用完（之前每次升级都消耗了经验）
-    cult.exp = cult.exp || 0         // 保留旧版余额作为新版当前经验
+    cult.level = used
+    cult.skillPoints = 0
+    cult.exp = cult.exp || 0
     cult.totalExpEarned = cult.totalExpEarned || 0
     if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
     if (cult.realmBreakSeen === undefined) cult.realmBreakSeen = 0
     d.cultivation = cult
+  },
+  // v3→v4：Phase 2 灵宠池 + 共享经验池 + 体力系统
+  3: (d) => {
+    if (!d.petPool) d.petPool = []
+    if (d.petExpPool == null) d.petExpPool = 0
+    if (!d.stamina) d.stamina = { current: 100, max: 100, lastRecoverTime: Date.now() }
+  },
+  // v4→v5：Phase 3 固定关卡通关记录 + 每日挑战次数
+  4: (d) => {
+    if (!d.stageClearRecord) d.stageClearRecord = {}
+    if (!d.dailyChallenges) d.dailyChallenges = { date: '', counts: {} }
+  },
+  // v5→v6：持久化编队
+  5: (d) => {
+    if (!d.savedStageTeam) d.savedStageTeam = []
   },
 }
 
@@ -228,6 +254,251 @@ class Storage {
     // 满级后经验仍然累积（显示用），但不再升级
     this._save()
     return levelUps
+  }
+
+  // ===== 灵宠池系统 =====
+
+  get petPool() { return this._d.petPool || [] }
+  get petPoolCount() { return (this._d.petPool || []).length }
+  get petExpPool() { return this._d.petExpPool || 0 }
+
+  /**
+   * 宠物入池（★3图鉴首次解锁时调用）
+   * 入池初始状态：★1 Lv.5 + 2碎片
+   */
+  addToPetPool(petId, source = 'roguelike') {
+    const { getPetById } = require('./pets')
+    const { ENTRY_LEVEL, ENTRY_FRAGMENTS } = require('./petPoolConfig')
+    const pet = getPetById(petId)
+    if (!pet) return false
+    const pool = this._d.petPool || (this._d.petPool = [])
+    if (pool.find(p => p.id === petId)) return false
+    pool.push({
+      id: petId,
+      attr: pet.attr,
+      star: 1,
+      level: ENTRY_LEVEL,
+      fragments: ENTRY_FRAGMENTS,
+      source,
+      obtainedAt: Date.now(),
+    })
+    this._save()
+    return true
+  }
+
+  /** 增加碎片（特定宠物） */
+  addFragments(petId, count) {
+    const entry = (this._d.petPool || []).find(p => p.id === petId)
+    if (!entry) return false
+    entry.fragments += count
+    this._save()
+    return true
+  }
+
+  /**
+   * 分解碎片为经验（1碎片 = FRAGMENT_TO_EXP 宠物经验）
+   * @returns {number} 获得的经验量，0表示失败
+   */
+  decomposeFragments(petId, count) {
+    const { FRAGMENT_TO_EXP } = require('./petPoolConfig')
+    const entry = (this._d.petPool || []).find(p => p.id === petId)
+    if (!entry || entry.fragments < count || count <= 0) return 0
+    entry.fragments -= count
+    const expGained = count * FRAGMENT_TO_EXP
+    this._d.petExpPool = (this._d.petExpPool || 0) + expGained
+    this._save()
+    return expGained
+  }
+
+  /** 增加共享宠物经验池 */
+  addPetExp(amount) {
+    if (amount <= 0) return
+    this._d.petExpPool = (this._d.petExpPool || 0) + amount
+    this._save()
+  }
+
+  /**
+   * 从共享经验池投入经验给指定宠物，返回升级次数
+   * @param {string} petId - 目标宠物ID
+   * @param {number} amount - 投入经验量
+   */
+  investPetExp(petId, amount) {
+    const { petExpToNextLevel, POOL_MAX_LV, POOL_ADV_MAX_LV } = require('./petPoolConfig')
+    const { getPetTier } = require('./pets')
+    const entry = (this._d.petPool || []).find(p => p.id === petId)
+    if (!entry || amount <= 0) return 0
+    const available = Math.min(amount, this._d.petExpPool || 0)
+    if (available <= 0) return 0
+    const maxLv = entry.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+    if (entry.level >= maxLv) return 0
+    const tier = getPetTier(entry.id)
+    let spent = 0, levelUps = 0
+    // 模拟投入经验逐级升级
+    let remaining = available
+    while (entry.level < maxLv && remaining > 0) {
+      const needed = petExpToNextLevel(entry.level, tier)
+      if (remaining >= needed) {
+        remaining -= needed
+        spent += needed
+        entry.level++
+        levelUps++
+      } else {
+        break // 剩余不够升级，不扣经验（避免经验被吃掉但没升级）
+      }
+    }
+    if (spent > 0) {
+      this._d.petExpPool -= spent
+      this._save()
+    }
+    return levelUps
+  }
+
+  /**
+   * 升星（消耗碎片，需满足等级门槛）
+   */
+  upgradePoolPetStar(petId) {
+    const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ } = require('./petPoolConfig')
+    const entry = (this._d.petPool || []).find(p => p.id === petId)
+    if (!entry) return { ok: false, reason: 'not_found' }
+    const nextStar = entry.star + 1
+    const maxStar = entry.source === 'stage' ? 4 : 3
+    if (nextStar > maxStar) return { ok: false, reason: 'max_star' }
+    const lvReq = POOL_STAR_LV_REQ[nextStar]
+    if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }
+    const fragCost = POOL_STAR_FRAG_COST[nextStar]
+    if (entry.fragments < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
+    entry.fragments -= fragCost
+    entry.star = nextStar
+    this._save()
+    return { ok: true, newStar: nextStar }
+  }
+
+  /** 获取灵宠池中指定宠物 */
+  getPoolPet(petId) {
+    return (this._d.petPool || []).find(p => p.id === petId) || null
+  }
+
+  // ===== 体力系统（仅固定关卡消耗） =====
+
+  get currentStamina() {
+    this._recoverStamina()
+    return this._d.stamina.current
+  }
+
+  get maxStamina() {
+    return this._d.stamina.max
+  }
+
+  consumeStamina(amount) {
+    this._recoverStamina()
+    if (this._d.stamina.current < amount) return false
+    this._d.stamina.current -= amount
+    this._save()
+    return true
+  }
+
+  /** 下一点体力恢复的剩余秒数 */
+  get staminaRecoverSec() {
+    const s = this._d.stamina
+    if (s.current >= s.max) return 0
+    const INTERVAL = 30 * 60 * 1000
+    const elapsed = Date.now() - (s.lastRecoverTime || Date.now())
+    const remain = INTERVAL - (elapsed % INTERVAL)
+    return Math.ceil(remain / 1000)
+  }
+
+  _recoverStamina() {
+    const s = this._d.stamina
+    if (!s.lastRecoverTime) { s.lastRecoverTime = Date.now(); return }
+    const now = Date.now()
+    const INTERVAL = 30 * 60 * 1000
+    const elapsed = now - s.lastRecoverTime
+    const recovered = Math.floor(elapsed / INTERVAL)
+    if (recovered > 0) {
+      s.current = Math.min(s.max, s.current + recovered)
+      s.lastRecoverTime += recovered * INTERVAL
+    }
+  }
+
+  // ===== 固定关卡记录 =====
+
+  get stageClearRecord() {
+    return this._d.stageClearRecord || (this._d.stageClearRecord = {})
+  }
+
+  isStageCleared(stageId) {
+    return !!(this._d.stageClearRecord && this._d.stageClearRecord[stageId]?.cleared)
+  }
+
+  getStageBestRating(stageId) {
+    return this._d.stageClearRecord?.[stageId]?.bestRating || null
+  }
+
+  getStageClearCount(stageId) {
+    return this._d.stageClearRecord?.[stageId]?.clearCount || 0
+  }
+
+  recordStageClear(stageId, rating, isFirst) {
+    const RATING_ORDER = { B: 1, A: 2, S: 3 }
+    const record = this._d.stageClearRecord || (this._d.stageClearRecord = {})
+    if (!record[stageId]) record[stageId] = { cleared: false, bestRating: null, clearCount: 0 }
+    const r = record[stageId]
+    r.cleared = true
+    r.clearCount++
+    if (!r.bestRating || RATING_ORDER[rating] > RATING_ORDER[r.bestRating]) {
+      r.bestRating = rating
+    }
+    this._save()
+  }
+
+  // ===== 每日挑战次数 =====
+
+  _refreshDailyChallenges() {
+    const today = new Date().toISOString().slice(0, 10)
+    if (!this._d.dailyChallenges || this._d.dailyChallenges.date !== today) {
+      this._d.dailyChallenges = { date: today, counts: {} }
+    }
+  }
+
+  canChallengeStage(stageId, dailyLimit) {
+    this._refreshDailyChallenges()
+    const counts = this._d.dailyChallenges.counts
+    return (counts[stageId] || 0) < dailyLimit
+  }
+
+  getStageDailyCount(stageId) {
+    this._refreshDailyChallenges()
+    return this._d.dailyChallenges.counts[stageId] || 0
+  }
+
+  recordStageChallenge(stageId) {
+    this._refreshDailyChallenges()
+    const counts = this._d.dailyChallenges.counts
+    counts[stageId] = (counts[stageId] || 0) + 1
+    this._save()
+  }
+
+  // ===== 持久化编队 =====
+
+  get savedStageTeam() {
+    return this._d.savedStageTeam || []
+  }
+
+  /** 保存编队，同时过滤掉已不在灵宠池中的宠物 */
+  saveStageteam(teamIds) {
+    const pool = this._d.petPool || []
+    const poolIds = new Set(pool.map(p => p.id))
+    this._d.savedStageTeam = (teamIds || []).filter(id => poolIds.has(id))
+    this._save()
+  }
+
+  /** 获取有效的已保存编队（排除已不在池中的） */
+  getValidSavedTeam() {
+    const saved = this._d.savedStageTeam || []
+    if (saved.length === 0) return []
+    const pool = this._d.petPool || []
+    const poolIds = new Set(pool.map(p => p.id))
+    return saved.filter(id => poolIds.has(id))
   }
 
   // ===== 局内暂存（暂存退出用）=====
@@ -606,7 +877,7 @@ class Storage {
     }
   }
 
-  // 补全 cultivation 子字段（兼容任何版本的存档残缺）
+  // 补全持久化子字段（兼容任何版本的存档残缺）
   _ensureCultivationFields() {
     const cult = this._d.cultivation
     if (!cult) { this._d.cultivation = defaultPersist().cultivation; return }
@@ -616,8 +887,15 @@ class Storage {
     if (cult.skillPoints == null) cult.skillPoints = 0
     if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
     if (cult.realmBreakSeen == null) cult.realmBreakSeen = 0
-    // 头像选择默认值
     if (!this._d.selectedAvatar) this._d.selectedAvatar = 'boy1'
+    // Phase 2 字段补全
+    if (!this._d.petPool) this._d.petPool = []
+    if (this._d.petExpPool == null) this._d.petExpPool = 0
+    if (!this._d.stamina) this._d.stamina = { current: 100, max: 100, lastRecoverTime: Date.now() }
+    // Phase 3 字段补全
+    if (!this._d.stageClearRecord) this._d.stageClearRecord = {}
+    if (!this._d.dailyChallenges) this._d.dailyChallenges = { date: '', counts: {} }
+    if (!this._d.savedStageTeam) this._d.savedStageTeam = []
   }
 
   _save() {

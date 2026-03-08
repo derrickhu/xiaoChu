@@ -415,6 +415,19 @@ function rGameover(g) {
     expPanelBottom = expY + expH
   }
 
+  // 宠物经验获得展示
+  if (g._lastRunPetExp > 0) {
+    const petExpH = 30 * S
+    const pePx = W * 0.08, pePanelW = W * 0.84
+    const peY = expPanelBottom + 4 * S
+    ctx.fillStyle = 'rgba(80,160,255,0.08)'
+    R.rr(pePx, peY, pePanelW, petExpH, 8 * S); ctx.fill()
+    ctx.fillStyle = '#8ac8ff'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText(`宠物经验池 +${g._lastRunPetExp}`, W * 0.5, peY + petExpH / 2 + 1)
+    expPanelBottom = peY + petExpH
+  }
+
   const bx = W*0.25, by = expPanelBottom + 16*S, bw = W*0.5, bh = 48*S
   R.drawBtn(bx, by, bw, bh, g.cleared ? '再次挑战' : '重新挑战', TH.accent, 18)
   g._goBtnRect = [bx, by, bw, bh]
@@ -432,6 +445,17 @@ function rGameover(g) {
     }
   } else {
     g._cultBtnRect = null
+  }
+
+  // "前往灵宠"快捷按钮
+  if (g._lastRunPetExp > 0 && g.storage.petPoolCount > 0) {
+    const goBtnBottom = g._cultBtnRect ? g._cultBtnRect[1] + g._cultBtnRect[3] : by + bh
+    const pbw = W*0.35, pbh = 36*S
+    const pbx = (W - pbw)/2, pby = goBtnBottom + 10*S
+    R.drawBtn(pbx, pby, pbw, pbh, '前往灵宠', '#3a5a6a', 14)
+    g._petPoolBtnRect = [pbx, pby, pbw, pbh]
+  } else {
+    g._petPoolBtnRect = null
   }
 
   drawBackBtn(g)

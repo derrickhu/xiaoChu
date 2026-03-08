@@ -32,6 +32,7 @@ function makeDefaultRunBuffs() {
 }
 
 function startRun(g) {
+  g.battleMode = 'roguelike'
   g.floor = 0
   g.cleared = false
   // 道具系统：每局最多各用一次，需先分享获取再使用
@@ -44,11 +45,10 @@ function startRun(g) {
   g.sessionPetPool = generateSessionPetPool()
   g.pets = generateStarterPets(g.sessionPetPool)
 
-  // 图鉴"带它出战"：指定宠物替换第4只（1星形态）
+  // 图鉴"带它出战"：指定宠物以★1形态替换初始队伍
   if (g._designatedPetId) {
     const dpId = g._designatedPetId
     g._designatedPetId = null
-    // 查找宠物数据
     let dpData = null, dpAttr = ''
     for (const attr of ['metal','wood','water','fire','earth']) {
       const found = PETS[attr].find(p => p.id === dpId)
@@ -56,13 +56,19 @@ function startRun(g) {
     }
     if (dpData) {
       const designatedPet = { ...dpData, attr: dpAttr, star: 1, currentCd: 0 }
-      // 检查队伍中是否已有同属性宠物
+
+      // 高级灵宠：加入当局 sessionPetPool（确保肉鸽内也能抽到它升星）
+      const poolEntry = g.storage.petPool.find(p => p.id === dpId)
+      if (poolEntry && poolEntry.source === 'stage') {
+        if (g.sessionPetPool[dpAttr] && !g.sessionPetPool[dpAttr].find(p => p.id === dpId)) {
+          g.sessionPetPool[dpAttr].push(dpData)
+        }
+      }
+
       const sameAttrIdx = g.pets.findIndex(p => p.attr === dpAttr)
       if (sameAttrIdx >= 0) {
-        // 替换同属性的那只
         g.pets[sameAttrIdx] = designatedPet
       } else {
-        // 替换最后一只
         g.pets[g.pets.length - 1] = designatedPet
       }
     }
@@ -192,7 +198,8 @@ function restoreBattleHpMax(g) {
 
 /**
  * 经验结算（可独立于 endRun 调用，如重新开局时）
- * 按失败处理：保留 60% 经验
+ * 修炼经验：按失败保留 60%
+ * 宠物经验：独立计算，汇入共享经验池
  */
 function settleExp(g) {
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
@@ -202,9 +209,20 @@ function settleExp(g) {
   const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * 0.6)
   const prevLevel = g.storage.cultivation.level || 0
   const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
+
+  // 宠物经验：肉鸽局结算产出，汇入共享经验池
+  const { calcRoguelikePetExp } = require('../data/petPoolConfig')
+  const petExp = calcRoguelikePetExp(
+    { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 },
+    finalFloor,
+    g.cleared
+  )
+  if (petExp > 0) g.storage.addPetExp(petExp)
+
   g._lastRunExp = finalExp
   g._lastRunLevelUps = levelUps
   g._lastRunPrevLevel = prevLevel
+  g._lastRunPetExp = petExp
   g._lastRunExpDetail = {
     elimExp: g._runElimExp || 0,
     comboExp: g._runComboExp || 0,
@@ -213,6 +231,7 @@ function settleExp(g) {
     clearBonus,
     rawTotal,
     isCleared: g.cleared,
+    petExp,
   }
   return finalExp
 }
@@ -327,6 +346,11 @@ function resumeRun(g) {
 }
 
 function onDefeat(g, W, H) {
+  // 固定关卡：直接进入失败状态，不触发复活机制
+  if (g.battleMode === 'stage') {
+    g.bState = 'defeat'
+    return
+  }
   if (g.tempRevive) {
     g.tempRevive = false
     const reviveHealPct = g._reviveHealPct || 30
