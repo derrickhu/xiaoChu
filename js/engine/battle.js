@@ -12,14 +12,13 @@ const { getPetStarAtk, petHasSkill } = require('../data/pets')
 const tutorial = require('./tutorial')
 const { tween, Ease } = require('./tween')
 const Particles = require('./particles')
+const { killExpBase } = require('../data/cultivationConfig')
 
 // 击杀经验（统一调用避免遗漏）
 function _addKillExp(g) {
   if (!g.enemy) return
   const { S, W } = V
-  const base = g.enemy.isBoss ? 30 + g.floor * 4
-    : g.enemy.isElite ? 15 + g.floor * 3
-    : 5 + g.floor * 2
+  const base = killExpBase(g.enemy, g.floor)
   g.runExp = (g.runExp || 0) + base
   g._runKillExp = (g._runKillExp || 0) + base
   // 击杀经验飘字：从敌人区域中心飞出

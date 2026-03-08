@@ -3,6 +3,9 @@
  * 从 main.js 提取：_startRun, _nextFloor, _restoreBattleHpMax, _endRun, _saveAndExit, _resumeRun
  */
 const { TH } = require('../render')
+
+// 经验相关字段键名（统一管理，避免序列化/反序列化遗漏）
+const EXP_FIELDS = ['runExp', '_runElimExp', '_runComboExp', '_runKillExp']
 const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
   generateFloorEvent, getRealmInfo,
@@ -77,7 +80,7 @@ function startRun(g) {
   g.adReviveUsed = false
   g.turnCount = 0; g.combo = 0; g.runTotalTurns = 0
   // 修炼经验：局内累积字段初始化
-  g.runExp = 0; g._runElimExp = 0; g._runComboExp = 0; g._runKillExp = 0
+  for (const k of EXP_FIELDS) g[k] = 0
   g._floorStartExp = 0; g._floorExpSummary = null; g._expFloats = []
   g.storage._d.totalRuns++; g.storage._save()
   // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
@@ -251,8 +254,7 @@ function saveAndExit(g) {
     tempRevive: g.tempRevive, immuneOnce: g.immuneOnce, comboNeverBreak: g.comboNeverBreak,
     weaponReviveUsed: g.weaponReviveUsed, goodBeadsNextTurn: g.goodBeadsNextTurn,
     runTotalTurns: g.runTotalTurns || 0,
-    runExp: g.runExp || 0, _runElimExp: g._runElimExp || 0,
-    _runComboExp: g._runComboExp || 0, _runKillExp: g._runKillExp || 0,
+    ...Object.fromEntries(EXP_FIELDS.map(k => [k, g[k] || 0])),
     itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
     itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
     curEvent: g.curEvent ? JSON.parse(JSON.stringify(g.curEvent)) : null,
@@ -298,8 +300,7 @@ function resumeRun(g) {
   g._showItemMenu = false
   g.turnCount = 0; g.combo = 0
   // 恢复修炼经验累积
-  g.runExp = s.runExp || 0; g._runElimExp = s._runElimExp || 0
-  g._runComboExp = s._runComboExp || 0; g._runKillExp = s._runKillExp || 0
+  for (const k of EXP_FIELDS) g[k] = s[k] || 0
   // 恢复修炼加成（固定关卡模式）
   g._cultDmgReduce = 0; g._cultHeartBase = 0
   if (g.battleMode === 'stage') {

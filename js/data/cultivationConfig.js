@@ -80,9 +80,22 @@ function nextRealm(level) {
   return null
 }
 
+/**
+ * 击杀经验公式（统一数值，battle.js / touchHandlers.js 共用）
+ * @param {object} enemy - 包含 isBoss, isElite 标记
+ * @param {number} floor - 当前层数
+ */
+function killExpBase(enemy, floor) {
+  if (!enemy) return 0
+  if (enemy.isBoss) return 30 + floor * 4
+  if (enemy.isElite) return 15 + floor * 3
+  return 5 + floor * 2
+}
+
 module.exports = {
   MAX_LEVEL, expToNextLevel,
   CULT_CONFIG, CULT_KEYS, TOTAL_POINTS_NEEDED,
   effectValue, usedPoints,
   REALMS, currentRealm, nextRealm,
+  killExpBase,
 }
