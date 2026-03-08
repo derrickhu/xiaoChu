@@ -53,8 +53,7 @@ function rPetPool(g) {
   } else {
     R.drawHomeBg(0)
   }
-  c.fillStyle = 'rgba(0,0,0,0.3)'
-  c.fillRect(0, 0, W, H)
+  // 去掉背景遮罩，保持背景清晰可见
 
   const L = getTitleLayout()
   const topY = safeTop + 4 * S
@@ -64,26 +63,59 @@ function rPetPool(g) {
 
   // === 顶栏 ===
   c.save()
-  c.fillStyle = 'rgba(0,0,0,0.3)'
-  c.fillRect(0, topY, W, 34 * S)
+  // 去掉顶栏深色背景遮罩
 
-  // 标题
+  // 标题（居中，白色描边+金色填充，与其他页面保持一致）
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillStyle = '#ffd700'
-  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.strokeStyle = 'rgba(0,0,0,0.5)'
+  c.lineWidth = 4 * S
+  c.font = `bold ${17*S}px "PingFang SC",sans-serif`
+  c.strokeText('灵宠池', W * 0.5, topY + 17 * S)
+  c.fillStyle = '#fff'
   c.fillText('灵宠池', W * 0.5, topY + 17 * S)
 
-  // 经验池余额（带图标）
+  // 经验池图标和余额（左上角放大显示，图标可超过文字高度）
   const expPool = g.storage.petExpPool || 0
-  c.textAlign = 'right'
-  c.fillStyle = '#8df'
-  c.font = `${11*S}px "PingFang SC",sans-serif`
   const expIcon = R.getImg('assets/ui/icon_exp_pool.png')
   if (expIcon && expIcon.width > 0) {
-    const iconSz = 14 * S
-    c.drawImage(expIcon, W - 12*S - c.measureText(`${expPool}`).width - iconSz - 4*S, topY + 17*S - iconSz/2, iconSz, iconSz)
+    const iconSz = 48 * S  // 再放大到48
+    const iconX = 12 * S
+    const iconY = topY + 17 * S - iconSz / 2
+    
+    // 背景光晕效果（三层渐变，让图标从碧色背景中突出）
+    c.save()
+    const cx = iconX + iconSz / 2
+    const cy = iconY + iconSz / 2
+    // 外层光晕
+    const grad1 = c.createRadialGradient(cx, cy, iconSz * 0.3, cx, cy, iconSz * 0.7)
+    grad1.addColorStop(0, 'rgba(255,220,100,0.4)')
+    grad1.addColorStop(1, 'rgba(255,220,100,0)')
+    c.fillStyle = grad1
+    c.beginPath()
+    c.arc(cx, cy, iconSz * 0.7, 0, Math.PI * 2)
+    c.fill()
+    // 中层光晕
+    const grad2 = c.createRadialGradient(cx, cy, iconSz * 0.2, cx, cy, iconSz * 0.5)
+    grad2.addColorStop(0, 'rgba(100,220,255,0.3)')
+    grad2.addColorStop(1, 'rgba(100,220,255,0)')
+    c.fillStyle = grad2
+    c.beginPath()
+    c.arc(cx, cy, iconSz * 0.5, 0, Math.PI * 2)
+    c.fill()
+    c.restore()
+    
+    // 绘制图标
+    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
+    
+    // 经验值文字显示在图标右侧
+    c.textAlign = 'left'
+    c.fillStyle = '#fff'
+    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.7)'
+    c.lineWidth = 3.5 * S
+    c.strokeText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
+    c.fillText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
   }
-  c.fillText(`经验：${expPool}`, W - 12 * S, topY + 17 * S)
   c.restore()
 
   // === 属性筛选 ===
@@ -96,15 +128,21 @@ function rPetPool(g) {
     const f = FILTERS[i]
     const fx = 12 * S + i * filterW
     const isActive = (g._petPoolFilter || 'all') === f.key
-    c.fillStyle = isActive ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.08)'
+    // 标签背景色改为与背景色一致的碧翠色系
+    c.fillStyle = isActive ? 'rgba(70,180,160,0.5)' : 'rgba(70,180,160,0.2)'
     R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.fill()
     if (isActive) {
-      c.strokeStyle = '#ffd700'; c.lineWidth = 1.5 * S
+      c.strokeStyle = 'rgba(70,180,160,0.9)'; c.lineWidth = 2 * S
       R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.stroke()
     }
-    c.fillStyle = isActive ? '#ffd700' : 'rgba(255,255,255,0.7)'
-    c.font = `${11*S}px "PingFang SC",sans-serif`
+    // 文字改为白色，更清晰
+    c.fillStyle = isActive ? '#fff' : 'rgba(255,255,255,0.8)'
+    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
+    // 加黑色描边
+    c.strokeStyle = 'rgba(0,0,0,0.4)'
+    c.lineWidth = 2.5 * S
+    c.strokeText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     c.fillText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW - 4 * S, filterH] })
   }
@@ -190,10 +228,30 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
 
-  // 属性色边框
-  c.strokeStyle = attrColor ? attrColor.main : '#888'
-  c.lineWidth = 2 * S
-  R.rr(x, y, w, h, 8 * S); c.stroke()
+  // 去掉属性色外边框
+
+  // 左上角五行珠子图标（调整位置，贴合卡片内侧）
+  const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
+  const orbImg = R.getImg(orbPath)
+  if (orbImg && orbImg.width > 0) {
+    const orbSz = 18 * S  // 缩小珠子尺寸
+    const orbX = x + 10 * S
+    const orbY = y + 10 * S
+    // 珠子背景光晕
+    c.save()
+    const orbCx = orbX + orbSz / 2
+    const orbCy = orbY + orbSz / 2
+    const orbGrad = c.createRadialGradient(orbCx, orbCy, orbSz * 0.2, orbCx, orbCy, orbSz * 0.6)
+    orbGrad.addColorStop(0, (attrColor ? attrColor.main : '#888') + '80')
+    orbGrad.addColorStop(1, (attrColor ? attrColor.main : '#888') + '00')
+    c.fillStyle = orbGrad
+    c.beginPath()
+    c.arc(orbCx, orbCy, orbSz * 0.6, 0, Math.PI * 2)
+    c.fill()
+    c.restore()
+    // 绘制珠子
+    c.drawImage(orbImg, orbX, orbY, orbSz, orbSz)
+  }
 
   // 头像区域
   const avatarSize = w * 0.62
@@ -221,14 +279,7 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
     c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
   }
 
-  // 头像框（与战斗界面一致，按属性分色）
-  const frameKey = `assets/ui/frame_pet_${poolPet.attr || 'metal'}.png`
-  const petFrame = R.getImg(frameKey)
-  if (petFrame && petFrame.width > 0) {
-    const frameOff = avatarSize * 0.08
-    const frameSize = avatarSize + frameOff * 2
-    c.drawImage(petFrame, avatarX - frameOff, avatarY - frameOff, frameSize, frameSize)
-  }
+  // 去掉宠物头像框，让宠物图片直接显示
 
   // 档位标签（右上角）
   const tierColor = tier === 'T1' ? '#ffd700' : tier === 'T2' ? '#8df' : '#aaa'
@@ -239,26 +290,35 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(tier, x + w - 12*S, y + 9.5*S)
 
-  // 名称
+  // 名称（加深色描边，增强可读性）
   const nameY = avatarY + avatarSize + 6 * S
-  c.fillStyle = '#fff'
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'top'
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   const displayName = basePet.name.length > 4 ? basePet.name.slice(0, 4) + '…' : basePet.name
+  c.strokeStyle = 'rgba(0,0,0,0.7)'
+  c.lineWidth = 3 * S
+  c.strokeText(displayName, x + w / 2, nameY)
+  c.fillStyle = '#fff'
   c.fillText(displayName, x + w / 2, nameY)
 
-  // 星级
+  // 星级（加深色描边）
   const starY = nameY + 14 * S
   let starStr = ''
   for (let i = 0; i < 3; i++) starStr += i < poolPet.star ? '★' : '☆'
-  c.fillStyle = '#ffd700'
   c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.strokeStyle = 'rgba(0,0,0,0.7)'
+  c.lineWidth = 2.5 * S
+  c.strokeText(starStr, x + w / 2, starY)
+  c.fillStyle = '#ffd700'
   c.fillText(starStr, x + w / 2, starY)
 
-  // 等级 + ATK
+  // 等级 + ATK（加深色描边）
   const infoY = starY + 14 * S
-  c.fillStyle = 'rgba(255,255,255,0.8)'
   c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.strokeStyle = 'rgba(0,0,0,0.7)'
+  c.lineWidth = 2.5 * S
+  c.strokeText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
+  c.fillStyle = '#fff'
   c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
 
   c.restore()
