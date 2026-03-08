@@ -182,19 +182,26 @@ class Storage {
   get selectedAvatar() { return this._d.selectedAvatar || 'boy1' }
   setSelectedAvatar(id) { this._d.selectedAvatar = id; this._save() }
 
-  /** 消耗1修炼点升级指定属性，返回是否成功 */
-  upgradeCultivation(key) {
+  /**
+   * 消耗修炼点升级指定属性
+   * @param {string} key - 属性键名
+   * @param {number} [amount=1] - 加点数量
+   * @returns {number} 实际升级的点数（0 表示失败）
+   */
+  upgradeCultivation(key, amount) {
     const { CULT_CONFIG } = require('./cultivationConfig')
     const cfg = CULT_CONFIG[key]
-    if (!cfg) return false
+    if (!cfg) return 0
     const cult = this._d.cultivation
-    if (cult.skillPoints <= 0) return false
-    const nextLv = cult.levels[key] + 1
-    if (nextLv > cfg.maxLv) return false
-    cult.skillPoints--
-    cult.levels[key] = nextLv
+    if (cult.skillPoints <= 0) return 0
+    const remaining = cfg.maxLv - cult.levels[key]
+    if (remaining <= 0) return 0
+    const actual = Math.min(amount || 1, remaining, cult.skillPoints)
+    if (actual <= 0) return 0
+    cult.skillPoints -= actual
+    cult.levels[key] += actual
     this._save()
-    return true
+    return actual
   }
 
   /**

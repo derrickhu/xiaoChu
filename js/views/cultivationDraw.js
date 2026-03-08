@@ -619,13 +619,15 @@ function drawAvatarPanel(g, c, R, W, H, S, characters, rects) {
   rects.avatarPanelRect = [panelX, panelY, panelW, panelH]
 }
 
-// ===== 详情面板（暖色风格） =====
-function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame) {
+// ===== 详情面板（暖色风格，支持批量加点） =====
+function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAmount) {
   const cfg = CULT_CONFIG[key]
   const lv = cult.levels[key]
   const style = NODE_STYLES[key]
   const isMax = lv >= cfg.maxLv
   const canUpgrade = !isMax && pts > 0
+  const maxAdd = canUpgrade ? Math.min(cfg.maxLv - lv, pts) : 0
+  const amt = canUpgrade ? Math.min(Math.max(1, upgradeAmount || 1), maxAdd) : 0
 
   c.save()
   c.fillStyle = 'rgba(0,0,0,0.4)'
@@ -633,9 +635,9 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame) {
   c.restore()
 
   const panelW = W * 0.82
-  const panelH = 190*S
+  const panelH = 240*S
   const panelX = (W - panelW) / 2
-  const panelY = H * 0.5 - panelH * 0.4
+  const panelY = H * 0.5 - panelH * 0.45
   const panelR = 14*S
   const pad = 16*S
 
@@ -691,47 +693,125 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame) {
   c.lineTo(panelX + panelW - pad, curY)
   c.stroke()
   c.restore()
-  curY += 10*S
+  curY += 8*S
 
   // 当前效果
   c.save()
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.fillStyle = '#8a7a58'
-  c.font = `${12*S}px "PingFang SC",sans-serif`
+  c.font = `${11*S}px "PingFang SC",sans-serif`
   c.fillText('当前效果', panelX + pad, curY + 6*S)
   const curEffect = effectValue(key, lv)
   const effectStr = lv > 0
     ? `${cfg.desc} +${key === 'wisdom' ? curEffect.toFixed(2) + 's' : curEffect}`
     : `${cfg.desc}（未激活）`
   c.fillStyle = '#5C3A1E'
-  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  c.fillText(effectStr, panelX + pad, curY + 24*S)
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillText(effectStr, panelX + pad, curY + 22*S)
   c.restore()
-  curY += 40*S
+  curY += 34*S
 
-  // 下一级预览
-  if (!isMax) {
-    const nextLv = lv + 1
-    const nextEffect = effectValue(key, nextLv)
-    const nextStr = key === 'wisdom' ? `+${nextEffect.toFixed(2)}s` : `+${nextEffect}`
+  // 加点后预览
+  if (!isMax && amt > 0) {
+    const newLv = lv + amt
+    const newEffect = effectValue(key, newLv)
+    const newStr = key === 'wisdom' ? `+${newEffect.toFixed(2)}s` : `+${newEffect}`
     c.save()
     c.textAlign = 'left'; c.textBaseline = 'middle'
-    c.fillStyle = '#8a7a58'
-    c.font = `${11*S}px "PingFang SC",sans-serif`
-    c.fillText(`下一级: ${cfg.desc} ${nextStr}`, panelX + pad, curY + 6*S)
+    c.fillStyle = style.color
+    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText(`加点后  Lv.${newLv}: ${cfg.desc} ${newStr}`, panelX + pad, curY + 6*S)
     c.restore()
-    curY += 22*S
-  } else {
+    curY += 20*S
+  } else if (isMax) {
     c.save()
     c.fillStyle = '#aaa'
     c.font = `${11*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'middle'
     c.fillText('已达最高等级', panelX + pad, curY + 6*S)
     c.restore()
-    curY += 22*S
+    curY += 20*S
+  } else {
+    curY += 20*S
   }
 
-  // 升级按钮
+  // ===== 数量选择行：[ - ] <数量> [ + ]  [加满] =====
+  const ctrlY = curY + 2*S
+  const ctrlH = 30*S
+  const circR = ctrlH / 2
+  const contentW = panelW - pad * 2
+  const leftX = panelX + pad
+  // 减号圆按钮
+  const minusCx = leftX + circR
+  const minusCy = ctrlY + ctrlH / 2
+  const canMinus = canUpgrade && amt > 1
+  c.save()
+  c.fillStyle = canMinus ? 'rgba(212,168,67,0.18)' : 'rgba(180,170,150,0.1)'
+  c.beginPath(); c.arc(minusCx, minusCy, circR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = canMinus ? '#D4A843' : 'rgba(160,150,130,0.3)'
+  c.lineWidth = 1.5*S
+  c.beginPath(); c.arc(minusCx, minusCy, circR, 0, Math.PI * 2); c.stroke()
+  c.fillStyle = canMinus ? '#8B6914' : '#bbb'
+  c.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('−', minusCx, minusCy)
+  c.restore()
+  rects.detailMinusRect = canMinus ? [minusCx - circR, ctrlY, ctrlH, ctrlH] : null
+
+  // 加号圆按钮
+  const plusCx = minusCx + circR * 2 + 16*S + 40*S + 16*S
+  const canPlus = canUpgrade && amt < maxAdd
+  c.save()
+  c.fillStyle = canPlus ? 'rgba(212,168,67,0.18)' : 'rgba(180,170,150,0.1)'
+  c.beginPath(); c.arc(plusCx, minusCy, circR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = canPlus ? '#D4A843' : 'rgba(160,150,130,0.3)'
+  c.lineWidth = 1.5*S
+  c.beginPath(); c.arc(plusCx, minusCy, circR, 0, Math.PI * 2); c.stroke()
+  c.fillStyle = canPlus ? '#8B6914' : '#bbb'
+  c.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('+', plusCx, minusCy)
+  c.restore()
+  rects.detailPlusRect = canPlus ? [plusCx - circR, ctrlY, ctrlH, ctrlH] : null
+
+  // 数值显示（两按钮之间）
+  const numCx = (minusCx + circR + plusCx - circR) / 2
+  c.save()
+  c.fillStyle = canUpgrade ? '#5C3A1E' : '#bbb'
+  c.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(canUpgrade ? `${amt}` : '0', numCx, minusCy)
+  c.restore()
+
+  // "加满"按钮
+  const maxBtnW = 52*S
+  const maxBtnH = ctrlH
+  const maxBtnX = panelX + panelW - pad - maxBtnW
+  const maxBtnY = ctrlY
+  const canMax = canUpgrade && amt < maxAdd
+  c.save()
+  if (canMax) {
+    c.fillStyle = 'rgba(212,168,67,0.15)'
+    c.strokeStyle = '#D4A843'
+  } else {
+    c.fillStyle = 'rgba(180,170,150,0.08)'
+    c.strokeStyle = 'rgba(160,150,130,0.3)'
+  }
+  c.lineWidth = 1.5*S
+  roundRect(c, maxBtnX, maxBtnY, maxBtnW, maxBtnH, maxBtnH/2)
+  c.fill()
+  roundRect(c, maxBtnX, maxBtnY, maxBtnW, maxBtnH, maxBtnH/2)
+  c.stroke()
+  c.fillStyle = canMax ? '#8B6914' : '#bbb'
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('加满', maxBtnX + maxBtnW/2, maxBtnY + maxBtnH/2)
+  c.restore()
+  rects.detailMaxRect = canMax ? [maxBtnX, maxBtnY, maxBtnW, maxBtnH] : null
+
+  curY = ctrlY + ctrlH + 8*S
+
+  // ===== 确认按钮 =====
   const btnW = panelW - pad * 2
   const btnH = 36*S
   const btnX = panelX + pad
@@ -760,7 +840,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame) {
   if (isMax) {
     c.fillText('已满级', btnX + btnW/2, btnY + btnH/2)
   } else if (canUpgrade) {
-    c.fillText(`修炼（消耗 1 修炼点）`, btnX + btnW/2, btnY + btnH/2)
+    c.fillText(`修炼（消耗 ${amt} 修炼点）`, btnX + btnW/2, btnY + btnH/2)
   } else {
     c.fillText('修炼点不足', btnX + btnW/2, btnY + btnH/2)
   }
