@@ -14,13 +14,15 @@ const { drawBottomBar, getLayout } = require('./titleView')
 const Draw = require('./cultivationDraw')
 
 // 可选角色形象列表
+// avatar 为 fallback 头像（打坐图加载失败时使用），暂统一用已有资源占位
+const _defaultAvatar = 'assets/hero/hero_cultivation.jpg'
 const CHARACTERS = [
-  { id: 'boy1',  label: '修仙少年',  sit: 'assets/hero/char_boy1.png',  avatar: 'assets/hero/hero_cultivation.jpg', unlocked: true },
-  { id: 'girl1', label: '灵木仙子',  sit: 'assets/hero/char_girl1.png', avatar: 'assets/hero/avatar_girl1.jpg',     unlocked: true },
-  { id: 'boy2',  label: '剑灵少侠',  sit: 'assets/hero/char_boy2.png',  avatar: 'assets/hero/avatar_boy2.jpg',      unlocked: true },
-  { id: 'girl2', label: '星月仙子',  sit: 'assets/hero/char_girl2.png', avatar: 'assets/hero/avatar_girl2.jpg',     unlocked: true },
-  { id: 'boy3',  label: '天罡道童',  sit: 'assets/hero/char_boy3.png',  avatar: 'assets/hero/avatar_boy3.jpg',      unlocked: false },
-  { id: 'girl3', label: '花灵仙子',  sit: 'assets/hero/char_girl3.png', avatar: 'assets/hero/avatar_girl3.jpg',     unlocked: false },
+  { id: 'boy1',  label: '修仙少年',  sit: 'assets/hero/char_boy1.png',  avatar: _defaultAvatar, unlocked: true },
+  { id: 'girl1', label: '灵木仙子',  sit: 'assets/hero/char_girl1.png', avatar: _defaultAvatar, unlocked: true },
+  { id: 'boy2',  label: '剑灵少侠',  sit: 'assets/hero/char_boy2.png',  avatar: _defaultAvatar, unlocked: true },
+  { id: 'girl2', label: '星月仙子',  sit: 'assets/hero/char_girl2.png', avatar: _defaultAvatar, unlocked: true },
+  { id: 'boy3',  label: '天罡道童',  sit: 'assets/hero/char_boy3.png',  avatar: _defaultAvatar, unlocked: false },
+  { id: 'girl3', label: '花灵仙子',  sit: 'assets/hero/char_girl3.png', avatar: _defaultAvatar, unlocked: false },
 ]
 
 // ===== 交互状态（统一管理） =====
@@ -30,6 +32,7 @@ const _state = {
   upgradeFlash: null,      // { key, timer }
   realmBreakAnim: null,    // { name, timer, duration }
   animFrame: 0,            // 全局动画帧计数
+  upgradeAmount: 1,        // 当前面板选择的加点数量
 }
 
 // 模块级触摸区域（不挂到 g 上，减少全局属性污染）
@@ -39,6 +42,9 @@ const _rects = {
   avatarCenter: null,      // { x, y, r } 打坐角色触摸区域
   detailBtnRect: null,     // [x, y, w, h] 升级按钮
   detailPanelRect: null,   // [x, y, w, h] 详情面板
+  detailMinusRect: null,   // [x, y, w, h] 减号按钮
+  detailPlusRect: null,    // [x, y, w, h] 加号按钮
+  detailMaxRect: null,     // [x, y, w, h] 加满按钮
   avatarRects: [],         // [{ id, rect, unlocked }] 角色选择卡片
   avatarPanelRect: null,   // [x, y, w, h] 角色选择面板
 }
@@ -47,6 +53,7 @@ function resetState() {
   _state.selectedNode = null
   _state.showAvatarPanel = false
   _state.upgradeFlash = null
+  _state.upgradeAmount = 1
 }
 
 function _getCharacter(g) {
@@ -209,7 +216,7 @@ function rCultivation(g) {
 
   // 详情面板
   if (_state.selectedNode) {
-    Draw.drawDetailPanel(c, W, H, S, _state.selectedNode, cult, pts, _rects, _state.animFrame)
+    Draw.drawDetailPanel(c, W, H, S, _state.selectedNode, cult, pts, _rects, _state.animFrame, _state.upgradeAmount)
   }
 
   // 形象选择面板
@@ -294,9 +301,30 @@ function tCultivation(g, x, y, type) {
 
   // 详情面板
   if (_state.selectedNode) {
+    // 减号
+    if (_rects.detailMinusRect && Draw.hitRect(x, y, _rects.detailMinusRect)) {
+      if (_state.upgradeAmount > 1) _state.upgradeAmount--
+      return
+    }
+    // 加号
+    if (_rects.detailPlusRect && Draw.hitRect(x, y, _rects.detailPlusRect)) {
+      const cult = g.storage.cultivation
+      const cfg = CULT_CONFIG[_state.selectedNode]
+      const maxAdd = Math.min(cfg.maxLv - cult.levels[_state.selectedNode], cult.skillPoints)
+      if (_state.upgradeAmount < maxAdd) _state.upgradeAmount++
+      return
+    }
+    // 加满
+    if (_rects.detailMaxRect && Draw.hitRect(x, y, _rects.detailMaxRect)) {
+      const cult = g.storage.cultivation
+      const cfg = CULT_CONFIG[_state.selectedNode]
+      _state.upgradeAmount = Math.min(cfg.maxLv - cult.levels[_state.selectedNode], cult.skillPoints)
+      return
+    }
+    // 确认升级按钮
     if (_rects.detailBtnRect && Draw.hitRect(x, y, _rects.detailBtnRect)) {
-      const ok = g.storage.upgradeCultivation(_state.selectedNode)
-      if (ok) {
+      const actual = g.storage.upgradeCultivation(_state.selectedNode, _state.upgradeAmount)
+      if (actual > 0) {
         MusicMgr.playLevelUp()
         _state.upgradeFlash = { key: _state.selectedNode, timer: 20 }
         checkRealmBreak(g)
@@ -304,14 +332,22 @@ function tCultivation(g, x, y, type) {
         const cfg = CULT_CONFIG[_state.selectedNode]
         if (cult.skillPoints <= 0 || cult.levels[_state.selectedNode] >= cfg.maxLv) {
           _state.selectedNode = null
+          _state.upgradeAmount = 1
+        } else {
+          // 重新约束 upgradeAmount
+          const newMax = Math.min(cfg.maxLv - cult.levels[_state.selectedNode], cult.skillPoints)
+          _state.upgradeAmount = Math.min(_state.upgradeAmount, newMax)
         }
       }
       return
     }
+    // 面板内其他区域不处理
     if (_rects.detailPanelRect && Draw.hitRect(x, y, _rects.detailPanelRect)) {
       return
     }
+    // 面板外点击关闭
     _state.selectedNode = null
+    _state.upgradeAmount = 1
     return
   }
 
@@ -359,6 +395,7 @@ function tCultivation(g, x, y, type) {
       const dx = x - pos.x, dy = y - pos.y
       if (dx*dx + dy*dy <= (nR + 8*V.S) * (nR + 8*V.S)) {
         _state.selectedNode = key
+        _state.upgradeAmount = 1
         return
       }
     }
