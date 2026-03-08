@@ -12,6 +12,11 @@ const TinyEmitter = require('./libs/tinyemitter')
 const ViewEnv = require('./views/env')
 const screens = require('./views/screens')
 const cultView = require('./views/cultivationView')
+const petPoolView = require('./views/petPoolView')
+const stageSelectView = require('./views/stageSelectView')
+const stageInfoView = require('./views/stageInfoView')
+const stageTeamView = require('./views/stageTeamView')
+const stageResultView = require('./views/stageResultView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
 const eventView = require('./views/eventView')
@@ -134,8 +139,16 @@ class Main {
         if (tutorial.onVictory(this)) return
       }
     }
-    // victory 状态下懒生成奖励
-    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive() && this.floor < MAX_FLOOR) {
+    // 波间过渡倒计时（固定关卡）
+    if (this.bState === 'waveTransition' && this._waveTransTimer != null) {
+      this._waveTransTimer--
+      if (this._waveTransTimer <= 0) {
+        const stageMgr = require('./engine/stageManager')
+        stageMgr.advanceWave(this)
+      }
+    }
+    // victory 状态下懒生成奖励（仅肉鸽模式）
+    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive() && this.floor < MAX_FLOOR && this.battleMode !== 'stage') {
       const ownedWpnIds = new Set()
       if (this.weapon) ownedWpnIds.add(this.weapon.id)
       if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
@@ -244,6 +257,11 @@ class Main {
       case 'stats': screens.rStats(this); break
       case 'dex': screens.rDex(this); break
       case 'cultivation': cultView.rCultivation(this); break
+      case 'petPool': petPoolView.rPetPool(this); break
+      case 'stageSelect': stageSelectView.rStageSelect(this); break
+      case 'stageInfo': stageInfoView.rStageInfo(this); break
+      case 'stageTeam': stageTeamView.rStageTeam(this); break
+      case 'stageResult': stageResultView.rStageResult(this); break
     }
     // 粒子系统绘制
     Particles.draw(ctx)
@@ -268,6 +286,12 @@ class Main {
     if (this._star3Celebration) {
       dialogs.drawStar3Celebration(this)
     }
+    if (this._petPoolEntryPopup) {
+      dialogs.drawPetPoolEntryPopup(this)
+    }
+    if (this._fragmentObtainedPopup) {
+      dialogs.drawFragmentPopup(this)
+    }
     ctx.restore()
   }
 
@@ -290,6 +314,11 @@ class Main {
       case 'stats': touchH.tStats(this,type,x,y); break
       case 'dex': touchH.tDex(this,type,x,y); break
       case 'cultivation': cultView.tCultivation(this,x,y,type); break
+      case 'petPool': petPoolView.tPetPool(this,x,y,type); break
+      case 'stageSelect': stageSelectView.tStageSelect(this,x,y,type); break
+      case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
+      case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
+      case 'stageResult': stageResultView.tStageResult(this,x,y,type); break
     }
   }
 

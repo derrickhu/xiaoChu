@@ -139,6 +139,32 @@ function initState(g) {
   // ===== 排行榜 =====
   g.rankTab = 'all'
   g.rankScrollY = 0
+
+  // ===== Phase 2：灵宠池 =====
+  g._petPoolEntryPopup = null   // 入池庆祝弹窗 { petId }
+  g._fragmentObtainedPopup = null // 碎片获得弹窗 { petId, count }
+  g._petPoolFilter = 'all'      // 灵宠池属性筛选 'all'|'metal'|'wood'|'water'|'fire'|'earth'
+  g._petPoolScroll = 0          // 灵宠池列表滚动
+  g._petPoolDetail = null       // 当前打开的宠物详情 petId
+  g._petPoolLevelUpAnim = null  // 升级动画 { petId, fromLv, toLv }
+  g._lastRunPetExp = 0          // 上一局获得的宠物经验
+  g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
+
+  // ===== Phase 3：固定关卡 =====
+  g.battleMode = 'roguelike'    // 'roguelike' | 'stage'
+  g._stageId = null             // 当前关卡 ID
+  g._stageWaves = []            // 当前关卡波次配置
+  g._stageWaveIdx = 0           // 当前波次索引
+  g._stageTeam = []             // 编队灵宠 ID 列表
+  g._stageTeamSelected = []     // 编队页已选宠物
+  g._stageTeamFilter = 'all'    // 编队属性筛选
+  g._stageTeamScroll = 0        // 编队列表滚动
+  g._stageTotalTurns = 0        // 关卡总回合数（跨波次累计）
+  g._stageResult = null         // 结算数据
+  g._waveTransTimer = 0         // 波间过渡倒计时
+  g._stageSelectScroll = 0      // 关卡选择页滚动
+  g._selectedStageId = null     // 选中准备编队的关卡
+  g._stageInfoEnemyDetail = null // 关卡信息页 - 点击敌人查看详情
 }
 
 module.exports = { initState }

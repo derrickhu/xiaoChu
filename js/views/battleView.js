@@ -500,6 +500,8 @@ function rBattle(g) {
     g._debugSkipRect = null
   }
 
+  // 波间过渡（固定关卡）
+  if (g.bState === 'waveTransition') _drawWaveTransition(g)
   // 胜利/失败覆盖（教学中由教学overlay接管，不显示正常胜利面板）
   if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
@@ -3800,6 +3802,35 @@ function _drawExpFloats(g) {
     ctx.fillText(f.text, curX, curY)
     ctx.restore()
   }
+}
+
+// ===== 波间过渡（固定关卡） =====
+function _drawWaveTransition(g) {
+  const { ctx, W, H, S } = V
+  ctx.save()
+  // 半透明遮罩
+  const alpha = Math.min(1, (60 - (g._waveTransTimer || 0)) / 15) * 0.6
+  ctx.fillStyle = `rgba(0,0,0,${alpha})`
+  ctx.fillRect(0, 0, W, H)
+  // "第 X 波"文字
+  const nextWave = (g._stageWaveIdx || 0) + 2
+  const totalWaves = g._stageWaves ? g._stageWaves.length : 0
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#ffd700'
+  ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+  ctx.shadowColor = 'rgba(255,215,0,0.5)'; ctx.shadowBlur = 10*S
+  ctx.fillText(`第 ${nextWave} 波`, W * 0.5, H * 0.42)
+  ctx.shadowBlur = 0
+  ctx.fillStyle = '#ccc'
+  ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`共 ${totalWaves} 波`, W * 0.5, H * 0.42 + 28*S)
+  // 闪烁提示
+  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.006)
+  ctx.globalAlpha = blink
+  ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击跳过', W * 0.5, H * 0.58)
+  ctx.globalAlpha = 1
+  ctx.restore()
 }
 
 module.exports = {

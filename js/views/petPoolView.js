@@ -1,0 +1,823 @@
+/**
+ * 灵宠池界面 — 卡片网格 + 属性筛选 + 详情面板（含升级/升星/分解）
+ * 渲染入口：rPetPool  触摸入口：tPetPool
+ */
+const V = require('./env')
+const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
+const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
+const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { drawBottomBar, getLayout: getTitleLayout } = require('./titleView')
+const MusicMgr = require('../runtime/music')
+
+// 属性筛选标签
+const FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'metal', label: '金' },
+  { key: 'wood', label: '木' },
+  { key: 'water', label: '水' },
+  { key: 'fire', label: '火' },
+  { key: 'earth', label: '土' },
+]
+
+// 模块内触摸区域（不污染 g）
+const _rects = {
+  filterRects: [],        // [{ key, rect: [x,y,w,h] }]
+  cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
+  backBtnRect: null,      // [x,y,w,h]
+  detailCloseRect: null,  // [x,y,w,h]
+  levelUpBtnRect: null,   // [x,y,w,h]
+  starUpBtnRect: null,    // [x,y,w,h]
+  decomposeBtnRect: null, // [x,y,w,h]
+}
+
+// 长按升级相关状态
+let _longPressTimer = null
+let _longPressActive = false
+let _longPressPetId = null
+
+function _getFilteredPool(g) {
+  const pool = g.storage.petPool || []
+  const filter = g._petPoolFilter || 'all'
+  if (filter === 'all') return pool
+  return pool.filter(p => p.attr === filter)
+}
+
+// ===== 主渲染 =====
+function rPetPool(g) {
+  const { ctx: c, R, TH, W, H, S, safeTop } = V
+
+  // 背景：优先使用专属背景图，fallback 到首页背景
+  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  if (poolBg && poolBg.width > 0) {
+    R._drawCoverImg(poolBg, 0, 0, W, H)
+  } else {
+    R.drawHomeBg(0)
+  }
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  c.fillRect(0, 0, W, H)
+
+  const L = getTitleLayout()
+  const topY = safeTop + 4 * S
+  const contentTop = topY + 36 * S
+  const contentBottom = L.bottomBarY - 4 * S
+  _rects.backBtnRect = null
+
+  // === 顶栏 ===
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  c.fillRect(0, topY, W, 34 * S)
+
+  // 标题
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#ffd700'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.fillText('灵宠池', W * 0.5, topY + 17 * S)
+
+  // 经验池余额（带图标）
+  const expPool = g.storage.petExpPool || 0
+  c.textAlign = 'right'
+  c.fillStyle = '#8df'
+  c.font = `${11*S}px "PingFang SC",sans-serif`
+  const expIcon = R.getImg('assets/ui/icon_exp_pool.png')
+  if (expIcon && expIcon.width > 0) {
+    const iconSz = 14 * S
+    c.drawImage(expIcon, W - 12*S - c.measureText(`${expPool}`).width - iconSz - 4*S, topY + 17*S - iconSz/2, iconSz, iconSz)
+  }
+  c.fillText(`经验：${expPool}`, W - 12 * S, topY + 17 * S)
+  c.restore()
+
+  // === 属性筛选 ===
+  const filterY = contentTop + 4 * S
+  const filterH = 26 * S
+  const filterW = (W - 24 * S) / FILTERS.length
+  _rects.filterRects = []
+  c.save()
+  for (let i = 0; i < FILTERS.length; i++) {
+    const f = FILTERS[i]
+    const fx = 12 * S + i * filterW
+    const isActive = (g._petPoolFilter || 'all') === f.key
+    c.fillStyle = isActive ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.08)'
+    R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.fill()
+    if (isActive) {
+      c.strokeStyle = '#ffd700'; c.lineWidth = 1.5 * S
+      R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.stroke()
+    }
+    c.fillStyle = isActive ? '#ffd700' : 'rgba(255,255,255,0.7)'
+    c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
+    _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW - 4 * S, filterH] })
+  }
+  c.restore()
+
+  // === 卡片网格 ===
+  const gridTop = filterY + filterH + 8 * S
+  const gridBottom = contentBottom
+  const pool = _getFilteredPool(g)
+  const cols = 3
+  const cardGap = 8 * S
+  const cardW = (W - 24 * S - cardGap * (cols - 1)) / cols
+  const cardH = cardW * 1.35
+  _rects.cardRects = []
+
+  c.save()
+  // 可滚动区域裁切
+  c.beginPath()
+  c.rect(0, gridTop, W, gridBottom - gridTop)
+  c.clip()
+
+  const scrollY = g._petPoolScroll || 0
+  const totalRows = Math.ceil(pool.length / cols)
+  const totalH = totalRows * (cardH + cardGap) + cardGap
+
+  if (pool.length === 0) {
+    c.fillStyle = 'rgba(255,255,255,0.5)'
+    c.font = `${13*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('暂无灵宠，在肉鸽中收集★3图鉴即可入池', W / 2, (gridTop + gridBottom) / 2)
+  }
+
+  for (let idx = 0; idx < pool.length; idx++) {
+    const pet = pool[idx]
+    const row = Math.floor(idx / cols)
+    const col = idx % cols
+    const cx = 12 * S + col * (cardW + cardGap)
+    const cy = gridTop + row * (cardH + cardGap) + cardGap - scrollY
+
+    if (cy + cardH < gridTop || cy > gridBottom) continue
+
+    _drawPetCard(c, R, S, W, cx, cy, cardW, cardH, pet)
+    _rects.cardRects.push({ petId: pet.id, rect: [cx, cy, cardW, cardH] })
+  }
+  c.restore()
+
+  // 收集提示
+  const poolCount = g.storage.petPoolCount
+  if (poolCount < 5) {
+    c.save()
+    c.fillStyle = 'rgba(255,200,50,0.7)'
+    c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'bottom'
+    c.fillText(`固定关卡解锁条件：灵宠池≥5只（当前 ${poolCount} 只）`, W / 2, contentBottom - 2 * S)
+    c.restore()
+  }
+
+  // 底部导航（复用首页）
+  drawBottomBar(g)
+
+  // === 详情面板 ===
+  if (g._petPoolDetail) {
+    _drawDetailPanel(g)
+  }
+}
+
+// ===== 宠物卡片 =====
+function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
+  const basePet = getPetById(poolPet.id)
+  if (!basePet) return
+  const tier = getPetTier(poolPet.id)
+  const atk = getPoolPetAtk(poolPet)
+  const attrColor = ATTR_COLOR[poolPet.attr]
+
+  c.save()
+
+  // 卡片底图（优先使用资源图，fallback 到绘制）
+  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  if (cardBg && cardBg.width > 0) {
+    c.drawImage(cardBg, x, y, w, h)
+  } else {
+    c.fillStyle = 'rgba(30,20,10,0.75)'
+    R.rr(x, y, w, h, 8 * S); c.fill()
+  }
+
+  // 属性色边框
+  c.strokeStyle = attrColor ? attrColor.main : '#888'
+  c.lineWidth = 2 * S
+  R.rr(x, y, w, h, 8 * S); c.stroke()
+
+  // 头像区域
+  const avatarSize = w * 0.62
+  const avatarX = x + (w - avatarSize) / 2
+  const avatarY = y + 8 * S
+  const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
+  const img = R.getImg(avatarPath)
+
+  if (img && img.width > 0) {
+    c.save()
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.clip()
+    const aw = img.width, ah = img.height
+    const scale = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * scale, dh = ah * scale
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+  } else {
+    c.fillStyle = attrColor ? attrColor.main : '#555'
+    c.globalAlpha = 0.3
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.fill()
+    c.globalAlpha = 1
+    c.fillStyle = '#fff'
+    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
+  }
+
+  // 头像框（与战斗界面一致，按属性分色）
+  const frameKey = `assets/ui/frame_pet_${poolPet.attr || 'metal'}.png`
+  const petFrame = R.getImg(frameKey)
+  if (petFrame && petFrame.width > 0) {
+    const frameOff = avatarSize * 0.08
+    const frameSize = avatarSize + frameOff * 2
+    c.drawImage(petFrame, avatarX - frameOff, avatarY - frameOff, frameSize, frameSize)
+  }
+
+  // 档位标签（右上角）
+  const tierColor = tier === 'T1' ? '#ffd700' : tier === 'T2' ? '#8df' : '#aaa'
+  c.fillStyle = 'rgba(0,0,0,0.5)'
+  R.rr(x + w - 22*S, y + 3*S, 20*S, 13*S, 4*S); c.fill()
+  c.fillStyle = tierColor
+  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(tier, x + w - 12*S, y + 9.5*S)
+
+  // 名称
+  const nameY = avatarY + avatarSize + 6 * S
+  c.fillStyle = '#fff'
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  const displayName = basePet.name.length > 4 ? basePet.name.slice(0, 4) + '…' : basePet.name
+  c.fillText(displayName, x + w / 2, nameY)
+
+  // 星级
+  const starY = nameY + 14 * S
+  let starStr = ''
+  for (let i = 0; i < 3; i++) starStr += i < poolPet.star ? '★' : '☆'
+  c.fillStyle = '#ffd700'
+  c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.fillText(starStr, x + w / 2, starY)
+
+  // 等级 + ATK
+  const infoY = starY + 14 * S
+  c.fillStyle = 'rgba(255,255,255,0.8)'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
+
+  c.restore()
+}
+
+// ===== 详情面板（全自绘） =====
+function _drawDetailPanel(g) {
+  const { ctx: c, R, TH, W, H, S, safeTop } = V
+  const petId = g._petPoolDetail
+  const poolPet = g.storage.getPoolPet(petId)
+  if (!poolPet) { g._petPoolDetail = null; return }
+  const basePet = getPetById(petId)
+  if (!basePet) { g._petPoolDetail = null; return }
+
+  const tier = getPetTier(petId)
+  const atk = getPoolPetAtk(poolPet)
+  const attrColor = ATTR_COLOR[poolPet.attr]
+  const attrName = ATTR_NAME[poolPet.attr] || poolPet.attr
+  const expPool = g.storage.petExpPool || 0
+  const nextLvExp = petExpToNextLevel(poolPet.level, tier)
+  const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+  const isMaxLv = poolPet.level >= maxLv
+
+  // 遮罩
+  c.fillStyle = 'rgba(0,0,0,0.7)'
+  c.fillRect(0, 0, W, H)
+
+  // 面板尺寸
+  const pw = W * 0.88, ph = H * 0.75
+  const px = (W - pw) / 2, py = (H - ph) / 2
+  const rad = 16 * S
+
+  // 面板阴影
+  c.save()
+  c.shadowColor = 'rgba(0,0,0,0.5)'
+  c.shadowBlur = 24 * S
+  c.shadowOffsetY = 4 * S
+
+  // 面板背景：暖色渐变
+  const bgGrad = c.createLinearGradient(px, py, px, py + ph)
+  bgGrad.addColorStop(0, '#3D2B15')
+  bgGrad.addColorStop(0.3, '#2A1E10')
+  bgGrad.addColorStop(1, '#1A120A')
+  c.fillStyle = bgGrad
+  R.rr(px, py, pw, ph, rad); c.fill()
+  c.restore()
+
+  // 外边框：金色
+  c.strokeStyle = '#C9A84C'
+  c.lineWidth = 2 * S
+  R.rr(px, py, pw, ph, rad); c.stroke()
+  // 内边框
+  c.strokeStyle = 'rgba(201,168,76,0.3)'
+  c.lineWidth = 1 * S
+  R.rr(px + 4*S, py + 4*S, pw - 8*S, ph - 8*S, rad - 2*S); c.stroke()
+
+  _rects.detailCloseRect = [0, 0, W, H]
+
+  const indent = px + 20 * S
+  const rightEdge = px + pw - 20 * S
+  const contentW = rightEdge - indent
+
+  // ── 顶部：头像 + 名称区域 ──
+  let cy = py + 18 * S
+  const avatarSize = 64 * S
+  const avatarX = indent
+  const avatarY = cy
+
+  // 头像背景
+  const ac = attrColor ? attrColor.main : '#666'
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  R.rr(avatarX - 2*S, avatarY - 2*S, avatarSize + 4*S, avatarSize + 4*S, 10*S); c.fill()
+  c.strokeStyle = ac; c.lineWidth = 2 * S
+  R.rr(avatarX - 2*S, avatarY - 2*S, avatarSize + 4*S, avatarSize + 4*S, 10*S); c.stroke()
+
+  // 头像
+  const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    c.save()
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); c.clip()
+    c.drawImage(img, avatarX, avatarY, avatarSize, avatarSize)
+    c.restore()
+  } else {
+    c.fillStyle = ac
+    c.globalAlpha = 0.3
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); c.fill()
+    c.globalAlpha = 1
+    c.fillStyle = '#fff'
+    c.font = `bold ${22*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize/2, avatarY + avatarSize/2)
+  }
+
+  // 名称（头像右侧）
+  const infoX = avatarX + avatarSize + 14 * S
+  c.fillStyle = '#F5E6C8'
+  c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(basePet.name, infoX, cy)
+
+  // 属性 + 档位标签
+  const tagY = cy + 20 * S
+  const tierColor = tier === 'T1' ? '#FFD700' : tier === 'T2' ? '#8DF' : '#AAA'
+  // 属性标签
+  c.fillStyle = ac
+  c.globalAlpha = 0.25
+  R.rr(infoX, tagY, 52*S, 18*S, 4*S); c.fill()
+  c.globalAlpha = 1
+  c.strokeStyle = ac; c.lineWidth = 1*S
+  R.rr(infoX, tagY, 52*S, 18*S, 4*S); c.stroke()
+  c.fillStyle = ac
+  c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(`${attrName}属性`, infoX + 26*S, tagY + 9*S)
+  // 档位标签
+  c.fillStyle = tierColor
+  c.globalAlpha = 0.2
+  R.rr(infoX + 58*S, tagY, 32*S, 18*S, 4*S); c.fill()
+  c.globalAlpha = 1
+  c.strokeStyle = tierColor; c.lineWidth = 1*S
+  R.rr(infoX + 58*S, tagY, 32*S, 18*S, 4*S); c.stroke()
+  c.fillStyle = tierColor
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.fillText(tier, infoX + 74*S, tagY + 9*S)
+
+  // 星级（头像下方）
+  const starY = tagY + 24 * S
+  let starStr = ''
+  for (let i = 0; i < 3; i++) starStr += i < poolPet.star ? '★' : '☆'
+  c.fillStyle = '#FFD700'
+  c.font = `${14*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(starStr, infoX, starY)
+
+  cy = avatarY + avatarSize + 14 * S
+
+  // ── 分隔线 ──
+  _drawSeparator(c, indent, cy, rightEdge, S)
+  cy += 10 * S
+
+  // ── 攻击力 ──
+  c.fillStyle = '#E8D5A8'
+  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(`攻击力`, indent, cy)
+  c.fillStyle = '#FF9944'
+  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'
+  c.fillText(`${atk}`, rightEdge, cy)
+  cy += 20 * S
+
+  const baseAtk = basePet.atk
+  const lvBonus = tier === 'T3' ? Math.floor(poolPet.level * 0.8) : poolPet.level
+  const starMul = POOL_STAR_ATK_MUL[poolPet.star] || 1.0
+  c.fillStyle = 'rgba(200,180,140,0.5)'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.fillText(`基础${baseAtk} + 等级+${lvBonus} × 星级×${starMul}`, indent, cy)
+  cy += 16 * S
+
+  // ── 分隔线 ──
+  _drawSeparator(c, indent, cy, rightEdge, S)
+  cy += 10 * S
+
+  // ── 等级 + 经验 + 升级按钮 ──
+  c.fillStyle = '#E8D5A8'
+  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  if (isMaxLv) {
+    c.fillText(`Lv.${poolPet.level}`, indent, cy)
+    c.fillStyle = '#FFD700'
+    c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'right'
+    c.fillText('满级', rightEdge, cy + 1*S)
+    _rects.levelUpBtnRect = null
+  } else {
+    c.fillText(`Lv.${poolPet.level}`, indent, cy)
+    // 经验条
+    const barX = indent + 60 * S, barW = contentW - 60*S - 80*S
+    const barY = cy + 2 * S, barH = 12 * S
+    const lvProgress = Math.min(1, expPool / Math.max(1, nextLvExp))
+    c.fillStyle = 'rgba(0,0,0,0.3)'
+    R.rr(barX, barY, barW, barH, barH/2); c.fill()
+    if (lvProgress > 0) {
+      const fillGrad = c.createLinearGradient(barX, barY, barX + barW * lvProgress, barY)
+      fillGrad.addColorStop(0, '#5CB8FF')
+      fillGrad.addColorStop(1, '#3A8ADF')
+      c.fillStyle = fillGrad
+      R.rr(barX, barY, barW * lvProgress, barH, barH/2); c.fill()
+    }
+    c.strokeStyle = 'rgba(100,180,255,0.4)'; c.lineWidth = 1*S
+    R.rr(barX, barY, barW, barH, barH/2); c.stroke()
+    // 升级按钮
+    const btnW = 72 * S, btnH = 24 * S
+    const btnX = rightEdge - btnW, btnY = cy - 2 * S
+    const canLvUp = expPool >= nextLvExp
+    _drawActionBtn(c, R, S, btnX, btnY, btnW, btnH, '升级', canLvUp, '#5CB8FF')
+    _rects.levelUpBtnRect = [btnX, btnY, btnW, btnH]
+  }
+  cy += 22 * S
+  c.fillStyle = 'rgba(200,180,140,0.5)'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(`经验池：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
+  cy += 16 * S
+
+  // ── 分隔线 ──
+  _drawSeparator(c, indent, cy, rightEdge, S)
+  cy += 10 * S
+
+  // ── 技能 ──
+  const fakePet = { ...basePet, star: poolPet.star }
+  const hasSkill = petHasSkill(fakePet)
+  c.fillStyle = '#E8D5A8'
+  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('技能', indent, cy)
+  cy += 18 * S
+
+  if (hasSkill) {
+    const skillDesc = getPetSkillDesc(fakePet)
+    c.fillStyle = '#7ECF6A'
+    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText(basePet.skill.name, indent, cy)
+    cy += 16 * S
+    c.fillStyle = 'rgba(200,180,140,0.6)'
+    c.font = `${9*S}px "PingFang SC",sans-serif`
+    const maxW = contentW
+    const words = skillDesc || ''
+    _wrapText(c, words, indent, cy, maxW, 13*S)
+    const lines = Math.ceil(c.measureText(words).width / maxW)
+    cy += Math.max(1, lines) * 13 * S + 4 * S
+  } else {
+    c.fillStyle = 'rgba(200,180,140,0.4)'
+    c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText('★2解锁技能', indent, cy)
+    cy += 16 * S
+  }
+
+  // ── 分隔线 ──
+  _drawSeparator(c, indent, cy, rightEdge, S)
+  cy += 10 * S
+
+  // ── 升星信息 ──
+  const nextStar = poolPet.star + 1
+  const maxStar = poolPet.source === 'stage' ? 4 : 3
+  _rects.starUpBtnRect = null
+  _rects.decomposeBtnRect = null
+
+  if (nextStar <= maxStar) {
+    const lvReq = POOL_STAR_LV_REQ[nextStar]
+    const fragCost = POOL_STAR_FRAG_COST[nextStar]
+    const lvOk = poolPet.level >= lvReq
+    const fragOk = poolPet.fragments >= fragCost
+
+    c.fillStyle = '#E8D5A8'
+    c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    let nextStarStr = ''
+    for (let i = 0; i < maxStar; i++) nextStarStr += i < nextStar ? '★' : '☆'
+    c.fillText(`升至 ${nextStarStr}`, indent, cy)
+    cy += 20 * S
+
+    // 等级门槛
+    c.fillStyle = lvOk ? '#7ECF6A' : '#E06060'
+    c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText(`等级 Lv.${poolPet.level} / Lv.${lvReq}`, indent, cy)
+    c.textAlign = 'right'
+    c.fillText(lvOk ? '✓' : '✗', rightEdge, cy)
+    cy += 16 * S
+
+    // 碎片进度
+    c.textAlign = 'left'
+    c.fillStyle = fragOk ? '#7ECF6A' : '#E06060'
+    c.fillText(`碎片 ${poolPet.fragments} / ${fragCost}`, indent, cy)
+    c.textAlign = 'right'
+    c.fillText(fragOk ? '✓' : '✗', rightEdge, cy)
+    cy += 20 * S
+
+    // 操作按钮行
+    const canStarUp = lvOk && fragOk
+    const sBtnW = 90 * S, sBtnH = 30 * S
+    const sBtnX = indent
+    _drawActionBtn(c, R, S, sBtnX, cy, sBtnW, sBtnH, '升星', canStarUp, '#FFD700')
+    _rects.starUpBtnRect = [sBtnX, cy, sBtnW, sBtnH]
+
+    if (poolPet.fragments > 0) {
+      const dBtnW = 110 * S
+      const dBtnX = sBtnX + sBtnW + 12 * S
+      _drawActionBtn(c, R, S, dBtnX, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
+      _rects.decomposeBtnRect = [dBtnX, cy, dBtnW, sBtnH]
+    }
+  } else {
+    c.fillStyle = '#FFD700'
+    c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    let fullStarStr = ''
+    for (let i = 0; i < maxStar; i++) fullStarStr += '★'
+    c.fillText(`满星 ${fullStarStr}`, indent, cy)
+    cy += 20 * S
+    c.fillStyle = 'rgba(200,180,140,0.6)'
+    c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText(`剩余碎片：${poolPet.fragments}`, indent, cy)
+    cy += 20 * S
+    if (poolPet.fragments > 0) {
+      const dBtnW = 130 * S, dBtnH = 30 * S
+      _drawActionBtn(c, R, S, indent, cy, dBtnW, dBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
+      _rects.decomposeBtnRect = [indent, cy, dBtnW, dBtnH]
+    }
+  }
+
+  // 关闭按钮（右上角 X）
+  const closeSize = 28 * S
+  const closeX = px + pw - closeSize - 8*S
+  const closeY = py + 8*S
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  c.beginPath(); c.arc(closeX + closeSize/2, closeY + closeSize/2, closeSize/2, 0, Math.PI*2); c.fill()
+  c.strokeStyle = 'rgba(200,180,140,0.6)'; c.lineWidth = 1.5*S
+  c.beginPath(); c.arc(closeX + closeSize/2, closeY + closeSize/2, closeSize/2, 0, Math.PI*2); c.stroke()
+  c.strokeStyle = '#E8D5A8'; c.lineWidth = 2*S
+  const cx0 = closeX + closeSize/2, cy0 = closeY + closeSize/2, cr = 7*S
+  c.beginPath(); c.moveTo(cx0 - cr, cy0 - cr); c.lineTo(cx0 + cr, cy0 + cr); c.stroke()
+  c.beginPath(); c.moveTo(cx0 + cr, cy0 - cr); c.lineTo(cx0 - cr, cy0 + cr); c.stroke()
+
+  // 底部关闭提示
+  c.fillStyle = 'rgba(200,180,140,0.3)'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'bottom'
+  c.fillText('点击空白处关闭', W / 2, py + ph - 10 * S)
+}
+
+// 绘制分隔线
+function _drawSeparator(c, x1, y, x2, S) {
+  const grad = c.createLinearGradient(x1, y, x2, y)
+  grad.addColorStop(0, 'rgba(201,168,76,0)')
+  grad.addColorStop(0.2, 'rgba(201,168,76,0.4)')
+  grad.addColorStop(0.8, 'rgba(201,168,76,0.4)')
+  grad.addColorStop(1, 'rgba(201,168,76,0)')
+  c.strokeStyle = grad; c.lineWidth = 1
+  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
+}
+
+// 绘制操作按钮
+function _drawActionBtn(c, R, S, x, y, w, h, text, enabled, color) {
+  const r = 6 * S
+  if (enabled) {
+    c.save()
+    c.shadowColor = color; c.shadowBlur = 8*S
+    c.fillStyle = color
+    c.globalAlpha = 0.15
+    R.rr(x, y, w, h, r); c.fill()
+    c.restore()
+    c.strokeStyle = color; c.lineWidth = 1.5*S
+    R.rr(x, y, w, h, r); c.stroke()
+    c.fillStyle = color
+  } else {
+    c.fillStyle = 'rgba(80,80,80,0.2)'
+    R.rr(x, y, w, h, r); c.fill()
+    c.strokeStyle = '#666'; c.lineWidth = 1*S
+    R.rr(x, y, w, h, r); c.stroke()
+    c.fillStyle = '#888'
+  }
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(text, x + w/2, y + h/2)
+}
+
+// 文本自动换行
+function _wrapText(c, text, x, y, maxW, lineH) {
+  let line = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (c.measureText(line + ch).width > maxW) {
+      c.fillText(line, x, y)
+      y += lineH
+      line = ch
+    } else {
+      line += ch
+    }
+  }
+  if (line) c.fillText(line, x, y)
+}
+
+// ===== 触摸处理 =====
+// 滚动相关
+let _scrollTouchY = 0
+let _scrolling = false
+
+function tPetPool(g, x, y, type) {
+  const { S } = V
+
+  // 详情面板打开时优先处理
+  if (g._petPoolDetail) {
+    if (type === 'end') {
+      // 升级
+      if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
+        _doLevelUp(g)
+        _longPressActive = false
+        return
+      }
+      // 升星
+      if (_rects.starUpBtnRect && g._hitRect(x, y, ..._rects.starUpBtnRect)) {
+        _doStarUp(g)
+        return
+      }
+      // 分解
+      if (_rects.decomposeBtnRect && g._hitRect(x, y, ..._rects.decomposeBtnRect)) {
+        _doDecompose(g)
+        return
+      }
+      // 长按结束
+      _cancelLongPress()
+      // 点击面板外关闭
+      g._petPoolDetail = null
+      return
+    }
+    if (type === 'start') {
+      // 长按升级检测
+      if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
+        _longPressPetId = g._petPoolDetail
+        _longPressTimer = setTimeout(() => {
+          _longPressActive = true
+          _longPressLoop(g)
+        }, 400)
+      }
+    }
+    if (type === 'move') {
+      _cancelLongPress()
+    }
+    return
+  }
+
+  // 滚动处理
+  if (type === 'start') {
+    _scrollTouchY = y
+    _scrolling = false
+  }
+  if (type === 'move') {
+    const dy = _scrollTouchY - y
+    if (Math.abs(dy) > 3 * S) _scrolling = true
+    if (_scrolling) {
+      g._petPoolScroll = Math.max(0, (g._petPoolScroll || 0) + dy)
+      _scrollTouchY = y
+      // 限制最大滚动（粗略估算）
+      const pool = _getFilteredPool(g)
+      const cols = 3
+      const cardW = (V.W - 24 * S - 8 * S * 2) / cols
+      const cardH = cardW * 1.35
+      const totalRows = Math.ceil(pool.length / cols)
+      const maxScroll = Math.max(0, totalRows * (cardH + 8 * S) - (V.H * 0.5))
+      g._petPoolScroll = Math.min(g._petPoolScroll, maxScroll)
+    }
+    return
+  }
+  if (type === 'end') {
+    if (_scrolling) { _scrolling = false; return }
+
+    // 返回按钮
+    if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
+      g.scene = 'title'; return
+    }
+
+    // 属性筛选
+    for (const f of _rects.filterRects) {
+      if (g._hitRect(x, y, ...f.rect)) {
+        g._petPoolFilter = f.key
+        g._petPoolScroll = 0
+        return
+      }
+    }
+
+    // 卡片点击 → 打开详情
+    for (const card of _rects.cardRects) {
+      if (g._hitRect(x, y, ...card.rect)) {
+        g._petPoolDetail = card.petId
+        MusicMgr.playClick && MusicMgr.playClick()
+        return
+      }
+    }
+
+    // 底部导航
+    const barRects = g._bottomBarRects || []
+    for (let i = 0; i < barRects.length; i++) {
+      if (!g._hitRect(x, y, ...barRects[i])) continue
+      switch (i) {
+        case 0: {
+          const cv = require('./cultivationView')
+          cv.resetScroll()
+          g.scene = 'cultivation'
+          cv.checkRealmBreak(g)
+          return
+        }
+        case 1: return // 已在灵宠池
+        case 2: g._dexScrollY = 0; g.scene = 'dex'; return
+        case 3: g.scene = 'title'; return
+        case 4:
+          if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
+          g._openRanking(); return
+        case 5: g.scene = 'stats'; return
+        case 6: g.showMorePanel = true; g.scene = 'title'; return
+      }
+    }
+  }
+}
+
+function _doLevelUp(g) {
+  const petId = g._petPoolDetail
+  if (!petId) return
+  const poolPet = g.storage.getPoolPet(petId)
+  if (!poolPet) return
+  const tier = getPetTier(petId)
+  const needed = petExpToNextLevel(poolPet.level, tier)
+  if ((g.storage.petExpPool || 0) < needed) return
+  const ups = g.storage.investPetExp(petId, needed)
+  if (ups > 0) {
+    MusicMgr.playLevelUp && MusicMgr.playLevelUp()
+  }
+}
+
+function _doStarUp(g) {
+  const petId = g._petPoolDetail
+  if (!petId) return
+  const result = g.storage.upgradePoolPetStar(petId)
+  if (result.ok) {
+    MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
+  }
+}
+
+function _doDecompose(g) {
+  const petId = g._petPoolDetail
+  if (!petId) return
+  const gained = g.storage.decomposeFragments(petId, 1)
+  if (gained > 0) {
+    MusicMgr.playReward && MusicMgr.playReward()
+  }
+}
+
+function _longPressLoop(g) {
+  if (!_longPressActive || !_longPressPetId) return
+  _doLevelUp(g)
+  // 如果还能继续升，继续循环
+  const poolPet = g.storage.getPoolPet(_longPressPetId)
+  const maxLv = poolPet && poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+  if (poolPet && poolPet.level < maxLv) {
+    const tier = getPetTier(_longPressPetId)
+    const needed = petExpToNextLevel(poolPet.level, tier)
+    if ((g.storage.petExpPool || 0) >= needed) {
+      _longPressTimer = setTimeout(() => _longPressLoop(g), 120)
+      return
+    }
+  }
+  _longPressActive = false
+}
+
+function _cancelLongPress() {
+  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null }
+  _longPressActive = false
+  _longPressPetId = null
+}
+
+module.exports = { rPetPool, tPetPool }

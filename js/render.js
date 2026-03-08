@@ -1656,7 +1656,12 @@ class Render {
   // 工具 - 解析颜色为 [r,g,b]
   _parseColor(c) {
     if (c.startsWith('#')) {
-      return [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)]
+      const hex = c.slice(1)
+      if (hex.length <= 4) {
+        // 3/4位短hex：每位扩展为两位（如 #abc → #aabbcc）
+        return [parseInt(hex[0]+hex[0],16), parseInt(hex[1]+hex[1],16), parseInt(hex[2]+hex[2],16)]
+      }
+      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)]
     }
     const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
     if (m) return [+m[1], +m[2], +m[3]]

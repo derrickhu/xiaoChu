@@ -365,6 +365,13 @@ function tCultivation(g, x, y, type) {
           _state.showAvatarPanel = false
           if (item.key === 'cultivation') return
           if (item.key === 'battle' || item.key === 'stage') { g.scene = 'title'; return }
+          if (item.key === 'pets') {
+            if (g.storage.petPoolCount > 0) {
+              g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+              g.scene = 'petPool'
+            }
+            return
+          }
           if (item.key === 'dex') { g.scene = 'dex'; return }
           if (item.key === 'rank') { g.scene = 'ranking'; return }
           if (item.key === 'stats') { g.scene = 'stats'; return }

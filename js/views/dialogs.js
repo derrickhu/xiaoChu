@@ -645,6 +645,92 @@ function drawStar3Celebration(g) {
   ctx.restore()
 }
 
+// ===== 灵宠入池弹窗 =====
+function drawPetPoolEntryPopup(g) {
+  if (!g._petPoolEntryPopup) return
+  const { ctx, R, TH, W, H, S } = V
+  const { getPetById: _getPet } = require('../data/pets')
+  const pet = _getPet(g._petPoolEntryPopup.petId)
+  if (!pet) { g._petPoolEntryPopup = null; return }
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.72, ph = 140 * S
+  const px = (W - pw) / 2, py = H * 0.35
+  ctx.fillStyle = 'rgba(248,242,230,0.97)'
+  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
+  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2 * S
+  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#ffd700'
+  ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('灵宠入池！', px + pw / 2, py + 24 * S)
+
+  const attrColor = ATTR_COLOR[pet.attr]
+  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(pet.name, px + pw / 2, py + 50 * S)
+
+  ctx.fillStyle = '#6B5014'
+  ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('★1 Lv.5 + 2碎片 加入灵宠池', px + pw / 2, py + 74 * S)
+
+  // 首只入池解锁提示
+  if (g.storage.petPoolCount === 1) {
+    ctx.fillStyle = '#e0a030'
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('底部"灵宠"标签已解锁！', px + pw / 2, py + 96 * S)
+  }
+
+  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
+  ctx.globalAlpha = blink
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
+  ctx.globalAlpha = 1
+
+  ctx.restore()
+}
+
+// ===== 碎片获得弹窗 =====
+function drawFragmentPopup(g) {
+  if (!g._fragmentObtainedPopup) return
+  const { ctx, R, TH, W, H, S } = V
+  const { getPetById: _getPet } = require('../data/pets')
+  const info = g._fragmentObtainedPopup
+  const pet = _getPet(info.petId)
+  if (!pet) { g._fragmentObtainedPopup = null; return }
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.65, ph = 100 * S
+  const px = (W - pw) / 2, py = H * 0.38
+  ctx.fillStyle = 'rgba(248,242,230,0.97)'
+  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
+  ctx.strokeStyle = 'rgba(180,140,60,0.6)'; ctx.lineWidth = 1.5 * S
+  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#6B5014'
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText('获得碎片', px + pw / 2, py + 22 * S)
+
+  const attrColor = ATTR_COLOR[pet.attr]
+  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${pet.name} ×${info.count}`, px + pw / 2, py + 48 * S)
+
+  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
+  ctx.globalAlpha = blink
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
+  ctx.globalAlpha = 1
+
+  ctx.restore()
+}
+
 module.exports = {
   drawExitDialog,
   drawRunBuffDetailDialog,
@@ -652,4 +738,6 @@ module.exports = {
   drawWeaponDetailDialog,
   drawBattlePetDetailDialog,
   drawStar3Celebration,
+  drawPetPoolEntryPopup,
+  drawFragmentPopup,
 }
