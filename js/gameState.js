@@ -145,7 +145,8 @@ function initState(g) {
   g._fragmentObtainedPopup = null // 碎片获得弹窗 { petId, count }
   g._petPoolFilter = 'all'      // 灵宠池属性筛选 'all'|'metal'|'wood'|'water'|'fire'|'earth'
   g._petPoolScroll = 0          // 灵宠池列表滚动
-  g._petPoolDetail = null       // 当前打开的宠物详情 petId
+  g._petPoolDetail = null       // 当前打开的宠物详情 petId（旧弹窗，保留兼容）
+  g._petDetailId = null         // 宠物详情全屏页当前宠物 petId
   g._petPoolLevelUpAnim = null  // 升级动画 { petId, fromLv, toLv }
   g._lastRunPetExp = 0          // 上一局获得的宠物经验
   g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
