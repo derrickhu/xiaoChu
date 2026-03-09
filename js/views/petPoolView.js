@@ -791,10 +791,11 @@ function tPetPool(g, x, y, type) {
       }
     }
 
-    // 卡片点击 → 打开详情
+    // 卡片点击 → 跳转宠物详情全屏页
     for (const card of _rects.cardRects) {
       if (g._hitRect(x, y, ...card.rect)) {
-        g._petPoolDetail = card.petId
+        g._petDetailId = card.petId
+        g.scene = 'petDetail'
         MusicMgr.playClick && MusicMgr.playClick()
         return
       }

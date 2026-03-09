@@ -13,6 +13,7 @@ const ViewEnv = require('./views/env')
 const screens = require('./views/screens')
 const cultView = require('./views/cultivationView')
 const petPoolView = require('./views/petPoolView')
+const petDetailView = require('./views/petDetailView')
 const stageSelectView = require('./views/stageSelectView')
 const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
@@ -258,6 +259,7 @@ class Main {
       case 'dex': screens.rDex(this); break
       case 'cultivation': cultView.rCultivation(this); break
       case 'petPool': petPoolView.rPetPool(this); break
+      case 'petDetail': petDetailView.rPetDetail(this); break
       case 'stageSelect': stageSelectView.rStageSelect(this); break
       case 'stageInfo': stageInfoView.rStageInfo(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
@@ -315,6 +317,7 @@ class Main {
       case 'dex': touchH.tDex(this,type,x,y); break
       case 'cultivation': cultView.tCultivation(this,x,y,type); break
       case 'petPool': petPoolView.tPetPool(this,x,y,type); break
+      case 'petDetail': petDetailView.tPetDetail(this,x,y,type); break
       case 'stageSelect': stageSelectView.tStageSelect(this,x,y,type); break
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
