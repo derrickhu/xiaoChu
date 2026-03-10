@@ -6,9 +6,10 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetAvatarPath, getPetSkillDesc, getPetStarAtk, MAX_STAR } = require('../data/pets')
+const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr } = require('../data/stages')
+const { drawPoolPetDetailPopup } = require('./dialogs')
 
 const _rects = {
   backBtnRect: null,
@@ -60,18 +61,27 @@ function rStageInfo(g) {
   const contentW = W - 28 * S
   let cy = safeTop + 4 * S
 
-  // ── 顶部栏：返回 + 体力 ──
+  // ── 顶部栏：返回 + 体力（深色半透明衬底保证可读） ──
   c.save()
-  c.fillStyle = 'rgba(255,255,255,0.75)'
-  c.font = `${13*S}px "PingFang SC",sans-serif`
+  c.fillStyle = 'rgba(0,0,0,0.35)'
+  c.fillRect(0, cy, W, 36 * S)
+  // 返回按钮文字：描边+填充双层
+  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'middle'
-  c.fillText('‹ 返回', px, cy + 16 * S)
-  _rects.backBtnRect = [0, cy, 80 * S, 32 * S]
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
+  c.strokeText('‹ 返回', px, cy + 18 * S)
+  c.fillStyle = '#FFFFFF'
+  c.fillText('‹ 返回', px, cy + 18 * S)
+  _rects.backBtnRect = [0, cy, 80 * S, 36 * S]
+  // 体力（描边+填充）
   c.textAlign = 'right'
-  c.fillStyle = '#8ac8ff'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.fillText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 16 * S)
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.strokeText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 18 * S)
+  c.fillStyle = '#8ac8ff'
+  c.fillText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 18 * S)
   c.restore()
-  cy += 38 * S
+  cy += 40 * S
 
   // ── 关卡标题区（大号，居中） ──
   c.textAlign = 'center'; c.textBaseline = 'middle'
@@ -82,11 +92,20 @@ function rStageInfo(g) {
   c.fillText(stage.name, W / 2, cy + 12 * S)
   cy += 30 * S
 
-  // 副标题：属性 + 波次 + 消耗 + 次数
-  c.fillStyle = attrColor ? attrColor.main : '#ccc'
+  // 副标题：属性 + 波次 + 消耗 + 次数（加胶囊衬底）
+  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost}  ·  今日${dailyLeft}/${stage.dailyLimit}`
   c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.fillText(`${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost}  ·  今日${dailyLeft}/${stage.dailyLimit}`, W / 2, cy + 6 * S)
-  cy += 16 * S
+  const subW = c.measureText(subText).width + 20 * S
+  const subH = 20 * S
+  const subX = (W - subW) / 2
+  c.fillStyle = 'rgba(0,0,0,0.45)'
+  R.rr(subX, cy, subW, subH, subH / 2); c.fill()
+  c.strokeStyle = attrColor ? attrColor.main + '60' : 'rgba(200,180,120,0.4)'; c.lineWidth = 1 * S
+  R.rr(subX, cy, subW, subH, subH / 2); c.stroke()
+  c.fillStyle = attrColor ? attrColor.main : '#E8D5A3'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(subText, W / 2, cy + subH / 2)
+  cy += subH + 6 * S
 
   // 历史最佳评价（醒目星级徽章）
   if (bestRating) {
@@ -131,7 +150,7 @@ function rStageInfo(g) {
   c.fillText('挑战目标', indent, iy)
   iy += 18 * S
 
-  c.fillStyle = 'rgba(230,210,170,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
   c.fillText(`◇ ${stage.rating.s}回合内通关 → S评价`, indent + 6 * S, iy); iy += 14 * S
   c.fillText(`◇ ${stage.rating.a}回合内通关 → A评价`, indent + 6 * S, iy); iy += 14 * S
   c.fillText(`◇ 通关即可 → B评价`, indent + 6 * S, iy); iy += 16 * S
@@ -159,7 +178,7 @@ function rStageInfo(g) {
     }
     iy += 2 * S
   }
-  c.fillStyle = 'rgba(230,210,170,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
   const rep = stage.rewards.repeatClear
   c.fillText(`碎片 ×${rep.fragments.min}~${rep.fragments.max}  |  修炼经验 +${rep.exp}  |  宠物经验 +${rep.petExp}`, indent + 6 * S, iy)
   iy += 16 * S
@@ -235,15 +254,16 @@ function rStageInfo(g) {
   c.fillStyle = '#FFF5E0'
   c.fillText('我的编队', px + 4 * S, teamLabelY + 10 * S)
 
-  // "调整编队" 按钮（同一行右侧）
-  const editBtnW = 72 * S, editBtnH = 26 * S
+  // "调整编队" 按钮（同一行右侧，加深背景+边框）
+  const editBtnW = 76 * S, editBtnH = 28 * S
   const editBtnX = W - px - editBtnW - 4 * S
   const editBtnY = teamLabelY + 10 * S - editBtnH / 2
-  c.fillStyle = 'rgba(201,168,76,0.2)'
+  // 深色底+金边
+  c.fillStyle = 'rgba(30,20,10,0.75)'
   R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.fill()
-  c.strokeStyle = 'rgba(201,168,76,0.5)'; c.lineWidth = 1 * S
+  c.strokeStyle = '#C9A84C'; c.lineWidth = 1.5 * S
   R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.stroke()
-  c.fillStyle = '#D4A843'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#FFD700'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText('调整编队 ›', editBtnX + editBtnW / 2, editBtnY + editBtnH / 2)
   _rects.editTeamBtnRect = [editBtnX, editBtnY, editBtnW, editBtnH]
@@ -317,12 +337,6 @@ function rStageInfo(g) {
           c.fillText('队长', ix + capW / 2, iconY + capH / 2)
         }
 
-        // 名称 + 等级（头像下方）
-        c.textAlign = 'center'; c.textBaseline = 'top'
-        c.fillStyle = 'rgba(255,245,220,0.85)'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-        c.fillText(`${basePet.name.slice(0,3)}`, ix + iconSize / 2, iconY + iconSize + 4 * S)
-        c.fillStyle = 'rgba(200,180,140,0.6)'; c.font = `${7*S}px "PingFang SC",sans-serif`
-        c.fillText(`Lv.${poolPet.level}`, ix + iconSize / 2, iconY + iconSize + 14 * S)
 
         _rects.petSlotRects.push({ petId: pid, rect: [ix, iconY, iconSize, iconSize] })
       }
@@ -371,7 +385,7 @@ function rStageInfo(g) {
 
   // ── 宠物详情弹窗 ──
   if (g._stageInfoPetDetail != null) {
-    _drawPetDetailPopup(g, c, R, S, W, H)
+    drawPoolPetDetailPopup(g, g._stageInfoPetDetail, g.storage)
   }
 }
 
@@ -543,153 +557,6 @@ function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {
   c.fillStyle = 'rgba(200,180,140,0.3)'; c.font = `${9*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'bottom'
   c.fillText('点击任意处关闭', W / 2, py + ph - 8 * S)
-}
-
-/** 宠物详情弹窗 */
-function _drawPetDetailPopup(g, c, R, S, W, H) {
-  const petId = g._stageInfoPetDetail
-  if (!petId) return
-  const basePet = getPetById(petId)
-  const poolPet = g.storage.getPoolPet(petId)
-  if (!basePet || !poolPet) return
-
-  const ac = ATTR_COLOR[basePet.attr]
-  const curStar = poolPet.star || 1
-  const pet = { ...basePet, star: curStar, level: poolPet.level }
-  const curAtk = getPoolPetAtk(poolPet)
-  const skillDesc = getPetSkillDesc(pet)
-
-  // 遮罩
-  c.fillStyle = 'rgba(0,0,0,0.6)'
-  c.fillRect(0, 0, W, H)
-
-  // 面板
-  const pw = W * 0.8, ph = 240 * S
-  const px = (W - pw) / 2, py = (H - ph) / 2
-  const rad = 14 * S
-
-  const bg = c.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, '#3D2B15'); bg.addColorStop(1, '#1A120A')
-  c.fillStyle = bg
-  R.rr(px, py, pw, ph, rad); c.fill()
-  c.strokeStyle = ac ? ac.main + '60' : '#C9A84C60'; c.lineWidth = 2 * S
-  R.rr(px, py, pw, ph, rad); c.stroke()
-
-  const indent = px + 18 * S
-  const rightEdge = px + pw - 18 * S
-  let dy = py + 18 * S
-
-  // 头像 + 名称区
-  const avatarSz = 50 * S
-  const framePetMap = _getFramePetMap(R)
-  const petFrame = framePetMap[basePet.attr] || framePetMap.metal
-  const frameScale = 1.12
-  const frameSz = avatarSz * frameScale
-  const frameOf = (frameSz - avatarSz) / 2
-
-  // 属性色背景
-  c.fillStyle = ac ? ac.bg : '#1a1a2e'
-  c.fillRect(indent, dy, avatarSz, avatarSz)
-  // 头像
-  const avatarImg = R.getImg(getPetAvatarPath(pet))
-  if (avatarImg && avatarImg.width > 0) {
-    const aw = avatarImg.width, ah = avatarImg.height
-    const drawW = avatarSz - 2, drawH = drawW * (ah / aw)
-    const avDy = dy + (avatarSz - 2) - drawH
-    c.save()
-    c.beginPath(); c.rect(indent + 1, dy + 1, avatarSz - 2, avatarSz - 2); c.clip()
-    c.drawImage(avatarImg, indent + 1, avDy, drawW, drawH)
-    c.restore()
-  }
-  // 头像框
-  if (petFrame && petFrame.width > 0) {
-    c.drawImage(petFrame, indent - frameOf, dy - frameOf, frameSz, frameSz)
-  }
-
-  // 名称 + 等级
-  const infoX = indent + avatarSz + 12 * S
-  c.fillStyle = '#F5E6C8'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(basePet.name, infoX, dy + 2 * S)
-
-  // 属性 + 等级标签
-  c.fillStyle = ac ? ac.main : '#ccc'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.fillText(`${ATTR_NAME[basePet.attr] || '?'}属性  Lv.${poolPet.level}`, infoX, dy + 22 * S)
-
-  // 星级
-  c.font = `${12*S}px "PingFang SC",sans-serif`
-  let starX = infoX
-  for (let i = 0; i < MAX_STAR; i++) {
-    c.fillStyle = i < curStar ? '#FFD700' : 'rgba(120,120,120,0.6)'
-    c.fillText('★', starX, dy + 36 * S)
-    starX += c.measureText('★').width
-  }
-
-  dy += avatarSz + 14 * S
-
-  // 分隔线
-  _drawCardDivider(c, indent, dy, rightEdge, S)
-  dy += 10 * S
-
-  // 攻击力
-  c.fillStyle = '#E8D5A8'; c.font = `${11*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText('攻击力', indent, dy)
-  c.fillStyle = '#FFD700'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'
-  c.fillText(`${curAtk}`, rightEdge, dy - 2 * S)
-  dy += 22 * S
-
-  // CD
-  c.textAlign = 'left'
-  c.fillStyle = '#E8D5A8'; c.font = `${11*S}px "PingFang SC",sans-serif`
-  c.fillText('技能CD', indent, dy)
-  c.fillStyle = '#8ac8ff'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'
-  c.fillText(`${basePet.cd || '?'}回合`, rightEdge, dy)
-  dy += 22 * S
-
-  // 技能描述
-  if (skillDesc) {
-    c.textAlign = 'left'
-    c.fillStyle = '#C8B78A'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    c.fillText('技能', indent, dy)
-    dy += 16 * S
-    c.fillStyle = '#B8A0E0'; c.font = `${10*S}px "PingFang SC",sans-serif`
-    // 简单换行处理
-    const maxW = pw - 36 * S
-    const lines = _wrapText(c, skillDesc, maxW)
-    for (const line of lines) {
-      c.fillText(line, indent, dy)
-      dy += 14 * S
-    }
-  } else if (curStar < 2) {
-    c.textAlign = 'left'
-    c.fillStyle = 'rgba(200,180,140,0.5)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('技能：★2解锁', indent, dy)
-  }
-
-  // 关闭提示
-  c.fillStyle = 'rgba(200,180,140,0.3)'; c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'bottom'
-  c.fillText('点击任意处关闭', W / 2, py + ph - 8 * S)
-}
-
-/** 简单文本换行 */
-function _wrapText(c, text, maxWidth) {
-  const lines = []
-  let current = ''
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (c.measureText(current + ch).width > maxWidth) {
-      lines.push(current)
-      current = ch
-    } else {
-      current += ch
-    }
-  }
-  if (current) lines.push(current)
-  return lines.slice(0, 5) // 最多5行
 }
 
 module.exports = { rStageInfo, tStageInfo }
