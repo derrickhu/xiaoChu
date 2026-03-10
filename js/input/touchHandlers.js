@@ -9,38 +9,131 @@ const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
 const { prepBagScrollStart, prepBagScrollMove, prepBagScrollEnd } = require('../views/prepareView')
 const tutorial = require('../engine/tutorial')
 const runMgr = require('../engine/runManager')
+const { killExpBase } = require('../data/cultivationConfig')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
-  const { S } = V
-  // 新挑战确认弹窗（优先级最高）
+
+  // ① 「更多」面板（最高优先级）
+  if (g.showMorePanel) {
+    const panelY = g._morePanelY
+    if (panelY && y < panelY) { g.showMorePanel = false; return }
+    const rects = g._morePanelRects || {}
+    if (rects.sfx && g._hitRect(x, y, ...rects.sfx)) {
+      g.storage.toggleSfx(); MusicMgr.toggleSfx(); return
+    }
+    if (rects.bgm && g._hitRect(x, y, ...rects.bgm)) {
+      g.storage.toggleBgm(); MusicMgr.toggleBgm(); return
+    }
+    // 意见反馈由微信原生按钮拦截，canvas 不处理
+    return
+  }
+
+  // ② 开始/继续确认弹窗
+  if (g.showTitleStartDialog) {
+    const hasSave = g.storage.hasSavedRun()
+    if (hasSave) {
+      // 继续挑战
+      if (g._dialogContinueRect && g._hitRect(x, y, ...g._dialogContinueRect)) {
+        g.showTitleStartDialog = false; g._resumeRun(); return
+      }
+      // 重新挑战：先结算已有经验再清档开新局
+      if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
+        g.showTitleStartDialog = false
+        const saved = g.storage.loadRunState()
+        if (saved) {
+          g.floor = saved.floor; g.cleared = false
+          g.runExp = saved.runExp || 0
+          g._runElimExp = saved._runElimExp || 0
+          g._runComboExp = saved._runComboExp || 0
+          g._runKillExp = saved._runKillExp || 0
+          runMgr.settleExp(g)
+        }
+        g.storage.clearRunState(); g._startRun(); return
+      }
+    } else {
+      // 取消
+      if (g._dialogCancelRect && g._hitRect(x, y, ...g._dialogCancelRect)) {
+        g.showTitleStartDialog = false; return
+      }
+      // 开始挑战
+      if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
+        g.showTitleStartDialog = false; g._startRun(); return
+      }
+    }
+    // 点击遮罩关闭
+    g.showTitleStartDialog = false; return
+  }
+
+  // ③ 新挑战确认弹窗（兼容旧状态，首页不再主动触发）
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
       g.showNewRunConfirm = false
-      g.storage.clearRunState()
-      g._startRun(); return
+      const _saved = g.storage.loadRunState()
+      if (_saved) {
+        g.floor = _saved.floor; g.cleared = false
+        g.runExp = _saved.runExp || 0
+        g._runElimExp = _saved._runElimExp || 0
+        g._runComboExp = _saved._runComboExp || 0
+        g._runKillExp = _saved._runKillExp || 0
+        runMgr.settleExp(g)
+      }
+      g.storage.clearRunState(); g._startRun(); return
     }
     if (g._newRunCancelRect && g._hitRect(x,y,...g._newRunCancelRect)) {
       g.showNewRunConfirm = false; return
     }
     return
   }
-  if (g._titleContinueRect && g._hitRect(x,y,...g._titleContinueRect)) { g._resumeRun(); return }
-  if (g._titleBtnRect && g._hitRect(x,y,...g._titleBtnRect)) {
-    if (g.storage.hasSavedRun()) { g.showNewRunConfirm = true; return }
-    g._startRun(); return
-  }
-  if (g._statBtnRect && g._hitRect(x,y,...g._statBtnRect)) { console.log('[Touch] Stats button clicked'); g.scene = 'stats'; return }
-  if (g._rankBtnRect && g._hitRect(x,y,...g._rankBtnRect)) {
-    // 未授权时排行按钮上有透明UserInfoButton，canvas不处理（让UserInfoButton拦截）
-    if (!g.storage.userAuthorized && g.storage._userInfoBtn) {
-      console.log('[Touch] Rank button clicked but UserInfoButton active, skip canvas handler')
+
+  // ④ 开始按钮
+  if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
+    if ((g.titleMode || 'tower') === 'stage') {
+      // 固定关卡模式：进入关卡选择
+      const { resetScroll } = require('../views/stageSelectView')
+      resetScroll()
+      g.scene = 'stageSelect'
       return
     }
-    console.log('[Touch] Rank button clicked'); g._openRanking(); return
+    g.showNewRunConfirm = false
+    g.showTitleStartDialog = true; return
   }
-  if (g._dexBtnRect && g._hitRect(x,y,...g._dexBtnRect)) { console.log('[Touch] Dex button clicked'); g._dexScrollY = 0; g.scene = 'dex'; return }
-  console.log('[Touch] Title tap missed, rankBtnRect exists?', !!g._rankBtnRect)
+
+  // ⑤ 左下角模式切换浮钮
+  if (g._modeSwitchRect && g._hitRect(x,y,...g._modeSwitchRect)) {
+    g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
+  }
+
+  // ⑥ 底部 7 标签导航
+  // 标签顺序：0=修炼 1=灵宠 2=图鉴 3=通天塔(中心) 4=排行 5=统计 6=更多
+  const barRects = g._bottomBarRects || []
+  for (let i = 0; i < barRects.length; i++) {
+    if (!g._hitRect(x, y, ...barRects[i])) continue
+    switch (i) {
+      case 0: { // 修炼洞府
+        const cv = require('../views/cultivationView')
+        cv.resetScroll()
+        g.scene = 'cultivation'
+        cv.checkRealmBreak(g)
+        return
+      }
+      case 1: // 灵宠池
+        if (g.storage.petPoolCount > 0) {
+          g._petPoolFilter = 'all'
+          g._petPoolScroll = 0
+          g._petPoolDetail = null
+          g.scene = 'petPool'
+        }
+        return
+      case 2: g._dexScrollY = 0; g.scene = 'dex'; return
+      case 3: g.titleMode = 'tower'; return // 通天塔（中心）
+      case 4: // 排行
+        if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
+        g._openRanking(); return
+      case 5: g.scene = 'stats'; return
+      case 6: g.showMorePanel = true; return
+    }
+  }
 }
 
 let _prepScrolling = false
@@ -179,7 +272,9 @@ function tPrepare(g, type, x, y) {
 function tEvent(g, type, x, y) {
   // ★3满星庆祝画面（商店升星触发）
   if (type === 'end' && g._star3Celebration && g._star3Celebration.phase === 'ready') {
-    g._star3Celebration = null; return
+    g._star3Celebration = null
+    if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null }
+    return
   }
   if (g._star3Celebration) return
   // === 弹窗层：只处理 end ===
@@ -535,7 +630,10 @@ function tBattle(g, type, x, y) {
     if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) { g._saveAndExit(); return }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
       MusicMgr.stopBossBgm()
-      g.showExitDialog = false; g.storage.clearRunState(); g._startRun(); return
+      g.showExitDialog = false
+      // 重新开局前按当前层失败结算经验
+      runMgr.settleExp(g)
+      g.storage.clearRunState(); g._startRun(); return
     }
     if (g._exitCancelRect && g._hitRect(x,y,...g._exitCancelRect)) { g.showExitDialog = false; return }
     return
@@ -545,13 +643,48 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
+  // [DEBUG] 一键跳过战斗
+  if (type === 'end' && g._debugSkipRect && g._hitRect(x,y,...g._debugSkipRect)) {
+    if (g.enemy) {
+      g.enemy.hp = 0
+      // 补充击杀经验（模拟正常击杀流程）
+      const base = killExpBase(g.enemy, g.floor)
+      g.runExp = (g.runExp || 0) + base
+      g._runKillExp = (g._runKillExp || 0) + base
+      // 补充一些模拟消除经验（跳过了实际消除过程）
+      const simElim = 10 + g.floor * 2
+      g.runExp = (g.runExp || 0) + simElim
+      g._runElimExp = (g._runElimExp || 0) + simElim
+    }
+    g.lastTurnCount = g.turnCount || 1
+    g.lastSpeedKill = true
+    g.runTotalTurns = (g.runTotalTurns || 0) + (g.turnCount || 1)
+    g.bState = 'victory'
+    return
+  }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
-    // 第30层通关面板：点击确认直接结束
+    // 固定关卡模式：波次推进或结算
+    if (g.battleMode === 'stage') {
+      if (g._victoryTapReady) {
+        const stageMgr = require('../engine/stageManager')
+        if (!stageMgr.isLastWave(g)) {
+          // 进入波间过渡
+          g.bState = 'waveTransition'
+          g._waveTransTimer = 60
+        } else {
+          stageMgr.settleStage(g)
+        }
+      }
+      return
+    }
+    // 肉鸽模式：原有逻辑
+    // 第30层通关面板：点击确认直接回首页（跳过gameover页面）
     if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g.cleared = true
       g._endRun()
+      g.scene = 'title'
       return
     }
     if (g.floor >= MAX_FLOOR) return
@@ -561,13 +694,18 @@ function tBattle(g, type, x, y) {
       g._nextFloor()
       return
     }
-    // ★3满星庆祝画面：点击关闭后进入下一层
+    // ★3满星庆祝画面：点击关闭后检查待显示弹窗
     if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
       g._star3Celebration = null
+      if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
       g._nextFloor()
       return
     }
     if (g._star3Celebration) return
+    // 灵宠入池弹窗
+    if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._nextFloor(); return }
+    // 碎片获得弹窗
+    if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._nextFloor(); return }
     // 点击任意处：动画结束后跳转到独立奖励选择页面
     if (g._victoryTapReady && g.rewards && g.rewards.length > 0) {
       g.selectedReward = -1
@@ -578,7 +716,20 @@ function tBattle(g, type, x, y) {
     }
     return
   }
+  // 波间过渡：点击快速跳过
+  if (g.bState === 'waveTransition' && type === 'end') {
+    g._waveTransTimer = 0
+    return
+  }
   if (g.bState === 'defeat' && type === 'end') {
+    // 固定关卡失败结算
+    if (g.battleMode === 'stage') {
+      if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) {
+        const stageMgr = require('../engine/stageManager')
+        stageMgr.settleStageDefeat(g)
+      }
+      return
+    }
     if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm(); g._endRun(); return }
   }
   // 广告复活
@@ -768,13 +919,17 @@ function tReward(g, type, x, y) {
     g._nextFloor()
     return
   }
-  // ★3满星庆祝画面：点击关闭后进入下一层
+  // ★3满星庆祝画面：点击关闭后检查待显示弹窗
   if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null
+    if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
     g._nextFloor()
     return
   }
   if (g._star3Celebration) return
+  // 灵宠入池 / 碎片获得弹窗
+  if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._nextFloor(); return }
+  if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._nextFloor(); return }
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
   if (g._rewardRects) {
     for (let i = 0; i < g._rewardRects.length; i++) {
@@ -782,14 +937,13 @@ function tReward(g, type, x, y) {
     }
   }
   if (g._rewardConfirmRect && g.selectedReward >= 0 && g._hitRect(x,y,...g._rewardConfirmRect)) {
-    // 从战斗胜利进入奖励页时，需要清理战斗状态
     if (g.bState === 'victory') {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g._restoreBattleHpMax()
       g.heroBuffs = []; g.enemyBuffs = []
     }
     g._applyReward(g.rewards[g.selectedReward])
-    if (g._star3Celebration || g._petObtainedPopup) return
+    if (g._star3Celebration || g._petObtainedPopup || g._petPoolEntryPopup || g._fragmentObtainedPopup) return
     g._nextFloor()
   }
 }
@@ -828,7 +982,19 @@ function tAdventure(g, type, x, y) {
 function tGameover(g, type, x, y) {
   if (type !== 'end') return
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
-  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.scene = 'title' }
+  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.scene = 'title'; return }
+  if (g._cultBtnRect && g._hitRect(x,y,...g._cultBtnRect)) {
+    const cultView = require('../views/cultivationView')
+    cultView.resetScroll()
+    g.scene = 'cultivation'
+    cultView.checkRealmBreak(g)
+    return
+  }
+  if (g._petPoolBtnRect && g._hitRect(x,y,...g._petPoolBtnRect)) {
+    g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+    g.scene = 'petPool'
+    return
+  }
 }
 
 function tRanking(g, type, x, y) {

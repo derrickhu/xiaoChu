@@ -10,6 +10,35 @@ const {
 } = require('../data/tower')
 const { getPetStarAtk, petHasSkill } = require('../data/pets')
 const tutorial = require('./tutorial')
+const { tween, Ease } = require('./tween')
+const Particles = require('./particles')
+const { killExpBase } = require('../data/cultivationConfig')
+
+// 击杀经验（统一调用避免遗漏）
+function _addKillExp(g) {
+  if (!g.enemy) return
+  const { S, W } = V
+  const base = killExpBase(g.enemy, g.floor)
+  g.runExp = (g.runExp || 0) + base
+  g._runKillExp = (g._runKillExp || 0) + base
+  // 击杀经验飘字：从敌人区域中心飞出
+  if (g._expFloats) {
+    const ex = W * 0.5
+    const ey = (V.safeTop || 0) + 80 * S
+    g._expFloats.push({
+      startX: ex, startY: ey,
+      targetX: g._expIndicatorX || 30 * S, targetY: g._expIndicatorY || 60 * S,
+      text: `+${base}`, t: 0, duration: 36,
+      alpha: 1, color: '#FF8C00',
+    })
+    // 击杀粒子爆发
+    Particles.burst({
+      x: ex, y: ey, count: 8, speed: 3 * S,
+      size: 4 * S, life: 20, gravity: 0.1 * S,
+      colors: ['#FFD700', '#FFA500', '#fff'], shape: 'star',
+    })
+  }
+}
 
 // ===== 棋盘 =====
 function initBoard(g) {
@@ -47,24 +76,48 @@ function cellAttr(g, r, c) {
 function fillBoard(g) {
   const { ROWS, COLS } = V
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
-  // beadRateUp效果也在fillBoard中生效
   if (g.goodBeadsNextTurn) {
     g.goodBeadsNextTurn = false
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
   }
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
+  // 记录每列最大掉落距离（用于瀑布错开延迟）
+  let maxDrop = 0
   for (let c = 0; c < COLS; c++) {
     let writeRow = ROWS - 1
     for (let r = ROWS-1; r >= 0; r--) {
       if (g.board[r][c]) {
-        if (writeRow !== r) { g.board[writeRow][c] = g.board[r][c]; g.board[r][c] = null }
+        const dropDist = writeRow - r
+        if (writeRow !== r) {
+          g.board[writeRow][c] = g.board[r][c]; g.board[r][c] = null
+          // 已有珠子下落补间
+          if (dropDist > 0) _startDropTween(g, g.board[writeRow][c], dropDist, c)
+        }
+        if (dropDist > maxDrop) maxDrop = dropDist
         writeRow--
       }
     }
+    // 新生成的珠子从顶部外掉入
     for (let r = writeRow; r >= 0; r--) {
-      g.board[r][c] = { attr: pool[Math.floor(Math.random()*pool.length)], sealed: false }
+      const cell = { attr: pool[Math.floor(Math.random()*pool.length)], sealed: false }
+      g.board[r][c] = cell
+      const dropDist = writeRow + 1 - r + 1 // 从屏幕外掉入
+      _startDropTween(g, cell, dropDist, c)
+      if (dropDist > maxDrop) maxDrop = dropDist
     }
   }
+  g._dropMaxDist = maxDrop
+}
+
+/** 为珠子启动掉落补间动画 */
+function _startDropTween(g, cell, dropDist, col) {
+  const cs = g.cellSize || 1
+  const offsetY = -dropDist * cs
+  cell._dropOffY = offsetY
+  // 瀑布错开：每列 20ms 延迟
+  const delay = col * 0.02
+  const duration = 0.2 + dropDist * 0.04
+  tween(cell, { _dropOffY: 0 }, duration, Ease.outBounce, { delay })
 }
 
 // ===== 消除核心 =====
@@ -91,8 +144,34 @@ function startNextElimAnim(g) {
   }
   const group = g.elimQueue.shift()
   const { attr, count, cells } = group
+  // 修炼经验：每组消除累加
+  const elimExp = count >= 5 ? 3 : count >= 4 ? 2 : 1
+  g.runExp = (g.runExp || 0) + elimExp
+  g._runElimExp = (g._runElimExp || 0) + elimExp
   // 移除combo断链：所有消除都计入combo（大幅提升爽感）
   g.combo++
+  // 修炼经验：每段 combo
+  g.runExp += 2
+  g._runComboExp = (g._runComboExp || 0) + 2
+  // 经验飘字：从消除中心飞向左上角指示器
+  if (g._expFloats && cells.length > 0) {
+    let sumX = 0, sumY = 0
+    for (const cell of cells) {
+      sumX += g.boardX + cell.c * g.cellSize + g.cellSize * 0.5
+      sumY += g.boardY + cell.r * g.cellSize + g.cellSize * 0.5
+    }
+    const cx = sumX / cells.length, cy = sumY / cells.length
+    const totalExp = elimExp + 2
+    // 限制同屏飘字数量
+    if (g._expFloats.length < 6) {
+      g._expFloats.push({
+        startX: cx, startY: cy,
+        targetX: g._expIndicatorX || 30 * S, targetY: g._expIndicatorY || 60 * S,
+        text: `+${totalExp}`, t: 0, duration: 28,
+        alpha: 1, color: '#FFD700',
+      })
+    }
+  }
   // Combo弹出动画
   g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
   g._comboFlash = g.combo >= 5 ? 12 : 8
@@ -140,6 +219,13 @@ function startNextElimAnim(g) {
         t: 0, gravity: 0.05 * S, type: 'circle'
       })
     }
+    // 粒子引擎增强：里程碑环形纹理粒子爆发
+    Particles.ring({
+      x: pCx, y: pCy,
+      count: ringCount, speed: (5 + g.combo * 0.3) * S,
+      size: (4 + g.combo * 0.2) * S, life: 30, gravity: 0.03 * S,
+      colors: ringColors, shape: 'star', drag: 0.97,
+    })
   }
   MusicMgr.playComboHit(g.combo)
   if (isTierBreak) MusicMgr.playComboMilestone(g.combo)
@@ -162,7 +248,8 @@ function startNextElimAnim(g) {
   // 消除数值飘字
   let elimDisplayVal = 0, elimDisplayColor = '#fff'
   if (attr === 'heart') {
-    let heal = (12 + Math.floor(g.floor * 0.8)) * elimMul
+    let healBase = 12 + Math.floor(g.floor * 0.8) + (g._cultHeartBase || 0)
+    let heal = healBase * elimMul
     heal *= 1 + g.runBuffs.heartBoostPct / 100
     if (g.weapon && g.weapon.type === 'heartBoost') heal *= 1 + g.weapon.pct / 100
     // 宠物技能heartBoost buff：心珠效果翻倍
@@ -227,7 +314,7 @@ function startNextElimAnim(g) {
     const { W, S } = V
     g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:ATTR_COLOR[attr]?.main||'#ff6347', t:0, alpha:1 })
     g.shakeT = 6; g.shakeI = 4
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
@@ -246,7 +333,16 @@ function processElim(g) {
 
 function processDropAnim(g) {
   g.dropAnimTimer++
-  if (g.dropAnimTimer >= 10) {
+  // 等待补间动画完成（基于最大掉落距离估算帧数），最少12帧保底
+  const minFrames = Math.max(12, Math.ceil(((g._dropMaxDist || 1) * 0.04 + 0.2 + 0.12) * 60))
+  if (g.dropAnimTimer >= minFrames) {
+    // 清除所有残留的掉落偏移
+    const { ROWS, COLS } = V
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (g.board[r] && g.board[r][c]) g.board[r][c]._dropOffY = 0
+      }
+    }
     const groups = findMatchesSeparate(g)
     if (groups.length > 0) {
       g.elimQueue = groups
@@ -613,6 +709,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   }
   // 胜利判定
   if (g.enemy && g.enemy.hp <= 0) {
+    _addKillExp(g)
     g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
     g.bState = 'victory'; MusicMgr.playVictory()
     // 触发敌人死亡爆裂特效
@@ -733,7 +830,7 @@ function enemyTurn(g) {
         g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${b.dmg}`, color:'#a040a0', t:0, alpha:1 })
       }
     })
-    if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
@@ -755,6 +852,8 @@ function enemyTurn(g) {
   reducePct += g.runBuffs.dmgReducePct
   if (g.runBuffs.nextDmgReducePct > 0) reducePct += g.runBuffs.nextDmgReducePct
   atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
+  // 修炼根骨：固定值减伤（仅固定关卡模式）
+  if (g._cultDmgReduce > 0) atkDmg -= g._cultDmgReduce
   atkDmg = Math.max(0, atkDmg)
   if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
     const blocked = atkDmg
@@ -822,7 +921,7 @@ function enemyTurn(g) {
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + heal)
     }
   })
-  if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
   g.turnCount++
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0

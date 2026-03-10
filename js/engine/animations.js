@@ -18,6 +18,8 @@ function updateAnimations(g) {
   }
   // 英雄受击红闪
   if (g._heroHurtFlash > 0) g._heroHurtFlash--
+  // 敌方受击染色
+  if (g._enemyTintFlash > 0) g._enemyTintFlash--
   // 敌人回合预警
   if (g._enemyWarning > 0) g._enemyWarning--
   // Boss入场特效
@@ -77,6 +79,24 @@ function updateAnimations(g) {
     }
     return f.alpha > 0 && f.t < 80
   })
+  // 经验飘字飞行动画
+  if (g._expFloats) {
+    g._expFloats = g._expFloats.filter(f => {
+      f.t++
+      if (f.t >= f.duration) {
+        // 到达目标：触发指示器脉冲
+        g._expIndicatorPulse = 12
+        return false
+      }
+      return f.alpha > 0
+    })
+  }
+  // 经验指示器脉冲衰减
+  if (g._expIndicatorPulse > 0) g._expIndicatorPulse--
+  // 过层经验汇总淡出
+  if (g._floorExpSummary && g._floorExpSummary.timer > 0) {
+    g._floorExpSummary.timer--
+  }
   // 珠子变换动画（convertBead / replaceBeads / 敌方convert）
   _updateBeadConvertAnim(g)
   // Combo弹出动画

@@ -331,9 +331,133 @@ function rGameover(g) {
   ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(`灵兽背包：${g.petBag.length}只  法宝背包：${g.weaponBag.length}件`, W*0.5, panelY + 92*S)
 
-  const bx = W*0.25, by = panelY + panelH + 20*S, bw = W*0.5, bh = 48*S
+  // 修炼经验获得展示
+  let expPanelBottom = panelY + panelH
+  if (g._lastRunExp != null && g._lastRunExp > 0) {
+    const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
+    const cult = g.storage.cultivation
+    const levelUps = g._lastRunLevelUps || 0
+    const expH = levelUps > 0 ? 96*S : 80*S
+    const expY = panelY + panelH + 10*S
+    const epx = (W - panelW)/2
+    const epBg = ctx.createLinearGradient(epx, expY, epx, expY + expH)
+    epBg.addColorStop(0, 'rgba(50,40,20,0.7)'); epBg.addColorStop(1, 'rgba(30,25,12,0.75)')
+    ctx.fillStyle = epBg; R.rr(epx, expY, panelW, expH, 8*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 1*S
+    R.rr(epx, expY, panelW, expH, 8*S); ctx.stroke()
+
+    ctx.textAlign = 'center'
+    // 经验获得
+    ctx.fillStyle = '#E8D5A3'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`获得修炼经验 +${g._lastRunExp}`, W*0.5, expY + 16*S)
+
+    // 经验明细
+    const d = g._lastRunExpDetail
+    if (d) {
+      ctx.fillStyle = '#A89878'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      const details = []
+      if (d.elimExp > 0) details.push(`消除+${d.elimExp}`)
+      if (d.comboExp > 0) details.push(`连击+${d.comboExp}`)
+      if (d.killExp > 0) details.push(`击杀+${d.killExp}`)
+      if (d.layerExp > 0) details.push(`层数+${d.layerExp}`)
+      if (d.clearBonus > 0) details.push(`通关+${d.clearBonus}`)
+      ctx.fillText(details.join('  '), W*0.5, expY + 32*S)
+      if (!d.isCleared) {
+        ctx.fillStyle = '#886655'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillText(`(未通关保底 60%)`, W*0.5, expY + 44*S)
+      }
+    }
+
+    // 升级提示
+    let curLine = d && !d.isCleared ? 56*S : 48*S
+    if (levelUps > 0) {
+      ctx.fillStyle = '#FFD700'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.shadowColor = 'rgba(255,215,0,0.4)'; ctx.shadowBlur = 6*S
+      ctx.fillText(`升级！Lv.${g._lastRunPrevLevel || 0} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W*0.5, expY + curLine)
+      ctx.shadowBlur = 0
+      curLine += 16*S
+    }
+
+    // 经验条 + 等级
+    const barX = epx + 14*S, barW = panelW - 28*S, barH = 10*S
+    const barY = expY + curLine
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    R.rr(barX, barY, barW, barH, barH/2); ctx.fill()
+    if (cult.level < MAX_LEVEL) {
+      const needed = expToNextLevel(cult.level)
+      const pct = Math.min(cult.exp / needed, 1)
+      if (pct > 0) {
+        const fillW = Math.max(barH, barW * pct)
+        const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY)
+        barGrad.addColorStop(0, '#d4a843'); barGrad.addColorStop(1, '#f0c860')
+        ctx.fillStyle = barGrad
+        R.rr(barX, barY, fillW, barH, barH/2); ctx.fill()
+      }
+      ctx.fillStyle = '#C8B78A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}`, epx + panelW - 14*S, barY + barH + 12*S)
+    } else {
+      const barGrad = ctx.createLinearGradient(barX, barY, barX + barW, barY)
+      barGrad.addColorStop(0, '#d4a843'); barGrad.addColorStop(1, '#f0c860')
+      ctx.fillStyle = barGrad
+      R.rr(barX, barY, barW, barH, barH/2); ctx.fill()
+      ctx.fillStyle = '#C8B78A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`Lv.${cult.level} 已满级`, epx + panelW - 14*S, barY + barH + 12*S)
+    }
+    ctx.textAlign = 'center'
+    // 境界
+    ctx.fillStyle = '#8a7a5a'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText(`${currentRealm(cult.level).name}`, epx + 14*S, barY + barH + 12*S)
+    ctx.textAlign = 'center'
+
+    expPanelBottom = expY + expH
+  }
+
+  // 宠物经验获得展示
+  if (g._lastRunPetExp > 0) {
+    const petExpH = 30 * S
+    const pePx = W * 0.08, pePanelW = W * 0.84
+    const peY = expPanelBottom + 4 * S
+    ctx.fillStyle = 'rgba(80,160,255,0.08)'
+    R.rr(pePx, peY, pePanelW, petExpH, 8 * S); ctx.fill()
+    ctx.fillStyle = '#8ac8ff'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText(`宠物经验池 +${g._lastRunPetExp}`, W * 0.5, peY + petExpH / 2 + 1)
+    expPanelBottom = peY + petExpH
+  }
+
+  const bx = W*0.25, by = expPanelBottom + 16*S, bw = W*0.5, bh = 48*S
   R.drawBtn(bx, by, bw, bh, g.cleared ? '再次挑战' : '重新挑战', TH.accent, 18)
   g._goBtnRect = [bx, by, bw, bh]
+
+  // "前往修炼"快捷按钮
+  if (g._lastRunExp > 0) {
+    const { hasCultUpgradeAvailable } = require('./cultivationView')
+    if (hasCultUpgradeAvailable(g.storage)) {
+      const cbw = W*0.35, cbh = 36*S
+      const cbx = (W - cbw)/2, cby = by + bh + 10*S
+      R.drawBtn(cbx, cby, cbw, cbh, '前往修炼', '#6a5a3a', 14)
+      g._cultBtnRect = [cbx, cby, cbw, cbh]
+    } else {
+      g._cultBtnRect = null
+    }
+  } else {
+    g._cultBtnRect = null
+  }
+
+  // "前往灵宠"快捷按钮
+  if (g._lastRunPetExp > 0 && g.storage.petPoolCount > 0) {
+    const goBtnBottom = g._cultBtnRect ? g._cultBtnRect[1] + g._cultBtnRect[3] : by + bh
+    const pbw = W*0.35, pbh = 36*S
+    const pbx = (W - pbw)/2, pby = goBtnBottom + 10*S
+    R.drawBtn(pbx, pby, pbw, pbh, '前往灵宠', '#3a5a6a', 14)
+    g._petPoolBtnRect = [pbx, pby, pbw, pbh]
+  } else {
+    g._petPoolBtnRect = null
+  }
+
   drawBackBtn(g)
 }
 
@@ -892,30 +1016,30 @@ function rReward(g) {
   let title = '战斗胜利 - 选择奖励'
   if (evtType === 'elite') title = '精英击败 - 选择灵兽'
   else if (evtType === 'boss') title = 'BOSS击败 - 选择奖励'
-  // 标题：米金色书法风
+  // 标题
   const titleBaseY = safeTop + 58*S
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
   ctx.fillText(title, W*0.5, titleBaseY)
   // 标题下方装饰分割线
   const divW = W*0.36, divY = titleBaseY + 6*S
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
+  ctx.strokeStyle = 'rgba(139,105,20,0.4)'; ctx.lineWidth = 1*S
   ctx.beginPath(); ctx.moveTo(W*0.5 - divW, divY); ctx.lineTo(W*0.5 + divW, divY); ctx.stroke()
   let headerOffset = 0
   if (g.lastSpeedKill) {
-    ctx.fillStyle = '#e8a840'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6914'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
     ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外选项已解锁`, W*0.5, titleBaseY + 22*S)
     headerOffset = 22*S
   }
   if (!g.rewards) return
   const rewardCount = g.rewards.length
   const isPetOrWeapon = g.rewards.some(rw => rw.type === REWARD_TYPES.NEW_PET || rw.type === REWARD_TYPES.NEW_WEAPON)
-  const maxCardArea = H * 0.58
+  const maxCardArea = H * 0.65
   const gap = 10*S
-  const defaultCardH = isPetOrWeapon ? 120*S : 78*S
+  const defaultCardH = isPetOrWeapon ? 170*S : 105*S
   const cardH = Math.min(defaultCardH, (maxCardArea - (rewardCount-1)*gap) / rewardCount)
-  const cardW = W*0.88
+  const cardW = W*0.96
   const cardX = (W - cardW) / 2
-  const startY = H*0.20 + headerOffset
+  const startY = H*0.17 + headerOffset
   g._rewardRects = []
 
   const framePetMap = {
@@ -931,37 +1055,83 @@ function rReward(g) {
     const selected = g.selectedReward === i
     const isSpeedBuff = rw.isSpeed === true
 
-    // 卡片背景
-    let bgColor = TH.card
-    let borderColor = selected ? TH.accent : TH.cardB
-    if (isSpeedBuff) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
-    else if (rw.type === REWARD_TYPES.NEW_PET) {
+    // 卡片背景：深琥珀金，厚重暖调
+    let bgColor = selected ? 'rgba(75,50,20,0.93)' : 'rgba(65,45,18,0.88)'
+    let borderColor = selected ? '#E8C060' : 'rgba(180,150,90,0.4)'
+    if (rw.type === REWARD_TYPES.NEW_PET) {
       const ac = ATTR_COLOR[rw.data.attr]
-      bgColor = selected ? (ac ? ac.main + '33' : 'rgba(77,204,77,0.2)') : (ac ? ac.bg + 'cc' : 'rgba(77,204,77,0.08)')
       if (selected && ac) borderColor = ac.main
     }
-    else if (rw.type === REWARD_TYPES.NEW_WEAPON) bgColor = selected ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)'
-    else if (rw.type === REWARD_TYPES.BUFF) bgColor = selected ? 'rgba(77,171,255,0.2)' : 'rgba(77,171,255,0.06)'
 
     const rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
-    if (rewardCardBg && rewardCardBg.width) {
-      ctx.drawImage(rewardCardBg, cardX, cy, cardW, cardH)
+    const _useScrollBg = rewardCardBg && rewardCardBg.width > 0
+
+    // 卷轴绘制区域比内容区左右各多延伸，让木轴完整显示
+    const scrollPadX = 6 * S
+    const scrollPadY = 4 * S
+    const scrollX = cardX - scrollPadX
+    const scrollY = cy - scrollPadY
+    const scrollW = cardW + scrollPadX * 2
+    const scrollH = cardH + scrollPadY * 2
+
+    if (_useScrollBg) {
+      // 卷轴模式：投影打在卷轴形状上，不画矩形底色
+      ctx.save()
+      ctx.shadowColor = 'rgba(40,25,10,0.45)'
+      ctx.shadowBlur = 12 * S
+      ctx.shadowOffsetY = 4 * S
+      ctx.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
+      ctx.restore()
+      // 选中态：卷轴外围发光
+      if (selected) {
+        ctx.save()
+        ctx.shadowColor = borderColor
+        ctx.shadowBlur = 16 * S
+        ctx.globalAlpha = 0.6
+        ctx.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
+        ctx.restore()
+      }
+    } else {
+      // 无卷轴图降级：矩形底色 + 投影
+      ctx.save()
+      ctx.shadowColor = 'rgba(40,25,10,0.5)'
+      ctx.shadowBlur = 14 * S
+      ctx.shadowOffsetY = 5 * S
+      ctx.fillStyle = bgColor
+      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
+      ctx.restore()
+      ctx.save()
+      ctx.shadowColor = selected ? 'rgba(230,200,100,0.6)' : 'rgba(180,150,80,0.2)'
+      ctx.shadowBlur = selected ? 18 * S : 8 * S
+      ctx.strokeStyle = selected ? 'rgba(230,200,100,0.7)' : 'rgba(180,150,90,0.35)'
+      ctx.lineWidth = selected ? 2.5 * S : 1.5 * S
+      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
+      ctx.restore()
       if (selected) {
         ctx.strokeStyle = borderColor; ctx.lineWidth = 2.5*S
         R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
       }
-    } else {
-      ctx.fillStyle = bgColor
-      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
-      ctx.strokeStyle = borderColor; ctx.lineWidth = selected ? 2.5*S : 1.5*S; ctx.stroke()
     }
+
+    // 卷轴亮底 vs 降级深底的文字配色切换
+    const _darkText = _useScrollBg
+    const _txtMain   = _darkText ? '#2A1A10' : '#FFF2D0'
+    const _txtSub    = _darkText ? '#3F3025' : 'rgba(235,225,200,0.9)'
+    const _txtDim    = _darkText ? '#4A3A2E' : 'rgba(220,205,170,0.75)'
+    const _txtGold   = _darkText ? '#7A590A' : '#FFD870'
+    const _txtGreen  = _darkText ? '#1E7A42' : '#6EEE9A'
+    const _txtOrange = _darkText ? '#A85C00' : '#F0C050'
+    const _txtStroke = _darkText ? 'rgba(255,248,232,0.7)' : 'rgba(30,20,5,0.6)'
+
+    // 卷轴模式下头像右移，避开左侧木轴
+    const _contentPadL = _useScrollBg ? 38*S : 12*S
 
     if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
       // ====== 灵兽卡片：头像框 + 详细信息 ======
       const p = rw.data
       const ac = ATTR_COLOR[p.attr]
       const avSz = Math.min(56*S, cardH - 16*S)
-      const avX = cardX + 12*S
+      const avX = cardX + _contentPadL
       const avY = cy + (cardH - avSz) / 2
 
       // 头像背景
@@ -991,78 +1161,112 @@ function rReward(g) {
         ctx.drawImage(petFrame, avX - fOff, avY - fOff, fSz, fSz)
       }
 
-      // 右侧文字信息
-      const infoX = avX + avSz + 14*S
-      const textMaxW = cardX + cardW - infoX - 10*S
-      let iy = cy + 16*S
-
-      // 名称 + 属性标签
-      ctx.textAlign = 'left'
-      ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-      ctx.fillText(p.name, infoX, iy)
-      const nameW = ctx.measureText(p.name).width
-      // 属性球代替文字
-      const orbR = 6*S
-      R.drawBead(infoX + nameW + 6*S + orbR, iy - orbR*0.4, orbR, p.attr, 0)
-
-      // ATK + CD
-      iy += 18*S
-      ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`ATK: ${p.atk}    CD: ${p.cd}回合`, infoX, iy)
-
-      // 已拥有标注
+      // 已拥有判断（用于头像下方星级 & 名称后升星标注）
       const allOwned = [...(g.pets || []), ...(g.petBag || [])]
       const ownedPet = allOwned.find(op => op.id === p.id)
+
+      // 头像下方标签：已拥有显示星级，未拥有显示"新"
+      ctx.textAlign = 'center'
       if (ownedPet) {
-        iy += 16*S
         const ownedStar = ownedPet.star || 1
-        const starDisp = '★'.repeat(ownedStar) + (ownedStar < MAX_STAR ? '☆'.repeat(MAX_STAR - ownedStar) : '')
+        const starFontSz = 12*S
+        const starGap = 14*S
+        const totalStarW = ownedStar * starGap
+        const starStartX = avX + avSz/2 - totalStarW/2 + starGap/2
+        const starY = avY + avSz + 15*S
+        ctx.save()
+        ctx.font = `bold ${starFontSz}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        for (let si = 0; si < ownedStar; si++) {
+          const sx = starStartX + si * starGap
+          ctx.strokeStyle = '#3A2A10'; ctx.lineWidth = 3*S
+          ctx.strokeText('★', sx, starY)
+          ctx.fillStyle = '#FFD700'
+          ctx.fillText('★', sx, starY)
+        }
+        ctx.restore()
+      } else {
+        ctx.save()
+        const newX = avX + avSz/2, newY = avY + avSz + 15*S
+        ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillStyle = '#E04040'
+        ctx.fillText('新', newX, newY)
+        ctx.restore()
+      }
+
+      // 右侧文字信息
+      const _contentPadR = _useScrollBg ? 32*S : 10*S
+      const infoX = avX + avSz + 14*S
+      const textMaxW = cardX + cardW - infoX - _contentPadR
+      let iy = cy + 36*S
+
+      // 名称 + 属性球 + 升星标注
+      ctx.textAlign = 'left'
+      ctx.fillStyle = _txtMain; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 2 * S; ctx.strokeText(p.name, infoX, iy) }
+      ctx.fillText(p.name, infoX, iy)
+      let nameEndX = infoX + ctx.measureText(p.name).width
+      const orbR = 7*S
+      R.drawBead(nameEndX + 7*S + orbR, iy - orbR*0.4, orbR, p.attr, 0)
+      nameEndX += 7*S + orbR*2 + 4*S
+
+      if (ownedPet) {
+        const ownedStar = ownedPet.star || 1
         if (ownedStar >= MAX_STAR) {
-          ctx.fillStyle = '#C07000'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`已拥有 ${starDisp}（已满星）`, infoX, iy)
+          ctx.fillStyle = _txtOrange; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+          ctx.fillText('已满星', nameEndX, iy)
         } else {
-          ctx.fillStyle = '#27864A'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`已拥有 ${starDisp}　选择则升至${ownedStar+1}星`, infoX, iy)
+          ctx.fillStyle = _txtGreen; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`可升至${ownedStar+1}星`, nameEndX, iy)
         }
       }
+
+      // ATK + CD
+      iy += 22*S
+      ctx.fillStyle = _txtSub; ctx.font = `${13*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`ATK: ${p.atk}    CD: ${p.cd}回合`, infoX, iy)
 
       // 技能
       if (p.skill) {
-        iy += 18*S
+        iy += 20*S
         if (petHasSkill(p)) {
-          ctx.fillStyle = '#e0c070'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = _txtGold; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText(`技能：${p.skill.name}`, infoX, iy) }
           ctx.fillText(`技能：${p.skill.name}`, infoX, iy)
-          iy += 16*S
-          ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-          const descLines = _wrapText(getPetSkillDesc(p), textMaxW, 10)
+          iy += 18*S
+          ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+          const descLines = _wrapText(getPetSkillDesc(p), textMaxW, 12)
           descLines.forEach(line => {
+            if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
             ctx.fillText(line, infoX, iy)
-            iy += 14*S
+            iy += 16*S
           })
         } else {
-          ctx.fillStyle = '#8B7B70'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+          ctx.fillStyle = _txtDim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText('技能：升至★2解锁', infoX, iy) }
           ctx.fillText('技能：升至★2解锁', infoX, iy)
-          iy += 16*S
-          ctx.fillStyle = '#706050'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`（${p.skill.name}：${p.skill.desc}）`, infoX, iy)
-          iy += 14*S
+          iy += 18*S
+          ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+          const lockedSkillLines = _wrapText(`（${p.skill.name}：${p.skill.desc}）`, textMaxW, 12)
+          lockedSkillLines.forEach(line => {
+            if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
+            ctx.fillText(line, infoX, iy)
+            iy += 16*S
+          })
+          iy -= 16*S
         }
       }
-
-      // 背包容量
-      ctx.textAlign = 'right'
-      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`背包 ${g.petBag.length}只`, cardX + cardW - 12*S, cy + cardH - 8*S)
 
     } else if (rw.type === REWARD_TYPES.NEW_WEAPON && rw.data) {
       // ====== 法宝卡片：图标 + 详细信息 ======
       const w = rw.data
       const avSz = Math.min(56*S, cardH - 16*S)
-      const avX = cardX + 12*S
+      const avX = cardX + _contentPadL
       const avY = cy + (cardH - avSz) / 2
 
       // 法宝图标背景
-      ctx.fillStyle = '#2a2030'
+      ctx.fillStyle = '#f0e8d8'
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
       // 法宝图标（尝试加载图片）
@@ -1086,45 +1290,46 @@ function rReward(g) {
       R.drawWeaponFrame(avX, avY, avSz)
 
       // 右侧文字信息
+      const _contentPadR = _useScrollBg ? 32*S : 10*S
       const infoX = avX + avSz + 14*S
-      const textMaxW = cardX + cardW - infoX - 10*S
-      let iy = cy + 18*S
+      const textMaxW = cardX + cardW - infoX - _contentPadR
+      let iy = cy + 36*S
 
       // 法宝名称
       ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 2 * S }
       const _rwLabel = '法宝·'
-      ctx.fillStyle = '#e0a020'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = _txtGold; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      if (_txtStroke) ctx.strokeText(_rwLabel, infoX, iy)
       ctx.fillText(_rwLabel, infoX, iy)
       const _rwLabelW = ctx.measureText(_rwLabel).width
-      ctx.fillStyle = '#fff8e0'
+      ctx.fillStyle = _txtMain
+      if (_txtStroke) ctx.strokeText(w.name, infoX + _rwLabelW, iy)
       ctx.fillText(w.name, infoX + _rwLabelW, iy)
 
       const nameW = ctx.measureText(w.name).width
 
       // 法宝效果描述
-      iy += 20*S
-      ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      iy += 24*S
+      ctx.fillStyle = _txtSub; ctx.font = `${13*S}px "PingFang SC",sans-serif`
       if (w.desc) {
-        const descLines = _wrapText(w.desc, textMaxW, 11)
+        const descLines = _wrapText(w.desc, textMaxW, 13)
         descLines.forEach(line => {
+          if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(line, infoX, iy) }
           ctx.fillText(line, infoX, iy)
-          iy += 16*S
+          iy += 18*S
         })
       }
 
       // 属性相关提示（属性球代替文字）
       if (w.attr) {
-        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = _txtDim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+        if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText('对应属性：', infoX, iy) }
         ctx.fillText('对应属性：', infoX, iy)
         const labelW = ctx.measureText('对应属性：').width
-        const orbR = 6*S
+        const orbR = 7*S
         R.drawBead(infoX + labelW + orbR, iy - orbR*0.4, orbR, w.attr, 0)
       }
-
-      // 背包容量
-      ctx.textAlign = 'right'
-      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`背包 ${g.weaponBag.length}件`, cardX + cardW - 12*S, cy + cardH - 8*S)
 
     } else {
       // ====== 普通Buff卡片：图标 + 文字 ======
@@ -1136,13 +1341,13 @@ function rReward(g) {
         buff_icon_elim: '消除加成', buff_icon_time: '时间加成', buff_icon_hp: '血量加成',
         buff_icon_weaken: '削弱加成', buff_icon_special: '特殊加成',
       }
-      let typeTag = '', tagColor = '#999'
-      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = '#e0c070' }
-      else { typeTag = '加成'; tagColor = '#8ab4d8' }
+      let typeTag = '', tagColor = _txtDim
+      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = _txtGold }
+      else { typeTag = '加成'; tagColor = _txtDim }
 
       // buff图标（左侧，放大）
       const iconSz = Math.min(48*S, cardH - 10*S)
-      const iconX = cardX + 14*S, iconY = cy + (cardH - iconSz) / 2
+      const iconX = cardX + _contentPadL + 2*S, iconY = cy + (cardH - iconSz) / 2
       const BUFF_ICON_IMGS = {
         allAtkPct:'buff_icon_atk', allDmgPct:'buff_icon_atk', counterDmgPct:'buff_icon_atk', skillDmgPct:'buff_icon_atk',
         healNow:'buff_icon_heal', postBattleHeal:'buff_icon_heal', regenPerTurn:'buff_icon_heal',
@@ -1167,16 +1372,19 @@ function rReward(g) {
 
       // 类型标签（图标右上方）
       const textX = iconX + iconSz + 10*S
-      ctx.fillStyle = tagColor; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillStyle = tagColor; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(typeTag, textX, cy + cardH*0.38) }
       ctx.fillText(typeTag, textX, cy + cardH*0.38)
 
       // 名称（居中偏右）
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      ctx.fillStyle = _txtMain; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText(rw.label, textX, cy + cardH*0.62) }
       ctx.fillText(rw.label, textX, cy + cardH*0.62)
 
       // 底部提示
-      ctx.fillStyle = '#999'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-      ctx.fillText('全队永久生效', textX, cy + cardH*0.85)
+      ctx.fillStyle = _txtDim; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText('全队永久生效', textX, cy + cardH*0.84) }
+      ctx.fillText('全队永久生效', textX, cy + cardH*0.84)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])
   })
@@ -1428,7 +1636,6 @@ const DEX_ATTR_LABEL = { metal:'金', wood:'木', water:'水', fire:'火', earth
 function rDex(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
 
   // 标题
   ctx.save()
@@ -1522,6 +1729,9 @@ function rDex(g) {
             if (iR > 1) { dh = imgSz / iR } else { dw = imgSz * iR }
             ctx.drawImage(img, cx+imgPad+(imgSz-dw)/2, cy+imgPad+(imgSz-dh)/2, dw, dh)
             ctx.restore()
+            // 半透明白色遮罩层（类似未解锁的灰色效果）
+            ctx.fillStyle = 'rgba(255,255,255,0.15)'
+            ctx.beginPath(); R.rr(cx+imgPad, cy+imgPad, imgSz, imgSz, 3*S); ctx.fill()
           }
           // 金色边框
           ctx.strokeStyle = ac.main + '88'; ctx.lineWidth = 1*S

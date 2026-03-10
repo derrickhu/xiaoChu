@@ -166,16 +166,31 @@ class MusicManager {
         }
       }, 60)
     }
+    // 整10里程碑额外冲击音（10/20/30…）
+    if (comboNum >= 10 && comboNum % 10 === 0) {
+      const impactVol = Math.min(0.8, 0.5 + (comboNum / 10) * 0.1)
+      this._playSfxEx('audio/boss.wav', impactVol, 0.6)
+      setTimeout(() => {
+        if (this.enabled) this._playSfxEx('audio/victory.wav', impactVol * 0.7, 1.0)
+      }, 80)
+    }
   }
 
-  // ============ 消除音效（层次化） ============
+  // ============ 消除音效（层次化+叠加） ============
 
   playEliminate(count) {
     if (!this.enabled) return
     if (count >= 5) {
+      // 5消：主消除音 + 冲击低音叠加 + 高光扫弦
       this._playSfxEx('audio/eliminate.mp3', 0.7, 1.2)
+      this._playSfxEx('audio/skill.wav', 0.3, 0.8)
+      setTimeout(() => {
+        if (this.enabled) this._playSfxEx('audio/combo.mp3', 0.25, 1.5)
+      }, 30)
     } else if (count === 4) {
+      // 4消：主消除音 + 轻冲击叠加
       this._playSfxEx('audio/eliminate.mp3', 0.55, 1.1)
+      this._playSfxEx('audio/combo.mp3', 0.2, 1.3)
     } else {
       this._playSfx('audio/eliminate.mp3', 0.4)
     }
@@ -234,9 +249,17 @@ class MusicManager {
 
   // ============ 战斗音效（增强版） ============
 
+  /** 技能蓄力预兆音效 */
+  playSkillCharge() {
+    if (!this.enabled) return
+    this._playSfxEx('audio/skill.wav', 0.25, 0.6)
+  }
+
   playAttack() {
     if (!this.enabled) return
     this._playSfx('audio/attack.mp3', 0.5)
+    // 叠加轻微低频冲击，增强打击顿感
+    this._playSfxEx('audio/combo.mp3', 0.15, 0.5)
   }
 
   playAttackCrit() {

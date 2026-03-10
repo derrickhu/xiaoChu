@@ -4,6 +4,8 @@
  */
 const P = require('./platform')
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
+const Particles = require('./engine/particles')
+const FXComposer = require('./engine/effectComposer')
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -15,9 +17,9 @@ Object.keys(BEAD_ATTR_COLOR).forEach(k => {
 
 // 主题色
 const TH = {
-  bg:'#0b0b15', card:'rgba(22,22,38,0.92)', cardB:'rgba(60,60,90,0.3)',
-  text:'#eee', sub:'rgba(200,200,210,0.7)', dim:'rgba(140,140,160,0.5)',
-  accent:'#ffd700', danger:'#ff4d6a', success:'#4dcc4d', info:'#4dabff',
+  bg:'#0b0b15', card:'rgba(255,248,230,0.88)', cardB:'rgba(180,160,120,0.35)',
+  text:'#3D2B1F', sub:'rgba(100,85,65,0.85)', dim:'rgba(130,115,95,0.7)',
+  accent:'#8B6914', danger:'#C0392B', success:'#27864A', info:'#2E6DA4',
   hard:'#ff8c00', extreme:'#ff4d6a',
 }
 
@@ -124,11 +126,10 @@ class Render {
 
   drawShopBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#1a1008'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/shop_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.25; c.fillStyle='#0a0800'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -136,11 +137,10 @@ class Render {
 
   drawRestBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#e8f0e8'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/rest_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -148,11 +148,10 @@ class Render {
 
   drawAdventureBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f0ead8'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/adventure_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.35; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
@@ -160,14 +159,66 @@ class Render {
 
   drawRewardBg(frame) {
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
+    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
     const img = this.getImg('assets/backgrounds/reward_bg.jpg')
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-      c.save(); c.globalAlpha=0.25; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.restore()
     } else {
       this.drawBg(frame)
     }
+  }
+
+  drawEventBg(frame) {
+    const {ctx:c,W,H} = this
+    const img = this.getImg('assets/backgrounds/event_bg.jpg') || this.getImg('assets/backgrounds/event_bg.png')
+    if (img && img.width > 0) {
+      this._drawCoverImg(img, 0, 0, W, H)
+      return
+    }
+    // 代码绘制：深红暗金战斗氛围
+    const bg = c.createRadialGradient(W*0.5, H*0.42, H*0.05, W*0.5, H*0.42, H*0.72)
+    bg.addColorStop(0, '#3A1A18')
+    bg.addColorStop(0.6, '#2A100E')
+    bg.addColorStop(1, '#1A0C0A')
+    c.fillStyle = bg; c.fillRect(0,0,W,H)
+
+    // 顶部烈焰裂隙光
+    const topGlow = c.createLinearGradient(0,0,0,H*0.25)
+    topGlow.addColorStop(0,'rgba(212,160,64,0.28)')
+    topGlow.addColorStop(0.5,'rgba(139,32,32,0.18)')
+    topGlow.addColorStop(1,'rgba(139,32,32,0)')
+    c.fillStyle = topGlow; c.fillRect(0,0,W,H*0.25)
+
+    // 底部余烬
+    const botGlow = c.createLinearGradient(0,H*0.78,0,H)
+    botGlow.addColorStop(0,'rgba(139,32,32,0)')
+    botGlow.addColorStop(0.6,'rgba(139,32,32,0.12)')
+    botGlow.addColorStop(1,'rgba(212,160,64,0.2)')
+    c.fillStyle = botGlow; c.fillRect(0,H*0.78,W,H*0.22)
+
+    // 四角暗红光晕
+    const corners = [[0,0],[W,0],[0,H],[W,H]]
+    corners.forEach(([cx,cy]) => {
+      const g = c.createRadialGradient(cx, cy, 0, cx, cy, W*0.5)
+      g.addColorStop(0, 'rgba(139,32,32,0.15)')
+      g.addColorStop(1, 'rgba(139,32,32,0)')
+      c.fillStyle = g; c.fillRect(0,0,W,H)
+    })
+
+    // 上升余烬粒子
+    c.save()
+    for (let i = 0; i < 30; i++) {
+      const px = ((i * 137.5 + 23) % W)
+      const baseY = ((i * 97.3 + 41) % H)
+      const drift = (frame * 0.3 + i * 50) % H
+      const py = (H - drift + baseY) % H
+      const alpha = 0.15 + 0.1 * Math.sin(frame * 0.05 + i)
+      c.fillStyle = i % 3 === 0
+        ? `rgba(212,160,64,${alpha})`
+        : `rgba(200,80,40,${alpha * 0.7})`
+      c.beginPath(); c.arc(px, py, 1 + (i % 2) * 0.5, 0, Math.PI*2); c.fill()
+    }
+    c.restore()
   }
 
   // 各主题的背景色调配置
@@ -1204,48 +1255,73 @@ class Render {
       case 'slash': {
         c.globalAlpha = Math.min(1, (1-p)*2)
         const slashX = W * 0.2 + p * W * 0.6
-        const slashW = 120*S
-        const g = c.createLinearGradient(slashX-slashW/2, 0, slashX+slashW/2, 0)
-        g.addColorStop(0, 'transparent')
-        g.addColorStop(0.3, clr+'88')
-        g.addColorStop(0.5, '#fff')
-        g.addColorStop(0.7, clr+'88')
-        g.addColorStop(1, 'transparent')
-        c.fillStyle = g
+        const slashW = 140*S
+        // 辉光拖尾
+        FXComposer.drawGlowSpot(c, slashX, ty, slashW*0.3, clr, (1-p)*0.4)
+        const slG = c.createLinearGradient(slashX-slashW/2, 0, slashX+slashW/2, 0)
+        slG.addColorStop(0, 'transparent')
+        slG.addColorStop(0.2, clr+'66')
+        slG.addColorStop(0.4, clr+'cc')
+        slG.addColorStop(0.5, '#fff')
+        slG.addColorStop(0.6, clr+'cc')
+        slG.addColorStop(0.8, clr+'66')
+        slG.addColorStop(1, 'transparent')
+        c.fillStyle = slG
         c.save()
         c.translate(slashX, ty)
         c.rotate(-0.3)
-        c.fillRect(-slashW/2, -3*S, slashW, 6*S)
-        for (let i=0; i<5; i++) {
-          const px = (Math.random()-0.5)*slashW*0.8
-          const py = (Math.random()-0.5)*30*S
-          const pr = 2*S + Math.random()*3*S
-          c.globalAlpha = Math.random()*0.6*(1-p)
-          c.fillStyle = clr
-          c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
-        }
+        c.fillRect(-slashW/2, -4*S, slashW, 8*S)
+        // 斩击细线（双层）
+        c.globalAlpha = (1-p) * 0.6
+        c.fillStyle = '#fff'
+        c.fillRect(-slashW*0.4, -1*S, slashW*0.8, 2*S)
         c.restore()
+        // 命中时发射粒子
+        if (p > 0.3 && p < 0.35 && !anim._slashParticlesFired) {
+          anim._slashParticlesFired = true
+          Particles.burst({
+            x: tx, y: ty, count: 12, speed: 4*S, size: 3*S,
+            life: 15, gravity: 0.08*S, colors: ['#fff', clr], shape: 'glow',
+          })
+        }
         break
       }
       case 'burst': {
         const cx = tx, cy = ty
-        const maxR = 80*S
+        const maxR = 90*S
         const r = p * maxR
-        c.globalAlpha = (1-p)*0.8
-        c.strokeStyle = clr; c.lineWidth = (1-p)*8*S
+        // 中心辉光
+        FXComposer.drawGlowSpot(c, cx, cy, r * 0.8, clr, (1-p)*0.5)
+        c.globalAlpha = (1-p)*0.85
+        c.strokeStyle = clr; c.lineWidth = (1-p)*10*S
         c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.stroke()
-        c.globalAlpha = (1-p)*0.3
+        // 内层光环
+        c.globalAlpha = (1-p)*0.4
         const rg = c.createRadialGradient(cx, cy, 0, cx, cy, r)
-        rg.addColorStop(0, '#fff'); rg.addColorStop(0.4, clr); rg.addColorStop(1, 'transparent')
+        rg.addColorStop(0, '#fff'); rg.addColorStop(0.3, clr+'cc'); rg.addColorStop(0.7, clr+'44'); rg.addColorStop(1, 'transparent')
         c.fillStyle = rg; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.fill()
-        for (let i=0; i<8; i++) {
-          const angle = (Math.PI*2/8)*i + frame*0.02
-          const dist = r * (0.5 + Math.random()*0.5)
-          const px2 = cx + Math.cos(angle)*dist
-          const py2 = cy + Math.sin(angle)*dist
-          c.globalAlpha = (1-p)*0.5
-          c.fillStyle = i%2===0 ? '#fff' : clr
-          c.beginPath(); c.arc(px2, py2, (1-p)*4*S, 0, Math.PI*2); c.fill()
+        // 径向光线
+        c.save()
+        c.translate(cx, cy)
+        for (let i=0; i<12; i++) {
+          const angle = (Math.PI*2/12)*i + p*0.8
+          const lineLen = r * (0.4 + Math.random()*0.5)
+          c.globalAlpha = (1-p)*0.4
+          c.strokeStyle = i%3===0 ? '#fff' : clr
+          c.lineWidth = (2 - p*1.5)*S
+          c.beginPath()
+          c.moveTo(Math.cos(angle)*r*0.2, Math.sin(angle)*r*0.2)
+          c.lineTo(Math.cos(angle)*lineLen, Math.sin(angle)*lineLen)
+          c.stroke()
+        }
+        c.restore()
+        // 粒子爆发
+        if (p > 0.15 && p < 0.2 && !anim._burstParticlesFired) {
+          anim._burstParticlesFired = true
+          Particles.burst({
+            x: cx, y: cy, count: 18, speed: 5*S, size: 3.5*S,
+            life: 20, gravity: 0.06*S, colors: ['#fff', clr, clr], shape: 'star',
+          })
         }
         break
       }
@@ -1273,45 +1349,57 @@ class Render {
       }
       case 'enemyAtk': {
         const cx = tx, cy = ty
-        // 第一阶段：冲击波扩散（更大范围）
-        const impactR = 40*S + p*80*S
-        c.globalAlpha = (1-p)*0.8
+        // 冲击波扩散
+        const impactR = 45*S + p*90*S
+        c.globalAlpha = (1-p)*0.85
         const ig = c.createRadialGradient(cx, cy, 0, cx, cy, impactR)
         ig.addColorStop(0, '#ff2244')
-        ig.addColorStop(0.3, '#ff4d6acc')
-        ig.addColorStop(0.6, '#ff4d6a44')
+        ig.addColorStop(0.25, '#ff4d6acc')
+        ig.addColorStop(0.5, '#ff4d6a66')
         ig.addColorStop(1, 'transparent')
         c.fillStyle = ig; c.beginPath(); c.arc(cx, cy, impactR, 0, Math.PI*2); c.fill()
-        // 交叉斜线冲击（更醒目）
+        // 辉光光斑
+        FXComposer.drawGlowSpot(c, cx, cy, impactR * 0.6, '#ff2244', (1-p)*0.35)
+        // 交叉冲击线（更多更醒目）
         c.save()
         c.translate(cx, cy)
-        for (let i=0; i<8; i++) {
-          const ang = (Math.PI*2/8)*i + p*0.5
-          const lineLen = 30*S + p*60*S
-          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.7})`
-          c.lineWidth = (3 - p*2)*S
+        for (let i=0; i<10; i++) {
+          const ang = (Math.PI*2/10)*i + p*0.6
+          const lineLen = 35*S + p*70*S
+          c.strokeStyle = `rgba(255,77,106,${(1-p)*0.75})`
+          c.lineWidth = (3.5 - p*2.5)*S
           c.beginPath()
-          c.moveTo(Math.cos(ang)*15*S, Math.sin(ang)*15*S)
+          c.moveTo(Math.cos(ang)*12*S, Math.sin(ang)*12*S)
           c.lineTo(Math.cos(ang)*lineLen, Math.sin(ang)*lineLen)
           c.stroke()
         }
         c.restore()
-        // 中心闪光
-        if (p < 0.3) {
-          c.globalAlpha = (0.3-p)/0.3 * 0.9
+        // 中心闪光（更亮更大）
+        if (p < 0.25) {
+          const flashP = p / 0.25
+          c.globalAlpha = (1 - flashP) * 0.95
           c.fillStyle = '#fff'
-          c.beginPath(); c.arc(cx, cy, (20-p*40)*S, 0, Math.PI*2); c.fill()
+          const flashR = Math.max(1*S, (25 - flashP*25)*S)
+          c.beginPath(); c.arc(cx, cy, flashR, 0, Math.PI*2); c.fill()
         }
-        // 碎片粒子
-        c.globalAlpha = (1-p)*0.6
+        // 粒子爆发
+        if (p > 0.1 && p < 0.15 && !anim._enemyAtkParticlesFired) {
+          anim._enemyAtkParticlesFired = true
+          Particles.burst({
+            x: cx, y: cy, count: 15, speed: 5*S, size: 3*S,
+            life: 18, gravity: 0.12*S, colors: ['#fff', '#ff4d6a', '#ff6677'], shape: 'glow',
+          })
+        }
+        // 碎片粒子（手绘补充）
+        c.globalAlpha = (1-p)*0.65
         for (let i=0; i<10; i++) {
           const pAng = (Math.PI*2/10)*i + i*0.3
-          const dist = 20*S + p*70*S + i*5*S
+          const dist = 20*S + p*75*S + i*5*S
           const px = cx + Math.cos(pAng)*dist
           const py = cy + Math.sin(pAng)*dist + p*20*S
-          const pr = (3-p*2.5)*S
+          const pr = Math.max(0.5*S, (3.5-p*2.8)*S)
           c.fillStyle = i%3===0 ? '#fff' : '#ff6677'
-          c.beginPath(); c.arc(px, py, Math.max(0.5*S, pr), 0, Math.PI*2); c.fill()
+          c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
         break
       }
@@ -1340,7 +1428,7 @@ class Render {
           const seed = i*60
           const px = cx2 + Math.cos(seed)*shieldR*(0.3+Math.random()*0.5)
           const py = cy2 - p*40*S - i*8*S
-          const pr = (2+Math.random()*2)*S*(1-p)
+          const pr = Math.max(0, (2+Math.random()*2)*S*(1-p))
           c.fillStyle = i%2===0 ? '#fff' : clr
           c.beginPath(); c.arc(px, py, pr, 0, Math.PI*2); c.fill()
         }
@@ -1375,7 +1463,7 @@ class Render {
           const py2 = cy3 + Math.sin(angle2)*dist2
           c.globalAlpha = Math.max(0, fadeAlpha2)*0.5
           c.fillStyle = '#fff'
-          c.beginPath(); c.arc(px2, py2, (1-p)*3*S, 0, Math.PI*2); c.fill()
+          c.beginPath(); c.arc(px2, py2, Math.max(0, (1-p)*3*S), 0, Math.PI*2); c.fill()
         }
         break
       }
@@ -1569,7 +1657,12 @@ class Render {
   // 工具 - 解析颜色为 [r,g,b]
   _parseColor(c) {
     if (c.startsWith('#')) {
-      return [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)]
+      const hex = c.slice(1)
+      if (hex.length <= 4) {
+        // 3/4位短hex：每位扩展为两位（如 #abc → #aabbcc）
+        return [parseInt(hex[0]+hex[0],16), parseInt(hex[1]+hex[1],16), parseInt(hex[2]+hex[2],16)]
+      }
+      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)]
     }
     const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
     if (m) return [+m[1], +m[2], +m[3]]

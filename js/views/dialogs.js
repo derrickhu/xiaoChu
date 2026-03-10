@@ -3,55 +3,55 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
-const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getPetById } = require('../data/pets')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 
 // ===== 退出确认弹窗 =====
 function drawExitDialog(g) {
   const { ctx, R, TH, W, H, S } = V
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H)
-  const pw = W * 0.78, ph = 185*S
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H)
+  const pw = W * 0.82, ph = 155*S
   const px = (W - pw) / 2, py = (H - ph) / 2
-  R.drawDialogPanel(px, py, pw, ph)
+  const panelImg = R.getImg('assets/ui/info_panel_bg.png')
+  if (panelImg && panelImg.width > 0) {
+    ctx.drawImage(panelImg, px, py, pw, ph)
+  } else {
+    const rad = 14 * S
+    ctx.fillStyle = 'rgba(248,242,230,0.97)'
+    R.rr(px, py, pw, ph, rad); ctx.fill()
+    ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5 * S
+    R.rr(px, py, pw, ph, rad); ctx.stroke()
+  }
 
-  // 标题 — 暗金色仙侠风（下移避开顶部花纹）
+  // 取消交互：点击任意位置取消（按钮区域优先由触摸逻辑先处理）
+  g._exitCancelRect = [0, 0, W, H]
+
+  // 标题
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#f0e0c0'
+  ctx.fillStyle = '#6B5014'
   ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3*S
-  ctx.fillText('退出战斗', px + pw*0.5, py + 46*S)
-  ctx.restore()
+  ctx.fillText('退出战斗', px + pw*0.5, py + 32*S)
 
-  // 副标题
-  ctx.fillStyle = 'rgba(200,190,170,0.7)'
+  // 说明文字
+  ctx.fillStyle = '#7B7060'
   ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('请选择退出方式', px + pw*0.5, py + 66*S)
+  ctx.fillText('请选择退出方式', px + pw*0.5, py + 60*S)
+  ctx.fillStyle = '#C0392B'
+  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  ctx.fillText('重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
+  ctx.fillStyle = '#8A7A62'
+  ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击任意位置取消', px + pw*0.5, py + 94*S)
 
-  // 两个主按钮（缩小）
+  // 按钮
   const btnW = pw * 0.34, btnH = 34*S, gap = 12*S
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
-  const btnY = py + 86*S
+  const btnY = py + 106*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
-
-  // 取消按钮 — 使用半透明描边风格（缩小）
-  const cancelW = pw * 0.30, cancelH = 28*S
-  const cancelX = px + (pw - cancelW) / 2, cancelY = btnY + btnH + 14*S
-  ctx.save()
-  ctx.fillStyle = 'rgba(40,35,50,0.6)'
-  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.fill()
-  ctx.strokeStyle = 'rgba(180,170,150,0.3)'; ctx.lineWidth = 1*S
-  R.rr(cancelX, cancelY, cancelW, cancelH, cancelH*0.5); ctx.stroke()
-  ctx.fillStyle = 'rgba(200,190,170,0.6)'
-  ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('取消', cancelX + cancelW*0.5, cancelY + cancelH*0.5)
-  ctx.textBaseline = 'alphabetic'
-  ctx.restore()
-  g._exitCancelRect = [cancelX, cancelY, cancelW, cancelH]
 }
 
 // ===== 全局增益详情弹窗 =====
@@ -646,6 +646,287 @@ function drawStar3Celebration(g) {
   ctx.restore()
 }
 
+// ===== 灵宠入池弹窗 =====
+function drawPetPoolEntryPopup(g) {
+  if (!g._petPoolEntryPopup) return
+  const { ctx, R, TH, W, H, S } = V
+  const { getPetById: _getPet } = require('../data/pets')
+  const pet = _getPet(g._petPoolEntryPopup.petId)
+  if (!pet) { g._petPoolEntryPopup = null; return }
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.72, ph = 140 * S
+  const px = (W - pw) / 2, py = H * 0.35
+  ctx.fillStyle = 'rgba(248,242,230,0.97)'
+  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
+  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2 * S
+  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#ffd700'
+  ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('灵宠入池！', px + pw / 2, py + 24 * S)
+
+  const attrColor = ATTR_COLOR[pet.attr]
+  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText(pet.name, px + pw / 2, py + 50 * S)
+
+  ctx.fillStyle = '#6B5014'
+  ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillText('★1 Lv.5 + 2碎片 加入灵宠池', px + pw / 2, py + 74 * S)
+
+  // 首只入池解锁提示
+  if (g.storage.petPoolCount === 1) {
+    ctx.fillStyle = '#e0a030'
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('底部"灵宠"标签已解锁！', px + pw / 2, py + 96 * S)
+  }
+
+  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
+  ctx.globalAlpha = blink
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
+  ctx.globalAlpha = 1
+
+  ctx.restore()
+}
+
+// ===== 碎片获得弹窗 =====
+function drawFragmentPopup(g) {
+  if (!g._fragmentObtainedPopup) return
+  const { ctx, R, TH, W, H, S } = V
+  const { getPetById: _getPet } = require('../data/pets')
+  const info = g._fragmentObtainedPopup
+  const pet = _getPet(info.petId)
+  if (!pet) { g._fragmentObtainedPopup = null; return }
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.65, ph = 100 * S
+  const px = (W - pw) / 2, py = H * 0.38
+  ctx.fillStyle = 'rgba(248,242,230,0.97)'
+  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
+  ctx.strokeStyle = 'rgba(180,140,60,0.6)'; ctx.lineWidth = 1.5 * S
+  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#6B5014'
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillText('获得碎片', px + pw / 2, py + 22 * S)
+
+  const attrColor = ATTR_COLOR[pet.attr]
+  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.fillText(`${pet.name} ×${info.count}`, px + pw / 2, py + 48 * S)
+
+  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
+  ctx.globalAlpha = blink
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
+  ctx.globalAlpha = 1
+
+  ctx.restore()
+}
+
+// ===== 灵宠池宠物详情弹窗（图2样式：浅色面板，当前星+下一星信息） =====
+/**
+ * 显示灵宠池宠物详情弹窗
+ * @param {object} g - 游戏状态
+ * @param {string} petId - 宠物ID
+ * @param {object} storage - storage对象，用于获取 poolPet 数据
+ */
+function drawPoolPetDetailPopup(g, petId, storage) {
+  const { ctx: c, R, W, H, S } = V
+  const basePet = getPetById(petId)
+  const poolPet = storage ? storage.getPoolPet(petId) : null
+  if (!basePet || !poolPet) return
+
+  const ac = ATTR_COLOR[basePet.attr]
+  const curStar = poolPet.star || 1
+  const curPet = { ...basePet, star: curStar }
+  const curAtk = getPoolPetAtk(poolPet)
+  const skillLocked = !petHasSkill(curPet)
+  const skillDesc = skillLocked ? null : getPetSkillDesc(curPet)
+
+  // 下一星信息
+  const hasNextStar = curStar < MAX_STAR
+  const nextStar = curStar + 1
+  const nextAtk = hasNextStar ? getPoolPetAtk({ ...poolPet, star: nextStar }) : null
+  const nextPet = hasNextStar ? { ...basePet, star: nextStar } : null
+  const nextSkillDesc = hasNextStar ? getPetSkillDesc(nextPet) : null
+  const nextSkillUnlocked = hasNextStar ? petHasSkill(nextPet) : false
+
+  // 计算弹窗高度
+  const padX = 16 * S, padY = 14 * S
+  const avatarSz = 50 * S
+  const sectionH = avatarSz + padY
+  const skillLines = skillDesc ? _wrapTextDialog(skillDesc, W * 0.82 - padX * 2, 10) : []
+  const nextSkillLines = nextSkillDesc ? _wrapTextDialog(nextSkillDesc, W * 0.82 - padX * 2, 10) : []
+  let ph = padY + sectionH + 10 * S + (skillLocked ? 16 * S : skillLines.length * 14 * S + 30 * S)
+  if (hasNextStar) {
+    ph += 8 * S + 14 * S + 14 * S // 分隔线 + 下一级header + atk
+    if (nextSkillUnlocked) ph += 14 * S + nextSkillLines.length * 14 * S
+  }
+  ph += padY
+
+  const pw = W * 0.82
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2
+
+  // 遮罩
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.5)'
+  c.fillRect(0, 0, W, H)
+
+  // 面板（浅色，使用 drawInfoPanel 或自绘）
+  R.drawInfoPanel(px, py, pw, ph)
+
+  c.save()
+  const rad = 14 * S
+  c.beginPath(); R.rr(px, py, pw, ph, rad); c.clip()
+
+  let dy = py + padY
+  const indent = px + padX
+  const rightEdge = px + pw - padX
+
+  // ── 头像区（左）+ 信息区（右） ──
+  const frameScale = 1.12
+  const frameSz = avatarSz * frameScale
+  const frameOf = (frameSz - avatarSz) / 2
+  const avatarImg = R.getImg(getPetAvatarPath(curPet))
+  const frameKey = basePet.attr || 'metal'
+
+  // 属性色背景
+  c.fillStyle = ac ? ac.bg || ac.main + '30' : '#1a2a3a'
+  c.fillRect(indent, dy, avatarSz, avatarSz)
+
+  // 头像
+  if (avatarImg && avatarImg.width > 0) {
+    const aw = avatarImg.width, ah = avatarImg.height
+    const drawW = avatarSz - 2
+    const drawH = drawW * (ah / aw)
+    const avDy = dy + (avatarSz - 2) - drawH
+    c.save()
+    c.beginPath(); c.rect(indent + 1, dy + 1, avatarSz - 2, avatarSz - 2); c.clip()
+    c.drawImage(avatarImg, indent + 1, avDy, drawW, drawH)
+    c.restore()
+  } else {
+    c.fillStyle = ac ? ac.main : '#888'
+    c.globalAlpha = 0.3
+    c.fillRect(indent + 1, dy + 1, avatarSz - 2, avatarSz - 2)
+    c.globalAlpha = 1
+    c.fillStyle = '#3D2B1F'; c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(basePet.name.slice(0, 1), indent + avatarSz / 2, dy + avatarSz / 2)
+  }
+
+  // 属性边框
+  c.strokeStyle = ac ? ac.main : '#C9A84C'; c.lineWidth = 2 * S
+  c.strokeRect(indent, dy, avatarSz, avatarSz)
+
+  // 尝试绘制头像框
+  const frameImg = R.getImg(`assets/ui/frame_pet_${frameKey}.png`)
+  if (frameImg && frameImg.width > 0) {
+    c.drawImage(frameImg, indent - frameOf, dy - frameOf, frameSz, frameSz)
+  }
+
+  // 信息区（右侧）
+  const infoX = indent + avatarSz + 12 * S
+  const infoRight = rightEdge
+
+  // 名称
+  c.fillStyle = '#3D2B1F'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(basePet.name, infoX, dy + 2 * S)
+
+  // 星级
+  let starX = infoX
+  c.font = `${12*S}px "PingFang SC",sans-serif`
+  for (let i = 0; i < MAX_STAR; i++) {
+    c.fillStyle = i < curStar ? '#FFD700' : 'rgba(0,0,0,0.2)'
+    c.fillText('★', starX, dy + 22 * S)
+    starX += 14 * S
+  }
+
+  // 属性orb + ATK
+  const orbR = 5 * S
+  const orbX = infoX + orbR
+  const orbY = dy + 40 * S + orbR * 0.5
+  R.drawBead(orbX, orbY, orbR, basePet.attr, 0)
+  c.fillStyle = '#6B5B50'; c.font = `${12*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.fillText(`ATK：${curAtk}`, infoX + orbR * 2 + 4 * S, orbY)
+
+  // Lv显示（右上角）
+  c.fillStyle = '#9B8B80'; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'; c.textBaseline = 'top'
+  c.fillText(`Lv.${poolPet.level}`, infoRight, dy + 2 * S)
+
+  dy += sectionH
+
+  // 技能行
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  if (skillLocked) {
+    c.fillStyle = '#9B8B80'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.fillText('技能：升至★2解锁', indent, dy)
+    dy += 16 * S
+  } else {
+    c.fillStyle = '#B8860B'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.fillText(`技能：${basePet.skill ? basePet.skill.name : ''}  CD ${basePet.cd || '?'}`, indent, dy)
+    dy += 16 * S
+    c.fillStyle = '#2A1F10'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    for (const line of skillLines) {
+      c.fillText(line, indent + 4 * S, dy)
+      dy += 14 * S
+    }
+    dy += 4 * S
+  }
+
+  // ── 下一星分隔线 + 信息 ──
+  if (hasNextStar) {
+    // 分隔线
+    c.strokeStyle = 'rgba(180,150,80,0.25)'; c.lineWidth = 1 * S
+    c.beginPath(); c.moveTo(indent, dy + 4 * S); c.lineTo(rightEdge, dy + 4 * S); c.stroke()
+    dy += 12 * S
+
+    // 下一级 header
+    const nextStarStr = '★'.repeat(nextStar) + '☆'.repeat(MAX_STAR - nextStar)
+    c.fillStyle = '#6B5014'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText(`下一级  ${nextStarStr}`, indent, dy)
+    dy += 16 * S
+
+    // 下一级 ATK
+    c.fillStyle = '#6B5B50'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.fillText(`ATK：${nextAtk}`, indent, dy)
+    dy += 14 * S
+
+    // 下一级技能
+    if (nextSkillUnlocked && basePet.skill) {
+      c.fillStyle = ac ? ac.main : '#B8860B'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.fillText(`解锁技能：${basePet.skill.name}  CD ${basePet.cd || '?'}`, indent, dy)
+      dy += 14 * S
+      c.fillStyle = '#2A1F10'; c.font = `${10*S}px "PingFang SC",sans-serif`
+      for (const line of nextSkillLines) {
+        c.fillText(line, indent + 4 * S, dy)
+        dy += 13 * S
+      }
+    }
+  }
+
+  c.restore() // 结束 clip
+
+  // 关闭提示
+  c.fillStyle = '#9B8B80'; c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'bottom'
+  c.fillText('点击任意处关闭', W / 2, py + ph - 6 * S)
+
+  c.restore()
+}
+
 module.exports = {
   drawExitDialog,
   drawRunBuffDetailDialog,
@@ -653,4 +934,7 @@ module.exports = {
   drawWeaponDetailDialog,
   drawBattlePetDetailDialog,
   drawStar3Celebration,
+  drawPetPoolEntryPopup,
+  drawFragmentPopup,
+  drawPoolPetDetailPopup,
 }
