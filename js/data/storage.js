@@ -1,3 +1,4 @@
+const P = require('../platform')
 /**
  * 存储管理 — 灵宠消消塔
  * Roguelike：无局外养成，死亡即重开
@@ -139,11 +140,11 @@ class Storage {
   // 彻底重置
   async resetAll() {
     this._d = defaultPersist()
-    try { wx.removeStorageSync(LOCAL_KEY) } catch(e) {}
+    try { P.removeStorageSync(LOCAL_KEY) } catch(e) {}
     this._save()
     if (this._cloudReady && this._openid) {
       try {
-        const db = wx.cloud.database()
+        const db = P.cloud.database()
         const res = await db.collection('playerData').where({ _openid: this._openid }).get()
         if (res.data && res.data.length > 0) {
           await db.collection('playerData').doc(res.data[0]._id).remove()
@@ -156,7 +157,7 @@ class Storage {
   // ===== 本地存储 =====
   _loadUserInfo() {
     try {
-      const raw = wx.getStorageSync('wxtower_userinfo')
+      const raw = P.getStorageSync('wxtower_userinfo')
       if (raw) {
         const info = JSON.parse(raw)
         // 验证数据有效性：过滤掉之前getUserProfile返回的无效默认值
@@ -166,7 +167,7 @@ class Storage {
           console.log('[Storage] 已加载用户信息:', info.nickName)
         } else {
           console.warn('[Storage] 缓存的用户信息无效，清除:', info)
-          wx.removeStorageSync('wxtower_userinfo')
+          P.removeStorageSync('wxtower_userinfo')
           this.userInfo = null
           this.userAuthorized = false
         }
@@ -179,7 +180,7 @@ class Storage {
   _saveUserInfo(info) {
     this.userInfo = info
     this.userAuthorized = true
-    try { wx.setStorageSync('wxtower_userinfo', JSON.stringify(info)) } catch(e) {}
+    try { P.setStorageSync('wxtower_userinfo', JSON.stringify(info)) } catch(e) {}
   }
 
   // 微信用户信息授权（头像+昵称）
@@ -190,7 +191,7 @@ class Storage {
     this.destroyUserInfoBtn()
     console.log('[UserInfoBtn] 开始创建, rect:', JSON.stringify(rect))
     try {
-      const btn = wx.createUserInfoButton({
+      const btn = P.createUserInfoButton({
         type: 'text',
         text: '',
         style: {
@@ -210,6 +211,10 @@ class Storage {
         withCredentials: false,
       })
       console.log('[UserInfoBtn] 创建成功, btn:', !!btn)
+      if (!btn) {
+        if (callback) callback(false, null)
+        return
+      }
       this._userInfoBtn = btn
       this._userInfoBtnCallback = callback
       btn.onTap((res) => {
@@ -253,24 +258,24 @@ class Storage {
 
   // 引导用户到设置页开启 userInfo 授权
   _tryOpenSetting(callback) {
-    wx.getSetting({
+    P.getSetting({
       success: (settingRes) => {
         console.log('[UserInfo] getSetting:', JSON.stringify(settingRes.authSetting))
         if (settingRes.authSetting['scope.userInfo'] === false) {
           // 之前明确拒绝过，需要引导到设置页
-          wx.showModal({
+          P.showModal({
             title: '授权提示',
             content: '需要获取您的昵称和头像用于排行榜展示，请在设置中开启',
             confirmText: '去设置',
             cancelText: '暂不',
             success: (modalRes) => {
               if (modalRes.confirm) {
-                wx.openSetting({
+                P.openSetting({
                   success: (openRes) => {
                     console.log('[UserInfo] openSetting result:', JSON.stringify(openRes.authSetting))
                     if (openRes.authSetting['scope.userInfo']) {
                       // 用户在设置中开启了授权，重新获取信息
-                      wx.getUserInfo({
+                      P.getUserInfo({
                         success: (infoRes) => {
                           if (infoRes.userInfo && infoRes.userInfo.nickName !== '微信用户') {
                             const info = {
@@ -337,7 +342,7 @@ class Storage {
     const t0 = Date.now()
     try {
       console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns)
-      const r = await wx.cloud.callFunction({
+      const r = await P.cloud.callFunction({
         name: 'ranking',
         data: {
           action: 'submit',
@@ -365,7 +370,7 @@ class Storage {
     const t0 = Date.now()
     try {
       console.log('[Ranking] 提交图鉴/连击: dex=', (this._d.petDex || []).length, 'combo=', this._d.stats.maxCombo || 0)
-      await wx.cloud.callFunction({
+      await P.cloud.callFunction({
         name: 'ranking',
         data: {
           action: 'submitDexCombo',
@@ -402,7 +407,7 @@ class Storage {
       const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getAll'
       console.log('[Ranking] 开始拉取:', action)
-      const r = await wx.cloud.callFunction({ name: 'ranking', data: { action } })
+      const r = await P.cloud.callFunction({ name: 'ranking', data: { action } })
       const elapsed = Date.now() - t0
       console.log('[Ranking] 拉取完成, 耗时', elapsed, 'ms, 结果:', JSON.stringify(r.result).slice(0, 800))
       if (r.result && r.result.debug) {
@@ -444,7 +449,7 @@ class Storage {
         data.maxCombo = this._d.stats.maxCombo || 0
       }
       console.log('[Ranking] 一体化调用, needSubmit=', needSubmit)
-      const r = await wx.cloud.callFunction({ name: 'ranking', data })
+      const r = await P.cloud.callFunction({ name: 'ranking', data })
       const elapsed = Date.now() - t0
       console.log('[Ranking] 一体化完成, 耗时', elapsed, 'ms')
       if (r.result && r.result.debug) {
@@ -469,7 +474,7 @@ class Storage {
 
   _load() {
     try {
-      const raw = wx.getStorageSync(LOCAL_KEY)
+      const raw = P.getStorageSync(LOCAL_KEY)
       if (raw) {
         this._d = JSON.parse(raw)
         const def = defaultPersist()
@@ -487,7 +492,7 @@ class Storage {
 
   _save() {
     try {
-      wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
+      P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
       this._debounceSyncToCloud()
     } catch(e) {
       console.warn('Storage save error:', e)
@@ -509,7 +514,7 @@ class Storage {
 
   async _initCloud() {
     try {
-      wx.cloud.init({ env: CLOUD_ENV, traceUser: true })
+      P.cloud.init({ env: CLOUD_ENV, traceUser: true })
       this._cloudReady = true
     } catch(e) {
       console.warn('Cloud init failed:', e)
@@ -531,7 +536,7 @@ class Storage {
     try {
       const t0 = Date.now()
       console.log('[Ranking] 预热: 后台静默拉取排行榜...')
-      const r = await wx.cloud.callFunction({ name: 'ranking', data: { action: 'getAll' } })
+      const r = await P.cloud.callFunction({ name: 'ranking', data: { action: 'getAll' } })
       const elapsed = Date.now() - t0
       if (r.result && r.result.code === 0) {
         this.rankAllList = r.result.list || []
@@ -546,21 +551,21 @@ class Storage {
   }
 
   async _ensureCollections() {
-    const r = await wx.cloud.callFunction({ name: 'initCollections' })
+    const r = await P.cloud.callFunction({ name: 'initCollections' })
     if (r.result && r.result.errors && r.result.errors.length) {
       console.warn('创建集合异常:', r.result.errors)
     }
   }
 
   async _getOpenid() {
-    const r = await wx.cloud.callFunction({ name: 'getOpenid' })
+    const r = await P.cloud.callFunction({ name: 'getOpenid' })
     this._openid = (r.result && r.result.openid) || ''
   }
 
   async _syncFromCloud() {
     if (!this._cloudReady || !this._openid) return
     try {
-      const db = wx.cloud.database()
+      const db = P.cloud.database()
       const res = await db.collection('playerData').where({ _openid: this._openid }).get()
       if (res.data && res.data.length > 0) {
         const cloud = res.data[0]
@@ -571,7 +576,7 @@ class Storage {
           delete cloud._openid
           // 深度合并：逐层合并嵌套对象，避免覆盖本地新增字段
           this._deepMerge(this._d, cloud)
-          wx.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
+          P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
           console.log('[Storage] 云端数据已合并到本地')
         }
       }
@@ -607,7 +612,7 @@ class Storage {
   async _syncToCloud() {
     if (!this._cloudReady || !this._openid) return
     try {
-      const db = wx.cloud.database()
+      const db = P.cloud.database()
       const col = db.collection('playerData')
       // 用 _openid 查询（云开发自动注入的字段，最可靠）
       const res = await col.where({ _openid: this._openid }).get()

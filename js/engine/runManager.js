@@ -2,6 +2,7 @@
  * Run管理模块 — Roguelike局内生命周期管理
  * 从 main.js 提取：_startRun, _nextFloor, _restoreBattleHpMax, _endRun, _saveAndExit, _resumeRun
  */
+const P = require('../platform')
 const { TH } = require('../render')
 const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
@@ -288,7 +289,7 @@ function onDefeat(g, W, H) {
 
 function doAdRevive(g, W, H) {
   // 分享复活：转发给好友后获得满血复活
-  wx.shareAppMessage({
+  P.shareAppMessage({
     title: `我在消消塔第${g.floor}层倒下了，快来助我一臂之力！`,
     imageUrl: 'assets/share/share_revive.jpg',
   })
@@ -312,7 +313,7 @@ function adReviveCallback(g, W, H) {
 // 分享获取道具（标记为已获取，不立即使用）
 function obtainItemReset(g) {
   if (g.itemResetObtained || g.itemResetUsed) return false
-  wx.shareAppMessage({
+  P.shareAppMessage({
     title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
     imageUrl: 'assets/share/share_default.jpg',
   })
@@ -323,7 +324,7 @@ function obtainItemReset(g) {
 
 function obtainItemHeal(g) {
   if (g.itemHealObtained || g.itemHealUsed) return false
-  wx.shareAppMessage({
+  P.shareAppMessage({
     title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
     imageUrl: 'assets/share/share_default.jpg',
   })

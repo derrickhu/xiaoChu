@@ -2,6 +2,7 @@
  * 渲染模块 - 适配修仙消消乐法宝系统
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
+const P = require('./platform')
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
 
 // 属性配色（含心珠，渲染用）
@@ -42,7 +43,7 @@ class Render {
 
   getImg(path) {
     if (this._imgCache[path]) return this._imgCache[path]
-    const img = wx.createImage()
+    const img = P.createImage()
     img.src = path
     this._imgCache[path] = img
     return img

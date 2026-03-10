@@ -1,3 +1,4 @@
+const P = require('../platform')
 /**
  * 灵宠消消塔 - 国风音效管理（增强版）
  * 音色风格：古筝、竹笛、钟磬、玉石、鼓点
@@ -28,7 +29,7 @@ class MusicManager {
       this._bgm.destroy()
       this._bgm = null
     }
-    this._bgm = wx.createInnerAudioContext()
+    this._bgm = P.createInnerAudioContext()
     this._bgm.src = 'audio/bgm.mp3'
     this._bgm.loop = true
     this._bgm.volume = 0.08
@@ -56,7 +57,7 @@ class MusicManager {
     if (this._bgm) this._bgm.stop()
     // 创建或复用boss BGM实例
     if (!this._bossBgm) {
-      this._bossBgm = wx.createInnerAudioContext()
+      this._bossBgm = P.createInnerAudioContext()
       this._bossBgm.src = 'audio/boss_bgm.mp3'
       this._bossBgm.loop = true
       this._bossBgm.volume = 0.1
@@ -290,7 +291,7 @@ class MusicManager {
     if (!this.enabled) return
     if (this._rollingPlaying) return
     this._rollingPlaying = true
-    const a = wx.createInnerAudioContext()
+    const a = P.createInnerAudioContext()
     a.src = 'audio/rolling.wav'; a.volume = 0.2; a.play()
     a.onEnded(() => { a.destroy(); this._rollingPlaying = false })
     setTimeout(() => { this._rollingPlaying = false }, 200)
@@ -393,7 +394,7 @@ class MusicManager {
     if (!this._sfxPool[src]) {
       this._sfxPool[src] = { idx: 0, items: [] }
       for (let i = 0; i < this._poolSize; i++) {
-        const a = wx.createInnerAudioContext()
+        const a = P.createInnerAudioContext()
         a.src = src
         this._sfxPool[src].items.push(a)
       }

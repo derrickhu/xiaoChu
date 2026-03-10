@@ -1,3 +1,4 @@
+const P = require('../platform')
 /**
  * 新手教学引擎 — 4步试炼关卡（支持多回合）
  * Step 0: 转珠基础（拖珠消除）
@@ -389,7 +390,7 @@ function finish(g) {
   _round = 0
   _phase = 'done'
   // 标记教学已完成
-  try { wx.setStorageSync('tutorialDone', true) } catch(e) {}
+  try { P.setStorageSync('tutorialDone', true) } catch(e) {}
   // 重新正式开始（从第1层）
   const runMgr = require('./runManager')
   g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
@@ -505,7 +506,7 @@ function skip(g) {
 // 检查是否需要教学
 function needsTutorial() {
   try {
-    return !wx.getStorageSync('tutorialDone')
+    return !P.getStorageSync('tutorialDone')
   } catch(e) { return true }
 }
 

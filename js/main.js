@@ -3,6 +3,7 @@
  * Roguelike爬塔 + 智龙迷城式拖拽转珠 + 五行克制
  * 无局外养成，死亡即重开，仅记录最高层数
  */
+const P = require('./platform')
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
 const { ATTR_COLOR, generateRewards, MAX_FLOOR } = require('./data/tower')
@@ -22,10 +23,10 @@ const runMgr = require('./engine/runManager')
 const tutorial = require('./engine/tutorial')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
-const canvas = GameGlobal.__mainCanvas || wx.createCanvas()
+const canvas = GameGlobal.__mainCanvas || P.createCanvas()
 const ctx = canvas.getContext('2d')
-const _winInfo = wx.getWindowInfo()
-const _devInfo = wx.getDeviceInfo()
+const _winInfo = P.getWindowInfo()
+const _devInfo = P.getDeviceInfo()
 const dpr = _winInfo.pixelRatio || 2
 canvas.width = _winInfo.windowWidth * dpr
 canvas.height = _winInfo.windowHeight * dpr
@@ -162,17 +163,17 @@ class Main {
       canvas.addEventListener('touchmove', e => this.onTouch('move', e))
       canvas.addEventListener('touchend', e => this.onTouch('end', e))
     } else {
-      wx.onTouchStart(e => this.onTouch('start', e))
-      wx.onTouchMove(e => this.onTouch('move', e))
-      wx.onTouchEnd(e => this.onTouch('end', e))
+      P.onTouchStart(e => this.onTouch('start', e))
+      P.onTouchMove(e => this.onTouch('move', e))
+      P.onTouchEnd(e => this.onTouch('end', e))
     }
 
     const loop = () => { this.af++; try { this.update(); this.render() } catch(e) { console.error('loop error:', e) }; requestAnimationFrame(loop) }
     requestAnimationFrame(loop)
 
     // 注册微信分享能力
-    wx.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
-    wx.onShareAppMessage(() => this._getShareData())
+    P.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
+    P.onShareAppMessage(() => this._getShareData())
 
     // 预加载关键图片（Loading背景、首页背景、标题Logo、按钮）
     const criticalImages = [
@@ -420,7 +421,7 @@ class Main {
     }
     if (!this._feedbackBtn) {
       try {
-        const btn = wx.createFeedbackButton({
+        const btn = P.createFeedbackButton({
           type: 'text', text: '',
           style: {
             left: cssRect.left, top: cssRect.top,
@@ -430,6 +431,7 @@ class Main {
             color: 'rgba(0,0,0,0)', fontSize: 1, lineHeight: cssRect.height,
           },
         })
+        if (!btn) return
         this._feedbackBtn = btn
         btn.show()
       } catch(e) {
@@ -678,7 +680,7 @@ class Main {
           `五行通天塔第${floor}层，最高${st.maxCombo}连击！收集${dexCount}只灵兽，你敢来比吗？`,
         ]
 
-    wx.shareAppMessage({
+    P.shareAppMessage({
       title: titles[Math.floor(Math.random() * titles.length)],
       imageUrl: 'assets/share/share_cover.jpg',
     })
