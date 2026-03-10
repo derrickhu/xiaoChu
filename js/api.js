@@ -6,7 +6,7 @@ const P = require('./platform')
 
 // 后端地址：上线后替换为正式域名
 const BASE_URL = P.isDouyin
-  ? 'https://your-douyin-cloud-service.com'
+  ? 'https://1lujade2yoizo-env-eredrLayEN.service.douyincloud.run'
   : 'https://your-wechat-backend.com'
 
 let _token = ''

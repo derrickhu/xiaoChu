@@ -17,7 +17,7 @@ app.use('/api', authRouter)
 app.use('/api/player', playerRouter)
 app.use('/api/ranking', rankingRouter)
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 8000
 
 connect()
   .then(() => {
