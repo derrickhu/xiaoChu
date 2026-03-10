@@ -64,6 +64,8 @@ const platform = {
   onTouchStart:           (cb)   => base.onTouchStart(cb),
   onTouchMove:            (cb)   => base.onTouchMove(cb),
   onTouchEnd:             (cb)   => base.onTouchEnd(cb),
+  request:                (opts) => base.request(opts),
+  login:                  (opts) => base.login(opts),
 
   // ========== 第二层：轻度适配 ==========
   shareAppMessage:  (opts) => base.shareAppMessage(opts),
