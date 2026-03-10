@@ -3,7 +3,8 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
-const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getPetById } = require('../data/pets')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 
 // ===== 退出确认弹窗 =====
 function drawExitDialog(g) {
@@ -731,6 +732,201 @@ function drawFragmentPopup(g) {
   ctx.restore()
 }
 
+// ===== 灵宠池宠物详情弹窗（图2样式：浅色面板，当前星+下一星信息） =====
+/**
+ * 显示灵宠池宠物详情弹窗
+ * @param {object} g - 游戏状态
+ * @param {string} petId - 宠物ID
+ * @param {object} storage - storage对象，用于获取 poolPet 数据
+ */
+function drawPoolPetDetailPopup(g, petId, storage) {
+  const { ctx: c, R, W, H, S } = V
+  const basePet = getPetById(petId)
+  const poolPet = storage ? storage.getPoolPet(petId) : null
+  if (!basePet || !poolPet) return
+
+  const ac = ATTR_COLOR[basePet.attr]
+  const curStar = poolPet.star || 1
+  const curPet = { ...basePet, star: curStar }
+  const curAtk = getPoolPetAtk(poolPet)
+  const skillLocked = !petHasSkill(curPet)
+  const skillDesc = skillLocked ? null : getPetSkillDesc(curPet)
+
+  // 下一星信息
+  const hasNextStar = curStar < MAX_STAR
+  const nextStar = curStar + 1
+  const nextAtk = hasNextStar ? getPoolPetAtk({ ...poolPet, star: nextStar }) : null
+  const nextPet = hasNextStar ? { ...basePet, star: nextStar } : null
+  const nextSkillDesc = hasNextStar ? getPetSkillDesc(nextPet) : null
+  const nextSkillUnlocked = hasNextStar ? petHasSkill(nextPet) : false
+
+  // 计算弹窗高度
+  const padX = 16 * S, padY = 14 * S
+  const avatarSz = 50 * S
+  const sectionH = avatarSz + padY
+  const skillLines = skillDesc ? _wrapTextDialog(skillDesc, W * 0.82 - padX * 2, 10) : []
+  const nextSkillLines = nextSkillDesc ? _wrapTextDialog(nextSkillDesc, W * 0.82 - padX * 2, 10) : []
+  let ph = padY + sectionH + 10 * S + (skillLocked ? 16 * S : skillLines.length * 14 * S + 30 * S)
+  if (hasNextStar) {
+    ph += 8 * S + 14 * S + 14 * S // 分隔线 + 下一级header + atk
+    if (nextSkillUnlocked) ph += 14 * S + nextSkillLines.length * 14 * S
+  }
+  ph += padY
+
+  const pw = W * 0.82
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2
+
+  // 遮罩
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.5)'
+  c.fillRect(0, 0, W, H)
+
+  // 面板（浅色，使用 drawInfoPanel 或自绘）
+  R.drawInfoPanel(px, py, pw, ph)
+
+  c.save()
+  const rad = 14 * S
+  c.beginPath(); R.rr(px, py, pw, ph, rad); c.clip()
+
+  let dy = py + padY
+  const indent = px + padX
+  const rightEdge = px + pw - padX
+
+  // ── 头像区（左）+ 信息区（右） ──
+  const frameScale = 1.12
+  const frameSz = avatarSz * frameScale
+  const frameOf = (frameSz - avatarSz) / 2
+  const avatarImg = R.getImg(getPetAvatarPath(curPet))
+  const frameKey = basePet.attr || 'metal'
+
+  // 属性色背景
+  c.fillStyle = ac ? ac.bg || ac.main + '30' : '#1a2a3a'
+  c.fillRect(indent, dy, avatarSz, avatarSz)
+
+  // 头像
+  if (avatarImg && avatarImg.width > 0) {
+    const aw = avatarImg.width, ah = avatarImg.height
+    const drawW = avatarSz - 2
+    const drawH = drawW * (ah / aw)
+    const avDy = dy + (avatarSz - 2) - drawH
+    c.save()
+    c.beginPath(); c.rect(indent + 1, dy + 1, avatarSz - 2, avatarSz - 2); c.clip()
+    c.drawImage(avatarImg, indent + 1, avDy, drawW, drawH)
+    c.restore()
+  } else {
+    c.fillStyle = ac ? ac.main : '#888'
+    c.globalAlpha = 0.3
+    c.fillRect(indent + 1, dy + 1, avatarSz - 2, avatarSz - 2)
+    c.globalAlpha = 1
+    c.fillStyle = '#3D2B1F'; c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(basePet.name.slice(0, 1), indent + avatarSz / 2, dy + avatarSz / 2)
+  }
+
+  // 属性边框
+  c.strokeStyle = ac ? ac.main : '#C9A84C'; c.lineWidth = 2 * S
+  c.strokeRect(indent, dy, avatarSz, avatarSz)
+
+  // 尝试绘制头像框
+  const frameImg = R.getImg(`assets/ui/frame_pet_${frameKey}.png`)
+  if (frameImg && frameImg.width > 0) {
+    c.drawImage(frameImg, indent - frameOf, dy - frameOf, frameSz, frameSz)
+  }
+
+  // 信息区（右侧）
+  const infoX = indent + avatarSz + 12 * S
+  const infoRight = rightEdge
+
+  // 名称
+  c.fillStyle = '#3D2B1F'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(basePet.name, infoX, dy + 2 * S)
+
+  // 星级
+  let starX = infoX
+  c.font = `${12*S}px "PingFang SC",sans-serif`
+  for (let i = 0; i < MAX_STAR; i++) {
+    c.fillStyle = i < curStar ? '#FFD700' : 'rgba(0,0,0,0.2)'
+    c.fillText('★', starX, dy + 22 * S)
+    starX += 14 * S
+  }
+
+  // 属性orb + ATK
+  const orbR = 5 * S
+  const orbX = infoX + orbR
+  const orbY = dy + 40 * S + orbR * 0.5
+  R.drawBead(orbX, orbY, orbR, basePet.attr, 0)
+  c.fillStyle = '#6B5B50'; c.font = `${12*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.fillText(`ATK：${curAtk}`, infoX + orbR * 2 + 4 * S, orbY)
+
+  // Lv显示（右上角）
+  c.fillStyle = '#9B8B80'; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'; c.textBaseline = 'top'
+  c.fillText(`Lv.${poolPet.level}`, infoRight, dy + 2 * S)
+
+  dy += sectionH
+
+  // 技能行
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  if (skillLocked) {
+    c.fillStyle = '#9B8B80'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.fillText('技能：升至★2解锁', indent, dy)
+    dy += 16 * S
+  } else {
+    c.fillStyle = '#B8860B'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.fillText(`技能：${basePet.skill ? basePet.skill.name : ''}  CD ${basePet.cd || '?'}`, indent, dy)
+    dy += 16 * S
+    c.fillStyle = '#2A1F10'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    for (const line of skillLines) {
+      c.fillText(line, indent + 4 * S, dy)
+      dy += 14 * S
+    }
+    dy += 4 * S
+  }
+
+  // ── 下一星分隔线 + 信息 ──
+  if (hasNextStar) {
+    // 分隔线
+    c.strokeStyle = 'rgba(180,150,80,0.25)'; c.lineWidth = 1 * S
+    c.beginPath(); c.moveTo(indent, dy + 4 * S); c.lineTo(rightEdge, dy + 4 * S); c.stroke()
+    dy += 12 * S
+
+    // 下一级 header
+    const nextStarStr = '★'.repeat(nextStar) + '☆'.repeat(MAX_STAR - nextStar)
+    c.fillStyle = '#6B5014'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText(`下一级  ${nextStarStr}`, indent, dy)
+    dy += 16 * S
+
+    // 下一级 ATK
+    c.fillStyle = '#6B5B50'; c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.fillText(`ATK：${nextAtk}`, indent, dy)
+    dy += 14 * S
+
+    // 下一级技能
+    if (nextSkillUnlocked && basePet.skill) {
+      c.fillStyle = ac ? ac.main : '#B8860B'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.fillText(`解锁技能：${basePet.skill.name}  CD ${basePet.cd || '?'}`, indent, dy)
+      dy += 14 * S
+      c.fillStyle = '#2A1F10'; c.font = `${10*S}px "PingFang SC",sans-serif`
+      for (const line of nextSkillLines) {
+        c.fillText(line, indent + 4 * S, dy)
+        dy += 13 * S
+      }
+    }
+  }
+
+  c.restore() // 结束 clip
+
+  // 关闭提示
+  c.fillStyle = '#9B8B80'; c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'bottom'
+  c.fillText('点击任意处关闭', W / 2, py + ph - 6 * S)
+
+  c.restore()
+}
+
 module.exports = {
   drawExitDialog,
   drawRunBuffDetailDialog,
@@ -740,4 +936,5 @@ module.exports = {
   drawStar3Celebration,
   drawPetPoolEntryPopup,
   drawFragmentPopup,
+  drawPoolPetDetailPopup,
 }

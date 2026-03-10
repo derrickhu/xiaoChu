@@ -55,12 +55,13 @@ function _getCurrentIndex(g) {
 function rPetDetail(g) {
   const { ctx: c, R, W, H, S, safeTop } = V
   const petId = g._petDetailId
-  if (!petId) { g.scene = 'petPool'; return }
+  const _returnScene = g._petDetailReturnScene || 'petPool'
+  if (!petId) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
 
   const poolPet = g.storage.getPoolPet(petId)
-  if (!poolPet) { g.scene = 'petPool'; return }
+  if (!poolPet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
   const basePet = getPetById(petId)
-  if (!basePet) { g.scene = 'petPool'; return }
+  if (!basePet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
 
   // 处理滑动动画
   if (_slideAnim) {
@@ -778,7 +779,8 @@ function tPetDetail(g, x, y, type) {
 
     // 返回按钮
     if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-      g.scene = 'petPool'
+      g.scene = g._petDetailReturnScene || 'petPool'
+      g._petDetailReturnScene = null
       g._petDetailId = null
       MusicMgr.playClick && MusicMgr.playClick()
       return
