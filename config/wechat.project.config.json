@@ -1,5 +1,5 @@
 {
-  "description": "项目配置文件",
+  "description": "项目配置文件 - 微信小游戏",
   "setting": {
     "urlCheck": false,
     "es6": true,
@@ -32,54 +32,24 @@
   "appid": "wx53b03390106eff65",
   "projectname": "lingchong-xxl",
   "condition": {
-    "search": {
-      "current": -1,
-      "list": []
-    },
-    "conversation": {
-      "current": -1,
-      "list": []
-    },
-    "game": {
-      "currentL": -1,
-      "list": []
-    },
-    "miniprogram": {
-      "current": -1,
-      "list": []
-    }
+    "search": { "current": -1, "list": [] },
+    "conversation": { "current": -1, "list": [] },
+    "game": { "currentL": -1, "list": [] },
+    "miniprogram": { "current": -1, "list": [] }
   },
   "simulatorPluginLibVersion": {},
   "packOptions": {
     "ignore": [
-      {
-        "value": "cloudfunctions",
-        "type": "folder"
-      },
-      {
-        "value": "tools",
-        "type": "folder"
-      },
-      {
-        "value": ".md",
-        "type": "suffix"
-      },
-      {
-        "value": "《五行通天塔》加成奖励",
-        "type": "file"
-      },
-      {
-        "value": ".DS_Store",
-        "type": "file"
-      },
-      {
-        "value": ".gitignore",
-        "type": "file"
-      },
-      {
-        "value": ".eslintrc.js",
-        "type": "file"
-      }
+      { "value": "cloudfunctions", "type": "folder" },
+      { "value": "tools", "type": "folder" },
+      { "value": "config", "type": "folder" },
+      { "value": "scripts", "type": "folder" },
+      { "value": "server", "type": "folder" },
+      { "value": ".md", "type": "suffix" },
+      { "value": "《五行通天塔》加成奖励", "type": "file" },
+      { "value": ".DS_Store", "type": "file" },
+      { "value": ".gitignore", "type": "file" },
+      { "value": ".eslintrc.js", "type": "file" }
     ],
     "include": []
   },
