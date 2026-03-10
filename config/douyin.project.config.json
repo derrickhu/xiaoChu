@@ -13,11 +13,20 @@
       { "value": "config", "type": "folder" },
       { "value": "scripts", "type": "folder" },
       { "value": "server", "type": "folder" },
+      { "value": ".dy-game-cache", "type": "folder" },
+      { "value": "dy-game-cache", "type": "folder" },
+      { "value": "node_modules", "type": "folder" },
+      { "value": ".git", "type": "folder" },
+      { "value": "_compress_tmp", "type": "folder" },
       { "value": ".md", "type": "suffix" },
+      { "value": ".txt", "type": "suffix" },
+      { "value": "_orig.png", "type": "suffix" },
       { "value": "《五行通天塔》加成奖励", "type": "file" },
       { "value": ".DS_Store", "type": "file" },
       { "value": ".gitignore", "type": "file" },
-      { "value": ".eslintrc.js", "type": "file" }
+      { "value": ".eslintrc.js", "type": "file" },
+      { "value": ".dockerignore", "type": "file" },
+      { "value": "project.private.config.json", "type": "file" }
     ],
     "include": []
   }

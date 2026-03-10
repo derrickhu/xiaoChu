@@ -68,7 +68,7 @@ function triggerPetSkill(g, pet, idx) {
   let cd = pet.cd
   if (g.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - g.runBuffs.skillCdReducePct / 100)))
   pet.currentCd = cd
-  const attrColor = ATTR_COLOR[pet.attr]?.main || V.TH.accent
+  const attrColor = (ATTR_COLOR[pet.attr] && ATTR_COLOR[pet.attr].main) || V.TH.accent
 
   // 攻击伤害类技能：使用攻击光波特效 + pet_skill.mp3
   const isAttackSkill = (sk.type === 'instantDmg' || sk.type === 'teamAttack' || sk.type === 'multiHit' || sk.type === 'instantDmgDot')
@@ -334,7 +334,7 @@ function triggerPetSkill(g, pet, idx) {
           dmg = Math.max(0, dmg + ignoreDef)  // 相当于少减防御
         }
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||V.TH.danger, t:0, alpha:1 })
+        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:(ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main)||V.TH.danger, t:0, alpha:1 })
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         // ★3附加眩晕
         if (sk.stunDur) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
@@ -351,7 +351,7 @@ function triggerPetSkill(g, pet, idx) {
         let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||300) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:ATTR_COLOR[sk.attr]?.main||V.TH.danger, t:0, alpha:1 })
+        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:(ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main)||V.TH.danger, t:0, alpha:1 })
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||40) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
         if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
@@ -366,7 +366,7 @@ function triggerPetSkill(g, pet, idx) {
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           totalDmg += dmg
           const offY = (h - (hits-1)/2) * 12*S
-          g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:g._getEnemyCenterY()+offY, text:`-${dmg}`, color:ATTR_COLOR[sk.attr||pet.attr]?.main||V.TH.danger, t:h*4, alpha:1 })
+          g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:g._getEnemyCenterY()+offY, text:`-${dmg}`, color:(ATTR_COLOR[sk.attr||pet.attr] && ATTR_COLOR[sk.attr||pet.attr].main)||V.TH.danger, t:h*4, alpha:1 })
         }
         g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
@@ -492,7 +492,7 @@ function triggerPetSkill(g, pet, idx) {
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
           totalTeamDmg += dmg
-          g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S+Math.random()*20*S, text:`-${dmg}`, color:ATTR_COLOR[p.attr]?.main||V.TH.danger, t:0, alpha:1 })
+          g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S+Math.random()*20*S, text:`-${dmg}`, color:(ATTR_COLOR[p.attr] && ATTR_COLOR[p.attr].main)||V.TH.danger, t:0, alpha:1 })
         })
         g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
         g._playHeroAttack(sk.name, pet.attr, 'burst')

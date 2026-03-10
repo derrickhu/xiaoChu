@@ -3,6 +3,7 @@
  * 布局：顶栏 / 场景区（背景+插画+Logo）/ 灵宠展示 / 开始按钮区 / 模式切换浮钮 / 7标签底部导航
  */
 const V = require('./env')
+const P = require('../platform')
 const { ATTR_COLOR } = require('../data/tower')
 const { PETS, getPetAvatarPath } = require('../data/pets')
 
@@ -474,6 +475,140 @@ function drawModeSwitchBtn(g) {
   ctx.restore()
 }
 
+// ===== 右下角侧边栏复访入口（抖音专属） =====
+function _isFromSidebar() {
+  const info = GameGlobal.__launchInfo || {}
+  return info.scene === '021036' && info.launch_from === 'homepage' && info.location === 'sidebar_card'
+}
+
+function drawSidebarBtn(g) {
+  if (!P.isDouyin || !GameGlobal.__sidebarSupported) { g._sidebarBtnRect = null; return }
+
+  const { ctx, R, W, S } = V
+  const L = getLayout()
+
+  const iconSize = L.modeSwitchH * 0.72
+  const labelSize = 11 * S
+  const vGap = 3 * S
+  const btnH = iconSize + vGap + labelSize
+  const btnW = iconSize
+  const btnX = W - L.pad - btnW + 4 * S
+  const btnY = L.modeSwitchY - 6 * S
+
+  ctx.save()
+
+  ctx.fillStyle = 'rgba(20,18,38,0.75)'
+  R.rr(btnX, btnY, btnW, iconSize, 8 * S); ctx.fill()
+  ctx.strokeStyle = 'rgba(200,180,120,0.45)'; ctx.lineWidth = 1.5 * S
+  R.rr(btnX, btnY, btnW, iconSize, 8 * S); ctx.stroke()
+
+  const claimed = g.storage.sidebarRewardClaimedToday
+  const fromSB = _isFromSidebar()
+  const hasReward = fromSB && !claimed
+
+  const icx = btnX + btnW / 2
+  const icy = btnY + iconSize / 2
+  ctx.font = `${iconSize * 0.44}px sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = hasReward ? 'rgba(255,80,80,0.95)' : 'rgba(255,210,80,0.92)'
+  ctx.fillText(hasReward ? '🎁' : '📌', icx, icy)
+
+  if (hasReward) {
+    const dotR = 5 * S
+    ctx.beginPath()
+    ctx.arc(btnX + btnW - 2 * S, btnY + 2 * S, dotR, 0, Math.PI * 2)
+    ctx.fillStyle = '#ff3333'
+    ctx.fill()
+  }
+
+  const labelY = btnY + iconSize + vGap + labelSize * 0.5
+  ctx.fillStyle = 'rgba(255,235,160,0.95)'
+  ctx.strokeStyle = 'rgba(20,10,40,0.7)'
+  ctx.lineWidth = 2.5 * S
+  ctx.font = `bold ${labelSize}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.strokeText('侧边栏', icx, labelY)
+  ctx.fillText('侧边栏', icx, labelY)
+
+  g._sidebarBtnRect = [btnX, btnY, btnW, btnH]
+  ctx.restore()
+}
+
+// ===== 侧边栏复访引导弹窗 =====
+function drawSidebarPanel(g) {
+  if (!g.showSidebarPanel) return
+
+  const { ctx, R, W, H, S } = V
+  const fromSB = _isFromSidebar()
+  const claimed = g.storage.sidebarRewardClaimedToday
+  const canClaim = fromSB && !claimed
+
+  ctx.save()
+
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.78, ph = 200 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
+
+  const bgGrad = ctx.createLinearGradient(px, py, px, py + ph)
+  bgGrad.addColorStop(0, 'rgba(45,30,80,0.97)')
+  bgGrad.addColorStop(1, 'rgba(25,15,50,0.97)')
+  ctx.fillStyle = bgGrad
+  R.rr(px, py, pw, ph, 14 * S); ctx.fill()
+  ctx.strokeStyle = 'rgba(220,185,110,0.6)'; ctx.lineWidth = 2 * S
+  R.rr(px, py, pw, ph, 14 * S); ctx.stroke()
+
+  ctx.fillStyle = '#ffe8a0'
+  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('侧边栏复访奖励', W / 2, py + 28 * S)
+
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'
+  ctx.font = `${12 * S}px "PingFang SC",sans-serif`
+
+  if (canClaim) {
+    ctx.fillText('你从侧边栏进入了游戏！', W / 2, py + 56 * S)
+    ctx.fillStyle = '#ffcc44'
+    ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('🎁 奖励：体力 +30', W / 2, py + 84 * S)
+
+    const btnW2 = pw * 0.55, btnH2 = 38 * S
+    const btnX2 = (W - btnW2) / 2, btnY2 = py + ph - 56 * S
+    R.drawDialogBtn(btnX2, btnY2, btnW2, btnH2, '领取奖励', 'confirm')
+    g._sidebarClaimRect = [btnX2, btnY2, btnW2, btnH2]
+    g._sidebarGoRect = null
+  } else if (claimed) {
+    ctx.fillText('今日奖励已领取，明天再来吧~', W / 2, py + 64 * S)
+    ctx.fillStyle = '#aaa'
+    ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('每天从抖音首页侧边栏进入游戏', W / 2, py + 90 * S)
+    ctx.fillText('即可领取体力奖励', W / 2, py + 108 * S)
+    g._sidebarClaimRect = null
+    g._sidebarGoRect = null
+  } else {
+    ctx.fillText('① 点击下方按钮前往侧边栏', W / 2, py + 54 * S)
+    ctx.fillText('② 在侧边栏找到本游戏并点击进入', W / 2, py + 74 * S)
+    ctx.fillText('③ 返回后即可领取体力奖励', W / 2, py + 94 * S)
+
+    const btnW2 = pw * 0.55, btnH2 = 38 * S
+    const btnX2 = (W - btnW2) / 2, btnY2 = py + ph - 56 * S
+    R.drawDialogBtn(btnX2, btnY2, btnW2, btnH2, '去首页侧边栏', 'confirm')
+    g._sidebarGoRect = [btnX2, btnY2, btnW2, btnH2]
+    g._sidebarClaimRect = null
+  }
+
+  const closeSize = 28 * S
+  const closeX = px + pw - closeSize - 4 * S, closeY = py + 4 * S
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = `${18 * S}px sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('✕', closeX + closeSize / 2, closeY + closeSize / 2)
+  g._sidebarCloseRect = [closeX, closeY, closeSize, closeSize]
+
+  ctx.restore()
+}
+
 // ===== ZONE 5: 底部 7 标签导航 =====
 function drawBottomBar(g) {
   const { ctx, R, W, H, S } = V
@@ -762,9 +897,11 @@ function rTitle(g) {
   drawPetDisplay(g)
   drawStartBtn(g)
   drawModeSwitchBtn(g)
+  drawSidebarBtn(g)
   drawBottomBar(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
+  drawSidebarPanel(g)
 }
 
 module.exports = { rTitle, getLayout, BAR_ITEMS, drawBottomBar }

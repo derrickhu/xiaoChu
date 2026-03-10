@@ -665,13 +665,13 @@ function rEvent(g) {
     ctx.save()
     const _af = g.af || 0
     const glowAlpha = 0.4 + 0.3 * Math.sin(_af * 0.08)
-    ctx.shadowColor = ATTR_COLOR[weakAttr]?.main || '#fff'
+    ctx.shadowColor = (ATTR_COLOR[weakAttr] && ATTR_COLOR[weakAttr].main) || '#fff'
     ctx.shadowBlur = 10*S * glowAlpha
     R.drawBead(bx + orbR2, infoY - 4*S, orbR2, weakAttr, 0)
     ctx.shadowBlur = 0
     // 外圈脉冲光环
     ctx.globalAlpha = glowAlpha * 0.5
-    ctx.strokeStyle = ATTR_COLOR[weakAttr]?.lt || '#fff'
+    ctx.strokeStyle = (ATTR_COLOR[weakAttr] && ATTR_COLOR[weakAttr].lt) || '#fff'
     ctx.lineWidth = 1.5*S
     ctx.beginPath(); ctx.arc(bx + orbR2, infoY - 4*S, orbR2 + 3*S, 0, Math.PI*2); ctx.stroke()
     ctx.restore()

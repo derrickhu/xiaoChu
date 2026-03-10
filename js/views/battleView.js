@@ -790,7 +790,7 @@ function _drawSkillPreviewPopup(g) {
   ctx.fillStyle = 'rgba(16,16,32,0.95)'
   R.rr(popX, popY, popW, popH, 10*S); ctx.fill()
   // 属性色上边条
-  const attrColor = ATTR_COLOR[pet.attr]?.main || TH.accent
+  const attrColor = (ATTR_COLOR[pet.attr] && ATTR_COLOR[pet.attr].main) || TH.accent
   ctx.fillStyle = attrColor
   ctx.save()
   ctx.beginPath(); R.rr(popX, popY, popW, 4*S, 10*S); ctx.clip()
@@ -1335,7 +1335,7 @@ function drawBoard(g) {
       if (!cell) continue
       if (g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c)) {
         const ep = g.elimAnimTimer / 16  // 0→1 消除进度（16帧）
-        const elimColor = ATTR_COLOR[g.elimAnimCells[0].attr]?.main || '#ffffff'
+        const elimColor = (ATTR_COLOR[g.elimAnimCells[0].attr] && ATTR_COLOR[g.elimAnimCells[0].attr].main) || '#ffffff'
         // 阶段1（0-0.3）：高亮放大脉冲
         // 阶段2（0.3-0.7）：缩小 + 属性色发光
         // 阶段3（0.7-1.0）：快速缩到0 + 爆散粒子光效
@@ -1414,7 +1414,7 @@ function drawBoard(g) {
         const convertCell = bca.cells.find(cc => cc.r === r && cc.c === c)
         if (convertCell) {
           const cx = drawX + cs*0.5, cy = drawY + cs*0.5
-          const toColor = ATTR_COLOR[convertCell.toAttr]?.main || '#ffffff'
+          const toColor = (ATTR_COLOR[convertCell.toAttr] && ATTR_COLOR[convertCell.toAttr].main) || '#ffffff'
           ctx.save()
           if (bca.phase === 'charge') {
             // 阶段1：聚能 — 属性色光柱从天而降 + 珠子缩小
@@ -1512,7 +1512,7 @@ function drawBoard(g) {
   }
   if (g.dragging && g.dragAttr) {
     const beadR = (cs - cs*0.08*2) * 0.5
-    const dragColor = ATTR_COLOR[g.dragAttr]?.main || '#ffffff'
+    const dragColor = (ATTR_COLOR[g.dragAttr] && ATTR_COLOR[g.dragAttr].main) || '#ffffff'
 
     // 拖尾粒子（每3帧生成，最多保留12个）
     if (!g._dragTrailParticles) g._dragTrailParticles = []
@@ -1560,7 +1560,7 @@ function drawBoard(g) {
   // 消除冲击波纹（增强版：多层扩散 + 辉光 + 粒子引擎爆发）
   if (g.elimAnimCells && g.elimAnimTimer <= 16) {
     const eP = g.elimAnimTimer / 16
-    const elimAttrColor = ATTR_COLOR[g.elimAnimCells[0]?.attr]?.main || '#ffffff'
+    const elimAttrColor = (g.elimAnimCells[0] && ATTR_COLOR[g.elimAnimCells[0].attr] && ATTR_COLOR[g.elimAnimCells[0].attr].main) || '#ffffff'
     let eCx = 0, eCy = 0
     g.elimAnimCells.forEach(ec => { eCx += bx + ec.c*cs + cs*0.5; eCy += by + ec.r*cs + cs*0.5 })
     eCx /= g.elimAnimCells.length; eCy /= g.elimAnimCells.length

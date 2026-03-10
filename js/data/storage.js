@@ -54,6 +54,7 @@ function defaultPersist() {
     stageClearRecord: {},    // { 'stage_1_1': { cleared: true, bestRating: 'S', clearCount: 5 } }
     dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
     savedStageTeam: [],      // 持久化保存的编队（灵宠ID列表）
+    sidebarRewardDate: '',   // 侧边栏复访奖励最后领取日期
   }
 }
 
@@ -428,6 +429,23 @@ class Storage {
     }
   }
 
+  // ===== 侧边栏复访奖励（抖音必接） =====
+
+  get sidebarRewardClaimedToday() {
+    const today = new Date().toISOString().slice(0, 10)
+    return this._d.sidebarRewardDate === today
+  }
+
+  claimSidebarReward() {
+    if (this.sidebarRewardClaimedToday) return false
+    this._recoverStamina()
+    const s = this._d.stamina
+    s.current = Math.min(s.max, s.current + 30)
+    this._d.sidebarRewardDate = new Date().toISOString().slice(0, 10)
+    this._save()
+    return true
+  }
+
   // ===== 固定关卡记录 =====
 
   get stageClearRecord() {
@@ -435,15 +453,15 @@ class Storage {
   }
 
   isStageCleared(stageId) {
-    return !!(this._d.stageClearRecord && this._d.stageClearRecord[stageId]?.cleared)
+    return !!(this._d.stageClearRecord && this._d.stageClearRecord[stageId] && this._d.stageClearRecord[stageId].cleared)
   }
 
   getStageBestRating(stageId) {
-    return this._d.stageClearRecord?.[stageId]?.bestRating || null
+    return (this._d.stageClearRecord && this._d.stageClearRecord[stageId] && this._d.stageClearRecord[stageId].bestRating) || null
   }
 
   getStageClearCount(stageId) {
-    return this._d.stageClearRecord?.[stageId]?.clearCount || 0
+    return (this._d.stageClearRecord && this._d.stageClearRecord[stageId] && this._d.stageClearRecord[stageId].clearCount) || 0
   }
 
   recordStageClear(stageId, rating, isFirst) {
@@ -961,6 +979,7 @@ class Storage {
     if (!this._d.stageClearRecord) this._d.stageClearRecord = {}
     if (!this._d.dailyChallenges) this._d.dailyChallenges = { date: '', counts: {} }
     if (!this._d.savedStageTeam) this._d.savedStageTeam = []
+    if (!this._d.sidebarRewardDate) this._d.sidebarRewardDate = ''
   }
 
   _save() {

@@ -68,6 +68,9 @@ const platform = {
   onTouchEnd:             (cb)   => base.onTouchEnd(cb),
   request:                (opts) => base.request(opts),
   login:                  (opts) => base.login(opts),
+  onShow:                 typeof base.onShow === 'function' ? (cb) => base.onShow(cb) : _noop,
+  checkScene:             typeof base.checkScene === 'function' ? (opts) => base.checkScene(opts) : (opts) => { if (opts && opts.fail) opts.fail() },
+  navigateToScene:        typeof base.navigateToScene === 'function' ? (opts) => base.navigateToScene(opts) : (opts) => { if (opts && opts.fail) opts.fail({ errMsg: 'not supported' }) },
 
   // ========== 第二层：轻度适配 ==========
   shareAppMessage:  (opts) => base.shareAppMessage(opts),

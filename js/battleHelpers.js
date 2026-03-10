@@ -38,7 +38,7 @@ function playHeroAttack(g, skillName, attr, type) {
   g._hitStopFrames = 3
   // 屏幕闪白
   g._screenFlash = 4; g._screenFlashMax = 4; g._screenFlashColor = '#fff'
-  const color = ATTR_COLOR[attr]?.main || TH.accent
+  const color = (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || TH.accent
   const eCenterY = getEnemyCenterY()
   g.skillCastAnim = { active:true, progress:0, duration:30, type:type||'slash', color, skillName:skillName||'', targetX:V.W*0.5, targetY:eCenterY }
 }

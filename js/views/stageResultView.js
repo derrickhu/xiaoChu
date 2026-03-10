@@ -126,7 +126,7 @@ function rStageResult(g) {
       if (r.type === 'fragment' && r.petId) {
         const pet = getPetById(r.petId)
         const name = pet ? pet.name : r.petId
-        const attrColor = pet ? (ATTR_COLOR[pet.attr]?.main || '#ccc') : '#ccc'
+        const attrColor = pet ? ((ATTR_COLOR[pet.attr] && ATTR_COLOR[pet.attr].main) || '#ccc') : '#ccc'
         c.fillStyle = attrColor; c.font = `${10*S}px "PingFang SC",sans-serif`
         c.fillText(`  ${name}碎片  ×${r.count}`, px + pad + 8 * S, cy + 4 * S)
       } else if (r.type === 'exp') {

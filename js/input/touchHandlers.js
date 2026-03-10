@@ -3,6 +3,7 @@
  * 所有函数接收 g (Main实例) 以读写状态
  */
 const V = require('../views/env')
+const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const { generateRewards, MAX_FLOOR } = require('../data/tower')
 const { hasSameIdOnTeam, petHasSkill } = require('../data/pets')
@@ -13,6 +14,31 @@ const { killExpBase } = require('../data/cultivationConfig')
 
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
+
+  // ⓪ 侧边栏复访弹窗（最高优先级）
+  if (g.showSidebarPanel) {
+    if (g._sidebarClaimRect && g._hitRect(x, y, ...g._sidebarClaimRect)) {
+      const ok = g.storage.claimSidebarReward()
+      if (ok) console.log('[Sidebar] 领取侧边栏复访奖励：体力+30')
+      g.showSidebarPanel = false
+      return
+    }
+    if (g._sidebarGoRect && g._hitRect(x, y, ...g._sidebarGoRect)) {
+      P.navigateToScene({
+        scene: 'sidebar',
+        success: () => console.log('[Sidebar] navigateToScene success'),
+        fail: (e) => console.log('[Sidebar] navigateToScene fail:', JSON.stringify(e))
+      })
+      g.showSidebarPanel = false
+      return
+    }
+    if (g._sidebarCloseRect && g._hitRect(x, y, ...g._sidebarCloseRect)) {
+      g.showSidebarPanel = false
+      return
+    }
+    g.showSidebarPanel = false
+    return
+  }
 
   // ① 「更多」面板（最高优先级）
   if (g.showMorePanel) {
@@ -102,6 +128,11 @@ function tTitle(g, type, x, y) {
   // ⑤ 左下角模式切换浮钮
   if (g._modeSwitchRect && g._hitRect(x,y,...g._modeSwitchRect)) {
     g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
+  }
+
+  // ⑤b 右下角侧边栏复访入口（抖音专属）
+  if (g._sidebarBtnRect && g._hitRect(x, y, ...g._sidebarBtnRect)) {
+    g.showSidebarPanel = true; return
   }
 
   // ⑥ 底部 7 标签导航

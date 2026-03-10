@@ -25,7 +25,7 @@ function _request(method, path, data) {
         if (res.statusCode === 200 && res.data && res.data.code === 0) {
           resolve(res.data)
         } else {
-          reject(new Error(res.data?.msg || 'request failed'))
+          reject(new Error((res.data && res.data.msg) || 'request failed'))
         }
       },
       fail: (err) => reject(new Error(err.errMsg || 'network error')),

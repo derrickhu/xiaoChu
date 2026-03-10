@@ -312,7 +312,7 @@ function startNextElimAnim(g) {
     const aoeDmg = Math.round(g.enemy.maxHp * 0.1)
     g.enemy.hp = Math.max(0, g.enemy.hp - aoeDmg)
     const { W, S } = V
-    g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:ATTR_COLOR[attr]?.main||'#ff6347', t:0, alpha:1 })
+    g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:(ATTR_COLOR[attr] && ATTR_COLOR[attr].main)||'#ff6347', t:0, alpha:1 })
     g.shakeT = 6; g.shakeI = 4
     if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }

@@ -263,7 +263,7 @@ function pickFragmentTarget(g, poolScope) {
     // 按章节属性筛选候选（如果有匹配的话）
     const stage = getStageById(g._stageId)
     if (stage && stage.waves.length) {
-      const stageAttr = stage.waves[0].enemies[0]?.attr
+      const stageAttr = stage.waves[0].enemies[0] && stage.waves[0].enemies[0].attr
       const attrFiltered = candidates.filter(p => p.attr === stageAttr)
       if (attrFiltered.length > 0) candidates = attrFiltered
     }

@@ -48,7 +48,7 @@ canvas.height = _winInfo.windowHeight * dpr
 const W = canvas.width, H = canvas.height
 const S = W / 375
 console.log(`[Canvas] ${W}x${H}, dpr=${dpr}, S=${S.toFixed(2)}, platform=${_devInfo.platform}`)
-const safeTop = (_winInfo.safeArea?.top || 20) * dpr
+const safeTop = ((_winInfo.safeArea && _winInfo.safeArea.top) || 20) * dpr
 
 const COLS = 6, ROWS = 5
 const R = new Render(ctx, W, H, S, safeTop)

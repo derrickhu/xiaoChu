@@ -4,6 +4,26 @@ console.log('灵宠消消塔开始初始化...')
 const P = (typeof tt !== 'undefined') ? tt : wx
 GameGlobal.__platform = P
 
+// 侧边栏复访（抖音必接）：必须在 game.js 运行时机同步监听 onShow
+GameGlobal.__launchInfo = {}
+GameGlobal.__sidebarSupported = false
+if (typeof P.onShow === 'function') {
+  P.onShow(function (res) {
+    console.log('[Sidebar] onShow:', JSON.stringify(res))
+    GameGlobal.__launchInfo = res || {}
+  })
+}
+if (typeof P.checkScene === 'function') {
+  P.checkScene({
+    scene: 'sidebar',
+    success: function (res) {
+      GameGlobal.__sidebarSupported = !!(res && res.isExist)
+      console.log('[Sidebar] checkScene supported:', GameGlobal.__sidebarSupported)
+    },
+    fail: function () { GameGlobal.__sidebarSupported = false }
+  })
+}
+
 // 兼容：抖音无 getWindowInfo，用 getSystemInfoSync 代替
 function _getWinInfo() {
   if (typeof P.getWindowInfo === 'function') return P.getWindowInfo()
@@ -57,7 +77,7 @@ function tryStartGame() {
     ctx.textAlign = 'left'; ctx.textBaseline = 'top'
     ctx.fillText('游戏初始化失败', 20, 20)
     ctx.fillText(e.message, 20, 50)
-    ctx.fillText(e.stack?.substring(0,200), 20, 80)
+    ctx.fillText(e.stack ? e.stack.substring(0,200) : '', 20, 80)
     P.showModal({ title: '初始化失败', content: e.message, showCancel: false })
   }
 }

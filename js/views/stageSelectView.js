@@ -114,7 +114,8 @@ function rStageSelect(g) {
         c.fillText(`🔒 ${stage.name}`, indent, midY - 6 * S)
         if (stage.unlockCondition && stage.unlockCondition.prevStage) {
           c.fillStyle = '#555'; c.font = `${9*S}px "PingFang SC",sans-serif`
-          const prevName = stages.find(s => s.id === stage.unlockCondition.prevStage)?.name || '前置关卡'
+          const _prev = stages.find(s => s.id === stage.unlockCondition.prevStage)
+          const prevName = (_prev && _prev.name) || '前置关卡'
           c.fillText(`需通关：${prevName}`, indent, midY + 10 * S)
         }
       } else {

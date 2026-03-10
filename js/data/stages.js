@@ -382,7 +382,7 @@ function isStageUnlocked(stageId, clearRecord, poolCount) {
 function getStageAttr(stageId) {
   const stage = getStageById(stageId)
   if (!stage || !stage.waves.length) return null
-  return stage.waves[0].enemies[0]?.attr || null
+  return (stage.waves[0].enemies[0] && stage.waves[0].enemies[0].attr) || null
 }
 
 /** 获取下一关 ID（同章节 order+1，或下一章节第一关） */
