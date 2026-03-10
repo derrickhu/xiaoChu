@@ -11,7 +11,7 @@ router.use(authMiddleware)
 // GET /api/player/data — 拉取云端存档
 router.get('/data', async (req, res) => {
   try {
-    const col = getDb().collection('players')
+    const col = (await getDb()).collection('players')
     const doc = await col.findOne({
       platform: req.userPlatform,
       platformOpenId: req.userOpenId,
@@ -29,7 +29,7 @@ router.post('/sync', async (req, res) => {
   if (!localData) return res.json({ code: -1, msg: 'missing data' })
 
   try {
-    const col = getDb().collection('players')
+    const col = (await getDb()).collection('players')
     const filter = {
       platform: req.userPlatform,
       platformOpenId: req.userOpenId,

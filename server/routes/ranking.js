@@ -14,7 +14,7 @@ router.post('/submit', async (req, res) => {
   const { action, nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = req.body
 
   try {
-    const col = getDb().collection('rankings')
+    const col = (await getDb()).collection('rankings')
     const filter = {
       platform: req.userPlatform,
       platformOpenId: req.userOpenId,
@@ -93,7 +93,7 @@ router.get('/list', async (req, res) => {
   const sort = sortMap[tab] || sortMap.all
 
   try {
-    const col = getDb().collection('rankings')
+    const col = (await getDb()).collection('rankings')
     const list = await col.find({})
       .sort(sort)
       .limit(limit)

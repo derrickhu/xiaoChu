@@ -27,8 +27,8 @@ async function _ensureIndexes() {
   console.log('[DB] Indexes ensured')
 }
 
-function getDb() {
-  if (!_db) throw new Error('Database not connected')
+async function getDb() {
+  if (!_db) await connect()
   return _db
 }
 
