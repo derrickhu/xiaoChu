@@ -93,14 +93,7 @@ const platform = {
   openSetting: isWeChat
     ? (opts) => base.openSetting(opts)
     : (opts) => { if (opts && opts.fail) opts.fail() },
-  getUserInfo: isWeChat
-    ? (opts) => base.getUserInfo(opts)
-    : (opts) => { if (opts && opts.fail) opts.fail() },
-
-  // 抖音专属：获取用户信息（必须在 tap 事件中调用）
-  getUserProfile: isDouyin && typeof base.getUserProfile === 'function'
-    ? (opts) => base.getUserProfile(opts)
-    : null,
+  getUserInfo: (opts) => base.getUserInfo(opts),
 
   // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
   cloud: isWeChat ? base.cloud : _mockCloud,

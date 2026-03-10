@@ -708,16 +708,15 @@ class Storage {
   }
 
   /**
-   * 抖音端获取用户信息（必须在 tap 事件回调中调用）
+   * 抖音端获取用户信息（通过 tt.getUserInfo）
    * 成功后更新 userInfo 和 userAuthorized
    */
-  requestDouyinUserProfile(callback) {
-    if (!P.getUserProfile) {
-      if (callback) callback(false)
-      return
-    }
-    P.getUserProfile({
+  requestDouyinUserInfo(callback) {
+    console.log('[Douyin] 尝试获取用户信息...')
+    P.getUserInfo({
+      withCredentials: false,
       success: (res) => {
+        console.log('[Douyin] getUserInfo 返回:', JSON.stringify(res).slice(0, 300))
         if (res.userInfo && res.userInfo.nickName) {
           const info = {
             nickName: res.userInfo.nickName,
@@ -727,12 +726,12 @@ class Storage {
           this._saveUserInfo(info)
           if (callback) callback(true, info)
         } else {
-          console.warn('[Douyin] getUserProfile 返回空信息')
+          console.warn('[Douyin] getUserInfo 返回空信息')
           if (callback) callback(false)
         }
       },
       fail: (err) => {
-        console.warn('[Douyin] getUserProfile 失败:', err.errMsg || err)
+        console.warn('[Douyin] getUserInfo 失败:', err.errMsg || err)
         if (callback) callback(false)
       },
     })
