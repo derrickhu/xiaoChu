@@ -23,6 +23,27 @@ const _mockCloud = {
   callFunction: _noopAsync,
 }
 
+// 抖音没有 getWindowInfo / getDeviceInfo，用 getSystemInfoSync 兼容
+function _getWindowInfo() {
+  if (typeof base.getWindowInfo === 'function') return base.getWindowInfo()
+  const sys = base.getSystemInfoSync()
+  return {
+    windowWidth: sys.windowWidth || sys.screenWidth,
+    windowHeight: sys.windowHeight || sys.screenHeight,
+    pixelRatio: sys.pixelRatio || 2,
+    safeArea: sys.safeArea || { top: 0 },
+  }
+}
+function _getDeviceInfo() {
+  if (typeof base.getDeviceInfo === 'function') return base.getDeviceInfo()
+  const sys = base.getSystemInfoSync()
+  return {
+    platform: sys.platform || 'unknown',
+    brand: sys.brand || '',
+    model: sys.model || '',
+  }
+}
+
 const platform = {
   name: isDouyin ? 'douyin' : 'wechat',
   isDouyin,
@@ -32,8 +53,8 @@ const platform = {
   createCanvas:           (...a) => base.createCanvas(...a),
   createImage:            (...a) => base.createImage(...a),
   createOffscreenCanvas:  (...a) => base.createOffscreenCanvas(...a),
-  getWindowInfo:          ()     => base.getWindowInfo(),
-  getDeviceInfo:          ()     => base.getDeviceInfo(),
+  getWindowInfo:          ()     => _getWindowInfo(),
+  getDeviceInfo:          ()     => _getDeviceInfo(),
   loadSubpackage:         (opts) => base.loadSubpackage(opts),
   showModal:              (opts) => base.showModal(opts),
   getStorageSync:         (k)    => base.getStorageSync(k),

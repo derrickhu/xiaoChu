@@ -4,13 +4,20 @@ console.log('灵宠消消塔开始初始化...')
 const P = (typeof tt !== 'undefined') ? tt : wx
 GameGlobal.__platform = P
 
+// 兼容：抖音无 getWindowInfo，用 getSystemInfoSync 代替
+function _getWinInfo() {
+  if (typeof P.getWindowInfo === 'function') return P.getWindowInfo()
+  const s = P.getSystemInfoSync()
+  return { windowWidth: s.windowWidth || s.screenWidth, windowHeight: s.windowHeight || s.screenHeight, pixelRatio: s.pixelRatio || 2, safeArea: s.safeArea || { top: 0 } }
+}
+
 // 创建主Canvas并挂到全局，供main.js复用
 const _canvas = P.createCanvas()
 GameGlobal.__mainCanvas = _canvas
 
 // 立即填充背景色，然后加载主包内的 loading 背景图覆盖上去
 const _ctx = _canvas.getContext('2d')
-const _winInfo = P.getWindowInfo()
+const _winInfo = _getWinInfo()
 const _dpr = _winInfo.pixelRatio || 2
 _canvas.width = _winInfo.windowWidth * _dpr
 _canvas.height = _winInfo.windowHeight * _dpr
