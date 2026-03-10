@@ -140,6 +140,11 @@ class Storage {
     this.rankLastFetchTab = '' // 上次拉取的tab
     this._load()
     this._loadUserInfo()
+    // 抖音端没有 createUserInfoButton，直接以游客身份允许提交
+    if (P.isDouyin && !this.userAuthorized) {
+      this.userInfo = { nickName: '冒险者', avatarUrl: '' }
+      this.userAuthorized = true
+    }
     this._initCloud()
   }
 
