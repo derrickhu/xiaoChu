@@ -310,44 +310,15 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
   }
 
-  // === 头像右侧：星星竖排 ===
-  const sideX = avatarX + avatarSize + 6 * S
-  const starSize = 16 * S
-  const starGap = 2 * S
-  const totalStarH = maxStar * starSize + (maxStar - 1) * starGap
-  const starStartY = avatarY + (avatarSize - totalStarH) / 2
-  for (let i = 0; i < maxStar; i++) {
-    const sy = starStartY + i * (starSize + starGap)
-    const filled = i < poolPet.star
-    c.font = `${starSize}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    if (filled) {
-      // 亮星：金黄色描边+填充
-      c.strokeStyle = 'rgba(0,0,0,0.6)'
-      c.lineWidth = 2.5 * S
-      c.strokeText('★', sideX, sy)
-      c.fillStyle = '#FFD700'
-      c.fillText('★', sideX, sy)
-    } else {
-      // 暗星：白色半透明
-      c.strokeStyle = 'rgba(0,0,0,0.4)'
-      c.lineWidth = 2 * S
-      c.strokeText('☆', sideX, sy)
-      c.fillStyle = 'rgba(255,255,255,0.35)'
-      c.fillText('☆', sideX, sy)
-    }
-  }
-
-  // === 名称区域（头像下方）：转珠 + 名称 + 档位 ===
-  let cy = avatarY + avatarSize + 10 * S
+  // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
+  let cy = avatarY + avatarSize + 6 * S
 
   const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
   const orbImg = R.getImg(orbPath)
   const orbSz = 22 * S
-  const tierColor = tier === 'T1' ? '#FFD700' : tier === 'T2' ? '#8DF' : '#AAA'
   c.font = `bold ${20*S}px "PingFang SC",sans-serif`
   const nameW = c.measureText(basePet.name).width
-  // 改为显示等级标签（Lv.X），不显示T几
+  // 等级标签
   const lvLabel = `Lv.${poolPet.level}`
   c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   const lvLabelTagW = c.measureText(lvLabel).width + 10 * S
@@ -373,19 +344,35 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = '#fff'
   c.fillText(basePet.name, nameX, cy)
 
-  // 等级标签（名称右侧）
+  // 等级标签（名称右侧，醒目白底深色字）
   const tierTagX = nameX + nameW + nameGap
   const tierTagY = cy + 3 * S
-  c.fillStyle = '#FFD700' + '30'
+  c.fillStyle = 'rgba(255,255,255,0.85)'
   R.rr(tierTagX, tierTagY, tierTagW, tierTagH, 4 * S); c.fill()
-  c.strokeStyle = '#FFD700' + '80'; c.lineWidth = 1 * S
+  c.strokeStyle = 'rgba(0,0,0,0.2)'; c.lineWidth = 1 * S
   R.rr(tierTagX, tierTagY, tierTagW, tierTagH, 4 * S); c.stroke()
-  c.fillStyle = '#FFD700'
+  c.fillStyle = '#5A4530'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(lvLabel, tierTagX + tierTagW / 2, tierTagY + tierTagH / 2)
 
-  cy += 28 * S
+  cy += 24 * S
+
+  // === 星星（名称下方，居中横排） ===
+  const starSize = 14 * S
+  c.font = `${starSize}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  let starTotalStr = ''
+  for (let i = 0; i < maxStar; i++) starTotalStr += '★'
+  const starTotalW = c.measureText(starTotalStr).width
+  let starDrawX = (W - starTotalW) / 2
+  for (let i = 0; i < maxStar; i++) {
+    c.fillStyle = i < poolPet.star ? '#FFD700' : 'rgba(120,120,120,0.6)'
+    c.fillText('★', starDrawX, cy)
+    starDrawX += c.measureText('★').width
+  }
+
+  cy += starSize + 6 * S
 
   // === 下方信息卡片区域（两个区块） ===
   const cardX = 6 * S
@@ -419,7 +406,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   // pet_card_bg 有装饰性边框（金色花纹+祥云），按卡片尺寸比例计算内边距
   const borderL = Math.round(cardW * 0.25)   // 左边框 ~25%
   const borderR = Math.round(cardW * 0.10)   // 右边框 ~10%
-  const borderT = Math.round(cardH * 0.09)   // 顶部边框 ~9%
+  const borderT = Math.round(cardH * 0.15)   // 顶部边框 ~15%（继续下移）
   const borderB = Math.round(cardH * 0.14)   // 底部祥云 ~14%
   const indent = cardX + borderL
   const rightEdge = cardX + cardW - borderR
@@ -601,9 +588,16 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = '#5A4530'
     c.font = `bold ${fTitle}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'top'
-    let nextStarStr = ''
-    for (let i = 0; i < maxStar; i++) nextStarStr += i < nextStar ? '★' : '☆'
-    c.fillText(`升至 ${nextStarStr}`, indent, cy)
+    const starUpLabel = '升至 '
+    const starUpLabelW = c.measureText(starUpLabel).width
+    c.fillText(starUpLabel, indent, cy)
+    // 星星逐个绘制：满星黄色，空星深灰色，统一用★
+    let starX = indent + starUpLabelW
+    for (let i = 0; i < maxStar; i++) {
+      c.fillStyle = i < nextStar ? '#FFD700' : 'rgba(120,120,120,0.6)'
+      c.fillText('★', starX, cy)
+      starX += c.measureText('★').width
+    }
     cy += fTitle + gap * 0.6
 
     c.fillStyle = lvOk ? '#2E8B2E' : '#CC3333'
@@ -632,12 +626,19 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       if (isCurrentPet) _rects.decomposeBtnRect = [dBtnX, cy, dBtnW, btnH]
     }
   } else {
-    c.fillStyle = '#B8860B'
+    c.fillStyle = '#5A4530'
     c.font = `bold ${fTitle}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'top'
+    const fullLabel = '满星 '
+    const fullLabelW = c.measureText(fullLabel).width
+    c.fillText(fullLabel, indent, cy)
+    // 满星星星：黄色填充，无描边
+    c.fillStyle = '#FFD700'
     let fullStarStr = ''
     for (let i = 0; i < maxStar; i++) fullStarStr += '★'
-    c.fillText(`满星 ${fullStarStr}`, indent, cy)
+    c.fillText(fullStarStr, indent + fullLabelW, cy)
+    c.fillStyle = '#FFD700'
+    c.fillText(fullStarStr, indent + fullLabelW, cy)
     cy += fTitle + gap * 0.6
     c.fillStyle = 'rgba(90,70,40,0.75)'
     c.font = `${fBody}px "PingFang SC",sans-serif`

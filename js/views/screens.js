@@ -1636,7 +1636,6 @@ const DEX_ATTR_LABEL = { metal:'金', wood:'木', water:'水', fire:'火', earth
 function rDex(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0,0,W,H)
 
   // 标题
   ctx.save()
@@ -1730,6 +1729,9 @@ function rDex(g) {
             if (iR > 1) { dh = imgSz / iR } else { dw = imgSz * iR }
             ctx.drawImage(img, cx+imgPad+(imgSz-dw)/2, cy+imgPad+(imgSz-dh)/2, dw, dh)
             ctx.restore()
+            // 半透明白色遮罩层（类似未解锁的灰色效果）
+            ctx.fillStyle = 'rgba(255,255,255,0.15)'
+            ctx.beginPath(); R.rr(cx+imgPad, cy+imgPad, imgSz, imgSz, 3*S); ctx.fill()
           }
           // 金色边框
           ctx.strokeStyle = ac.main + '88'; ctx.lineWidth = 1*S

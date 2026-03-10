@@ -329,6 +329,10 @@ function resumeRun(g) {
     g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
   }
   g.curEvent = s.curEvent
+  // 兜底：如果存档中 curEvent 为空，重新生成当前层事件
+  if (!g.curEvent) {
+    g.curEvent = generateFloorEvent(g.floor)
+  }
   g.storage.clearRunState()
   g.prepareTab = 'pets'
   g.prepareSelBagIdx = -1

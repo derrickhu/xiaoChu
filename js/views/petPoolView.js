@@ -301,16 +301,22 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.fillStyle = '#fff'
   c.fillText(displayName, x + w / 2, nameY)
 
-  // 星级（加深色描边）
+  // 星级（逐个绘制：满星黄色，空星深灰色，统一用★）
   const starY = nameY + 14 * S
-  let starStr = ''
-  for (let i = 0; i < 3; i++) starStr += i < poolPet.star ? '★' : '☆'
   c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.strokeStyle = 'rgba(0,0,0,0.7)'
-  c.lineWidth = 2.5 * S
-  c.strokeText(starStr, x + w / 2, starY)
-  c.fillStyle = '#ffd700'
-  c.fillText(starStr, x + w / 2, starY)
+  c.textAlign = 'center'
+  // 先计算总宽度用于居中
+  let starStr = ''
+  for (let i = 0; i < 3; i++) starStr += '★'
+  const totalStarW = c.measureText(starStr).width
+  let starX = x + w / 2 - totalStarW / 2
+  c.textAlign = 'left'
+  for (let i = 0; i < 3; i++) {
+    c.fillStyle = i < poolPet.star ? '#ffd700' : 'rgba(120,120,120,0.6)'
+    c.fillText('★', starX, starY)
+    starX += c.measureText('★').width
+  }
+  c.textAlign = 'center'
 
   // 等级 + ATK（加深色描边）
   const infoY = starY + 14 * S
