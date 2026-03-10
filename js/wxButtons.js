@@ -8,6 +8,8 @@ const P = require('./platform')
 function updateAuthBtn(g, dpr) {
   if (g.scene !== 'title') { g.storage.destroyUserInfoBtn(); return }
   if (g.storage.userAuthorized) { g.storage.destroyUserInfoBtn(); return }
+  // 抖音端不需要透明按钮，通过 touchHandlers 中的点击触发 getUserProfile
+  if (P.isDouyin) return
   // 「更多」面板或弹窗打开时，隐藏授权按钮避免遮挡
   if (g.showMorePanel || g.showNewRunConfirm) { g.storage.destroyUserInfoBtn(); return }
   const btnRect = g._rankBtnRect

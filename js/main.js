@@ -349,6 +349,12 @@ class Main {
     const t0 = Date.now()
     console.log('[Ranking] 打开排行榜, cloudReady=', this.storage._cloudReady, 'authorized=', this.storage.userAuthorized)
     this.storage.destroyUserInfoBtn()
+    // 抖音端：首次进排行榜时尝试获取真实用户信息（在 tap 事件链中）
+    if (P.isDouyin && this.storage.userInfo && this.storage.userInfo.nickName === '冒险者') {
+      this.storage.requestDouyinUserProfile((ok, info) => {
+        if (ok) console.log('[Ranking] 抖音授权成功:', info.nickName)
+      })
+    }
     this.rankTab = 'all'
     this.rankScrollY = 0
     this.scene = 'ranking'

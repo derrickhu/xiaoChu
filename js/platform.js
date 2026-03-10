@@ -52,7 +52,9 @@ const platform = {
   // ========== 第一层：直接透传（wx/tt 完全一致） ==========
   createCanvas:           (...a) => base.createCanvas(...a),
   createImage:            (...a) => base.createImage(...a),
-  createOffscreenCanvas:  (...a) => base.createOffscreenCanvas(...a),
+  createOffscreenCanvas:  typeof base.createOffscreenCanvas === 'function'
+    ? (...a) => base.createOffscreenCanvas(...a)
+    : null,
   getWindowInfo:          ()     => _getWindowInfo(),
   getDeviceInfo:          ()     => _getDeviceInfo(),
   loadSubpackage:         (opts) => base.loadSubpackage(opts),
@@ -84,7 +86,7 @@ const platform = {
     ? (opts) => base.createUserInfoButton(opts)
     : () => null,
 
-  // 设置与授权（抖音端静默返回）
+  // 设置与授权
   getSetting: isWeChat
     ? (opts) => base.getSetting(opts)
     : (opts) => { if (opts && opts.success) opts.success({ authSetting: {} }) },
@@ -94,6 +96,11 @@ const platform = {
   getUserInfo: isWeChat
     ? (opts) => base.getUserInfo(opts)
     : (opts) => { if (opts && opts.fail) opts.fail() },
+
+  // 抖音专属：获取用户信息（必须在 tap 事件中调用）
+  getUserProfile: isDouyin && typeof base.getUserProfile === 'function'
+    ? (opts) => base.getUserProfile(opts)
+    : null,
 
   // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
   cloud: isWeChat ? base.cloud : _mockCloud,

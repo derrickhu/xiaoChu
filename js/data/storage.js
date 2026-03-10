@@ -140,7 +140,8 @@ class Storage {
     this.rankLastFetchTab = '' // 上次拉取的tab
     this._load()
     this._loadUserInfo()
-    // 抖音端没有 createUserInfoButton，直接以游客身份允许提交
+    // 抖音端没有 createUserInfoButton，先用默认身份允许提交
+    // 后续通过 requestDouyinUserProfile 在 tap 事件中获取真实信息
     if (P.isDouyin && !this.userAuthorized) {
       this.userInfo = { nickName: '冒险者', avatarUrl: '' }
       this.userAuthorized = true
@@ -703,6 +704,37 @@ class Storage {
         }
       },
       fail: () => { if (callback) callback(false, null) }
+    })
+  }
+
+  /**
+   * 抖音端获取用户信息（必须在 tap 事件回调中调用）
+   * 成功后更新 userInfo 和 userAuthorized
+   */
+  requestDouyinUserProfile(callback) {
+    if (!P.getUserProfile) {
+      if (callback) callback(false)
+      return
+    }
+    P.getUserProfile({
+      success: (res) => {
+        if (res.userInfo && res.userInfo.nickName) {
+          const info = {
+            nickName: res.userInfo.nickName,
+            avatarUrl: res.userInfo.avatarUrl || '',
+          }
+          console.log('[Douyin] 获取用户信息成功:', info.nickName)
+          this._saveUserInfo(info)
+          if (callback) callback(true, info)
+        } else {
+          console.warn('[Douyin] getUserProfile 返回空信息')
+          if (callback) callback(false)
+        }
+      },
+      fail: (err) => {
+        console.warn('[Douyin] getUserProfile 失败:', err.errMsg || err)
+        if (callback) callback(false)
+      },
     })
   }
 
