@@ -40,12 +40,6 @@ const api = {
    */
   login() {
     return new Promise((resolve, reject) => {
-      if (P.isDouyin) {
-        // 抖音云自动注入 openid，无需登录
-        _token = ''
-        return resolve({ code: 0, msg: 'douyin auto-auth' })
-      }
-
       P.login({
         success: async (loginRes) => {
           try {
@@ -54,12 +48,19 @@ const api = {
               code: loginRes.code,
             })
             _token = result.token
+            console.log('[API] 登录成功, platform=', P.name)
             resolve(result)
           } catch (e) {
-            reject(e)
+            console.warn('[API] 登录换 token 失败，尝试无 token 模式:', e.message)
+            _token = ''
+            resolve({ code: 0, msg: 'fallback' })
           }
         },
-        fail: (err) => reject(new Error(err.errMsg || 'login failed')),
+        fail: (err) => {
+          console.warn('[API] P.login 失败:', err.errMsg || err)
+          _token = ''
+          resolve({ code: 0, msg: 'login skipped' })
+        },
       })
     })
   },
