@@ -17,7 +17,7 @@ async function connect() {
 
 async function _ensureIndexes() {
   const rankings = _db.collection('rankings')
-  await rankings.createIndex({ bestFloor: -1, updatedAt: -1 })
+  await rankings.createIndex({ floor: -1, totalTurns: 1, updatedAt: -1 })
   await rankings.createIndex({ petDexCount: -1, updatedAt: -1 })
   await rankings.createIndex({ maxCombo: -1, updatedAt: -1 })
   await rankings.createIndex({ platform: 1, platformOpenId: 1 }, { unique: true })

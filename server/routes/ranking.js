@@ -1,5 +1,6 @@
 /**
- * 排行榜接口 — 通关榜/图鉴榜/连击榜
+ * 排行榜接口 — 速通榜/图鉴榜/连击榜
+ * 字段命名与微信云函数保持一致：floor, totalTurns, petDexCount, maxCombo
  */
 const express = require('express')
 const { getDb } = require('../db')
@@ -8,9 +9,9 @@ const router = express.Router()
 
 router.use(authMiddleware)
 
-// POST /api/ranking/submit — 提交/更新排行榜分数
+// POST /api/ranking/submit — 提交/更新分数（支持 submit 和 submitDexCombo）
 router.post('/submit', async (req, res) => {
-  const { nickName, avatarUrl, bestFloor, petDexCount, maxCombo, bestTotalTurns, pets, weapon } = req.body
+  const { action, nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = req.body
 
   try {
     const col = getDb().collection('rankings')
@@ -19,37 +20,60 @@ router.post('/submit', async (req, res) => {
       platformOpenId: req.userOpenId,
     }
 
-    const update = {
-      $set: {
-        ...filter,
-        nickName: nickName || '冒险者',
-        avatarUrl: avatarUrl || '',
-        bestFloor: bestFloor || 0,
-        petDexCount: petDexCount || 0,
-        maxCombo: maxCombo || 0,
-        bestTotalTurns: bestTotalTurns || 0,
-        pets: pets || [],
-        weapon: weapon || null,
-        updatedAt: Date.now(),
-      },
-    }
-
-    // 只允许分数变好，不允许变差
     const existing = await col.findOne(filter)
-    if (existing) {
-      const s = update.$set
-      s.bestFloor = Math.max(existing.bestFloor || 0, s.bestFloor)
-      s.petDexCount = Math.max(existing.petDexCount || 0, s.petDexCount)
-      s.maxCombo = Math.max(existing.maxCombo || 0, s.maxCombo)
-      if ((existing.bestTotalTurns || 0) > 0 && s.bestTotalTurns > 0) {
-        s.bestTotalTurns = Math.min(existing.bestTotalTurns, s.bestTotalTurns)
-      } else {
-        s.bestTotalTurns = existing.bestTotalTurns || s.bestTotalTurns || 0
+
+    if (action === 'submitDexCombo') {
+      const update = {
+        $set: {
+          ...filter,
+          nickName: nickName || '修士',
+          avatarUrl: avatarUrl || '',
+          petDexCount: petDexCount || 0,
+          maxCombo: maxCombo || 0,
+          updatedAt: Date.now(),
+        },
       }
+      if (existing) {
+        update.$set.petDexCount = Math.max(existing.petDexCount || 0, petDexCount || 0)
+        update.$set.maxCombo = Math.max(existing.maxCombo || 0, maxCombo || 0)
+      }
+      await col.updateOne(filter, update, { upsert: true })
+      return res.json({ code: 0, msg: '提交成功' })
     }
 
-    await col.updateOne(filter, update, { upsert: true })
-    res.json({ code: 0, msg: 'ok' })
+    // action === 'submit' 或默认
+    const record = {
+      ...filter,
+      nickName: nickName || '修士',
+      avatarUrl: avatarUrl || '',
+      floor: floor || 0,
+      pets: (pets || []).slice(0, 5),
+      weapon: weapon || null,
+      totalTurns: totalTurns || 0,
+      petDexCount: petDexCount || 0,
+      maxCombo: maxCombo || 0,
+      updatedAt: Date.now(),
+    }
+
+    if (existing) {
+      // 速通榜：只保留更优成绩
+      if (_isBetterScore(record.floor, record.totalTurns, existing.floor || 0, existing.totalTurns || 0)) {
+        await col.updateOne(filter, { $set: record })
+      } else {
+        // 成绩没变好，但更新昵称头像 + 图鉴/连击
+        await col.updateOne(filter, { $set: {
+          nickName: record.nickName,
+          avatarUrl: record.avatarUrl,
+          petDexCount: Math.max(existing.petDexCount || 0, record.petDexCount),
+          maxCombo: Math.max(existing.maxCombo || 0, record.maxCombo),
+          updatedAt: Date.now(),
+        }})
+      }
+    } else {
+      await col.insertOne(record)
+    }
+
+    res.json({ code: 0, msg: '提交成功' })
   } catch (e) {
     console.error('[Ranking] submit error:', e.message)
     res.json({ code: -1, msg: e.message })
@@ -62,7 +86,7 @@ router.get('/list', async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 200)
 
   const sortMap = {
-    all:   { bestFloor: -1, bestTotalTurns: 1, updatedAt: -1 },
+    all:   { floor: -1, totalTurns: 1, updatedAt: -1 },
     dex:   { petDexCount: -1, updatedAt: -1 },
     combo: { maxCombo: -1, updatedAt: -1 },
   }
@@ -73,7 +97,7 @@ router.get('/list', async (req, res) => {
     const list = await col.find({})
       .sort(sort)
       .limit(limit)
-      .project({ _id: 0, platformOpenId: 0 })
+      .project({ _id: 0, platformOpenId: 0, platform: 0 })
       .toArray()
 
     // 查找当前用户排名
@@ -83,9 +107,23 @@ router.get('/list', async (req, res) => {
       platformOpenId: req.userOpenId,
     })
     if (myDoc) {
-      const sortField = tab === 'dex' ? 'petDexCount' : tab === 'combo' ? 'maxCombo' : 'bestFloor'
+      const sortField = tab === 'dex' ? 'petDexCount' : tab === 'combo' ? 'maxCombo' : 'floor'
       const myVal = myDoc[sortField] || 0
-      myRank = await col.countDocuments({ [sortField]: { $gt: myVal } }) + 1
+      if (sortField === 'floor') {
+        // 速通榜：层数更高 或 同层回合更少 → 排名更前
+        const higherFloor = await col.countDocuments({ floor: { $gt: myVal } })
+        const myTurns = myDoc.totalTurns || 0
+        let sameFloorBetter = 0
+        if (myTurns > 0) {
+          sameFloorBetter = await col.countDocuments({
+            floor: myVal,
+            totalTurns: { $gt: 0, $lt: myTurns },
+          })
+        }
+        myRank = higherFloor + sameFloorBetter + 1
+      } else {
+        myRank = await col.countDocuments({ [sortField]: { $gt: myVal } }) + 1
+      }
     }
 
     res.json({ code: 0, list, myRank })
@@ -94,5 +132,16 @@ router.get('/list', async (req, res) => {
     res.json({ code: -1, msg: e.message })
   }
 })
+
+function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
+  if (newFloor >= 30 && oldFloor < 30) return true
+  if (newFloor < 30 && oldFloor >= 30) return false
+  if (newFloor >= 30 && oldFloor >= 30) {
+    if (newTurns > 0 && oldTurns > 0) return newTurns < oldTurns
+    if (newTurns > 0) return true
+    return false
+  }
+  return newFloor > oldFloor
+}
 
 module.exports = router
