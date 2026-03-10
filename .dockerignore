@@ -1,0 +1,5 @@
+# 只保留 server 目录，排除游戏资源
+*
+!server/
+server/node_modules
+server/.env
