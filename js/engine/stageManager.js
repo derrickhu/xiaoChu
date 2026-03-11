@@ -112,8 +112,14 @@ function loadWave(g, waveIdx) {
   const wave = g._stageWaves[waveIdx]
   if (!wave) return
   const e = wave.enemies[0]
+  // 若关卡敌人没有 avatar，按属性自动分配肉鸽怪物图
+  const attrKeyMap = { metal:'m', wood:'w', earth:'e', water:'s', fire:'f' }
+  const monKey = attrKeyMap[e.attr] || 'm'
+  const monIdx = (waveIdx % 3) + 1
+  const avatar = e.avatar || `enemies/mon_${monKey}_${monIdx}`
   g.enemy = {
     ...e,
+    avatar,
     maxHp: e.hp,
     buffs: [],
   }

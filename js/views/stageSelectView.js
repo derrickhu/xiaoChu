@@ -41,7 +41,7 @@ function rStageSelect(g) {
   const stamina = g.storage.currentStamina
   const maxStamina = g.storage.maxStamina
   c.textAlign = 'right'
-  c.fillStyle = '#8ac8ff'; c.font = `${12*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#3aaeff'; c.font = `${12*S}px "PingFang SC",sans-serif`
   c.fillText(`⚡${stamina}/${maxStamina}`, W - 14 * S, topY + 18 * S)
 
   // 返回按钮

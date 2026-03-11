@@ -1128,6 +1128,12 @@ class Storage {
 
   async _syncToCloud() {
     if (!this._cloudReady) return
+    // 防止并发写入：上一次同步未完成时跳过，标记待重试
+    if (this._syncing) {
+      this._syncPending = true
+      return
+    }
+    this._syncing = true
     try {
       if (P.isDouyin) {
         // 抖音端走 HTTP API
@@ -1142,19 +1148,30 @@ class Storage {
       const saveData = { ...this._d, _updateTime: Date.now() }
       delete saveData._id
       delete saveData._openid
+      // 用 set 做完整替换，避免 update 合并时 null→object 字段冲突
+      const _ = db.command
+      const setData = {}
+      for (const k of Object.keys(saveData)) { setData[k] = _.set(saveData[k]) }
       if (res.data && res.data.length > 1) {
-        await col.doc(res.data[0]._id).update({ data: saveData })
+        await col.doc(res.data[0]._id).update({ data: setData })
         for (let i = 1; i < res.data.length; i++) {
           try { await col.doc(res.data[i]._id).remove() } catch(e) {}
         }
         console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
       } else if (res.data && res.data.length === 1) {
-        await col.doc(res.data[0]._id).update({ data: saveData })
+        await col.doc(res.data[0]._id).update({ data: setData })
       } else {
         await col.add({ data: saveData })
       }
     } catch(e) {
       console.warn('[Storage] 云同步失败:', e.message || e)
+    } finally {
+      this._syncing = false
+      // 同步期间有新的写入请求，延迟重试一次
+      if (this._syncPending) {
+        this._syncPending = false
+        this._debounceSyncToCloud()
+      }
     }
   }
 }

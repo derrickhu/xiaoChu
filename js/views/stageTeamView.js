@@ -195,8 +195,13 @@ function rStageTeam(g) {
 
   // ── 队长技能 ──
   const leaderSkillY = cy
-  c.fillStyle = 'rgba(40,30,20,0.5)'
-  R.rr(8*S, leaderSkillY, W - 16*S, 40*S, 6*S); c.fill()
+  const lsGrad = c.createLinearGradient(8*S, leaderSkillY, 8*S, leaderSkillY + 52*S)
+  lsGrad.addColorStop(0, 'rgba(252,245,220,0.88)')
+  lsGrad.addColorStop(1, 'rgba(244,234,200,0.90)')
+  c.fillStyle = lsGrad
+  R.rr(8*S, leaderSkillY, W - 16*S, 52*S, 6*S); c.fill()
+  c.strokeStyle = 'rgba(201,168,76,0.35)'; c.lineWidth = 1*S
+  R.rr(8*S, leaderSkillY, W - 16*S, 52*S, 6*S); c.stroke()
 
   if (selected.length > 0) {
     const leaderId = selected[0]
@@ -206,27 +211,27 @@ function rStageTeam(g) {
       const fakePet = { ...leaderPet, star: leaderPool.star }
       const hasSkill = petHasSkill(fakePet)
       c.textAlign = 'left'; c.textBaseline = 'middle'
-      c.fillStyle = '#C8B78A'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.fillText('队长技能', px + 4*S, leaderSkillY + 12*S)
+      c.fillStyle = '#6B4A10'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      c.fillText('队长技能', px + 4*S, leaderSkillY + 14*S)
       if (hasSkill) {
-        c.fillStyle = '#7ECF6A'; c.font = `${9*S}px "PingFang SC",sans-serif`
-        c.fillText(leaderPet.skill.name, px + 60*S, leaderSkillY + 12*S)
+        c.fillStyle = '#3a7a2a'; c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.fillText(leaderPet.skill.name, px + 60*S, leaderSkillY + 14*S)
         const desc = getPetSkillDesc(fakePet) || ''
-        c.fillStyle = 'rgba(200,180,140,0.6)'; c.font = `${8*S}px "PingFang SC",sans-serif`
+        c.fillStyle = '#8B6B30'; c.font = `${8*S}px "PingFang SC",sans-serif`
         const maxW = W - 36 * S
         const displayDesc = c.measureText(desc).width > maxW ? desc.slice(0, 20) + '…' : desc
-        c.fillText(displayDesc, px + 4*S, leaderSkillY + 28*S)
+        c.fillText(displayDesc, px + 4*S, leaderSkillY + 34*S)
       } else {
-        c.fillStyle = 'rgba(200,180,140,0.4)'; c.font = `${9*S}px "PingFang SC",sans-serif`
-        c.fillText('★2解锁', px + 60*S, leaderSkillY + 12*S)
+        c.fillStyle = '#9B8B60'; c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.fillText('★2解锁', px + 60*S, leaderSkillY + 14*S)
       }
     }
   } else {
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillStyle = 'rgba(200,180,140,0.3)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('选择灵宠后显示队长技能', W / 2, leaderSkillY + 20*S)
+    c.fillStyle = '#9B8B60'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText('选择灵宠后显示队长技能', W / 2, leaderSkillY + 26*S)
   }
-  cy = leaderSkillY + 44 * S
+  cy = leaderSkillY + 56 * S
 
   // ── 备选角色标题 + 克制提示 + 长按提示 ──
   c.textAlign = 'left'; c.textBaseline = 'top'
@@ -276,14 +281,38 @@ function rStageTeam(g) {
   c.beginPath(); c.moveTo(0, btnBarY); c.lineTo(W, btnBarY); c.stroke()
 
   const canGo = selected.length >= stage.teamSize.min
-  // 消耗提示
-  c.textAlign = 'center'; c.textBaseline = 'top'
-  c.fillStyle = '#8ac8ff'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.fillText(`消耗：⚡${stage.staminaCost}`, W / 2, btnBarY + 6 * S)
-
-  // 开始战斗按钮（与stageInfoView一致）
   const goBtnW = W * 0.6, goBtnH = 44 * S
   const goBtnX = (W - goBtnW) / 2, goBtnY = btnBarY + 20 * S
+  // 消耗提示（按钮上方，图标+数值，带描边增强可读性）
+  {
+    const costText = `消耗：`
+    const costNum = `${stage.staminaCost}`
+    c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    const costLabelW = c.measureText(costText).width
+    const costNumW = c.measureText(costNum).width
+    const iconSz = 14 * S
+    const gap = 3 * S
+    const totalW = costLabelW + iconSz + gap + costNumW
+    const costX = W / 2 - totalW / 2
+    const costY = goBtnY - 10 * S
+    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 3 * S
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.strokeText(costText, costX, costY)
+    c.fillStyle = '#FFF5E0'
+    c.fillText(costText, costX, costY)
+    const stIcon = R.getImg('assets/ui/icon_stamina.png')
+    const iconX = costX + costLabelW
+    if (stIcon && stIcon.width > 0) {
+      c.drawImage(stIcon, iconX, costY - iconSz / 2, iconSz, iconSz)
+    } else {
+      c.fillStyle = '#3aaeff'; c.fillText('⚡', iconX, costY)
+    }
+    // 体力数字：无描边，仅 fillText 色 #3aaeff
+    c.fillStyle = '#3aaeff'
+    c.fillText(costNum, iconX + iconSz + gap, costY)
+  }
+
+  // 开始战斗按钮（与stageInfoView一致）
   if (canGo) {
     const btnImg = R.getImg('assets/ui/btn_start.png')
     if (btnImg && btnImg.width > 0) {

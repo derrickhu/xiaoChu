@@ -287,7 +287,7 @@ function drawStartBtn(g) {
       // 体力显示
       const stamina = g.storage.currentStamina
       const maxSt = g.storage.maxStamina
-      ctx.fillStyle = '#8ac8ff'
+      ctx.fillStyle = '#3aaeff'
       ctx.font = `${10*S}px "PingFang SC",sans-serif`
       ctx.fillText(`⚡${stamina}/${maxSt}`, W / 2, L.progressY + L.progressH / 2)
     } else {

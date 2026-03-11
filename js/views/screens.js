@@ -406,11 +406,6 @@ function rGameover(g) {
       ctx.fillText(`Lv.${cult.level} 已满级`, epx + panelW - 14*S, barY + barH + 12*S)
     }
     ctx.textAlign = 'center'
-    // 境界
-    ctx.fillStyle = '#8a7a5a'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'left'
-    ctx.fillText(`${currentRealm(cult.level).name}`, epx + 14*S, barY + barH + 12*S)
-    ctx.textAlign = 'center'
 
     expPanelBottom = expY + expH
   }
@@ -768,10 +763,10 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
   ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${myNick}`, myTextX, myBarY + 22*S)
   if (myRank > 0) {
-    ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(240,220,160,0.9)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`第 ${myRank} 名`, myTextX, myBarY + 40*S)
   } else {
-    ctx.fillStyle = TH.dim; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(220,200,140,0.7)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('未上榜', myTextX, myBarY + 40*S)
   }
 
@@ -783,7 +778,7 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
     ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
     ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 24*S)
     ctx.restore()
-    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('层', W - padX - 14*S, myBarY + 24*S)
     if (bestTurns > 0) {
       ctx.fillStyle = 'rgba(240,220,160,0.7)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
@@ -795,7 +790,7 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
     ctx.save(); ctx.shadowColor = 'rgba(77,204,77,0.2)'; ctx.shadowBlur = 4*S
     ctx.fillText(`${dexCount}`, W - padX - 38*S, myBarY + 34*S)
     ctx.restore()
-    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('/100', W - padX - 14*S, myBarY + 34*S)
   } else if (tab === 'combo') {
     const mc = g.storage.stats.maxCombo || 0
@@ -803,7 +798,7 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
     ctx.save(); ctx.shadowColor = 'rgba(255,107,107,0.2)'; ctx.shadowBlur = 4*S
     ctx.fillText(`${mc}`, W - padX - 46*S, myBarY + 34*S)
     ctx.restore()
-    ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('连击', W - padX - 14*S, myBarY + 34*S)
   }
 }

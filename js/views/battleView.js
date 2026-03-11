@@ -65,7 +65,8 @@ function rBattle(g) {
     const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
     const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
     const imgBottom = hpY - 6*S  // 图片底部贴近血条上方
-    let imgDrawY = eAreaTop  // 默认值
+    const eAreaH_local = eAreaBottom - eAreaTop
+    let imgDrawY = imgBottom - eAreaH_local * 0.5
     const hideEnemy = g.bState === 'victory' && !g._enemyDeathAnim
     if (enemyImg && enemyImg.width > 0 && !hideEnemy) {
       const maxImgH = eAreaH * 0.58
@@ -355,6 +356,18 @@ function rBattle(g) {
       ctx.restore()
       ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(`第${tutorial.getStep()+1}课 · ${stepTitle}`, W*0.5, labelCY + 9*S)
+    } else if (g.battleMode === 'stage') {
+      const { getStageById } = require('../data/stages')
+      const stageData = getStageById(g._stageId)
+      const stageName = stageData ? stageData.name : '关卡'
+      const waveTotal = g._stageWaves ? g._stageWaves.length : 1
+      const waveCur = (g._stageWaveIdx || 0) + 1
+      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+      ctx.fillText(stageName, W*0.5, labelCY - 2*S)
+      ctx.restore()
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`第 ${waveCur}/${waveTotal} 波`, W*0.5, labelCY + 9*S)
     } else if (evType === 'boss') {
       const floorText = `第 ${g.floor} 层`
       const bossTag = '⚠ BOSS ⚠'
@@ -407,7 +420,7 @@ function rBattle(g) {
   }
 
   // 宝箱道具按钮（敌人区域右下角）
-  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
+  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat' && g.battleMode !== 'stage') {
     const chestSz = 36*S
     const chestX = W - chestSz - 8*S
     const chestY = eAreaBottom - chestSz - 34*S
@@ -1640,7 +1653,8 @@ function drawTeamBar(g, topY, barH, iconSize) {
     fire:  R.getImg('assets/ui/frame_pet_fire.png'),
     earth: R.getImg('assets/ui/frame_pet_earth.png'),
   }
-  const totalSlots = 6
+  const isStage = g.battleMode === 'stage'
+  const totalSlots = isStage ? Math.min(g.pets.length, 5) : 6
   const sidePad = 8*S
   const petGap = 8*S
   const wpnGap = 12*S
@@ -1651,9 +1665,14 @@ function drawTeamBar(g, topY, barH, iconSize) {
 
   g._petBtnRects = []
 
+  const stageTotalW = isStage ? (totalSlots * iconSize + (totalSlots - 1) * petGap) : 0
+  const stageStartX = isStage ? (W - stageTotalW) / 2 : 0
+
   for (let i = 0; i < totalSlots; i++) {
     let ix
-    if (i === 0) {
+    if (isStage) {
+      ix = stageStartX + i * (iconSize + petGap)
+    } else if (i === 0) {
       ix = sidePad
     } else {
       ix = sidePad + iconSize + wpnGap + (i - 1) * (iconSize + petGap)
@@ -1661,7 +1680,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
     const cx = ix + iconSize * 0.5
     const cy = iconY + iconSize * 0.5
 
-    if (i === 0) {
+    if (i === 0 && !isStage) {
       // 法宝
       ctx.fillStyle = g.weapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
       ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
@@ -1694,7 +1713,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
       g._weaponBtnRect = [ix, iconY, iconSize, iconSize]
     } else {
       // 宠物
-      const petIdx = i - 1
+      const petIdx = isStage ? i : i - 1
       const petFrame = petIdx < g.pets.length
         ? (framePetMap[g.pets[petIdx].attr] || framePetMap.metal)
         : framePetMap.metal
@@ -2305,7 +2324,6 @@ function _drawClearPanel(g) {
   // 面板内容高度计算
   const titleH = 30*S
   const subtitleH = 24*S
-  const realmH = 22*S
   const dividerH = 16*S
   const teamLabelH = 20*S
   const petIconSz = 36*S       // 宠物头像尺寸
@@ -2316,7 +2334,7 @@ function _drawClearPanel(g) {
   const wpnRowH = wpnIconSz + wpnNameH + 6*S
   const bagRowH = 18*S
   const btnH = 36*S
-  const totalH = innerPad + titleH + subtitleH + realmH + dividerH + teamLabelH + petRowH + wpnRowH + bagRowH + 12*S + btnH + innerPad
+  const totalH = innerPad + titleH + subtitleH + dividerH + teamLabelH + petRowH + wpnRowH + bagRowH + 12*S + btnH + innerPad
 
   const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
 
@@ -2334,18 +2352,6 @@ function _drawClearPanel(g) {
   ctx.fillStyle = '#7A5C30'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
   ctx.fillText('恭喜修士登顶通天塔！', W*0.5, curY + 14*S)
   curY += subtitleH
-
-  // 最终境界
-  const realm = getRealmInfo(g.floor)
-  const realmName = realm ? realm.name : '化神圆满'
-  ctx.fillStyle = '#8B7B70'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'left'
-  const realmLabelX = panelX + innerPad
-  ctx.fillText('最终境界', realmLabelX, curY + 14*S)
-  const realmLabelW = ctx.measureText('最终境界').width
-  ctx.fillStyle = '#C07000'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText(realmName, realmLabelX + realmLabelW + 8*S, curY + 14*S)
-  curY += realmH
 
   // 分割线
   curY += 4*S
@@ -2480,11 +2486,6 @@ function drawVictoryOverlay(g) {
   const easeP = 1 - Math.pow(1 - animProgress, 3)  // ease-out cubic
 
   // ---- 局内加成 ----
-  if (realmChanged) {
-    inRunLines.push({ label: '境界提升', text: `${curRealmName} → ${nextRealmName}`, color: '#C07000', bold: true, hasAnim: false })
-  } else {
-    inRunLines.push({ label: '当前境界', text: curRealmName, color: '#7A5C30', bold: false, hasAnim: false })
-  }
   if (hpUp > 0) {
     const animVal = Math.round(curMaxHp + hpUp * easeP)
     inRunLines.push({ label: '血量上限', text: `${curMaxHp} → ${animVal}`, color: '#27864A', bold: true, hasAnim: true, from: curMaxHp, to: nextMaxHp, cur: animVal })
@@ -2524,13 +2525,13 @@ function drawVictoryOverlay(g) {
   const speedLineH = hasSpeed ? 16*S : 0
   const growthLineH = 22*S
   const sectionTitleH = 20*S  // 区块小标题高度
-  const inRunAreaH = inRunLines.length > 0 ? sectionTitleH + inRunLines.length * growthLineH : 0
+  const hpBarSectionH = hpUp > 0 ? 28*S : 0
+  const inRunAreaH = inRunLines.length > 0 ? sectionTitleH + inRunLines.length * growthLineH + hpBarSectionH : 0
   const outRunAreaH = outRunLines.length > 0 ? sectionTitleH + outRunLines.length * growthLineH : 0
   const growthAreaH = inRunAreaH + outRunAreaH + 6*S
-  const hpBarSectionH = 36*S
   const tipH = 24*S
 
-  const totalH = innerPad + titleH + speedLineH + growthAreaH + hpBarSectionH + tipH + innerPad
+  const totalH = innerPad + titleH + speedLineH + growthAreaH + tipH + innerPad
   const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
 
   R.drawInfoPanel(panelX, panelY, panelW, totalH)
@@ -2583,8 +2584,54 @@ function drawVictoryOverlay(g) {
     ctx.fillText('▸ 本局加成', growthX, curY + sectionTitleH - 6*S)
     curY += sectionTitleH
     _drawGrowthLines(inRunLines)
+
+    // ==== 血条展示（展示提升后血条现状）====
+    if (hpUp > 0) {
+      curY += 4*S
+      const hpBarW = panelW - innerPad * 4
+      const hpBarX = panelX + innerPad * 2
+      const hpBarH = 16*S
+      const heroHp = g.heroHp
+      const animMaxHp = Math.round(curMaxHp + hpUp * easeP)
+      const hpPct = Math.min(1, heroHp / animMaxHp)
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'
+      R.rr(hpBarX, curY, hpBarW, hpBarH, hpBarH/2); ctx.fill()
+      const fillW = hpBarW * hpPct
+      if (fillW > 0) {
+        const hpGrd = ctx.createLinearGradient(hpBarX, curY, hpBarX, curY + hpBarH)
+        hpGrd.addColorStop(0, '#5ddd5d')
+        hpGrd.addColorStop(0.5, '#3cb83c')
+        hpGrd.addColorStop(1, '#2a9a2a')
+        ctx.fillStyle = hpGrd
+        R.rr(hpBarX, curY, fillW, hpBarH, hpBarH/2); ctx.fill()
+        ctx.globalAlpha = 0.3
+        ctx.fillStyle = '#fff'
+        R.rr(hpBarX + 2*S, curY + 1*S, fillW - 4*S, hpBarH * 0.35, hpBarH/2); ctx.fill()
+        ctx.globalAlpha = 1
+      }
+      if (animProgress > 0 && animMaxHp > curMaxHp) {
+        const oldPct = heroHp / curMaxHp
+        const newBarStart = hpBarW * Math.min(1, heroHp / animMaxHp)
+        const newMaxPct = hpUp * easeP / animMaxHp
+        const growStart = hpBarW * (1 - newMaxPct)
+        const growW = hpBarW * newMaxPct
+        if (growW > 0) {
+          ctx.globalAlpha = 0.3 + 0.2 * Math.sin(vt * 0.15)
+          ctx.fillStyle = '#ffa500'
+          R.rr(hpBarX + growStart, curY, growW, hpBarH, hpBarH/2); ctx.fill()
+          ctx.globalAlpha = 1
+        }
+      }
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`${heroHp} / ${animMaxHp}`, hpBarX + hpBarW/2, curY + hpBarH * 0.72)
+      ctx.restore()
+      curY += hpBarH + 4*S
+    }
   }
 
+  curY += 4*S
   // ---- 局外加成区 ----
   if (outRunLines.length > 0) {
     ctx.textAlign = 'left'
@@ -2594,58 +2641,6 @@ function drawVictoryOverlay(g) {
     _drawGrowthLines(outRunLines)
   }
   curY += 6*S
-
-  // ==== 血条展示（展示提升后血条现状）====
-  if (hpUp > 0) {
-    curY += 4*S
-    const hpBarW = panelW - innerPad * 4
-    const hpBarX = panelX + innerPad * 2
-    const hpBarH = 16*S
-    const heroHp = g.heroHp
-    // 动画：血条上限从当前值过渡到新值
-    const animMaxHp = Math.round(curMaxHp + hpUp * easeP)
-    const hpPct = Math.min(1, heroHp / animMaxHp)
-    // 血条背景槽
-    ctx.save()
-    ctx.fillStyle = 'rgba(0,0,0,0.4)'
-    R.rr(hpBarX, curY, hpBarW, hpBarH, hpBarH/2); ctx.fill()
-    // 血量填充（绿色渐变）
-    const fillW = hpBarW * hpPct
-    if (fillW > 0) {
-      const hpGrd = ctx.createLinearGradient(hpBarX, curY, hpBarX, curY + hpBarH)
-      hpGrd.addColorStop(0, '#5ddd5d')
-      hpGrd.addColorStop(0.5, '#3cb83c')
-      hpGrd.addColorStop(1, '#2a9a2a')
-      ctx.fillStyle = hpGrd
-      R.rr(hpBarX, curY, fillW, hpBarH, hpBarH/2); ctx.fill()
-      // 高光
-      ctx.globalAlpha = 0.3
-      ctx.fillStyle = '#fff'
-      R.rr(hpBarX + 2*S, curY + 1*S, fillW - 4*S, hpBarH * 0.35, hpBarH/2); ctx.fill()
-      ctx.globalAlpha = 1
-    }
-    // 新增血量上限部分（橙色闪烁提示）
-    if (animProgress > 0 && animMaxHp > curMaxHp) {
-      const oldPct = heroHp / curMaxHp
-      const newBarStart = hpBarW * Math.min(1, heroHp / animMaxHp)
-      // 标注上限增长区间（用虚线标出新上限范围）
-      const newMaxPct = hpUp * easeP / animMaxHp
-      const growStart = hpBarW * (1 - newMaxPct)
-      const growW = hpBarW * newMaxPct
-      if (growW > 0) {
-        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(vt * 0.15)
-        ctx.fillStyle = '#ffa500'
-        R.rr(hpBarX + growStart, curY, growW, hpBarH, hpBarH/2); ctx.fill()
-        ctx.globalAlpha = 1
-      }
-    }
-    // 数字
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${heroHp} / ${animMaxHp}`, hpBarX + hpBarW/2, curY + hpBarH * 0.72)
-    ctx.restore()
-    curY += hpBarH + 4*S
-  }
 
   // ==== "点击屏幕继续" 提示（动画结束后显示）====
   if (vt > animDuration + 10) {
@@ -3737,8 +3732,11 @@ function _drawExpIndicator(g, x, y, w, S) {
   const pulse = g._expIndicatorPulse || 0
   const sc = pulse > 0 ? 1 + 0.3 * (pulse / 12) : 1
 
-  const cx = x + w * 0.5
-  const cy = y + w * 0.4
+  const iconSz = 22 * S
+  const iconX = x + (w - iconSz) / 2
+  const iconY = y
+  const cx = iconX + iconSz / 2
+  const cy = iconY + iconSz * 0.5
   // 记录图标中心位置供飘字飞向
   g._expIndicatorX = cx
   g._expIndicatorY = cy

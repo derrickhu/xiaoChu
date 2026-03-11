@@ -73,12 +73,10 @@ function rStageInfo(g) {
   c.fillStyle = '#FFFFFF'
   c.fillText('‹ 返回', px, cy + 18 * S)
   _rects.backBtnRect = [0, cy, 80 * S, 36 * S]
-  // 体力（描边+填充）
+  // 体力
   c.textAlign = 'right'
-  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
   c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.strokeText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 18 * S)
-  c.fillStyle = '#8ac8ff'
+  c.fillStyle = '#3aaeff'
   c.fillText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 18 * S)
   c.restore()
   cy += 40 * S
@@ -245,7 +243,7 @@ function rStageInfo(g) {
   const iconsW = maxSlots * iconSize + (maxSlots - 1) * iconGap
   const iconStartX = (W - iconsW) / 2
 
-  // 编队标签（放大+描边让文字醒目）+ 调整编队按钮（同一行右侧）
+  // 编队标签（放大+描边让文字醒目）
   const teamLabelY = cardContentBottom + 16 * S
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.font = `bold ${15*S}px "PingFang SC",sans-serif`
@@ -253,20 +251,6 @@ function rStageInfo(g) {
   c.strokeText('我的编队', px + 4 * S, teamLabelY + 10 * S)
   c.fillStyle = '#FFF5E0'
   c.fillText('我的编队', px + 4 * S, teamLabelY + 10 * S)
-
-  // "调整编队" 按钮（同一行右侧，加深背景+边框）
-  const editBtnW = 76 * S, editBtnH = 28 * S
-  const editBtnX = W - px - editBtnW - 4 * S
-  const editBtnY = teamLabelY + 10 * S - editBtnH / 2
-  // 深色底+金边
-  c.fillStyle = 'rgba(30,20,10,0.75)'
-  R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.fill()
-  c.strokeStyle = '#C9A84C'; c.lineWidth = 1.5 * S
-  R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.stroke()
-  c.fillStyle = '#FFD700'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('调整编队 ›', editBtnX + editBtnW / 2, editBtnY + editBtnH / 2)
-  _rects.editTeamBtnRect = [editBtnX, editBtnY, editBtnW, editBtnH]
 
   // 宠物头像槽（标签下方留足间距）
   const iconY = teamLabelY + 32 * S
@@ -352,11 +336,24 @@ function rStageInfo(g) {
     }
   }
 
+  // "调整编队" 透明按钮（头像槽正下方居中）
+  const editBtnW = 110 * S, editBtnH = 28 * S
+  const editBtnX = (W - editBtnW) / 2
+  const editBtnY = iconY + iconSize + 10 * S
+  c.fillStyle = 'rgba(255,255,255,0.08)'
+  R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.fill()
+  c.strokeStyle = 'rgba(255,245,210,0.45)'; c.lineWidth = 1 * S
+  R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.stroke()
+  c.fillStyle = '#FFF5E0'; c.font = `${11*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('调整编队 ›', editBtnX + editBtnW / 2, editBtnY + editBtnH / 2)
+  _rects.editTeamBtnRect = [editBtnX, editBtnY, editBtnW, editBtnH]
+
   // 编队状态提示
   c.textAlign = 'center'; c.textBaseline = 'top'
   if (teamCount < minTeam) {
     c.fillStyle = '#E06060'; c.font = `${9*S}px "PingFang SC",sans-serif`
-    c.fillText(`需要至少${minTeam}只灵宠才能出战`, W / 2, iconY + iconSize + 26 * S)
+    c.fillText(`需要至少${minTeam}只灵宠才能出战`, W / 2, editBtnY + editBtnH + 6 * S)
   }
 
   // ── 底部按钮（使用 btn_start.png 美术资源） ──

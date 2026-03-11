@@ -128,6 +128,51 @@ on a solid pure bright green (#00FF00) background for easy chroma key removal, n
 
 ---
 
+### 11. 返回按钮图标（水墨箭头）
+- **文件路径**：`assets/ui/btn_back.png`
+- **尺寸建议**：64×64 px（正方形，透明底 PNG）
+- **用途**：各页面左上角返回按钮，替换当前纯文字"‹ 返回"
+- **设计要点**：
+  1. **造型为向左的箭头**，水墨笔刷质感，笔锋自然，不是几何硬边
+  2. 主色**深暖棕 / 墨色**（`#4A3020` 或接近墨棕），与暖色背景高对比
+  3. 箭头笔画有轻微墨迹晕染感，头部较粗、尾部略细，像毛笔一划而过
+  4. 整体简洁：只有箭头，不加文字、不加圆形按钮底框
+  5. 缩到 28×28 仍清晰可辨——箭头须粗壮，不能太细
+  6. 透明背景，不带任何矩形底色
+
+- **提示词**：
+```
+A single simple game UI back-button icon, 64x64 pixels, transparent background:
+
+Shape — a bold left-pointing arrow (←) drawn in Chinese ink-brush calligraphy
+style: a wide chevron/arrowhead pointing left, with a short horizontal tail stroke
+extending to the right. The brushstroke is confident and swift — thicker at the
+arrowhead tip, tapering slightly toward the tail, with natural ink-brush edge
+variation (slight fibrous texture on the edges, NOT perfectly smooth vector).
+
+Color — deep warm ink-brown (#3D2010) with very subtle warm sepia inner tone,
+slight ink-bleed softness at edges. The stroke has gentle ink-wash shading: darker
+at the center spine, softly lighter at the stroke edges — like a single confident
+brush stroke on paper.
+
+The arrow must be BOLD and thick enough to be clearly visible at 28×28 pixels.
+Proportions: the chevron arrowhead occupies roughly 55% of the width, the tail
+stroke the remaining 45%, total arrow height about 40% of the canvas.
+
+Style — Chinese ink wash calligraphy brushstroke, warm and refined, NOT geometric,
+NOT sharp vector, NOT 3D. The texture is that of a firm ink-loaded brush on rice
+paper. Minimal detail — just the arrow stroke, nothing else.
+
+Completely transparent background (PNG alpha), no rounded rectangle frame, no
+shadow, no glow, no decorative border. The icon must work placed directly over
+any light warm-toned background.
+
+Style reference: warm Chinese ink wash, similar aesthetic to the game's
+home_bg.jpg — refined, traditional, bright NOT dark.
+```
+
+---
+
 ## 使用说明
 
 1. 生成后将图片放入对应路径

@@ -3,7 +3,7 @@
  * 战斗层：整合法宝切换 + 灵宠替换，支持点击快速交换，无需跳转prepare页面
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP, getRealmInfo } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
 const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
@@ -714,22 +714,9 @@ function rEvent(g) {
   ctx.fillText('── 己方队伍 ──', W*0.5, curY)
   curY += 14*S
 
-  // --- HP条（左侧显示修仙境界） ---
+  // --- HP条 ---
   const hpBarH = 14*S
-  const _realm = getRealmInfo(g.floor)
-  const _realmName = _realm ? _realm.name : ''
-  if (_realmName) {
-    ctx.save()
-    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-    ctx.shadowColor = 'rgba(255,255,255,0.5)'; ctx.shadowBlur = 0
-    const _rlW = ctx.measureText(_realmName).width + 6*S
-    ctx.fillText(_realmName, padX, curY + hpBarH * 0.5)
-    ctx.restore()
-    R.drawHp(padX + _rlW, curY, W - padX*2 - _rlW, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
-  } else {
-    R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
-  }
+  R.drawHp(padX, curY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', null, true, '#4dcc4d', g.heroShield)
   curY += hpBarH + 10*S
 
   // ===== 全局增益buff文字描述 =====
