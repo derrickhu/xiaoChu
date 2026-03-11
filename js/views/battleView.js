@@ -1,7 +1,6 @@
 /**
  * 战斗界面渲染：棋盘、队伍栏、怪物区、Combo、倒计时、胜利/失败覆盖
  */
-const P = require('../platform')
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL, ENEMY_SKILLS, REWARD_TYPES, getRealmInfo, REALM_TABLE, MAX_FLOOR } = require('../data/tower')
 const { getPetStarAtk, getPetAvatarPath, MAX_STAR, getPetSkillDesc, petHasSkill } = require('../data/pets')
@@ -1932,7 +1931,9 @@ function _getDebuffTintCanvas(enemyImg, w, h, tintColor) {
     const iw = Math.ceil(w)
     const ih = Math.ceil(h)
     if (!_debuffOC || _debuffOC.width !== iw || _debuffOC.height !== ih) {
-      _debuffOC = P.createOffscreenCanvas({ type: '2d', width: iw, height: ih })
+      const P = V.P
+      _debuffOC = P && P.createOffscreenCanvas ? P.createOffscreenCanvas({ type: '2d', width: iw, height: ih }) : null
+      if (!_debuffOC) return null
       _debuffOCCtx = _debuffOC.getContext('2d')
     }
     const oc = _debuffOCCtx

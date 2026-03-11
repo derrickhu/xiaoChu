@@ -52,7 +52,7 @@ const safeTop = ((_winInfo.safeArea && _winInfo.safeArea.top) || 20) * dpr
 
 const COLS = 6, ROWS = 5
 const R = new Render(ctx, W, H, S, safeTop)
-ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS)
+ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P)
 
 class Main {
   constructor() {

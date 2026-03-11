@@ -2,17 +2,18 @@
  * 渲染环境共享对象
  * 所有 view 模块通过 init() 获取画布上下文和常量引用
  */
-let _ctx, _R, _TH, _W, _H, _S, _safeTop, _COLS, _ROWS
+let _ctx, _R, _TH, _W, _H, _S, _safeTop, _COLS, _ROWS, _P
 
-function init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS) {
+function init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P) {
   _ctx = ctx; _R = R; _TH = TH
   _W = W; _H = H; _S = S; _safeTop = safeTop
-  _COLS = COLS; _ROWS = ROWS
+  _COLS = COLS; _ROWS = ROWS; _P = P
 }
 
 module.exports = {
   init,
   get ctx() { return _ctx },
+  get P() { return _P },
   get R() { return _R },
   get TH() { return _TH },
   get W() { return _W },
