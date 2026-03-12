@@ -60,52 +60,40 @@ _splashImg.onload = () => {
 }
 
 // 分包加载
-let assetsLoaded = false
-let audioLoaded = false
+const _subPkgNames = [
+  'pets', 'enemies', 'backgrounds', 'ui', 'hero',
+  'share', 'equipment', 'battle', 'orbs',
+  'audio', 'audio_bgm'
+]
+let _loadedCount = 0
+const _totalPkgs = _subPkgNames.length
 
-function tryStartGame() {
-  if (!assetsLoaded || !audioLoaded) return
-  console.log('[SubPkg] 分包全部加载完成，启动游戏')
-  try {
-    require('./js/main')
-    console.log('游戏初始化成功')
-  } catch (e) {
-    console.error('游戏初始化失败:', e)
-    const ctx = _canvas.getContext('2d')
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, _canvas.width, _canvas.height)
-    ctx.fillStyle = '#f00'; ctx.font = '16px sans-serif'
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
-    ctx.fillText('游戏初始化失败', 20, 20)
-    ctx.fillText(e.message, 20, 50)
-    ctx.fillText(e.stack ? e.stack.substring(0,200) : '', 20, 80)
-    P.showModal({ title: '初始化失败', content: e.message, showCancel: false })
+function _onPkgDone(name, ok) {
+  console.log('[SubPkg] ' + name + (ok ? ' 加载成功' : ' 加载失败'))
+  _loadedCount++
+  if (_loadedCount >= _totalPkgs) {
+    console.log('[SubPkg] 全部 ' + _totalPkgs + ' 个分包加载完成，启动游戏')
+    try {
+      require('./js/main')
+      console.log('游戏初始化成功')
+    } catch (e) {
+      console.error('游戏初始化失败:', e)
+      const ctx = _canvas.getContext('2d')
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, _canvas.width, _canvas.height)
+      ctx.fillStyle = '#f00'; ctx.font = '16px sans-serif'
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+      ctx.fillText('游戏初始化失败', 20, 20)
+      ctx.fillText(e.message, 20, 50)
+      ctx.fillText(e.stack ? e.stack.substring(0, 200) : '', 20, 80)
+      P.showModal({ title: '初始化失败', content: e.message, showCancel: false })
+    }
   }
 }
 
-P.loadSubpackage({
-  name: 'assets',
-  success: () => {
-    console.log('[SubPkg] assets 分包加载成功')
-    assetsLoaded = true
-    tryStartGame()
-  },
-  fail: (err) => {
-    console.error('[SubPkg] assets 分包加载失败:', err)
-    assetsLoaded = true
-    tryStartGame()
-  }
-})
-
-P.loadSubpackage({
-  name: 'audio',
-  success: () => {
-    console.log('[SubPkg] audio 分包加载成功')
-    audioLoaded = true
-    tryStartGame()
-  },
-  fail: (err) => {
-    console.error('[SubPkg] audio 分包加载失败:', err)
-    audioLoaded = true
-    tryStartGame()
-  }
+_subPkgNames.forEach(function (name) {
+  P.loadSubpackage({
+    name: name,
+    success: function () { _onPkgDone(name, true) },
+    fail: function () { _onPkgDone(name, false) }
+  })
 })

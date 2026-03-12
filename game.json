@@ -8,13 +8,16 @@
     "downloadFile": 5000
   },
   "subpackages": [
-    {
-      "name": "assets",
-      "root": "assets/"
-    },
-    {
-      "name": "audio",
-      "root": "audio/"
-    }
+    { "name": "pets",        "root": "assets/pets/" },
+    { "name": "enemies",     "root": "assets/enemies/" },
+    { "name": "backgrounds", "root": "assets/backgrounds/" },
+    { "name": "ui",          "root": "assets/ui/" },
+    { "name": "hero",        "root": "assets/hero/" },
+    { "name": "share",       "root": "assets/share/" },
+    { "name": "equipment",   "root": "assets/equipment/" },
+    { "name": "battle",      "root": "assets/battle/" },
+    { "name": "orbs",        "root": "assets/orbs/" },
+    { "name": "audio",       "root": "audio/" },
+    { "name": "audio_bgm",   "root": "audio_bgm/" }
   ]
 }

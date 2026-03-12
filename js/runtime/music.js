@@ -30,7 +30,7 @@ class MusicManager {
       this._bgm = null
     }
     this._bgm = P.createInnerAudioContext()
-    this._bgm.src = 'audio/bgm.mp3'
+    this._bgm.src = 'audio_bgm/bgm.mp3'
     this._bgm.loop = true
     this._bgm.volume = 0.08
     this._bgm.playbackRate = 1.0
@@ -58,7 +58,7 @@ class MusicManager {
     // 创建或复用boss BGM实例
     if (!this._bossBgm) {
       this._bossBgm = P.createInnerAudioContext()
-      this._bossBgm.src = 'audio/boss_bgm.mp3'
+      this._bossBgm.src = 'audio_bgm/boss_bgm.mp3'
       this._bossBgm.loop = true
       this._bossBgm.volume = 0.1
       this._bossBgm.playbackRate = 1.0
