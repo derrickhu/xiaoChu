@@ -133,6 +133,9 @@ function initState(g) {
   g.showMorePanel = false         // 首页「更多」面板
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
+  g.showChestPanel = false        // 宝箱奖励全屏弹窗
+  g._chestAutoChecked = false     // 本次进入 title 是否已自动检查过宝箱
+  g._prevScene = ''               // 上一帧的场景名（用于检测场景切换）
   g.titleMode = 'tower'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false

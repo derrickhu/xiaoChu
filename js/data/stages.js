@@ -19,7 +19,7 @@ const STAGES = [
   {
     id: 'stage_1_1', name: '初试·土灵', chapter: 1, order: 1,
     waves: [
-      { enemies: [{ name: '山灵', attr: 'earth', hp: 500, atk: 18, def: 6, skills: [] }] },
+      { enemies: [{ name: '山灵', attr: 'earth', hp: 580, atk: 21, def: 7, skills: [] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 3, a: 5 },
@@ -39,8 +39,8 @@ const STAGES = [
   {
     id: 'stage_1_2', name: '烈焰·双波', chapter: 1, order: 2,
     waves: [
-      { enemies: [{ name: '火灵兽', attr: 'fire', hp: 600, atk: 20, def: 7, skills: [] }] },
-      { enemies: [{ name: '炎魔', attr: 'fire', hp: 800, atk: 26, def: 9, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '火灵兽', attr: 'fire', hp: 700, atk: 23, def: 8, skills: [] }] },
+      { enemies: [{ name: '炎魔', attr: 'fire', hp: 940, atk: 30, def: 10, skills: ['atkBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 5, a: 8 },
@@ -60,8 +60,8 @@ const STAGES = [
   {
     id: 'stage_1_3', name: '寒冰·水阵', chapter: 1, order: 3,
     waves: [
-      { enemies: [{ name: '冰魄', attr: 'water', hp: 700, atk: 22, def: 8, skills: ['defBuff'] }] },
-      { enemies: [{ name: '寒潮灵', attr: 'water', hp: 900, atk: 28, def: 10, skills: ['healPct'] }] },
+      { enemies: [{ name: '冰魄', attr: 'water', hp: 820, atk: 26, def: 9, skills: ['defBuff'] }] },
+      { enemies: [{ name: '寒潮灵', attr: 'water', hp: 1050, atk: 33, def: 12, skills: ['healPct'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 5, a: 8 },
@@ -81,8 +81,8 @@ const STAGES = [
   {
     id: 'stage_1_4', name: '金锋·试剑', chapter: 1, order: 4,
     waves: [
-      { enemies: [{ name: '金甲卫', attr: 'metal', hp: 800, atk: 24, def: 12, skills: ['defBuff'] }] },
-      { enemies: [{ name: '利刃灵', attr: 'metal', hp: 1000, atk: 30, def: 10, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '金甲卫', attr: 'metal', hp: 940, atk: 28, def: 14, skills: ['defBuff'] }] },
+      { enemies: [{ name: '利刃灵', attr: 'metal', hp: 1180, atk: 35, def: 12, skills: ['atkBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 6, a: 9 },
@@ -102,9 +102,9 @@ const STAGES = [
   {
     id: 'stage_1_5', name: '灵山守关·木灵王', chapter: 1, order: 5,
     waves: [
-      { enemies: [{ name: '藤蔓精', attr: 'wood', hp: 600, atk: 20, def: 8, skills: [] }] },
-      { enemies: [{ name: '古树灵', attr: 'wood', hp: 800, atk: 24, def: 10, skills: ['healPct'] }] },
-      { enemies: [{ name: '木灵王', attr: 'wood', hp: 1200, atk: 32, def: 12, skills: ['atkBuff', 'healPct'] }] },
+      { enemies: [{ name: '藤蔓精', attr: 'wood', hp: 700, atk: 24, def: 9, skills: [] }] },
+      { enemies: [{ name: '古树灵', attr: 'wood', hp: 950, atk: 28, def: 12, skills: ['healPct'] }] },
+      { enemies: [{ name: '木灵王', attr: 'wood', hp: 1400, atk: 38, def: 14, skills: ['atkBuff', 'healPct'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
@@ -189,8 +189,8 @@ const STAGES = [
   {
     id: 'stage_2_4', name: '金风·铁壁', chapter: 2, order: 4,
     waves: [
-      { enemies: [{ name: '铁甲兵', attr: 'metal', hp: 1400, atk: 32, def: 20, skills: ['defBuff'] }] },
-      { enemies: [{ name: '金刚灵', attr: 'metal', hp: 2000, atk: 42, def: 16, skills: ['atkBuff', 'defBuff'] }] },
+      { enemies: [{ name: '铁甲兵', attr: 'metal', hp: 1300, atk: 30, def: 18, skills: ['defBuff'] }] },
+      { enemies: [{ name: '金刚灵', attr: 'metal', hp: 1850, atk: 39, def: 15, skills: ['atkBuff', 'defBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
@@ -210,9 +210,9 @@ const STAGES = [
   {
     id: 'stage_2_5', name: '幽冥深渊·魂噬', chapter: 2, order: 5,
     waves: [
-      { enemies: [{ name: '幽魂', attr: 'wood', hp: 1000, atk: 30, def: 10, skills: [] }] },
-      { enemies: [{ name: '冥蔓', attr: 'wood', hp: 1400, atk: 36, def: 14, skills: ['healPct'] }] },
-      { enemies: [{ name: '魂噬兽', attr: 'wood', hp: 2200, atk: 46, def: 16, skills: ['atkBuff', 'healPct'] }] },
+      { enemies: [{ name: '幽魂', attr: 'wood', hp: 920, atk: 28, def: 10, skills: [] }] },
+      { enemies: [{ name: '冥蔓', attr: 'wood', hp: 1280, atk: 34, def: 14, skills: ['healPct'] }] },
+      { enemies: [{ name: '魂噬兽', attr: 'wood', hp: 2000, atk: 42, def: 15, skills: ['atkBuff', 'healPct'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 14 },
@@ -234,8 +234,8 @@ const STAGES = [
   {
     id: 'stage_3_1', name: '雷火·初劫', chapter: 3, order: 1,
     waves: [
-      { enemies: [{ name: '雷灵', attr: 'fire', hp: 1800, atk: 40, def: 14, skills: ['atkBuff'] }] },
-      { enemies: [{ name: '雷火兽', attr: 'fire', hp: 2400, atk: 48, def: 16, skills: ['atkBuff', 'defBuff'] }] },
+      { enemies: [{ name: '雷灵', attr: 'fire', hp: 1620, atk: 37, def: 14, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '雷火兽', attr: 'fire', hp: 2150, atk: 44, def: 15, skills: ['atkBuff', 'defBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 6, a: 9 },
@@ -255,8 +255,8 @@ const STAGES = [
   {
     id: 'stage_3_2', name: '冰霜·寒劫', chapter: 3, order: 2,
     waves: [
-      { enemies: [{ name: '霜灵', attr: 'water', hp: 2000, atk: 42, def: 16, skills: ['defBuff'] }] },
-      { enemies: [{ name: '冰魄龙', attr: 'water', hp: 2800, atk: 50, def: 18, skills: ['defBuff', 'healPct'] }] },
+      { enemies: [{ name: '霜灵', attr: 'water', hp: 1800, atk: 39, def: 16, skills: ['defBuff'] }] },
+      { enemies: [{ name: '冰魄龙', attr: 'water', hp: 2500, atk: 46, def: 17, skills: ['defBuff', 'healPct'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 10 },
@@ -276,8 +276,8 @@ const STAGES = [
   {
     id: 'stage_3_3', name: '地裂·岩劫', chapter: 3, order: 3,
     waves: [
-      { enemies: [{ name: '岩甲', attr: 'earth', hp: 2200, atk: 44, def: 22, skills: ['defBuff'] }] },
-      { enemies: [{ name: '山崩灵', attr: 'earth', hp: 3000, atk: 52, def: 20, skills: ['atkBuff', 'defBuff'] }] },
+      { enemies: [{ name: '岩甲', attr: 'earth', hp: 1950, atk: 40, def: 20, skills: ['defBuff'] }] },
+      { enemies: [{ name: '山崩灵', attr: 'earth', hp: 2650, atk: 48, def: 18, skills: ['atkBuff', 'defBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
@@ -297,9 +297,9 @@ const STAGES = [
   {
     id: 'stage_3_4', name: '金风·刃劫', chapter: 3, order: 4,
     waves: [
-      { enemies: [{ name: '金翅', attr: 'metal', hp: 2400, atk: 48, def: 18, skills: ['atkBuff'] }] },
-      { enemies: [{ name: '剑灵', attr: 'metal', hp: 2000, atk: 56, def: 14, skills: ['atkBuff'] }] },
-      { enemies: [{ name: '破军', attr: 'metal', hp: 3200, atk: 54, def: 20, skills: ['atkBuff', 'defBuff'] }] },
+      { enemies: [{ name: '金翅', attr: 'metal', hp: 2150, atk: 44, def: 18, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '剑灵', attr: 'metal', hp: 1800, atk: 52, def: 14, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '破军', attr: 'metal', hp: 2850, atk: 50, def: 18, skills: ['atkBuff', 'defBuff'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 14 },
@@ -319,9 +319,9 @@ const STAGES = [
   {
     id: 'stage_3_5', name: '天劫·五行终焉', chapter: 3, order: 5,
     waves: [
-      { enemies: [{ name: '木劫灵', attr: 'wood', hp: 2000, atk: 44, def: 14, skills: ['healPct'] }] },
-      { enemies: [{ name: '火劫灵', attr: 'fire', hp: 2200, atk: 50, def: 14, skills: ['atkBuff'] }] },
-      { enemies: [{ name: '天劫兽', attr: 'earth', hp: 3800, atk: 58, def: 22, skills: ['atkBuff', 'defBuff', 'healPct'] }] },
+      { enemies: [{ name: '木劫灵', attr: 'wood', hp: 1800, atk: 40, def: 14, skills: ['healPct'] }] },
+      { enemies: [{ name: '火劫灵', attr: 'fire', hp: 1950, atk: 46, def: 14, skills: ['atkBuff'] }] },
+      { enemies: [{ name: '天劫兽', attr: 'earth', hp: 3400, atk: 53, def: 20, skills: ['atkBuff', 'defBuff', 'healPct'] }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 12, a: 16 },

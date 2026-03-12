@@ -19,6 +19,8 @@ const stageSelectView = require('./views/stageSelectView')
 const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
+const idleView = require('./views/idleView')
+const chestView = require('./views/chestView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
 const eventView = require('./views/eventView')
@@ -115,6 +117,13 @@ class Main {
       'assets/ui/nav_rank.png',
       'assets/ui/nav_stats.png',
       'assets/ui/nav_more.png',
+      // 宝箱奖励弹窗素材
+      'assets/ui/icon_chest.png',
+      'assets/ui/banner_reward.png',
+      'assets/ui/frame_fragment.png',
+      'assets/ui/icon_stamina.png',
+      'assets/ui/icon_cult_exp.png',
+      'assets/ui/icon_pet_exp.png',
     ]
     R.preloadImages(criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
@@ -170,6 +179,19 @@ class Main {
         this.scene = 'title'; MusicMgr.playBgm()
       }
     }
+    // 进入 title 场景时自动检查并弹出未领奖励
+    if (this.scene === 'title' && this._prevScene !== 'title') {
+      this._chestAutoChecked = false
+    }
+    if (this.scene === 'title' && !this._chestAutoChecked && !this.showChestPanel) {
+      this._chestAutoChecked = true
+      const { getUnclaimedCount } = require('./data/chestConfig')
+      if (getUnclaimedCount(this.storage) > 0) {
+        chestView.initChestQueue(this)
+        if (chestView.hasMore()) this.showChestPanel = true
+      }
+    }
+    this._prevScene = this.scene
     if (this.bState === 'elimAnim') battleEngine.processElim(this)
     if (this.bState === 'dropping') battleEngine.processDropAnim(this)
     if (this.dragging && this.bState === 'playerTurn') {
@@ -267,6 +289,7 @@ class Main {
       case 'stageInfo': stageInfoView.rStageInfo(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
       case 'stageResult': stageResultView.rStageResult(this); break
+      case 'idle': idleView.rIdle(this); break
     }
     // 粒子系统绘制
     Particles.draw(ctx)
@@ -297,6 +320,7 @@ class Main {
     if (this._fragmentObtainedPopup) {
       dialogs.drawFragmentPopup(this)
     }
+    chestView.drawChestOverlay(this)
     ctx.restore()
   }
 
@@ -305,6 +329,11 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    // 宝箱弹窗拦截（全局覆盖式弹窗）
+    if (this.showChestPanel) {
+      chestView.tChestOverlay(this, type, x, y)
+      return
+    }
     switch(this.scene) {
       case 'title': touchH.tTitle(this,type,x,y); break
       case 'prepare': touchH.tPrepare(this,type,x,y); break
@@ -325,6 +354,7 @@ class Main {
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
       case 'stageResult': stageResultView.tStageResult(this,x,y,type); break
+      case 'idle': idleView.tIdle(this,type,x,y); break
     }
   }
 

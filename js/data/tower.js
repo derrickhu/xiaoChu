@@ -463,9 +463,9 @@ function generateBoss(floor) {
 
   // BOSS倍率随层数递增（30层制：10层=1档，20层=2档，30层=3档）
   const bossLevel = Math.round(floor / 10)  // 1~3
-  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.8, 5)
-  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.3, 2.5)
-  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.2, 2)
+  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.5, 4)
+  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.15, 2)
+  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.15, 1.6)
 
   base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp

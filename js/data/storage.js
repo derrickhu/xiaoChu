@@ -11,7 +11,7 @@ const LOCAL_KEY = 'wxtower_v1'
 const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 6
+const CURRENT_VERSION = 8
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -55,6 +55,16 @@ function defaultPersist() {
     dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
     savedStageTeam: [],      // 持久化保存的编队（灵宠ID列表）
     sidebarRewardDate: '',   // 侧边栏复访奖励最后领取日期
+    // Phase 4：灵宠派遣（挂机）
+    idleDispatch: {
+      slots: [],              // [{ petId, startTime }]  最多3个
+      lastCollect: 0,         // 上次收取时间戳
+    },
+    // Phase 5：宝箱奖励 + 碎片银行
+    fragmentBank: {},          // { petId: count } 未入池宠物的碎片
+    chestRewards: {
+      claimed: {},             // { milestoneId: true }
+    },
   }
 }
 
@@ -101,6 +111,15 @@ const migrations = {
   5: (d) => {
     if (!d.savedStageTeam) d.savedStageTeam = []
   },
+  // v6→v7：灵宠派遣（挂机）
+  6: (d) => {
+    if (!d.idleDispatch) d.idleDispatch = { slots: [], lastCollect: 0 }
+  },
+  // v7→v8：宝箱奖励 + 碎片银行
+  7: (d) => {
+    if (!d.fragmentBank) d.fragmentBank = {}
+    if (!d.chestRewards) d.chestRewards = { claimed: {} }
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -125,6 +144,10 @@ class Storage {
     this._cloudSyncTimer = null
     this._cloudInitDone = false
     this._pendingSync = false
+    this._syncFailCount = 0       // 连续云同步失败次数
+    this._syncDisabled = false    // 失败过多后暂停主动同步
+    this._syncDirty = false       // 有未同步的本地变更
+    this._syncRetryTimer = null   // 低频重试定时器
     // 用户信息（微信授权）
     this.userInfo = null      // { nickName, avatarUrl }
     this.userAuthorized = false
@@ -282,15 +305,17 @@ class Storage {
     if (!pet) return false
     const pool = this._d.petPool || (this._d.petPool = [])
     if (pool.find(p => p.id === petId)) return false
+    const banked = (this._d.fragmentBank && this._d.fragmentBank[petId]) || 0
     pool.push({
       id: petId,
       attr: pet.attr,
       star: 1,
       level: ENTRY_LEVEL,
-      fragments: ENTRY_FRAGMENTS,
+      fragments: ENTRY_FRAGMENTS + banked,
       source,
       obtainedAt: Date.now(),
     })
+    if (banked > 0) delete this._d.fragmentBank[petId]
     this._save()
     return true
   }
@@ -525,6 +550,235 @@ class Storage {
     const pool = this._d.petPool || []
     const poolIds = new Set(pool.map(p => p.id))
     return saved.filter(id => poolIds.has(id))
+  }
+
+  // ===== 灵宠派遣（挂机）系统 =====
+
+  get idleDispatch() { return this._d.idleDispatch || (this._d.idleDispatch = { slots: [], lastCollect: 0 }) }
+
+  /** 派遣一只宠物（添加到槽位） */
+  idleAssign(petId) {
+    const { IDLE_MAX_SLOTS } = require('./petPoolConfig')
+    const dispatch = this.idleDispatch
+    if (dispatch.slots.length >= IDLE_MAX_SLOTS) return false
+    if (dispatch.slots.find(s => s.petId === petId)) return false
+    const pool = this._d.petPool || []
+    if (!pool.find(p => p.id === petId)) return false
+    dispatch.slots.push({ petId, startTime: Date.now() })
+    this._save()
+    return true
+  }
+
+  /** 撤回一只派遣中的宠物 */
+  idleRecall(petId) {
+    const dispatch = this.idleDispatch
+    const idx = dispatch.slots.findIndex(s => s.petId === petId)
+    if (idx < 0) return false
+    dispatch.slots.splice(idx, 1)
+    this._save()
+    return true
+  }
+
+  /** 检查是否有可收取的派遣产出 */
+  idleHasReward() {
+    const { IDLE_FRAG_INTERVAL } = require('./petPoolConfig')
+    const dispatch = this.idleDispatch
+    if (dispatch.slots.length === 0) return false
+    const now = Date.now()
+    return dispatch.slots.some(s => (now - s.startTime) >= IDLE_FRAG_INTERVAL)
+  }
+
+  /**
+   * 收取所有派遣产出（碎片归各宠物，经验归共享池）
+   * @returns {{ totalFragments: number, totalPetExp: number, details: Array }} 产出明细
+   */
+  idleCollect() {
+    const { calcIdleReward } = require('./petPoolConfig')
+    const dispatch = this.idleDispatch
+    if (dispatch.slots.length === 0) return null
+    const now = Date.now()
+    let totalFragments = 0, totalPetExp = 0
+    const details = []
+    for (const slot of dispatch.slots) {
+      const elapsed = now - slot.startTime
+      const poolPet = (this._d.petPool || []).find(p => p.id === slot.petId)
+      if (!poolPet) continue
+      const reward = calcIdleReward(elapsed, poolPet.level)
+      if (reward.fragments > 0) {
+        poolPet.fragments = (poolPet.fragments || 0) + reward.fragments
+        totalFragments += reward.fragments
+      }
+      if (reward.petExp > 0) {
+        totalPetExp += reward.petExp
+      }
+      details.push({ petId: slot.petId, fragments: reward.fragments, petExp: reward.petExp })
+      slot.startTime = now
+    }
+    if (totalPetExp > 0) {
+      this._d.petExpPool = (this._d.petExpPool || 0) + totalPetExp
+    }
+    dispatch.lastCollect = now
+    this._save()
+    return { totalFragments, totalPetExp, details }
+  }
+
+  /** 获取当前派遣中的宠物ID列表 */
+  get idleSlotPetIds() {
+    return (this.idleDispatch.slots || []).map(s => s.petId)
+  }
+
+  // ===== 碎片银行 =====
+
+  /** 给碎片银行中某宠物加碎片 */
+  addFragmentToBank(petId, count = 1) {
+    this._ensureCultivationFields()
+    if (!this._d.fragmentBank[petId]) this._d.fragmentBank[petId] = 0
+    this._d.fragmentBank[petId] += count
+    this._save()
+  }
+
+  /**
+   * 智能添加碎片：已入池→直接加到宠物上，未入池→进银行
+   */
+  addFragmentSmart(petId, count = 1) {
+    const pet = this.getPoolPet(petId)
+    if (pet) {
+      pet.fragments = (pet.fragments || 0) + count
+      this._save()
+    } else {
+      this.addFragmentToBank(petId, count)
+    }
+  }
+
+  /**
+   * 按 tierWeights 分配碎片给随机宠物（一次分配 count 片给同一只宠物）
+   * @param {number} count
+   * @param {object} tierWeights - { T3: 80, T2: 20, T1: 0 }
+   * @returns {{ petId, count }}
+   */
+  addRandomFragments(count, tierWeights) {
+    const { rollPetByTier } = require('./chestConfig')
+    const petId = rollPetByTier(tierWeights)
+    this.addFragmentSmart(petId, count)
+    return { petId, count }
+  }
+
+  /** 获取碎片银行全部数据 */
+  get fragmentBank() {
+    this._ensureCultivationFields()
+    return this._d.fragmentBank
+  }
+
+  /** 获取碎片银行中某宠物的碎片数 */
+  getBankFragments(petId) {
+    this._ensureCultivationFields()
+    return this._d.fragmentBank[petId] || 0
+  }
+
+  // ===== 碎片召唤 =====
+
+  /**
+   * 用碎片银行的碎片召唤宠物
+   * @returns {{ success, message }}
+   */
+  summonPet(petId) {
+    const { SUMMON_FRAG_COST } = require('./chestConfig')
+    const { getPetTier } = require('./pets')
+
+    this._ensureCultivationFields()
+    const banked = this._d.fragmentBank[petId] || 0
+    const tier = getPetTier(petId)
+    const cost = SUMMON_FRAG_COST[tier] || 15
+
+    if (banked < cost) return { success: false, message: `碎片不足（需${cost}，有${banked}）` }
+    if (this.getPoolPet(petId)) return { success: false, message: '已拥有该灵宠' }
+
+    this._d.fragmentBank[petId] -= cost
+    if (this._d.fragmentBank[petId] <= 0) delete this._d.fragmentBank[petId]
+
+    this.addToPetPool(petId, 'summon')
+    return { success: true, message: '召唤成功' }
+  }
+
+  // ===== 宝箱领取 =====
+
+  /**
+   * 领取某里程碑奖励，返回实际发放的奖励列表
+   * @returns {Array} resolved rewards
+   */
+  claimChestReward(milestoneId) {
+    const { CHEST_MILESTONES, rollPetByTier, rollUnownedPet } = require('./chestConfig')
+    this._ensureCultivationFields()
+
+    if (this._d.chestRewards.claimed[milestoneId]) return []
+    const milestone = CHEST_MILESTONES.find(m => m.id === milestoneId)
+    if (!milestone) return []
+
+    const resolved = []
+    for (const r of milestone.rewards) {
+      switch (r.type) {
+        case 'fragment': {
+          const petId = rollPetByTier(r.tierWeights)
+          this.addFragmentSmart(petId, r.count)
+          const { getPetById } = require('./pets')
+          const petData = getPetById(petId)
+          resolved.push({ type: 'fragment', petId, petName: petData ? petData.name : petId, count: r.count })
+          break
+        }
+        case 'pet': {
+          const petId = rollUnownedPet(this._d, r.tier)
+          if (petId) {
+            this.addToPetPool(petId, 'chest')
+            const { getPetById } = require('./pets')
+            const petData = getPetById(petId)
+            resolved.push({ type: 'pet', petId, petName: petData ? petData.name : petId, tier: r.tier })
+          } else {
+            this.addRandomFragments(10, { T3: 0, T2: 30, T1: 70 })
+            resolved.push({ type: 'fragment', petId: '(补偿)', petName: '(全已拥有补偿碎片)', count: 10 })
+          }
+          break
+        }
+        case 'exp': {
+          const cult = this._d.cultivation || {}
+          cult.exp = (cult.exp || 0) + (r.amount || 0)
+          this._d.cultivation = cult
+          resolved.push({ type: 'exp', amount: r.amount })
+          break
+        }
+        case 'petExp': {
+          const pool = this._d.petPool || { sharedExp: 0 }
+          pool.sharedExp = (pool.sharedExp || 0) + (r.amount || 0)
+          this._d.petPool = pool
+          resolved.push({ type: 'petExp', amount: r.amount })
+          break
+        }
+        case 'stamina': {
+          this._d.stamina = (this._d.stamina || 0) + (r.amount || 0)
+          resolved.push({ type: 'stamina', amount: r.amount })
+          break
+        }
+        default: {
+          resolved.push({ type: r.type, ...r })
+          break
+        }
+      }
+    }
+    this._d.chestRewards.claimed[milestoneId] = true
+    this._save()
+    return resolved
+  }
+
+  /** 获取已领取记录 */
+  get chestClaimed() {
+    this._ensureCultivationFields()
+    return this._d.chestRewards.claimed
+  }
+
+  /** 返回宠物池内宠物数量 */
+  get petPoolCount() {
+    return (this._d.petPool && this._d.petPool.pets)
+      ? this._d.petPool.pets.length
+      : 0
   }
 
   // ===== 局内暂存（暂存退出用）=====
@@ -980,6 +1234,11 @@ class Storage {
     if (!this._d.dailyChallenges) this._d.dailyChallenges = { date: '', counts: {} }
     if (!this._d.savedStageTeam) this._d.savedStageTeam = []
     if (!this._d.sidebarRewardDate) this._d.sidebarRewardDate = ''
+    // Phase 4 字段补全
+    if (!this._d.idleDispatch) this._d.idleDispatch = { slots: [], lastCollect: 0 }
+    // Phase 5 字段补全
+    if (!this._d.fragmentBank) this._d.fragmentBank = {}
+    if (!this._d.chestRewards) this._d.chestRewards = { claimed: {} }
   }
 
   _save() {
@@ -997,11 +1256,17 @@ class Storage {
       this._pendingSync = true
       return
     }
+    if (this._syncDisabled) return
     if (this._cloudSyncTimer) clearTimeout(this._cloudSyncTimer)
+    // 失败过后用指数退避延迟，避免频繁请求不可达的服务端
+    const baseDelay = 2000
+    const delay = this._syncFailCount > 0
+      ? Math.min(baseDelay * Math.pow(2, this._syncFailCount), 120000)
+      : baseDelay
     this._cloudSyncTimer = setTimeout(() => {
       this._cloudSyncTimer = null
       this._syncToCloud()
-    }, 2000)
+    }, delay)
   }
 
   async _initCloud() {
@@ -1013,7 +1278,15 @@ class Storage {
         console.log('[Storage] 抖音端 API 登录成功')
       } catch(e) {
         console.warn('[Storage] 抖音端 API 登录失败:', e.message || e)
-        this._cloudReady = true // 抖音云自动注入 openid，即使 login 失败也可用
+        // 尝试直接 sync 一次，如果能通就继续；不能通则标记为不可用
+        this._cloudReady = true
+        try {
+          await api.getPlayerData()
+          console.log('[Storage] 抖音端 API 直连测试通过')
+        } catch(e2) {
+          console.warn('[Storage] 抖音端后端不可达，本次会话云同步停用（本地存档正常）:', e2.message || e2)
+          this._cloudReady = false
+        }
       }
     } else {
       // 微信端：使用 wx.cloud
@@ -1027,10 +1300,10 @@ class Storage {
       try { await this._ensureCollections() } catch(e) {}
       try { await this._getOpenid() } catch(e) { console.warn('Get openid failed:', e) }
     }
-    if (P.isWeChat && this._openid) await this._syncFromCloud()
-    if (P.isDouyin) await this._syncFromCloud()
+    if (this._cloudReady && P.isWeChat && this._openid) await this._syncFromCloud()
+    if (this._cloudReady && P.isDouyin) await this._syncFromCloud()
     this._cloudInitDone = true
-    if (this._pendingSync) {
+    if (this._pendingSync && this._cloudReady) {
       this._pendingSync = false
       this._syncToCloud()
     }
@@ -1127,7 +1400,7 @@ class Storage {
   }
 
   async _syncToCloud() {
-    if (!this._cloudReady) return
+    if (!this._cloudReady || this._syncDisabled) return
     // 防止并发写入：上一次同步未完成时跳过，标记待重试
     if (this._syncing) {
       this._syncPending = true
@@ -1138,37 +1411,65 @@ class Storage {
       if (P.isDouyin) {
         // 抖音端走 HTTP API
         await api.syncPlayerData({ ...this._d, _updateTime: Date.now() })
-        return
-      }
-      // 微信端走 wx.cloud
-      if (!this._openid) return
-      const db = P.cloud.database()
-      const col = db.collection('playerData')
-      const res = await col.where({ _openid: this._openid }).get()
-      const saveData = { ...this._d, _updateTime: Date.now() }
-      delete saveData._id
-      delete saveData._openid
-      // 用 set 做完整替换，避免 update 合并时 null→object 字段冲突
-      const _ = db.command
-      const setData = {}
-      for (const k of Object.keys(saveData)) { setData[k] = _.set(saveData[k]) }
-      if (res.data && res.data.length > 1) {
-        await col.doc(res.data[0]._id).update({ data: setData })
-        for (let i = 1; i < res.data.length; i++) {
-          try { await col.doc(res.data[i]._id).remove() } catch(e) {}
-        }
-        console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
-      } else if (res.data && res.data.length === 1) {
-        await col.doc(res.data[0]._id).update({ data: setData })
       } else {
-        await col.add({ data: saveData })
+        // 微信端走 wx.cloud
+        if (!this._openid) return
+        const db = P.cloud.database()
+        const col = db.collection('playerData')
+        const res = await col.where({ _openid: this._openid }).get()
+        const saveData = { ...this._d, _updateTime: Date.now() }
+        delete saveData._id
+        delete saveData._openid
+        // 用 set 做完整替换，避免 update 合并时 null→object 字段冲突
+        const _ = db.command
+        const setData = {}
+        for (const k of Object.keys(saveData)) { setData[k] = _.set(saveData[k]) }
+        if (res.data && res.data.length > 1) {
+          await col.doc(res.data[0]._id).update({ data: setData })
+          for (let i = 1; i < res.data.length; i++) {
+            try { await col.doc(res.data[i]._id).remove() } catch(e) {}
+          }
+          console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
+        } else if (res.data && res.data.length === 1) {
+          await col.doc(res.data[0]._id).update({ data: setData })
+        } else {
+          await col.add({ data: saveData })
+        }
+      }
+      // 同步成功，重置所有失败状态
+      if (this._syncFailCount > 0) {
+        console.log('[Storage] 云同步恢复成功，已上传最新数据')
+      }
+      this._syncFailCount = 0
+      this._syncDirty = false
+      this._syncDisabled = false
+      if (this._syncRetryTimer) {
+        clearInterval(this._syncRetryTimer)
+        this._syncRetryTimer = null
       }
     } catch(e) {
-      console.warn('[Storage] 云同步失败:', e.message || e)
+      this._syncFailCount = (this._syncFailCount || 0) + 1
+      // 标记有脏数据待同步，网络恢复后会补传
+      this._syncDirty = true
+      if (this._syncFailCount <= 3) {
+        console.warn(`[Storage] 云同步失败(${this._syncFailCount}/5):`, e.message || e)
+      }
+      if (this._syncFailCount >= 5) {
+        // 连续5次失败后暂停主动同步，改为每2分钟被动尝试一次
+        if (!this._syncRetryTimer) {
+          console.warn('[Storage] 云同步连续失败，进入低频重试模式（本地存档正常，不丢数据）')
+          this._syncRetryTimer = setInterval(() => {
+            if (this._syncDirty && !this._syncing) {
+              console.log('[Storage] 低频重试云同步...')
+              this._syncToCloud()
+            }
+          }, 120000)
+        }
+        this._syncDisabled = true
+      }
     } finally {
       this._syncing = false
-      // 同步期间有新的写入请求，延迟重试一次
-      if (this._syncPending) {
+      if (this._syncPending && !this._syncDisabled) {
         this._syncPending = false
         this._debounceSyncToCloud()
       }

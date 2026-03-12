@@ -174,7 +174,11 @@ function settleStage(g) {
 
   // 修炼经验
   const baseExp = stage.rewards.repeatClear.exp || 0
-  const firstClearExpBonus = isFirstClear ? Math.floor(baseExp * 0.5) : 0
+  let firstClearExpBonus = 0
+  if (isFirstClear && stage.rewards.firstClear) {
+    const fcExp = stage.rewards.firstClear.find(r => r.type === 'exp')
+    firstClearExpBonus = fcExp ? fcExp.amount : 0
+  }
   const clearBonus = Math.ceil(baseExp * ratingMul) + firstClearExpBonus
   const rawTotal = (g.runExp || 0) + clearBonus
   const prevLevel = g.storage.cultivation.level || 0
@@ -182,7 +186,11 @@ function settleStage(g) {
 
   // 宠物经验（进入共享经验池）
   const basePetExp = stage.rewards.repeatClear.petExp || 0
-  const petExp = Math.ceil(basePetExp * ratingMul)
+  let petExp = Math.ceil(basePetExp * ratingMul)
+  if (isFirstClear && stage.rewards.firstClear) {
+    const fcPet = stage.rewards.firstClear.find(r => r.type === 'petExp')
+    if (fcPet) petExp += fcPet.amount
+  }
   if (petExp > 0) g.storage.addPetExp(petExp)
 
   // 应用碎片奖励

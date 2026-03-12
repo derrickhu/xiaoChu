@@ -68,35 +68,9 @@ function getLayout() {
   }
 }
 
-// ===== ZONE 1: 顶栏 =====
+// ===== ZONE 1: 顶栏（已隐藏文字，保留宝箱区域占位）=====
 function drawTopBar(g) {
-  const { ctx, R, W, S } = V
-  const L = getLayout()
-
-  ctx.save()
-  const barPad = 12 * S
-  const barW = W - barPad * 2
-  const barH = L.topBarH - 4 * S
-  const barX = barPad
-  const barY = L.topBarY + 2 * S
-
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'
-  R.rr(barX, barY, barW, barH, 8 * S); ctx.fill()
-
-  const best = g.storage.bestFloor
-  ctx.fillStyle = '#ffd700'
-  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-  ctx.fillText(best > 0 ? `☆ 最佳第 ${best} 层` : '☆ 新修士', barX + 10 * S, barY + barH / 2)
-
-  const runs = g.storage.totalRuns || 0
-  if (runs > 0) {
-    ctx.fillStyle = 'rgba(200,200,210,0.7)'
-    ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'right'
-    ctx.fillText(`挑战 ${runs} 次`, barX + barW - 10 * S, barY + barH / 2)
-  }
-  ctx.restore()
+  // 顶栏文字（最佳层数/挑战次数）已移除，顶栏不再绘制
 }
 
 // ===== ZONE 2: 场景区（背景 + 插画 + Logo）=====
@@ -133,15 +107,6 @@ function drawSceneArea(g) {
     ctx.restore()
   }
 
-  // Logo 居中贴近顶栏
-  const titleLogo = R.getImg('assets/ui/title_logo.png')
-  if (titleLogo && titleLogo.width > 0) {
-    const logoW = W * 0.48
-    const logoH = logoW * (titleLogo.height / titleLogo.width)
-    const logoX = (W - logoW) / 2
-    const logoY = L.topBarBottom + 6 * S
-    ctx.drawImage(titleLogo, logoX, logoY, logoW, logoH)
-  }
 }
 
 // ===== ZONE 3: 灵宠展示（仅固定关卡模式显示）=====
@@ -771,7 +736,7 @@ function drawBottomBar(g) {
           ctx.fillStyle = '#ff4444'; ctx.fill()
         }
       }
-      // 灵宠池红点：有宠物可升星时显示
+      // 灵宠池红点：有宠物可升星或有派遣可收取时显示
       if (item.key === 'pets' && !isLocked) {
         const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ } = require('../data/petPoolConfig')
         const pool = g.storage.petPool || []
@@ -781,7 +746,8 @@ function drawBottomBar(g) {
           const lvReq = POOL_STAR_LV_REQ[nextStar]
           return fragCost && lvReq && p.fragments >= fragCost && p.level >= lvReq
         })
-        if (hasUpgradeable) {
+        const hasIdleReward = g.storage.idleHasReward()
+        if (hasUpgradeable || hasIdleReward) {
           ctx.globalAlpha = 1
           ctx.beginPath()
           ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)
@@ -890,6 +856,51 @@ function drawMorePanel(g) {
   ctx.restore()
 }
 
+// ===== 宝箱浮钮（右下角，与模式切换左右对称） =====
+// ===== 宝箱浮钮（右上角，顶栏旁边）=====
+function drawChestBtn(g) {
+  const { ctx, R, W, S, safeTop } = V
+  const { getUnclaimedCount } = require('../data/chestConfig')
+
+  // 图标尺寸：避开右上角系统按钮（...），下移至其下方
+  const btnSz = 48 * S
+  const btnX = W - btnSz - 10 * S
+  const btnY = safeTop + 52 * S
+
+  ctx.save()
+
+  const chestImg = R.getImg('assets/ui/icon_chest.png')
+  if (chestImg && chestImg.width > 0) {
+    ctx.drawImage(chestImg, btnX, btnY, btnSz, btnSz)
+  } else {
+    // fallback：绘制圆形背景 + emoji
+    ctx.fillStyle = 'rgba(20,18,38,0.75)'
+    R.rr(btnX, btnY, btnSz, btnSz, 8 * S); ctx.fill()
+    ctx.font = `${btnSz * 0.55}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('🎁', btnX + btnSz / 2, btnY + btnSz / 2)
+  }
+
+  // 红点 + 数字（右上角）
+  const count = getUnclaimedCount(g.storage)
+  if (count > 0) {
+    const dotR = 8 * S
+    const dotX = btnX + btnSz - dotR * 0.5
+    const dotY = btnY + dotR * 0.5
+    ctx.beginPath()
+    ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2)
+    ctx.fillStyle = '#ff3333'
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(String(count), dotX, dotY)
+  }
+
+  g._chestBtnRect = [btnX, btnY, btnSz, btnSz]
+  ctx.restore()
+}
+
 // ===== 主入口 =====
 function rTitle(g) {
   drawSceneArea(g)
@@ -897,6 +908,7 @@ function rTitle(g) {
   drawPetDisplay(g)
   drawStartBtn(g)
   drawModeSwitchBtn(g)
+  drawChestBtn(g)
   drawSidebarBtn(g)
   drawBottomBar(g)
   drawMorePanel(g)

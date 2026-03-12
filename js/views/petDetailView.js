@@ -16,6 +16,7 @@ const _rects = {
   levelUpBtnRect: null,
   starUpBtnRect: null,
   decomposeBtnRect: null,
+  summonBtnRect: null,
   leftArrowRect: null,
   rightArrowRect: null,
 }
@@ -58,57 +59,57 @@ function rPetDetail(g) {
   const _returnScene = g._petDetailReturnScene || 'petPool'
   if (!petId) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
 
-  const poolPet = g.storage.getPoolPet(petId)
-  if (!poolPet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
+  const isUnowned = !!g._petDetailUnowned
+  const poolPet = isUnowned ? null : g.storage.getPoolPet(petId)
+  if (!isUnowned && !poolPet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
   const basePet = getPetById(petId)
   if (!basePet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
 
-  // 处理滑动动画
-  if (_slideAnim) {
-    _slideAnim.progress += 1 / _slideAnim.duration
-    if (_slideAnim.progress >= 1) {
-      g._petDetailId = _slideAnim.to
-      _slideAnim = null
-    }
-  }
-
-  // 绘制当前页面（可能带偏移）
-  // _swipeDeltaX > 0 = 手指向右拖 = 页面向右移 = 上一个从左侧进来
-  if (_slideAnim) {
-    const ease = _easeOut(_slideAnim.progress)
-    // 当前页滑出：从 0 → direction * W
-    const curOffset = _slideAnim.direction * W * ease
-    c.save()
-    c.translate(curOffset, 0)
-    _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
-    c.restore()
-    // 目标页滑入：从 -direction * W → 0
-    const tgtOffset = -_slideAnim.direction * W * (1 - ease)
-    c.save()
-    c.translate(tgtOffset, 0)
-    _drawDetailPage(g, _slideAnim.to, c, R, W, H, S, safeTop)
-    c.restore()
-  } else if (_swiping) {
-    // 手指拖动中：当前页跟随手指
-    c.save()
-    c.translate(_swipeDeltaX, 0)
-    _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
-    c.restore()
-    // 相邻页紧贴
-    if (Math.abs(_swipeDeltaX) > 5 * S) {
-      const pool = _getFilteredPool(g)
-      const idx = _getCurrentIndex(g)
-      const nextIdx = _swipeDeltaX > 0 ? idx - 1 : idx + 1
-      if (nextIdx >= 0 && nextIdx < pool.length) {
-        c.save()
-        const sideOffset = _swipeDeltaX > 0 ? (_swipeDeltaX - W) : (_swipeDeltaX + W)
-        c.translate(sideOffset, 0)
-        _drawDetailPage(g, pool[nextIdx].id, c, R, W, H, S, safeTop)
-        c.restore()
+  // 未拥有宠物：直接渲染召唤页，不支持滑动
+  if (isUnowned) {
+    _drawUnownedPage(g, petId, c, R, W, H, S, safeTop)
+  } else {
+    // 处理滑动动画
+    if (_slideAnim) {
+      _slideAnim.progress += 1 / _slideAnim.duration
+      if (_slideAnim.progress >= 1) {
+        g._petDetailId = _slideAnim.to
+        _slideAnim = null
       }
     }
-  } else {
-    _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+
+    if (_slideAnim) {
+      const ease = _easeOut(_slideAnim.progress)
+      const curOffset = _slideAnim.direction * W * ease
+      c.save()
+      c.translate(curOffset, 0)
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+      c.restore()
+      const tgtOffset = -_slideAnim.direction * W * (1 - ease)
+      c.save()
+      c.translate(tgtOffset, 0)
+      _drawDetailPage(g, _slideAnim.to, c, R, W, H, S, safeTop)
+      c.restore()
+    } else if (_swiping) {
+      c.save()
+      c.translate(_swipeDeltaX, 0)
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+      c.restore()
+      if (Math.abs(_swipeDeltaX) > 5 * S) {
+        const pool = _getFilteredPool(g)
+        const idx = _getCurrentIndex(g)
+        const nextIdx = _swipeDeltaX > 0 ? idx - 1 : idx + 1
+        if (nextIdx >= 0 && nextIdx < pool.length) {
+          c.save()
+          const sideOffset = _swipeDeltaX > 0 ? (_swipeDeltaX - W) : (_swipeDeltaX + W)
+          c.translate(sideOffset, 0)
+          _drawDetailPage(g, pool[nextIdx].id, c, R, W, H, S, safeTop)
+          c.restore()
+        }
+      }
+    } else {
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+    }
   }
 
   // === 返回按钮（始终在最上层，不随滑动偏移）===
@@ -137,10 +138,11 @@ function rPetDetail(g) {
   c.restore()
   _rects.backBtnRect = [btnX, btnY, btnW, btnH]
 
-  // 左右翻页箭头（头像两侧，半透明，可点击）
+  // 左右翻页箭头（头像两侧，半透明，可点击）— 未拥有宠物不显示
   _rects.leftArrowRect = null
   _rects.rightArrowRect = null
-  if (!_swiping && !_slideAnim) {
+  _rects.summonBtnRect = null
+  if (!isUnowned && !_swiping && !_slideAnim) {
     const pool = _getFilteredPool(g)
     const idx = _getCurrentIndex(g)
     const arrowY = safeTop + 46 * S + W * 0.52 / 2
@@ -173,7 +175,8 @@ function rPetDetail(g) {
     c.restore()
   }
 
-  // 底部页码指示器
+  // 底部页码指示器（未拥有宠物不显示）
+  if (isUnowned) return
   const pool = _getFilteredPool(g)
   const idx = _getCurrentIndex(g)
   if (pool.length > 1) {
@@ -192,6 +195,213 @@ function rPetDetail(g) {
     }
     c.restore()
   }
+}
+
+// ===== 未拥有宠物召唤页 =====
+function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
+  const basePet = getPetById(petId)
+  if (!basePet) return
+  const tier = getPetTier(petId)
+  const attrColor = ATTR_COLOR[basePet.attr]
+  const attrName = ATTR_NAME[basePet.attr] || basePet.attr
+  const ac = attrColor ? attrColor.main : '#666'
+  const { SUMMON_FRAG_COST } = require('../data/chestConfig')
+  const cost = SUMMON_FRAG_COST[tier] || 15
+  const bankFrag = g.storage.getBankFragments(petId)
+  const canSummon = bankFrag >= cost
+
+  // 背景
+  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  if (poolBg && poolBg.width > 0) {
+    R._drawCoverImg(poolBg, 0, 0, W, H)
+  } else {
+    R.drawHomeBg(0)
+  }
+  c.fillStyle = 'rgba(0,0,0,0.25)'
+  c.fillRect(0, 0, W, H)
+
+  // 头像（半透明）
+  const avatarAreaTop = safeTop + 46 * S
+  const avatarSize = W * 0.52
+  const avatarX = (W - avatarSize) / 2
+  const avatarY = avatarAreaTop
+
+  c.save()
+  c.globalAlpha = 0.5
+  const glowCx = avatarX + avatarSize / 2
+  const glowCy = avatarY + avatarSize / 2
+  const glowR = avatarSize * 0.7
+  const glow = c.createRadialGradient(glowCx, glowCy, glowR * 0.2, glowCx, glowCy, glowR)
+  glow.addColorStop(0, ac + '50')
+  glow.addColorStop(0.5, ac + '18')
+  glow.addColorStop(1, ac + '00')
+  c.fillStyle = glow
+  c.beginPath()
+  c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2)
+  c.fill()
+
+  const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    c.save()
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+    c.clip()
+    const aw = img.width, ah = img.height
+    const scale = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * scale, dh = ah * scale
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+  }
+  c.restore()
+
+  // 名称区域
+  let cy = avatarY + avatarSize + 6 * S
+  const orbPath = `assets/orbs/orb_${basePet.attr || 'metal'}.png`
+  const orbImg = R.getImg(orbPath)
+  const orbSz = 22 * S
+  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+  const nameW = c.measureText(basePet.name).width
+  const totalNameW = orbSz + 4 * S + nameW
+  const nameStartX = (W - totalNameW) / 2
+
+  if (orbImg && orbImg.width > 0) {
+    c.drawImage(orbImg, nameStartX, cy - 1 * S, orbSz, orbSz)
+  }
+  const nameX = nameStartX + orbSz + 4 * S
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 4 * S
+  c.strokeText(basePet.name, nameX, cy)
+  c.fillStyle = 'rgba(200,200,220,0.8)'
+  c.fillText(basePet.name, nameX, cy)
+
+  cy += 28 * S
+
+  // 档位标签
+  const tierColor = tier === 'T1' ? '#FFD700' : tier === 'T2' ? '#8DF' : '#AAA'
+  c.fillStyle = tierColor; c.globalAlpha = 0.2
+  const tagW = 40 * S, tagH = 18 * S
+  R.rr((W - tagW) / 2, cy, tagW, tagH, 4 * S); c.fill()
+  c.globalAlpha = 1
+  c.strokeStyle = tierColor; c.lineWidth = 1 * S
+  R.rr((W - tagW) / 2, cy, tagW, tagH, 4 * S); c.stroke()
+  c.fillStyle = tierColor
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(tier, W / 2, cy + tagH / 2)
+
+  cy += tagH + 16 * S
+
+  // 信息卡片
+  const cardX = 6 * S
+  const cardW2 = W - 12 * S
+  const cardTop = cy
+  const cardBottom = H - safeTop - 24 * S
+  const cardH2 = cardBottom - cardTop
+  const cardRad = 14 * S
+
+  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  if (cardBg && cardBg.width > 0) {
+    c.save()
+    R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
+    c.drawImage(cardBg, cardX, cardTop, cardW2, cardH2)
+    c.restore()
+  } else {
+    c.fillStyle = 'rgba(20,15,10,0.75)'
+    R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.fill()
+  }
+
+  const borderL = Math.round(cardW2 * 0.25)
+  const borderR = Math.round(cardW2 * 0.10)
+  const borderT = Math.round(cardH2 * 0.15)
+  const indent = cardX + borderL
+  const rightEdge = cardX + cardW2 - borderR
+  const contentW = rightEdge - indent
+  const innerTop = cardTop + borderT
+
+  cy = innerTop
+
+  // 基础攻击力
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  const atkLabelW = c.measureText('攻击力').width
+  c.fillText('攻击力', indent, cy + 11 * S)
+  c.fillStyle = '#CC6600'
+  c.font = `bold ${22*S}px "PingFang SC",sans-serif`
+  c.fillText(`${basePet.atk}`, indent + atkLabelW + 8 * S, cy + 11 * S)
+  cy += 30 * S
+
+  _drawSep(c, indent, cy, rightEdge, S)
+  cy += 10 * S
+
+  // 技能预览
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('技能', indent, cy)
+  const fakePet = { ...basePet, star: 2 }
+  const hasSkill = petHasSkill(fakePet)
+  if (hasSkill) {
+    c.fillStyle = '#2E8B2E'
+    c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'right'
+    c.fillText(basePet.skill.name, rightEdge, cy + 1 * S)
+    cy += 20 * S
+    const skillDesc = getPetSkillDesc(fakePet)
+    c.fillStyle = 'rgba(70,50,30,0.85)'
+    c.font = `${12*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'
+    _wrapText(c, skillDesc || '', indent, cy, contentW, 16 * S)
+    cy += 20 * S
+  } else {
+    cy += 20 * S
+    c.fillStyle = 'rgba(90,70,40,0.7)'
+    c.font = `${13*S}px "PingFang SC",sans-serif`
+    c.fillText('此灵宠无技能', indent, cy)
+    cy += 20 * S
+  }
+
+  cy += 10 * S
+  _drawSep(c, indent, cy, rightEdge, S)
+  cy += 16 * S
+
+  // 碎片进度
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('碎片召唤', indent, cy)
+  cy += 22 * S
+
+  // 进度条
+  const barW2 = contentW * 0.6
+  const barH3 = 14 * S
+  const barX2 = indent
+  const progress = Math.min(1, bankFrag / cost)
+  c.fillStyle = 'rgba(0,0,0,0.15)'
+  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.fill()
+  if (progress > 0) {
+    const fillGrad = c.createLinearGradient(barX2, cy, barX2 + barW2 * progress, cy)
+    fillGrad.addColorStop(0, '#9b7aff')
+    fillGrad.addColorStop(1, '#6b4adf')
+    c.fillStyle = fillGrad
+    R.rr(barX2, cy, barW2 * progress, barH3, barH3 / 2); c.fill()
+  }
+  c.strokeStyle = 'rgba(120,100,200,0.4)'; c.lineWidth = 1 * S
+  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.stroke()
+
+  // 碎片数字
+  c.fillStyle = canSummon ? '#7ecf6a' : 'rgba(90,70,40,0.75)'
+  c.font = `${13*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'; c.textBaseline = 'top'
+  c.fillText(`${bankFrag} / ${cost}`, rightEdge, cy)
+  cy += barH3 + 16 * S
+
+  // 召唤按钮
+  const sBtnW = 100 * S, sBtnH = 34 * S
+  const sBtnX = indent
+  _drawBtn(c, R, S, sBtnX, cy, sBtnW, sBtnH, canSummon ? '召唤灵宠' : '碎片不足', canSummon, '#9b7aff', 13 * S)
+  _rects.summonBtnRect = [sBtnX, cy, sBtnW, sBtnH]
 }
 
 // ===== 绘制单个宠物详情页 =====
@@ -782,7 +992,18 @@ function tPetDetail(g, x, y, type) {
       g.scene = g._petDetailReturnScene || 'petPool'
       g._petDetailReturnScene = null
       g._petDetailId = null
+      g._petDetailUnowned = false
       MusicMgr.playClick && MusicMgr.playClick()
+      return
+    }
+
+    // 召唤按钮（未拥有宠物）
+    if (_rects.summonBtnRect && g._petDetailUnowned && g._hitRect(x, y, ..._rects.summonBtnRect)) {
+      const result = g.storage.summonPet(g._petDetailId)
+      if (result.success) {
+        g._petDetailUnowned = false
+        MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
+      }
       return
     }
 

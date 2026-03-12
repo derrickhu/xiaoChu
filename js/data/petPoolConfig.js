@@ -97,6 +97,27 @@ function calcRoguelikePetExp(expDetail, floor, cleared) {
   return baseFromCombat + floorBonus + clearBonus
 }
 
+// ===== 灵宠派遣（挂机）系统 =====
+
+const IDLE_MAX_SLOTS = 3            // 最大派遣槽位
+const IDLE_FRAG_INTERVAL = 4 * 3600 * 1000  // 每产出1碎片的间隔（4小时，ms）
+const IDLE_MAX_ACCUMULATE = 24 * 3600 * 1000 // 最大离线累积时长（24小时，ms）
+const IDLE_PET_EXP_PER_HOUR = 8     // 每只宠物每小时产出的共享经验
+
+/**
+ * 计算派遣产出
+ * @param {number} elapsedMs - 经过时间（毫秒）
+ * @param {number} petLevel  - 宠物等级（影响经验产出）
+ * @returns {{ fragments: number, petExp: number }}
+ */
+function calcIdleReward(elapsedMs, petLevel) {
+  const capped = Math.min(elapsedMs, IDLE_MAX_ACCUMULATE)
+  const fragments = Math.floor(capped / IDLE_FRAG_INTERVAL)
+  const hours = capped / (3600 * 1000)
+  const petExp = Math.floor(hours * IDLE_PET_EXP_PER_HOUR * (1 + petLevel * 0.02))
+  return { fragments, petExp }
+}
+
 module.exports = {
   POOL_MAX_LV,
   POOL_ADV_MAX_LV,
@@ -110,4 +131,9 @@ module.exports = {
   ENTRY_LEVEL,
   ENTRY_FRAGMENTS,
   calcRoguelikePetExp,
+  IDLE_MAX_SLOTS,
+  IDLE_FRAG_INTERVAL,
+  IDLE_MAX_ACCUMULATE,
+  IDLE_PET_EXP_PER_HOUR,
+  calcIdleReward,
 }

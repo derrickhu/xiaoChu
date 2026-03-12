@@ -28,6 +28,7 @@ const _rects = {
   levelUpBtnRect: null,   // [x,y,w,h]
   starUpBtnRect: null,    // [x,y,w,h]
   decomposeBtnRect: null, // [x,y,w,h]
+  idleBtnRect: null,      // [x,y,w,h]
 }
 
 // 长按升级相关状态
@@ -116,12 +117,14 @@ function rPetPool(g) {
     c.strokeText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
     c.fillText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
   }
+
   c.restore()
 
   // === 属性筛选 ===
   const filterY = contentTop + 4 * S
   const filterH = 26 * S
-  const filterW = (W - 24 * S) / FILTERS.length
+  const idleBtnReserve = 60 * S   // 右侧为派遣按钮预留空间
+  const filterW = (W - 24 * S - idleBtnReserve) / FILTERS.length
   _rects.filterRects = []
   c.save()
   for (let i = 0; i < FILTERS.length; i++) {
@@ -146,6 +149,32 @@ function rPetPool(g) {
     c.fillText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW - 4 * S, filterH] })
   }
+  c.restore()
+
+  // === 派遣入口按钮（筛选行右侧留白区，避开系统按钮）===
+  const hasIdleReward = g.storage.idleHasReward()
+  const idleBtnH = filterH
+  const idleBtnW = 52 * S
+  const idleBtnX = W - idleBtnW - 12 * S
+  const idleBtnY = filterY
+  c.save()
+  c.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
+  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.fill()
+  c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
+  c.lineWidth = 1.5 * S
+  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.stroke()
+  c.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
+  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2.5 * S
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeText('派遣', idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
+  c.fillText('派遣', idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
+  if (hasIdleReward) {
+    c.beginPath()
+    c.arc(idleBtnX + idleBtnW - 3 * S, idleBtnY + 3 * S, 5 * S, 0, Math.PI * 2)
+    c.fillStyle = '#ff3333'; c.fill()
+  }
+  _rects.idleBtnRect = [idleBtnX, idleBtnY, idleBtnW, idleBtnH]
   c.restore()
 
   // === 卡片网格 ===
@@ -186,6 +215,29 @@ function rPetPool(g) {
 
     _drawPetCard(c, R, S, W, cx, cy, cardW, cardH, pet)
     _rects.cardRects.push({ petId: pet.id, rect: [cx, cy, cardW, cardH] })
+  }
+
+  // 幽灵卡片：碎片银行中有碎片的未拥有宠物（半透明）
+  const bank = g.storage.fragmentBank || {}
+  const ownedIds = new Set(pool.map(p => p.id))
+  const filter = g._petPoolFilter || 'all'
+  const ghostPets = Object.keys(bank)
+    .filter(id => !ownedIds.has(id) && bank[id] > 0)
+    .filter(id => {
+      if (filter === 'all') return true
+      const bp = getPetById(id)
+      return bp && bp.attr === filter
+    })
+  const ghostStart = pool.length
+  for (let gi = 0; gi < ghostPets.length; gi++) {
+    const gIdx = ghostStart + gi
+    const row = Math.floor(gIdx / cols)
+    const col = gIdx % cols
+    const cx = 12 * S + col * (cardW + cardGap)
+    const cy = gridTop + row * (cardH + cardGap) + cardGap - scrollY
+    if (cy + cardH < gridTop || cy > gridBottom) continue
+    _drawGhostCard(c, R, S, W, cx, cy, cardW, cardH, ghostPets[gi], bank[ghostPets[gi]])
+    _rects.cardRects.push({ petId: ghostPets[gi], rect: [cx, cy, cardW, cardH], ghost: true })
   }
   c.restore()
 
@@ -326,6 +378,88 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.strokeText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
   c.fillStyle = '#fff'
   c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
+
+  c.restore()
+}
+
+// ===== 幽灵卡片（未入池但有碎片的宠物） =====
+function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
+  const basePet = getPetById(petId)
+  if (!basePet) return
+  const tier = getPetTier(petId)
+  const attrColor = ATTR_COLOR[basePet.attr]
+  const { SUMMON_FRAG_COST } = require('../data/chestConfig')
+  const cost = SUMMON_FRAG_COST[tier] || 15
+
+  c.save()
+  c.globalAlpha = 0.5
+
+  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  if (cardBg && cardBg.width > 0) {
+    c.drawImage(cardBg, x, y, w, h)
+  } else {
+    c.fillStyle = 'rgba(30,20,10,0.75)'
+    R.rr(x, y, w, h, 8 * S); c.fill()
+  }
+
+  // 头像
+  const avatarSize = w * 0.62
+  const avatarX = x + (w - avatarSize) / 2
+  const avatarY = y + 8 * S
+  const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    c.save()
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.clip()
+    const aw = img.width, ah = img.height
+    const scale = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * scale, dh = ah * scale
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+  }
+
+  c.globalAlpha = 1
+
+  // 名称
+  const nameY = avatarY + avatarSize + 6 * S
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  const displayName = basePet.name.length > 4 ? basePet.name.slice(0, 4) + '…' : basePet.name
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
+  c.strokeText(displayName, x + w / 2, nameY)
+  c.fillStyle = 'rgba(200,200,220,0.8)'
+  c.fillText(displayName, x + w / 2, nameY)
+
+  // 碎片进度条
+  const barW = w * 0.7
+  const barH2 = 8 * S
+  const barX = x + (w - barW) / 2
+  const barY2 = nameY + 16 * S
+  const progress = Math.min(1, fragCount / cost)
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  R.rr(barX, barY2, barW, barH2, barH2 / 2); c.fill()
+  if (progress > 0) {
+    const fillGrad = c.createLinearGradient(barX, barY2, barX + barW * progress, barY2)
+    fillGrad.addColorStop(0, '#9b7aff')
+    fillGrad.addColorStop(1, '#6b4adf')
+    c.fillStyle = fillGrad
+    R.rr(barX, barY2, barW * progress, barH2, barH2 / 2); c.fill()
+  }
+
+  // 碎片数字
+  c.fillStyle = fragCount >= cost ? '#7ecf6a' : 'rgba(200,200,220,0.7)'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  c.fillText(`${fragCount}/${cost}`, x + w / 2, barY2 + barH2 + 3 * S)
+
+  // 档位标签
+  const tierColor = tier === 'T1' ? '#ffd700' : tier === 'T2' ? '#8df' : '#aaa'
+  c.fillStyle = 'rgba(0,0,0,0.5)'
+  R.rr(x + w - 22*S, y + 3*S, 20*S, 13*S, 4*S); c.fill()
+  c.fillStyle = tierColor
+  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(tier, x + w - 12*S, y + 9.5*S)
 
   c.restore()
 }
@@ -783,6 +917,15 @@ function tPetPool(g, x, y, type) {
   if (type === 'end') {
     if (_scrolling) { _scrolling = false; return }
 
+    // 派遣入口
+    if (_rects.idleBtnRect && g._hitRect(x, y, ..._rects.idleBtnRect)) {
+      const { resetIdleView } = require('./idleView')
+      resetIdleView()
+      g._idleCollectResult = null
+      g.scene = 'idle'
+      return
+    }
+
     // 返回按钮
     if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
       g.scene = 'title'; return
@@ -801,6 +944,7 @@ function tPetPool(g, x, y, type) {
     for (const card of _rects.cardRects) {
       if (g._hitRect(x, y, ...card.rect)) {
         g._petDetailId = card.petId
+        g._petDetailUnowned = !!card.ghost
         g.scene = 'petDetail'
         MusicMgr.playClick && MusicMgr.playClick()
         return
