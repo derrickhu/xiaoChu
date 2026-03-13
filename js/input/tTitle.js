@@ -5,10 +5,45 @@ const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const runMgr = require('../engine/runManager')
 
+// ===== 开发者调试：左上角快速点击 5 次触发重置 =====
+let _devTapCount = 0
+let _devTapLastTime = 0
+
+function _checkDevReset(g, x, y) {
+  const V = require('../views/env')
+  const hitSize = 55 * V.S
+  if (x > hitSize || y > hitSize) return
+  const now = Date.now()
+  if (now - _devTapLastTime > 1500) _devTapCount = 0
+  _devTapLastTime = now
+  _devTapCount++
+  if (_devTapCount >= 5) {
+    _devTapCount = 0
+    g._showDevResetDialog = true
+    g._dirty = true
+  }
+}
+
 function tTitle(g, type, x, y) {
   if (type !== 'end') return
 
-  // ⓪ 侧边栏复访弹窗（最高优先级）
+  // ⓪ 开发者重置弹窗（最高优先级）
+  if (g._showDevResetDialog) {
+    if (g._devResetConfirmRect && g._hitRect(x, y, ...g._devResetConfirmRect)) {
+      P.clearStorageSync()
+      P.showToast({ title: '数据已重置，即将重启', icon: 'success', duration: 1500 })
+      setTimeout(() => { P.restartMiniProgram({}) }, 1600)
+      g._showDevResetDialog = false
+      return
+    }
+    if (g._devResetCancelRect && g._hitRect(x, y, ...g._devResetCancelRect)) {
+      g._showDevResetDialog = false; g._dirty = true; return
+    }
+    g._showDevResetDialog = false; g._dirty = true
+    return
+  }
+
+  // ① 侧边栏复访弹窗
   if (g.showSidebarPanel) {
     if (g._sidebarClaimRect && g._hitRect(x, y, ...g._sidebarClaimRect)) {
       const ok = g.storage.claimSidebarReward()
@@ -158,6 +193,9 @@ function tTitle(g, type, x, y) {
       case 6: g.showMorePanel = true; return
     }
   }
+
+  // 左上角隐藏区域：5 次快速点击触发开发者重置
+  _checkDevReset(g, x, y)
 }
 
 module.exports = tTitle

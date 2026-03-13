@@ -17,6 +17,7 @@
     { "name": "equipment",   "root": "assets/equipment/" },
     { "name": "battle",      "root": "assets/battle/" },
     { "name": "orbs",        "root": "assets/orbs/" },
+    { "name": "intro",       "root": "assets/intro/" },
     { "name": "audio",       "root": "audio/" },
     { "name": "audio_bgm",   "root": "audio_bgm/" }
   ]

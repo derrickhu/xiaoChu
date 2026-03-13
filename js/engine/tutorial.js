@@ -29,10 +29,33 @@ function _makeTutorialPets() {
 // 简写：m=金 w=木 e=土 s=水 f=火 h=心
 // rounds[]: 多回合教学，每回合有独立 board/guide/msg
 // 无 rounds 的步骤视为单回合（使用顶层 board/guide/msg）
+// storyCards[]: 步骤开始前的代入式故事卡，{ heading, lines[], note? }
 const STEPS = [
   {
     id: 0,
     title: '转珠基础',
+    storyCards: [
+      {
+        heading: '五行灵宠，助我战！',
+        lines: [
+          '我在修仙世界遭遇了凶险妖兽……',
+          '危急之间，五只灵宠降临守护！',
+          '金·木·水·火·土，五行之力齐聚！',
+        ],
+        note: '灵宠们正等待我的召唤——',
+        icon: '灵',
+      },
+      {
+        heading: '消珠即攻击！',
+        lines: [
+          '棋盘上布满五色能量珠，',
+          '消除三颗同色灵珠，',
+          '对应属性的灵宠就会发起攻击！',
+        ],
+        note: '尽量多消除，让灵宠们全力出击！',
+        icon: '珠',
+      },
+    ],
     board: [
       ['w','f','e','s','w','f'],
       ['s','e','w','f','e','s'],
@@ -89,6 +112,19 @@ const STEPS = [
       },
     ],
     enemy: { name:'训练木偶', attr:'earth', hp:200, maxHp:200, atk:30, def:0, skills:[], avatar:'enemies/mon_e_1', _tutorial:true, _tutorAtk:true },
+    storyCards: [
+      {
+        heading: '凶兽反扑！',
+        lines: [
+          '妖兽远比想象中顽强，',
+          '一击不足以制敌！',
+          '多消灵珠引发连击Combo，',
+          '才能压制强敌！',
+        ],
+        note: '受伤时消除粉色心珠可回血',
+        icon: '击',
+      },
+    ],
     msg: [
       { text:'一次消除多组灵珠可触发连击Combo！', timing:'start' },
     ],
@@ -131,6 +167,18 @@ const STEPS = [
       },
     ],
     enemy: { name:'木灵花妖', attr:'wood', hp:200, maxHp:200, atk:0, def:0, skills:[], avatar:'enemies/mon_w_1', _tutorial:true },
+    storyCards: [
+      {
+        heading: '木灵花妖挡道！',
+        lines: [
+          '修仙之道，五行相克是核心法则！',
+          '金克木·木克土·土克水',
+          '水克火·火克金，循环相生相克。',
+        ],
+        note: '克制属性伤害×2.5，被克×0.5！',
+        icon: '克',
+      },
+    ],
     msg: [
       { text:'对手是木属性！金克木，伤害x2.5！', timing:'start' },
     ],
@@ -147,6 +195,18 @@ const STEPS = [
     ],
     guide: null,
     enemy: { name:'训练傀儡', attr:'earth', hp:80, maxHp:80, atk:5, def:0, skills:[], avatar:'enemies/mon_e_2', _tutorial:true },
+    storyCards: [
+      {
+        heading: '灵宠蓄势待发！',
+        lines: [
+          '傀儡坚韧，单靠消珠难以速胜。',
+          '灵宠在战斗中不断积蓄能量，',
+          '能量充满时即可释放强力技能！',
+        ],
+        note: '从灵宠头像向上滑动，释放大招！',
+        icon: '技',
+      },
+    ],
     msg: [
       { text:'宠物技能就绪时，从头像向上滑动释放！', timing:'skillReady' },
     ],
@@ -158,7 +218,9 @@ const STEPS = [
 let _active = false
 let _step = 0
 let _round = 0       // 当前步骤内的回合索引
-let _phase = 'intro'  // 'intro' | 'play' | 'msg' | 'done'
+let _phase = 'intro'  // 'preIntro' | 'intro' | 'play' | 'msg' | 'done'
+let _storyPage = 0   // preIntro 阶段当前故事卡索引
+let _storyAlpha = 0  // 故事卡淡入透明度
 let _msgIdx = 0
 let _msgTimer = 0
 let _introTimer = 0
@@ -216,7 +278,9 @@ function _setupStep(g) {
   const step = STEPS[_step]
   if (!step) { finish(g); return }
   _round = 0
-  _phase = 'intro'
+  _storyPage = 0
+  _storyAlpha = 0
+  _phase = (step.storyCards && step.storyCards.length > 0) ? 'preIntro' : 'intro'
   _introTimer = 0
   _msgIdx = 0
   _msgTimer = 0
@@ -324,6 +388,9 @@ function _advanceRound(g) {
 function update(g) {
   if (!_active) return
   _arrowTimer++
+  if (_phase === 'preIntro') {
+    _storyAlpha = Math.min(1, _storyAlpha + 0.04)
+  }
   if (_phase === 'intro') {
     _introTimer++
     if (_introTimer > 90) {
@@ -335,6 +402,21 @@ function update(g) {
     _victoryMsgTimer++
     g.rewards = null
   }
+}
+
+// 故事卡翻页（preIntro 阶段）
+function onStoryCardTap(g) {
+  if (_phase !== 'preIntro') return false
+  const step = STEPS[_step]
+  const cards = (step && step.storyCards) || []
+  _storyPage++
+  _storyAlpha = 0
+  if (_storyPage >= cards.length) {
+    // 所有故事卡看完，进入 intro 阶段
+    _phase = 'intro'
+    _introTimer = 0
+  }
+  return true
 }
 
 // 触摸拦截：教学intro阶段点击跳过
@@ -477,6 +559,7 @@ function getGuideData() {
   const step = STEPS[_step]
   if (!step) return null
   const rd = _getCurRound()
+  const cards = step.storyCards || []
   return {
     step: _step,
     round: _round,
@@ -492,6 +575,9 @@ function getGuideData() {
     victoryTimer: _victoryMsgTimer,
     isSummary: _summaryShown,
     roundTransitTimer: _roundTransitTimer,
+    storyCards: cards,
+    storyPage: _storyPage,
+    storyAlpha: _storyAlpha,
   }
 }
 
@@ -513,6 +599,6 @@ function needsTutorial() {
 module.exports = {
   STEPS,
   isActive, getStep, getPhase, isSummary, needsTutorial,
-  start, finish, update, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
+  start, finish, update, onStoryCardTap, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
   onElim, onEnemyTurnEnd, canDrag, shouldEnemyAttack, getGuideData, skip,
 }

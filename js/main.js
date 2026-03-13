@@ -33,6 +33,9 @@ const anim = require('./engine/animations')
 const runMgr = require('./engine/runManager')
 const tutorial = require('./engine/tutorial')
 const { initState } = require('./gameState')
+const introView = require('./views/introView')
+const guideOverlay = require('./views/guideOverlay')
+const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
 const share = require('./share')
@@ -70,6 +73,14 @@ class Main {
 
     this.events.on('scene:change', (newScene) => {
       if (newScene === 'title') this._chestAutoChecked = false
+      if (newScene === 'petPool') {
+        guideMgr.trigger(this, 'idle_intro')
+      }
+    })
+
+    this.events.on('petPool:add', ({ petId, count }) => {
+      if (count === 1) this._pendingGuide = 'petPool_unlock'
+      if (count === 5) this._pendingGuide = 'stage_unlock'
     })
 
     // 触摸事件注册
@@ -114,14 +125,20 @@ class Main {
       'assets/ui/btn_bg.png',
       'assets/ui/btn_mode_switch.png',
       'assets/ui/lock.png',
+      'assets/ui/tower_rogue.png',
+      'assets/ui/gate_stage.png',
       // 底部导航栏图标及背景
       'assets/ui/nav_bar_bg.png',
       'assets/ui/nav_hero.png',
       'assets/ui/nav_icons.png',
+      'assets/ui/nav_battle.png',
       'assets/ui/nav_dex.png',
       'assets/ui/nav_rank.png',
       'assets/ui/nav_stats.png',
       'assets/ui/nav_more.png',
+      // 开场漫画
+      'assets/intro/intro_1.jpg',
+      'assets/intro/intro_2.jpg',
       // 宝箱奖励弹窗素材
       'assets/ui/icon_chest.png',
       'assets/ui/banner_reward.png',
@@ -181,8 +198,22 @@ class Main {
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
       if (this._loadReady && elapsed > 500) {
-        this.setScene('title'); MusicMgr.playBgm()
+        if (!P.getStorageSync('introDone')) {
+          introView.init()
+          this.setScene('intro')
+        } else {
+          this.setScene('title'); MusicMgr.playBgm()
+        }
       }
+    }
+    if (this.scene === 'intro') {
+      introView.update(this)
+    }
+    // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
+    if (this.scene === 'title' && this._pendingGuide) {
+      const pg = this._pendingGuide
+      this._pendingGuide = null
+      guideMgr.trigger(this, pg)
     }
     // 进入 title 场景时自动检查并弹出未领奖励（_chestAutoChecked 由 scene:change 监听重置）
     if (this.scene === 'title' && !this._chestAutoChecked && !this.showChestPanel) {
@@ -253,6 +284,7 @@ class Main {
     if (this.scene === 'ranking' && this.af % 7200 === 0) {
       this.storage.fetchRanking(this.rankTab, true)
     }
+    guideOverlay.update()
     wxBtns.updateAuthBtn(this, dpr)
     wxBtns.updateFeedbackBtn(this, dpr)
   }
@@ -287,6 +319,7 @@ class Main {
     ctx.save(); ctx.translate(sx, sy)
     switch(this.scene) {
       case 'loading': screens.rLoading(this); break
+      case 'intro': introView.render(this); break
       case 'title': titleView.rTitle(this); break
       case 'prepare': prepareView.rPrepare(this); break
       case 'event': eventView.rEvent(this); break
@@ -338,6 +371,7 @@ class Main {
       dialogs.drawFragmentPopup(this)
     }
     chestView.drawChestOverlay(this)
+    guideOverlay.draw(this)
     ctx.restore()
   }
 
@@ -347,12 +381,18 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    // 指引覆盖层拦截
+    if (guideMgr.isActive()) {
+      guideOverlay.onTouch(this, type, x, y)
+      return
+    }
     // 宝箱弹窗拦截（全局覆盖式弹窗）
     if (this.showChestPanel) {
       chestView.tChestOverlay(this, type, x, y)
       return
     }
     switch(this.scene) {
+      case 'intro': introView.onTouch(this, type, x, y); break
       case 'title': touchH.tTitle(this,type,x,y); break
       case 'prepare': touchH.tPrepare(this,type,x,y); break
       case 'event': touchH.tEvent(this,type,x,y); break
@@ -420,6 +460,14 @@ class Main {
     this._eventDragPet = null; this._eventShopUsedCount = 0
     this._eventShopUsedItems = null; this._shopSelectAttr = false; this._shopSelectPet = null
     this.setScene('event')
+    if (this.curEvent) {
+      const t = this.curEvent.type
+      if (t === 'adventure') guideMgr.trigger(this, 'event_adventure')
+      else if (t === 'rest') guideMgr.trigger(this, 'event_rest')
+      else if (t === 'shop') guideMgr.trigger(this, 'event_shop')
+      else if (t === 'elite') guideMgr.trigger(this, 'elite_first')
+      else if (t === 'boss') guideMgr.trigger(this, 'boss_first')
+    }
   }
 
   // ===== 战斗布局 & 动画（委托到 battleHelpers）=====

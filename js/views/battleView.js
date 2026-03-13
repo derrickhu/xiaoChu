@@ -3333,7 +3333,7 @@ function drawTutorialOverlay(g) {
   // ---- 总结页 ----
   if (data.isSummary) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H)
-    const panelW = W * 0.82, panelH = 260*S
+    const panelW = W * 0.82, panelH = 285*S
     const panelX = (W - panelW) / 2, panelY = (H - panelH) / 2
     R.drawInfoPanel(panelX, panelY, panelW, panelH)
     ctx.textAlign = 'center'
@@ -3346,6 +3346,7 @@ function drawTutorialOverlay(g) {
       '③ 克制x2.5伤害，被克x0.5伤害',
       '④ 上划释放宠物技能',
       '⑤ 粉色心珠可回复生命',
+      '⑥ 法宝自动生效，给你额外的战斗优势',
     ]
     ctx.fillStyle = '#3D2B1F'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     tips.forEach((t, i) => {
@@ -3360,6 +3361,122 @@ function drawTutorialOverlay(g) {
 
     ctx.fillStyle = '#8B7B70'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
     ctx.fillText('点击屏幕继续', W*0.5, panelY + panelH - 10*S)
+    return
+  }
+
+  // ---- preIntro阶段：代入式故事卡 ----
+  if (data.phase === 'preIntro') {
+    const card = data.storyCards[data.storyPage]
+    if (!card) return
+    const alpha = data.storyAlpha
+    ctx.save()
+    // 全屏暗底
+    ctx.globalAlpha = alpha * 0.75
+    ctx.fillStyle = '#0a0814'
+    ctx.fillRect(0, 0, W, H)
+
+    // 面板
+    const pw = W * 0.86, ph = 300 * S
+    const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
+    ctx.globalAlpha = alpha
+
+    // 面板背景
+    const bgGrd = ctx.createLinearGradient(px, py, px, py + ph)
+    bgGrd.addColorStop(0, 'rgba(20,14,40,0.97)')
+    bgGrd.addColorStop(1, 'rgba(10,8,25,0.97)')
+    _storyRR(ctx, px, py, pw, ph, 14 * S)
+    ctx.fillStyle = bgGrd
+    ctx.fill()
+
+    // 金色外边框
+    _storyRR(ctx, px, py, pw, ph, 14 * S)
+    ctx.strokeStyle = 'rgba(200,160,60,0.7)'
+    ctx.lineWidth = 1.5 * S
+    ctx.stroke()
+
+    // 顶部装饰条
+    _storyRR(ctx, px, py, pw, 44 * S, 14 * S)
+    const hGrd = ctx.createLinearGradient(px, py, px + pw, py)
+    hGrd.addColorStop(0, 'rgba(90,50,10,0.9)')
+    hGrd.addColorStop(0.5, 'rgba(150,100,20,0.9)')
+    hGrd.addColorStop(1, 'rgba(90,50,10,0.9)')
+    ctx.fillStyle = hGrd
+    ctx.fill()
+
+    // 左侧图标圆圈
+    const iconR = 22 * S
+    const iconX = px + 38 * S, iconY = py + 22 * S
+    ctx.beginPath()
+    ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,200,60,0.2)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255,200,60,0.8)'
+    ctx.lineWidth = 1.5 * S
+    ctx.stroke()
+    ctx.fillStyle = '#ffd060'
+    ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(card.icon || '★', iconX, iconY)
+
+    // 标题
+    ctx.fillStyle = '#ffe080'
+    ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(card.heading, W / 2 + 12 * S, py + 29 * S)
+
+    // 分割线
+    ctx.strokeStyle = 'rgba(180,140,40,0.35)'
+    ctx.lineWidth = 1 * S
+    ctx.beginPath()
+    ctx.moveTo(px + 20 * S, py + 50 * S)
+    ctx.lineTo(px + pw - 20 * S, py + 50 * S)
+    ctx.stroke()
+
+    // 正文行
+    const lineH = 28 * S
+    const textStartY = py + 78 * S
+    ctx.fillStyle = '#d8cfc0'
+    ctx.font = `${13 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ;(card.lines || []).forEach((line, i) => {
+      ctx.fillText(line, W / 2, textStartY + i * lineH)
+    })
+
+    // 备注行
+    if (card.note) {
+      const noteY = textStartY + (card.lines || []).length * lineH + 16 * S
+      ctx.fillStyle = 'rgba(255,200,80,0.85)'
+      ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+      ctx.fillText(card.note, W / 2, noteY)
+    }
+
+    // 翻页进度点
+    const total = data.storyCards.length
+    if (total > 1) {
+      const dotR = 4 * S, dotGap = 14 * S
+      const dotsW = total * dotGap
+      const dotsX = W / 2 - dotsW / 2 + dotGap / 2
+      const dotsY = py + ph - 38 * S
+      for (let i = 0; i < total; i++) {
+        ctx.beginPath()
+        ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
+        ctx.fillStyle = i === data.storyPage ? '#ffd060' : 'rgba(255,200,80,0.28)'
+        ctx.fill()
+      }
+    }
+
+    // 点击继续提示
+    const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.1)
+    ctx.globalAlpha = alpha * (0.5 + 0.4 * pulse)
+    ctx.fillStyle = '#a09070'
+    ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    const isLast = data.storyPage >= total - 1
+    ctx.fillText(isLast ? '点击进入战斗' : '点击继续', W / 2, py + ph - 16 * S)
+
+    ctx.restore()
     return
   }
 
@@ -3790,6 +3907,20 @@ function _drawWaveTransition(g) {
   ctx.fillText('点击跳过', W * 0.5, H * 0.58)
   ctx.globalAlpha = 1
   ctx.restore()
+}
+
+function _storyRR(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
 }
 
 module.exports = {

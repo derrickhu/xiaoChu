@@ -17,7 +17,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 8
+const CURRENT_VERSION = 9
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -71,6 +71,7 @@ function defaultPersist() {
     chestRewards: {
       claimed: {},             // { milestoneId: true }
     },
+    guideFlags: {},            // { guideId: true } 新手指引已完成标记
   }
 }
 
@@ -125,6 +126,11 @@ const migrations = {
   7: (d) => {
     if (!d.fragmentBank) d.fragmentBank = {}
     if (!d.chestRewards) d.chestRewards = { claimed: {} }
+  },
+  // v8→v9：新手指引标记
+  8: (d) => {
+    if (!d.guideFlags) d.guideFlags = {}
+    if (d.tutorialDone) d.guideFlags.battle_tutorial = true
   },
 }
 
@@ -286,6 +292,15 @@ class Storage {
     return levelUps
   }
 
+  // ===== 新手指引 =====
+
+  isGuideShown(id) { return !!(this._d.guideFlags && this._d.guideFlags[id]) }
+  markGuideShown(id) {
+    if (!this._d.guideFlags) this._d.guideFlags = {}
+    this._d.guideFlags[id] = true
+    this._save()
+  }
+
   // ===== 灵宠池系统 =====
 
   get petPool() { return this._d.petPool || [] }
@@ -315,6 +330,10 @@ class Storage {
     })
     if (banked > 0) delete this._d.fragmentBank[petId]
     this._save()
+    const count = pool.length
+    if (this._eventBus) {
+      this._eventBus.emit('petPool:add', { petId, count, source })
+    }
     return true
   }
 

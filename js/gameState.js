@@ -119,6 +119,7 @@ function initState(g) {
   g._loadStart = Date.now()
   g._loadReady = false
   g._loadPct = 0
+  g._pendingGuide = null
   g._pressedBtn = null
   g._petLongPressTimer = null
   g._petLongPressIndex = -1
@@ -226,7 +227,7 @@ function _createDomainProxies(g) {
   ])
 
   _createDomainProxy(g, 'ui', [
-    '_loadStart', '_loadReady', '_loadPct', '_pressedBtn',
+    '_loadStart', '_loadReady', '_loadPct', '_pendingGuide', '_pressedBtn',
     '_petLongPressTimer', '_petLongPressIndex', '_petLongPressTriggered',
     '_petSwipeIndex', '_petSwipeStartX', '_petSwipeStartY', '_petSwipeTriggered',
     'skillPreview', 'showExitDialog', 'showNewRunConfirm',

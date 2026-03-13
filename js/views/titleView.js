@@ -657,6 +657,46 @@ function drawChestBtn(g) {
   ctx.restore()
 }
 
+// ===== 开发者重置确认弹窗 =====
+function drawDevResetDialog(g) {
+  if (!g._showDevResetDialog) return
+  const { ctx, R, W, H, S } = V
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.65)'
+  ctx.fillRect(0, 0, W, H)
+
+  const pw = W * 0.78, ph = 200 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2
+
+  R.drawInfoPanel(px, py, pw, ph)
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#C07000'
+  ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('🛠 开发者重置', W / 2, py + 36 * S)
+
+  ctx.fillStyle = '#5a3a1a'
+  ctx.font = `${12 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('将清除所有本地数据（存档/教学/漫画）', W / 2, py + 66 * S)
+  ctx.fillText('并重启小游戏，确认继续？', W / 2, py + 86 * S)
+
+  // 确认按钮
+  const bw = pw * 0.42, bh = 40 * S
+  const gap = 12 * S
+  const confirmX = W / 2 + gap / 2
+  const cancelX = W / 2 - gap / 2 - bw
+  const btnY = py + ph - bh - 20 * S
+
+  R.drawDialogBtn(confirmX, btnY, bw, bh, '一键重置', 'confirm')
+  g._devResetConfirmRect = [confirmX, btnY, bw, bh]
+
+  R.drawDialogBtn(cancelX, btnY, bw, bh, '取消', 'cancel')
+  g._devResetCancelRect = [cancelX, btnY, bw, bh]
+
+  ctx.restore()
+}
+
 // ===== 主入口 =====
 function rTitle(g) {
   drawSceneArea(g)
@@ -670,6 +710,7 @@ function rTitle(g) {
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)
+  drawDevResetDialog(g)
 }
 
 module.exports = { rTitle, getLayout, BAR_ITEMS, drawBottomBar }

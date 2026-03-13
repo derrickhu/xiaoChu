@@ -4,6 +4,7 @@
  */
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
+const guideMgr = require('./guideManager')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
@@ -544,10 +545,13 @@ function applyReward(g, rw) {
       const newWpn = { ...rw.data }
       g.weaponBag.push(newWpn)
       g._lastRewardInfo = { type: 'newWeapon', weaponId: newWpn.id }
+      guideMgr.trigger(g, 'weapon_equip')
       break
     }
     case REWARD_TYPES.BUFF:
-      applyBuffReward(g, rw.data); break
+      applyBuffReward(g, rw.data)
+      guideMgr.trigger(g, 'buff_first')
+      break
   }
 }
 

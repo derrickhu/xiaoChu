@@ -62,6 +62,12 @@ const platform = {
   getStorageSync:         (k)    => base.getStorageSync(k),
   setStorageSync:         (k, v) => base.setStorageSync(k, v),
   removeStorageSync:      (k)    => base.removeStorageSync(k),
+  clearStorageSync:       ()     => base.clearStorageSync(),
+  showToast:              (opts) => base.showToast(opts),
+  reLaunch:               (opts) => base.reLaunch(opts),
+  restartMiniProgram:     typeof base.restartMiniProgram === 'function'
+    ? (opts) => base.restartMiniProgram(opts)
+    : (opts) => base.reLaunch({ url: '/', ...opts }),
   createInnerAudioContext:()     => base.createInnerAudioContext(),
   onTouchStart:           (cb)   => base.onTouchStart(cb),
   onTouchMove:            (cb)   => base.onTouchMove(cb),

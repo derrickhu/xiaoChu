@@ -249,6 +249,9 @@ function endRun(g) {
     g.storage.submitDexAndCombo()
   }
   settleExp(g)
+  if (g._lastRunExp > 0 && !g.storage.isGuideShown('cultivation_unlock')) {
+    g._pendingGuide = 'cultivation_unlock'
+  }
   if (g.cleared) {
     MusicMgr.playLevelUp()
   } else {

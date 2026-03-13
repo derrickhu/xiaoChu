@@ -6,6 +6,7 @@ const MusicMgr = require('../runtime/music')
 const { MAX_FLOOR } = require('../data/tower')
 const { petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
+const guideMgr = require('../engine/guideManager')
 const runMgr = require('../engine/runManager')
 const { killExpBase } = require('../data/cultivationConfig')
 
@@ -20,6 +21,10 @@ function tBattle(g, type, x, y) {
     }
     if (tutorial.isSummary()) {
       if (type === 'end') tutorial.onSummaryTap(g)
+      return
+    }
+    if (tutorial.getPhase() === 'preIntro') {
+      if (type === 'end') tutorial.onStoryCardTap(g)
       return
     }
     if (tutorial.getPhase() === 'intro') {
@@ -116,6 +121,7 @@ function tBattle(g, type, x, y) {
       g._victoryAnimTimer = null
       g.setScene('reward')
       MusicMgr.playReward()
+      guideMgr.trigger(g, 'reward_first')
       return
     }
     return

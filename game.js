@@ -62,7 +62,7 @@ _splashImg.onload = () => {
 // 分包加载
 const _subPkgNames = [
   'pets', 'enemies', 'backgrounds', 'ui', 'hero',
-  'share', 'equipment', 'battle', 'orbs',
+  'share', 'equipment', 'battle', 'orbs', 'intro',
   'audio', 'audio_bgm'
 ]
 let _loadedCount = 0
