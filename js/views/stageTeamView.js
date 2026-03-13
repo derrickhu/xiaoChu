@@ -10,6 +10,7 @@ const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr } = require('../data/stages')
+const { drawGoldBtn } = require('./uiUtils')
 
 const FILTERS = [
   { key: 'all', label: '全部' },
@@ -318,7 +319,7 @@ function rStageTeam(g) {
     if (btnImg && btnImg.width > 0) {
       c.drawImage(btnImg, goBtnX, goBtnY, goBtnW, goBtnH)
     } else {
-      _drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '开始战斗', false)
+      drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '开始战斗', false, 13)
     }
     c.fillStyle = '#FFF5E0'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
@@ -326,7 +327,7 @@ function rStageTeam(g) {
     c.strokeText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
     c.fillText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
   } else {
-    _drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '编队不足', true)
+    drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '编队不足', true, 13)
   }
   _rects.startBtnRect = canGo ? [goBtnX, goBtnY, goBtnW, goBtnH] : null
 
@@ -512,7 +513,7 @@ function tStageTeam(g, x, y, type) {
     g._petDetailId = _holdTarget.petId
     g._petDetailReturnScene = 'stageTeam'
     _holdTarget = null
-    g.scene = 'petDetail'
+    g.setScene('petDetail')
     return
   }
   _holdTarget = null
@@ -542,7 +543,7 @@ function tStageTeam(g, x, y, type) {
   // 返回（回到关卡信息页，同时保存编队）
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g.storage.saveStageteam(selected)
-    g.scene = 'stageInfo'
+    g.setScene('stageInfo')
     return
   }
 
@@ -577,39 +578,6 @@ function tStageTeam(g, x, y, type) {
 }
 
 // ===== 工具 =====
-
-/** 金色按钮 */
-function _drawGoldBtn(c, R, S, x, y, w, h, text, disabled) {
-  const r = h / 2
-  if (disabled) {
-    c.fillStyle = 'rgba(80,70,50,0.6)'
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = '#666'; c.lineWidth = 1.5*S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#888'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(text, x + w / 2, y + h / 2)
-    return
-  }
-  c.save()
-  c.shadowColor = 'rgba(180,120,30,0.4)'; c.shadowBlur = 10*S; c.shadowOffsetY = 3*S
-  const bg = c.createLinearGradient(x, y, x, y + h)
-  bg.addColorStop(0, '#B8451A'); bg.addColorStop(0.5, '#9C3512'); bg.addColorStop(1, '#7A2A0E')
-  c.fillStyle = bg; R.rr(x, y, w, h, r); c.fill()
-  c.restore()
-  c.strokeStyle = '#D4A843'; c.lineWidth = 2*S
-  R.rr(x, y, w, h, r); c.stroke()
-  c.save(); c.globalAlpha = 0.2
-  const hl = c.createLinearGradient(x, y, x, y + h * 0.4)
-  hl.addColorStop(0, '#fff'); hl.addColorStop(1, 'rgba(255,255,255,0)')
-  c.fillStyle = hl; R.rr(x + 2*S, y + 2*S, w - 4*S, h * 0.4, r); c.fill()
-  c.restore()
-  c.fillStyle = '#FFE8B8'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = 4*S
-  c.fillText(text, x + w / 2, y + h / 2)
-  c.shadowBlur = 0
-}
 
 function resetScroll() { _scrollY = 0 }
 

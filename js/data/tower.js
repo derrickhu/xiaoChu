@@ -6,6 +6,16 @@
 
 const { randomPetByAttr, randomPet, randomPetFromPool } = require('./pets')
 const { randomWeapon } = require('./weapons')
+const {
+  TOWER_MAX_FLOOR,
+  TOWER_COUNTER_MUL,
+  TOWER_COUNTERED_MUL,
+  TOWER_RECENT_LIMIT,
+  TOWER_BASE_EVENT_WEIGHTS,
+  TOWER_SHOP_DISPLAY_COUNT,
+  TOWER_SHOP_FREE_COUNT,
+  TOWER_SHOP_HP_COST_PCT,
+} = require('./constants')
 
 // ===== 五行属性基础 =====
 const ATTRS = ['metal','wood','earth','water','fire']
@@ -19,9 +29,8 @@ const ATTR_COLOR = {
 }
 const COUNTER_MAP = { metal:'wood', wood:'earth', earth:'water', water:'fire', fire:'metal' }
 const COUNTER_BY  = { wood:'metal', earth:'wood', water:'earth', fire:'water', metal:'fire' }
-// 克制倍率（提升至2.5倍，让策略消除更有意义）
-const COUNTER_MUL = 2.5      // 克制对方伤害倍率
-const COUNTERED_MUL = 0.5    // 被克制伤害倍率
+const COUNTER_MUL = TOWER_COUNTER_MUL
+const COUNTERED_MUL = TOWER_COUNTERED_MUL
 
 // 棋盘灵珠（含心珠）
 const BEAD_ATTRS = ['metal','wood','earth','water','fire','heart']
@@ -41,17 +50,9 @@ const EVENT_TYPE = {
   REST:    'rest',
 }
 
-// ===== 事件概率（基础） =====
-const BASE_EVENT_WEIGHTS = {
-  battle:    70,
-  elite:      8,
-  adventure:  5,
-  shop:       4,
-  rest:       3,
-}
+const BASE_EVENT_WEIGHTS = TOWER_BASE_EVENT_WEIGHTS
 
-// ===== 总层数 =====
-const MAX_FLOOR = 30
+const MAX_FLOOR = TOWER_MAX_FLOOR
 
 // ===== 修仙境界系统（每层通关固定加血量上限，不回血） =====
 // 每项: { name, hpUp } — hpUp 为该层通关后增加的血量上限
@@ -250,9 +251,9 @@ const SHOP_ITEMS = [
   { id:'shop9',  name:'还魂玉',     desc:'获得1次额外复活机会',      effect:'extraRevive',  weight:6,  rarity:'rare' },
   { id:'shop10', name:'灵力结晶',   desc:'全队技能伤害+15%',         effect:'skillDmgUp',   pct:15, weight:10, rarity:'normal' },
 ]
-const SHOP_DISPLAY_COUNT = 4   // 每次展示4件
-const SHOP_FREE_COUNT = 1      // 免费选1件
-const SHOP_HP_COST_PCT = 15    // 第2件消耗当前血量的百分比
+const SHOP_DISPLAY_COUNT = TOWER_SHOP_DISPLAY_COUNT
+const SHOP_FREE_COUNT = TOWER_SHOP_FREE_COUNT
+const SHOP_HP_COST_PCT = TOWER_SHOP_HP_COST_PCT
 
 // ===== 休息之地选项 =====
 const REST_OPTIONS = [
@@ -352,8 +353,8 @@ function _rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + 
 function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 
 // ===== 最近怪物记录（用于去重） =====
-const _recentMonsters = []     // 存储最近遇到的怪物 avatar 标识
-const RECENT_LIMIT = 3         // 连续3场内不出同一张图
+const _recentMonsters = []
+const RECENT_LIMIT = TOWER_RECENT_LIMIT
 
 function _pushRecent(avatar) {
   _recentMonsters.push(avatar)

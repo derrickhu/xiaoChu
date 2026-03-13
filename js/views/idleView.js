@@ -7,7 +7,7 @@ const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { IDLE_MAX_SLOTS, IDLE_FRAG_INTERVAL, IDLE_MAX_ACCUMULATE, calcIdleReward } = require('../data/petPoolConfig')
-const { drawBottomBar, getLayout: getTitleLayout } = require('./titleView')
+const { drawBottomBar, getLayout: getTitleLayout } = require('./bottomBar')
 
 const _rects = {
   backBtnRect: null,
@@ -333,7 +333,7 @@ function tIdle(g, type, x, y) {
 
   // 返回按钮
   if (_rects.backBtnRect && _hitRect(x, y, ..._rects.backBtnRect)) {
-    g.scene = 'petPool'; return
+    g.setScene('petPool'); return
   }
 
   // 底部导航
@@ -377,24 +377,24 @@ function tIdle(g, type, x, y) {
 }
 
 function _handleBottomBar(g, x, y, L) {
-  const { BAR_ITEMS } = require('./titleView')
+  const { BAR_ITEMS } = require('./bottomBar')
   const slotW = V.W / BAR_ITEMS.length
   const idx = Math.floor(x / slotW)
   if (idx < 0 || idx >= BAR_ITEMS.length) return
   const key = BAR_ITEMS[idx].key
-  if (key === 'battle') { g.scene = 'title'; return }
+  if (key === 'battle') { g.setScene('title'); return }
   if (key === 'cultivation') {
     const cv = require('./cultivationView')
-    cv.resetScroll(); g.scene = 'cultivation'; cv.checkRealmBreak(g); return
+    cv.resetScroll(); g.setScene('cultivation'); cv.checkRealmBreak(g); return
   }
   if (key === 'pets' && g.storage.petPoolCount > 0) {
     g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
-    g.scene = 'petPool'; return
+    g.setScene('petPool'); return
   }
-  if (key === 'dex') { g.scene = 'dex'; return }
-  if (key === 'rank') { g.scene = 'ranking'; return }
-  if (key === 'stats') { g.scene = 'stats'; return }
-  if (key === 'more') { g.showMorePanel = true; g.scene = 'title'; return }
+  if (key === 'dex') { g.setScene('dex'); return }
+  if (key === 'rank') { g.setScene('ranking'); return }
+  if (key === 'stats') { g.setScene('stats'); return }
+  if (key === 'more') { g.showMorePanel = true; g.setScene('title'); return }
 }
 
 function _hitRect(x, y, rx, ry, rw, rh) {

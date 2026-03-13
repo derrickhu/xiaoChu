@@ -1,5 +1,12 @@
 const P = require('../platform')
 const api = require('../api')
+const cloudSync = require('./cloudSync')
+const RankingService = require('./rankingService')
+const {
+  STAMINA_RECOVER_INTERVAL_MS,
+  STAMINA_INITIAL,
+  STAMINA_SIDEBAR_REWARD,
+} = require('./constants')
 /**
  * 存储管理 — 灵宠消消塔
  * Roguelike：无局外养成，死亡即重开
@@ -8,7 +15,6 @@ const api = require('../api')
  */
 
 const LOCAL_KEY = 'wxtower_v1'
-const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
 
 // 当前存档版本号，每次结构变更时递增
 const CURRENT_VERSION = 8
@@ -46,8 +52,8 @@ function defaultPersist() {
     petExpPool: 0,           // 共享宠物经验池（未分配）
     // Phase 2：体力系统（仅固定关卡消耗，肉鸽不消耗）
     stamina: {
-      current: 100,
-      max: 100,
+      current: STAMINA_INITIAL,
+      max: STAMINA_INITIAL,
       lastRecoverTime: 0,   // 首次进入时初始化为 Date.now()
     },
     // Phase 3：固定关卡
@@ -100,7 +106,7 @@ const migrations = {
   3: (d) => {
     if (!d.petPool) d.petPool = []
     if (d.petExpPool == null) d.petExpPool = 0
-    if (!d.stamina) d.stamina = { current: 100, max: 100, lastRecoverTime: Date.now() }
+    if (!d.stamina) d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
   },
   // v4→v5：Phase 3 固定关卡通关记录 + 每日挑战次数
   4: (d) => {
@@ -139,29 +145,9 @@ function runMigrations(data) {
 class Storage {
   constructor() {
     this._d = null          // 持久化数据
-    this._cloudReady = false
-    this._openid = ''
-    this._cloudSyncTimer = null
-    this._cloudInitDone = false
-    this._pendingSync = false
-    this._syncFailCount = 0       // 连续云同步失败次数
-    this._syncDisabled = false    // 失败过多后暂停主动同步
-    this._syncDirty = false       // 有未同步的本地变更
-    this._syncRetryTimer = null   // 低频重试定时器
     // 用户信息（微信授权）
     this.userInfo = null      // { nickName, avatarUrl }
     this.userAuthorized = false
-    // 排行榜缓存
-    this.rankAllList = []
-    this.rankDexList = []
-    this.rankComboList = []
-    this.rankAllMyRank = -1
-    this.rankDexMyRank = -1
-    this.rankComboMyRank = -1
-    this.rankLoading = false
-    this.rankLoadingMsg = ''   // 加载状态详细提示
-    this.rankLastFetch = 0    // 上次拉取时间戳
-    this.rankLastFetchTab = '' // 上次拉取的tab
     this._load()
     this._loadUserInfo()
     // 抖音端没有 createUserInfoButton，先用默认身份允许提交
@@ -170,6 +156,18 @@ class Storage {
       this.userInfo = { nickName: '冒险者', avatarUrl: '' }
       this.userAuthorized = true
     }
+    this._ranking = new RankingService({
+      getContext: () => ({
+        userAuthorized: this.userAuthorized,
+        userInfo: this.userInfo,
+        petDexCount: (this._d.petDex || []).length,
+        maxCombo: this._d.stats.maxCombo || 0,
+        bestFloor: this.bestFloor,
+        bestFloorPets: this.stats.bestFloorPets || [],
+        bestFloorWeapon: this.stats.bestFloorWeapon,
+        bestTotalTurns: this.stats.bestTotalTurns || 0,
+      }),
+    })
     this._initCloud()
   }
 
@@ -435,9 +433,8 @@ class Storage {
   get staminaRecoverSec() {
     const s = this._d.stamina
     if (s.current >= s.max) return 0
-    const INTERVAL = 30 * 60 * 1000
     const elapsed = Date.now() - (s.lastRecoverTime || Date.now())
-    const remain = INTERVAL - (elapsed % INTERVAL)
+    const remain = STAMINA_RECOVER_INTERVAL_MS - (elapsed % STAMINA_RECOVER_INTERVAL_MS)
     return Math.ceil(remain / 1000)
   }
 
@@ -445,12 +442,11 @@ class Storage {
     const s = this._d.stamina
     if (!s.lastRecoverTime) { s.lastRecoverTime = Date.now(); return }
     const now = Date.now()
-    const INTERVAL = 30 * 60 * 1000
     const elapsed = now - s.lastRecoverTime
-    const recovered = Math.floor(elapsed / INTERVAL)
+    const recovered = Math.floor(elapsed / STAMINA_RECOVER_INTERVAL_MS)
     if (recovered > 0) {
       s.current = Math.min(s.max, s.current + recovered)
-      s.lastRecoverTime += recovered * INTERVAL
+      s.lastRecoverTime += recovered * STAMINA_RECOVER_INTERVAL_MS
     }
   }
 
@@ -465,7 +461,7 @@ class Storage {
     if (this.sidebarRewardClaimedToday) return false
     this._recoverStamina()
     const s = this._d.stamina
-    s.current = Math.min(s.max, s.current + 30)
+    s.current = Math.min(s.max, s.current + STAMINA_SIDEBAR_REWARD)
     this._d.sidebarRewardDate = new Date().toISOString().slice(0, 10)
     this._save()
     return true
@@ -746,9 +742,7 @@ class Storage {
           break
         }
         case 'petExp': {
-          const pool = this._d.petPool || { sharedExp: 0 }
-          pool.sharedExp = (pool.sharedExp || 0) + (r.amount || 0)
-          this._d.petPool = pool
+          this._d.petExpPool = (this._d.petExpPool || 0) + (r.amount || 0)
           resolved.push({ type: 'petExp', amount: r.amount })
           break
         }
@@ -774,12 +768,7 @@ class Storage {
     return this._d.chestRewards.claimed
   }
 
-  /** 返回宠物池内宠物数量 */
-  get petPoolCount() {
-    return (this._d.petPool && this._d.petPool.pets)
-      ? this._d.petPool.pets.length
-      : 0
-  }
+  /** (petPoolCount getter 定义在第294行，此处删除重复的错误版本) */
 
   // ===== 局内暂存（暂存退出用）=====
   saveRunState(runState) {
@@ -805,13 +794,13 @@ class Storage {
     this._d = defaultPersist()
     try { P.removeStorageSync(LOCAL_KEY) } catch(e) {}
     this._save()
-    if (this._cloudReady) {
+    if (cloudSync.isReady()) {
       try {
         if (P.isDouyin) {
           await api.syncPlayerData(this._d)
-        } else if (this._openid) {
+        } else if (cloudSync.getOpenid()) {
           const db = P.cloud.database()
-          const res = await db.collection('playerData').where({ _openid: this._openid }).get()
+          const res = await db.collection('playerData').where({ _openid: cloudSync.getOpenid() }).get()
           if (res.data && res.data.length > 0) {
             await db.collection('playerData').doc(res.data[0]._id).remove()
           }
@@ -1029,163 +1018,40 @@ class Storage {
     }
   }
 
-  // ===== 排行榜 =====
+  // ===== 排行榜（委托 RankingService）=====
 
-  /**
-   * 统一排行榜调用：微信走云函数，抖音走 HTTP API
-   * 返回值格式统一为 { code, list?, myRank?, msg? }
-   */
-  async _callRanking(data) {
-    if (P.isWeChat) {
-      const r = await P.cloud.callFunction({ name: 'ranking', data })
-      return r.result
-    }
-    // 抖音端走 HTTP API
-    const { action, ...rest } = data
-    if (action === 'submit' || action === 'submitDexCombo') {
-      return api.submitRanking({ action, ...rest })
-    }
-    if (action === 'getAll') return api.getRankingList('all')
-    if (action === 'getDex') return api.getRankingList('dex')
-    if (action === 'getCombo') return api.getRankingList('combo')
-    if (action === 'submitAndGetAll') {
-      await api.submitRanking({ action: 'submit', ...rest })
-      return api.getRankingList('all')
-    }
-    return { code: -1, msg: 'unknown action' }
+  get rankAllList() { return this._ranking.rankAllList }
+  set rankAllList(v) { this._ranking.rankAllList = v }
+  get rankDexList() { return this._ranking.rankDexList }
+  set rankDexList(v) { this._ranking.rankDexList = v }
+  get rankComboList() { return this._ranking.rankComboList }
+  set rankComboList(v) { this._ranking.rankComboList = v }
+  get rankAllMyRank() { return this._ranking.rankAllMyRank }
+  set rankAllMyRank(v) { this._ranking.rankAllMyRank = v }
+  get rankDexMyRank() { return this._ranking.rankDexMyRank }
+  set rankDexMyRank(v) { this._ranking.rankDexMyRank = v }
+  get rankComboMyRank() { return this._ranking.rankComboMyRank }
+  set rankComboMyRank(v) { this._ranking.rankComboMyRank = v }
+  get rankLoading() { return this._ranking.rankLoading }
+  set rankLoading(v) { this._ranking.rankLoading = v }
+  get rankLoadingMsg() { return this._ranking.rankLoadingMsg }
+  set rankLoadingMsg(v) { this._ranking.rankLoadingMsg = v }
+  get rankLastFetch() { return this._ranking.rankLastFetch }
+  set rankLastFetch(v) { this._ranking.rankLastFetch = v }
+  get rankLastFetchTab() { return this._ranking.rankLastFetchTab }
+  set rankLastFetchTab(v) { this._ranking.rankLastFetchTab = v }
+
+  submitScore(floor, pets, weapon, totalTurns) {
+    return this._ranking.submitScore(floor, pets, weapon, totalTurns)
   }
-
-  // 提交分数到排行榜
-  async submitScore(floor, pets, weapon, totalTurns) {
-    if (!this._cloudReady || !this.userAuthorized) {
-      console.warn('[Ranking] 提交跳过: cloudReady=', this._cloudReady, 'authorized=', this.userAuthorized)
-      return
-    }
-    const t0 = Date.now()
-    try {
-      console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns)
-      const result = await this._callRanking({
-        action: 'submit',
-        nickName: this.userInfo.nickName,
-        avatarUrl: this.userInfo.avatarUrl,
-        floor,
-        pets: (pets || []).map(p => ({ name: p.name, attr: p.attr })),
-        weapon: weapon ? { name: weapon.name } : null,
-        totalTurns: totalTurns || 0,
-        petDexCount: (this._d.petDex || []).length,
-        maxCombo: this._d.stats.maxCombo || 0,
-      })
-      console.log('[Ranking] 提交分数完成, 耗时', Date.now() - t0, 'ms, 结果:', JSON.stringify(result).slice(0, 200))
-      // 提交成功后清掉缓存，下次打开排行榜会重新拉取最新数据
-      this.rankLastFetch = 0
-    } catch(e) {
-      console.error('[Ranking] 提交分数失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
-    }
+  submitDexAndCombo() {
+    return this._ranking.submitDexAndCombo()
   }
-
-  // 单独提交图鉴/连击排行（非通关时也可以触发）
-  async submitDexAndCombo() {
-    if (!this._cloudReady || !this.userAuthorized) return
-    const t0 = Date.now()
-    try {
-      console.log('[Ranking] 提交图鉴/连击: dex=', (this._d.petDex || []).length, 'combo=', this._d.stats.maxCombo || 0)
-      await this._callRanking({
-        action: 'submitDexCombo',
-        nickName: this.userInfo.nickName,
-        avatarUrl: this.userInfo.avatarUrl,
-        petDexCount: (this._d.petDex || []).length,
-        maxCombo: this._d.stats.maxCombo || 0,
-      })
-      console.log('[Ranking] 提交图鉴/连击完成, 耗时', Date.now() - t0, 'ms')
-    } catch(e) {
-      console.warn('[Ranking] 提交图鉴/连击失败, 耗时', Date.now() - t0, 'ms:', e)
-    }
+  fetchRanking(tab, force) {
+    return this._ranking.fetchRanking(tab, force)
   }
-
-  // 拉取排行榜（带30秒缓存，支持4个tab）
-  async fetchRanking(tab, force) {
-    if (!this._cloudReady) {
-      console.warn('[Ranking] 云环境未就绪，跳过拉取')
-      return
-    }
-    const now = Date.now()
-    const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
-    const listKey = listMap[tab] || 'rankAllList'
-    if (!force && now - this.rankLastFetch < 30000 && this.rankLastFetchTab === tab && this[listKey].length > 0) {
-      console.log('[Ranking] 命中缓存, 跳过拉取:', tab)
-      return
-    }
-    if (this.rankLoading) return
-    this.rankLoading = true
-    this.rankLoadingMsg = '拉取排行中...'
-    const t0 = Date.now()
-    try {
-      const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
-      const action = actionMap[tab] || 'getAll'
-      console.log('[Ranking] 开始拉取:', action)
-      const result = await this._callRanking({ action })
-      const elapsed = Date.now() - t0
-      console.log('[Ranking] 拉取完成, 耗时', elapsed, 'ms, 结果:', JSON.stringify(result).slice(0, 800))
-      if (result && result.debug) {
-        console.log('[Ranking] DEBUG:', JSON.stringify(result.debug))
-      }
-      if (result && result.code === 0) {
-        console.log('[Ranking] 获取到', (result.list || []).length, '条记录, myRank=', result.myRank)
-        this[listKey] = result.list || []
-        const rankKey = listKey.replace('List', 'MyRank')
-        this[rankKey] = result.myRank || -1
-        this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = tab
-      } else {
-        console.warn('[Ranking] 返回错误:', result)
-      }
-    } catch(e) {
-      console.error('[Ranking] 拉取失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
-    }
-    this.rankLoading = false
-    this.rankLoadingMsg = ''
-  }
-
-  // 一体化：提交分数 + 拉取排行（一次云函数调用）
-  async fetchRankingCombined(tab, needSubmit) {
-    if (!this._cloudReady) return
-    this.rankLoading = true
-    this.rankLoadingMsg = needSubmit ? '提交并加载中...' : '加载排行中...'
-    const t0 = Date.now()
-    try {
-      const data = { action: 'submitAndGetAll' }
-      if (needSubmit && this.userAuthorized) {
-        data.nickName = this.userInfo.nickName
-        data.avatarUrl = this.userInfo.avatarUrl
-        data.floor = this.bestFloor
-        data.pets = (this.stats.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr }))
-        data.weapon = this.stats.bestFloorWeapon ? { name: this.stats.bestFloorWeapon.name } : null
-        data.totalTurns = this.stats.bestTotalTurns || 0
-        data.petDexCount = (this._d.petDex || []).length
-        data.maxCombo = this._d.stats.maxCombo || 0
-      }
-      console.log('[Ranking] 一体化调用, needSubmit=', needSubmit)
-      const result = await this._callRanking(data)
-      const elapsed = Date.now() - t0
-      console.log('[Ranking] 一体化完成, 耗时', elapsed, 'ms')
-      if (result && result.debug) {
-        console.log('[Ranking] DEBUG:', JSON.stringify(result.debug))
-      }
-      if (result && result.code === 0) {
-        const listKey = 'rankAllList'
-        this[listKey] = result.list || []
-        this.rankAllMyRank = result.myRank || -1
-        this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = 'all'
-        console.log('[Ranking] 获取到', this[listKey].length, '条记录, myRank=', this.rankAllMyRank)
-      } else {
-        console.warn('[Ranking] 返回错误:', result)
-      }
-    } catch(e) {
-      console.error('[Ranking] 一体化调用失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
-    }
-    this.rankLoading = false
-    this.rankLoadingMsg = ''
+  fetchRankingCombined(tab, needSubmit) {
+    return this._ranking.fetchRankingCombined(tab, needSubmit)
   }
 
   _load() {
@@ -1228,7 +1094,7 @@ class Storage {
     // Phase 2 字段补全
     if (!this._d.petPool) this._d.petPool = []
     if (this._d.petExpPool == null) this._d.petExpPool = 0
-    if (!this._d.stamina) this._d.stamina = { current: 100, max: 100, lastRecoverTime: Date.now() }
+    if (!this._d.stamina) this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
     // Phase 3 字段补全
     if (!this._d.stageClearRecord) this._d.stageClearRecord = {}
     if (!this._d.dailyChallenges) this._d.dailyChallenges = { date: '', counts: {} }
@@ -1244,237 +1110,22 @@ class Storage {
   _save() {
     try {
       P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
-      this._debounceSyncToCloud()
+      cloudSync.debounceSyncToCloud(this._d)
+      if (this._eventBus) this._eventBus.emit('data:save')
     } catch(e) {
       console.warn('Storage save error:', e)
     }
   }
 
-  // ===== 云同步 =====
-  _debounceSyncToCloud() {
-    if (!this._cloudInitDone) {
-      this._pendingSync = true
-      return
-    }
-    if (this._syncDisabled) return
-    if (this._cloudSyncTimer) clearTimeout(this._cloudSyncTimer)
-    // 失败过后用指数退避延迟，避免频繁请求不可达的服务端
-    const baseDelay = 2000
-    const delay = this._syncFailCount > 0
-      ? Math.min(baseDelay * Math.pow(2, this._syncFailCount), 120000)
-      : baseDelay
-    this._cloudSyncTimer = setTimeout(() => {
-      this._cloudSyncTimer = null
-      this._syncToCloud()
-    }, delay)
-  }
-
   async _initCloud() {
-    if (P.isDouyin) {
-      // 抖音端：通过 HTTP API 登录（抖音云会自动注入 openid）
-      try {
-        await api.login()
-        this._cloudReady = true
-        console.log('[Storage] 抖音端 API 登录成功')
-      } catch(e) {
-        console.warn('[Storage] 抖音端 API 登录失败:', e.message || e)
-        // 尝试直接 sync 一次，如果能通就继续；不能通则标记为不可用
-        this._cloudReady = true
-        try {
-          await api.getPlayerData()
-          console.log('[Storage] 抖音端 API 直连测试通过')
-        } catch(e2) {
-          console.warn('[Storage] 抖音端后端不可达，本次会话云同步停用（本地存档正常）:', e2.message || e2)
-          this._cloudReady = false
-        }
-      }
-    } else {
-      // 微信端：使用 wx.cloud
-      try {
-        P.cloud.init({ env: CLOUD_ENV, traceUser: true })
-        this._cloudReady = true
-      } catch(e) {
-        console.warn('Cloud init failed:', e)
-        return
-      }
-      try { await this._ensureCollections() } catch(e) {}
-      try { await this._getOpenid() } catch(e) { console.warn('Get openid failed:', e) }
-    }
-    if (this._cloudReady && P.isWeChat && this._openid) await this._syncFromCloud()
-    if (this._cloudReady && P.isDouyin) await this._syncFromCloud()
-    this._cloudInitDone = true
-    if (this._pendingSync && this._cloudReady) {
-      this._pendingSync = false
-      this._syncToCloud()
-    }
-    this._preheatRanking()
+    await cloudSync.init(this._d, {
+      localKey: LOCAL_KEY,
+      currentVersion: CURRENT_VERSION,
+      runMigrations,
+    })
+    this._ranking.preheatRanking()
   }
 
-  async _preheatRanking() {
-    try {
-      const t0 = Date.now()
-      console.log('[Ranking] 预热: 后台静默拉取排行榜...')
-      const result = await this._callRanking({ action: 'getAll' })
-      const elapsed = Date.now() - t0
-      if (result && result.code === 0) {
-        this.rankAllList = result.list || []
-        this.rankAllMyRank = result.myRank || -1
-        this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = 'all'
-        console.log('[Ranking] 预热完成, 耗时', elapsed, 'ms, 记录数:', this.rankAllList.length)
-      }
-    } catch(e) {
-      console.warn('[Ranking] 预热失败(不影响使用):', e.message || e)
-    }
-  }
-
-  async _ensureCollections() {
-    const r = await P.cloud.callFunction({ name: 'initCollections' })
-    if (r.result && r.result.errors && r.result.errors.length) {
-      console.warn('创建集合异常:', r.result.errors)
-    }
-  }
-
-  async _getOpenid() {
-    const r = await P.cloud.callFunction({ name: 'getOpenid' })
-    this._openid = (r.result && r.result.openid) || ''
-  }
-
-  async _syncFromCloud() {
-    if (!this._cloudReady) return
-    try {
-      let cloudData = null
-      if (P.isWeChat) {
-        if (!this._openid) return
-        const db = P.cloud.database()
-        const res = await db.collection('playerData').where({ _openid: this._openid }).get()
-        if (res.data && res.data.length > 0) {
-          cloudData = res.data[0]
-          delete cloudData._id
-          delete cloudData._openid
-        }
-      } else {
-        // 抖音端走 HTTP API
-        const res = await api.getPlayerData()
-        if (res && res.data) cloudData = res.data
-      }
-      if (cloudData) {
-        const cloudTime = cloudData._updateTime || cloudData.updatedAt || 0
-        const localTime = this._d._updateTime || 0
-        if (cloudTime > localTime) {
-          this._deepMerge(this._d, cloudData)
-          if ((this._d._version || 0) < CURRENT_VERSION) {
-            runMigrations(this._d)
-          }
-          P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
-          console.log('[Storage] 云端数据已合并到本地')
-        }
-      }
-    } catch(e) { console.warn('Sync from cloud error:', e) }
-  }
-
-  // 深度合并：cloud 的值覆盖 target，但对嵌套对象递归合并
-  // 保留 target 中有但 cloud 中没有的字段（如后来新增的 bestTotalTurns）
-  _deepMerge(target, source) {
-    for (const key of Object.keys(source)) {
-      const sv = source[key]
-      const tv = target[key]
-      if (sv && typeof sv === 'object' && !Array.isArray(sv) && tv && typeof tv === 'object' && !Array.isArray(tv)) {
-        this._deepMerge(tv, sv)
-      } else {
-        // 数值字段：保留较大/较好的值（bestFloor取大，bestTotalTurns取小且>0）
-        if (key === 'bestFloor') {
-          target[key] = Math.max(tv || 0, sv || 0)
-        } else if (key === 'bestTotalTurns') {
-          if ((tv || 0) > 0 && (sv || 0) > 0) target[key] = Math.min(tv, sv)
-          else target[key] = (tv || 0) > 0 ? tv : (sv || 0)
-        } else if (key === 'maxCombo') {
-          target[key] = Math.max(tv || 0, sv || 0)
-        } else if (key === 'totalBattles' || key === 'totalCombos' || key === 'totalRuns') {
-          target[key] = Math.max(tv || 0, sv || 0)
-        } else {
-          target[key] = sv
-        }
-      }
-    }
-  }
-
-  async _syncToCloud() {
-    if (!this._cloudReady || this._syncDisabled) return
-    // 防止并发写入：上一次同步未完成时跳过，标记待重试
-    if (this._syncing) {
-      this._syncPending = true
-      return
-    }
-    this._syncing = true
-    try {
-      if (P.isDouyin) {
-        // 抖音端走 HTTP API
-        await api.syncPlayerData({ ...this._d, _updateTime: Date.now() })
-      } else {
-        // 微信端走 wx.cloud
-        if (!this._openid) return
-        const db = P.cloud.database()
-        const col = db.collection('playerData')
-        const res = await col.where({ _openid: this._openid }).get()
-        const saveData = { ...this._d, _updateTime: Date.now() }
-        delete saveData._id
-        delete saveData._openid
-        // 用 set 做完整替换，避免 update 合并时 null→object 字段冲突
-        const _ = db.command
-        const setData = {}
-        for (const k of Object.keys(saveData)) { setData[k] = _.set(saveData[k]) }
-        if (res.data && res.data.length > 1) {
-          await col.doc(res.data[0]._id).update({ data: setData })
-          for (let i = 1; i < res.data.length; i++) {
-            try { await col.doc(res.data[i]._id).remove() } catch(e) {}
-          }
-          console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
-        } else if (res.data && res.data.length === 1) {
-          await col.doc(res.data[0]._id).update({ data: setData })
-        } else {
-          await col.add({ data: saveData })
-        }
-      }
-      // 同步成功，重置所有失败状态
-      if (this._syncFailCount > 0) {
-        console.log('[Storage] 云同步恢复成功，已上传最新数据')
-      }
-      this._syncFailCount = 0
-      this._syncDirty = false
-      this._syncDisabled = false
-      if (this._syncRetryTimer) {
-        clearInterval(this._syncRetryTimer)
-        this._syncRetryTimer = null
-      }
-    } catch(e) {
-      this._syncFailCount = (this._syncFailCount || 0) + 1
-      // 标记有脏数据待同步，网络恢复后会补传
-      this._syncDirty = true
-      if (this._syncFailCount <= 3) {
-        console.warn(`[Storage] 云同步失败(${this._syncFailCount}/5):`, e.message || e)
-      }
-      if (this._syncFailCount >= 5) {
-        // 连续5次失败后暂停主动同步，改为每2分钟被动尝试一次
-        if (!this._syncRetryTimer) {
-          console.warn('[Storage] 云同步连续失败，进入低频重试模式（本地存档正常，不丢数据）')
-          this._syncRetryTimer = setInterval(() => {
-            if (this._syncDirty && !this._syncing) {
-              console.log('[Storage] 低频重试云同步...')
-              this._syncToCloud()
-            }
-          }, 120000)
-        }
-        this._syncDisabled = true
-      }
-    } finally {
-      this._syncing = false
-      if (this._syncPending && !this._syncDisabled) {
-        this._syncPending = false
-        this._debounceSyncToCloud()
-      }
-    }
-  }
 }
 
 module.exports = Storage

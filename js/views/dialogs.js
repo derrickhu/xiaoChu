@@ -5,6 +5,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
 const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getPetById } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { wrapText: _uiWrapText } = require('./uiUtils')
 
 // ===== 退出确认弹窗 =====
 function drawExitDialog(g) {
@@ -410,27 +411,7 @@ function drawBattlePetDetailDialog(g) {
   ctx.restore()
 }
 
-// 弹窗文本换行辅助（按实际像素宽度换行）
-function _wrapTextDialog(text, maxW, fontSize) {
-  if (!text) return ['']
-  const S = V.S
-  const fullW = fontSize * S
-  const halfW = fontSize * S * 0.55
-  const result = []
-  let line = '', lineW = 0
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    const cw = ch.charCodeAt(0) > 127 ? fullW : halfW
-    if (lineW + cw > maxW && line.length > 0) {
-      result.push(line)
-      line = ch; lineW = cw
-    } else {
-      line += ch; lineW += cw
-    }
-  }
-  if (line) result.push(line)
-  return result.length > 0 ? result : ['']
-}
+const _wrapTextDialog = _uiWrapText
 
 // ===== ★3 满星庆祝画面 =====
 function drawStar3Celebration(g) {

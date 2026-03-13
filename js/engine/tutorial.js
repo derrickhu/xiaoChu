@@ -276,7 +276,7 @@ function _setupStep(g) {
   let extraTime = g.runBuffs.extraTimeSec || 0
   if (g.weapon && g.weapon.type === 'extraTime') extraTime += g.weapon.sec
   g.dragTimeLimit = (8 + extraTime) * 60
-  g.scene = 'battle'
+  g.setScene('battle')
 }
 
 // 设置当前回合的棋盘

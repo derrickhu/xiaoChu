@@ -28,11 +28,35 @@ class Render {
   constructor(ctx, W, H, S, safeTop) {
     this.ctx = ctx; this.W = W; this.H = H; this.S = S; this.safeTop = safeTop
     this._imgCache = {}
+    this._gradCache = {}
+    this._gradCacheSize = 0
     // 背景星点
     this.bgStars = Array.from({length:40}, () => ({
       x: Math.random()*W, y: Math.random()*H,
       r: 0.5+Math.random()*1.5, sp: 0.3+Math.random()*0.7, ph: Math.random()*6.28
     }))
+  }
+
+  /**
+   * 获取缓存的线性渐变（参数固定的静态 UI 用）
+   * @param {string} key - 缓存键（如 'topBar', 'hpBg' 等）
+   * @param {number} x1 @param {number} y1 @param {number} x2 @param {number} y2
+   * @param {Array<[number,string]>} stops - [[offset, color], ...]
+   */
+  cachedLinearGrad(key, x1, y1, x2, y2, stops) {
+    if (this._gradCache[key]) return this._gradCache[key]
+    const g = this.ctx.createLinearGradient(x1, y1, x2, y2)
+    for (let i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1])
+    if (this._gradCacheSize < 200) { this._gradCache[key] = g; this._gradCacheSize++ }
+    return g
+  }
+
+  cachedRadialGrad(key, x1, y1, r1, x2, y2, r2, stops) {
+    if (this._gradCache[key]) return this._gradCache[key]
+    const g = this.ctx.createRadialGradient(x1, y1, r1, x2, y2, r2)
+    for (let i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1])
+    if (this._gradCacheSize < 200) { this._gradCache[key] = g; this._gradCacheSize++ }
+    return g
   }
 
   // ===== 基础绘制 =====
@@ -89,9 +113,7 @@ class Render {
   // ===== 背景 =====
   drawBg(frame) {
     const {ctx:c,W,H,S} = this
-    const g = c.createLinearGradient(0,0,0,H)
-    g.addColorStop(0,'#0d0d1a'); g.addColorStop(0.5,'#141428'); g.addColorStop(1,'#0a0a14')
-    c.fillStyle = g; c.fillRect(0,0,W,H)
+    c.fillStyle = this.cachedLinearGrad('bg',0,0,0,H,[[0,'#0d0d1a'],[0.5,'#141428'],[1,'#0a0a14']]); c.fillRect(0,0,W,H)
     const t = frame*0.01
     this.bgStars.forEach(s => {
       c.fillStyle = `rgba(255,255,255,${0.15+0.2*Math.sin(t*s.sp*5+s.ph)})`
@@ -106,9 +128,7 @@ class Render {
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
     } else {
-      const g = c.createLinearGradient(0,0,0,H)
-      g.addColorStop(0,'#1a1035'); g.addColorStop(0.5,'#0d0d2a'); g.addColorStop(1,'#050510')
-      c.fillStyle = g; c.fillRect(0,0,W,H)
+      c.fillStyle = this.cachedLinearGrad('homeBg',0,0,0,H,[[0,'#1a1035'],[0.5,'#0d0d2a'],[1,'#050510']]); c.fillRect(0,0,W,H)
     }
 
   }
@@ -176,25 +196,13 @@ class Render {
       return
     }
     // 代码绘制：深红暗金战斗氛围
-    const bg = c.createRadialGradient(W*0.5, H*0.42, H*0.05, W*0.5, H*0.42, H*0.72)
-    bg.addColorStop(0, '#3A1A18')
-    bg.addColorStop(0.6, '#2A100E')
-    bg.addColorStop(1, '#1A0C0A')
-    c.fillStyle = bg; c.fillRect(0,0,W,H)
+    c.fillStyle = this.cachedRadialGrad('eventBgCenter',W*0.5,H*0.42,H*0.05,W*0.5,H*0.42,H*0.72,[[0,'#3A1A18'],[0.6,'#2A100E'],[1,'#1A0C0A']]); c.fillRect(0,0,W,H)
 
     // 顶部烈焰裂隙光
-    const topGlow = c.createLinearGradient(0,0,0,H*0.25)
-    topGlow.addColorStop(0,'rgba(212,160,64,0.28)')
-    topGlow.addColorStop(0.5,'rgba(139,32,32,0.18)')
-    topGlow.addColorStop(1,'rgba(139,32,32,0)')
-    c.fillStyle = topGlow; c.fillRect(0,0,W,H*0.25)
+    c.fillStyle = this.cachedLinearGrad('eventBgTop',0,0,0,H*0.25,[[0,'rgba(212,160,64,0.28)'],[0.5,'rgba(139,32,32,0.18)'],[1,'rgba(139,32,32,0)']]); c.fillRect(0,0,W,H*0.25)
 
     // 底部余烬
-    const botGlow = c.createLinearGradient(0,H*0.78,0,H)
-    botGlow.addColorStop(0,'rgba(139,32,32,0)')
-    botGlow.addColorStop(0.6,'rgba(139,32,32,0.12)')
-    botGlow.addColorStop(1,'rgba(212,160,64,0.2)')
-    c.fillStyle = botGlow; c.fillRect(0,H*0.78,W,H*0.22)
+    c.fillStyle = this.cachedLinearGrad('eventBgBot',0,H*0.78,0,H,[[0,'rgba(139,32,32,0)'],[0.6,'rgba(139,32,32,0.12)'],[1,'rgba(212,160,64,0.2)']]); c.fillRect(0,H*0.78,W,H*0.22)
 
     // 四角暗红光晕
     const corners = [[0,0],[W,0],[0,H],[W,H]]
@@ -234,9 +242,7 @@ class Render {
   drawBattleBg(frame, themeBg) {
     const {ctx:c,W,H,S} = this
     // 下半部（棋盘区）纯暗色背景，不用背景图
-    const bg = c.createLinearGradient(0,0,0,H)
-    bg.addColorStop(0,'#0e0b15'); bg.addColorStop(0.5,'#161220'); bg.addColorStop(1,'#0a0810')
-    c.fillStyle = bg; c.fillRect(0,0,W,H)
+    c.fillStyle = this.cachedLinearGrad('battleBg',0,0,0,H,[[0,'#0e0b15'],[0.5,'#161220'],[1,'#0a0810']]); c.fillRect(0,0,W,H)
   }
 
   /** 绘制怪物区主题背景（仅覆盖怪物区域） */
@@ -314,9 +320,7 @@ class Render {
   // ===== 顶部栏 =====
   drawTopBar(title, showBack) {
     const {ctx:c,W,S,safeTop:st} = this, barH = st+44*S
-    const g = c.createLinearGradient(0,0,0,barH)
-    g.addColorStop(0,'rgba(8,8,20,0.85)'); g.addColorStop(1,'rgba(8,8,20,0.6)')
-    c.fillStyle = g; c.fillRect(0,0,W,barH)
+    c.fillStyle = this.cachedLinearGrad('topBar',0,0,0,barH,[[0,'rgba(8,8,20,0.85)'],[1,'rgba(8,8,20,0.6)']]); c.fillRect(0,0,W,barH)
     // 底线
     c.strokeStyle='rgba(255,255,255,0.06)'; c.lineWidth=1
     c.beginPath(); c.moveTo(0,barH); c.lineTo(W,barH); c.stroke()

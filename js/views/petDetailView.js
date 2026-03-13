@@ -5,6 +5,7 @@
  * 渲染入口：rPetDetail  触摸入口：tPetDetail
  */
 const V = require('./env')
+const uiUtils = require('./uiUtils')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill, getPetLore } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
@@ -40,12 +41,8 @@ function _easeOut(t) {
   return 1 - (1 - t) * (1 - t)
 }
 
-function _getFilteredPool(g) {
-  const pool = g.storage.petPool || []
-  const filter = g._petPoolFilter || 'all'
-  if (filter === 'all') return pool
-  return pool.filter(p => p.attr === filter)
-}
+const { drawSeparator, wrapTextDraw, getFilteredPool } = uiUtils
+const _getFilteredPool = getFilteredPool
 
 function _getCurrentIndex(g) {
   const pool = _getFilteredPool(g)
@@ -332,7 +329,7 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText(`${basePet.atk}`, indent + atkLabelW + 8 * S, cy + 11 * S)
   cy += 30 * S
 
-  _drawSep(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += 10 * S
 
   // 技能预览
@@ -352,7 +349,7 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = 'rgba(70,50,30,0.85)'
     c.font = `${12*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'
-    _wrapText(c, skillDesc || '', indent, cy, contentW, 16 * S)
+    wrapTextDraw(c, skillDesc || '', indent, cy, contentW, 16 * S)
     cy += 20 * S
   } else {
     cy += 20 * S
@@ -363,7 +360,7 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   }
 
   cy += 10 * S
-  _drawSep(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += 16 * S
 
   // 碎片进度
@@ -675,7 +672,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText(`基础${baseAtk} + 等级+${lvBonus} × 星级×${starMul}`, indent, cy)
   cy += fSmall + gapL
 
-  _drawSep(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += gap
 
   // ── 技能 ──
@@ -696,7 +693,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = 'rgba(70,50,30,0.85)'
     c.font = `${fSkillD}px "PingFang SC",sans-serif`
     c.textAlign = 'left'
-    const wrappedLines = _wrapText(c, skillDesc || '', indent, cy, contentW, lineH)
+    const wrappedLines = wrapTextDraw(c, skillDesc || '', indent, cy, contentW, lineH)
     cy += Math.max(1, wrappedLines) * lineH + gap * 0.5
     if (basePet.skill.cd || basePet.cd) {
       c.fillStyle = 'rgba(90,70,40,0.7)'
@@ -717,13 +714,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   // ═══════════════════════════════
   // 分隔：状态区 vs 操作区
   // ═══════════════════════════════
-  const sepGrad = c.createLinearGradient(indent, cy, rightEdge, cy)
-  sepGrad.addColorStop(0, 'rgba(180,140,60,0)')
-  sepGrad.addColorStop(0.15, 'rgba(180,140,60,0.5)')
-  sepGrad.addColorStop(0.85, 'rgba(180,140,60,0.5)')
-  sepGrad.addColorStop(1, 'rgba(180,140,60,0)')
-  c.strokeStyle = sepGrad; c.lineWidth = 1.5 * S
-  c.beginPath(); c.moveTo(indent, cy); c.lineTo(rightEdge, cy); c.stroke()
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60', 0.5, 0.15, 0.85, 1.5 * S)
   cy += gapL
 
   // ═══════════════════════════════
@@ -780,7 +771,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText(`经验池：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
   cy += fSmall + gap
 
-  _drawSep(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += gap
 
   // ── 升星信息 ──
@@ -863,17 +854,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   }
 }
 
-// ===== 分隔线 =====
-function _drawSep(c, x1, y, x2, S) {
-  const grad = c.createLinearGradient(x1, y, x2, y)
-  grad.addColorStop(0, 'rgba(180,140,60,0)')
-  grad.addColorStop(0.2, 'rgba(180,140,60,0.35)')
-  grad.addColorStop(0.8, 'rgba(180,140,60,0.35)')
-  grad.addColorStop(1, 'rgba(180,140,60,0)')
-  c.strokeStyle = grad; c.lineWidth = 1
-  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
-}
-
 // ===== 按钮 =====
 function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize) {
   const fs = fontSize || (10 * S)
@@ -898,25 +878,6 @@ function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize) {
   c.font = `bold ${fs}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(text, x + w / 2, y + h / 2)
-}
-
-// ===== 文本换行（返回实际行数） =====
-function _wrapText(c, text, x, y, maxW, lineH) {
-  let line = ''
-  let lines = 1
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (c.measureText(line + ch).width > maxW) {
-      c.fillText(line, x, y)
-      y += lineH
-      line = ch
-      lines++
-    } else {
-      line += ch
-    }
-  }
-  if (line) c.fillText(line, x, y)
-  return lines
 }
 
 // ===== 触摸处理 =====

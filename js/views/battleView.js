@@ -9,12 +9,406 @@ const MusicMgr = require('../runtime/music')
 const Particles = require('../engine/particles')
 const FXComposer = require('../engine/effectComposer')
 
+// ===== 战斗界面：怪物区域绘制 =====
+function _drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
+  const { ctx, R, TH, W, H, S } = V
+  const eAreaH = eAreaBottom - eAreaTop
+  const ac = ATTR_COLOR[g.enemy.attr]
+  const themeBg = 'theme_' + (g.enemy.attr || 'metal')
+  R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
+
+  const eHpH = 14*S
+  const hpY = eAreaBottom - 26*S
+  const hpBarW = W * 0.72
+  const hpBarX = (W - hpBarW) / 2
+  if (g.enemy.isBoss || g.enemy.isElite) {
+    ctx.save()
+    const hpGlowColor = ac ? ac.main : '#ff4040'
+    ctx.shadowColor = hpGlowColor; ctx.shadowBlur = 10*S
+    ctx.strokeStyle = hpGlowColor + '88'; ctx.lineWidth = 2*S
+    R.rr(hpBarX - 2*S, hpY - 2*S, hpBarW + 4*S, eHpH + 4*S, (eHpH + 4*S)/2); ctx.stroke()
+    ctx.shadowBlur = 0
+    ctx.restore()
+  }
+  R.drawHp(hpBarX, hpY, hpBarW, eHpH, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
+
+  const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
+  const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
+  const imgBottom = hpY - 6*S
+  const eAreaH_local = eAreaBottom - eAreaTop
+  let imgDrawY = imgBottom - eAreaH_local * 0.5
+  const hideEnemy = g.bState === 'victory' && !g._enemyDeathAnim
+  if (enemyImg && enemyImg.width > 0 && !hideEnemy) {
+    const maxImgH = eAreaH * 0.58
+    const maxImgW = W * 0.5
+    const imgRatio = enemyImg.width / enemyImg.height
+    let imgW = maxImgH * imgRatio, imgH = maxImgH
+    if (imgW > maxImgW) { imgW = maxImgW; imgH = imgW / imgRatio }
+    const imgX = (W - imgW) / 2
+    imgDrawY = imgBottom - imgH
+
+    ctx.save()
+    let hitOffX = 0, hitOffY = 0
+    if (g._enemyHitFlash > 0) {
+      const hitIntensity = g._enemyHitFlash / 12
+      hitOffX = (Math.random() - 0.5) * 10 * S * hitIntensity
+      hitOffY = (Math.random() - 0.5) * 6 * S * hitIntensity
+      const squashP = Math.min(1, g._enemyHitFlash / 6)
+      const scaleX = 1 - squashP * 0.08
+      const scaleY = 1 + squashP * 0.06
+      ctx.translate(imgX + imgW/2, imgDrawY + imgH)
+      ctx.scale(scaleX, scaleY)
+      ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH))
+    }
+    if (g._enemyDeathAnim) {
+      const dp = g._enemyDeathAnim.timer / g._enemyDeathAnim.duration
+      const deathScale = 1 - dp * 0.5
+      const deathAlpha = 1 - dp
+      ctx.globalAlpha = Math.max(0, deathAlpha)
+      ctx.translate(imgX + imgW/2, imgDrawY + imgH/2)
+      ctx.scale(deathScale, deathScale)
+      ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH/2))
+    }
+    if (g._enemyHitFlash > 0) {
+      const flashP = g._enemyHitFlash / 12
+      const blinkAlpha = flashP > 0.5 ? (Math.sin(g._enemyHitFlash * 1.5) * 0.3 + 0.7) : 1
+      ctx.globalAlpha = (ctx.globalAlpha || 1) * blinkAlpha
+    }
+    ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+    if (g._enemyHitFlash > 0) {
+      const glowAlpha = Math.min(0.5, g._enemyHitFlash / 12 * 0.5)
+      ctx.globalAlpha = glowAlpha
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
+    }
+    if (g._enemyTintFlash > 0) {
+      const tintAlpha = (g._enemyTintFlash / 8) * 0.3
+      ctx.save()
+      ctx.globalAlpha = tintAlpha
+      ctx.globalCompositeOperation = 'source-atop'
+      ctx.fillStyle = '#ff2244'
+      ctx.fillRect(imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+      ctx.restore()
+    }
+    ctx.restore()
+
+    _drawEnemyDebuffVFX(g, imgX, imgDrawY, imgW, imgH, enemyImg)
+
+    if (g._enemyDeathAnim) {
+      const da = g._enemyDeathAnim
+      const dp = da.timer / da.duration
+      ctx.save()
+      const centerX = imgX + imgW/2, centerY = imgDrawY + imgH/2
+      const deathColor = ac ? ac.main : '#ff6040'
+
+      if (dp < 0.6) {
+        const pillarP = dp / 0.6
+        const pillarW = 20*S * (1 - pillarP * 0.5)
+        const pillarH = 200*S * pillarP
+        ctx.globalAlpha = (1 - pillarP) * 0.6
+        const pillarGrd = ctx.createLinearGradient(centerX, centerY, centerX, centerY - pillarH)
+        pillarGrd.addColorStop(0, '#fff')
+        pillarGrd.addColorStop(0.3, deathColor)
+        pillarGrd.addColorStop(0.7, deathColor + '44')
+        pillarGrd.addColorStop(1, 'transparent')
+        ctx.fillStyle = pillarGrd
+        ctx.fillRect(centerX - pillarW, centerY - pillarH, pillarW*2, pillarH)
+      }
+
+      for (let ring = 0; ring < 3; ring++) {
+        const ringDelay = ring * 0.1
+        const ringP = Math.max(0, dp - ringDelay) / (1 - ringDelay)
+        if (ringP <= 0 || ringP > 1) continue
+        const ringR = ringP * (60 + ring * 30) * S
+        ctx.globalAlpha = (1 - ringP) * (0.6 - ring * 0.15)
+        ctx.strokeStyle = ring === 0 ? '#fff' : deathColor
+        ctx.lineWidth = (3 - ringP * 2 - ring * 0.5) * S
+        ctx.beginPath(); ctx.arc(centerX, centerY, ringR, 0, Math.PI*2); ctx.stroke()
+      }
+
+      const particleCount = 24
+      for (let pi = 0; pi < particleCount; pi++) {
+        const angle = (pi / particleCount) * Math.PI * 2 + da.timer * 0.08
+        const speed = 20 + (pi % 5) * 15
+        const dist = dp * speed * S
+        const px = centerX + Math.cos(angle) * dist
+        const py = centerY + Math.sin(angle) * dist
+        const pAlpha = (1 - dp) * 0.85
+        const pSize = (pi % 3 === 0 ? 3.5 : pi % 3 === 1 ? 2.5 : 1.5) * S * (1 - dp * 0.5)
+        ctx.globalAlpha = pAlpha
+        ctx.fillStyle = pi % 4 === 0 ? '#fff' : pi % 4 === 1 ? deathColor : pi % 4 === 2 ? '#ffd700' : deathColor + 'cc'
+        ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI*2); ctx.fill()
+      }
+
+      if (dp < 0.3) {
+        const flashR = 25*S * (1 + dp / 0.3)
+        ctx.globalAlpha = (0.3 - dp) / 0.3 * 0.7
+        ctx.globalCompositeOperation = 'lighter'
+        const flashGrd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, flashR)
+        flashGrd.addColorStop(0, '#fff')
+        flashGrd.addColorStop(0.5, deathColor)
+        flashGrd.addColorStop(1, 'transparent')
+        ctx.fillStyle = flashGrd
+        ctx.beginPath(); ctx.arc(centerX, centerY, flashR, 0, Math.PI*2); ctx.fill()
+        ctx.globalCompositeOperation = 'source-over'
+      }
+
+      ctx.restore()
+    }
+  }
+
+  const hasSkillCd = g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0
+  const skillCdBlockH = hasSkillCd ? 28*S : 0
+
+  const nameY = imgDrawY - 20*S - skillCdBlockH
+  const nameFontSize = 14*S
+  ctx.textAlign = 'center'
+  ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
+  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
+  ctx.fillText(g.enemy.name, W*0.5, nameY)
+  ctx.restore()
+
+  if (hasSkillCd) {
+    const cdNum = g.enemySkillCd
+    const isUrgent = cdNum <= 1
+    const skFontSize = 10*S
+    ctx.font = `bold ${skFontSize}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    const nextSkKey = g._nextEnemySkill
+    const nextSkData = nextSkKey ? ENEMY_SKILLS[nextSkKey] : null
+    const nextSkName = nextSkData ? nextSkData.name : ''
+    let cdText
+    if (isUrgent && nextSkName) {
+      cdText = `⚠ 即将释放【${nextSkName}】！`
+    } else if (isUrgent) {
+      cdText = '⚠ 下回合释放技能！'
+    } else if (nextSkName) {
+      cdText = `蓄力【${nextSkName}】${cdNum}回合`
+    } else {
+      cdText = `技能蓄力 ${cdNum} 回合`
+    }
+    const cdTextW = ctx.measureText(cdText).width
+    const cdTagW = cdTextW + 20*S
+    const cdTagH = 20*S
+    const cdTagX = (W - cdTagW) / 2
+    const cdTagY = nameY + 6*S
+    ctx.save()
+    if (isUrgent) {
+      const pulse = 0.7 + 0.3 * Math.sin(g.af * 0.12)
+      ctx.globalAlpha = pulse
+      ctx.fillStyle = 'rgba(200,40,40,0.8)'
+    } else {
+      ctx.globalAlpha = 0.75
+      ctx.fillStyle = 'rgba(60,50,80,0.7)'
+    }
+    ctx.beginPath()
+    R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.fill()
+    ctx.strokeStyle = isUrgent ? 'rgba(255,80,80,0.9)' : 'rgba(180,170,200,0.5)'
+    ctx.lineWidth = 1*S
+    R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.stroke()
+    ctx.globalAlpha = 1
+    ctx.fillStyle = isUrgent ? '#ffcccc' : '#d0c8e0'
+    ctx.fillText(cdText, W * 0.5, cdTagY + cdTagH / 2)
+    ctx.restore()
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  const weakAttr = COUNTER_BY[g.enemy.attr]
+  const resistAttr = COUNTER_MAP[g.enemy.attr]
+  const orbR = 7*S
+  const infoFontSize = 11*S
+  const infoY = nameY + (hasSkillCd ? skillCdBlockH + 8*S : 14*S)
+  const tagH = 22*S, tagR = tagH/2
+  ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+  const weakTagW = weakAttr ? ctx.measureText('弱点').width + orbR*2 + 16*S : 0
+  const resistTagW = resistAttr ? ctx.measureText('抵抗').width + orbR*2 + 16*S : 0
+  const infoGap = (weakAttr && resistAttr) ? 10*S : 0
+  const totalInfoW = weakTagW + infoGap + resistTagW
+  let curX = W*0.5 - totalInfoW/2
+  if (weakAttr) {
+    const wac = ATTR_COLOR[weakAttr]
+    const weakMain = wac ? wac.main : '#fff'
+    const isBoss = g.enemy.isBoss || g.enemy.isElite
+    const pulseAlpha = isBoss ? (0.75 + 0.25 * Math.sin(g.af * 0.08)) : 0.85
+    const pulseScale = isBoss ? (1 + 0.03 * Math.sin(g.af * 0.08)) : 1
+    ctx.save()
+    if (isBoss) {
+      ctx.translate(curX + weakTagW/2, infoY - tagH*0.5 + tagH/2)
+      ctx.scale(pulseScale, pulseScale)
+      ctx.translate(-(curX + weakTagW/2), -(infoY - tagH*0.5 + tagH/2))
+    }
+    ctx.globalAlpha = pulseAlpha
+    ctx.fillStyle = weakMain + '40'
+    ctx.beginPath()
+    R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.fill()
+    ctx.strokeStyle = weakMain + '99'; ctx.lineWidth = 1.5*S
+    R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
+    if (isBoss) {
+      ctx.shadowColor = weakMain; ctx.shadowBlur = 8*S
+      ctx.strokeStyle = weakMain + 'cc'; ctx.lineWidth = 1*S
+      R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
+      ctx.shadowBlur = 0
+    }
+    ctx.globalAlpha = 1
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText('弱点', curX + 6*S, infoY)
+    const lw = ctx.measureText('弱点').width
+    R.drawBead(curX + 6*S + lw + orbR + 3*S, infoY, orbR, weakAttr, g.af)
+    ctx.textBaseline = 'alphabetic'
+    ctx.restore()
+    curX += weakTagW + infoGap
+  }
+  if (resistAttr) {
+    const rac = ATTR_COLOR[resistAttr]
+    const resistMain = rac ? rac.main : '#888'
+    ctx.save()
+    ctx.globalAlpha = 0.65
+    ctx.fillStyle = 'rgba(60,60,80,0.6)'
+    ctx.beginPath()
+    R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.fill()
+    ctx.strokeStyle = 'rgba(150,150,170,0.4)'; ctx.lineWidth = 1*S
+    R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.stroke()
+    ctx.globalAlpha = 0.8
+    ctx.fillStyle = '#aaa'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText('抵抗', curX + 6*S, infoY)
+    const lw2 = ctx.measureText('抵抗').width
+    R.drawBead(curX + 6*S + lw2 + orbR + 3*S, infoY, orbR, resistAttr, g.af)
+    ctx.textBaseline = 'alphabetic'
+    ctx.restore()
+  }
+
+  ctx.textAlign = 'center'
+  const evType = g.curEvent ? g.curEvent.type : 'battle'
+  const floorLabelImg = R.getImg('assets/ui/floor_label_bg.png')
+  const labelW = W * 0.45, labelH = labelW / 4
+  const labelX = (W - labelW) / 2, labelY = eAreaTop + 2*S
+  if (floorLabelImg && floorLabelImg.width > 0) {
+    ctx.drawImage(floorLabelImg, labelX, labelY, labelW, labelH)
+  }
+  const labelCY = labelY + labelH * 0.52
+  const _isTutorial = tutorial.isActive()
+  if (_isTutorial) {
+    const tData = tutorial.getGuideData()
+    const stepTitle = tData ? tData.title : '新手教学'
+    ctx.fillStyle = '#b0e0ff'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText('新手教学', W*0.5, labelCY - 2*S)
+    ctx.restore()
+    ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`第${tutorial.getStep()+1}课 · ${stepTitle}`, W*0.5, labelCY + 9*S)
+  } else if (g.battleMode === 'stage') {
+    const { getStageById } = require('../data/stages')
+    const stageData = getStageById(g._stageId)
+    const stageName = stageData ? stageData.name : '关卡'
+    const waveTotal = g._stageWaves ? g._stageWaves.length : 1
+    const waveCur = (g._stageWaveIdx || 0) + 1
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText(stageName, W*0.5, labelCY - 2*S)
+    ctx.restore()
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`第 ${waveCur}/${waveTotal} 波`, W*0.5, labelCY + 9*S)
+  } else if (evType === 'boss') {
+    const floorText = `第 ${g.floor} 层`
+    const bossTag = '⚠ BOSS ⚠'
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText(floorText, W*0.5, labelCY - 2*S)
+    ctx.restore()
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(bossTag, W*0.5, labelCY + 9*S)
+  } else if (evType === 'elite') {
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY - 2*S)
+    ctx.restore()
+    ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText('★ 精英战斗', W*0.5, labelCY + 9*S)
+  } else {
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY)
+    ctx.restore()
+  }
+
+  g._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]
+}
+
+// ===== 战斗界面：UI控制区域（退出、经验、宝箱、buff） =====
+function _drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize) {
+  const { ctx, R, W, S } = V
+  const exitBtnX = 8*S
+  const exitBtnY = eAreaTop
+
+  drawBuffIconsLabeled(g.heroBuffs, W*0.3, teamBarY - 16*S, '己方', false)
+
+  if (!tutorial.isActive()) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
+    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.stroke()
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
+    ctx.textBaseline = 'alphabetic'
+    g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
+  } else {
+    g._exitBtnRect = null
+  }
+
+  if (!tutorial.isActive() && g.bState !== 'none') {
+    _drawExpIndicator(g, exitBtnX, exitBtnY + exitBtnSize + 6*S, exitBtnSize, S)
+  }
+
+  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat' && g.battleMode !== 'stage') {
+    const chestSz = 36*S
+    const chestX = W - chestSz - 8*S
+    const chestY = eAreaBottom - chestSz - 34*S
+    const allUsed = g.itemResetUsed && g.itemHealUsed
+    const pendingCount = (!g.itemResetUsed ? 1 : 0) + (!g.itemHealUsed ? 1 : 0)
+    ctx.save()
+    ctx.globalAlpha = allUsed ? 0.4 : 0.85
+    const chestImg = R.getImg('assets/ui/icon_chest.png')
+    if (chestImg && chestImg.width > 0) {
+      ctx.drawImage(chestImg, chestX, chestY, chestSz, chestSz)
+    } else {
+      ctx.fillStyle = 'rgba(80,50,20,0.8)'
+      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.fill()
+      ctx.strokeStyle = '#d4a844'; ctx.lineWidth = 1.5*S
+      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.stroke()
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('📦', chestX + chestSz*0.5, chestY + chestSz*0.5)
+      ctx.textBaseline = 'alphabetic'
+    }
+    ctx.restore()
+    if (!allUsed) {
+      const badgeSz = 12*S
+      const bx = chestX + chestSz - badgeSz*0.3, by = chestY - badgeSz*0.3
+      ctx.fillStyle = '#e04040'
+      ctx.beginPath(); ctx.arc(bx, by, badgeSz*0.5, 0, Math.PI*2); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(`${pendingCount}`, bx, by)
+      ctx.textBaseline = 'alphabetic'
+    }
+    g._chestBtnRect = [chestX, chestY, chestSz, chestSz]
+  } else {
+    g._chestBtnRect = null
+  }
+}
+
+// ===== 战斗主入口（分发函数） =====
 function rBattle(g) {
   const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
   R.drawBattleBg(g.af)
   const padX = 8*S
 
-  // 布局计算
   const boardPad = 6*S
   const cellSize = (W - boardPad*2) / COLS
   g.cellSize = cellSize; g.boardX = boardPad
@@ -34,468 +428,22 @@ function rBattle(g) {
   const eAreaTop = safeTop + 4*S
   const eAreaBottom = teamBarY - 4*S
   const exitBtnSize = 32*S
-  const exitBtnX = 8*S
-  const exitBtnY = eAreaTop
 
-  // 怪物区
-  if (g.enemy) {
-    const eAreaH = eAreaBottom - eAreaTop
-    const ac = ATTR_COLOR[g.enemy.attr]
-    const themeBg = 'theme_' + (g.enemy.attr || 'metal')
-    R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
+  if (g.enemy) _drawBattleEnemyArea(g, eAreaTop, eAreaBottom)
+  _drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize)
 
-    // --- 血条（加大样式） ---
-    const eHpH = 14*S
-    const hpY = eAreaBottom - 26*S
-    const hpBarW = W * 0.72
-    const hpBarX = (W - hpBarW) / 2
-    // Boss/精英血条发光边框
-    if (g.enemy.isBoss || g.enemy.isElite) {
-      ctx.save()
-      const hpGlowColor = ac ? ac.main : '#ff4040'
-      ctx.shadowColor = hpGlowColor; ctx.shadowBlur = 10*S
-      ctx.strokeStyle = hpGlowColor + '88'; ctx.lineWidth = 2*S
-      R.rr(hpBarX - 2*S, hpY - 2*S, hpBarW + 4*S, eHpH + 4*S, (eHpH + 4*S)/2); ctx.stroke()
-      ctx.shadowBlur = 0
-      ctx.restore()
-    }
-    R.drawHp(hpBarX, hpY, hpBarW, eHpH, g.enemy.hp, g.enemy.maxHp, ac ? ac.main : TH.danger, g._enemyHpLoss, true)
-
-    // --- 怪物图片（胜利状态且死亡动画结束后不再绘制） ---
-    const avatarPath = g.enemy.avatar ? g.enemy.avatar + '.png' : null
-    const enemyImg = avatarPath ? R.getImg(`assets/${avatarPath}`) : null
-    const imgBottom = hpY - 6*S  // 图片底部贴近血条上方
-    const eAreaH_local = eAreaBottom - eAreaTop
-    let imgDrawY = imgBottom - eAreaH_local * 0.5
-    const hideEnemy = g.bState === 'victory' && !g._enemyDeathAnim
-    if (enemyImg && enemyImg.width > 0 && !hideEnemy) {
-      const maxImgH = eAreaH * 0.58
-      const maxImgW = W * 0.5
-      const imgRatio = enemyImg.width / enemyImg.height
-      let imgW = maxImgH * imgRatio, imgH = maxImgH
-      if (imgW > maxImgW) { imgW = maxImgW; imgH = imgW / imgRatio }
-      const imgX = (W - imgW) / 2
-      imgDrawY = imgBottom - imgH
-
-      // 敌人受击抖动+闪红+squash形变（使用离屏canvas避免source-atop透明底图问题）
-      ctx.save()
-      let hitOffX = 0, hitOffY = 0
-      if (g._enemyHitFlash > 0) {
-        const hitIntensity = g._enemyHitFlash / 12
-        hitOffX = (Math.random() - 0.5) * 10 * S * hitIntensity
-        hitOffY = (Math.random() - 0.5) * 6 * S * hitIntensity
-        const squashP = Math.min(1, g._enemyHitFlash / 6)
-        const scaleX = 1 - squashP * 0.08
-        const scaleY = 1 + squashP * 0.06
-        ctx.translate(imgX + imgW/2, imgDrawY + imgH)
-        ctx.scale(scaleX, scaleY)
-        ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH))
-      }
-      // 死亡爆裂时缩小+淡出
-      if (g._enemyDeathAnim) {
-        const dp = g._enemyDeathAnim.timer / g._enemyDeathAnim.duration
-        const deathScale = 1 - dp * 0.5
-        const deathAlpha = 1 - dp
-        ctx.globalAlpha = Math.max(0, deathAlpha)
-        ctx.translate(imgX + imgW/2, imgDrawY + imgH/2)
-        ctx.scale(deathScale, deathScale)
-        ctx.translate(-(imgX + imgW/2), -(imgDrawY + imgH/2))
-      }
-      // 受击闪白脉冲（不使用composite操作，避免透明底图边框问题）
-      if (g._enemyHitFlash > 0) {
-        const flashP = g._enemyHitFlash / 12
-        // 透明度脉冲：快速闪烁2次
-        const blinkAlpha = flashP > 0.5 ? (Math.sin(g._enemyHitFlash * 1.5) * 0.3 + 0.7) : 1
-        ctx.globalAlpha = (ctx.globalAlpha || 1) * blinkAlpha
-      }
-      ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
-      // 受击时在图片上方叠一层同尺寸的敌人图片（lighter模式，产生泛白发光效果）
-      if (g._enemyHitFlash > 0) {
-        const glowAlpha = Math.min(0.5, g._enemyHitFlash / 12 * 0.5)
-        ctx.globalAlpha = glowAlpha
-        ctx.globalCompositeOperation = 'lighter'
-        ctx.drawImage(enemyImg, imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
-        ctx.globalCompositeOperation = 'source-over'
-        ctx.globalAlpha = 1
-      }
-      // 受击红色染色脉冲
-      if (g._enemyTintFlash > 0) {
-        const tintAlpha = (g._enemyTintFlash / 8) * 0.3
-        ctx.save()
-        ctx.globalAlpha = tintAlpha
-        ctx.globalCompositeOperation = 'source-atop'
-        ctx.fillStyle = '#ff2244'
-        ctx.fillRect(imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
-        ctx.restore()
-      }
-      ctx.restore()
-
-      // --- 敌人 debuff 视觉特效（替代图标显示） ---
-      _drawEnemyDebuffVFX(g, imgX, imgDrawY, imgW, imgH, enemyImg)
-
-      // 死亡特效：多层粒子+光柱+扩散环
-      if (g._enemyDeathAnim) {
-        const da = g._enemyDeathAnim
-        const dp = da.timer / da.duration
-        ctx.save()
-        const centerX = imgX + imgW/2, centerY = imgDrawY + imgH/2
-        const deathColor = ac ? ac.main : '#ff6040'
-
-        // 光柱（从敌人位置向上冲天）
-        if (dp < 0.6) {
-          const pillarP = dp / 0.6
-          const pillarW = 20*S * (1 - pillarP * 0.5)
-          const pillarH = 200*S * pillarP
-          ctx.globalAlpha = (1 - pillarP) * 0.6
-          const pillarGrd = ctx.createLinearGradient(centerX, centerY, centerX, centerY - pillarH)
-          pillarGrd.addColorStop(0, '#fff')
-          pillarGrd.addColorStop(0.3, deathColor)
-          pillarGrd.addColorStop(0.7, deathColor + '44')
-          pillarGrd.addColorStop(1, 'transparent')
-          ctx.fillStyle = pillarGrd
-          ctx.fillRect(centerX - pillarW, centerY - pillarH, pillarW*2, pillarH)
-        }
-
-        // 多层扩散环
-        for (let ring = 0; ring < 3; ring++) {
-          const ringDelay = ring * 0.1
-          const ringP = Math.max(0, dp - ringDelay) / (1 - ringDelay)
-          if (ringP <= 0 || ringP > 1) continue
-          const ringR = ringP * (60 + ring * 30) * S
-          ctx.globalAlpha = (1 - ringP) * (0.6 - ring * 0.15)
-          ctx.strokeStyle = ring === 0 ? '#fff' : deathColor
-          ctx.lineWidth = (3 - ringP * 2 - ring * 0.5) * S
-          ctx.beginPath(); ctx.arc(centerX, centerY, ringR, 0, Math.PI*2); ctx.stroke()
-        }
-
-        // 密集碎片粒子（外层大粒子+内层小粒子）
-        const particleCount = 24
-        for (let pi = 0; pi < particleCount; pi++) {
-          const angle = (pi / particleCount) * Math.PI * 2 + da.timer * 0.08
-          const speed = 20 + (pi % 5) * 15
-          const dist = dp * speed * S
-          const px = centerX + Math.cos(angle) * dist
-          const py = centerY + Math.sin(angle) * dist
-          const pAlpha = (1 - dp) * 0.85
-          const pSize = (pi % 3 === 0 ? 3.5 : pi % 3 === 1 ? 2.5 : 1.5) * S * (1 - dp * 0.5)
-          ctx.globalAlpha = pAlpha
-          ctx.fillStyle = pi % 4 === 0 ? '#fff' : pi % 4 === 1 ? deathColor : pi % 4 === 2 ? '#ffd700' : deathColor + 'cc'
-          ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI*2); ctx.fill()
-        }
-
-        // 核心闪光（前半段）
-        if (dp < 0.3) {
-          const flashR = 25*S * (1 + dp / 0.3)
-          ctx.globalAlpha = (0.3 - dp) / 0.3 * 0.7
-          ctx.globalCompositeOperation = 'lighter'
-          const flashGrd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, flashR)
-          flashGrd.addColorStop(0, '#fff')
-          flashGrd.addColorStop(0.5, deathColor)
-          flashGrd.addColorStop(1, 'transparent')
-          ctx.fillStyle = flashGrd
-          ctx.beginPath(); ctx.arc(centerX, centerY, flashR, 0, Math.PI*2); ctx.fill()
-          ctx.globalCompositeOperation = 'source-over'
-        }
-
-        ctx.restore()
-      }
-    }
-
-    // --- 怪物技能倒计时（名称上方，醒目位置） ---
-    const hasSkillCd = g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0
-    const skillCdBlockH = hasSkillCd ? 28*S : 0  // 倒计时占据的垂直空间
-
-    // --- 怪物名（图片头顶，上移留出技能倒计时+抗性空间） ---
-    const nameY = imgDrawY - 20*S - skillCdBlockH
-    const nameFontSize = 14*S
-    ctx.textAlign = 'center'
-    ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
-    ctx.fillText(g.enemy.name, W*0.5, nameY)
-    ctx.restore()
-
-    // 绘制技能倒计时（名称和弱点/抵抗之间）— 含技能预警
-    if (hasSkillCd) {
-      const cdNum = g.enemySkillCd
-      const isUrgent = cdNum <= 1
-      const skFontSize = 10*S
-      ctx.font = `bold ${skFontSize}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      // 查找预选的下一个技能名称
-      const nextSkKey = g._nextEnemySkill
-      const nextSkData = nextSkKey ? ENEMY_SKILLS[nextSkKey] : null
-      const nextSkName = nextSkData ? nextSkData.name : ''
-      let cdText
-      if (isUrgent && nextSkName) {
-        cdText = `⚠ 即将释放【${nextSkName}】！`
-      } else if (isUrgent) {
-        cdText = '⚠ 下回合释放技能！'
-      } else if (nextSkName) {
-        cdText = `蓄力【${nextSkName}】${cdNum}回合`
-      } else {
-        cdText = `技能蓄力 ${cdNum} 回合`
-      }
-      const cdTextW = ctx.measureText(cdText).width
-      const cdTagW = cdTextW + 20*S
-      const cdTagH = 20*S
-      const cdTagX = (W - cdTagW) / 2
-      const cdTagY = nameY + 6*S
-      ctx.save()
-      if (isUrgent) {
-        const pulse = 0.7 + 0.3 * Math.sin(g.af * 0.12)
-        ctx.globalAlpha = pulse
-        ctx.fillStyle = 'rgba(200,40,40,0.8)'
-      } else {
-        ctx.globalAlpha = 0.75
-        ctx.fillStyle = 'rgba(60,50,80,0.7)'
-      }
-      ctx.beginPath()
-      R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.fill()
-      ctx.strokeStyle = isUrgent ? 'rgba(255,80,80,0.9)' : 'rgba(180,170,200,0.5)'
-      ctx.lineWidth = 1*S
-      R.rr(cdTagX, cdTagY, cdTagW, cdTagH, cdTagH / 2); ctx.stroke()
-      ctx.globalAlpha = 1
-      ctx.fillStyle = isUrgent ? '#ffcccc' : '#d0c8e0'
-      ctx.fillText(cdText, W * 0.5, cdTagY + cdTagH / 2)
-      ctx.restore()
-      ctx.textBaseline = 'alphabetic'
-    }
-
-    // --- 弱点 & 抵抗（药丸标签化，Boss弱点呼吸脉冲） ---
-    const weakAttr = COUNTER_BY[g.enemy.attr]
-    const resistAttr = COUNTER_MAP[g.enemy.attr]
-    const orbR = 7*S
-    const infoFontSize = 11*S
-    const infoY = nameY + (hasSkillCd ? skillCdBlockH + 8*S : 14*S)
-    const tagH = 22*S, tagR = tagH/2
-    ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-    const weakTagW = weakAttr ? ctx.measureText('弱点').width + orbR*2 + 16*S : 0
-    const resistTagW = resistAttr ? ctx.measureText('抵抗').width + orbR*2 + 16*S : 0
-    const infoGap = (weakAttr && resistAttr) ? 10*S : 0
-    const totalInfoW = weakTagW + infoGap + resistTagW
-    let curX = W*0.5 - totalInfoW/2
-    // 弱点标签
-    if (weakAttr) {
-      const wac = ATTR_COLOR[weakAttr]
-      const weakMain = wac ? wac.main : '#fff'
-      const isBoss = g.enemy.isBoss || g.enemy.isElite
-      // Boss/精英弱点呼吸脉冲
-      const pulseAlpha = isBoss ? (0.75 + 0.25 * Math.sin(g.af * 0.08)) : 0.85
-      const pulseScale = isBoss ? (1 + 0.03 * Math.sin(g.af * 0.08)) : 1
-      ctx.save()
-      if (isBoss) {
-        ctx.translate(curX + weakTagW/2, infoY - tagH*0.5 + tagH/2)
-        ctx.scale(pulseScale, pulseScale)
-        ctx.translate(-(curX + weakTagW/2), -(infoY - tagH*0.5 + tagH/2))
-      }
-      ctx.globalAlpha = pulseAlpha
-      // 药丸底色
-      ctx.fillStyle = weakMain + '40'
-      ctx.beginPath()
-      R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.fill()
-      ctx.strokeStyle = weakMain + '99'; ctx.lineWidth = 1.5*S
-      R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
-      // Boss额外发光
-      if (isBoss) {
-        ctx.shadowColor = weakMain; ctx.shadowBlur = 8*S
-        ctx.strokeStyle = weakMain + 'cc'; ctx.lineWidth = 1*S
-        R.rr(curX, infoY - tagH*0.5, weakTagW, tagH, tagR); ctx.stroke()
-        ctx.shadowBlur = 0
-      }
-      // 文字 + 珠子
-      ctx.globalAlpha = 1
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-      ctx.fillText('弱点', curX + 6*S, infoY)
-      const lw = ctx.measureText('弱点').width
-      R.drawBead(curX + 6*S + lw + orbR + 3*S, infoY, orbR, weakAttr, g.af)
-      ctx.textBaseline = 'alphabetic'
-      ctx.restore()
-      curX += weakTagW + infoGap
-    }
-    // 抵抗标签
-    if (resistAttr) {
-      const rac = ATTR_COLOR[resistAttr]
-      const resistMain = rac ? rac.main : '#888'
-      ctx.save()
-      ctx.globalAlpha = 0.65
-      ctx.fillStyle = 'rgba(60,60,80,0.6)'
-      ctx.beginPath()
-      R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.fill()
-      ctx.strokeStyle = 'rgba(150,150,170,0.4)'; ctx.lineWidth = 1*S
-      R.rr(curX, infoY - tagH*0.5, resistTagW, tagH, tagR); ctx.stroke()
-      ctx.globalAlpha = 0.8
-      ctx.fillStyle = '#aaa'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-      ctx.fillText('抵抗', curX + 6*S, infoY)
-      const lw2 = ctx.measureText('抵抗').width
-      R.drawBead(curX + 6*S + lw2 + orbR + 3*S, infoY, orbR, resistAttr, g.af)
-      ctx.textBaseline = 'alphabetic'
-      ctx.restore()
-    }
-
-    // --- 层数标记（最顶部，使用标签框底图） ---
-    ctx.textAlign = 'center'
-    const evType = g.curEvent ? g.curEvent.type : 'battle'
-    const floorLabelImg = R.getImg('assets/ui/floor_label_bg.png')
-    const labelW = W * 0.45, labelH = labelW / 4
-    const labelX = (W - labelW) / 2, labelY = eAreaTop + 2*S
-    if (floorLabelImg && floorLabelImg.width > 0) {
-      ctx.drawImage(floorLabelImg, labelX, labelY, labelW, labelH)
-    }
-    const labelCY = labelY + labelH * 0.52
-    const _isTutorial = tutorial.isActive()
-    if (_isTutorial) {
-      const tData = tutorial.getGuideData()
-      const stepTitle = tData ? tData.title : '新手教学'
-      ctx.fillStyle = '#b0e0ff'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-      ctx.fillText('新手教学', W*0.5, labelCY - 2*S)
-      ctx.restore()
-      ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`第${tutorial.getStep()+1}课 · ${stepTitle}`, W*0.5, labelCY + 9*S)
-    } else if (g.battleMode === 'stage') {
-      const { getStageById } = require('../data/stages')
-      const stageData = getStageById(g._stageId)
-      const stageName = stageData ? stageData.name : '关卡'
-      const waveTotal = g._stageWaves ? g._stageWaves.length : 1
-      const waveCur = (g._stageWaveIdx || 0) + 1
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-      ctx.fillText(stageName, W*0.5, labelCY - 2*S)
-      ctx.restore()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`第 ${waveCur}/${waveTotal} 波`, W*0.5, labelCY + 9*S)
-    } else if (evType === 'boss') {
-      const floorText = `第 ${g.floor} 层`
-      const bossTag = '⚠ BOSS ⚠'
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-      ctx.fillText(floorText, W*0.5, labelCY - 2*S)
-      ctx.restore()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(bossTag, W*0.5, labelCY + 9*S)
-    } else if (evType === 'elite') {
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-      ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY - 2*S)
-      ctx.restore()
-      ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText('★ 精英战斗', W*0.5, labelCY + 9*S)
-    } else {
-      ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-      ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY)
-      ctx.restore()
-    }
-
-    // 敌方Buff — 已改为怪物身上的视觉特效显示，不再使用图标
-    g._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]
-  }
-
-  // 己方buffs
-  drawBuffIconsLabeled(g.heroBuffs, W*0.3, teamBarY - 16*S, '己方', false)
-  // 左侧全局增益图标列（已移至战斗准备页面显示）
-  // drawRunBuffIcons(g, eAreaTop + 42*S, eAreaBottom - 54*S)
-
-  // 退出按钮（教学中隐藏）
-  if (!tutorial.isActive()) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'
-    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
-    R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.stroke()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('✕', exitBtnX + exitBtnSize*0.5, exitBtnY + exitBtnSize*0.5)
-    ctx.textBaseline = 'alphabetic'
-    g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
-  } else {
-    g._exitBtnRect = null
-  }
-
-  // ===== 经验指示器（退出按钮下方）=====
-  if (!tutorial.isActive() && g.bState !== 'none') {
-    _drawExpIndicator(g, exitBtnX, exitBtnY + exitBtnSize + 6*S, exitBtnSize, S)
-  }
-
-  // 宝箱道具按钮（敌人区域右下角）
-  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat' && g.battleMode !== 'stage') {
-    const chestSz = 36*S
-    const chestX = W - chestSz - 8*S
-    const chestY = eAreaBottom - chestSz - 34*S
-    // 统计道具状态：未全部用光时显示红点提醒
-    const allUsed = g.itemResetUsed && g.itemHealUsed
-    const pendingCount = (!g.itemResetUsed ? 1 : 0) + (!g.itemHealUsed ? 1 : 0)  // 未用完的道具数（含未获取+已获取未用）
-    // 背景
-    ctx.save()
-    ctx.globalAlpha = allUsed ? 0.4 : 0.85
-    const chestImg = R.getImg('assets/ui/icon_chest.png')
-    if (chestImg && chestImg.width > 0) {
-      ctx.drawImage(chestImg, chestX, chestY, chestSz, chestSz)
-    } else {
-      ctx.fillStyle = 'rgba(80,50,20,0.8)'
-      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.fill()
-      ctx.strokeStyle = '#d4a844'; ctx.lineWidth = 1.5*S
-      R.rr(chestX, chestY, chestSz, chestSz, 6*S); ctx.stroke()
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('📦', chestX + chestSz*0.5, chestY + chestSz*0.5)
-      ctx.textBaseline = 'alphabetic'
-    }
-    ctx.restore()
-    // 红点提醒角标（未全部用光时显示）
-    if (!allUsed) {
-      const badgeSz = 12*S
-      const bx = chestX + chestSz - badgeSz*0.3, by = chestY - badgeSz*0.3
-      ctx.fillStyle = '#e04040'
-      ctx.beginPath(); ctx.arc(bx, by, badgeSz*0.5, 0, Math.PI*2); ctx.fill()
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(`${pendingCount}`, bx, by)
-      ctx.textBaseline = 'alphabetic'
-    }
-    g._chestBtnRect = [chestX, chestY, chestSz, chestSz]
-  } else {
-    g._chestBtnRect = null
-  }
-
-  // 队伍栏
   drawTeamBar(g, teamBarY, teamBarH, iconSize)
-  // 英雄血条
   R.drawHp(padX, hpBarY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', g._heroHpLoss, true, '#4dcc4d', g.heroShield, g._heroHpGain, g.af)
-
-  // 棋盘
   drawBoard(g)
-  // 消除飘字
   g.elimFloats.forEach(f => R.drawElimFloat(f))
-
-  // 经验飘字（飞向左上角）
   _drawExpFloats(g)
-
-  // Combo显示
   _drawCombo(g, cellSize, boardTop)
-
-  // 技能快闪
   if (g._skillFlash) _drawSkillFlash(g)
-
-  // 宠物攻击技能光波特效
   if (g._petSkillWave) _drawPetSkillWave(g)
-
-  // 宠物头像攻击数值翻滚
   g.petAtkNums.forEach(f => R.drawPetAtkNum(f))
+  if (g.dragging && g.bState === 'playerTurn') _drawDragTimer(g, cellSize, boardTop)
+  if (g._pendingEnemyAtk && g.bState === 'playerTurn') _drawEnemyTurnBanner(g)
 
-  // 拖拽倒计时
-  if (g.dragging && g.bState === 'playerTurn') {
-    _drawDragTimer(g, cellSize, boardTop)
-  }
-
-  // 敌方回合过渡横条
-  if (g._pendingEnemyAtk && g.bState === 'playerTurn') {
-    _drawEnemyTurnBanner(g)
-  }
-
-  // [DEBUG] 一键跳过战斗按钮
   if (g.bState !== 'victory' && g.bState !== 'defeat') {
     const dbW = 56*S, dbH = 22*S, dbX = 8*S, dbY = eAreaBottom - dbH - 8*S
     ctx.save()
@@ -513,20 +461,16 @@ function rBattle(g) {
     g._debugSkipRect = null
   }
 
-  // 波间过渡（固定关卡）
   if (g.bState === 'waveTransition') _drawWaveTransition(g)
-  // 胜利/失败覆盖（教学中由教学overlay接管，不显示正常胜利面板）
   if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
   if (g.bState === 'adReviveOffer') drawAdReviveOverlay(g)
-  // 弹窗层
   if (g.showEnemyDetail) g._drawEnemyDetailDialog()
   if (g.showExitDialog) g._drawExitDialog()
   if (g.showWeaponDetail) g._drawWeaponDetailDialog()
   if (g.showBattlePetDetail != null) g._drawBattlePetDetailDialog()
   if (g.skillPreview) _drawSkillPreviewPopup(g)
   if (g.runBuffDetail) g._drawRunBuffDetailDialog()
-  // 道具选择菜单（最顶层，覆盖一切）
   if (g._showItemMenu) _drawItemMenu(g)
 }
 
@@ -838,69 +782,9 @@ function _drawSkillPreviewPopup(g) {
   ctx.restore()
 }
 
-function _drawCombo(g, cellSize, boardTop) {
-  const { ctx, R, TH, W, H, S, COLS, ROWS } = V
-  if (g.combo < 2 || !(g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow')) return
-
-  const ca = g._comboAnim || { num: g.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
-  const comboScale = ca.scale || 1
-  // 动画端已保证战斗中 alpha=1，这里直接取值
-  const comboAlpha = ca.alpha != null ? Math.max(ca.alpha, 0) : 1
-  const comboOffY = ca.offsetY || 0
-  const dmgScale = ca.dmgScale || 0
-  const dmgAlpha = ca.dmgAlpha || 0
-  const pctScale = ca.pctScale || 0
-  const pctAlpha = ca.pctAlpha || 0
-  const pctOffX = ca.pctOffX || 0
-
-  const comboCx = W * 0.5
-  const isLow = g.combo < 4
-  const comboCy = isLow
-    ? g.boardY + (ROWS * g.cellSize) * 0.12 + comboOffY  // 低combo上移到棋盘顶部
-    : g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
-  const isHigh = g.combo >= 5
-  const isSuper = g.combo >= 8
-  const isMega = g.combo >= 12
-  const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
-  const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
-  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : isLow ? 22*S : 32*S
-  // 低combo弱化透明度
-  const lowAlphaMul = isLow ? 0.5 : 1.0
-
-  // 预算伤害数据（递减公式与battle.js一致）
-  let comboMulVal
-  if (g.combo <= 8) {
-    comboMulVal = 1 + (g.combo - 1) * 0.35
-  } else if (g.combo <= 12) {
-    comboMulVal = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
-  } else {
-    comboMulVal = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
-  }
-  const comboBonusPct = g.runBuffs.comboDmgPct || 0
-  const totalMul = comboMulVal * (1 + comboBonusPct / 100)
-  const extraPct = Math.round((totalMul - 1) * 100)
-  let estTotalDmg = 0
-  const pdm = g._pendingDmgMap || {}
-  for (const attr in pdm) {
-    let d = pdm[attr] * totalMul
-    d *= 1 + (g.runBuffs.allDmgPct || 0) / 100
-    d *= 1 + ((g.runBuffs.attrDmgPct && g.runBuffs.attrDmgPct[attr]) || 0) / 100
-    if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) d *= 1 + g.weapon.pct / 100
-    if (g.weapon && g.weapon.type === 'allAtkUp') d *= 1 + g.weapon.pct / 100
-    if (g.enemy) {
-      if (COUNTER_MAP[attr] === g.enemy.attr) d *= COUNTER_MUL
-      else if (COUNTER_BY[attr] === g.enemy.attr) d *= COUNTERED_MUL
-    }
-    estTotalDmg += d
-  }
-  estTotalDmg = Math.round(estTotalDmg)
-
-  ctx.save()
-  ctx.globalAlpha = comboAlpha * lowAlphaMul
-
-  // 低combo跳过背景遮罩和爆炸特效
-  if (!isLow) {
-  // 半透明背景遮罩
+// ===== Combo背景特效（遮罩、爆炸光晕、放射线、扩散环） =====
+function _drawComboBgEffects(cs) {
+  const { ctx, S, W, comboCx, comboCy, baseSz, comboAlpha, isSuper, isMega, glowColor, ca } = cs
   const maskH = baseSz * 2.8
   const maskCy = comboCy + baseSz * 0.35
   const maskGrd = ctx.createLinearGradient(0, maskCy - maskH*0.5, 0, maskCy + maskH*0.5)
@@ -912,8 +796,7 @@ function _drawCombo(g, cellSize, boardTop) {
   ctx.fillStyle = maskGrd
   ctx.fillRect(0, maskCy - maskH*0.5, W, maskH)
 
-  // 背景光晕爆炸
-  if (g.combo >= 3) {
+  if (cs.combo >= 3) {
     const burstR = baseSz * (isSuper ? 2.2 : 1.5) * (ca.timer < 10 ? (2.0 - ca.timer / 10) : 1.0)
     const burstGrd = ctx.createRadialGradient(comboCx, comboCy, 0, comboCx, comboCy, burstR)
     burstGrd.addColorStop(0, glowColor + (isSuper ? '66' : '44'))
@@ -923,7 +806,6 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.fillRect(comboCx - burstR, comboCy - burstR, burstR*2, burstR*2)
   }
 
-  // 放射线条
   if (isSuper && ca.timer < 20) {
     ctx.save()
     ctx.translate(comboCx, comboCy)
@@ -943,8 +825,7 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.restore()
   }
 
-  // 层级突破扩散环
-  if ((g.combo === 5 || g.combo === 8 || g.combo === 12) && ca.timer < 18) {
+  if ((cs.combo === 5 || cs.combo === 8 || cs.combo === 12) && ca.timer < 18) {
     ctx.save()
     const ringP = ca.timer / 18
     const ringR = baseSz * (0.5 + ringP * 3.5)
@@ -968,16 +849,15 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.shadowBlur = 0
     ctx.restore()
   }
+}
 
-  } // end if (!isLow)
-
-  // 第一行："N 连击"
+// ===== Combo主文字（"N 连击"） =====
+function _drawComboMainText(cs) {
+  const { ctx, S, comboCx, comboCy, baseSz, comboScale, comboAlpha, mainColor, glowColor, isHigh, isSuper, isMega, ca, comboText, comboFont } = cs
   ctx.save()
   ctx.translate(comboCx, comboCy)
   ctx.scale(comboScale, comboScale)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  const comboFont = `italic 900 ${baseSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-  const comboText = `${g.combo} 连击`
   ctx.font = comboFont
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
   ctx.strokeText(comboText, 0, 0)
@@ -1020,116 +900,119 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.restore()
   }
   ctx.restore()
+}
 
-  // 第二行："额外伤害 N"
-  if (dmgAlpha > 0) {
+// ===== Combo伤害数值文字 =====
+function _drawComboDmgText(cs) {
+  const { ctx, S, comboCx, comboCy, baseSz, comboAlpha, dmgAlpha, dmgScale, pctAlpha, pctScale, pctOffX, extraPct, totalMul, estTotalDmg, comboBonusPct, comboFont } = cs
+  if (dmgAlpha <= 0) return
+
+  ctx.save()
+  ctx.globalAlpha = comboAlpha * dmgAlpha
+  const dmgCy = comboCy + baseSz * 0.72
+  ctx.translate(comboCx, dmgCy)
+  ctx.scale(dmgScale, dmgScale)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const dmgSz = baseSz * 0.7
+  const dmgFont = `italic 900 ${dmgSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  const dmgText = estTotalDmg > 0 ? `额外伤害 ${estTotalDmg}` : `额外伤害 ${extraPct}%`
+  ctx.font = dmgFont
+  const dmgGrd = ctx.createLinearGradient(0, -dmgSz*0.45, 0, dmgSz*0.4)
+  if (extraPct >= 300) {
+    dmgGrd.addColorStop(0, '#ff6666'); dmgGrd.addColorStop(0.4, '#ff1030'); dmgGrd.addColorStop(1, '#990018')
+  } else if (extraPct >= 200) {
+    dmgGrd.addColorStop(0, '#ff8080'); dmgGrd.addColorStop(0.4, '#ff2040'); dmgGrd.addColorStop(1, '#aa0020')
+  } else if (extraPct >= 100) {
+    dmgGrd.addColorStop(0, '#ff9999'); dmgGrd.addColorStop(0.4, '#ff3350'); dmgGrd.addColorStop(1, '#bb1530')
+  } else {
+    dmgGrd.addColorStop(0, '#ffaaaa'); dmgGrd.addColorStop(0.4, '#ff4d60'); dmgGrd.addColorStop(1, '#cc2040')
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
+  ctx.strokeText(dmgText, 0, 0)
+  ctx.fillStyle = dmgGrd
+  ctx.fillText(dmgText, 0, 0)
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(-dmgSz*3, -dmgSz*0.45)
+  ctx.lineTo(dmgSz*3, -dmgSz*0.45)
+  ctx.lineTo(dmgSz*2.7, -dmgSz*0.05)
+  ctx.lineTo(-dmgSz*3.3, -dmgSz*0.05)
+  ctx.clip()
+  ctx.font = dmgFont
+  ctx.fillStyle = '#fff'
+  ctx.globalAlpha = 0.35
+  ctx.fillText(dmgText, 0, 0)
+  ctx.restore()
+  ctx.save()
+  const glowStr = extraPct >= 200 ? 28 : extraPct >= 100 ? 20 : 12
+  ctx.shadowColor = '#ff2040'
+  ctx.shadowBlur = glowStr * S
+  ctx.font = dmgFont
+  ctx.fillStyle = '#ff2040'
+  ctx.globalAlpha = 0.3
+  ctx.fillText(dmgText, 0, 0)
+  ctx.restore()
+
+  if (pctAlpha > 0 && extraPct > 0) {
     ctx.save()
-    ctx.globalAlpha = comboAlpha * dmgAlpha
-    const dmgCy = comboCy + baseSz * 0.72
-    ctx.translate(comboCx, dmgCy)
-    ctx.scale(dmgScale, dmgScale)
+    const pctSz = baseSz * 0.72
+    const pctFont = `italic 900 ${pctSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+    const pctText = `${extraPct}%`
+    const pctY = dmgSz * 0.6 + pctSz * 0.3
+    const pctBaseX = baseSz * 0.3 + pctOffX
+    ctx.translate(pctBaseX, pctY)
+    ctx.scale(pctScale, pctScale)
+    ctx.globalAlpha = comboAlpha * dmgAlpha * pctAlpha
+    ctx.font = pctFont
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const dmgSz = baseSz * 0.7
-    const dmgFont = `italic 900 ${dmgSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-    const dmgText = estTotalDmg > 0 ? `额外伤害 ${estTotalDmg}` : `额外伤害 ${extraPct}%`
-    ctx.font = dmgFont
-    const dmgGrd = ctx.createLinearGradient(0, -dmgSz*0.45, 0, dmgSz*0.4)
-    if (extraPct >= 300) {
-      dmgGrd.addColorStop(0, '#ff6666'); dmgGrd.addColorStop(0.4, '#ff1030'); dmgGrd.addColorStop(1, '#990018')
-    } else if (extraPct >= 200) {
-      dmgGrd.addColorStop(0, '#ff8080'); dmgGrd.addColorStop(0.4, '#ff2040'); dmgGrd.addColorStop(1, '#aa0020')
+    const pctGrd = ctx.createLinearGradient(0, -pctSz*0.4, 0, pctSz*0.35)
+    if (extraPct >= 200) {
+      pctGrd.addColorStop(0, '#ff8888'); pctGrd.addColorStop(0.4, '#ff2244'); pctGrd.addColorStop(1, '#bb0020')
     } else if (extraPct >= 100) {
-      dmgGrd.addColorStop(0, '#ff9999'); dmgGrd.addColorStop(0.4, '#ff3350'); dmgGrd.addColorStop(1, '#bb1530')
+      pctGrd.addColorStop(0, '#ffaaaa'); pctGrd.addColorStop(0.4, '#ff4466'); pctGrd.addColorStop(1, '#cc2040')
     } else {
-      dmgGrd.addColorStop(0, '#ffaaaa'); dmgGrd.addColorStop(0.4, '#ff4d60'); dmgGrd.addColorStop(1, '#cc2040')
+      pctGrd.addColorStop(0, '#ffbbbb'); pctGrd.addColorStop(0.4, '#ff5577'); pctGrd.addColorStop(1, '#dd3355')
     }
-    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
-    ctx.strokeText(dmgText, 0, 0)
-    ctx.fillStyle = dmgGrd
-    ctx.fillText(dmgText, 0, 0)
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
+    ctx.strokeText(pctText, 0, 0)
+    ctx.fillStyle = pctGrd
+    ctx.fillText(pctText, 0, 0)
     ctx.save()
     ctx.beginPath()
-    ctx.moveTo(-dmgSz*3, -dmgSz*0.45)
-    ctx.lineTo(dmgSz*3, -dmgSz*0.45)
-    ctx.lineTo(dmgSz*2.7, -dmgSz*0.05)
-    ctx.lineTo(-dmgSz*3.3, -dmgSz*0.05)
+    ctx.moveTo(-pctSz*1.5, -pctSz*0.4)
+    ctx.lineTo(pctSz*1.5, -pctSz*0.4)
+    ctx.lineTo(pctSz*1.3, -pctSz*0.05)
+    ctx.lineTo(-pctSz*1.7, -pctSz*0.05)
     ctx.clip()
-    ctx.font = dmgFont
-    ctx.fillStyle = '#fff'
-    ctx.globalAlpha = 0.35
-    ctx.fillText(dmgText, 0, 0)
+    ctx.font = pctFont; ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.4
+    ctx.fillText(pctText, 0, 0)
     ctx.restore()
     ctx.save()
-    const glowStr = extraPct >= 200 ? 28 : extraPct >= 100 ? 20 : 12
-    ctx.shadowColor = '#ff2040'
-    ctx.shadowBlur = glowStr * S
-    ctx.font = dmgFont
-    ctx.fillStyle = '#ff2040'
-    ctx.globalAlpha = 0.3
-    ctx.fillText(dmgText, 0, 0)
+    ctx.shadowColor = '#ff3060'; ctx.shadowBlur = (extraPct >= 200 ? 24 : 14) * S
+    ctx.font = pctFont; ctx.fillStyle = '#ff3060'; ctx.globalAlpha = 0.35
+    ctx.fillText(pctText, 0, 0)
     ctx.restore()
-
-    // 百分比标签飞入
-    if (pctAlpha > 0 && extraPct > 0) {
-      ctx.save()
-      const pctSz = baseSz * 0.72
-      const pctFont = `italic 900 ${pctSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-      const pctText = `${extraPct}%`
-      const pctY = dmgSz * 0.6 + pctSz * 0.3
-      const pctBaseX = baseSz * 0.3 + pctOffX
-      ctx.translate(pctBaseX, pctY)
-      ctx.scale(pctScale, pctScale)
-      ctx.globalAlpha = comboAlpha * dmgAlpha * pctAlpha
-      ctx.font = pctFont
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      const pctGrd = ctx.createLinearGradient(0, -pctSz*0.4, 0, pctSz*0.35)
-      if (extraPct >= 200) {
-        pctGrd.addColorStop(0, '#ff8888'); pctGrd.addColorStop(0.4, '#ff2244'); pctGrd.addColorStop(1, '#bb0020')
-      } else if (extraPct >= 100) {
-        pctGrd.addColorStop(0, '#ffaaaa'); pctGrd.addColorStop(0.4, '#ff4466'); pctGrd.addColorStop(1, '#cc2040')
-      } else {
-        pctGrd.addColorStop(0, '#ffbbbb'); pctGrd.addColorStop(0.4, '#ff5577'); pctGrd.addColorStop(1, '#dd3355')
-      }
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
-      ctx.strokeText(pctText, 0, 0)
-      ctx.fillStyle = pctGrd
-      ctx.fillText(pctText, 0, 0)
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(-pctSz*1.5, -pctSz*0.4)
-      ctx.lineTo(pctSz*1.5, -pctSz*0.4)
-      ctx.lineTo(pctSz*1.3, -pctSz*0.05)
-      ctx.lineTo(-pctSz*1.7, -pctSz*0.05)
-      ctx.clip()
-      ctx.font = pctFont; ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.4
-      ctx.fillText(pctText, 0, 0)
-      ctx.restore()
-      ctx.save()
-      ctx.shadowColor = '#ff3060'; ctx.shadowBlur = (extraPct >= 200 ? 24 : 14) * S
-      ctx.font = pctFont; ctx.fillStyle = '#ff3060'; ctx.globalAlpha = 0.35
-      ctx.fillText(pctText, 0, 0)
-      ctx.restore()
-      ctx.restore()
-    }
-
-    // 倍率说明（加大字号+增强可见度）
-    const tipSz = baseSz * 0.26
-    const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.26 * 0.5 : tipSz * 1.0)
-    ctx.font = `bold ${tipSz}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
-    const tipText = comboBonusPct > 0
-      ? `x${totalMul.toFixed(2)}倍率 (含Combo加成${comboBonusPct}%)`
-      : `x${totalMul.toFixed(2)}倍率`
-    ctx.strokeText(tipText, 0, tipY)
-    ctx.fillStyle = 'rgba(255,230,210,0.95)'
-    ctx.fillText(tipText, 0, tipY)
     ctx.restore()
   }
 
+  const tipSz = baseSz * 0.26
+  const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.26 * 0.5 : tipSz * 1.0)
+  ctx.font = `bold ${tipSz}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
+  const tipText = comboBonusPct > 0
+    ? `x${totalMul.toFixed(2)}倍率 (含Combo加成${comboBonusPct}%)`
+    : `x${totalMul.toFixed(2)}倍率`
+  ctx.strokeText(tipText, 0, tipY)
+  ctx.fillStyle = 'rgba(255,230,210,0.95)'
+  ctx.fillText(tipText, 0, tipY)
   ctx.restore()
+}
 
-  // Combo粒子特效
+// ===== Combo粒子与全屏闪光特效 =====
+function _drawComboVFX(g) {
+  const { ctx, R, W, H, S, ROWS } = V
+
   if (g._comboParticles.length > 0) {
     ctx.save()
     g._comboParticles.forEach(p => {
@@ -1159,7 +1042,6 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.restore()
   }
 
-  // Combo白色闪光冲击
   if (g._comboFlash > 0 && g.combo >= 2) {
     ctx.save()
     const flashAlpha = (g._comboFlash / 8) * (g.combo >= 12 ? 0.4 : g.combo >= 8 ? 0.3 : 0.2)
@@ -1174,7 +1056,6 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.restore()
   }
 
-  // 格挡/护盾闪光冲击（青色）
   if (g._blockFlash > 0) {
     ctx.save()
     const bfAlpha = (g._blockFlash / 12) * 0.35
@@ -1188,15 +1069,12 @@ function _drawCombo(g, cellSize, boardTop) {
     g._blockFlash--
   }
 
-  // 英雄受击红闪（加强视觉冲击）
   if (g._heroHurtFlash > 0) {
     ctx.save()
     const hfP = g._heroHurtFlash / 18
-    // 前6帧强闪，后面渐退
     const hfAlpha = g._heroHurtFlash > 12 ? 0.4 : hfP * 0.35
     ctx.fillStyle = `rgba(255,30,30,${hfAlpha})`
     ctx.fillRect(0, 0, W, H)
-    // 屏幕边缘红色暗角
     if (g._heroHurtFlash > 6) {
       const vigR = Math.min(W, H) * 0.7
       const vigGrd = ctx.createRadialGradient(W*0.5, H*0.5, vigR*0.5, W*0.5, H*0.5, vigR)
@@ -1209,7 +1087,6 @@ function _drawCombo(g, cellSize, boardTop) {
     g._heroHurtFlash--
   }
 
-  // 敌人回合预警红闪
   if (g._enemyWarning > 0) {
     ctx.save()
     const ewP = g._enemyWarning / 15
@@ -1220,7 +1097,6 @@ function _drawCombo(g, cellSize, boardTop) {
     g._enemyWarning--
   }
 
-  // 克制属性色闪光
   if (g._counterFlash && g._counterFlash.timer > 0) {
     ctx.save()
     const cfAlpha = (g._counterFlash.timer / 10) * 0.35
@@ -1234,6 +1110,89 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx.fillRect(0, 0, W, H)
     ctx.restore()
   }
+}
+
+// ===== Combo显示（分发函数） =====
+function _drawCombo(g, cellSize, boardTop) {
+  const { ctx, R, TH, W, H, S, COLS, ROWS } = V
+  if (g.combo < 2 || !(g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow')) return
+
+  const ca = g._comboAnim || { num: g.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
+  const comboScale = ca.scale || 1
+  const comboAlpha = ca.alpha != null ? Math.max(ca.alpha, 0) : 1
+  const comboOffY = ca.offsetY || 0
+  const dmgScale = ca.dmgScale || 0
+  const dmgAlpha = ca.dmgAlpha || 0
+  const pctScale = ca.pctScale || 0
+  const pctAlpha = ca.pctAlpha || 0
+  const pctOffX = ca.pctOffX || 0
+
+  const comboCx = W * 0.5
+  const isLow = g.combo < 4
+  const comboCy = isLow
+    ? g.boardY + (ROWS * g.cellSize) * 0.12 + comboOffY
+    : g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
+  const isHigh = g.combo >= 5
+  const isSuper = g.combo >= 8
+  const isMega = g.combo >= 12
+  const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
+  const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
+  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : isLow ? 22*S : 32*S
+  const lowAlphaMul = isLow ? 0.5 : 1.0
+
+  let comboMulVal
+  if (g.combo <= 8) {
+    comboMulVal = 1 + (g.combo - 1) * 0.35
+  } else if (g.combo <= 12) {
+    comboMulVal = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
+  } else {
+    comboMulVal = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
+  }
+  const comboBonusPct = g.runBuffs.comboDmgPct || 0
+  const totalMul = comboMulVal * (1 + comboBonusPct / 100)
+  const extraPct = Math.round((totalMul - 1) * 100)
+  let estTotalDmg = 0
+  const pdm = g._pendingDmgMap || {}
+  for (const attr in pdm) {
+    let d = pdm[attr] * totalMul
+    d *= 1 + (g.runBuffs.allDmgPct || 0) / 100
+    d *= 1 + ((g.runBuffs.attrDmgPct && g.runBuffs.attrDmgPct[attr]) || 0) / 100
+    if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) d *= 1 + g.weapon.pct / 100
+    if (g.weapon && g.weapon.type === 'allAtkUp') d *= 1 + g.weapon.pct / 100
+    if (g.enemy) {
+      if (COUNTER_MAP[attr] === g.enemy.attr) d *= COUNTER_MUL
+      else if (COUNTER_BY[attr] === g.enemy.attr) d *= COUNTERED_MUL
+    }
+    estTotalDmg += d
+  }
+  estTotalDmg = Math.round(estTotalDmg)
+
+  const comboText = `${g.combo} 连击`
+  const comboFont = `italic 900 ${baseSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+
+  const cs = {
+    ctx, S, W, H, ROWS, comboCx, comboCy, baseSz, comboScale, comboAlpha, lowAlphaMul,
+    mainColor, glowColor, comboText, comboFont,
+    isLow, isHigh, isSuper, isMega,
+    dmgAlpha, dmgScale, pctAlpha, pctScale, pctOffX,
+    extraPct, totalMul, estTotalDmg, comboBonusPct,
+    ca, combo: g.combo
+  }
+
+  ctx.save()
+  ctx.globalAlpha = comboAlpha * lowAlphaMul
+
+  if (!isLow) {
+    _drawComboBgEffects(cs)
+  }
+
+  _drawComboMainText(cs)
+
+  _drawComboDmgText(cs)
+
+  ctx.restore()
+
+  _drawComboVFX(g)
 }
 
 function _drawDragTimer(g, cellSize, boardTop) {

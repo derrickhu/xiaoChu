@@ -10,7 +10,7 @@ const {
   effectValue, usedPoints, currentRealm, nextRealm,
 } = require('../data/cultivationConfig')
 const MusicMgr = require('../runtime/music')
-const { drawBottomBar, getLayout } = require('./titleView')
+const { drawBottomBar, getLayout } = require('./bottomBar')
 const Draw = require('./cultivationDraw')
 
 // 可选角色形象列表
@@ -263,16 +263,6 @@ function checkRealmBreak(g) {
   }
 }
 
-// ===== 红点判断 =====
-function hasCultUpgradeAvailable(storage) {
-  const cult = storage._d.cultivation
-  if (!cult || !cult.skillPoints || cult.skillPoints <= 0) return false
-  for (const key of CULT_KEYS) {
-    if (cult.levels[key] < CULT_CONFIG[key].maxLv) return true
-  }
-  return false
-}
-
 // ===== 触摸处理 =====
 function tCultivation(g, x, y, type) {
   if (type !== 'end') return
@@ -353,7 +343,7 @@ function tCultivation(g, x, y, type) {
 
   // 底部导航栏
   if (g._bottomBarRects) {
-    const { BAR_ITEMS } = require('./titleView')
+    const { BAR_ITEMS } = require('./bottomBar')
     const L = getLayout()
     if (y >= L.bottomBarY) {
       for (let i = 0; i < g._bottomBarRects.length; i++) {
@@ -364,18 +354,18 @@ function tCultivation(g, x, y, type) {
           _state.selectedNode = null
           _state.showAvatarPanel = false
           if (item.key === 'cultivation') return
-          if (item.key === 'battle' || item.key === 'stage') { g.scene = 'title'; return }
+          if (item.key === 'battle' || item.key === 'stage') { g.setScene('title'); return }
           if (item.key === 'pets') {
             if (g.storage.petPoolCount > 0) {
               g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
-              g.scene = 'petPool'
+              g.setScene('petPool')
             }
             return
           }
-          if (item.key === 'dex') { g.scene = 'dex'; return }
-          if (item.key === 'rank') { g.scene = 'ranking'; return }
-          if (item.key === 'stats') { g.scene = 'stats'; return }
-          if (item.key === 'more') { g.scene = 'title'; return }
+          if (item.key === 'dex') { g.setScene('dex'); return }
+          if (item.key === 'rank') { g.setScene('ranking'); return }
+          if (item.key === 'stats') { g.setScene('stats'); return }
+          if (item.key === 'more') { g.setScene('title'); return }
           return
         }
       }
@@ -411,7 +401,6 @@ function tCultivation(g, x, y, type) {
 
 module.exports = {
   rCultivation, tCultivation,
-  hasCultUpgradeAvailable,
   resetState, checkRealmBreak,
   // 兼容旧调用名
   resetScroll: resetState,

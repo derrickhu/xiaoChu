@@ -135,7 +135,6 @@ function initState(g) {
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
   g.showChestPanel = false        // 宝箱奖励全屏弹窗
   g._chestAutoChecked = false     // 本次进入 title 是否已自动检查过宝箱
-  g._prevScene = ''               // 上一帧的场景名（用于检测场景切换）
   g.titleMode = 'tower'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
@@ -173,6 +172,88 @@ function initState(g) {
   g._stageInfoEnemyDetail = null // 关卡信息页 - 点击敌人查看详情
   g._stageInfoPetDetail = null  // 关卡信息页 - 长按/点击宠物查看详情
   g._stageTeamPetDetail = null  // 编队页 - 长按宠物查看详情
+
+  // ===== 域分组子对象（向后兼容：g.xxx 和 g.domain.xxx 双向可用）=====
+  _createDomainProxies(g)
+}
+
+/**
+ * 为指定域创建 getter/setter 代理子对象
+ * 新代码推荐使用 g.battle.xxx，旧代码 g.xxx 仍可正常工作
+ */
+function _createDomainProxy(g, domain, fields) {
+  const sub = {}
+  for (const f of fields) {
+    Object.defineProperty(sub, f, {
+      get() { return g[f] },
+      set(v) { g[f] = v },
+      enumerable: true,
+    })
+  }
+  g[domain] = sub
+}
+
+function _createDomainProxies(g) {
+  _createDomainProxy(g, 'battle', [
+    'bState', '_stateTimer', '_enemyTurnWait', '_pendingEnemyAtk',
+    '_pendingDmgMap', '_pendingHeal', 'combo', 'turnCount',
+    'elimQueue', 'elimAnimCells', 'elimAnimTimer',
+    'dropAnimTimer', 'dropAnimCols',
+  ])
+
+  _createDomainProxy(g, 'anim', [
+    'dmgFloats', 'skillEffects', 'elimFloats', 'petAtkNums',
+    '_comboAnim', '_comboParticles', '_comboFlash',
+    '_petFinalDmg', '_petAtkRollTimer',
+    'shakeT', 'shakeI', 'shakeDecay', '_hitStopFrames',
+    '_screenFlash', '_screenFlashMax', '_screenFlashColor', '_enemyTintFlash',
+    'heroAttackAnim', 'enemyHurtAnim', 'heroHurtAnim', 'enemyAttackAnim', 'skillCastAnim',
+    '_enemyHpLoss', '_heroHpLoss', '_heroHpGain', '_enemyHitFlash',
+    '_enemyDeathAnim', '_blockFlash', '_heroHurtFlash', '_enemyWarning',
+    '_counterFlash', '_bossEntrance',
+  ])
+
+  _createDomainProxy(g, 'drag', [
+    'dragging', 'dragR', 'dragC', 'dragStartX', 'dragStartY',
+    'dragCurX', 'dragCurY', 'dragAttr', 'dragTimer', 'dragTimeLimit', 'swapAnim',
+  ])
+
+  _createDomainProxy(g, 'run', [
+    'floor', 'pets', 'weapon', 'petBag', 'weaponBag',
+    'heroHp', 'heroMaxHp', 'heroShield', 'heroBuffs', 'enemyBuffs',
+    'enemy', 'curEvent', 'rewards', 'shopItems', 'restOpts',
+    'adventureData', 'selectedReward', 'rewardPetSlot',
+  ])
+
+  _createDomainProxy(g, 'ui', [
+    '_loadStart', '_loadReady', '_loadPct', '_pressedBtn',
+    '_petLongPressTimer', '_petLongPressIndex', '_petLongPressTriggered',
+    '_petSwipeIndex', '_petSwipeStartX', '_petSwipeStartY', '_petSwipeTriggered',
+    'skillPreview', 'showExitDialog', 'showNewRunConfirm',
+    'showMorePanel', 'showTitleStartDialog', 'showSidebarPanel',
+    'showChestPanel', '_chestAutoChecked', 'titleMode', 'titleTowerIndex', 'shopUsed',
+  ])
+
+  _createDomainProxy(g, 'stage', [
+    'battleMode', '_stageId', '_stageWaves', '_stageWaveIdx',
+    '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll',
+    '_stageTotalTurns', '_stageResult', '_waveTransTimer',
+    '_stageSelectScroll', '_selectedStageId',
+    '_stageInfoEnemyDetail', '_stageInfoPetDetail', '_stageTeamPetDetail',
+  ])
+
+  _createDomainProxy(g, 'petPool', [
+    '_petPoolEntryPopup', '_fragmentObtainedPopup',
+    '_petPoolFilter', '_petPoolScroll', '_petPoolDetail',
+    '_petDetailId', '_petDetailReturnScene', '_petPoolLevelUpAnim',
+    '_lastRunPetExp', '_petPoolBtnRect',
+  ])
+
+  _createDomainProxy(g, 'buffs', [
+    'runBuffLog', 'runBuffs', 'skipNextBattle', 'nextStunEnemy',
+    'nextDmgDouble', 'tempRevive', 'immuneOnce',
+    'comboNeverBreak', 'weaponReviveUsed', 'goodBeadsNextTurn',
+  ])
 }
 
 module.exports = { initState }

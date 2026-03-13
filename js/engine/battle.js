@@ -1180,7 +1180,7 @@ function enterBattle(g, enemyData) {
     g.nextStunEnemy = false
     g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
   }
-  g.scene = 'battle'
+  g.setScene('battle')
   if (g.enemy && g.enemy.isBoss) {
     MusicMgr.playBoss(); MusicMgr.playBossBgm()
     g.shakeT = 20; g.shakeI = 6  // Boss入场强震

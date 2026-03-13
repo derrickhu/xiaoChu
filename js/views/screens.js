@@ -5,6 +5,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
+const { wrapText: _uiWrapText } = require('./uiUtils')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -429,7 +430,7 @@ function rGameover(g) {
 
   // "前往修炼"快捷按钮
   if (g._lastRunExp > 0) {
-    const { hasCultUpgradeAvailable } = require('./cultivationView')
+    const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
     if (hasCultUpgradeAvailable(g.storage)) {
       const cbw = W*0.35, cbh = 36*S
       const cbx = (W - cbw)/2, cby = by + bh + 10*S
@@ -988,19 +989,7 @@ function rStats(g) {
 }
 
 // ===== Reward =====
-function _wrapText(text, maxW, fontSize) {
-  const S = V.S
-  const charW = fontSize * S * 0.55
-  const maxChars = Math.floor(maxW / charW)
-  if (maxChars <= 0) return [text]
-  const result = []
-  let rest = text
-  while (rest.length > 0) {
-    result.push(rest.substring(0, maxChars))
-    rest = rest.substring(maxChars)
-  }
-  return result.length > 0 ? result : [text]
-}
+const _wrapText = _uiWrapText
 
 function rReward(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V

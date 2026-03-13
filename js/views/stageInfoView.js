@@ -10,6 +10,7 @@ const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr } = require('../data/stages')
 const { drawPoolPetDetailPopup } = require('./dialogs')
+const { drawSeparator, drawGoldBtn } = require('./uiUtils')
 
 const _rects = {
   backBtnRect: null,
@@ -154,7 +155,7 @@ function rStageInfo(g) {
   c.fillText(`◇ 通关即可 → B评价`, indent + 6 * S, iy); iy += 16 * S
 
   // 分隔线
-  _drawCardDivider(c, indent, iy, cardX + cardW - cardPad, S)
+  drawSeparator(c, indent, iy, cardX + cardW - cardPad, null, 0.25, 0.15, 0.85)
   iy += 8 * S
 
   // ── 通关奖励 ──
@@ -182,7 +183,7 @@ function rStageInfo(g) {
   iy += 16 * S
 
   // 分隔线
-  _drawCardDivider(c, indent, iy, cardX + cardW - cardPad, S)
+  drawSeparator(c, indent, iy, cardX + cardW - cardPad, null, 0.25, 0.15, 0.85)
   iy += 8 * S
 
   // ── 敌方阵容 ──
@@ -366,7 +367,7 @@ function rStageInfo(g) {
     if (btnImg && btnImg.width > 0) {
       c.drawImage(btnImg, goBtnX, btnY, goBtnW, goBtnH)
     } else {
-      _drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '开始战斗')
+      drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '开始战斗')
     }
     // 按钮文字
     c.fillStyle = '#FFF5E0'
@@ -376,7 +377,7 @@ function rStageInfo(g) {
     c.strokeText('开始战斗', goBtnX + goBtnW / 2, btnY + goBtnH / 2)
     c.fillText('开始战斗', goBtnX + goBtnW / 2, btnY + goBtnH / 2)
   } else {
-    _drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '编队不足', true)
+    drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '编队不足', true)
   }
   _rects.startBtnRect = [goBtnX, btnY, goBtnW, goBtnH]
 
@@ -404,7 +405,7 @@ function tStageInfo(g, x, y, type) {
 
   // 返回
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-    g.scene = 'stageSelect'
+    g.setScene('stageSelect')
     return
   }
 
@@ -413,7 +414,7 @@ function tStageInfo(g, x, y, type) {
     const savedTeam = g.storage.getValidSavedTeam()
     g._stageTeamSelected = savedTeam.slice()
     g._stageTeamFilter = 'all'
-    g.scene = 'stageTeam'
+    g.setScene('stageTeam')
     return
   }
 
@@ -434,7 +435,7 @@ function tStageInfo(g, x, y, type) {
     if (savedTeam.length < stage.teamSize.min) {
       g._stageTeamSelected = savedTeam.slice()
       g._stageTeamFilter = 'all'
-      g.scene = 'stageTeam'
+      g.setScene('stageTeam')
       return
     }
     if (g.storage.currentStamina < stage.staminaCost) {
@@ -461,54 +462,6 @@ function tStageInfo(g, x, y, type) {
 }
 
 // ===== 绘制工具 =====
-
-/** 卡片内分隔线 */
-function _drawCardDivider(c, x1, y, x2, S) {
-  const grad = c.createLinearGradient(x1, y, x2, y)
-  grad.addColorStop(0, 'rgba(201,168,76,0)')
-  grad.addColorStop(0.15, 'rgba(201,168,76,0.25)')
-  grad.addColorStop(0.85, 'rgba(201,168,76,0.25)')
-  grad.addColorStop(1, 'rgba(201,168,76,0)')
-  c.strokeStyle = grad; c.lineWidth = 1
-  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
-}
-
-/** 金色主按钮 */
-function _drawGoldBtn(c, R, S, x, y, w, h, text, disabled) {
-  const r = h / 2
-  if (disabled) {
-    c.fillStyle = 'rgba(80,70,50,0.6)'
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = '#666'; c.lineWidth = 1.5 * S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#888'
-    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(text, x + w / 2, y + h / 2)
-    return
-  }
-  c.save()
-  c.shadowColor = 'rgba(180,120,30,0.4)'; c.shadowBlur = 10 * S; c.shadowOffsetY = 3 * S
-  const bg = c.createLinearGradient(x, y, x, y + h)
-  bg.addColorStop(0, '#B8451A'); bg.addColorStop(0.5, '#9C3512'); bg.addColorStop(1, '#7A2A0E')
-  c.fillStyle = bg
-  R.rr(x, y, w, h, r); c.fill()
-  c.restore()
-  c.strokeStyle = '#D4A843'; c.lineWidth = 2 * S
-  R.rr(x, y, w, h, r); c.stroke()
-  c.save(); c.globalAlpha = 0.2
-  const hl = c.createLinearGradient(x, y, x, y + h * 0.4)
-  hl.addColorStop(0, '#fff'); hl.addColorStop(1, 'rgba(255,255,255,0)')
-  c.fillStyle = hl
-  R.rr(x + 2*S, y + 2*S, w - 4*S, h * 0.4, r); c.fill()
-  c.restore()
-  c.fillStyle = '#FFE8B8'
-  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = 4 * S
-  c.fillText(text, x + w / 2, y + h / 2)
-  c.shadowBlur = 0
-}
 
 /** 敌人详情弹窗 */
 function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {

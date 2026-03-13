@@ -64,8 +64,13 @@ class Main {
 
     // 事件总线：新增/修改模块优先使用 g.events 解耦通信
     this.events = new TinyEmitter()
+    this.storage._eventBus = this.events
 
     initState(this)
+
+    this.events.on('scene:change', (newScene) => {
+      if (newScene === 'title') this._chestAutoChecked = false
+    })
 
     // 触摸事件注册
     if (typeof canvas.addEventListener === 'function') {
@@ -176,13 +181,10 @@ class Main {
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
       if (this._loadReady && elapsed > 500) {
-        this.scene = 'title'; MusicMgr.playBgm()
+        this.setScene('title'); MusicMgr.playBgm()
       }
     }
-    // 进入 title 场景时自动检查并弹出未领奖励
-    if (this.scene === 'title' && this._prevScene !== 'title') {
-      this._chestAutoChecked = false
-    }
+    // 进入 title 场景时自动检查并弹出未领奖励（_chestAutoChecked 由 scene:change 监听重置）
     if (this.scene === 'title' && !this._chestAutoChecked && !this.showChestPanel) {
       this._chestAutoChecked = true
       const { getUnclaimedCount } = require('./data/chestConfig')
@@ -191,7 +193,6 @@ class Main {
         if (chestView.hasMore()) this.showChestPanel = true
       }
     }
-    this._prevScene = this.scene
     if (this.bState === 'elimAnim') battleEngine.processElim(this)
     if (this.bState === 'dropping') battleEngine.processDropAnim(this)
     if (this.dragging && this.bState === 'playerTurn') {
@@ -256,8 +257,24 @@ class Main {
     wxBtns.updateFeedbackBtn(this, dpr)
   }
 
+  setScene(name) {
+    const old = this.scene
+    if (old === name) return
+    this._dirty = true
+    this.scene = name
+    this.events.emit('scene:change', name, old)
+  }
+
+  markDirty() { this._dirty = true }
+
   // ===== 渲染入口 =====
   render() {
+    if (this.scene !== this._lastRenderedScene) { this._dirty = true; this._lastRenderedScene = this.scene }
+    const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
+      this.scene === 'ranking' || this.scene === 'dex' ||
+      this.scene === 'stageSelect' || this.scene === 'stageInfo')
+    if (isStatic && !this._dirty && !this.showChestPanel && !this.showSidebarPanel && !this.showMorePanel) return
+    this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
     if (this.shakeT > 0) {
@@ -326,6 +343,7 @@ class Main {
 
   // ===== 触摸入口 =====
   onTouch(type, e) {
+    this._dirty = true
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
@@ -367,7 +385,7 @@ class Main {
 
   _handleBackToTitle() {
     if (this.scene === 'gameover' || this.scene === 'ranking' || this.scene === 'stats') {
-      this.scene = 'title'
+      this.setScene('title')
       this.showMorePanel = false
       this.showTitleStartDialog = false
     } else {
@@ -387,7 +405,7 @@ class Main {
     }
     this.rankTab = 'all'
     this.rankScrollY = 0
-    this.scene = 'ranking'
+    this.setScene('ranking')
     if (this.storage._cloudReady) {
       await this.storage.fetchRanking('all')
     } else {
@@ -401,7 +419,7 @@ class Main {
     this._eventWpnDetail = null; this._eventWpnDetailData = null
     this._eventDragPet = null; this._eventShopUsedCount = 0
     this._eventShopUsedItems = null; this._shopSelectAttr = false; this._shopSelectPet = null
-    this.scene = 'event'
+    this.setScene('event')
   }
 
   // ===== 战斗布局 & 动画（委托到 battleHelpers）=====

@@ -200,7 +200,7 @@ function tStageSelect(g, x, y, type) {
 
     // 返回按钮
     if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-      g.scene = 'title'
+      g.setScene('title')
       return
     }
 
@@ -209,7 +209,7 @@ function tStageSelect(g, x, y, type) {
       if (g._hitRect(x, y, ...item.rect)) {
         g._selectedStageId = item.stageId
         g._stageInfoEnemyDetail = null
-        g.scene = 'stageInfo'
+        g.setScene('stageInfo')
         return
       }
     }

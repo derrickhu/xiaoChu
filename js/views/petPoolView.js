@@ -6,8 +6,9 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
-const { drawBottomBar, getLayout: getTitleLayout } = require('./titleView')
+const { drawBottomBar, getLayout: getTitleLayout } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
+const { drawSeparator, wrapTextDraw, getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
 
 // 属性筛选标签
 const FILTERS = [
@@ -36,12 +37,7 @@ let _longPressTimer = null
 let _longPressActive = false
 let _longPressPetId = null
 
-function _getFilteredPool(g) {
-  const pool = g.storage.petPool || []
-  const filter = g._petPoolFilter || 'all'
-  if (filter === 'all') return pool
-  return pool.filter(p => p.attr === filter)
-}
+const _getFilteredPool = _getFilteredPoolUtil
 
 // ===== 主渲染 =====
 function rPetPool(g) {
@@ -597,7 +593,7 @@ function _drawDetailPanel(g) {
   cy = avatarY + avatarSize + 14 * S
 
   // ── 分隔线 ──
-  _drawSeparator(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
   cy += 10 * S
 
   // ── 攻击力 ──
@@ -621,7 +617,7 @@ function _drawDetailPanel(g) {
   cy += 16 * S
 
   // ── 分隔线 ──
-  _drawSeparator(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
   cy += 10 * S
 
   // ── 等级 + 经验 + 升级按钮 ──
@@ -667,7 +663,7 @@ function _drawDetailPanel(g) {
   cy += 16 * S
 
   // ── 分隔线 ──
-  _drawSeparator(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
   cy += 10 * S
 
   // ── 技能 ──
@@ -689,7 +685,7 @@ function _drawDetailPanel(g) {
     c.font = `${9*S}px "PingFang SC",sans-serif`
     const maxW = contentW
     const words = skillDesc || ''
-    _wrapText(c, words, indent, cy, maxW, 13*S)
+    wrapTextDraw(c, words, indent, cy, maxW, 13*S)
     const lines = Math.ceil(c.measureText(words).width / maxW)
     cy += Math.max(1, lines) * 13 * S + 4 * S
   } else {
@@ -700,7 +696,7 @@ function _drawDetailPanel(g) {
   }
 
   // ── 分隔线 ──
-  _drawSeparator(c, indent, cy, rightEdge, S)
+  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
   cy += 10 * S
 
   // ── 升星信息 ──
@@ -791,17 +787,6 @@ function _drawDetailPanel(g) {
   c.fillText('点击空白处关闭', W / 2, py + ph - 10 * S)
 }
 
-// 绘制分隔线
-function _drawSeparator(c, x1, y, x2, S) {
-  const grad = c.createLinearGradient(x1, y, x2, y)
-  grad.addColorStop(0, 'rgba(201,168,76,0)')
-  grad.addColorStop(0.2, 'rgba(201,168,76,0.4)')
-  grad.addColorStop(0.8, 'rgba(201,168,76,0.4)')
-  grad.addColorStop(1, 'rgba(201,168,76,0)')
-  c.strokeStyle = grad; c.lineWidth = 1
-  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
-}
-
 // 绘制操作按钮
 function _drawActionBtn(c, R, S, x, y, w, h, text, enabled, color) {
   const r = 6 * S
@@ -825,22 +810,6 @@ function _drawActionBtn(c, R, S, x, y, w, h, text, enabled, color) {
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(text, x + w/2, y + h/2)
-}
-
-// 文本自动换行
-function _wrapText(c, text, x, y, maxW, lineH) {
-  let line = ''
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (c.measureText(line + ch).width > maxW) {
-      c.fillText(line, x, y)
-      y += lineH
-      line = ch
-    } else {
-      line += ch
-    }
-  }
-  if (line) c.fillText(line, x, y)
 }
 
 // ===== 触摸处理 =====
@@ -922,13 +891,13 @@ function tPetPool(g, x, y, type) {
       const { resetIdleView } = require('./idleView')
       resetIdleView()
       g._idleCollectResult = null
-      g.scene = 'idle'
+      g.setScene('idle')
       return
     }
 
     // 返回按钮
     if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-      g.scene = 'title'; return
+      g.setScene('title'); return
     }
 
     // 属性筛选
@@ -945,7 +914,7 @@ function tPetPool(g, x, y, type) {
       if (g._hitRect(x, y, ...card.rect)) {
         g._petDetailId = card.petId
         g._petDetailUnowned = !!card.ghost
-        g.scene = 'petDetail'
+        g.setScene('petDetail')
         MusicMgr.playClick && MusicMgr.playClick()
         return
       }
@@ -959,18 +928,18 @@ function tPetPool(g, x, y, type) {
         case 0: {
           const cv = require('./cultivationView')
           cv.resetScroll()
-          g.scene = 'cultivation'
+          g.setScene('cultivation')
           cv.checkRealmBreak(g)
           return
         }
         case 1: return // 已在灵宠池
-        case 2: g._dexScrollY = 0; g.scene = 'dex'; return
-        case 3: g.scene = 'title'; return
+        case 2: g._dexScrollY = 0; g.setScene('dex'); return
+        case 3: g.setScene('title'); return
         case 4:
           if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
           g._openRanking(); return
-        case 5: g.scene = 'stats'; return
-        case 6: g.showMorePanel = true; g.scene = 'title'; return
+        case 5: g.setScene('stats'); return
+        case 6: g.showMorePanel = true; g.setScene('title'); return
       }
     }
   }

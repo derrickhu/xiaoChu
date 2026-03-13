@@ -9,6 +9,7 @@ const { ATTR_COLOR } = require('../data/tower')
 const { getPetById } = require('../data/pets')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
+const { drawSeparator } = require('./uiUtils')
 
 const _rects = {
   backBtnRect: null,
@@ -107,7 +108,7 @@ function rStageResult(g) {
   cy += 16 * S
 
   // ── 分隔线 ──
-  _drawDivider(c, px + pad, cy, px + pw - pad, S)
+  drawSeparator(c, px + pad, cy, px + pw - pad)
   cy += 10 * S
 
   // ── 掉落奖励 ──
@@ -142,7 +143,7 @@ function rStageResult(g) {
   }
 
   // ── 分隔线 ──
-  _drawDivider(c, px + pad, cy, px + pw - pad, S)
+  drawSeparator(c, px + pad, cy, px + pw - pad)
   cy += 10 * S
 
   // ── 宠物经验 ──
@@ -234,7 +235,7 @@ function tStageResult(g, x, y, type) {
 
   // 返回 → 关卡列表
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-    g.scene = 'stageSelect'
+    g.setScene('stageSelect')
     return
   }
 
@@ -246,28 +247,18 @@ function tStageResult(g, x, y, type) {
       // 下一关 → 进入下一关信息页
       g._selectedStageId = nextId
       g._stageInfoEnemyDetail = null
-      g.scene = 'stageInfo'
+      g.setScene('stageInfo')
     } else {
       // 再次挑战 → 回到当前关卡信息页
       g._selectedStageId = result.stageId
       g._stageInfoEnemyDetail = null
-      g.scene = 'stageInfo'
+      g.setScene('stageInfo')
     }
     return
   }
 }
 
 // ===== 绘制工具 =====
-
-function _drawDivider(c, x1, y, x2, S) {
-  const grad = c.createLinearGradient(x1, y, x2, y)
-  grad.addColorStop(0, 'rgba(201,168,76,0)')
-  grad.addColorStop(0.2, 'rgba(201,168,76,0.35)')
-  grad.addColorStop(0.8, 'rgba(201,168,76,0.35)')
-  grad.addColorStop(1, 'rgba(201,168,76,0)')
-  c.strokeStyle = grad; c.lineWidth = 1
-  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
-}
 
 function _drawPopupBtn(c, R, S, x, y, w, h, text, primary) {
   const r = 8 * S

@@ -5,15 +5,27 @@
  * 所有修炼属性仅在固定关卡模式（battleMode === 'stage'）中生效
  */
 
+const {
+  CULT_MAX_LEVEL,
+  CULT_EXP_BASE,
+  CULT_EXP_LINEAR,
+  CULT_EXP_POW_EXP,
+  CULT_EXP_POW_COEFF,
+  CULT_KILL_BOSS_BASE,
+  CULT_KILL_BOSS_FLOOR_COEFF,
+  CULT_KILL_ELITE_BASE,
+  CULT_KILL_ELITE_FLOOR_COEFF,
+  CULT_KILL_NORMAL_BASE,
+  CULT_KILL_NORMAL_FLOOR_COEFF,
+} = require('./constants')
+
 // ===== 等级经验表 =====
-// 升到第 N 级所需的经验（从 N-1 到 N）
 // 总计 60 级，每级给 1 修炼点，58 点可把修炼树全部点满，多出 2 点作为容错
-const MAX_LEVEL = 60
+const MAX_LEVEL = CULT_MAX_LEVEL
 
 function expToNextLevel(level) {
   if (level >= MAX_LEVEL) return Infinity
-  // 前期平缓，中期加速，后期放缓（让满级成为长期目标）
-  return Math.floor(40 + level * 12 + Math.pow(level, 1.6) * 0.8)
+  return Math.floor(CULT_EXP_BASE + level * CULT_EXP_LINEAR + Math.pow(level, CULT_EXP_POW_EXP) * CULT_EXP_POW_COEFF)
 }
 
 // 预计经验节奏（参考）：
@@ -87,9 +99,9 @@ function nextRealm(level) {
  */
 function killExpBase(enemy, floor) {
   if (!enemy) return 0
-  if (enemy.isBoss) return 30 + floor * 4
-  if (enemy.isElite) return 15 + floor * 3
-  return 5 + floor * 2
+  if (enemy.isBoss) return CULT_KILL_BOSS_BASE + floor * CULT_KILL_BOSS_FLOOR_COEFF
+  if (enemy.isElite) return CULT_KILL_ELITE_BASE + floor * CULT_KILL_ELITE_FLOOR_COEFF
+  return CULT_KILL_NORMAL_BASE + floor * CULT_KILL_NORMAL_FLOOR_COEFF
 }
 
 module.exports = {

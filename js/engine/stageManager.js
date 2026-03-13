@@ -99,7 +99,7 @@ function startStage(g, stageId, teamPetIds) {
   // 初始化棋盘
   initBoard(g)
   g.bState = 'playerTurn'
-  g.scene = 'battle'
+  g.setScene('battle')
   g.floor = 1
   g.cleared = false
   return true
@@ -217,7 +217,7 @@ function settleStage(g) {
     victory: true,
   }
 
-  g.scene = 'stageResult'
+  g.setScene('stageResult')
 }
 
 /**
@@ -254,7 +254,7 @@ function settleStageDefeat(g) {
     victory: false,
   }
 
-  g.scene = 'stageResult'
+  g.setScene('stageResult')
 }
 
 // ===== 工具函数 =====

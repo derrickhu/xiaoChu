@@ -800,7 +800,7 @@ function applyAdventure(g, adv) {
     case 'petAtkUp':       { const i3 = Math.floor(Math.random()*g.pets.length); g.pets[i3].atk = Math.round(g.pets[i3].atk*(1+adv.pct/100)); break }
     case 'goodBeads':      g.goodBeadsNextTurn = true; break
     case 'immuneOnce':     g.immuneOnce = true; break
-    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); const _op = new Set(); if(g.pets) g.pets.forEach(p=>{if(p)_op.add(p.id)}); if(g.petBag) g.petBag.forEach(p=>{if(p)_op.add(p.id)}); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool, _op, getMaxedPetIds(g)); g.selectedReward = -1; g.rewardPetSlot = -1; g.scene = 'reward'; return }
+    case 'tripleChoice':   { const _ow = new Set(); if(g.weapon) _ow.add(g.weapon.id); if(g.weaponBag) g.weaponBag.forEach(w=>_ow.add(w.id)); const _op = new Set(); if(g.pets) g.pets.forEach(p=>{if(p)_op.add(p.id)}); if(g.petBag) g.petBag.forEach(p=>{if(p)_op.add(p.id)}); g.rewards = generateRewards(g.floor, 'battle', false, _ow, g.sessionPetPool, _op, getMaxedPetIds(g)); g.selectedReward = -1; g.rewardPetSlot = -1; g.setScene('reward'); return }
   }
 }
 

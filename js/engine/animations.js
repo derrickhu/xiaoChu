@@ -5,8 +5,11 @@
 const MusicMgr = require('../runtime/music')
 const ViewEnv = require('../views/env')
 
+let _compactFrame = 0
+
 function updateAnimations(g) {
   const { S } = ViewEnv
+  _compactFrame++
   if (g.shakeT > 0) g.shakeT--
   if (g._comboFlash > 0) g._comboFlash--
   // 敌人受击闪白
@@ -32,23 +35,29 @@ function updateAnimations(g) {
       if (g._petReadyFlash[k] > 0) g._petReadyFlash[k]--
     }
   }
-  // 粒子更新
-  g._comboParticles = g._comboParticles.filter(p => {
+  // 粒子更新（原地标记，延迟压缩）
+  for (let i = 0; i < g._comboParticles.length; i++) {
+    const p = g._comboParticles[i]
+    if (p._dead) continue
     p.t++
     p.x += p.vx; p.y += p.vy
     p.vy += p.gravity
     p.vx *= 0.98
-    return p.t < p.life
-  })
-  g.dmgFloats = g.dmgFloats.filter(f => {
+    if (p.t >= p.life) p._dead = true
+  }
+  for (let i = 0; i < g.dmgFloats.length; i++) {
+    const f = g.dmgFloats[i]
+    if (f._dead) continue
     f.t++
     // 前30帧停留（缓慢上移），30-60帧正常上飘，60帧后加速消失
     if (f.t <= 30) { f.y -= 0.15*S }
     else if (f.t <= 60) { f.y -= 0.5*S; f.alpha -= 0.005 }
     else { f.y -= 0.8*S; f.alpha -= 0.04 }
-    return f.alpha > 0
-  })
-  g.skillEffects = g.skillEffects.filter(e => {
+    if (f.alpha <= 0) f._dead = true
+  }
+  for (let i = 0; i < g.skillEffects.length; i++) {
+    const e = g.skillEffects[i]
+    if (e._dead) continue
     e.t++; e.y -= 0.6*S; e.alpha -= 0.012
     // 缩放弹跳动画：从大到1.0快速收缩
     if (e._initScale && e.t < 15) {
@@ -56,10 +65,12 @@ function updateAnimations(g) {
     } else if (e._initScale) {
       e.scale = 1.0
     }
-    return e.alpha > 0
-  })
+    if (e.alpha <= 0) e._dead = true
+  }
   // 消除棋子处飘字动画（加大 + 弹入 + 缓出）
-  g.elimFloats = g.elimFloats.filter(f => {
+  for (let i = 0; i < g.elimFloats.length; i++) {
+    const f = g.elimFloats[i]
+    if (f._dead) continue
     f.t++
     // 前10帧：弹入（scale从大到1.0，几乎不移动）
     if (f.t <= 10) {
@@ -77,19 +88,21 @@ function updateAnimations(g) {
       f.y -= 0.6*S
       f.alpha -= 0.035
     }
-    return f.alpha > 0 && f.t < 80
-  })
+    if (f.alpha <= 0 || f.t >= 80) f._dead = true
+  }
   // 经验飘字飞行动画
   if (g._expFloats) {
-    g._expFloats = g._expFloats.filter(f => {
+    for (let i = 0; i < g._expFloats.length; i++) {
+      const f = g._expFloats[i]
+      if (f._dead) continue
       f.t++
       if (f.t >= f.duration) {
-        // 到达目标：触发指示器脉冲
         g._expIndicatorPulse = 12
-        return false
+        f._dead = true
+        continue
       }
-      return f.alpha > 0
-    })
+      if (f.alpha <= 0) f._dead = true
+    }
   }
   // 经验指示器脉冲衰减
   if (g._expIndicatorPulse > 0) g._expIndicatorPulse--
@@ -102,7 +115,9 @@ function updateAnimations(g) {
   // Combo弹出动画
   _updateComboAnim(g, S)
   // 宠物头像攻击数值动画
-  g.petAtkNums = g.petAtkNums.filter(f => {
+  for (let i = 0; i < g.petAtkNums.length; i++) {
+    const f = g.petAtkNums[i]
+    if (f._dead) continue
     f.t++
     const prefix = f.isHeal ? '+' : ''
     if (f.t <= f.rollFrames) {
@@ -117,8 +132,17 @@ function updateAnimations(g) {
       f.scale = 1.0
       if (f.t > f.rollFrames + 20) f.alpha -= 0.05
     }
-    return f.alpha > 0
-  })
+    if (f.alpha <= 0) f._dead = true
+  }
+  // 每60帧压缩一次，清理 _dead 元素
+  if (_compactFrame % 60 === 0) {
+    g._comboParticles = g._comboParticles.filter(x => !x._dead)
+    g.dmgFloats = g.dmgFloats.filter(x => !x._dead)
+    g.skillEffects = g.skillEffects.filter(x => !x._dead)
+    g.elimFloats = g.elimFloats.filter(x => !x._dead)
+    if (g._expFloats) g._expFloats = g._expFloats.filter(x => !x._dead)
+    g.petAtkNums = g.petAtkNums.filter(x => !x._dead)
+  }
 }
 
 /**

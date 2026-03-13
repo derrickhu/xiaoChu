@@ -93,6 +93,7 @@ function startRun(g) {
   // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
   if (tutorial.needsTutorial()) {
     tutorial.start(g)
+    if (g.events) g.events.emit('run:start')
     return
   }
   // 固定关卡模式：应用修炼加成
@@ -110,6 +111,7 @@ function startRun(g) {
     g._cultHeartBase = 0
   }
   g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
+  if (g.events) g.events.emit('run:start')
   nextFloor(g)
 }
 
@@ -185,7 +187,7 @@ function nextFloor(g) {
   }
   g._floorStartExp = g.runExp || 0
   g._expFloats = []
-  g.scene = 'event'
+  g.setScene('event')
 }
 
 function restoreBattleHpMax(g) {
@@ -252,7 +254,8 @@ function endRun(g) {
   } else {
     MusicMgr.playGameOver()
   }
-  g.scene = 'gameover'
+  g.setScene('gameover')
+  if (g.events) g.events.emit('run:end', { cleared: g.cleared, floor: finalFloor })
 }
 
 function saveAndExit(g) {
@@ -282,7 +285,7 @@ function saveAndExit(g) {
   g.storage.saveRunState(runState)
   g.showExitDialog = false
   g.bState = 'none'
-  g.scene = 'title'
+  g.setScene('title')
 }
 
 function resumeRun(g) {
@@ -347,7 +350,7 @@ function resumeRun(g) {
   g._eventShopUsedItems = null
   g._shopSelectAttr = false
   g._shopSelectPet = null
-  g.scene = 'event'
+  g.setScene('event')
 }
 
 function onDefeat(g, W, H) {
