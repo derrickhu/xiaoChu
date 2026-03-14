@@ -148,6 +148,8 @@ function getFadeAlpha() {
 function dismiss(g) {
   if (!_currentGuide) return
   g.storage.markGuideShown(_currentGuide.id)
+  // 队列中待展示的指引也一并标记为已展示，避免dismiss后重复触发
+  _queue.forEach(item => g.storage.markGuideShown(item.id))
   _currentGuide = null
   _stepIdx = 0
   _queue = []

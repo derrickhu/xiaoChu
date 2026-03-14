@@ -450,7 +450,12 @@ class Storage {
   // ===== 体力系统（仅固定关卡消耗） =====
 
   get currentStamina() {
-    this._recoverStamina()
+    // 节流：每 5 秒最多触发一次恢复计算，避免每帧 Date.now() 开销
+    const now = Date.now()
+    if (!this._staminaLastCheck || now - this._staminaLastCheck > 5000) {
+      this._recoverStamina()
+      this._staminaLastCheck = now
+    }
     return this._d.stamina.current
   }
 

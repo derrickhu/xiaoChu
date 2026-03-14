@@ -16,6 +16,31 @@ const { generateStarterWeapon } = require('../data/weapons')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 const tutorial = require('./tutorial')
+const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
+const { calcRoguelikePetExp } = require('../data/petPoolConfig')
+const { initBoard } = require('./battle')
+const ViewEnv = require('../views/env')
+
+/** 轻量深拷贝（仅用于可 JSON 序列化的游戏状态对象） */
+function _deepClone(obj) {
+  return obj ? JSON.parse(JSON.stringify(obj)) : null
+}
+
+/** 每层/续档共用的事件准备状态重置 */
+function _resetFloorEventState(g) {
+  g.prepareTab = 'pets'
+  g.prepareSelBagIdx = -1
+  g.prepareSelSlotIdx = -1
+  resetPrepBagScroll()
+  g._eventPetDetail = null
+  g._adventureApplied = false
+  g._adventureResult = null
+  g._eventShopUsed = false
+  g._eventShopUsedCount = 0
+  g._eventShopUsedItems = null
+  g._shopSelectAttr = false
+  g._shopSelectPet = null
+}
 
 const DEFAULT_RUN_BUFFS = {
   allAtkPct:0, allDmgPct:0, attrDmgPct:{metal:0,wood:0,earth:0,water:0,fire:0},
@@ -99,13 +124,12 @@ function startRun(g) {
   // 固定关卡模式：应用修炼加成
   if (g.battleMode === 'stage') {
     const cult = g.storage.cultivation
-    const { effectValue } = require('../data/cultivationConfig')
-    g.heroMaxHp  += effectValue('body', cult.levels.body)
+    g.heroMaxHp  += cultEffectValue('body', cult.levels.body)
     g.heroHp      = g.heroMaxHp
-    g.heroShield  = effectValue('sense', cult.levels.sense)
-    g.dragTimeLimit += Math.round(effectValue('wisdom', cult.levels.wisdom) * 60)
-    g._cultDmgReduce = effectValue('defense', cult.levels.defense)
-    g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+    g.heroShield  = cultEffectValue('sense', cult.levels.sense)
+    g.dragTimeLimit += Math.round(cultEffectValue('wisdom', cult.levels.wisdom) * 60)
+    g._cultDmgReduce = cultEffectValue('defense', cult.levels.defense)
+    g._cultHeartBase = cultEffectValue('spirit', cult.levels.spirit)
   } else {
     g._cultDmgReduce = 0
     g._cultHeartBase = 0
@@ -171,18 +195,7 @@ function nextFloor(g) {
     g.skipNextBattle = false
     g.curEvent = { type: EVENT_TYPE.ADVENTURE, data: ADVENTURES[Math.floor(Math.random()*ADVENTURES.length)] }
   }
-  g.prepareTab = 'pets'
-  g.prepareSelBagIdx = -1
-  g.prepareSelSlotIdx = -1
-  resetPrepBagScroll()
-  g._eventPetDetail = null
-  g._adventureApplied = false
-  g._adventureResult = null
-  g._eventShopUsed = false
-  g._eventShopUsedCount = 0
-  g._eventShopUsedItems = null
-  g._shopSelectAttr = false
-  g._shopSelectPet = null
+  _resetFloorEventState(g)
   // 过层经验汇总：计算本层获得经验
   const floorExp = (g.runExp || 0) - (g._floorStartExp || 0)
   if (floorExp > 0 && g.floor > 1) {
@@ -219,7 +232,6 @@ function settleExp(g) {
   const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
 
   // 宠物经验：肉鸽局结算产出，汇入共享经验池
-  const { calcRoguelikePetExp } = require('../data/petPoolConfig')
   const petExp = calcRoguelikePetExp(
     { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 },
     finalFloor,
@@ -272,18 +284,18 @@ function endRun(g) {
 function saveAndExit(g) {
   MusicMgr.stopBossBgm()
   restoreBattleHpMax(g)
-  const runState = {
+  const runState = _deepClone({
     floor: g.floor,
-    pets: JSON.parse(JSON.stringify(g.pets)),
-    weapon: g.weapon ? JSON.parse(JSON.stringify(g.weapon)) : null,
-    petBag: JSON.parse(JSON.stringify(g.petBag)),
-    weaponBag: JSON.parse(JSON.stringify(g.weaponBag)),
-    sessionPetPool: JSON.parse(JSON.stringify(g.sessionPetPool || [])),
+    pets: g.pets,
+    weapon: g.weapon,
+    petBag: g.petBag,
+    weaponBag: g.weaponBag,
+    sessionPetPool: g.sessionPetPool || [],
     heroHp: g.heroHp, heroMaxHp: g.heroMaxHp, heroShield: g.heroShield,
     realmLevel: g.realmLevel || g.floor,
-    heroBuffs: JSON.parse(JSON.stringify(g.heroBuffs)),
-    runBuffs: JSON.parse(JSON.stringify(g.runBuffs)),
-    runBuffLog: JSON.parse(JSON.stringify(g.runBuffLog || [])),
+    heroBuffs: g.heroBuffs,
+    runBuffs: g.runBuffs,
+    runBuffLog: g.runBuffLog || [],
     skipNextBattle: g.skipNextBattle, nextStunEnemy: g.nextStunEnemy, nextDmgDouble: g.nextDmgDouble,
     tempRevive: g.tempRevive, immuneOnce: g.immuneOnce, comboNeverBreak: g.comboNeverBreak,
     weaponReviveUsed: g.weaponReviveUsed, goodBeadsNextTurn: g.goodBeadsNextTurn,
@@ -291,8 +303,8 @@ function saveAndExit(g) {
     ...Object.fromEntries(EXP_FIELDS.map(k => [k, g[k] || 0])),
     itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
     itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
-    curEvent: g.curEvent ? JSON.parse(JSON.stringify(g.curEvent)) : null,
-  }
+    curEvent: g.curEvent || null,
+  })
   g.storage.saveRunState(runState)
   g.showExitDialog = false
   g.bState = 'none'
@@ -339,9 +351,8 @@ function resumeRun(g) {
   g._cultDmgReduce = 0; g._cultHeartBase = 0
   if (g.battleMode === 'stage') {
     const cult = g.storage.cultivation
-    const { effectValue } = require('../data/cultivationConfig')
-    g._cultDmgReduce = effectValue('defense', cult.levels.defense)
-    g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+    g._cultDmgReduce = cultEffectValue('defense', cult.levels.defense)
+    g._cultHeartBase = cultEffectValue('spirit', cult.levels.spirit)
   }
   g.curEvent = s.curEvent
   // 兜底：如果存档中 curEvent 为空，重新生成当前层事件
@@ -349,18 +360,7 @@ function resumeRun(g) {
     g.curEvent = generateFloorEvent(g.floor)
   }
   g.storage.clearRunState()
-  g.prepareTab = 'pets'
-  g.prepareSelBagIdx = -1
-  g.prepareSelSlotIdx = -1
-  resetPrepBagScroll()
-  g._eventPetDetail = null
-  g._adventureApplied = false
-  g._adventureResult = null
-  g._eventShopUsed = false
-  g._eventShopUsedCount = 0
-  g._eventShopUsedItems = null
-  g._shopSelectAttr = false
-  g._shopSelectPet = null
+  _resetFloorEventState(g)
   g.setScene('event')
 }
 
@@ -448,9 +448,8 @@ function useItemReset(g) {
   if (!g.itemResetObtained || g.itemResetUsed || g.bState !== 'playerTurn' || g.dragging) return false
   g.itemResetUsed = true
   g._showItemMenu = false
-  const { initBoard } = require('./battle')
   initBoard(g)
-  g.skillEffects.push({ x: require('../views/env').W*0.5, y: require('../views/env').H*0.5, text:'乾坤重置！', color:'#66ccff', t:0, alpha:1 })
+  g.skillEffects.push({ x: ViewEnv.W*0.5, y: ViewEnv.H*0.5, text:'乾坤重置！', color:'#66ccff', t:0, alpha:1 })
   MusicMgr.playReward()
   return true
 }
@@ -461,7 +460,7 @@ function useItemHeal(g) {
   g.itemHealUsed = true
   g._showItemMenu = false
   g.heroHp = g.heroMaxHp
-  g.skillEffects.push({ x: require('../views/env').W*0.5, y: require('../views/env').H*0.5, text:'回春妙术！', color:'#44ff88', t:0, alpha:1 })
+  g.skillEffects.push({ x: ViewEnv.W*0.5, y: ViewEnv.H*0.5, text:'回春妙术！', color:'#44ff88', t:0, alpha:1 })
   MusicMgr.playRevive()
   return true
 }

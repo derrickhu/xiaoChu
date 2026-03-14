@@ -41,6 +41,7 @@ const wxBtns = require('./wxButtons')
 const share = require('./share')
 const TweenMgr = require('./engine/tween')
 const Particles = require('./engine/particles')
+const stageMgr = require('./engine/stageManager')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
 const canvas = GameGlobal.__mainCanvas || P.createCanvas()
@@ -117,7 +118,7 @@ class Main {
     P.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
     P.onShareAppMessage(() => share.getShareData(this.storage))
 
-    const criticalImages = [
+    this._criticalImages = [
       'assets/backgrounds/loading_bg.jpg',
       'assets/backgrounds/home_bg.jpg',
       'assets/ui/title_logo.png',
@@ -159,7 +160,7 @@ class Main {
       'assets/ui/name_bg.png',
       'assets/ui/btn_back.png',
     ]
-    R.preloadImages(criticalImages, (loaded, total) => {
+    R.preloadImages(this._criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
     }).then(() => {
       console.log('[Preload] critical images ready')
@@ -190,7 +191,6 @@ class Main {
     if (this.bState === 'waveTransition' && this._waveTransTimer != null) {
       this._waveTransTimer--
       if (this._waveTransTimer <= 0) {
-        const stageMgr = require('./engine/stageManager')
         stageMgr.advanceWave(this)
       }
     }
@@ -298,6 +298,10 @@ class Main {
     if (old === name) return
     this._dirty = true
     this.scene = name
+    // 返回首页时清理非关键图片缓存，防止内存无限增长
+    if (name === 'title' && this._criticalImages) {
+      R.clearDynamicCache(this._criticalImages)
+    }
     this.events.emit('scene:change', name, old)
   }
 

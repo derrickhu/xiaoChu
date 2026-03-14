@@ -9,6 +9,35 @@ const MusicMgr = require('../runtime/music')
 const Particles = require('../engine/particles')
 const FXComposer = require('../engine/effectComposer')
 
+// ===== 战斗布局缓存（避免每帧重算常量布局值） =====
+let _layoutCache = null
+let _layoutKey = ''
+
+function _getBattleLayout() {
+  const { W, H, S, safeTop, COLS, ROWS } = V
+  const key = `${W}|${H}|${S}|${safeTop}|${COLS}|${ROWS}`
+  if (_layoutCache && _layoutKey === key) return _layoutCache
+  const boardPad = 6 * S
+  const cellSize = (W - boardPad * 2) / COLS
+  const boardH = ROWS * cellSize
+  const bottomPad = 8 * S
+  const boardTop = H - bottomPad - boardH
+  const sidePad = 8 * S
+  const petGap = 8 * S
+  const wpnGap = 12 * S
+  const totalGapW = wpnGap + petGap * 4 + sidePad * 2
+  const iconSize = (W - totalGapW) / 6
+  const teamBarH = iconSize + 6 * S
+  const hpBarH = 18 * S
+  const hpBarY = boardTop - hpBarH - 4 * S
+  const teamBarY = hpBarY - teamBarH - 2 * S
+  const eAreaTop = safeTop + 4 * S
+  const eAreaBottom = teamBarY - 4 * S
+  _layoutCache = { boardPad, cellSize, boardH, boardTop, sidePad, petGap, wpnGap, totalGapW, iconSize, teamBarH, hpBarH, hpBarY, teamBarY, eAreaTop, eAreaBottom }
+  _layoutKey = key
+  return _layoutCache
+}
+
 // ===== 战斗界面：怪物区域绘制 =====
 function _drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   const { ctx, R, TH, W, H, S } = V
@@ -405,29 +434,12 @@ function _drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize) 
 
 // ===== 战斗主入口（分发函数） =====
 function rBattle(g) {
-  const { ctx, R, TH, W, H, S, safeTop, COLS, ROWS } = V
+  const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawBattleBg(g.af)
-  const padX = 8*S
-
-  const boardPad = 6*S
-  const cellSize = (W - boardPad*2) / COLS
-  g.cellSize = cellSize; g.boardX = boardPad
-  const boardH = ROWS * cellSize
-  const bottomPad = 8*S
-  const boardTop = H - bottomPad - boardH
-  g.boardY = boardTop
-  const sidePad = 8*S
-  const petGap = 8*S
-  const wpnGap = 12*S
-  const totalGapW = wpnGap + petGap * 4 + sidePad * 2
-  const iconSize = (W - totalGapW) / 6
-  const teamBarH = iconSize + 6*S
-  const hpBarH = 18*S
-  const hpBarY = boardTop - hpBarH - 4*S
-  const teamBarY = hpBarY - teamBarH - 2*S
-  const eAreaTop = safeTop + 4*S
-  const eAreaBottom = teamBarY - 4*S
-  const exitBtnSize = 32*S
+  const padX = 8 * S
+  const { cellSize, boardPad, boardTop, iconSize, teamBarH, hpBarH, hpBarY, teamBarY, eAreaTop, eAreaBottom } = _getBattleLayout()
+  g.cellSize = cellSize; g.boardX = boardPad; g.boardY = boardTop
+  const exitBtnSize = 32 * S
 
   if (g.enemy) _drawBattleEnemyArea(g, eAreaTop, eAreaBottom)
   _drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize)
@@ -3407,18 +3419,18 @@ function drawTutorialOverlay(g) {
     const bgGrd = ctx.createLinearGradient(px, py, px, py + ph)
     bgGrd.addColorStop(0, 'rgba(252,246,228,0.97)')
     bgGrd.addColorStop(1, 'rgba(244,234,208,0.97)')
-    _storyRR(ctx, px, py, pw, ph, 14 * S)
+    R.rr(px, py, pw, ph, 14 * S)
     ctx.fillStyle = bgGrd
     ctx.fill()
 
     // 金色外边框
-    _storyRR(ctx, px, py, pw, ph, 14 * S)
+    R.rr(px, py, pw, ph, 14 * S)
     ctx.strokeStyle = 'rgba(200,160,60,0.6)'
     ctx.lineWidth = 1.5 * S
     ctx.stroke()
 
     // 顶部装饰条（浅金黄，与其他弹框标题条一致）
-    _storyRR(ctx, px, py, pw, 44 * S, 14 * S)
+    R.rr(px, py, pw, 44 * S, 14 * S)
     const hGrd = ctx.createLinearGradient(px, py, px + pw, py)
     hGrd.addColorStop(0, 'rgba(200,158,60,0.85)')
     hGrd.addColorStop(0.5, 'rgba(228,185,80,0.92)')
@@ -3522,16 +3534,16 @@ function drawTutorialOverlay(g) {
     const bgGrd = ctx.createLinearGradient(px, py, px, py + ph)
     bgGrd.addColorStop(0, 'rgba(252,246,228,0.97)')
     bgGrd.addColorStop(1, 'rgba(244,234,208,0.97)')
-    _storyRR(ctx, px, py, pw, ph, rad)
+    R.rr(px, py, pw, ph, rad)
     ctx.fillStyle = bgGrd; ctx.fill()
 
     // 外边框
-    _storyRR(ctx, px, py, pw, ph, rad)
+    R.rr(px, py, pw, ph, rad)
     ctx.strokeStyle = 'rgba(200,160,60,0.6)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
 
     // 顶部装饰条
     const ribbonH = 40 * S
-    _storyRR(ctx, px, py, pw, ribbonH, rad)
+    R.rr(px, py, pw, ribbonH, rad)
     const hGrd = ctx.createLinearGradient(px, py, px + pw, py)
     hGrd.addColorStop(0, 'rgba(200,158,60,0.85)')
     hGrd.addColorStop(0.5, 'rgba(228,185,80,0.92)')
@@ -3990,7 +4002,7 @@ function _drawWaveTransition(g) {
   ctx.font = `${12*S}px "PingFang SC",sans-serif`
   ctx.fillText(`共 ${totalWaves} 波`, W * 0.5, H * 0.42 + 28*S)
   // 闪烁提示
-  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.006)
+  const blink = 0.4 + 0.4 * Math.sin(g.af * 0.1)
   ctx.globalAlpha = blink
   ctx.fillStyle = '#aaa'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击跳过', W * 0.5, H * 0.58)
@@ -3998,19 +4010,6 @@ function _drawWaveTransition(g) {
   ctx.restore()
 }
 
-function _storyRR(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r)
-  ctx.quadraticCurveTo(x, y, x + r, y)
-  ctx.closePath()
-}
 
 module.exports = {
   rBattle, drawBoard, drawTeamBar,

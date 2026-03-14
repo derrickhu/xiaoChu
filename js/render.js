@@ -76,6 +76,19 @@ class Render {
   }
 
   /**
+   * 清理非关键图片缓存（场景切换时调用，避免内存无限增长）
+   * @param {string[]} keepPaths - 预加载的关键路径，保留不删
+   */
+  clearDynamicCache(keepPaths) {
+    const keepSet = new Set(keepPaths)
+    for (const path in this._imgCache) {
+      if (!keepSet.has(path)) {
+        delete this._imgCache[path]
+      }
+    }
+  }
+
+  /**
    * 预加载关键图片，返回 Promise
    * @param {string[]} paths - 图片路径数组
    * @param {function} [onProgress] - 进度回调 (loaded, total)
