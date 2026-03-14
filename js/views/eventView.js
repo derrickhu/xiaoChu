@@ -1765,4 +1765,176 @@ function _drawWeaponDetailPopup(g) {
   g._eventWpnDetailCloseRect = [0, 0, W, H]
 }
 
-module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup }
+// ===== 通天塔玩法介绍覆盖层（教学结束后首次进入正式关卡）=====
+const _ROGUE_INTRO_CARDS = [
+  {
+    icon: '塔',
+    heading: '踏入通天塔！',
+    lines: [
+      '通天塔共30层，每层随机生成。',
+      '敌人种类、属性皆不固定——',
+      '每一次探索都是全新的挑战！',
+    ],
+    note: '☆ 尽量消更多同色灵珠，触发Combo爆发伤害',
+  },
+  {
+    icon: '宠',
+    heading: '局内灵宠 · 随机相遇',
+    lines: [
+      '塔内可获得随机灵宠助你战斗，',
+      '但它们只在本次探索中有效，',
+      '每局结束后将回归虚空……',
+    ],
+    note: '✦ 三星满级的灵宠有机会永久留下，成为你的专属灵宠！',
+  },
+]
+
+function drawRogueIntro(g) {
+  const intro = g._rogueIntro
+  if (!intro) return
+  const { ctx, W, H, S, R } = V
+
+  // 淡入
+  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.05)
+  g._dirty = true
+
+  const card = _ROGUE_INTRO_CARDS[intro.page]
+  if (!card) { g._rogueIntro = null; return }
+
+  ctx.save()
+  // 半透明全屏遮罩
+  ctx.globalAlpha = intro.alpha * 0.78
+  ctx.fillStyle = '#08061a'
+  ctx.fillRect(0, 0, W, H)
+  ctx.globalAlpha = intro.alpha
+
+  // 面板尺寸
+  const pw = W * 0.86, ph = 310 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
+  const rad = 14 * S
+
+  // 面板背景渐变
+  const bg = ctx.createLinearGradient(px, py, px, py + ph)
+  bg.addColorStop(0, 'rgba(18,12,38,0.98)')
+  bg.addColorStop(1, 'rgba(10,7,24,0.98)')
+  _riRR(ctx, px, py, pw, ph, rad)
+  ctx.fillStyle = bg
+  ctx.fill()
+
+  // 外边框：金色
+  _riRR(ctx, px, py, pw, ph, rad)
+  ctx.strokeStyle = 'rgba(200,160,55,0.75)'
+  ctx.lineWidth = 1.5 * S
+  ctx.stroke()
+
+  // 顶部彩带
+  const ribbonH = 46 * S
+  _riRR(ctx, px, py, pw, ribbonH, rad)
+  const rib = ctx.createLinearGradient(px, py, px + pw, py)
+  rib.addColorStop(0, 'rgba(70,40,8,0.95)')
+  rib.addColorStop(0.5, 'rgba(130,90,15,0.95)')
+  rib.addColorStop(1, 'rgba(70,40,8,0.95)')
+  ctx.fillStyle = rib
+  ctx.fill()
+
+  // 图标圆
+  const iconR = 22 * S
+  const iconX = px + 38 * S, iconY = py + ribbonH / 2
+  ctx.beginPath()
+  ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(255,195,50,0.18)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,195,50,0.8)'
+  ctx.lineWidth = 1.5 * S
+  ctx.stroke()
+  ctx.fillStyle = '#ffd060'
+  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(card.icon, iconX, iconY)
+
+  // 标题
+  ctx.fillStyle = '#ffe07a'
+  ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(card.heading, W / 2 + 14 * S, py + 30 * S)
+
+  // 分割线
+  ctx.strokeStyle = 'rgba(180,140,40,0.3)'
+  ctx.lineWidth = 1 * S
+  ctx.beginPath()
+  ctx.moveTo(px + 20 * S, py + 52 * S)
+  ctx.lineTo(px + pw - 20 * S, py + 52 * S)
+  ctx.stroke()
+
+  // 正文
+  const lineH = 30 * S
+  const textStartY = py + 82 * S
+  ctx.fillStyle = '#d8d0c0'
+  ctx.font = `${13 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ;(card.lines || []).forEach((line, i) => {
+    ctx.fillText(line, W / 2, textStartY + i * lineH)
+  })
+
+  // 钩子备注框
+  if (card.note) {
+    const noteY = textStartY + (card.lines || []).length * lineH + 18 * S
+    const noteW = pw - 40 * S, noteH = 36 * S
+    const noteX = px + 20 * S
+    const noteGrd = ctx.createLinearGradient(noteX, noteY, noteX + noteW, noteY)
+    noteGrd.addColorStop(0, 'rgba(80,55,10,0.7)')
+    noteGrd.addColorStop(0.5, 'rgba(110,80,15,0.8)')
+    noteGrd.addColorStop(1, 'rgba(80,55,10,0.7)')
+    _riRR(ctx, noteX, noteY - 8 * S, noteW, noteH, 6 * S)
+    ctx.fillStyle = noteGrd
+    ctx.fill()
+    ctx.fillStyle = '#ffd060'
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(card.note, W / 2, noteY - 8 * S + noteH / 2)
+  }
+
+  // 进度点
+  const total = _ROGUE_INTRO_CARDS.length
+  const dotR = 4 * S, dotGap = 14 * S
+  const dotsX = W / 2 - (total * dotGap) / 2 + dotGap / 2
+  const dotsY = py + ph - 38 * S
+  ctx.textBaseline = 'alphabetic'
+  for (let i = 0; i < total; i++) {
+    ctx.beginPath()
+    ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
+    ctx.fillStyle = i === intro.page ? '#ffd060' : 'rgba(255,200,80,0.25)'
+    ctx.fill()
+  }
+
+  // 点击继续提示
+  const af = g.af || 0
+  const pulse = 0.5 + 0.4 * Math.sin(af * 0.1)
+  ctx.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
+  ctx.fillStyle = '#9a8c70'
+  ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  const isLast = intro.page >= total - 1
+  ctx.fillText(isLast ? '点击开始冒险！' : '点击继续', W / 2, py + ph - 16 * S)
+
+  ctx.restore()
+}
+
+function _riRR(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
+
+module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup, drawRogueIntro }

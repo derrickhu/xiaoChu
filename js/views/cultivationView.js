@@ -16,14 +16,21 @@ const Draw = require('./cultivationDraw')
 // 可选角色形象列表
 // avatar 为 fallback 头像（打坐图加载失败时使用），暂统一用已有资源占位
 const _defaultAvatar = 'assets/hero/hero_cultivation.jpg'
+// unlocked 字段为静态默认值，实际解锁状态在渲染时从 storage.unlockedAvatars 动态合并
 const CHARACTERS = [
-  { id: 'boy1',  label: '修仙少年',  sit: 'assets/hero/char_boy1.png',  avatar: _defaultAvatar, unlocked: true },
-  { id: 'girl1', label: '灵木仙子',  sit: 'assets/hero/char_girl1.png', avatar: _defaultAvatar, unlocked: true },
-  { id: 'boy2',  label: '剑灵少侠',  sit: 'assets/hero/char_boy2.png',  avatar: _defaultAvatar, unlocked: true },
-  { id: 'girl2', label: '星月仙子',  sit: 'assets/hero/char_girl2.png', avatar: _defaultAvatar, unlocked: true },
-  { id: 'boy3',  label: '天罡道童',  sit: 'assets/hero/char_boy3.png',  avatar: _defaultAvatar, unlocked: false },
-  { id: 'girl3', label: '花灵仙子',  sit: 'assets/hero/char_girl3.png', avatar: _defaultAvatar, unlocked: false },
+  { id: 'boy1',  label: '修仙少年',  sit: 'assets/hero/char_boy1.png',  avatar: _defaultAvatar, unlockHint: null },
+  { id: 'girl1', label: '灵木仙子',  sit: 'assets/hero/char_girl1.png', avatar: _defaultAvatar, unlockHint: null },
+  { id: 'boy2',  label: '剑灵少侠',  sit: 'assets/hero/char_boy2.png',  avatar: _defaultAvatar, unlockHint: '修炼5级奖励解锁' },
+  { id: 'girl2', label: '星月仙子',  sit: 'assets/hero/char_girl2.png', avatar: _defaultAvatar, unlockHint: '修炼10级奖励解锁' },
+  { id: 'boy3',  label: '天罡道童',  sit: 'assets/hero/char_boy3.png',  avatar: _defaultAvatar, unlockHint: '敬请期待' },
+  { id: 'girl3', label: '花灵仙子',  sit: 'assets/hero/char_girl3.png', avatar: _defaultAvatar, unlockHint: '敬请期待' },
 ]
+
+/** 将 CHARACTERS 与 storage 解锁状态合并，返回带 unlocked 字段的列表 */
+function _buildCharacters(g) {
+  const unlocked = g.storage.unlockedAvatars
+  return CHARACTERS.map(ch => ({ ...ch, unlocked: unlocked.includes(ch.id) }))
+}
 
 // ===== 交互状态（统一管理） =====
 const _state = {
@@ -33,7 +40,32 @@ const _state = {
   realmBreakAnim: null,    // { name, timer, duration }
   animFrame: 0,            // 全局动画帧计数
   upgradeAmount: 1,        // 当前面板选择的加点数量
+  cultIntro: null,         // { page: 0|1, alpha: 0~1 } 首次进入介绍卡
 }
+
+// ===== 修炼介绍卡内容 =====
+const _CULT_INTRO_CARDS = [
+  {
+    icon: '炼',
+    heading: '什么是修炼？',
+    lines: [
+      '修炼积累的是你自身的道行——',
+      '通天塔、灵兽秘境、所有挑战',
+      '都会为你积累修炼经验！',
+    ],
+    note: '☆ 胜负皆有收获，每一局都在成长',
+  },
+  {
+    icon: '悟',
+    heading: '修炼与通天塔的关系',
+    lines: [
+      '通天塔中修炼全无，只能靠自身实力。',
+      '但修炼加成在灵兽秘境中完全生效——',
+      '体、灵、悟、根、识，五维强化！',
+    ],
+    note: '✦ 打好修炼基础，解锁灵兽秘境后将大显神威',
+  },
+]
 
 // 模块级触摸区域（不挂到 g 上，减少全局属性污染）
 const _rects = {
@@ -58,7 +90,8 @@ function resetState() {
 
 function _getCharacter(g) {
   const selectedId = g.storage.selectedAvatar
-  return CHARACTERS.find(a => a.id === selectedId) || CHARACTERS[0]
+  const chars = _buildCharacters(g)
+  return chars.find(a => a.id === selectedId) || chars[0]
 }
 
 // ===== 主渲染 =====
@@ -101,10 +134,11 @@ function rCultivation(g) {
   // 经验条
   const expBarY = infoY + 26*S
   const expBarW = W * 0.6
-  const expBarH = 10*S
+  const expBarH = 14*S
   const expBarX = (W - expBarW) / 2
+  const expBarCY = expBarY + expBarH / 2
 
-  c.fillStyle = 'rgba(0,0,0,0.1)'
+  c.fillStyle = 'rgba(0,0,0,0.12)'
   Draw.roundRect(c, expBarX, expBarY, expBarW, expBarH, expBarH/2)
   c.fill()
 
@@ -120,10 +154,10 @@ function rCultivation(g) {
       c.fill()
     }
     c.save()
-    c.fillStyle = '#7A5C30'
-    c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.fillStyle = '#6a4a18'
+    c.font = `bold ${9*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(`${cult.exp} / ${needed}`, W * 0.5, expBarY + expBarH * 0.5)
+    c.fillText(`${cult.exp} / ${needed}`, W * 0.5, expBarCY)
     c.restore()
   } else {
     const grad = c.createLinearGradient(expBarX, expBarY, expBarX + expBarW, expBarY)
@@ -135,8 +169,17 @@ function rCultivation(g) {
     c.fillStyle = '#5a3a10'
     c.font = `bold ${9*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('已满级', W * 0.5, expBarY + expBarH * 0.5)
+    c.fillText('已满级', W * 0.5, expBarCY)
     c.restore()
+  }
+
+  // 经验图标（压在经验条左端上方）
+  const cultExpIcon = R.getImg('assets/ui/icon_cult_exp.png')
+  if (cultExpIcon && cultExpIcon.width > 0) {
+    const iconSz = 28 * S
+    const iconX = expBarX - iconSz * 0.5
+    const iconY = expBarCY - iconSz / 2
+    c.drawImage(cultExpIcon, iconX, iconY, iconSz, iconSz)
   }
 
   // 修炼点
@@ -221,7 +264,7 @@ function rCultivation(g) {
 
   // 形象选择面板
   if (_state.showAvatarPanel) {
-    Draw.drawAvatarPanel(g, c, R, W, H, S, CHARACTERS, _rects)
+    Draw.drawAvatarPanel(g, c, R, W, H, S, _buildCharacters(g), _rects)
   }
 
   // 升级闪光
@@ -247,6 +290,144 @@ function rCultivation(g) {
     Draw.drawRealmBreak(c, W, H, S, _state.realmBreakAnim)
     _state.realmBreakAnim.timer++
   }
+
+  // 首次进入修炼介绍卡
+  if (_state.cultIntro) {
+    _drawCultIntro(c, R, g, W, H, S)
+  }
+}
+
+// ===== 修炼介绍卡渲染 =====
+function _drawCultIntro(c, R, g, W, H, S) {
+  const intro = _state.cultIntro
+  if (!intro) return
+  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.04)
+  g._dirty = true
+
+  const card = _CULT_INTRO_CARDS[intro.page]
+  if (!card) return
+
+  c.save()
+  c.globalAlpha = intro.alpha * 0.78
+  c.fillStyle = '#08061a'
+  c.fillRect(0, 0, W, H)
+  c.globalAlpha = intro.alpha
+
+  const pw = W * 0.86, ph = 310 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
+  const rad = 14 * S
+
+  const bg = c.createLinearGradient(px, py, px, py + ph)
+  bg.addColorStop(0, 'rgba(18,12,38,0.98)')
+  bg.addColorStop(1, 'rgba(10,7,24,0.98)')
+  _riRR(c, px, py, pw, ph, rad)
+  c.fillStyle = bg
+  c.fill()
+
+  _riRR(c, px, py, pw, ph, rad)
+  c.strokeStyle = 'rgba(200,160,55,0.75)'
+  c.lineWidth = 1.5 * S
+  c.stroke()
+
+  const ribbonH = 46 * S
+  _riRR(c, px, py, pw, ribbonH, rad)
+  const rib = c.createLinearGradient(px, py, px + pw, py)
+  rib.addColorStop(0, 'rgba(70,40,8,0.95)')
+  rib.addColorStop(0.5, 'rgba(130,90,15,0.95)')
+  rib.addColorStop(1, 'rgba(70,40,8,0.95)')
+  c.fillStyle = rib
+  c.fill()
+
+  const iconR = 22 * S
+  const iconX = px + 38 * S, iconY = py + ribbonH / 2
+  c.beginPath()
+  c.arc(iconX, iconY, iconR, 0, Math.PI * 2)
+  c.fillStyle = 'rgba(255,195,50,0.18)'
+  c.fill()
+  c.strokeStyle = 'rgba(255,195,50,0.8)'
+  c.lineWidth = 1.5 * S
+  c.stroke()
+  c.fillStyle = '#ffd060'
+  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText(card.icon, iconX, iconY)
+
+  c.fillStyle = '#ffe07a'
+  c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'alphabetic'
+  c.fillText(card.heading, W / 2 + 14 * S, py + 30 * S)
+
+  c.strokeStyle = 'rgba(180,140,40,0.3)'
+  c.lineWidth = 1 * S
+  c.beginPath()
+  c.moveTo(px + 20 * S, py + 52 * S)
+  c.lineTo(px + pw - 20 * S, py + 52 * S)
+  c.stroke()
+
+  const lineH = 30 * S
+  const textStartY = py + 82 * S
+  c.fillStyle = '#d8d0c0'
+  c.font = `${13 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  ;(card.lines || []).forEach((line, i) => {
+    c.fillText(line, W / 2, textStartY + i * lineH)
+  })
+
+  if (card.note) {
+    const noteY = textStartY + (card.lines || []).length * lineH + 18 * S
+    const noteW = pw - 40 * S, noteH = 36 * S
+    const noteX = px + 20 * S
+    const noteGrd = c.createLinearGradient(noteX, noteY, noteX + noteW, noteY)
+    noteGrd.addColorStop(0, 'rgba(80,55,10,0.7)')
+    noteGrd.addColorStop(0.5, 'rgba(110,80,15,0.8)')
+    noteGrd.addColorStop(1, 'rgba(80,55,10,0.7)')
+    _riRR(c, noteX, noteY - 8 * S, noteW, noteH, 6 * S)
+    c.fillStyle = noteGrd
+    c.fill()
+    c.fillStyle = '#ffd060'
+    c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(card.note, W / 2, noteY - 8 * S + noteH / 2)
+  }
+
+  const total = _CULT_INTRO_CARDS.length
+  const dotR = 4 * S, dotGap = 14 * S
+  const dotsX = W / 2 - (total * dotGap) / 2 + dotGap / 2
+  const dotsY = py + ph - 38 * S
+  c.textBaseline = 'alphabetic'
+  for (let i = 0; i < total; i++) {
+    c.beginPath()
+    c.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
+    c.fillStyle = i === intro.page ? '#ffd060' : 'rgba(255,200,80,0.25)'
+    c.fill()
+  }
+
+  const pulse = 0.5 + 0.4 * Math.sin(_state.animFrame * 0.1)
+  c.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
+  c.fillStyle = '#9a8c70'
+  c.font = `${10 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  const isLast = intro.page >= total - 1
+  c.fillText(isLast ? '点击进入修炼' : '点击继续', W / 2, py + ph - 16 * S)
+
+  c.restore()
+}
+
+function _riRR(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
 }
 
 // ===== 境界突破检查 =====
@@ -261,11 +442,26 @@ function checkRealmBreak(g) {
     _state.realmBreakAnim = { name: realm.name, timer: 0, duration: 90 }
     MusicMgr.playLevelUp()
   }
+  // 首次进入修炼页：展示玩法介绍卡
+  if (!g.storage.isGuideShown('cult_intro')) {
+    _state.cultIntro = { page: 0, alpha: 0 }
+  }
 }
 
 // ===== 触摸处理 =====
 function tCultivation(g, x, y, type) {
   if (type !== 'end') return
+
+  // 首次介绍卡拦截
+  if (_state.cultIntro) {
+    _state.cultIntro.page++
+    _state.cultIntro.alpha = 0
+    if (_state.cultIntro.page >= _CULT_INTRO_CARDS.length) {
+      _state.cultIntro = null
+      g.storage.markGuideShown('cult_intro')
+    }
+    return
+  }
 
   // 境界突破动画中点击跳过
   if (_state.realmBreakAnim && _state.realmBreakAnim.timer < _state.realmBreakAnim.duration) {

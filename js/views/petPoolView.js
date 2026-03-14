@@ -71,47 +71,45 @@ function rPetPool(g) {
   c.fillStyle = '#fff'
   c.fillText('灵宠池', W * 0.5, topY + 17 * S)
 
-  // 经验池图标和余额（左上角放大显示，图标可超过文字高度）
+  // 经验池图标和余额（左上角显示）
   const expPool = g.storage.petExpPool || 0
-  const expIcon = R.getImg('assets/ui/icon_exp_pool.png')
+  const expIcon = R.getImg('assets/ui/icon_pet_exp.png')
   if (expIcon && expIcon.width > 0) {
-    const iconSz = 48 * S  // 再放大到48
-    const iconX = 12 * S
-    const iconY = topY + 17 * S - iconSz / 2
-    
-    // 背景光晕效果（三层渐变，让图标从碧色背景中突出）
+    const iconSz = 32 * S
+    const centerY = topY + 17 * S
+    const iconX = 10 * S
+    const iconY = centerY - iconSz / 2
+
+    // 先量文字宽度，画胶囊（从图标中心延伸到数字右侧），再画图标压上去
+    const txtX = iconX + iconSz + 4 * S
+    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    const txtW = c.measureText(`${expPool}`).width
+    const padX = 8 * S
+    const capH = 26 * S, capR = capH / 2
+    const capX = iconX + iconSz * 0.38   // 从图标中心偏左处开始
+    const capW = txtX + txtW + padX - capX
+    const capY = centerY - capH / 2
     c.save()
-    const cx = iconX + iconSz / 2
-    const cy = iconY + iconSz / 2
-    // 外层光晕
-    const grad1 = c.createRadialGradient(cx, cy, iconSz * 0.3, cx, cy, iconSz * 0.7)
-    grad1.addColorStop(0, 'rgba(255,220,100,0.4)')
-    grad1.addColorStop(1, 'rgba(255,220,100,0)')
-    c.fillStyle = grad1
     c.beginPath()
-    c.arc(cx, cy, iconSz * 0.7, 0, Math.PI * 2)
-    c.fill()
-    // 中层光晕
-    const grad2 = c.createRadialGradient(cx, cy, iconSz * 0.2, cx, cy, iconSz * 0.5)
-    grad2.addColorStop(0, 'rgba(100,220,255,0.3)')
-    grad2.addColorStop(1, 'rgba(100,220,255,0)')
-    c.fillStyle = grad2
-    c.beginPath()
-    c.arc(cx, cy, iconSz * 0.5, 0, Math.PI * 2)
-    c.fill()
+    c.moveTo(capX + capR, capY); c.lineTo(capX + capW - capR, capY)
+    c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+    c.lineTo(capX + capW, capY + capH - capR)
+    c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+    c.lineTo(capX + capR, capY + capH)
+    c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+    c.lineTo(capX, capY + capR)
+    c.quadraticCurveTo(capX, capY, capX + capR, capY)
+    c.closePath()
+    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
     c.restore()
-    
-    // 绘制图标
-    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
-    
-    // 经验值文字显示在图标右侧
-    c.textAlign = 'left'
+
+    // 数字
     c.fillStyle = '#fff'
-    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    c.strokeStyle = 'rgba(0,0,0,0.7)'
-    c.lineWidth = 3.5 * S
-    c.strokeText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
-    c.fillText(`${expPool}`, iconX + iconSz + 10 * S, topY + 17 * S)
+    c.fillText(`${expPool}`, txtX, centerY)
+
+    // 图标压在胶囊上方
+    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
   }
 
   c.restore()
@@ -244,7 +242,7 @@ function rPetPool(g) {
     c.fillStyle = 'rgba(255,200,50,0.7)'
     c.font = `${10*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'bottom'
-    c.fillText(`固定关卡解锁条件：灵宠池≥5只（当前 ${poolCount} 只）`, W / 2, contentBottom - 2 * S)
+    c.fillText(`灵兽秘境解锁条件：灵宠池≥5只（当前 ${poolCount} 只）`, W / 2, contentBottom - 2 * S)
     c.restore()
   }
 
@@ -328,15 +326,6 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   }
 
   // 去掉宠物头像框，让宠物图片直接显示
-
-  // 档位标签（右上角）
-  const tierColor = tier === 'T1' ? '#ffd700' : tier === 'T2' ? '#8df' : '#aaa'
-  c.fillStyle = 'rgba(0,0,0,0.5)'
-  R.rr(x + w - 22*S, y + 3*S, 20*S, 13*S, 4*S); c.fill()
-  c.fillStyle = tierColor
-  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(tier, x + w - 12*S, y + 9.5*S)
 
   // 名称（加深色描边，增强可读性）
   const nameY = avatarY + avatarSize + 6 * S
@@ -448,15 +437,6 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.fillText(`${fragCount}/${cost}`, x + w / 2, barY2 + barH2 + 3 * S)
 
-  // 档位标签
-  const tierColor = tier === 'T1' ? '#ffd700' : tier === 'T2' ? '#8df' : '#aaa'
-  c.fillStyle = 'rgba(0,0,0,0.5)'
-  R.rr(x + w - 22*S, y + 3*S, 20*S, 13*S, 4*S); c.fill()
-  c.fillStyle = tierColor
-  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(tier, x + w - 12*S, y + 9.5*S)
-
   c.restore()
 }
 
@@ -556,10 +536,8 @@ function _drawDetailPanel(g) {
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(basePet.name, infoX, cy)
 
-  // 属性 + 档位标签
-  const tagY = cy + 20 * S
-  const tierColor = tier === 'T1' ? '#FFD700' : tier === 'T2' ? '#8DF' : '#AAA'
   // 属性标签
+  const tagY = cy + 20 * S
   c.fillStyle = ac
   c.globalAlpha = 0.25
   R.rr(infoX, tagY, 52*S, 18*S, 4*S); c.fill()
@@ -570,16 +548,6 @@ function _drawDetailPanel(g) {
   c.font = `${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(`${attrName}属性`, infoX + 26*S, tagY + 9*S)
-  // 档位标签
-  c.fillStyle = tierColor
-  c.globalAlpha = 0.2
-  R.rr(infoX + 58*S, tagY, 32*S, 18*S, 4*S); c.fill()
-  c.globalAlpha = 1
-  c.strokeStyle = tierColor; c.lineWidth = 1*S
-  R.rr(infoX + 58*S, tagY, 32*S, 18*S, 4*S); c.stroke()
-  c.fillStyle = tierColor
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.fillText(tier, infoX + 74*S, tagY + 9*S)
 
   // 星级（头像下方）
   const starY = tagY + 24 * S

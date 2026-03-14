@@ -4,24 +4,13 @@
  */
 const V = require('./env')
 const P = require('../platform')
-const { ATTR_COLOR } = require('../data/tower')
-const { PETS, getPetAvatarPath } = require('../data/pets')
 
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
 
 // 模式配置
 const MODE_CFG = {
   tower: { name: '通天塔',  img: 'assets/ui/tower_rogue.png', icon: '⚔',  switchKey: 'stage' },
-  stage: { name: '固定关卡', img: 'assets/ui/gate_stage.png', icon: '🏯', switchKey: 'tower' },
-}
-
-// 根据宠物 name 反查 id（兼容旧存档没有 id 的情况）
-function _findPetId(name) {
-  for (const attr of Object.keys(PETS)) {
-    const found = PETS[attr].find(p => p.name === name)
-    if (found) return found.id
-  }
-  return null
+  stage: { name: '灵兽秘境', img: 'assets/ui/gate_stage.png', icon: '🏯', switchKey: 'tower' },
 }
 
 // ===== ZONE 1: 顶栏（已隐藏文字，保留宝箱区域占位）=====
@@ -65,73 +54,147 @@ function drawSceneArea(g) {
 
 }
 
-// ===== ZONE 3: 灵宠展示（仅固定关卡模式显示）=====
-function drawPetDisplay(g) {
-  if ((g.titleMode || 'tower') === 'tower') return
+// ===== ZONE 3: 人物头像+等级（左上角常驻）=====
+function drawAvatarWidget(g) {
+  const { ctx, R, W, S, safeTop } = V
+  const cult = g.storage.cultivation
+  const level = (cult && cult.level) || 0
 
-  const { ctx, R, W, S } = V
-  const L = getLayout()
+  const selectedId = g.storage.selectedAvatar || 'boy1'
+  const CHAR_MAP = {
+    boy1:  'assets/hero/char_boy1.png',
+    girl1: 'assets/hero/char_girl1.png',
+    boy2:  'assets/hero/char_boy2.png',
+    girl2: 'assets/hero/char_girl2.png',
+    boy3:  'assets/hero/char_boy3.png',
+    girl3: 'assets/hero/char_girl3.png',
+  }
+  const sitPath = CHAR_MAP[selectedId] || CHAR_MAP.boy1
 
-  const pets = g.storage.stats.bestFloorPets || []
-  const slotSize = 36 * S
-  const gap = 8 * S
-  const count = 5
-  const totalW = count * slotSize + (count - 1) * gap
-  const startX = (W - totalW) / 2
-  const centerY = L.petRowY + L.petRowH / 2
+  const iconSz = 44 * S
+  const iconX = 10 * S
+  const iconY = safeTop + 6 * S
+  const iconCX = iconX + iconSz / 2
+  const iconCY = iconY + iconSz / 2
 
   ctx.save()
-  if (pets.length === 0) {
-    for (let i = 0; i < count; i++) {
-      const cx = startX + i * (slotSize + gap) + slotSize / 2
-      ctx.beginPath()
-      ctx.arc(cx, centerY, slotSize / 2 - 2 * S, 0, Math.PI * 2)
-      ctx.setLineDash([4 * S, 3 * S])
-      ctx.strokeStyle = 'rgba(200,180,120,0.3)'
-      ctx.lineWidth = 1.5 * S
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
+
+  // 1. 头像圆形裁剪
+  const img = R.getImg(sitPath)
+  if (img && img.width > 0) {
+    ctx.save()
+    ctx.beginPath(); ctx.arc(iconCX, iconCY, iconSz / 2, 0, Math.PI * 2); ctx.clip()
+    const cropSz = Math.min(img.width, img.height * 0.60)
+    const srcX = (img.width - cropSz) / 2
+    ctx.drawImage(img, srcX, 0, cropSz, cropSz, iconX, iconY, iconSz, iconSz)
     ctx.restore()
-    return
+  } else {
+    ctx.fillStyle = 'rgba(180,150,80,0.5)'
+    ctx.beginPath(); ctx.arc(iconCX, iconCY, iconSz / 2, 0, Math.PI * 2); ctx.fill()
   }
 
-  for (let i = 0; i < Math.min(pets.length, count); i++) {
-    const pet = pets[i]
-    const cx = startX + i * (slotSize + gap) + slotSize / 2
-    const r = slotSize / 2 - 2 * S
-    const attrColor = ATTR_COLOR[pet.attr]
-
-    if (attrColor) {
-      ctx.beginPath()
-      ctx.arc(cx, centerY, r + 2 * S, 0, Math.PI * 2)
-      ctx.strokeStyle = attrColor.main
-      ctx.lineWidth = 2 * S
-      ctx.stroke()
-    }
-
-    const petId = pet.id || _findPetId(pet.name)
-    if (petId) {
-      const img = R.getImg(getPetAvatarPath({ id: petId, star: pet.star || 1 }))
-      if (img && img.width > 0) {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(cx, centerY, r, 0, Math.PI * 2)
-        ctx.clip()
-        ctx.drawImage(img, cx - r, centerY - r, r * 2, r * 2)
-        ctx.restore()
-        continue
-      }
-    }
-    ctx.beginPath()
-    ctx.arc(cx, centerY, r, 0, Math.PI * 2)
-    ctx.fillStyle = attrColor ? attrColor.bg : 'rgba(30,30,50,0.8)'
-    ctx.fill()
-    ctx.fillStyle = attrColor ? attrColor.lt : '#ccc'
-    ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(pet.name ? pet.name.charAt(0) : '?', cx, centerY)
+  // 2. 圆形头像框
+  const frameImg = R.getImg('assets/ui/frame_avatar.png')
+  if (frameImg && frameImg.width > 0) {
+    const frameSz = iconSz * 1.22
+    ctx.drawImage(frameImg, iconCX - frameSz / 2, iconCY - frameSz / 2, frameSz, frameSz)
+  } else {
+    ctx.beginPath(); ctx.arc(iconCX, iconCY, iconSz / 2, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(220,180,60,0.9)'; ctx.lineWidth = 2 * S; ctx.stroke()
   }
+
+  // 3. 等级标签（右下角偏右，不遮头像）
+  const lvText = `Lv.${level}`
+  ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const lvTxtW = ctx.measureText(lvText).width
+  const padX = 7 * S
+  const capW = lvTxtW + padX * 2
+  const capH = 20 * S
+  const capR = capH / 2
+  // 胶囊左端从头像右边缘开始，整体在头像外侧偏下
+  const capCX = iconX + iconSz + capW / 2 - 4 * S
+  const capCY = iconCY + iconSz * 0.28
+  const capX = capCX - capW / 2
+  const capY = capCY - capH / 2
+
+  ctx.beginPath()
+  ctx.moveTo(capX + capR, capY); ctx.lineTo(capX + capW - capR, capY)
+  ctx.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+  ctx.lineTo(capX + capW, capY + capH - capR)
+  ctx.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+  ctx.lineTo(capX + capR, capY + capH)
+  ctx.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+  ctx.lineTo(capX, capY + capR)
+  ctx.quadraticCurveTo(capX, capY, capX + capR, capY)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(0,0,0,0.52)'; ctx.fill()
+  ctx.strokeStyle = 'rgba(220,185,60,0.6)'; ctx.lineWidth = 1 * S; ctx.stroke()
+
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2 * S; ctx.shadowOffsetY = 1 * S
+  ctx.strokeStyle = 'rgba(30,15,0,0.7)'; ctx.lineWidth = 2.5 * S
+  ctx.strokeText(lvText, capCX, capCY)
+  ctx.shadowColor = 'transparent'
+  ctx.fillStyle = '#fff8cc'
+  ctx.fillText(lvText, capCX, capCY)
+
+  ctx.restore()
+}
+
+// ===== ZONE 3b: 体力显示（左上角，仅灵兽秘境模式）=====
+function drawStaminaBar(g) {
+  if ((g.titleMode || 'tower') !== 'stage') return
+
+  const { ctx, R, S, safeTop } = V
+  const stamina = g.storage.currentStamina
+  const maxSt = g.storage.maxStamina
+
+  const iconSz = 32 * S
+  const iconX = 10 * S
+  // 头像高度 44S + 间距6S 之后
+  const centerY = safeTop + 6 * S + 44 * S + 10 * S + iconSz / 2
+
+  const stIcon = R.getImg('assets/ui/icon_stamina.png')
+
+  // 量文字
+  const txt = `${stamina}/${maxSt}`
+  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+  const txtW = ctx.measureText(txt).width
+  const padX = 8 * S
+  const capH = 26 * S, capR = capH / 2
+  const txtX = iconX + iconSz + 4 * S
+  const capX = iconX + iconSz * 0.38
+  const capW = txtX + txtW + padX - capX
+  const capY = centerY - capH / 2
+
+  ctx.save()
+  // 画胶囊
+  ctx.beginPath()
+  ctx.moveTo(capX + capR, capY); ctx.lineTo(capX + capW - capR, capY)
+  ctx.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+  ctx.lineTo(capX + capW, capY + capH - capR)
+  ctx.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+  ctx.lineTo(capX + capR, capY + capH)
+  ctx.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+  ctx.lineTo(capX, capY + capR)
+  ctx.quadraticCurveTo(capX, capY, capX + capR, capY)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill()
+
+  // 数字
+  ctx.fillStyle = '#fff'
+  ctx.fillText(txt, txtX, centerY)
+
+  // 图标压上去
+  if (stIcon && stIcon.width > 0) {
+    ctx.drawImage(stIcon, iconX, centerY - iconSz / 2, iconSz, iconSz)
+  } else {
+    ctx.fillStyle = '#3aaeff'; ctx.font = `${14*S}px sans-serif`
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
+    ctx.fillText('⚡', iconX, centerY)
+  }
+
   ctx.restore()
 }
 
@@ -185,7 +248,7 @@ function drawStartBtn(g) {
     ctx.textBaseline = 'middle'
     ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
   } else {
-    // 固定关卡模式
+    // 灵兽秘境模式
     const btnW = W * 0.55
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
@@ -194,23 +257,21 @@ function drawStartBtn(g) {
     const canPlay = poolCount >= 5
 
     if (canPlay) {
-      // 可游玩：显示开始挑战按钮
-      const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
-      grad.addColorStop(0, '#8ac8ff'); grad.addColorStop(1, '#4a8acc')
-      ctx.fillStyle = grad
-      R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
+      // 可游玩：使用 btn_start.png，fallback 蓝色渐变
+      const btnImg = R.getImg('assets/ui/btn_start.png')
+      if (btnImg && btnImg.width > 0) {
+        ctx.drawImage(btnImg, btnX, btnY, btnW, btnH)
+      } else {
+        const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
+        grad.addColorStop(0, '#8ac8ff'); grad.addColorStop(1, '#4a8acc')
+        ctx.fillStyle = grad
+        R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
+      }
       ctx.fillStyle = '#1a2a3c'
       ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText('选择关卡', btnX + btnW / 2, btnY + btnH / 2)
       g._startBtnRect = [btnX, btnY, btnW, btnH]
-
-      // 体力显示
-      const stamina = g.storage.currentStamina
-      const maxSt = g.storage.maxStamina
-      ctx.fillStyle = '#3aaeff'
-      ctx.font = `${10*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`⚡${stamina}/${maxSt}`, W / 2, L.progressY + L.progressH / 2)
     } else {
       // 未解锁
       ctx.fillStyle = 'rgba(100,100,120,0.35)'
@@ -316,77 +377,66 @@ function drawTitleStartDialog(g) {
   ctx.restore()
 }
 
-// ===== 左下角模式切换浮钮 =====
+// ===== 左侧居中模式切换浮钮 =====
 function drawModeSwitchBtn(g) {
-  const { ctx, R, W, S } = V
+  const { ctx, R, W, H, S, safeTop } = V
   const L = getLayout()
   const mode = g.titleMode || 'tower'
   const targetMode = MODE_CFG[mode].switchKey
   const targetCfg = MODE_CFG[targetMode]
 
-  // 竖排布局：图标在上 + 文字在下，整体左上偏移
-  const iconSize  = L.modeSwitchH * 0.72   // 图标缩小
+  // 竖排布局：图标 + 文字，贴屏幕左边缘垂直居中（场景区中央）
+  const iconSize  = 44 * S
   const labelSize = 11 * S
-  const vGap      = 3 * S                  // 图标与文字垂直间距
-  const btnBgImg  = R.getImg('assets/ui/btn_bg.png')
-  const rawBgW    = (btnBgImg && btnBgImg.width > 0 && btnBgImg.height > 0)
-    ? iconSize * (btnBgImg.width / btnBgImg.height)
-    : iconSize
-  const bgW       = Math.max(iconSize, Math.min(rawBgW, iconSize * 2.2))
-  const btnH      = iconSize + vGap + labelSize
-  const btnX      = L.pad - 4 * S          // 往左偏移
-  const btnY      = L.modeSwitchY - 6 * S   // 往上偏移
-  const btnW      = bgW
+  const vGap      = 4 * S
+  const btnW      = iconSize + 8 * S
+  const btnH      = iconSize + vGap + labelSize + 8 * S
+
+  // 垂直居中于场景区（顶栏底到开始按钮之间）
+  const sceneTop    = safeTop + 36 * S
+  const sceneBottom = L.startBtnY
+  const btnCY       = (sceneTop + sceneBottom) / 2
+  const btnX        = 0
+  const btnY        = btnCY - btnH / 2
+  const icx         = btnX + btnW / 2
+  const icy         = btnY + 8 * S + iconSize / 2
 
   ctx.save()
 
-  // 背景图覆盖图标区域
-  if (btnBgImg && btnBgImg.width > 0) {
-    ctx.drawImage(btnBgImg, btnX, btnY, bgW, iconSize)
-  } else {
-    ctx.fillStyle = 'rgba(20,18,38,0.75)'
-    R.rr(btnX, btnY, bgW, iconSize, 8 * S); ctx.fill()
-    ctx.strokeStyle = 'rgba(200,180,120,0.45)'; ctx.lineWidth = 1.5 * S
-    R.rr(btnX, btnY, bgW, iconSize, 8 * S); ctx.stroke()
-  }
+  // 半透明胶囊背景（右侧半圆，左侧贴边）
+  const bgR = btnW / 2
+  ctx.beginPath()
+  ctx.moveTo(btnX, btnY)
+  ctx.lineTo(btnX + btnW - bgR, btnY)
+  ctx.quadraticCurveTo(btnX + btnW, btnY, btnX + btnW, btnY + bgR)
+  ctx.lineTo(btnX + btnW, btnY + btnH - bgR)
+  ctx.quadraticCurveTo(btnX + btnW, btnY + btnH, btnX + btnW - bgR, btnY + btnH)
+  ctx.lineTo(btnX, btnY + btnH)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(255,245,220,0.82)'; ctx.fill()
+  ctx.strokeStyle = 'rgba(200,165,60,0.7)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
 
   // 切换图标
   const btnImg = R.getImg('assets/ui/btn_mode_switch.png')
-  const icx = btnX + bgW / 2
-  const icy = btnY + iconSize / 2
   if (btnImg && btnImg.width > 0) {
-    const pad = 4 * S
-    const drawSz = iconSize - pad * 2
-
+    const drawSz = iconSize * 0.75
     ctx.save()
-    ctx.shadowColor = 'rgba(255,200,80,0.6)'
-    ctx.shadowBlur = 6 * S
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1.5 * S
-    ctx.globalAlpha = 0.5
-    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
-    ctx.restore()
-
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.45)'
-    ctx.shadowBlur = 3 * S
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1.5 * S
-    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
-    ctx.shadowColor = 'transparent'
-    ctx.globalAlpha = 0.35
-    ctx.drawImage(btnImg, icx - drawSz * 0.5, btnY + pad, drawSz, drawSz)
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'
+    ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1.5 * S
+    ctx.drawImage(btnImg, icx - drawSz / 2, icy - drawSz / 2, drawSz, drawSz)
     ctx.restore()
   } else {
-    ctx.fillStyle = 'rgba(255,210,80,0.92)'
-    ctx.font = `${iconSize * 0.48}px sans-serif`
+    ctx.fillStyle = 'rgba(160,110,30,0.9)'
+    ctx.font = `${iconSize * 0.5}px sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('⇆', icx, icy)
   }
 
-  // 文字标签在图标下方居中
-  const labelY = btnY + iconSize + vGap + labelSize * 0.5
-  ctx.fillStyle = 'rgba(255,235,160,0.95)'
-  ctx.strokeStyle = 'rgba(20,10,40,0.7)'
-  ctx.lineWidth = 2.5 * S
+  // 文字标签
+  const labelY = icy + iconSize / 2 + vGap + labelSize * 0.5
+  ctx.fillStyle = '#7a5520'
+  ctx.strokeStyle = 'rgba(255,245,220,0.8)'
+  ctx.lineWidth = 2 * S
   ctx.font = `bold ${labelSize}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.strokeText(targetCfg.name, icx, labelY)
@@ -625,6 +675,23 @@ function drawChestBtn(g) {
 
   ctx.save()
 
+  // 点击缩放动画：按下 → 弹起回弹
+  const pressAge = g._chestPressTime ? (Date.now() - g._chestPressTime) : 9999
+  let pressScale = 1.0
+  if (pressAge < 120) {
+    // 0~120ms：压下，scale 1→0.82
+    pressScale = 1.0 - 0.18 * (pressAge / 120)
+  } else if (pressAge < 300) {
+    // 120~300ms：弹起回弹，用 sin 模拟弹性
+    pressScale = 0.82 + 0.25 * Math.sin(Math.PI * (pressAge - 120) / 180)
+  }
+
+  const cx = btnX + btnSz / 2
+  const cy = btnY + btnSz / 2
+  ctx.translate(cx, cy)
+  ctx.scale(pressScale, pressScale)
+  ctx.translate(-cx, -cy)
+
   const chestImg = R.getImg('assets/ui/icon_chest.png')
   if (chestImg && chestImg.width > 0) {
     ctx.drawImage(chestImg, btnX, btnY, btnSz, btnSz)
@@ -701,12 +768,13 @@ function drawDevResetDialog(g) {
 function rTitle(g) {
   drawSceneArea(g)
   drawTopBar(g)
-  drawPetDisplay(g)
   drawStartBtn(g)
   drawModeSwitchBtn(g)
   drawChestBtn(g)
   drawSidebarBtn(g)
   drawBottomBar(g)
+  drawAvatarWidget(g)
+  drawStaminaBar(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)

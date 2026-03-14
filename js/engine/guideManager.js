@@ -47,10 +47,17 @@ const GUIDE_DEFS = {
   },
 
   // Phase 4: 功能解锁指引
+  dex_unlock: {
+    steps: [
+      { text: '图鉴已解锁！你遇到过的灵宠都会记录在这里', position: 'bottom', highlightId: 'nav_dex' },
+      { text: '图鉴记录每只灵宠的属性与技能，集齐全图鉴是修仙目标之一！', position: 'center' },
+    ],
+  },
   petPool_unlock: {
     steps: [
-      { text: '灵宠池已解锁！在这里管理和培养你的灵宠', position: 'bottom', highlightId: 'nav_pet' },
-      { text: '点击查看灵宠详情，可以投入经验升级', position: 'center' },
+      { text: '恭喜！首只三星灵宠已永久加入——灵宠池与图鉴同时解锁！', position: 'bottom', highlightId: 'nav_pet' },
+      { text: '灵宠池：在这里培养你的永久伙伴，强化后可用于灵兽秘境等玩法。', position: 'center', highlightId: 'nav_pet' },
+      { text: '图鉴：记录你遇到过的每只灵宠，解锁图鉴可带宠出战！', position: 'bottom', highlightId: 'nav_dex' },
     ],
   },
   cultivation_unlock: {
@@ -60,8 +67,8 @@ const GUIDE_DEFS = {
   },
   stage_unlock: {
     steps: [
-      { text: '灵宠池已达 5 只！固定关卡模式已解锁！', position: 'center' },
-      { text: '固定关卡使用灵宠池阵容挑战，修炼加成在此生效', position: 'center' },
+      { text: '灵宠池已达 5 只！灵兽秘境已解锁！', position: 'center' },
+      { text: '灵兽秘境使用灵宠池阵容出战，修炼加成在此完全生效！', position: 'center' },
     ],
   },
   idle_intro: {

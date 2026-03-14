@@ -2202,39 +2202,39 @@ function drawRunBuffIcons(g, topY, bottomY) {
 
 // ===== buff类型 → 图标图片路径映射 =====
 const BUFF_ICON_IMG_MAP = {
-  allAtkPct:       'assets/ui/buff_icon_atk.png',
-  allDmgPct:       'assets/ui/buff_icon_atk.png',
-  counterDmgPct:   'assets/ui/buff_icon_atk.png',
-  skillDmgPct:     'assets/ui/buff_icon_atk.png',
-  healNow:         'assets/ui/buff_icon_heal.png',
-  postBattleHeal:  'assets/ui/buff_icon_heal.png',
-  regenPerTurn:    'assets/ui/buff_icon_heal.png',
-  dmgReducePct:    'assets/ui/buff_icon_def.png',
-  nextDmgReduce:   'assets/ui/buff_icon_def.png',
-  grantShield:     'assets/ui/buff_icon_def.png',
-  immuneOnce:      'assets/ui/buff_icon_def.png',
-  comboDmgPct:     'assets/ui/buff_icon_elim.png',
-  elim3DmgPct:     'assets/ui/buff_icon_elim.png',
-  elim4DmgPct:     'assets/ui/buff_icon_elim.png',
-  elim5DmgPct:     'assets/ui/buff_icon_elim.png',
-  bonusCombo:      'assets/ui/buff_icon_elim.png',
-  extraTimeSec:    'assets/ui/buff_icon_time.png',
-  skillCdReducePct:'assets/ui/buff_icon_time.png',
-  resetAllCd:      'assets/ui/buff_icon_time.png',
-  hpMaxPct:        'assets/ui/buff_icon_hp.png',
-  enemyAtkReducePct:'assets/ui/buff_icon_weaken.png',
-  enemyHpReducePct:'assets/ui/buff_icon_weaken.png',
-  enemyDefReducePct:'assets/ui/buff_icon_weaken.png',
-  eliteAtkReducePct:'assets/ui/buff_icon_weaken.png',
-  eliteHpReducePct:'assets/ui/buff_icon_weaken.png',
-  bossAtkReducePct:'assets/ui/buff_icon_weaken.png',
-  bossHpReducePct: 'assets/ui/buff_icon_weaken.png',
-  nextStunEnemy:   'assets/ui/buff_icon_weaken.png',
-  stunDurBonus:    'assets/ui/buff_icon_weaken.png',
-  extraRevive:     'assets/ui/buff_icon_special.png',
-  skipNextBattle:  'assets/ui/buff_icon_special.png',
-  nextFirstTurnDouble:'assets/ui/buff_icon_special.png',
-  heartBoostPct:   'assets/ui/buff_icon_special.png',
+  allAtkPct:       'assets/ui/battle/buff_icon_atk.png',
+  allDmgPct:       'assets/ui/battle/buff_icon_atk.png',
+  counterDmgPct:   'assets/ui/battle/buff_icon_atk.png',
+  skillDmgPct:     'assets/ui/battle/buff_icon_atk.png',
+  healNow:         'assets/ui/battle/buff_icon_heal.png',
+  postBattleHeal:  'assets/ui/battle/buff_icon_heal.png',
+  regenPerTurn:    'assets/ui/battle/buff_icon_heal.png',
+  dmgReducePct:    'assets/ui/battle/buff_icon_def.png',
+  nextDmgReduce:   'assets/ui/battle/buff_icon_def.png',
+  grantShield:     'assets/ui/battle/buff_icon_def.png',
+  immuneOnce:      'assets/ui/battle/buff_icon_def.png',
+  comboDmgPct:     'assets/ui/battle/buff_icon_elim.png',
+  elim3DmgPct:     'assets/ui/battle/buff_icon_elim.png',
+  elim4DmgPct:     'assets/ui/battle/buff_icon_elim.png',
+  elim5DmgPct:     'assets/ui/battle/buff_icon_elim.png',
+  bonusCombo:      'assets/ui/battle/buff_icon_elim.png',
+  extraTimeSec:    'assets/ui/battle/buff_icon_time.png',
+  skillCdReducePct:'assets/ui/battle/buff_icon_time.png',
+  resetAllCd:      'assets/ui/battle/buff_icon_time.png',
+  hpMaxPct:        'assets/ui/battle/buff_icon_hp.png',
+  enemyAtkReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  enemyHpReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  enemyDefReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  eliteAtkReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  eliteHpReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  bossAtkReducePct:'assets/ui/battle/buff_icon_weaken.png',
+  bossHpReducePct: 'assets/ui/battle/buff_icon_weaken.png',
+  nextStunEnemy:   'assets/ui/battle/buff_icon_weaken.png',
+  stunDurBonus:    'assets/ui/battle/buff_icon_weaken.png',
+  extraRevive:     'assets/ui/battle/buff_icon_special.png',
+  skipNextBattle:  'assets/ui/battle/buff_icon_special.png',
+  nextFirstTurnDouble:'assets/ui/battle/buff_icon_special.png',
+  heartBoostPct:   'assets/ui/battle/buff_icon_special.png',
 }
 
 // emoji回退映射（图片未加载时使用）
@@ -2465,11 +2465,16 @@ function drawVictoryOverlay(g) {
     }
   }
 
-  // ---- 局外加成（修炼经验） ----
+  // ---- 局外加成（修炼经验 + 宠物经验） ----
   const floorExp = (g.runExp || 0) - (g._floorStartExp || 0)
   if (floorExp > 0) {
     const animExp = Math.round(floorExp * easeP)
-    outRunLines.push({ label: '修炼经验', text: `+${animExp}`, color: '#6A5ACD', bold: true, hasAnim: true })
+    outRunLines.push({ label: '修炼经验', text: `+${animExp}`, color: '#6A5ACD', bold: true, hasAnim: true, icon: 'assets/ui/icon_cult_exp.png' })
+  }
+  const petExp = g._lastRunPetExp || 0
+  if (petExp > 0) {
+    const animPetExp = Math.round(petExp * easeP)
+    outRunLines.push({ label: '宠物经验', text: `+${animPetExp}`, color: '#2E9E6B', bold: true, hasAnim: true, icon: 'assets/ui/icon_pet_exp.png' })
   }
 
   const allLines = [...inRunLines, ...outRunLines]
@@ -2480,9 +2485,9 @@ function drawVictoryOverlay(g) {
   }
 
   // ==== 布局计算（只有上半部分信息+血条，不含奖励选项） ====
-  const titleH = 26*S
-  const speedLineH = hasSpeed ? 16*S : 0
-  const growthLineH = 22*S
+  const titleH = 34*S
+  const speedLineH = hasSpeed ? 18*S : 0
+  const growthLineH = 26*S
   const sectionTitleH = 20*S  // 区块小标题高度
   const hpBarSectionH = hpUp > 0 ? 28*S : 0
   const inRunAreaH = inRunLines.length > 0 ? sectionTitleH + inRunLines.length * growthLineH + hpBarSectionH : 0
@@ -2498,49 +2503,67 @@ function drawVictoryOverlay(g) {
   let curY = panelY + innerPad
 
   // ==== 标题 ====
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  ctx.fillText('战斗胜利', W*0.5, curY + 16*S)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+  ctx.fillText('战斗胜利', W*0.5, curY + titleH * 0.5)
   curY += titleH
 
   // ==== 速通信息 ====
   if (hasSpeed) {
-    ctx.fillStyle = '#C07000'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外奖励`, W*0.5, curY + 10*S)
+    ctx.fillStyle = '#C07000'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`⚡ 速通达成 (${g.lastTurnCount}回合) — 额外奖励`, W*0.5, curY + speedLineH * 0.5)
     curY += speedLineH
   }
 
   // ==== 成长信息区（按局内/局外分区，带数值滚动动画）====
   const growthX = panelX + innerPad
 
-  // 绘制一组信息行的通用函数
+  // 绘制一组信息行：图标列(固定宽) | 标签列(固定宽) | 数值列(右对齐)
+  const iconColW = 22 * S   // 图标列宽（无图标时留空）
+  const labelColW = 60 * S  // 标签列宽
+  const valueX = panelX + panelW - innerPad  // 数值右对齐终点
+
   function _drawGrowthLines(lines) {
     lines.forEach(line => {
       curY += growthLineH
-      ctx.textAlign = 'left'
+      const midY = curY - growthLineH * 0.35  // 行垂直中线
+
+      // 图标（固定列，垂直居中）
+      if (line.icon) {
+        const iconSz = 18 * S
+        const iconImg = R.getImg(line.icon)
+        if (iconImg && iconImg.width > 0) {
+          ctx.drawImage(iconImg, growthX, midY - iconSz / 2, iconSz, iconSz)
+        }
+      }
+
+      // 标签（图标列之后，垂直居中）
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
       ctx.fillStyle = '#8B7B70'
       ctx.font = `${11*S}px "PingFang SC",sans-serif`
-      ctx.fillText(line.label, growthX, curY - 4*S)
-      const labelW = ctx.measureText(line.label).width
+      ctx.fillText(line.label, growthX + iconColW, midY)
+
+      // 数值（右对齐，垂直居中）
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
       ctx.fillStyle = line.color
       ctx.font = `${line.bold ? 'bold ' : ''}${13*S}px "PingFang SC",sans-serif`
       if (line.hasAnim && animProgress < 1) {
         ctx.save()
         ctx.shadowColor = line.color; ctx.shadowBlur = 6*S
-        ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+        ctx.fillText(line.text, valueX, midY)
         ctx.shadowBlur = 0
         ctx.restore()
       } else {
-        ctx.fillText(line.text, growthX + labelW + 8*S, curY - 4*S)
+        ctx.fillText(line.text, valueX, midY)
       }
     })
   }
 
   // ---- 局内加成区 ----
   if (inRunLines.length > 0) {
-    ctx.textAlign = 'left'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText('▸ 本局加成', growthX, curY + sectionTitleH - 6*S)
+    ctx.fillText('▸ 本局加成', growthX, curY + sectionTitleH * 0.5)
     curY += sectionTitleH
     _drawGrowthLines(inRunLines)
 
@@ -2593,9 +2616,9 @@ function drawVictoryOverlay(g) {
   curY += 4*S
   // ---- 局外加成区 ----
   if (outRunLines.length > 0) {
-    ctx.textAlign = 'left'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText('▸ 修炼收益', growthX, curY + sectionTitleH - 6*S)
+    ctx.fillText('▸ 修炼收益', growthX, curY + sectionTitleH * 0.5)
     curY += sectionTitleH
     _drawGrowthLines(outRunLines)
   }
@@ -2740,8 +2763,8 @@ function _drawItemMenu(g) {
 
   // 道具列表
   const items = [
-    { key: 'reset', name: '乾坤重置', desc: '重排棋盘上所有灵珠', obtained: g.itemResetObtained, used: g.itemResetUsed, icon: 'assets/ui/icon_item_reset.png', color: '#66ccff' },
-    { key: 'heal',  name: '回春妙术', desc: '立即恢复全部气血', obtained: g.itemHealObtained, used: g.itemHealUsed, icon: 'assets/ui/icon_item_heal.png', color: '#44ff88' },
+    { key: 'reset', name: '乾坤重置', desc: '重排棋盘上所有灵珠', obtained: g.itemResetObtained, used: g.itemResetUsed, icon: 'assets/ui/battle/icon_item_reset.png', color: '#66ccff' },
+    { key: 'heal',  name: '回春妙术', desc: '立即恢复全部气血', obtained: g.itemHealObtained, used: g.itemHealUsed, icon: 'assets/ui/battle/icon_item_heal.png', color: '#44ff88' },
   ]
 
   g._itemMenuRects = []
@@ -3380,26 +3403,26 @@ function drawTutorialOverlay(g) {
     const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
     ctx.globalAlpha = alpha
 
-    // 面板背景
+    // 面板背景（浅米黄暖色，与其他弹框一致）
     const bgGrd = ctx.createLinearGradient(px, py, px, py + ph)
-    bgGrd.addColorStop(0, 'rgba(20,14,40,0.97)')
-    bgGrd.addColorStop(1, 'rgba(10,8,25,0.97)')
+    bgGrd.addColorStop(0, 'rgba(252,246,228,0.97)')
+    bgGrd.addColorStop(1, 'rgba(244,234,208,0.97)')
     _storyRR(ctx, px, py, pw, ph, 14 * S)
     ctx.fillStyle = bgGrd
     ctx.fill()
 
     // 金色外边框
     _storyRR(ctx, px, py, pw, ph, 14 * S)
-    ctx.strokeStyle = 'rgba(200,160,60,0.7)'
+    ctx.strokeStyle = 'rgba(200,160,60,0.6)'
     ctx.lineWidth = 1.5 * S
     ctx.stroke()
 
-    // 顶部装饰条
+    // 顶部装饰条（浅金黄，与其他弹框标题条一致）
     _storyRR(ctx, px, py, pw, 44 * S, 14 * S)
     const hGrd = ctx.createLinearGradient(px, py, px + pw, py)
-    hGrd.addColorStop(0, 'rgba(90,50,10,0.9)')
-    hGrd.addColorStop(0.5, 'rgba(150,100,20,0.9)')
-    hGrd.addColorStop(1, 'rgba(90,50,10,0.9)')
+    hGrd.addColorStop(0, 'rgba(200,158,60,0.85)')
+    hGrd.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+    hGrd.addColorStop(1, 'rgba(200,158,60,0.85)')
     ctx.fillStyle = hGrd
     ctx.fill()
 
@@ -3408,38 +3431,39 @@ function drawTutorialOverlay(g) {
     const iconX = px + 38 * S, iconY = py + 22 * S
     ctx.beginPath()
     ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(255,200,60,0.2)'
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,200,60,0.8)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'
     ctx.lineWidth = 1.5 * S
     ctx.stroke()
-    ctx.fillStyle = '#ffd060'
+    ctx.fillStyle = '#5a3000'
     ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(card.icon || '★', iconX, iconY)
 
-    // 标题
-    ctx.fillStyle = '#ffe080'
+    // 标题（深棕色，与其他弹框一致）
+    ctx.fillStyle = '#3a1a00'
     ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText(card.heading, W / 2 + 12 * S, py + 29 * S)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(card.heading, W / 2 + 12 * S, py + 22 * S)
 
     // 分割线
-    ctx.strokeStyle = 'rgba(180,140,40,0.35)'
+    ctx.strokeStyle = 'rgba(160,120,40,0.25)'
     ctx.lineWidth = 1 * S
     ctx.beginPath()
     ctx.moveTo(px + 20 * S, py + 50 * S)
     ctx.lineTo(px + pw - 20 * S, py + 50 * S)
     ctx.stroke()
 
-    // 正文行
+    // 正文行（深棕灰，可读性强）
     const lineH = 28 * S
     const textStartY = py + 78 * S
-    ctx.fillStyle = '#d8cfc0'
+    ctx.fillStyle = '#4a3820'
     ctx.font = `${13 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
     ;(card.lines || []).forEach((line, i) => {
       ctx.fillText(line, W / 2, textStartY + i * lineH)
     })
@@ -3447,7 +3471,7 @@ function drawTutorialOverlay(g) {
     // 备注行
     if (card.note) {
       const noteY = textStartY + (card.lines || []).length * lineH + 16 * S
-      ctx.fillStyle = 'rgba(255,200,80,0.85)'
+      ctx.fillStyle = '#b06010'
       ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
       ctx.fillText(card.note, W / 2, noteY)
     }
@@ -3462,7 +3486,7 @@ function drawTutorialOverlay(g) {
       for (let i = 0; i < total; i++) {
         ctx.beginPath()
         ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-        ctx.fillStyle = i === data.storyPage ? '#ffd060' : 'rgba(255,200,80,0.28)'
+        ctx.fillStyle = i === data.storyPage ? '#c07820' : 'rgba(160,120,40,0.3)'
         ctx.fill()
       }
     }
@@ -3470,9 +3494,10 @@ function drawTutorialOverlay(g) {
     // 点击继续提示
     const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.1)
     ctx.globalAlpha = alpha * (0.5 + 0.4 * pulse)
-    ctx.fillStyle = '#a09070'
+    ctx.fillStyle = '#8a6030'
     ctx.font = `${10 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
     const isLast = data.storyPage >= total - 1
     ctx.fillText(isLast ? '点击进入战斗' : '点击继续', W / 2, py + ph - 16 * S)
 
@@ -3801,49 +3826,66 @@ function drawTutorialOverlay(g) {
   }
 }
 
-// ===== 经验指示器 =====
+// ===== 经验指示器（图标 + 暗色胶囊数值，风格同首页修炼经验）=====
 function _drawExpIndicator(g, x, y, w, S) {
-  const { ctx, TH } = V
+  const { ctx: c, R } = V
   const exp = g.runExp || 0
   const pulse = g._expIndicatorPulse || 0
-  const sc = pulse > 0 ? 1 + 0.3 * (pulse / 12) : 1
 
-  const iconSz = 22 * S
+  const iconSz = 28 * S
   const iconX = x + (w - iconSz) / 2
   const iconY = y
-  const cx = iconX + iconSz / 2
-  const cy = iconY + iconSz * 0.5
+  const centerY = iconY + iconSz / 2
+
   // 记录图标中心位置供飘字飞向
-  g._expIndicatorX = cx
-  g._expIndicatorY = cy
+  g._expIndicatorX = iconX + iconSz / 2
+  g._expIndicatorY = centerY
 
-  ctx.save()
-  ctx.translate(cx, cy)
-  ctx.scale(sc, sc)
-  ctx.translate(-cx, -cy)
+  c.save()
 
-  // 背景圆
-  ctx.fillStyle = pulse > 0 ? 'rgba(212,168,67,0.35)' : 'rgba(0,0,0,0.4)'
-  ctx.beginPath()
-  ctx.arc(cx, cy, 14*S, 0, Math.PI*2)
-  ctx.fill()
-  // 边框
-  ctx.strokeStyle = pulse > 0 ? 'rgba(255,215,0,0.8)' : 'rgba(212,175,55,0.4)'
-  ctx.lineWidth = 1.2*S
-  ctx.beginPath()
-  ctx.arc(cx, cy, 14*S, 0, Math.PI*2)
-  ctx.stroke()
-  // "EXP" 文字
-  ctx.fillStyle = pulse > 0 ? '#FFD700' : '#E8D5A3'
-  ctx.font = `bold ${7*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('EXP', cx, cy - 3*S)
-  // 数字
-  ctx.fillStyle = '#fff'
-  ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`${exp}`, cx, cy + 7*S)
+  // 数值胶囊背景（从图标右侧 38% 处开始，向右延伸）
+  const expText = `${exp}`
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  const txtW = c.measureText(expText).width
+  const padX = 5 * S
+  const capH = 20 * S, capR = capH / 2
+  const txtX = iconX + iconSz + 2 * S
+  const capX = iconX + iconSz * 0.38
+  const capW = txtX + txtW + padX - capX
+  const capY = centerY - capH / 2
 
-  ctx.restore()
+  // 胶囊
+  c.beginPath()
+  c.moveTo(capX + capR, capY)
+  c.lineTo(capX + capW - capR, capY)
+  c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+  c.lineTo(capX + capW, capY + capH - capR)
+  c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+  c.lineTo(capX + capR, capY + capH)
+  c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+  c.lineTo(capX, capY + capR)
+  c.quadraticCurveTo(capX, capY, capX + capR, capY)
+  c.closePath()
+  c.fillStyle = pulse > 0 ? 'rgba(180,130,10,0.75)' : 'rgba(0,0,0,0.52)'
+  c.fill()
+
+  // 数值文字
+  c.fillStyle = pulse > 0 ? '#FFD700' : '#fff8cc'
+  c.fillText(expText, txtX, centerY)
+
+  // 经验图标（压在胶囊左端上层）
+  const expIcon = R.getImg('assets/ui/icon_cult_exp.png')
+  if (expIcon && expIcon.width > 0) {
+    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
+  } else {
+    c.fillStyle = '#E8D5A3'
+    c.font = `${iconSz * 0.7}px sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('✨', iconX + iconSz / 2, centerY)
+  }
+
+  c.restore()
 }
 
 // ===== 经验飘字绘制 =====

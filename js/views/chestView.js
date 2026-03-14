@@ -12,6 +12,7 @@
 const V = require('./env')
 const { CHEST_MILESTONES, getUnclaimedChests } = require('../data/chestConfig')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
+const MusicMgr = require('../runtime/music')
 
 // ===== 队列状态 =====
 let _queue = []       // 待展示的里程碑 id 数组
@@ -32,7 +33,7 @@ function initChestQueue(g) {
   _curMilestone = null
   _curRewards = null
   if (_queue.length > 0) {
-    _claimCurrent(g)
+    _claimCurrent(g, true)  // 延迟音效，等宝箱打开声先播完
   }
 }
 
@@ -40,12 +41,23 @@ function hasMore() {
   return _qIdx < _queue.length
 }
 
-function _claimCurrent(g) {
+function _claimCurrent(g, delaySound = false) {
   const id = _queue[_qIdx]
   if (!id) { _curMilestone = null; _curRewards = null; return }
   _curMilestone = CHEST_MILESTONES.find(m => m.id === id) || null
   const result = g.storage.claimChestReward(id)
   _curRewards = Array.isArray(result) ? result : []
+
+  // 播放奖励音效，取首个奖励类型决定音色
+  const primaryType = (_curRewards[0] || {}).type
+  if (primaryType) {
+    if (delaySound) {
+      // 首次展示：等宝箱打开音效完成后再播放
+      setTimeout(() => MusicMgr.playChestReward(primaryType), 420)
+    } else {
+      MusicMgr.playChestReward(primaryType)
+    }
+  }
 }
 
 // ===== 渲染 =====
@@ -70,7 +82,12 @@ function drawChestOverlay(g) {
   c.fillRect(0, 0, W, H)
 
   // ── 横幅 ──
-  _drawBanner(c, R, W, H, S)
+  const bannerBottom = _drawBanner(c, R, W, H, S)
+
+  // ── 故事描述 ──
+  if (_curMilestone.desc) {
+    _drawDesc(c, W, S, _curMilestone.desc, bannerBottom)
+  }
 
   // ── 奖励图标 ──
   if (_curRewards && _curRewards.length > 0) {
@@ -121,6 +138,52 @@ function _drawBanner(c, R, W, H, S) {
   c.shadowColor = 'rgba(255,220,100,0.8)'
   c.shadowBlur = 5 * S
   c.fillText(_curMilestone.name, W / 2, bannerY + bannerH / 2)
+  c.restore()
+
+  return bannerY + bannerH
+}
+
+function _drawDesc(c, W, S, text, topY) {
+  const { H } = V
+  const maxW = W * 0.78
+  const lineH = 18 * S
+  const fontSize = 12 * S
+
+  c.save()
+  c.font = `${fontSize}px "PingFang SC", sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'top'
+
+  // 手动换行：按字符宽度切割
+  const chars = text.split('')
+  const lines = []
+  let cur = ''
+  for (const ch of chars) {
+    const testW = c.measureText(cur + ch).width
+    if (testW > maxW && cur.length > 0) {
+      lines.push(cur)
+      cur = ch
+    } else {
+      cur += ch
+    }
+  }
+  if (cur) lines.push(cur)
+
+  const totalH = lines.length * lineH
+  // 垂直居中于横幅底部与奖励区顶部之间
+  const rewardTop = H * 0.48
+  const startY = topY + Math.max(8 * S, (rewardTop - topY - totalH) / 2)
+
+  // 淡金色描边 + 暖白主文字
+  lines.forEach((line, i) => {
+    const y = startY + i * lineH
+    c.strokeStyle = 'rgba(80,40,0,0.6)'
+    c.lineWidth = 3 * S
+    c.strokeText(line, W / 2, y)
+    c.fillStyle = 'rgba(255,240,190,0.92)'
+    c.fillText(line, W / 2, y)
+  })
+
   c.restore()
 }
 
@@ -237,6 +300,44 @@ function _drawSingleIcon(c, R, S, g, r, ix, iy, sz) {
       break
     }
 
+    case 'avatar': {
+      // 新修炼形象：显示立绘图 + 金色边框
+      const CHAR_SIT = {
+        boy1: 'assets/hero/char_boy1.png', girl1: 'assets/hero/char_girl1.png',
+        boy2: 'assets/hero/char_boy2.png', girl2: 'assets/hero/char_girl2.png',
+        boy3: 'assets/hero/char_boy3.png', girl3: 'assets/hero/char_girl3.png',
+      }
+      const sitPath = CHAR_SIT[r.avatarId]
+      const sitImg = sitPath ? R.getImg(sitPath) : null
+      if (sitImg && sitImg.width > 0) {
+        c.save()
+        R.rr(ix, iy, sz, sz, 8 * S)
+        c.clip()
+        // 裁正方形（取顶部居中）
+        const cropSz = Math.min(sitImg.width, sitImg.height * 0.65)
+        const srcX = (sitImg.width - cropSz) / 2
+        c.drawImage(sitImg, srcX, 0, cropSz, cropSz, ix, iy, sz, sz)
+        c.restore()
+        // 金色外框
+        c.strokeStyle = '#ffe066'; c.lineWidth = 2.5 * S
+        R.rr(ix, iy, sz, sz, 8 * S); c.stroke()
+        // 顶部"新形象"标签
+        const tagH = 18 * S, tagW = sz * 0.7
+        const tagX = ix + (sz - tagW) / 2, tagY = iy + sz - tagH
+        c.fillStyle = 'rgba(180,130,10,0.88)'
+        R.rr(tagX, tagY, tagW, tagH, tagH / 2); c.fill()
+        c.fillStyle = '#fff8cc'; c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText('新形象', ix + sz / 2, tagY + tagH / 2)
+      } else {
+        _drawCircleBg(c, ix, iy, sz, 'rgba(180,130,20,0.7)')
+        c.fillStyle = '#fff'; c.font = `${sz * 0.4}px sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText('🧙', ix + sz / 2, iy + sz / 2)
+      }
+      break
+    }
+
     case 'pet': {
       const basePet = r.petId ? getPetById(r.petId) : null
       if (basePet) {
@@ -296,6 +397,12 @@ function _drawIconBox(c, R, S, img, ix, iy, sz, emoji, bgColor) {
   }
 }
 
+const _AVATAR_LABEL = {
+  boy1: '修仙少年', girl1: '灵木仙子',
+  boy2: '剑灵少侠', girl2: '星月仙子',
+  boy3: '天罡道童', girl3: '花灵仙子',
+}
+
 function _rewardLabel(r) {
   switch (r.type) {
     case 'fragment': {
@@ -306,6 +413,7 @@ function _rewardLabel(r) {
     case 'exp':    return `+${r.amount}`
     case 'petExp': return `+${r.amount}`
     case 'stamina':return `+${r.amount}`
+    case 'avatar': return _AVATAR_LABEL[r.avatarId] || r.avatarId
     default:       return ''
   }
 }
@@ -317,6 +425,7 @@ function _rewardTypeName(r) {
     case 'exp':      return '修炼经验'
     case 'petExp':   return '宠物经验'
     case 'stamina':  return '体力'
+    case 'avatar':   return '修炼形象'
     default:         return ''
   }
 }

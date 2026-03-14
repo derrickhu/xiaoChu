@@ -142,7 +142,7 @@ function rPetDetail(g) {
   if (!isUnowned && !_swiping && !_slideAnim) {
     const pool = _getFilteredPool(g)
     const idx = _getCurrentIndex(g)
-    const arrowY = safeTop + 46 * S + W * 0.52 / 2
+    const arrowY = safeTop + 72 * S + W * 0.30 / 2
     const arrowSz = 12 * S
     const hitW = 36 * S, hitH = 48 * S
     c.save()
@@ -217,31 +217,30 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = 'rgba(0,0,0,0.25)'
   c.fillRect(0, 0, W, H)
 
-  // 头像（半透明）
-  const avatarAreaTop = safeTop + 46 * S
-  const avatarSize = W * 0.52
+  // 头像
+  const avatarAreaTop = safeTop + 72 * S
+  const avatarSize = W * 0.30
   const avatarX = (W - avatarSize) / 2
   const avatarY = avatarAreaTop
 
+  // 属性光环
   c.save()
-  c.globalAlpha = 0.5
   const glowCx = avatarX + avatarSize / 2
   const glowCy = avatarY + avatarSize / 2
-  const glowR = avatarSize * 0.7
+  const glowR = avatarSize * 0.72
   const glow = c.createRadialGradient(glowCx, glowCy, glowR * 0.2, glowCx, glowCy, glowR)
-  glow.addColorStop(0, ac + '50')
-  glow.addColorStop(0.5, ac + '18')
+  glow.addColorStop(0, ac + '45')
+  glow.addColorStop(0.5, ac + '15')
   glow.addColorStop(1, ac + '00')
   c.fillStyle = glow
-  c.beginPath()
-  c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2)
-  c.fill()
+  c.beginPath(); c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2); c.fill()
+  c.restore()
 
   const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
   const img = R.getImg(avatarPath)
   if (img && img.width > 0) {
     c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
     c.clip()
     const aw = img.width, ah = img.height
     const scale = Math.max(avatarSize / aw, avatarSize / ah)
@@ -249,10 +248,18 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
     c.restore()
   }
-  c.restore()
+
+  // 碎片宠物头像框（灰色通用框）
+  const fragFrame = R.getImg('assets/ui/frame_fragment.png')
+  if (fragFrame && fragFrame.width > 0) {
+    const frameSz = avatarSize * 1.22
+    const frameX = avatarX + (avatarSize - frameSz) / 2
+    const frameY = avatarY + (avatarSize - frameSz) / 2
+    c.drawImage(fragFrame, frameX, frameY, frameSz, frameSz)
+  }
 
   // 名称区域
-  let cy = avatarY + avatarSize + 6 * S
+  let cy = avatarY + avatarSize * 1.11 + 10 * S
   const orbPath = `assets/orbs/orb_${basePet.attr || 'metal'}.png`
   const orbImg = R.getImg(orbPath)
   const orbSz = 22 * S
@@ -432,74 +439,75 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = 'rgba(0,0,0,0.15)'
   c.fillRect(0, 0, W, H)
 
-  // === 经验池图标+数值（返回按钮右侧，与宠物池页面保持一致） ===
-  const expIcon = R.getImg('assets/ui/icon_exp_pool.png')
+  // === 经验池图标+数值（返回按钮右侧） ===
+  const expIcon = R.getImg('assets/ui/icon_pet_exp.png')
   const expIconCenterY = safeTop + 26 * S
   if (expIcon && expIcon.width > 0) {
-    const iconSz = 48 * S
+    const iconSz = 32 * S
     const iconX = 52 * S
     const iconY = expIconCenterY - iconSz / 2
-    c.save()
-    // 外层光晕
-    const ecx = iconX + iconSz / 2, ecy = iconY + iconSz / 2
-    const grad1 = c.createRadialGradient(ecx, ecy, iconSz * 0.3, ecx, ecy, iconSz * 0.7)
-    grad1.addColorStop(0, 'rgba(255,220,100,0.4)')
-    grad1.addColorStop(1, 'rgba(255,220,100,0)')
-    c.fillStyle = grad1
-    c.beginPath(); c.arc(ecx, ecy, iconSz * 0.7, 0, Math.PI * 2); c.fill()
-    // 中层光晕
-    const grad2 = c.createRadialGradient(ecx, ecy, iconSz * 0.2, ecx, ecy, iconSz * 0.5)
-    grad2.addColorStop(0, 'rgba(100,220,255,0.3)')
-    grad2.addColorStop(1, 'rgba(100,220,255,0)')
-    c.fillStyle = grad2
-    c.beginPath(); c.arc(ecx, ecy, iconSz * 0.5, 0, Math.PI * 2); c.fill()
-    c.restore()
-    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
-    // 经验值文字（白色+黑色描边，与宠物池一致）
+    // 先量文字宽度，画胶囊（从图标中心延伸到数字右侧），再画图标压上去
+    const txtX = iconX + iconSz + 4 * S
+    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'middle'
+    const txtW = c.measureText(`${expPool}`).width
+    const padX = 8 * S
+    const capH = 26 * S, capR = capH / 2
+    const capX = iconX + iconSz * 0.38
+    const capW = txtX + txtW + padX - capX
+    const capY = expIconCenterY - capH / 2
+    c.save()
+    c.beginPath()
+    c.moveTo(capX + capR, capY); c.lineTo(capX + capW - capR, capY)
+    c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+    c.lineTo(capX + capW, capY + capH - capR)
+    c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+    c.lineTo(capX + capR, capY + capH)
+    c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+    c.lineTo(capX, capY + capR)
+    c.quadraticCurveTo(capX, capY, capX + capR, capY)
+    c.closePath()
+    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
+    c.restore()
+
+    // 数字
     c.fillStyle = '#fff'
-    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    c.strokeStyle = 'rgba(0,0,0,0.7)'
-    c.lineWidth = 3.5 * S
-    c.strokeText(`${expPool}`, iconX + iconSz + 10 * S, expIconCenterY)
-    c.fillText(`${expPool}`, iconX + iconSz + 10 * S, expIconCenterY)
+    c.fillText(`${expPool}`, txtX, expIconCenterY)
+
+    // 图标压在胶囊上方
+    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
   } else {
     c.fillStyle = '#fff'
-    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    c.strokeStyle = 'rgba(0,0,0,0.7)'
-    c.lineWidth = 3.5 * S
-    c.strokeText(`${expPool}`, 56 * S, expIconCenterY - 8 * S)
-    c.fillText(`${expPool}`, 56 * S, expIconCenterY - 8 * S)
+    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillText(`${expPool}`, 56 * S, expIconCenterY)
   }
 
   // === 顶部大图展示区 ===
-  const avatarAreaTop = safeTop + 46 * S
-  const avatarSize = W * 0.52
+  const avatarAreaTop = safeTop + 72 * S
+  const avatarSize = W * 0.30
   const avatarX = (W - avatarSize) / 2
   const avatarY = avatarAreaTop
 
-  // 属性色光环（柔和，无边框）
+  // 属性色光环
   c.save()
   const glowCx = avatarX + avatarSize / 2
   const glowCy = avatarY + avatarSize / 2
-  const glowR = avatarSize * 0.7
+  const glowR = avatarSize * 0.72
   const glow = c.createRadialGradient(glowCx, glowCy, glowR * 0.2, glowCx, glowCy, glowR)
   glow.addColorStop(0, ac + '50')
   glow.addColorStop(0.5, ac + '18')
   glow.addColorStop(1, ac + '00')
   c.fillStyle = glow
-  c.beginPath()
-  c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2)
-  c.fill()
+  c.beginPath(); c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2); c.fill()
   c.restore()
 
-  // 头像（无边框）
+  // 头像
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
   const img = R.getImg(avatarPath)
   if (img && img.width > 0) {
     c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
     c.clip()
     const aw = img.width, ah = img.height
     const scale = Math.max(avatarSize / aw, avatarSize / ah)
@@ -509,17 +517,28 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   } else {
     c.fillStyle = ac
     c.globalAlpha = 0.2
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
     c.fill()
     c.globalAlpha = 1
     c.fillStyle = '#fff'
-    c.font = `bold ${36*S}px "PingFang SC",sans-serif`
+    c.font = `bold ${28*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
   }
 
+  // 属性对应头像框
+  const _ATTR_FRAME = { metal: 'yellow', wood: 'green', water: 'blue', fire: 'red', earth: 'brown' }
+  const frameColor = _ATTR_FRAME[poolPet.attr] || 'blue'
+  const frameImg = R.getImg(`assets/ui/frame_fragment_${frameColor}.png`)
+  if (frameImg && frameImg.width > 0) {
+    const frameSz = avatarSize * 1.22
+    const frameX = avatarX + (avatarSize - frameSz) / 2
+    const frameY = avatarY + (avatarSize - frameSz) / 2
+    c.drawImage(frameImg, frameX, frameY, frameSz, frameSz)
+  }
+
   // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
-  let cy = avatarY + avatarSize + 6 * S
+  let cy = avatarY + avatarSize * 1.11 + 10 * S
 
   const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
   const orbImg = R.getImg(orbPath)

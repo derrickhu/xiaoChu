@@ -89,7 +89,7 @@ function startRun(g) {
   // 修炼经验：局内累积字段初始化
   for (const k of EXP_FIELDS) g[k] = 0
   g._floorStartExp = 0; g._floorExpSummary = null; g._expFloats = []
-  g.storage._d.totalRuns++; g.storage._save()
+  // totalRuns 在 endRun 时计数（胜/败才算完成一局，saveAndExit 不计）
   // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
   if (tutorial.needsTutorial()) {
     tutorial.start(g)
@@ -121,8 +121,13 @@ function nextFloor(g) {
   g.enemyBuffs = []
   g.heroShield = 0
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
-  g._tutorialJustDone = g._tutorialJustDone && g.floor === 0  // 仅保留到第1层
+  const wasTutorialJustDone = g._tutorialJustDone && g.floor === 0
+  g._tutorialJustDone = wasTutorialJustDone
   g.floor++
+  // 教学结束后首次进入正式关卡，展示通天塔玩法介绍
+  if (wasTutorialJustDone && g.floor === 1) {
+    g._rogueIntro = { page: 0, alpha: 0 }
+  }
   // 通关检测：超过最大层数即为通关
   if (g.floor > MAX_FLOOR) {
     g.cleared = true
@@ -243,6 +248,8 @@ function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
+  // 胜/败才算完成一局
+  g.storage._d.totalRuns++; g.storage._save()
   g.storage.clearRunState()
   if (g.storage.userAuthorized) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
@@ -252,6 +259,7 @@ function endRun(g) {
   if (g._lastRunExp > 0 && !g.storage.isGuideShown('cultivation_unlock')) {
     g._pendingGuide = 'cultivation_unlock'
   }
+  // 灵宠池 & 图鉴解锁指引已在首只宠物入池时触发，此处不再重复
   if (g.cleared) {
     MusicMgr.playLevelUp()
   } else {

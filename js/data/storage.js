@@ -39,14 +39,15 @@ function defaultPersist() {
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
     cultivation: {
-      level: 0,              // 人物等级
+      level: 1,              // 人物等级（从1级起始）
       exp: 0,                // 当前等级已积累经验
       totalExpEarned: 0,     // 历史累计获得经验（统计用）
       skillPoints: 0,        // 可用修炼点
       levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
       realmBreakSeen: 0,     // 已看过突破动画的最高境界索引
     },
-    selectedAvatar: 'boy1',  // 当前选择的头像ID
+    selectedAvatar: 'boy1',   // 当前选择的头像ID
+    unlockedAvatars: ['boy1', 'girl1'], // 已解锁的形象列表
     // Phase 2：灵宠池
     petPool: [],             // 灵宠池宠物列表
     petExpPool: 0,           // 共享宠物经验池（未分配）
@@ -84,7 +85,7 @@ const migrations = {
   1: (d) => {
     if (!d.cultivation) {
       d.cultivation = {
-        level: 0, exp: 0, totalExpEarned: 0, skillPoints: 0,
+        level: 1, exp: 0, totalExpEarned: 0, skillPoints: 0,
         levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
         realmBreakSeen: 0,
       }
@@ -244,6 +245,23 @@ class Storage {
   get selectedAvatar() { return this._d.selectedAvatar || 'boy1' }
   setSelectedAvatar(id) { this._d.selectedAvatar = id; this._save() }
 
+  get unlockedAvatars() {
+    if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
+    return this._d.unlockedAvatars
+  }
+
+  isAvatarUnlocked(avatarId) {
+    return this.unlockedAvatars.includes(avatarId)
+  }
+
+  unlockAvatar(avatarId) {
+    if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
+    if (!this._d.unlockedAvatars.includes(avatarId)) {
+      this._d.unlockedAvatars.push(avatarId)
+      this._save()
+    }
+  }
+
   /**
    * 消耗修炼点升级指定属性
    * @param {string} key - 属性键名
@@ -274,7 +292,7 @@ class Storage {
     if (amount <= 0) return 0
     const { MAX_LEVEL, expToNextLevel } = require('./cultivationConfig')
     const cult = this._d.cultivation
-    if (cult.level == null) cult.level = 0
+    if (cult.level == null || cult.level < 1) cult.level = 1
     if (cult.skillPoints == null) cult.skillPoints = 0
     cult.exp += amount
     cult.totalExpEarned += amount
@@ -458,7 +476,13 @@ class Storage {
   }
 
   _recoverStamina() {
-    const s = this._d.stamina
+    let s = this._d.stamina
+    // 修复被错误覆盖为字符串/数字的 stamina（宝箱奖励曾错误写成 stamina = stamina + amount）
+    if (!s || typeof s !== 'object' || typeof s.current !== 'number') {
+      this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
+      s = this._d.stamina
+      this._save()
+    }
     if (!s.lastRecoverTime) { s.lastRecoverTime = Date.now(); return }
     const now = Date.now()
     const elapsed = now - s.lastRecoverTime
@@ -766,8 +790,17 @@ class Storage {
           break
         }
         case 'stamina': {
-          this._d.stamina = (this._d.stamina || 0) + (r.amount || 0)
+          if (!this._d.stamina || typeof this._d.stamina !== 'object') {
+            this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
+          }
+          const s = this._d.stamina
+          s.current = Math.min(s.max, (s.current || 0) + (r.amount || 0))
           resolved.push({ type: 'stamina', amount: r.amount })
+          break
+        }
+        case 'avatar': {
+          this.unlockAvatar(r.avatarId)
+          resolved.push({ type: 'avatar', avatarId: r.avatarId })
           break
         }
         default: {
@@ -1103,13 +1136,14 @@ class Storage {
   _ensureCultivationFields() {
     const cult = this._d.cultivation
     if (!cult) { this._d.cultivation = defaultPersist().cultivation; return }
-    if (cult.level == null) cult.level = 0
+    if (cult.level == null || cult.level < 1) cult.level = 1
     if (cult.exp == null) cult.exp = 0
     if (cult.totalExpEarned == null) cult.totalExpEarned = 0
     if (cult.skillPoints == null) cult.skillPoints = 0
     if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
     if (cult.realmBreakSeen == null) cult.realmBreakSeen = 0
     if (!this._d.selectedAvatar) this._d.selectedAvatar = 'boy1'
+    if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
     // Phase 2 字段补全
     if (!this._d.petPool) this._d.petPool = []
     if (this._d.petExpPool == null) this._d.petExpPool = 0

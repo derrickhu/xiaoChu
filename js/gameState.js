@@ -120,6 +120,7 @@ function initState(g) {
   g._loadReady = false
   g._loadPct = 0
   g._pendingGuide = null
+  g._rogueIntro = null
   g._pressedBtn = null
   g._petLongPressTimer = null
   g._petLongPressIndex = -1
@@ -134,8 +135,7 @@ function initState(g) {
   g.showMorePanel = false         // 首页「更多」面板
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
-  g.showChestPanel = false        // 宝箱奖励全屏弹窗
-  g._chestAutoChecked = false     // 本次进入 title 是否已自动检查过宝箱
+  g.showChestPanel = false        // 宝箱奖励全屏弹窗（玩家主动点击触发）
   g.titleMode = 'tower'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
@@ -232,7 +232,7 @@ function _createDomainProxies(g) {
     '_petSwipeIndex', '_petSwipeStartX', '_petSwipeStartY', '_petSwipeTriggered',
     'skillPreview', 'showExitDialog', 'showNewRunConfirm',
     'showMorePanel', 'showTitleStartDialog', 'showSidebarPanel',
-    'showChestPanel', '_chestAutoChecked', 'titleMode', 'titleTowerIndex', 'shopUsed',
+    'showChestPanel', 'titleMode', 'titleTowerIndex', 'shopUsed',
   ])
 
   _createDomainProxy(g, 'stage', [

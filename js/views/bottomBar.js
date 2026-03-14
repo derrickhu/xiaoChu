@@ -95,8 +95,13 @@ function drawBottomBar(g) {
   for (let i = 0; i < BAR_ITEMS.length; i++) {
     const item = BAR_ITEMS[i]
     const cx = i * slotW + slotW / 2
-    // 灵宠标签：首只入池后解锁
-    const isLocked = item.key === 'pets' ? g.storage.petPoolCount === 0 : !!item.locked
+    // 灵宠 & 图鉴：战斗中获得首只三星永久宠物后同时解锁
+    const hasPet = g.storage.petPoolCount >= 1
+    const isLocked = item.key === 'pets'
+      ? !hasPet
+      : item.key === 'dex'
+        ? !hasPet
+        : !!item.locked
     const isCenter = !!item.center
     const isActive = item.key === activeKey
 

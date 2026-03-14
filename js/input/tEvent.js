@@ -65,6 +65,19 @@ function _doEventWpnSwap(g, drag, drop) {
 }
 
 function tEvent(g, type, x, y) {
+  // 通天塔玩法介绍覆盖层（教学后首次进入）
+  if (g._rogueIntro) {
+    if (type === 'end') {
+      g._rogueIntro.page++
+      g._rogueIntro.alpha = 0
+      if (g._rogueIntro.page >= 2) {  // 与 _ROGUE_INTRO_CARDS 数量一致
+        g._rogueIntro = null
+      }
+      g._dirty = true
+    }
+    return
+  }
+
   // ★3满星庆祝画面（商店升星触发）
   if (type === 'end' && g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null

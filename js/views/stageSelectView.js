@@ -35,7 +35,7 @@ function rStageSelect(g) {
   R.rr(0, topY, W, 36 * S, 0); c.fill()
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.fillStyle = '#E8D5A3'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.fillText('固定关卡', 14 * S, topY + 18 * S)
+  c.fillText('灵兽秘境', 14 * S, topY + 18 * S)
 
   // 体力显示
   const stamina = g.storage.currentStamina

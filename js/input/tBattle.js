@@ -70,7 +70,7 @@ function tBattle(g, type, x, y) {
       const base = killExpBase(g.enemy, g.floor)
       g.runExp = (g.runExp || 0) + base
       g._runKillExp = (g._runKillExp || 0) + base
-      const simElim = 10 + g.floor * 2
+      const simElim = Math.max(1, Math.floor(g.floor * 0.5))
       g.runExp = (g.runExp || 0) + simElim
       g._runElimExp = (g._runElimExp || 0) + simElim
     }

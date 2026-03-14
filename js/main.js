@@ -72,14 +72,16 @@ class Main {
     initState(this)
 
     this.events.on('scene:change', (newScene) => {
-      if (newScene === 'title') this._chestAutoChecked = false
       if (newScene === 'petPool') {
         guideMgr.trigger(this, 'idle_intro')
       }
     })
 
     this.events.on('petPool:add', ({ petId, count }) => {
-      if (count === 1) this._pendingGuide = 'petPool_unlock'
+      // 首只三星永久宠物入池：立即解锁灵宠池 + 图鉴（无需等到局末）
+      if (count === 1 && !this.storage.isGuideShown('petPool_unlock')) {
+        this._pendingGuide = 'petPool_unlock'
+      }
       if (count === 5) this._pendingGuide = 'stage_unlock'
     })
 
@@ -146,6 +148,14 @@ class Main {
       'assets/ui/icon_stamina.png',
       'assets/ui/icon_cult_exp.png',
       'assets/ui/icon_pet_exp.png',
+      // 角色形象（首页头像立即显示，不延迟）
+      'assets/hero/char_boy1.png',
+      'assets/hero/char_girl1.png',
+      'assets/hero/char_boy2.png',
+      'assets/hero/char_girl2.png',
+      'assets/hero/char_boy3.png',
+      'assets/hero/char_girl3.png',
+      'assets/ui/frame_avatar.png',
     ]
     R.preloadImages(criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
@@ -215,15 +225,7 @@ class Main {
       this._pendingGuide = null
       guideMgr.trigger(this, pg)
     }
-    // 进入 title 场景时自动检查并弹出未领奖励（_chestAutoChecked 由 scene:change 监听重置）
-    if (this.scene === 'title' && !this._chestAutoChecked && !this.showChestPanel) {
-      this._chestAutoChecked = true
-      const { getUnclaimedCount } = require('./data/chestConfig')
-      if (getUnclaimedCount(this.storage) > 0) {
-        chestView.initChestQueue(this)
-        if (chestView.hasMore()) this.showChestPanel = true
-      }
-    }
+    // 宝箱奖励不再自动弹出，玩家需主动点击右上角宝箱按钮领取
     if (this.bState === 'elimAnim') battleEngine.processElim(this)
     if (this.bState === 'dropping') battleEngine.processDropAnim(this)
     if (this.dragging && this.bState === 'playerTurn') {
@@ -357,6 +359,9 @@ class Main {
     }
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
+    }
+    if (this._rogueIntro) {
+      eventView.drawRogueIntro(this)
     }
     if (this._petObtainedPopup) {
       eventView.drawPetObtainedPopup(this, this._petObtainedPopup)

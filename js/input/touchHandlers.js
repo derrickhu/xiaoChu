@@ -137,6 +137,20 @@ function tStats(g, type, x, y) {
 }
 
 function tDex(g, type, x, y) {
+  // 图鉴首次介绍卡拦截
+  if (g._dexIntroPage != null) {
+    if (type === 'end') {
+      g._dexIntroPage++
+      g._dexIntroAlpha = 0
+      if (g._dexIntroPage >= 2) {
+        g._dexIntroPage = null
+        g.storage.markGuideShown('dex_intro')
+      }
+      g._dirty = true
+    }
+    return
+  }
+
   if (g._dexDetailPetId) {
     if (type === 'end') {
       if (g._dexBattleBtnRect) {
@@ -162,14 +176,40 @@ function tDex(g, type, x, y) {
   }
   if (type === 'move') {
     const dy = y - (g._dexTouchStartY || y)
-    const { H, S, safeTop } = V
-    const contentH = H - safeTop - 78*S - 8*S
+    const { drawBottomBar: _, getLayout: getDexLayout } = require('../views/bottomBar')
+    const L = getDexLayout()
+    const { safeTop } = V
+    const contentTop = safeTop + 74 * V.S + 36 * V.S + 6 * V.S
+    const contentH = L.bottomBarY - contentTop
     const maxScroll = 0
     const minScroll = -Math.max(0, (g._dexTotalH || 0) - contentH)
     g._dexScrollY = Math.max(minScroll, Math.min(maxScroll, g._dexScrollStart + dy))
     return
   }
   if (type !== 'end') return
+  // 底部导航栏处理
+  const { getLayout: getDexLayout2, BAR_ITEMS } = require('../views/bottomBar')
+  const L2 = getDexLayout2()
+  if (y >= L2.bottomBarY) {
+    const slotW = V.W / BAR_ITEMS.length
+    const idx = Math.floor(x / slotW)
+    const item = BAR_ITEMS[idx]
+    if (item) {
+      const firstRunDone = g.storage.totalRuns >= 1
+      if (item.key === 'home') { g.setScene('title'); return }
+      if (item.key === 'pets') {
+        if (firstRunDone && g.storage.petPoolCount > 0) {
+          g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+          g.setScene('petPool')
+        }
+        return
+      }
+      if (item.key === 'dex') return  // 已在图鉴
+      if (item.key === 'cultivation') { g.setScene('cultivation'); return }
+      if (item.key === 'idle') { g.setScene('idle'); return }
+    }
+    return
+  }
   const dy = Math.abs(y - (g._dexTouchStartY || y))
   if (dy > 10 * V.S) return
   if (g._dexCellRects) {
@@ -181,7 +221,6 @@ function tDex(g, type, x, y) {
       }
     }
   }
-  if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.setScene('title'); return }
 }
 
 module.exports = {

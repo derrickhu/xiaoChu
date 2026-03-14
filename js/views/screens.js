@@ -6,6 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
 const { wrapText: _uiWrapText } = require('./uiUtils')
+const { drawBottomBar, getLayout: _getDexLayout } = require('./bottomBar')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -1345,7 +1346,7 @@ function rReward(g) {
         extraRevive:'buff_icon_special', skipNextBattle:'buff_icon_special', nextFirstTurnDouble:'buff_icon_special', heartBoostPct:'buff_icon_special',
       }
       const iconName = BUFF_ICON_IMGS[buffKey]
-      const iconImg = iconName ? R.getImg(`assets/ui/${iconName}.png`) : null
+      const iconImg = iconName ? R.getImg(`assets/ui/battle/${iconName}.png`) : null
       if (iconImg && iconImg.width > 0) {
         ctx.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
       }
@@ -1621,6 +1622,12 @@ function rDex(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
 
+  // 首次进入：初始化介绍卡
+  if (!g.storage.isGuideShown('dex_intro') && g._dexIntroPage == null) {
+    g._dexIntroPage = 0
+    g._dexIntroAlpha = 0
+  }
+
   // 标题
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
@@ -1656,7 +1663,7 @@ function rDex(g) {
 
   // 滚动区域
   const contentTop = safeTop + 74*S + tipH + 6*S
-  const contentBottom = H - 8*S
+  const contentBottom = _getDexLayout().bottomBarY - 4*S
   const scrollY = g._dexScrollY || 0
 
   ctx.save()
@@ -1759,11 +1766,16 @@ function rDex(g) {
   g._dexTotalH = y - scrollY - contentTop
   ctx.restore()
 
-  drawBackBtn(g)
+  drawBottomBar(g)
 
   // 宠物详情弹窗（大图+故事）
   if (g._dexDetailPetId) {
     _drawDexPetDetail(g)
+  }
+
+  // 首次进入图鉴介绍卡
+  if (g._dexIntroPage != null) {
+    _drawDexIntro(g)
   }
 }
 
@@ -1988,6 +2000,36 @@ function _drawDexPetDetail(g) {
   ctx.textBaseline = 'alphabetic'
   g._dexBattleBtnRect = [btnX, btnY, btnW, btnH]
 
+  // 首次查看详情：带宠出战说明条
+  if (!g.storage.isGuideShown('dex_battle_intro')) {
+    const tipW = panelW - pad * 2, tipH2 = 32 * S
+    const tipX2 = panelX + pad, tipY2 = btnY + btnH + 6 * S
+    const tGrd = ctx.createLinearGradient(tipX2, tipY2, tipX2 + tipW, tipY2)
+    tGrd.addColorStop(0, 'rgba(60,35,5,0.85)')
+    tGrd.addColorStop(0.5, 'rgba(100,65,10,0.90)')
+    tGrd.addColorStop(1, 'rgba(60,35,5,0.85)')
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(tipX2 + 6*S, tipY2)
+    ctx.lineTo(tipX2 + tipW - 6*S, tipY2)
+    ctx.quadraticCurveTo(tipX2 + tipW, tipY2, tipX2 + tipW, tipY2 + 6*S)
+    ctx.lineTo(tipX2 + tipW, tipY2 + tipH2 - 6*S)
+    ctx.quadraticCurveTo(tipX2 + tipW, tipY2 + tipH2, tipX2 + tipW - 6*S, tipY2 + tipH2)
+    ctx.lineTo(tipX2 + 6*S, tipY2 + tipH2)
+    ctx.quadraticCurveTo(tipX2, tipY2 + tipH2, tipX2, tipY2 + tipH2 - 6*S)
+    ctx.lineTo(tipX2, tipY2 + 6*S)
+    ctx.quadraticCurveTo(tipX2, tipY2, tipX2 + 6*S, tipY2)
+    ctx.closePath()
+    ctx.fillStyle = tGrd; ctx.fill()
+    ctx.strokeStyle = 'rgba(255,195,50,0.6)'; ctx.lineWidth = 1 * S; ctx.stroke()
+    ctx.fillStyle = '#ffd060'
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('✦ 带宠出战：下一局此宠必现身！', tipX2 + tipW / 2, tipY2 + tipH2 / 2)
+    ctx.restore()
+    g.storage.markGuideShown('dex_battle_intro')
+  }
+
   ctx.restore() // 结束裁剪
 
   // 关闭提示
@@ -2039,6 +2081,221 @@ function _drawHighlightedLines(ctx, lines, x, startY, lineH, fontSize, S) {
     }
     y += lineH
   })
+}
+
+// ===== 图鉴首次进入介绍卡 =====
+const _DEX_INTRO_CARDS = [
+  {
+    icon: '鉴',
+    heading: '灵兽图鉴',
+    lines: [
+      '在通天塔探索中，让灵宠升至满星（★★★），',
+      '它就会永久录入图鉴，成为你的收藏！',
+      '图鉴记录每只灵宠的属性、技能与背景故事。',
+    ],
+    note: '☆ 收集越多，你对灵宠的了解就越深',
+  },
+  {
+    icon: '战',
+    heading: '带宠出战',
+    lines: [
+      '点击图鉴中已收集的灵宠，',
+      '可以选择「带它出战」——',
+      '下一局中它必然出现在你的队伍！',
+    ],
+    note: '✦ 喜欢某只灵宠？让它陪你闯关！',
+  },
+]
+
+function _drawDexIntro(g) {
+  const { ctx, R, W, H, S } = V
+  const page = g._dexIntroPage
+  const card = _DEX_INTRO_CARDS[page]
+  if (!card) return
+
+  g._dexIntroAlpha = Math.min(1, (g._dexIntroAlpha || 0) + 0.05)
+  g._dirty = true
+  const alpha = g._dexIntroAlpha
+  const af = g.af || 0
+
+  ctx.save()
+
+  // 背景遮罩
+  ctx.globalAlpha = alpha * 0.82
+  ctx.fillStyle = '#060412'
+  ctx.fillRect(0, 0, W, H)
+  ctx.globalAlpha = alpha
+
+  // 面板尺寸
+  const pw = W * 0.88, ph = 360 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
+  const rad = 18 * S
+
+  // 面板背景 - 深邃紫黑渐变
+  const bg = ctx.createLinearGradient(px, py, px, py + ph)
+  bg.addColorStop(0, 'rgba(22,14,48,0.99)')
+  bg.addColorStop(0.45, 'rgba(14,9,34,0.99)')
+  bg.addColorStop(1, 'rgba(8,5,20,0.99)')
+  _dexRR(ctx, px, py, pw, ph, rad)
+  ctx.fillStyle = bg; ctx.fill()
+
+  // 外边框 - 金色双层发光
+  _dexRR(ctx, px - 1.5 * S, py - 1.5 * S, pw + 3 * S, ph + 3 * S, rad + 1.5 * S)
+  ctx.strokeStyle = 'rgba(255,200,60,0.18)'; ctx.lineWidth = 4 * S; ctx.stroke()
+  _dexRR(ctx, px, py, pw, ph, rad)
+  ctx.strokeStyle = 'rgba(220,175,55,0.9)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+
+  // 四角装饰
+  const cSize = 10 * S, cOff = 6 * S
+  const corners = [
+    [px + cOff, py + cOff, 0, Math.PI * 0.5],
+    [px + pw - cOff, py + cOff, Math.PI * 0.5, Math.PI],
+    [px + pw - cOff, py + ph - cOff, Math.PI, Math.PI * 1.5],
+    [px + cOff, py + ph - cOff, Math.PI * 1.5, Math.PI * 2],
+  ]
+  ctx.strokeStyle = 'rgba(255,210,80,0.85)'; ctx.lineWidth = 1.8 * S
+  corners.forEach(([cx, cy, sa, ea]) => {
+    ctx.beginPath(); ctx.arc(cx, cy, cSize, sa, ea); ctx.stroke()
+  })
+
+  // ─── 顶部图标区域 ───
+  const headerH = 80 * S
+  const iconR = 28 * S
+  const iconCX = W / 2, iconCY = py + headerH / 2 + 4 * S
+
+  // 图标外光晕
+  const pulse = 0.5 + 0.5 * Math.sin(af * 0.08)
+  const glowR = ctx.createRadialGradient(iconCX, iconCY, iconR * 0.3, iconCX, iconCY, iconR * 2.2)
+  glowR.addColorStop(0, `rgba(255,205,50,${0.22 * pulse})`)
+  glowR.addColorStop(1, 'rgba(255,180,30,0)')
+  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR * 2.2, 0, Math.PI * 2)
+  ctx.fillStyle = glowR; ctx.fill()
+
+  // 图标外圈
+  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR + 4 * S, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(255,200,60,${0.25 + 0.15 * pulse})`; ctx.lineWidth = 1.2 * S; ctx.stroke()
+
+  // 图标圆形背景
+  const iconBg = ctx.createRadialGradient(iconCX, iconCY - 6 * S, 2 * S, iconCX, iconCY, iconR)
+  iconBg.addColorStop(0, 'rgba(200,150,30,0.55)')
+  iconBg.addColorStop(1, 'rgba(80,50,8,0.80)')
+  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR, 0, Math.PI * 2)
+  ctx.fillStyle = iconBg; ctx.fill()
+  ctx.strokeStyle = 'rgba(255,205,60,0.9)'; ctx.lineWidth = 1.8 * S; ctx.stroke()
+
+  // 图标文字
+  ctx.fillStyle = '#fff5cc'
+  ctx.font = `bold ${22 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(card.icon, iconCX, iconCY + 1 * S)
+
+  // 标题文字（图标下方）
+  const titleY = iconCY + iconR + 14 * S
+  ctx.font = `bold ${17 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+  // 文字描边
+  ctx.strokeStyle = 'rgba(80,50,0,0.6)'; ctx.lineWidth = 3 * S; ctx.strokeText(card.heading, W / 2, titleY)
+  // 金色渐变标题
+  const titleGrd = ctx.createLinearGradient(W / 2 - 50 * S, titleY - 16 * S, W / 2 + 50 * S, titleY)
+  titleGrd.addColorStop(0, '#ffe8a0')
+  titleGrd.addColorStop(0.5, '#fff4c0')
+  titleGrd.addColorStop(1, '#ffd060')
+  ctx.fillStyle = titleGrd
+  ctx.fillText(card.heading, W / 2, titleY)
+
+  // 分隔线（带菱形装饰）
+  const sepY = titleY + 14 * S
+  const sepLX = px + 24 * S, sepRX = px + pw - 24 * S, sepMX = W / 2
+  ctx.strokeStyle = 'rgba(200,165,45,0.5)'; ctx.lineWidth = 1 * S
+  ctx.beginPath(); ctx.moveTo(sepLX, sepY); ctx.lineTo(sepMX - 10 * S, sepY); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(sepMX + 10 * S, sepY); ctx.lineTo(sepRX, sepY); ctx.stroke()
+  // 菱形
+  ctx.save()
+  ctx.translate(sepMX, sepY); ctx.rotate(Math.PI / 4)
+  ctx.fillStyle = 'rgba(220,175,55,0.85)'
+  ctx.fillRect(-4 * S, -4 * S, 8 * S, 8 * S)
+  ctx.restore()
+
+  // ─── 正文内容 ───
+  const contentTop = sepY + 22 * S
+  const lineH = 34 * S
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+  ;(card.lines || []).forEach((line, i) => {
+    const ly = contentTop + i * lineH
+    ctx.font = `${14 * S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = 'rgba(220,210,190,0.95)'
+    ctx.fillText(line, W / 2, ly)
+  })
+
+  // ─── Note 条 ───
+  if (card.note) {
+    const noteTopGap = 16 * S
+    const noteY = contentTop + (card.lines || []).length * lineH + noteTopGap
+    const noteW = pw - 48 * S, noteH = 40 * S
+    const noteX = px + 24 * S
+
+    // note 背景
+    const noteGrd = ctx.createLinearGradient(noteX, noteY, noteX + noteW, noteY + noteH)
+    noteGrd.addColorStop(0, 'rgba(100,72,12,0.75)')
+    noteGrd.addColorStop(0.5, 'rgba(145,105,18,0.82)')
+    noteGrd.addColorStop(1, 'rgba(100,72,12,0.75)')
+    _dexRR(ctx, noteX, noteY, noteW, noteH, 8 * S)
+    ctx.fillStyle = noteGrd; ctx.fill()
+    // note 内边框
+    _dexRR(ctx, noteX + 1.5 * S, noteY + 1.5 * S, noteW - 3 * S, noteH - 3 * S, 7 * S)
+    ctx.strokeStyle = 'rgba(255,215,80,0.45)'; ctx.lineWidth = 1 * S; ctx.stroke()
+
+    // note 文字
+    ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#ffe58a'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.strokeStyle = 'rgba(60,35,0,0.5)'; ctx.lineWidth = 2.5 * S
+    ctx.strokeText(card.note, W / 2, noteY + noteH / 2)
+    ctx.fillText(card.note, W / 2, noteY + noteH / 2)
+  }
+
+  // ─── 底部翻页指示 ───
+  const dotAreaY = py + ph - 44 * S
+  const total = _DEX_INTRO_CARDS.length, dotR = 5 * S, dotGap = 16 * S
+  const dotsStartX = W / 2 - ((total - 1) * dotGap) / 2
+  ctx.textBaseline = 'alphabetic'
+  for (let i = 0; i < total; i++) {
+    const dx = dotsStartX + i * dotGap
+    if (i === page) {
+      // 当前页：发光金点
+      const dg = ctx.createRadialGradient(dx, dotAreaY, 0, dx, dotAreaY, dotR)
+      dg.addColorStop(0, '#fff8d0')
+      dg.addColorStop(1, '#ffc830')
+      ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR, 0, Math.PI * 2)
+      ctx.fillStyle = dg; ctx.fill()
+    } else {
+      ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR * 0.65, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(220,175,55,0.28)'; ctx.fill()
+      ctx.strokeStyle = 'rgba(220,175,55,0.5)'; ctx.lineWidth = 1 * S; ctx.stroke()
+    }
+  }
+
+  // "点击继续" 文字
+  const hintPulse = 0.55 + 0.45 * Math.sin(af * 0.1)
+  ctx.globalAlpha = alpha * hintPulse
+  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#b8a878'; ctx.textAlign = 'center'
+  ctx.fillText(page >= total - 1 ? '点击进入图鉴 ›' : '点击继续 ›', W / 2, py + ph - 14 * S)
+
+  ctx.restore()
+}
+
+function _dexRR(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
 }
 
 // 图鉴文本换行辅助（按实际像素宽度换行）

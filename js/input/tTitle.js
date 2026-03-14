@@ -153,9 +153,13 @@ function tTitle(g, type, x, y) {
 
   // ⑤b 宝箱浮钮
   if (g._chestBtnRect && g._hitRect(x, y, ...g._chestBtnRect)) {
+    g._chestPressTime = Date.now()  // 动画始终触发
     const chestView = require('../views/chestView')
     chestView.initChestQueue(g)
-    if (chestView.hasMore()) g.showChestPanel = true
+    if (chestView.hasMore()) {
+      MusicMgr.playChestOpen()      // 只有有奖励时才播音效
+      g.showChestPanel = true
+    }
     return
   }
 
@@ -176,15 +180,21 @@ function tTitle(g, type, x, y) {
         cv.checkRealmBreak(g)
         return
       }
-      case 1:
-        if (g.storage.petPoolCount > 0) {
+      case 1: {
+        const firstRunDone1 = g.storage.totalRuns >= 1
+        if (firstRunDone1 && g.storage.petPoolCount > 0) {
           g._petPoolFilter = 'all'
           g._petPoolScroll = 0
           g._petPoolDetail = null
           g.setScene('petPool')
         }
         return
-      case 2: g._dexScrollY = 0; g.setScene('dex'); return
+      }
+      case 2: {
+        const firstRunDone2 = g.storage.totalRuns >= 1
+        if (firstRunDone2) { g._dexScrollY = 0; g.setScene('dex') }
+        return
+      }
       case 3: g.titleMode = 'tower'; return
       case 4:
         if (!g.storage.userAuthorized && g.storage._userInfoBtn) return

@@ -640,35 +640,41 @@ function drawPetPoolEntryPopup(g) {
 
   const pw = W * 0.72, ph = 140 * S
   const px = (W - pw) / 2, py = H * 0.35
-  ctx.fillStyle = 'rgba(248,242,230,0.97)'
+  ctx.fillStyle = 'rgba(245,238,220,0.98)'
   R.rr(px, py, pw, ph, 12 * S); ctx.fill()
-  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2 * S
+  ctx.strokeStyle = 'rgba(180,140,50,0.9)'
+  ctx.lineWidth = 2 * S
   R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillStyle = '#ffd700'
+  // 标题：深金棕，加描边提升可读性
   ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'
+  ctx.lineWidth = 2 * S
+  ctx.strokeText('灵宠入池！', px + pw / 2, py + 24 * S)
+  ctx.fillStyle = '#8b6914'
   ctx.fillText('灵宠入池！', px + pw / 2, py + 24 * S)
 
   const attrColor = ATTR_COLOR[pet.attr]
-  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.fillStyle = attrColor ? attrColor.main : '#2d5a2d'
   ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
   ctx.fillText(pet.name, px + pw / 2, py + 50 * S)
 
-  ctx.fillStyle = '#6B5014'
+  ctx.fillStyle = '#4a3a18'
   ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('★1 Lv.5 + 2碎片 加入灵宠池', px + pw / 2, py + 74 * S)
 
   // 首只入池解锁提示
   if (g.storage.petPoolCount === 1) {
-    ctx.fillStyle = '#e0a030'
+    ctx.fillStyle = '#5c3d00'
     ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText('底部"灵宠"标签已解锁！', px + pw / 2, py + 96 * S)
+    ctx.fillText('底部「灵宠」标签已解锁！', px + pw / 2, py + 96 * S)
   }
 
-  const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
+  const blink = 0.65 + 0.35 * Math.sin(Date.now() * 0.005)
   ctx.globalAlpha = blink
-  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#5a4a30'
+  ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
   ctx.globalAlpha = 1
 
