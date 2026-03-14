@@ -6,7 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
-const { drawBottomBar, getLayout: getTitleLayout } = require('./bottomBar')
+const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const { drawSeparator, wrapTextDraw, getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
 
@@ -62,14 +62,7 @@ function rPetPool(g) {
   c.save()
   // 去掉顶栏深色背景遮罩
 
-  // 标题（居中，白色描边+金色填充，与其他页面保持一致）
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.strokeStyle = 'rgba(0,0,0,0.5)'
-  c.lineWidth = 4 * S
-  c.font = `bold ${17*S}px "PingFang SC",sans-serif`
-  c.strokeText('灵宠池', W * 0.5, topY + 17 * S)
-  c.fillStyle = '#fff'
-  c.fillText('灵宠池', W * 0.5, topY + 17 * S)
+  drawPageTitle(c, R, W, S, W * 0.5, topY + 24 * S, '灵宠池')
 
   // 经验池图标和余额（左上角显示）
   const expPool = g.storage.petExpPool || 0

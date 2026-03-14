@@ -6,7 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
 const { wrapText: _uiWrapText } = require('./uiUtils')
-const { drawBottomBar, getLayout: _getDexLayout } = require('./bottomBar')
+const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -462,38 +462,32 @@ function rGameover(g) {
 function rRanking(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
+  // 轻暖色遮罩，取代原先深黑遮罩
+  ctx.fillStyle = 'rgba(240,228,200,0.18)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 12*S
   const tab = g.rankTab || 'all'
 
   // ── 标题区 ──
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('排行榜', W*0.5, safeTop + 40*S)
-  ctx.restore()
-  // 刷新按钮（紧跟标题文字右侧）
-  ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-  const titleW = ctx.measureText('排行榜').width || 66*S
-  const rfW = 40*S, rfH = 22*S
-  const rfX = W*0.5 + titleW/2 + 8*S
-  const rfY = safeTop + 40*S - rfH*0.7
-  ctx.fillStyle = g.storage.rankLoading ? 'rgba(40,30,15,0.5)' : 'rgba(40,30,15,0.75)'
-  R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
-  ctx.strokeStyle = g.storage.rankLoading ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.35)'
-  ctx.lineWidth = 0.5*S; R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.stroke()
-  ctx.fillStyle = g.storage.rankLoading ? 'rgba(240,220,160,0.35)' : 'rgba(240,220,160,0.8)'
-  ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(g.storage.rankLoading ? '刷新中' : '刷新', rfX + rfW/2, rfY + rfH/2)
-  ctx.textBaseline = 'alphabetic'
-  g._rankRefreshRect = [rfX, rfY, rfW, rfH]
-  const rdivW = W*0.22, rdivY = safeTop + 48*S
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
-  ctx.beginPath(); ctx.moveTo(W*0.5 - rdivW, rdivY); ctx.lineTo(W*0.5 + rdivW, rdivY); ctx.stroke()
+  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '排行榜')
 
-  // ── 4-Tab 切换 ──
-  const tabY = safeTop + 56*S, tabH = 28*S
+  // 刷新按钮（标题右侧，不重叠，放在 name_bg 右边）
+  const rfW = 40*S, rfH = 22*S
+  const rfX = W - rfW - 14*S
+  const rfY = safeTop + 29 * S
+  ctx.save()
+  ctx.fillStyle = g.storage.rankLoading ? 'rgba(200,158,60,0.3)' : 'rgba(200,158,60,0.85)'
+  R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
+  ctx.strokeStyle = 'rgba(160,120,30,0.4)'; ctx.lineWidth = 1*S
+  R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.stroke()
+  ctx.fillStyle = g.storage.rankLoading ? 'rgba(60,35,0,0.4)' : '#3a1a00'
+  ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(g.storage.rankLoading ? '刷新中…' : '刷新', rfX + rfW/2, rfY + rfH/2)
+  ctx.restore()
+  g._rankRefreshRect = [rfX, rfY, rfW, rfH]
+
+  // ── Tab 切换栏 ──
+  const tabY = safeTop + 70*S, tabH = 30*S
   const tabs = [
     { key: 'all', label: '速通榜' },
     { key: 'dex', label: '图鉴榜' },
@@ -511,21 +505,19 @@ function rRanking(g) {
       tg.addColorStop(0, '#f0c040'); tg.addColorStop(1, '#d4a020')
       ctx.fillStyle = tg
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.fillStyle = 'rgba(200,158,60,0.14)'
     }
     R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.fill()
-    if (isActive) {
-      ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
-      R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.stroke()
-    }
-    ctx.fillStyle = isActive ? '#2a1a00' : TH.sub
-    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    ctx.fillText(t.label, tx + singleTabW*0.5, tabY + tabH*0.65)
+    ctx.strokeStyle = isActive ? 'rgba(200,140,30,0.5)' : 'rgba(200,158,60,0.3)'
+    ctx.lineWidth = 1*S; R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.stroke()
+    ctx.fillStyle = isActive ? '#2a1a00' : '#6B5B40'
+    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText(t.label, tx + singleTabW*0.5, tabY + tabH*0.66)
     g._rankTabRects[t.key] = [tx, tabY, singleTabW, tabH]
   })
 
   // ── 列表区域 ──
-  const listTop = tabY + tabH + 10*S
+  const listTop = tabY + tabH + 8*S
   const myBarH = 52*S
   const listBottom = H - myBarH - 16*S
   const rowH = 64*S
@@ -536,18 +528,20 @@ function rRanking(g) {
   const list = g.storage[listMap[tab]] || []
   const myRank = g.storage[rankMap[tab]] || -1
 
-  // 列表面板背景
+  // 列表面板背景（暖米黄）
   const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
-  lpbg.addColorStop(0, 'rgba(30,25,18,0.7)'); lpbg.addColorStop(1, 'rgba(20,18,12,0.75)')
+  lpbg.addColorStop(0, 'rgba(252,246,228,0.96)'); lpbg.addColorStop(1, 'rgba(244,234,208,0.96)')
   ctx.fillStyle = lpbg; R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.15)'; ctx.lineWidth = 0.5*S
+  ctx.strokeStyle = 'rgba(200,160,60,0.4)'; ctx.lineWidth = 1*S
   R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.stroke()
 
-  // 表头（根据Tab显示不同列）
+  // 表头
   const headerH = 26*S
-  ctx.fillStyle = 'rgba(212,175,55,0.08)'
+  const headerGrd = ctx.createLinearGradient(padX, listTop, padX + (W-padX*2), listTop)
+  headerGrd.addColorStop(0, 'rgba(200,158,60,0.18)'); headerGrd.addColorStop(1, 'rgba(228,185,80,0.12)')
+  ctx.fillStyle = headerGrd
   R.rr(padX + 1, listTop + 1, W - padX*2 - 2, headerH, 8*S); ctx.fill()
-  ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#8B7060'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'left'; ctx.fillText('排名', padX + 10*S, listTop + 17*S)
   ctx.fillText('玩家', padX + 52*S, listTop + 17*S)
   ctx.textAlign = 'right'
@@ -560,15 +554,14 @@ function rRanking(g) {
   ctx.beginPath(); ctx.rect(padX, contentTop, W - padX*2, listBottom - contentTop - 4*S); ctx.clip()
 
   if (g.storage.rankLoading && list.length === 0) {
-    ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#8B7060'; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     const msg = g.storage.rankLoadingMsg || '加载中...'
     ctx.fillText(msg, W*0.5, contentTop + 60*S)
-    // 加载动画：三个点闪烁
     const dots = '.'.repeat(Math.floor(Date.now() / 400) % 4)
-    ctx.fillStyle = TH.dim; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#b0a090'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
     ctx.fillText(dots, W*0.5, contentTop + 85*S)
   } else if (list.length === 0) {
-    ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#8B7060'; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('暂无数据', W*0.5, contentTop + 60*S)
   } else {
     for (let i = 0; i < list.length; i++) {
@@ -579,15 +572,15 @@ function rRanking(g) {
       // 行背景（前三名特殊高亮）
       if (i < 3) {
         const rowGradColors = [
-          ['rgba(255,215,0,0.12)', 'rgba(255,215,0,0.04)'],
-          ['rgba(200,200,220,0.10)', 'rgba(200,200,220,0.03)'],
-          ['rgba(205,127,50,0.10)', 'rgba(205,127,50,0.03)'],
+          ['rgba(255,215,0,0.18)', 'rgba(255,215,0,0.06)'],
+          ['rgba(190,190,200,0.14)', 'rgba(190,190,200,0.04)'],
+          ['rgba(180,110,40,0.14)', 'rgba(180,110,40,0.04)'],
         ]
         const rg = ctx.createLinearGradient(padX, ry, W - padX, ry)
         rg.addColorStop(0, rowGradColors[i][0]); rg.addColorStop(1, rowGradColors[i][1])
         ctx.fillStyle = rg
       } else {
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.06)'
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(200,158,60,0.04)' : 'rgba(0,0,0,0.02)'
       }
       ctx.fillRect(padX + 2*S, ry + 1*S, W - padX*2 - 4*S, rowH - 3*S)
 
@@ -601,11 +594,11 @@ function rRanking(g) {
       // 昵称 + 副信息
       const textX = avatarX + avatarSz + 8*S
       ctx.textAlign = 'left'
-      ctx.fillStyle = i < 3 ? '#f0dca0' : TH.text; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = i < 3 ? '#7A4800' : '#3a1a00'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
       ctx.fillText((item.nickName || '修士').substring(0, 8), textX, ry + 26*S)
 
       // 副信息行（根据Tab不同）
-      ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#8B7060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
       if (tab === 'all') {
         const petNames = (item.pets || []).map(p => p.name || '?').join(' ')
         const wpnName = item.weapon ? `⚔${item.weapon.name}` : ''
@@ -685,7 +678,7 @@ function _drawRankMedal(ctx, R, TH, S, padX, ry, rowH, i) {
     ctx.fillText(`${i + 1}`, mx, my)
     ctx.textBaseline = 'alphabetic'
   } else {
-    ctx.fillStyle = TH.dim; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7060'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
     ctx.fillText(`${i + 1}`, padX + 18*S, ry + rowH*0.5 + 4*S)
   }
@@ -702,13 +695,13 @@ function _drawAvatar(ctx, R, TH, S, avatarUrl, avatarX, avatarY, avatarSz, rankI
       ctx.drawImage(avatarImg, avatarX, avatarY, avatarSz, avatarSz)
       ctx.restore()
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.08)'
+      ctx.fillStyle = 'rgba(200,158,60,0.18)'
       ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
     }
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.fillStyle = 'rgba(200,158,60,0.18)'
     ctx.beginPath(); ctx.arc(avCx, avCy, avatarSz/2, 0, Math.PI*2); ctx.fill()
-    ctx.fillStyle = TH.dim; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#8B7060'; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('?', avCx, avCy + 5*S)
   }
   if (rankIdx < 3) {
@@ -720,16 +713,12 @@ function _drawAvatar(ctx, R, TH, S, avatarUrl, avatarX, avatarY, avatarSz, rankI
 
 // 底部我的排名栏
 function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) {
+  // 暖米黄底色
   const mbg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + myBarH)
-  mbg.addColorStop(0, 'rgba(50,40,20,0.88)'); mbg.addColorStop(1, 'rgba(30,25,12,0.92)')
+  mbg.addColorStop(0, 'rgba(252,246,228,0.97)'); mbg.addColorStop(1, 'rgba(244,234,208,0.97)')
   ctx.fillStyle = mbg; R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1.5*S
+  ctx.strokeStyle = 'rgba(200,160,60,0.5)'; ctx.lineWidth = 1.5*S
   R.rr(padX, myBarY, W - padX*2, myBarH, 10*S); ctx.stroke()
-  ctx.save(); ctx.globalAlpha = 0.08
-  const mhlg = ctx.createLinearGradient(padX, myBarY, padX, myBarY + 6*S)
-  mhlg.addColorStop(0, '#fff'); mhlg.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.fillStyle = mhlg; R.rr(padX + 2*S, myBarY + 1, W - padX*2 - 4*S, 6*S, 10*S); ctx.fill()
-  ctx.restore()
 
   // 头像
   const myAvatarSz = 36*S
@@ -744,31 +733,31 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
       ctx.drawImage(myAvImg, myAvX, myAvY, myAvatarSz, myAvatarSz)
       ctx.restore()
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.08)'
+      ctx.fillStyle = 'rgba(200,158,60,0.2)'
       ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2, 0, Math.PI*2); ctx.fill()
-      ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+      ctx.fillStyle = '#5a3000'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
       ctx.fillText('我', myAvCx, myAvCy + 5*S)
     }
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.fillStyle = 'rgba(200,158,60,0.2)'
     ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2, 0, Math.PI*2); ctx.fill()
-    ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.fillStyle = '#5a3000'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('我', myAvCx, myAvCy + 5*S)
   }
-  ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1.5*S
+  ctx.strokeStyle = 'rgba(200,158,60,0.6)'; ctx.lineWidth = 1.5*S
   ctx.beginPath(); ctx.arc(myAvCx, myAvCy, myAvatarSz/2 + 1*S, 0, Math.PI*2); ctx.stroke()
 
   // 昵称 + 排名
   const myTextX = myAvX + myAvatarSz + 8*S
   const myNick = g.storage.userInfo ? g.storage.userInfo.nickName : '我'
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#3a1a00'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${myNick}`, myTextX, myBarY + 22*S)
   if (myRank > 0) {
-    ctx.fillStyle = 'rgba(240,220,160,0.9)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#7A5020'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`第 ${myRank} 名`, myTextX, myBarY + 40*S)
   } else {
-    ctx.fillStyle = 'rgba(220,200,140,0.7)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7060'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText('未上榜', myTextX, myBarY + 40*S)
   }
 
@@ -776,31 +765,25 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
   ctx.textAlign = 'right'
   if (tab === 'all') {
     const bestTurns = g.storage.stats.bestTotalTurns || 0
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(255,215,0,0.2)'; ctx.shadowBlur = 4*S
+    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 24*S)
-    ctx.restore()
-    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('层', W - padX - 14*S, myBarY + 24*S)
     if (bestTurns > 0) {
-      ctx.fillStyle = 'rgba(240,220,160,0.7)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#7A5020'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
       ctx.fillText(`${bestTurns}回合`, W - padX - 14*S, myBarY + 42*S)
     }
   } else if (tab === 'dex') {
     const dexCount = (g.storage.petDex || []).length
-    ctx.fillStyle = '#4dcc4d'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(77,204,77,0.2)'; ctx.shadowBlur = 4*S
+    ctx.fillStyle = '#2d8c2d'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${dexCount}`, W - padX - 38*S, myBarY + 34*S)
-    ctx.restore()
-    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('/100', W - padX - 14*S, myBarY + 34*S)
   } else if (tab === 'combo') {
     const mc = g.storage.stats.maxCombo || 0
-    ctx.fillStyle = '#ff6b6b'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(255,107,107,0.2)'; ctx.shadowBlur = 4*S
+    ctx.fillStyle = '#c0392b'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${mc}`, W - padX - 46*S, myBarY + 34*S)
-    ctx.restore()
-    ctx.fillStyle = 'rgba(240,220,160,0.85)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('连击', W - padX - 14*S, myBarY + 34*S)
   }
 }
@@ -809,24 +792,18 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
 function rStats(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, W, H)
+  // 轻暖色遮罩
+  ctx.fillStyle = 'rgba(240,228,200,0.18)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 14*S
   const st = g.storage.stats
   const heroW = W - padX*2
 
   // ── 标题区 ──
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('我的战绩', W*0.5, safeTop + 40*S)
-  ctx.restore()
-  const sdivW = W*0.22, sdivY = safeTop + 48*S
-  ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
-  ctx.beginPath(); ctx.moveTo(W*0.5 - sdivW, sdivY); ctx.lineTo(W*0.5 + sdivW, sdivY); ctx.stroke()
+  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '我的战绩')
 
   // ── 核心成就：大卡片（最高层 + 最快通关）──
-  const heroY = safeTop + 58*S
+  const heroY = safeTop + 72*S
   const heroH = 70*S
   const hbg = ctx.createLinearGradient(padX, heroY, padX, heroY + heroH)
   hbg.addColorStop(0, 'rgba(252,247,238,0.95)'); hbg.addColorStop(1, 'rgba(244,237,222,0.95)')
@@ -1629,11 +1606,7 @@ function rDex(g) {
   }
 
   // 标题
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f5e6c8'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText('灵兽图鉴', W*0.5, safeTop + 40*S)
-  ctx.restore()
+  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '灵兽图鉴')
   // 分割线
   const sdivW = W*0.22, sdivY = safeTop + 48*S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1*S
@@ -2121,166 +2094,102 @@ function _drawDexIntro(g) {
   ctx.save()
 
   // 背景遮罩
-  ctx.globalAlpha = alpha * 0.82
-  ctx.fillStyle = '#060412'
+  ctx.globalAlpha = alpha * 0.72
+  ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = alpha
 
   // 面板尺寸
   const pw = W * 0.88, ph = 360 * S
   const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
-  const rad = 18 * S
+  const rad = 14 * S
 
-  // 面板背景 - 深邃紫黑渐变
+  // 面板背景（浅米黄暖色）
   const bg = ctx.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(22,14,48,0.99)')
-  bg.addColorStop(0.45, 'rgba(14,9,34,0.99)')
-  bg.addColorStop(1, 'rgba(8,5,20,0.99)')
+  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
+  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
   _dexRR(ctx, px, py, pw, ph, rad)
   ctx.fillStyle = bg; ctx.fill()
 
-  // 外边框 - 金色双层发光
-  _dexRR(ctx, px - 1.5 * S, py - 1.5 * S, pw + 3 * S, ph + 3 * S, rad + 1.5 * S)
-  ctx.strokeStyle = 'rgba(255,200,60,0.18)'; ctx.lineWidth = 4 * S; ctx.stroke()
+  // 外边框（金色）
   _dexRR(ctx, px, py, pw, ph, rad)
-  ctx.strokeStyle = 'rgba(220,175,55,0.9)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+  ctx.strokeStyle = 'rgba(200,160,60,0.6)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
 
-  // 四角装饰
-  const cSize = 10 * S, cOff = 6 * S
-  const corners = [
-    [px + cOff, py + cOff, 0, Math.PI * 0.5],
-    [px + pw - cOff, py + cOff, Math.PI * 0.5, Math.PI],
-    [px + pw - cOff, py + ph - cOff, Math.PI, Math.PI * 1.5],
-    [px + cOff, py + ph - cOff, Math.PI * 1.5, Math.PI * 2],
-  ]
-  ctx.strokeStyle = 'rgba(255,210,80,0.85)'; ctx.lineWidth = 1.8 * S
-  corners.forEach(([cx, cy, sa, ea]) => {
-    ctx.beginPath(); ctx.arc(cx, cy, cSize, sa, ea); ctx.stroke()
-  })
+  // 顶部装饰条（暖金黄）
+  const ribbonH = 56 * S
+  _dexRR(ctx, px, py, pw, ribbonH, rad)
+  const rib = ctx.createLinearGradient(px, py, px + pw, py)
+  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
+  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
+  ctx.fillStyle = rib; ctx.fill()
 
-  // ─── 顶部图标区域 ───
-  const headerH = 80 * S
-  const iconR = 28 * S
-  const iconCX = W / 2, iconCY = py + headerH / 2 + 4 * S
-
-  // 图标外光晕
-  const pulse = 0.5 + 0.5 * Math.sin(af * 0.08)
-  const glowR = ctx.createRadialGradient(iconCX, iconCY, iconR * 0.3, iconCX, iconCY, iconR * 2.2)
-  glowR.addColorStop(0, `rgba(255,205,50,${0.22 * pulse})`)
-  glowR.addColorStop(1, 'rgba(255,180,30,0)')
-  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR * 2.2, 0, Math.PI * 2)
-  ctx.fillStyle = glowR; ctx.fill()
-
-  // 图标外圈
-  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR + 4 * S, 0, Math.PI * 2)
-  ctx.strokeStyle = `rgba(255,200,60,${0.25 + 0.15 * pulse})`; ctx.lineWidth = 1.2 * S; ctx.stroke()
-
-  // 图标圆形背景
-  const iconBg = ctx.createRadialGradient(iconCX, iconCY - 6 * S, 2 * S, iconCX, iconCY, iconR)
-  iconBg.addColorStop(0, 'rgba(200,150,30,0.55)')
-  iconBg.addColorStop(1, 'rgba(80,50,8,0.80)')
+  // 图标圆（在装饰条内左侧）
+  const iconR = 24 * S
+  const iconCX = px + 42 * S, iconCY = py + ribbonH / 2
   ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR, 0, Math.PI * 2)
-  ctx.fillStyle = iconBg; ctx.fill()
-  ctx.strokeStyle = 'rgba(255,205,60,0.9)'; ctx.lineWidth = 1.8 * S; ctx.stroke()
-
-  // 图标文字
-  ctx.fillStyle = '#fff5cc'
-  ctx.font = `bold ${22 * S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+  ctx.fillStyle = '#5a3000'
+  ctx.font = `bold ${20 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(card.icon, iconCX, iconCY + 1 * S)
+  ctx.fillText(card.icon, iconCX, iconCY)
 
-  // 标题文字（图标下方）
-  const titleY = iconCY + iconR + 14 * S
-  ctx.font = `bold ${17 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
-  // 文字描边
-  ctx.strokeStyle = 'rgba(80,50,0,0.6)'; ctx.lineWidth = 3 * S; ctx.strokeText(card.heading, W / 2, titleY)
-  // 金色渐变标题
-  const titleGrd = ctx.createLinearGradient(W / 2 - 50 * S, titleY - 16 * S, W / 2 + 50 * S, titleY)
-  titleGrd.addColorStop(0, '#ffe8a0')
-  titleGrd.addColorStop(0.5, '#fff4c0')
-  titleGrd.addColorStop(1, '#ffd060')
-  ctx.fillStyle = titleGrd
-  ctx.fillText(card.heading, W / 2, titleY)
+  // 标题（深棕色，装饰条内）
+  ctx.fillStyle = '#3a1a00'
+  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
 
   // 分隔线（带菱形装饰）
-  const sepY = titleY + 14 * S
+  const sepY = py + ribbonH + 14 * S
   const sepLX = px + 24 * S, sepRX = px + pw - 24 * S, sepMX = W / 2
-  ctx.strokeStyle = 'rgba(200,165,45,0.5)'; ctx.lineWidth = 1 * S
+  ctx.strokeStyle = 'rgba(160,120,40,0.3)'; ctx.lineWidth = 1 * S
   ctx.beginPath(); ctx.moveTo(sepLX, sepY); ctx.lineTo(sepMX - 10 * S, sepY); ctx.stroke()
   ctx.beginPath(); ctx.moveTo(sepMX + 10 * S, sepY); ctx.lineTo(sepRX, sepY); ctx.stroke()
-  // 菱形
   ctx.save()
   ctx.translate(sepMX, sepY); ctx.rotate(Math.PI / 4)
-  ctx.fillStyle = 'rgba(220,175,55,0.85)'
+  ctx.fillStyle = 'rgba(200,158,60,0.7)'
   ctx.fillRect(-4 * S, -4 * S, 8 * S, 8 * S)
   ctx.restore()
 
   // ─── 正文内容 ───
-  const contentTop = sepY + 22 * S
+  const contentTop = sepY + 18 * S
   const lineH = 34 * S
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
   ;(card.lines || []).forEach((line, i) => {
-    const ly = contentTop + i * lineH
     ctx.font = `${14 * S}px "PingFang SC",sans-serif`
-    ctx.fillStyle = 'rgba(220,210,190,0.95)'
-    ctx.fillText(line, W / 2, ly)
+    ctx.fillStyle = '#4a3820'
+    ctx.fillText(line, W / 2, contentTop + i * lineH)
   })
 
-  // ─── Note 条 ───
+  // ─── Note 备注 ───
   if (card.note) {
-    const noteTopGap = 16 * S
-    const noteY = contentTop + (card.lines || []).length * lineH + noteTopGap
-    const noteW = pw - 48 * S, noteH = 40 * S
-    const noteX = px + 24 * S
-
-    // note 背景
-    const noteGrd = ctx.createLinearGradient(noteX, noteY, noteX + noteW, noteY + noteH)
-    noteGrd.addColorStop(0, 'rgba(100,72,12,0.75)')
-    noteGrd.addColorStop(0.5, 'rgba(145,105,18,0.82)')
-    noteGrd.addColorStop(1, 'rgba(100,72,12,0.75)')
-    _dexRR(ctx, noteX, noteY, noteW, noteH, 8 * S)
-    ctx.fillStyle = noteGrd; ctx.fill()
-    // note 内边框
-    _dexRR(ctx, noteX + 1.5 * S, noteY + 1.5 * S, noteW - 3 * S, noteH - 3 * S, 7 * S)
-    ctx.strokeStyle = 'rgba(255,215,80,0.45)'; ctx.lineWidth = 1 * S; ctx.stroke()
-
-    // note 文字
+    const noteY = contentTop + (card.lines || []).length * lineH + 14 * S
+    ctx.fillStyle = '#b06010'
     ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
-    ctx.fillStyle = '#ffe58a'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.strokeStyle = 'rgba(60,35,0,0.5)'; ctx.lineWidth = 2.5 * S
-    ctx.strokeText(card.note, W / 2, noteY + noteH / 2)
-    ctx.fillText(card.note, W / 2, noteY + noteH / 2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+    ctx.fillText(card.note, W / 2, noteY)
   }
 
   // ─── 底部翻页指示 ───
   const dotAreaY = py + ph - 44 * S
-  const total = _DEX_INTRO_CARDS.length, dotR = 5 * S, dotGap = 16 * S
+  const total = _DEX_INTRO_CARDS.length, dotR = 4 * S, dotGap = 14 * S
   const dotsStartX = W / 2 - ((total - 1) * dotGap) / 2
   ctx.textBaseline = 'alphabetic'
   for (let i = 0; i < total; i++) {
     const dx = dotsStartX + i * dotGap
-    if (i === page) {
-      // 当前页：发光金点
-      const dg = ctx.createRadialGradient(dx, dotAreaY, 0, dx, dotAreaY, dotR)
-      dg.addColorStop(0, '#fff8d0')
-      dg.addColorStop(1, '#ffc830')
-      ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR, 0, Math.PI * 2)
-      ctx.fillStyle = dg; ctx.fill()
-    } else {
-      ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR * 0.65, 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(220,175,55,0.28)'; ctx.fill()
-      ctx.strokeStyle = 'rgba(220,175,55,0.5)'; ctx.lineWidth = 1 * S; ctx.stroke()
-    }
+    ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR, 0, Math.PI * 2)
+    ctx.fillStyle = i === page ? '#c07820' : 'rgba(160,120,40,0.3)'
+    ctx.fill()
   }
 
   // "点击继续" 文字
   const hintPulse = 0.55 + 0.45 * Math.sin(af * 0.1)
   ctx.globalAlpha = alpha * hintPulse
-  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
-  ctx.fillStyle = '#b8a878'; ctx.textAlign = 'center'
-  ctx.fillText(page >= total - 1 ? '点击进入图鉴 ›' : '点击继续 ›', W / 2, py + ph - 14 * S)
+  ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#8a6030'; ctx.textAlign = 'center'
+  ctx.fillText(page >= total - 1 ? '点击进入图鉴 ›' : '点击继续 ›', W / 2, py + ph - 16 * S)
 
   ctx.restore()
 }

@@ -1803,8 +1803,8 @@ function drawRogueIntro(g) {
 
   ctx.save()
   // 半透明全屏遮罩
-  ctx.globalAlpha = intro.alpha * 0.78
-  ctx.fillStyle = '#08061a'
+  ctx.globalAlpha = intro.alpha * 0.72
+  ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = intro.alpha
 
@@ -1813,88 +1813,80 @@ function drawRogueIntro(g) {
   const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
   const rad = 14 * S
 
-  // 面板背景渐变
+  // 面板背景（浅米黄暖色）
   const bg = ctx.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(18,12,38,0.98)')
-  bg.addColorStop(1, 'rgba(10,7,24,0.98)')
+  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
+  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
   _riRR(ctx, px, py, pw, ph, rad)
   ctx.fillStyle = bg
   ctx.fill()
 
   // 外边框：金色
   _riRR(ctx, px, py, pw, ph, rad)
-  ctx.strokeStyle = 'rgba(200,160,55,0.75)'
+  ctx.strokeStyle = 'rgba(200,160,60,0.6)'
   ctx.lineWidth = 1.5 * S
   ctx.stroke()
 
-  // 顶部彩带
-  const ribbonH = 46 * S
+  // 顶部装饰条（暖金黄）
+  const ribbonH = 44 * S
   _riRR(ctx, px, py, pw, ribbonH, rad)
   const rib = ctx.createLinearGradient(px, py, px + pw, py)
-  rib.addColorStop(0, 'rgba(70,40,8,0.95)')
-  rib.addColorStop(0.5, 'rgba(130,90,15,0.95)')
-  rib.addColorStop(1, 'rgba(70,40,8,0.95)')
+  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
+  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
   ctx.fillStyle = rib
   ctx.fill()
 
-  // 图标圆
+  // 图标圆（白色半透明）
   const iconR = 22 * S
   const iconX = px + 38 * S, iconY = py + ribbonH / 2
   ctx.beginPath()
   ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,195,50,0.18)'
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'
   ctx.fill()
-  ctx.strokeStyle = 'rgba(255,195,50,0.8)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'
   ctx.lineWidth = 1.5 * S
   ctx.stroke()
-  ctx.fillStyle = '#ffd060'
+  ctx.fillStyle = '#5a3000'
   ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(card.icon, iconX, iconY)
 
-  // 标题
-  ctx.fillStyle = '#ffe07a'
+  // 标题（深棕色）
+  ctx.fillStyle = '#3a1a00'
   ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillText(card.heading, W / 2 + 14 * S, py + 30 * S)
+  ctx.textBaseline = 'middle'
+  ctx.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
 
   // 分割线
-  ctx.strokeStyle = 'rgba(180,140,40,0.3)'
+  ctx.strokeStyle = 'rgba(160,120,40,0.25)'
   ctx.lineWidth = 1 * S
   ctx.beginPath()
   ctx.moveTo(px + 20 * S, py + 52 * S)
   ctx.lineTo(px + pw - 20 * S, py + 52 * S)
   ctx.stroke()
 
-  // 正文
+  // 正文（深棕灰）
   const lineH = 30 * S
-  const textStartY = py + 82 * S
-  ctx.fillStyle = '#d8d0c0'
+  const textStartY = py + 78 * S
+  ctx.fillStyle = '#4a3820'
   ctx.font = `${13 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
   ;(card.lines || []).forEach((line, i) => {
     ctx.fillText(line, W / 2, textStartY + i * lineH)
   })
 
-  // 钩子备注框
+  // 钩子备注
   if (card.note) {
-    const noteY = textStartY + (card.lines || []).length * lineH + 18 * S
-    const noteW = pw - 40 * S, noteH = 36 * S
-    const noteX = px + 20 * S
-    const noteGrd = ctx.createLinearGradient(noteX, noteY, noteX + noteW, noteY)
-    noteGrd.addColorStop(0, 'rgba(80,55,10,0.7)')
-    noteGrd.addColorStop(0.5, 'rgba(110,80,15,0.8)')
-    noteGrd.addColorStop(1, 'rgba(80,55,10,0.7)')
-    _riRR(ctx, noteX, noteY - 8 * S, noteW, noteH, 6 * S)
-    ctx.fillStyle = noteGrd
-    ctx.fill()
-    ctx.fillStyle = '#ffd060'
+    const noteY = textStartY + (card.lines || []).length * lineH + 14 * S
+    ctx.fillStyle = '#b06010'
     ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(card.note, W / 2, noteY - 8 * S + noteH / 2)
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(card.note, W / 2, noteY)
   }
 
   // 进度点
@@ -1906,7 +1898,7 @@ function drawRogueIntro(g) {
   for (let i = 0; i < total; i++) {
     ctx.beginPath()
     ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-    ctx.fillStyle = i === intro.page ? '#ffd060' : 'rgba(255,200,80,0.25)'
+    ctx.fillStyle = i === intro.page ? '#c07820' : 'rgba(160,120,40,0.3)'
     ctx.fill()
   }
 
@@ -1914,7 +1906,7 @@ function drawRogueIntro(g) {
   const af = g.af || 0
   const pulse = 0.5 + 0.4 * Math.sin(af * 0.1)
   ctx.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
-  ctx.fillStyle = '#9a8c70'
+  ctx.fillStyle = '#8a6030'
   ctx.font = `${10 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   const isLast = intro.page >= total - 1

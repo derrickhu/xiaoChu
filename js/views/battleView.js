@@ -3509,37 +3509,84 @@ function drawTutorialOverlay(g) {
   if (data.phase === 'intro') {
     const alpha = Math.min(1, data.introTimer / 30)
     ctx.save()
+    ctx.globalAlpha = alpha * 0.72
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+    ctx.globalAlpha = alpha
+
+    // 面板
+    const pw = W * 0.86, ph = data.round === 0 ? 220 * S : 120 * S
+    const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
+    const rad = 14 * S
+
+    // 面板背景（浅米黄暖色）
+    const bgGrd = ctx.createLinearGradient(px, py, px, py + ph)
+    bgGrd.addColorStop(0, 'rgba(252,246,228,0.97)')
+    bgGrd.addColorStop(1, 'rgba(244,234,208,0.97)')
+    _storyRR(ctx, px, py, pw, ph, rad)
+    ctx.fillStyle = bgGrd; ctx.fill()
+
+    // 外边框
+    _storyRR(ctx, px, py, pw, ph, rad)
+    ctx.strokeStyle = 'rgba(200,160,60,0.6)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+
+    // 顶部装饰条
+    const ribbonH = 40 * S
+    _storyRR(ctx, px, py, pw, ribbonH, rad)
+    const hGrd = ctx.createLinearGradient(px, py, px + pw, py)
+    hGrd.addColorStop(0, 'rgba(200,158,60,0.85)')
+    hGrd.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+    hGrd.addColorStop(1, 'rgba(200,158,60,0.85)')
+    ctx.fillStyle = hGrd; ctx.fill()
+
     if (data.round === 0) {
       // 步骤首回合：完整标题卡
-      ctx.globalAlpha = alpha * 0.65
-      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
-      ctx.globalAlpha = alpha
+      // 课数标签（装饰条内左侧）
+      ctx.fillStyle = '#5a3000'
+      ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.fillText(`第${data.step + 1}课`, px + 20 * S, py + ribbonH / 2)
+
+      // 步骤标题（装饰条内居中）
+      ctx.fillStyle = '#3a1a00'
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'
-      ctx.fillStyle = '#C07000'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      ctx.fillText(`第${data.step + 1}课`, W*0.5, H*0.38)
-      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
-      ctx.fillText(data.title, W*0.5, H*0.44)
+      ctx.fillText(data.title, W * 0.5 + 16 * S, py + ribbonH / 2)
+
+      // 分割线
+      ctx.strokeStyle = 'rgba(160,120,40,0.25)'; ctx.lineWidth = 1 * S
+      ctx.beginPath()
+      ctx.moveTo(px + 20 * S, py + ribbonH + 1 * S)
+      ctx.lineTo(px + pw - 20 * S, py + ribbonH + 1 * S)
+      ctx.stroke()
+
+      // 说明文字
       const startMsg = data.msgs.find(m => m.timing === 'start')
       if (startMsg) {
-        ctx.fillStyle = '#fff'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
-        ctx.fillText(startMsg.text, W*0.5, H*0.52)
+        ctx.fillStyle = '#4a3820'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(startMsg.text, W * 0.5, py + ribbonH + (ph - ribbonH) * 0.42)
       }
-      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText('点击屏幕开始', W*0.5, H*0.60)
+
+      // 点击提示
+      const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.1)
+      ctx.globalAlpha = alpha * (0.45 + 0.45 * pulse)
+      ctx.fillStyle = '#8a6030'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      ctx.fillText('点击屏幕开始', W * 0.5, py + ph - 14 * S)
     } else {
       // 后续回合：轻量提示横幅
-      ctx.globalAlpha = alpha * 0.45
-      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
-      ctx.globalAlpha = alpha
-      ctx.textAlign = 'center'
       const startMsg = data.msgs.find(m => m.timing === 'start')
-      if (startMsg) {
-        ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-        ctx.fillText(startMsg.text, W*0.5, H*0.45)
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText('点击屏幕继续', W*0.5, H*0.54)
+      ctx.fillStyle = '#3a1a00'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      if (startMsg) ctx.fillText(startMsg.text, W * 0.5, py + ribbonH / 2)
+
+      const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.1)
+      ctx.globalAlpha = alpha * (0.45 + 0.45 * pulse)
+      ctx.fillStyle = '#8a6030'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      ctx.fillText('点击屏幕继续', W * 0.5, py + ph - 14 * S)
     }
+
     ctx.restore()
     return
   }

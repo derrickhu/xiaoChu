@@ -255,4 +255,32 @@ function drawBottomBar(g) {
   ctx.restore()
 }
 
-module.exports = { BAR_ITEMS, getLayout, drawBottomBar }
+/**
+ * 统一页面标题绘制：name_bg 背景图 + 深棕文字
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {object} R  资源管理器
+ * @param {number} W  屏幕宽度
+ * @param {number} S  缩放系数
+ * @param {number} centerX  标题中心 X（通常 W/2）
+ * @param {number} centerY  标题中心 Y
+ * @param {string} text     标题文字
+ */
+function drawPageTitle(ctx, R, W, S, centerX, centerY, text) {
+  const nameBg = R.getImg('assets/ui/name_bg.png')
+  const bgH = 48 * S
+  const bgW = nameBg && nameBg.width > 0
+    ? bgH * (nameBg.width / nameBg.height)
+    : 180 * S
+  ctx.save()
+  if (nameBg && nameBg.width > 0) {
+    ctx.drawImage(nameBg, centerX - bgW / 2, centerY - bgH / 2, bgW, bgH)
+  }
+  ctx.fillStyle = '#3a1a00'
+  ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, centerX, centerY)
+  ctx.restore()
+}
+
+module.exports = { BAR_ITEMS, getLayout, drawBottomBar, drawPageTitle }

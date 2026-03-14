@@ -63,7 +63,7 @@ function draw(g) {
   const btnText = isLast ? '知道了' : '点击继续'
   const breathAlpha = 0.5 + 0.5 * Math.sin(g.af * 0.08)
   c.globalAlpha = alpha * breathAlpha
-  c.fillStyle = '#fff'
+  c.fillStyle = '#8a6030'
   c.font = `${13 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   c.fillText(btnText, W / 2, H - 60 * S)
@@ -93,23 +93,36 @@ function _drawBubble(c, W, H, S, info) {
   }
   const bubbleX = (W - bubbleW) / 2
 
-  // 气泡背景
-  c.fillStyle = 'rgba(30,25,50,0.92)'
+  // 气泡背景（浅米黄暖色）
   const br = 12 * S
+  const bubbleGrd = c.createLinearGradient(bubbleX, bubbleY, bubbleX, bubbleY + bubbleH)
+  bubbleGrd.addColorStop(0, 'rgba(252,246,228,0.97)')
+  bubbleGrd.addColorStop(1, 'rgba(244,234,208,0.97)')
   V.R.rr(bubbleX, bubbleY, bubbleW, bubbleH, br)
+  c.fillStyle = bubbleGrd
   c.fill()
 
   // 金色边框
-  c.strokeStyle = 'rgba(212,160,23,0.6)'
+  c.strokeStyle = 'rgba(200,160,60,0.6)'
   c.lineWidth = 1.5 * S
   V.R.rr(bubbleX, bubbleY, bubbleW, bubbleH, br)
   c.stroke()
 
-  // 文字
-  c.fillStyle = '#fff'
+  // 顶部装饰条
+  const barH = Math.min(32 * S, bubbleH * 0.35)
+  const barGrd = c.createLinearGradient(bubbleX, bubbleY, bubbleX + bubbleW, bubbleY)
+  barGrd.addColorStop(0, 'rgba(200,158,60,0.85)')
+  barGrd.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+  barGrd.addColorStop(1, 'rgba(200,158,60,0.85)')
+  V.R.rr(bubbleX, bubbleY, bubbleW, barH, br)
+  c.fillStyle = barGrd
+  c.fill()
+
+  // 文字（深棕色）
+  c.fillStyle = '#3a1a00'
   c.textAlign = 'center'
   for (let i = 0; i < lines.length; i++) {
-    c.fillText(lines[i], W / 2, bubbleY + padY + fontSize + i * lineH)
+    c.fillText(lines[i], W / 2, bubbleY + barH + padY + fontSize * 0.8 + i * lineH)
   }
 }
 

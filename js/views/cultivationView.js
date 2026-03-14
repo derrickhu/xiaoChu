@@ -10,7 +10,7 @@ const {
   effectValue, usedPoints, currentRealm, nextRealm,
 } = require('../data/cultivationConfig')
 const MusicMgr = require('../runtime/music')
-const { drawBottomBar, getLayout } = require('./bottomBar')
+const { drawBottomBar, getLayout, drawPageTitle } = require('./bottomBar')
 const Draw = require('./cultivationDraw')
 
 // 可选角色形象列表
@@ -109,14 +109,7 @@ function rCultivation(g) {
   const topH = 44 * S
   const topY = safeTop + 16*S
 
-  c.save()
-  c.fillStyle = '#7A5C30'
-  c.font = `bold ${18*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.shadowColor = 'rgba(212,168,67,0.3)'; c.shadowBlur = 4*S
-  c.fillText('修炼洞府', W * 0.5, topY + topH * 0.5)
-  c.shadowBlur = 0
-  c.restore()
+  drawPageTitle(c, R, W, S, W * 0.5, topY + topH * 0.5, '修炼洞府')
 
   // 境界 + 等级
   const realm = currentRealm(cult.level)
@@ -308,8 +301,8 @@ function _drawCultIntro(c, R, g, W, H, S) {
   if (!card) return
 
   c.save()
-  c.globalAlpha = intro.alpha * 0.78
-  c.fillStyle = '#08061a'
+  c.globalAlpha = intro.alpha * 0.72
+  c.fillStyle = '#000'
   c.fillRect(0, 0, W, H)
   c.globalAlpha = intro.alpha
 
@@ -317,82 +310,83 @@ function _drawCultIntro(c, R, g, W, H, S) {
   const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
   const rad = 14 * S
 
+  // 面板背景（浅米黄暖色）
   const bg = c.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(18,12,38,0.98)')
-  bg.addColorStop(1, 'rgba(10,7,24,0.98)')
+  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
+  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
   _riRR(c, px, py, pw, ph, rad)
   c.fillStyle = bg
   c.fill()
 
+  // 外边框：金色
   _riRR(c, px, py, pw, ph, rad)
-  c.strokeStyle = 'rgba(200,160,55,0.75)'
+  c.strokeStyle = 'rgba(200,160,60,0.6)'
   c.lineWidth = 1.5 * S
   c.stroke()
 
-  const ribbonH = 46 * S
+  // 顶部装饰条（暖金黄）
+  const ribbonH = 44 * S
   _riRR(c, px, py, pw, ribbonH, rad)
   const rib = c.createLinearGradient(px, py, px + pw, py)
-  rib.addColorStop(0, 'rgba(70,40,8,0.95)')
-  rib.addColorStop(0.5, 'rgba(130,90,15,0.95)')
-  rib.addColorStop(1, 'rgba(70,40,8,0.95)')
+  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
+  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
+  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
   c.fillStyle = rib
   c.fill()
 
+  // 图标圆（白色半透明）
   const iconR = 22 * S
   const iconX = px + 38 * S, iconY = py + ribbonH / 2
   c.beginPath()
   c.arc(iconX, iconY, iconR, 0, Math.PI * 2)
-  c.fillStyle = 'rgba(255,195,50,0.18)'
+  c.fillStyle = 'rgba(255,255,255,0.3)'
   c.fill()
-  c.strokeStyle = 'rgba(255,195,50,0.8)'
+  c.strokeStyle = 'rgba(255,255,255,0.7)'
   c.lineWidth = 1.5 * S
   c.stroke()
-  c.fillStyle = '#ffd060'
+  c.fillStyle = '#5a3000'
   c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   c.textBaseline = 'middle'
   c.fillText(card.icon, iconX, iconY)
 
-  c.fillStyle = '#ffe07a'
+  // 标题（深棕色）
+  c.fillStyle = '#3a1a00'
   c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
-  c.textBaseline = 'alphabetic'
-  c.fillText(card.heading, W / 2 + 14 * S, py + 30 * S)
+  c.textBaseline = 'middle'
+  c.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
 
-  c.strokeStyle = 'rgba(180,140,40,0.3)'
+  // 分割线
+  c.strokeStyle = 'rgba(160,120,40,0.25)'
   c.lineWidth = 1 * S
   c.beginPath()
   c.moveTo(px + 20 * S, py + 52 * S)
   c.lineTo(px + pw - 20 * S, py + 52 * S)
   c.stroke()
 
+  // 正文（深棕灰）
   const lineH = 30 * S
-  const textStartY = py + 82 * S
-  c.fillStyle = '#d8d0c0'
+  const textStartY = py + 78 * S
+  c.fillStyle = '#4a3820'
   c.font = `${13 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
+  c.textBaseline = 'alphabetic'
   ;(card.lines || []).forEach((line, i) => {
     c.fillText(line, W / 2, textStartY + i * lineH)
   })
 
+  // 备注
   if (card.note) {
-    const noteY = textStartY + (card.lines || []).length * lineH + 18 * S
-    const noteW = pw - 40 * S, noteH = 36 * S
-    const noteX = px + 20 * S
-    const noteGrd = c.createLinearGradient(noteX, noteY, noteX + noteW, noteY)
-    noteGrd.addColorStop(0, 'rgba(80,55,10,0.7)')
-    noteGrd.addColorStop(0.5, 'rgba(110,80,15,0.8)')
-    noteGrd.addColorStop(1, 'rgba(80,55,10,0.7)')
-    _riRR(c, noteX, noteY - 8 * S, noteW, noteH, 6 * S)
-    c.fillStyle = noteGrd
-    c.fill()
-    c.fillStyle = '#ffd060'
+    const noteY = textStartY + (card.lines || []).length * lineH + 14 * S
+    c.fillStyle = '#b06010'
     c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.fillText(card.note, W / 2, noteY - 8 * S + noteH / 2)
+    c.textBaseline = 'alphabetic'
+    c.fillText(card.note, W / 2, noteY)
   }
 
+  // 进度点
   const total = _CULT_INTRO_CARDS.length
   const dotR = 4 * S, dotGap = 14 * S
   const dotsX = W / 2 - (total * dotGap) / 2 + dotGap / 2
@@ -401,13 +395,14 @@ function _drawCultIntro(c, R, g, W, H, S) {
   for (let i = 0; i < total; i++) {
     c.beginPath()
     c.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-    c.fillStyle = i === intro.page ? '#ffd060' : 'rgba(255,200,80,0.25)'
+    c.fillStyle = i === intro.page ? '#c07820' : 'rgba(160,120,40,0.3)'
     c.fill()
   }
 
+  // 点击继续提示
   const pulse = 0.5 + 0.4 * Math.sin(_state.animFrame * 0.1)
   c.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
-  c.fillStyle = '#9a8c70'
+  c.fillStyle = '#8a6030'
   c.font = `${10 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   const isLast = intro.page >= total - 1
