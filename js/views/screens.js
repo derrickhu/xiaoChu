@@ -1521,29 +1521,30 @@ function rAdventure(g) {
   drawBackBtn(g)
 }
 
-// ===== 通用左上角返回首页按钮（仙侠风格） =====
+// ===== 通用左上角返回首页按钮（btn_back.png 图片版） =====
 function drawBackBtn(g) {
-  const { ctx, R, TH, S, safeTop } = V
-  const btnW = 64*S, btnH = 30*S
-  const bx = 8*S, by = safeTop + 6*S
+  const { ctx, R, S, safeTop } = V
+  const btnImg = R.getImg('assets/ui/btn_back.png')
+  // 图片宽高比约 2.2:1，高度固定 40*S
+  const btnH = 40 * S
+  const btnW = btnImg && btnImg.width > 0
+    ? btnH * (btnImg.width / btnImg.height)
+    : 88 * S
+  const bx = 4 * S, by = safeTop + 2 * S
   ctx.save()
-  // 暗金底板
-  const bg = ctx.createLinearGradient(bx, by, bx, by + btnH)
-  bg.addColorStop(0, 'rgba(40,30,15,0.8)')
-  bg.addColorStop(1, 'rgba(25,18,8,0.85)')
-  ctx.fillStyle = bg
-  R.rr(bx, by, btnW, btnH, btnH*0.5); ctx.fill()
-  // 金色描边
-  ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1*S
-  R.rr(bx, by, btnW, btnH, btnH*0.5); ctx.stroke()
-  // 内侧高光
-  ctx.strokeStyle = 'rgba(255,230,160,0.12)'; ctx.lineWidth = 0.5*S
-  R.rr(bx+1*S, by+1*S, btnW-2*S, btnH-2*S, (btnH-2*S)*0.5); ctx.stroke()
-  // 文字
-  ctx.fillStyle = '#f0dca0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 2*S
-  ctx.fillText('◁ 首页', bx + btnW*0.5, by + btnH*0.5)
+  if (btnImg && btnImg.width > 0) {
+    ctx.drawImage(btnImg, bx, by, btnW, btnH)
+  } else {
+    // 降级：简单暖金圆角矩形 + 文字
+    const fb = ctx.createLinearGradient(bx, by, bx, by + btnH)
+    fb.addColorStop(0, 'rgba(200,158,60,0.9)'); fb.addColorStop(1, 'rgba(160,120,30,0.9)')
+    ctx.fillStyle = fb; R.rr(bx, by, btnW, btnH, btnH * 0.5); ctx.fill()
+    ctx.fillStyle = '#fff8ee'
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(80,20,0,0.55)'; ctx.shadowBlur = 3 * S
+    ctx.fillText('◁ 首页', bx + btnW * 0.5, by + btnH * 0.5)
+  }
   ctx.restore()
   ctx.textBaseline = 'alphabetic'
   g._backBtnRect = [bx, by, btnW, btnH]

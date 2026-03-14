@@ -157,6 +157,7 @@ class Main {
       'assets/hero/char_girl3.png',
       'assets/ui/frame_avatar.png',
       'assets/ui/name_bg.png',
+      'assets/ui/btn_back.png',
     ]
     R.preloadImages(criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
