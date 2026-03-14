@@ -181,8 +181,7 @@ function tTitle(g, type, x, y) {
         return
       }
       case 1: {
-        const firstRunDone1 = g.storage.totalRuns >= 1
-        if (firstRunDone1 && g.storage.petPoolCount > 0) {
+        if (g.storage.petPoolCount >= 1) {
           g._petPoolFilter = 'all'
           g._petPoolScroll = 0
           g._petPoolDetail = null
@@ -191,11 +190,10 @@ function tTitle(g, type, x, y) {
         return
       }
       case 2: {
-        const firstRunDone2 = g.storage.totalRuns >= 1
-        if (firstRunDone2) { g._dexScrollY = 0; g.setScene('dex') }
+        if (g.storage.petPoolCount >= 1) { g._dexScrollY = 0; g.setScene('dex') }
         return
       }
-      case 3: g.titleMode = 'tower'; return
+      case 3: g.titleMode = 'tower'; g.setScene('title'); return
       case 4:
         if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
         g._openRanking(); return

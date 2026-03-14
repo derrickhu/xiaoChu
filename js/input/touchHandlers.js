@@ -195,10 +195,10 @@ function tDex(g, type, x, y) {
     const idx = Math.floor(x / slotW)
     const item = BAR_ITEMS[idx]
     if (item) {
-      const firstRunDone = g.storage.totalRuns >= 1
       if (item.key === 'home') { g.setScene('title'); return }
+      if (item.key === 'battle' || item.key === 'stage') { g.setScene('title'); return }
       if (item.key === 'pets') {
-        if (firstRunDone && g.storage.petPoolCount > 0) {
+        if (g.storage.petPoolCount >= 1) {
           g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
           g.setScene('petPool')
         }
@@ -206,6 +206,8 @@ function tDex(g, type, x, y) {
       }
       if (item.key === 'dex') return  // 已在图鉴
       if (item.key === 'cultivation') { g.setScene('cultivation'); return }
+      if (item.key === 'rank') { g.setScene('ranking'); return }
+      if (item.key === 'stats') { g.setScene('stats'); return }
       if (item.key === 'idle') { g.setScene('idle'); return }
     }
     return
