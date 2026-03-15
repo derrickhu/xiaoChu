@@ -8,8 +8,10 @@
     "downloadFile": 5000
   },
   "subpackages": [
-    { "name": "pets",        "root": "assets/pets/" },
-    { "name": "enemies",     "root": "assets/enemies/" },
+    { "name": "pets",           "root": "assets/pets/" },
+    { "name": "enemies",        "root": "assets/enemies/" },
+    { "name": "stage_enemies",  "root": "assets/stage_enemies/" },
+    { "name": "stage_avatars",  "root": "assets/stage_avatars/" },
     { "name": "backgrounds", "root": "assets/backgrounds/" },
     { "name": "ui",          "root": "assets/ui/" },
     { "name": "hero",        "root": "assets/hero/" },
