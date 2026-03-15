@@ -29,8 +29,8 @@ build/
 project.config.json
 project.private.config.json
 
-# 宠物美术生成中间产物（不打包）
-tmp/pet_art/
+# 中间产物/临时文件（不打包）
+tmp/
 
 # Misc
 *.log
