@@ -161,6 +161,8 @@ const ENEMY_SKILLS = {
   healBlock: { name:'噬灵术',   desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
   stun:      { name:'妖力震慑', desc:'眩晕修士，无法操作1回合', type:'stun', dur:1 },
   selfHeal:  { name:'妖力再生', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
+  defBuff:   { name:'坚甲术',   desc:'防御提升30%,持续2回合', type:'buff', field:'def', rate:0.3, dur:2 },
+  healPct:   { name:'灵气回春', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
   breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
   // ===== 精英封珠技能 =====
   eliteSealRow:   { name:'封灵锁链', desc:'封锁整行灵珠,持续2回合', type:'sealRow', dur:2 },

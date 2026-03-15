@@ -29,6 +29,9 @@ build/
 project.config.json
 project.private.config.json
 
+# 宠物美术生成中间产物（不打包）
+tmp/pet_art/
+
 # Misc
 *.log
 *.swp

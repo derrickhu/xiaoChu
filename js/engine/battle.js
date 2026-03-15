@@ -634,16 +634,20 @@ function applyFinalDamage(g, dmgMap, heal) {
       }
       else if (COUNTER_BY[attr] === enemyAttr) dmg *= COUNTERED_MUL
     }
-    if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
-    if (g.weapon && g.weapon.type === 'ignoreDefPct' && g.weapon.attr === attr && g.enemy) {
-      dmg += (g.enemy.def || 0) * g.weapon.pct / 100
-    }
-    // 宠物技能ignoreDefPct buff：无视部分防御
-    g.heroBuffs.forEach(b => {
-      if (b.type === 'ignoreDefPct' && b.attr === attr && g.enemy) {
-        dmg += (g.enemy.def || 0) * b.pct / 100
+    if (g.enemy) {
+      let eDef = g.enemy.def || 0
+      const defBuff = g.enemyBuffs.find(b => b.type === 'buff' && b.field === 'def')
+      if (defBuff) eDef = Math.round(eDef * (1 + defBuff.rate))
+      dmg = Math.max(0, dmg - eDef)
+      if (g.weapon && g.weapon.type === 'ignoreDefPct' && g.weapon.attr === attr) {
+        dmg += eDef * g.weapon.pct / 100
       }
-    })
+      g.heroBuffs.forEach(b => {
+        if (b.type === 'ignoreDefPct' && b.attr === attr) {
+          dmg += eDef * b.pct / 100
+        }
+      })
+    }
     dmg *= critMul
     dmg = Math.round(dmg)
     if (dmg > 0) {
