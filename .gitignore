@@ -37,3 +37,4 @@ tmp/
 *.swp
 *.swo
 
+.cloudbase/
