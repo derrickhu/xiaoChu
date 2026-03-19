@@ -41,6 +41,7 @@
   "packOptions": {
     "ignore": [
       { "value": "cloudfunctions", "type": "folder" },
+      { "value": "softcopyright", "type": "folder" },
       { "value": "tools", "type": "folder" },
       { "value": "config", "type": "folder" },
       { "value": "scripts", "type": "folder" },
