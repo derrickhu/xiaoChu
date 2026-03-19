@@ -80,7 +80,7 @@ class MusicManager {
 
   // 音阶频率比（十二平均律）：Do Re Mi Fa Sol La Si Do'
   // combo 1-8 对应第一个八度，9-15 对应第二个八度（×2），16+ 顶到最高
-  // playbackRate 范围 0.5-2.0，以 combo.wav 原始音高为 Do 基准
+  // playbackRate 范围 0.5-2.0，以 combo.mp3 原始音高为 Do 基准
   static get SCALE() {
     return [
       1.0,     // 1  Do
@@ -116,7 +116,7 @@ class MusicManager {
       const idx2 = Math.min(comboNum - 9, scale.length - 1)
       const pitch2 = scale[idx2]
       const vol2 = Math.min(0.6, 0.3 + (comboNum - 9) * 0.05)
-      this._playSfxEx('audio/levelup.wav', vol2, pitch2)
+      this._playSfxEx('audio/levelup.mp3', vol2, pitch2)
     }
 
     // 5连击(Sol)开始叠加轻打击音，增加节奏冲击感
@@ -139,7 +139,7 @@ class MusicManager {
     const scale = MusicManager.SCALE
     if (comboNum === 5) {
       // Sol大三和弦：Sol + Si + Re'
-      this._playSfxEx('audio/levelup.wav', 0.6, scale[4])  // Sol
+      this._playSfxEx('audio/levelup.mp3', 0.6, scale[4])  // Sol
       setTimeout(() => {
         if (this.enabled) {
           this._playSfxEx('audio/combo.mp3', 0.45, scale[6])  // Si
@@ -148,7 +148,7 @@ class MusicManager {
       }, 40)
     } else if (comboNum === 8) {
       // 高八度力量和弦
-      this._playSfxEx('audio/skill.wav', 0.7, scale[7])  // Do'
+      this._playSfxEx('audio/skill.mp3', 0.7, scale[7])  // Do'
       setTimeout(() => {
         if (this.enabled) {
           this._playSfxEx('audio/combo.mp3', 0.5, scale[4])  // Sol
@@ -157,11 +157,11 @@ class MusicManager {
       }, 50)
     } else if (comboNum >= 12) {
       // 全爆发：boss低音 + 快速上行扫弦
-      this._playSfxEx('audio/boss.wav', 0.6, scale[0])
+      this._playSfxEx('audio/boss.mp3', 0.6, scale[0])
       setTimeout(() => {
         if (this.enabled) {
-          this._playSfxEx('audio/victory.wav', 0.5, scale[4])  // Sol
-          this._playSfxEx('audio/skill.wav', 0.4, scale[7])    // Do'
+          this._playSfxEx('audio/victory.mp3', 0.5, scale[4])  // Sol
+          this._playSfxEx('audio/skill.mp3', 0.4, scale[7])    // Do'
           this._playSfxEx('audio/combo.mp3', 0.35, scale[7])   // Do' 叠加
         }
       }, 60)
@@ -169,9 +169,9 @@ class MusicManager {
     // 整10里程碑额外冲击音（10/20/30…）
     if (comboNum >= 10 && comboNum % 10 === 0) {
       const impactVol = Math.min(0.8, 0.5 + (comboNum / 10) * 0.1)
-      this._playSfxEx('audio/boss.wav', impactVol, 0.6)
+      this._playSfxEx('audio/boss.mp3', impactVol, 0.6)
       setTimeout(() => {
-        if (this.enabled) this._playSfxEx('audio/victory.wav', impactVol * 0.7, 1.0)
+        if (this.enabled) this._playSfxEx('audio/victory.mp3', impactVol * 0.7, 1.0)
       }, 80)
     }
   }
@@ -183,7 +183,7 @@ class MusicManager {
     if (count >= 5) {
       // 5消：主消除音 + 冲击低音叠加 + 高光扫弦
       this._playSfxEx('audio/eliminate.mp3', 0.7, 1.2)
-      this._playSfxEx('audio/skill.wav', 0.3, 0.8)
+      this._playSfxEx('audio/skill.mp3', 0.3, 0.8)
       setTimeout(() => {
         if (this.enabled) this._playSfxEx('audio/combo.mp3', 0.25, 1.5)
       }, 30)
@@ -207,7 +207,7 @@ class MusicManager {
     if (!this.enabled) return
     if (this._swapPlaying) return
     this._swapPlaying = true
-    this._playSfxEx('audio/rolling.wav', 0.12, 1.8)
+    this._playSfxEx('audio/rolling.mp3', 0.12, 1.8)
     setTimeout(() => { this._swapPlaying = false }, 80)
   }
 
@@ -221,25 +221,25 @@ class MusicManager {
 
   playShieldGain() {
     if (!this.enabled) return
-    this._playSfxEx('audio/block.wav', 0.3, 1.4)
+    this._playSfxEx('audio/block.mp3', 0.3, 1.4)
   }
 
   playHeal() {
     if (!this.enabled) return
-    this._playSfxEx('audio/reward.wav', 0.3, 1.2)
+    this._playSfxEx('audio/reward.mp3', 0.3, 1.2)
   }
 
   /** 变珠音效：清脆变化音，珠子越多音量越大 */
   playBeadConvert(count) {
     if (!this.enabled) return
     const vol = Math.min(0.6, 0.25 + (count || 1) * 0.05)
-    this._playSfxEx('audio/skill.wav', vol, 1.5)
+    this._playSfxEx('audio/skill.mp3', vol, 1.5)
   }
 
   /** DOT伤害音效：低沉的灼烧/中毒声 */
   playDotDmg() {
     if (!this.enabled) return
-    this._playSfxEx('audio/enemy_attack.wav', 0.2, 0.7)
+    this._playSfxEx('audio/enemy_attack.mp3', 0.2, 0.7)
   }
 
   playDragEnd() {
@@ -252,7 +252,7 @@ class MusicManager {
   /** 技能蓄力预兆音效 */
   playSkillCharge() {
     if (!this.enabled) return
-    this._playSfxEx('audio/skill.wav', 0.25, 0.6)
+    this._playSfxEx('audio/skill.mp3', 0.25, 0.6)
   }
 
   playAttack() {
@@ -275,7 +275,7 @@ class MusicManager {
 
   playSkill() {
     if (!this.enabled) return
-    this._playSfx('audio/skill.wav', 0.6)
+    this._playSfx('audio/skill.mp3', 0.6)
   }
 
   playPetSkill() {
@@ -288,7 +288,7 @@ class MusicManager {
     const vol = dmgRatio != null
       ? Math.min(0.8, 0.4 + dmgRatio * 0.6)
       : 0.5
-    this._playSfxEx('audio/enemy_attack.wav', vol, 1.0)
+    this._playSfxEx('audio/enemy_attack.mp3', vol, 1.0)
   }
 
   playHeroHurt(dmgRatio) {
@@ -296,17 +296,17 @@ class MusicManager {
     const vol = dmgRatio != null
       ? Math.min(0.7, 0.3 + dmgRatio * 0.5)
       : 0.4
-    this._playSfxEx('audio/hero_hurt.wav', vol, 1.0)
+    this._playSfxEx('audio/hero_hurt.mp3', vol, 1.0)
   }
 
   playBlock() {
     if (!this.enabled) return
-    this._playSfx('audio/block.wav', 0.55)
+    this._playSfx('audio/block.mp3', 0.55)
   }
 
   playEnemySkill() {
     if (!this.enabled) return
-    this._playSfx('audio/enemy_skill.wav', 0.6)
+    this._playSfx('audio/enemy_skill.mp3', 0.6)
   }
 
   /** 数值翻滚：竹简翻动短促音（带200ms防抖） */
@@ -315,7 +315,7 @@ class MusicManager {
     if (this._rollingPlaying) return
     this._rollingPlaying = true
     const a = P.createInnerAudioContext()
-    a.src = 'audio/rolling.wav'; a.volume = 0.2; a.play()
+    a.src = 'audio/rolling.mp3'; a.volume = 0.2; a.play()
     a.onEnded(() => { a.destroy(); this._rollingPlaying = false })
     setTimeout(() => { this._rollingPlaying = false }, 200)
   }
@@ -324,37 +324,37 @@ class MusicManager {
 
   playBoss() {
     if (!this.enabled) return
-    this._playSfx('audio/boss.wav', 0.7)
+    this._playSfx('audio/boss.mp3', 0.7)
   }
 
   playLevelUp() {
     if (!this.enabled) return
-    this._playSfx('audio/levelup.wav', 0.5)
+    this._playSfx('audio/levelup.mp3', 0.5)
   }
 
   /** 进入下一层：崭新开始感，上行明亮和弦 */
   playNextFloor() {
     if (!this.enabled) return
     // 第一声：清亮的起始音（Do高八度）
-    this._playSfxEx('audio/skill.wav', 0.4, 1.3)
+    this._playSfxEx('audio/skill.mp3', 0.4, 1.3)
     // 第二声：40ms后上行到Mi，增添向上感
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/reward.wav', 0.45, 1.5)
+      if (this.enabled) this._playSfxEx('audio/reward.mp3', 0.45, 1.5)
     }, 40)
     // 第三声：90ms后到Sol，完成大三和弦，明亮开阔
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/levelup.wav', 0.4, 1.3)
+      if (this.enabled) this._playSfxEx('audio/levelup.mp3', 0.4, 1.3)
     }, 90)
   }
 
   playVictory() {
     if (!this.enabled) return
-    this._playSfx('audio/victory.wav', 0.6)
+    this._playSfx('audio/victory.mp3', 0.6)
   }
 
   playReward() {
     if (!this.enabled) return
-    this._playSfx('audio/reward.wav', 0.5)
+    this._playSfx('audio/reward.mp3', 0.5)
   }
 
   /** 数值翻转音效（用于胜利面板数值滚动动画）：快节奏清脆短促 */
@@ -367,10 +367,10 @@ class MusicManager {
   playPetObtained() {
     if (!this.enabled) return
     // 第一声：高音清脆叮
-    this._playSfxEx('audio/reward.wav', 0.55, 1.6)
+    this._playSfxEx('audio/reward.mp3', 0.55, 1.6)
     // 第二声：延迟80ms，更高音的回响
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/levelup.wav', 0.45, 1.4)
+      if (this.enabled) this._playSfxEx('audio/levelup.mp3', 0.45, 1.4)
     }, 80)
   }
 
@@ -382,23 +382,23 @@ class MusicManager {
 
   playGameOver() {
     if (!this.enabled) return
-    this._playSfx('audio/gameover.wav', 0.6)
+    this._playSfx('audio/gameover.mp3', 0.6)
   }
 
   playRevive() {
     if (!this.enabled) return
-    this._playSfxEx('audio/reward.wav', 0.5, 1.1)
+    this._playSfxEx('audio/reward.mp3', 0.5, 1.1)
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/levelup.wav', 0.4, 1.2)
+      if (this.enabled) this._playSfxEx('audio/levelup.mp3', 0.4, 1.2)
     }, 100)
   }
 
   /** 宝箱打开音效：沉稳开启感 + 短暂延迟后亮光发散音 */
   playChestOpen() {
     if (!this.enabled) return
-    this._playSfxEx('audio/boss.wav', 0.28, 1.5)
+    this._playSfxEx('audio/boss.mp3', 0.28, 1.5)
     setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/reward.wav', 0.45, 1.15)
+      if (this.enabled) this._playSfxEx('audio/reward.mp3', 0.45, 1.15)
     }, 160)
   }
 
@@ -415,22 +415,22 @@ class MusicManager {
         break
       case 'fragment':
         // 宠物碎片：清脆短促，略带神秘
-        this._playSfxEx('audio/reward.wav', 0.45, 1.35)
+        this._playSfxEx('audio/reward.mp3', 0.45, 1.35)
         setTimeout(() => {
-          if (this.enabled) this._playSfxEx('audio/skill.wav', 0.28, 1.2)
+          if (this.enabled) this._playSfxEx('audio/skill.mp3', 0.28, 1.2)
         }, 75)
         break
       case 'exp':
         // 修炼经验：升阶感
-        this._playSfxEx('audio/levelup.wav', 0.45, 1.1)
+        this._playSfxEx('audio/levelup.mp3', 0.45, 1.1)
         break
       case 'petExp':
         // 宠物经验：灵动高频
-        this._playSfxEx('audio/reward.wav', 0.4, 1.5)
+        this._playSfxEx('audio/reward.mp3', 0.4, 1.5)
         break
       case 'stamina':
         // 体力：清脆回复感
-        this._playSfxEx('audio/skill.wav', 0.38, 1.7)
+        this._playSfxEx('audio/skill.mp3', 0.38, 1.7)
         break
       default:
         this.playReward()

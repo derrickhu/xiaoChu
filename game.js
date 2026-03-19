@@ -61,7 +61,7 @@ _splashImg.onload = () => {
 
 // 分包加载
 const _subPkgNames = [
-  'pets', 'enemies', 'backgrounds', 'ui', 'hero',
+  'pets', 'enemies', 'stage_enemies', 'stage_avatars', 'backgrounds', 'ui', 'hero',
   'share', 'equipment', 'battle', 'orbs', 'intro',
   'audio', 'audio_bgm'
 ]

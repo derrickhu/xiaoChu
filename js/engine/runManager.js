@@ -283,6 +283,12 @@ function endRun(g) {
 
 function saveAndExit(g) {
   MusicMgr.stopBossBgm()
+  if (g.battleMode === 'stage') {
+    g.showExitDialog = false
+    g.bState = 'none'
+    g.setScene('stageSelect')
+    return
+  }
   restoreBattleHpMax(g)
   const runState = _deepClone({
     floor: g.floor,
@@ -314,6 +320,7 @@ function saveAndExit(g) {
 function resumeRun(g) {
   const s = g.storage.loadRunState()
   if (!s) return
+  g.battleMode = 'roguelike'
   g.floor = s.floor
   g.pets = s.pets
   g.weapon = s.weapon
@@ -347,13 +354,8 @@ function resumeRun(g) {
   g.turnCount = 0; g.combo = 0
   // 恢复修炼经验累积
   for (const k of EXP_FIELDS) g[k] = s[k] || 0
-  // 恢复修炼加成（固定关卡模式）
+  // 肉鸽模式不使用修炼加成（修炼加成仅固定关卡）
   g._cultDmgReduce = 0; g._cultHeartBase = 0
-  if (g.battleMode === 'stage') {
-    const cult = g.storage.cultivation
-    g._cultDmgReduce = cultEffectValue('defense', cult.levels.defense)
-    g._cultHeartBase = cultEffectValue('spirit', cult.levels.spirit)
-  }
   g.curEvent = s.curEvent
   // 兜底：如果存档中 curEvent 为空，重新生成当前层事件
   if (!g.curEvent) {

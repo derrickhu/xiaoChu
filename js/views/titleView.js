@@ -13,9 +13,20 @@ const MODE_CFG = {
   stage: { name: '灵兽秘境', img: 'assets/ui/gate_stage.png', icon: '🏯', switchKey: 'tower' },
 }
 
-// ===== ZONE 1: 顶栏（已隐藏文字，保留宝箱区域占位）=====
+// ===== ZONE 1: 顶栏（游戏标题Logo）=====
 function drawTopBar(g) {
-  // 顶栏文字（最佳层数/挑战次数）已移除，顶栏不再绘制
+  const { ctx, R, W, S, safeTop } = V
+  const logoImg = R.getImg('assets/ui/title_logo.png')
+  if (logoImg && logoImg.width > 0) {
+    const logoH = 56 * S
+    const logoW = logoH * (logoImg.width / logoImg.height)
+    const logoX = (W - logoW) / 2
+    const logoY = safeTop + 10 * S
+    ctx.save()
+    ctx.globalAlpha = 1
+    ctx.drawImage(logoImg, logoX, logoY, logoW, logoH)
+    ctx.restore()
+  }
 }
 
 // ===== ZONE 2: 场景区（背景 + 插画 + Logo）=====
@@ -595,7 +606,7 @@ function drawMorePanel(g) {
   const panelY = H - panelH
   const rad = 16 * S
 
-  ctx.fillStyle = 'rgba(20,18,38,0.95)'
+  ctx.fillStyle = 'rgba(255,248,230,0.98)'
   ctx.beginPath()
   ctx.moveTo(0, panelY + rad)
   ctx.arcTo(0, panelY, rad, panelY, rad)
@@ -603,8 +614,10 @@ function drawMorePanel(g) {
   ctx.arcTo(W, panelY, W, panelY + rad, rad)
   ctx.lineTo(W, H); ctx.lineTo(0, H)
   ctx.closePath(); ctx.fill()
+  ctx.strokeStyle = 'rgba(201,168,76,0.5)'; ctx.lineWidth = 1.5 * S
+  ctx.stroke()
 
-  ctx.fillStyle = '#ffd700'
+  ctx.fillStyle = '#8B6914'
   ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'
   ctx.fillText('更多', W / 2, panelY + 16 * S)

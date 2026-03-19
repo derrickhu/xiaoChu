@@ -5,6 +5,7 @@
  * 渲染函数拆分到 cultivationDraw.js，本文件负责布局组装、状态管理和触摸处理
  */
 const V = require('./env')
+const P = require('../platform')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
   effectValue, usedPoints, currentRealm, nextRealm,
@@ -468,9 +469,13 @@ function tCultivation(g, x, y, type) {
   if (_state.showAvatarPanel) {
     if (_rects.avatarRects) {
       for (const av of _rects.avatarRects) {
-        if (av.rect && Draw.hitRect(x, y, av.rect) && av.unlocked) {
-          g.storage.setSelectedAvatar(av.id)
-          _state.showAvatarPanel = false
+        if (av.rect && Draw.hitRect(x, y, av.rect)) {
+          if (av.unlocked) {
+            g.storage.setSelectedAvatar(av.id)
+            _state.showAvatarPanel = false
+          } else if (av.unlockHint) {
+            P.showGameToast(av.unlockHint)
+          }
           return
         }
       }

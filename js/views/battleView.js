@@ -397,7 +397,8 @@ function _drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize) 
   if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat' && g.battleMode !== 'stage') {
     const chestSz = 36*S
     const chestX = W - chestSz - 8*S
-    const chestY = eAreaBottom - chestSz - 34*S
+    // 宝箱上移至敌人区域右侧，与怪物肩部/头部同高
+    const chestY = eAreaTop + (eAreaBottom - eAreaTop) * 0.32
     const allUsed = g.itemResetUsed && g.itemHealUsed
     const pendingCount = (!g.itemResetUsed ? 1 : 0) + (!g.itemHealUsed ? 1 : 0)
     ctx.save()
@@ -2285,74 +2286,138 @@ function _shortBuffLabel(label) {
     .replace(/永久/g, '')
 }
 
-// ===== 通关面板（第30层胜利后显示，drawInfoPanel风格）=====
+// ===== 通关面板（第30层胜利后显示）=====
 function _drawClearPanel(g) {
   const { ctx, R, TH, W, H, S } = V
-  const panelW = W * 0.86
+
+  // 动画计时器
+  if (g._clearPanelTimer == null) { g._clearPanelTimer = 0; g._clearParticles = [] }
+  g._clearPanelTimer++
+  const t = g._clearPanelTimer
+  const fadeIn = Math.min(1, t / 30)
+
+  // ── 全屏金色光芒背景 ──
+  ctx.save()
+  ctx.globalAlpha = fadeIn * 0.6
+  const glow = ctx.createRadialGradient(W*0.5, H*0.3, 0, W*0.5, H*0.3, W*0.7)
+  glow.addColorStop(0, 'rgba(255,215,0,0.4)')
+  glow.addColorStop(0.4, 'rgba(255,180,0,0.15)')
+  glow.addColorStop(1, 'rgba(255,215,0,0)')
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+  ctx.restore()
+
+  // ── 金色粒子/星星 ──
+  const particles = g._clearParticles
+  if (t % 3 === 0 && particles.length < 40) {
+    particles.push({
+      x: Math.random() * W, y: H + 5,
+      vx: (Math.random() - 0.5) * 1.5 * S,
+      vy: -(1.5 + Math.random() * 2.5) * S,
+      sz: (2 + Math.random() * 3) * S,
+      alpha: 0.5 + Math.random() * 0.5,
+      rot: Math.random() * Math.PI * 2,
+      gold: Math.random() > 0.3,
+    })
+  }
+  ctx.save()
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]
+    p.x += p.vx; p.y += p.vy; p.alpha -= 0.004; p.rot += 0.05
+    if (p.alpha <= 0 || p.y < -20) { particles.splice(i, 1); continue }
+    ctx.save()
+    ctx.globalAlpha = p.alpha * fadeIn
+    ctx.translate(p.x, p.y); ctx.rotate(p.rot)
+    ctx.fillStyle = p.gold ? '#ffd700' : '#fff'
+    // 四角星形状
+    const sz = p.sz
+    ctx.beginPath()
+    ctx.moveTo(0, -sz); ctx.lineTo(sz*0.3, -sz*0.3)
+    ctx.lineTo(sz, 0); ctx.lineTo(sz*0.3, sz*0.3)
+    ctx.lineTo(0, sz); ctx.lineTo(-sz*0.3, sz*0.3)
+    ctx.lineTo(-sz, 0); ctx.lineTo(-sz*0.3, -sz*0.3)
+    ctx.closePath(); ctx.fill()
+    ctx.restore()
+  }
+  ctx.restore()
+
+  // ── 面板 ──
+  const panelW = W * 0.88
   const panelX = (W - panelW) / 2
   const innerPad = 16*S
-
-  // 面板内容高度计算
-  const titleH = 30*S
-  const subtitleH = 24*S
-  const dividerH = 16*S
-  const teamLabelH = 20*S
-  const petIconSz = 36*S       // 宠物头像尺寸
-  const petNameH = 16*S        // 宠物名称行高
-  const petRowH = petIconSz + petNameH + 6*S  // 头像+名称+间距
-  const wpnIconSz = 36*S       // 法宝图标尺寸
-  const wpnNameH = 16*S
-  const wpnRowH = wpnIconSz + wpnNameH + 6*S
-  const bagRowH = 18*S
-  const btnH = 36*S
-  const totalH = innerPad + titleH + subtitleH + dividerH + teamLabelH + petRowH + wpnRowH + bagRowH + 12*S + btnH + innerPad
+  const petIconSz = 38*S
+  const petNameH = 16*S
+  const petRowH = petIconSz + petNameH + 6*S
+  const wpnIconSz = 38*S
+  const wpnRowH = wpnIconSz + 16*S + 6*S
+  const statsH = 58*S
+  const totalH = innerPad + 44*S + 28*S + 14*S + 20*S + petRowH + wpnRowH + 10*S + statsH + 14*S + 36*S + innerPad
 
   const panelY = Math.max(4*S, Math.floor((H - totalH) / 2))
 
+  ctx.save()
+  ctx.globalAlpha = fadeIn
   R.drawInfoPanel(panelX, panelY, panelW, totalH)
+
+  // 金色边框光晕
+  ctx.save()
+  ctx.shadowColor = 'rgba(255,200,0,0.4)'; ctx.shadowBlur = 12*S
+  ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 2*S
+  R.rr(panelX, panelY, panelW, totalH, 12*S); ctx.stroke()
+  ctx.restore()
 
   let curY = panelY + innerPad
 
-  // 标题
+  // ── 标题：金色大字 + 呼吸光效 ──
+  const titleGlow = 0.3 + 0.2 * Math.sin(t * 0.06)
+  ctx.save()
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#C07000'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-  ctx.fillText('通天塔·通关', W*0.5, curY + 20*S)
-  curY += titleH
+  ctx.shadowColor = `rgba(255,200,0,${titleGlow})`; ctx.shadowBlur = 16*S
+  ctx.fillStyle = '#D4A020'
+  ctx.font = `bold ${24*S}px "PingFang SC",sans-serif`
+  ctx.fillText('✦ 通天塔·通关 ✦', W*0.5, curY + 28*S)
+  ctx.restore()
+  curY += 44*S
+
+  // 装饰分隔线
+  const divLineW = panelW * 0.5
+  ctx.strokeStyle = 'rgba(212,175,55,0.4)'; ctx.lineWidth = 1*S
+  ctx.beginPath(); ctx.moveTo(W*0.5 - divLineW/2, curY); ctx.lineTo(W*0.5 + divLineW/2, curY); ctx.stroke()
+  curY += 6*S
 
   // 副标题
-  ctx.fillStyle = '#7A5C30'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#8B6914'; ctx.font = `${13*S}px "PingFang SC",sans-serif`
   ctx.fillText('恭喜修士登顶通天塔！', W*0.5, curY + 14*S)
-  curY += subtitleH
+  curY += 28*S
 
   // 分割线
-  curY += 4*S
-  ctx.strokeStyle = 'rgba(160,140,110,0.35)'; ctx.lineWidth = 0.5*S
-  ctx.beginPath()
-  ctx.moveTo(panelX + innerPad, curY)
-  ctx.lineTo(panelX + panelW - innerPad, curY)
-  ctx.stroke()
-  curY += dividerH - 4*S
+  ctx.strokeStyle = 'rgba(160,140,110,0.25)'; ctx.lineWidth = 0.5*S
+  ctx.beginPath(); ctx.moveTo(panelX + innerPad, curY); ctx.lineTo(panelX + panelW - innerPad, curY); ctx.stroke()
+  curY += 14*S
 
-  // 上场阵容标题
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#8B7B70'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+  // ── 通关阵容 ──
+  ctx.fillStyle = '#A09080'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('通关阵容', W*0.5, curY + 12*S)
-  curY += teamLabelH
+  curY += 20*S
 
-  // 宠物列表（头像 + 名称）
+  // 宠物列表
   if (g.pets && g.pets.length > 0) {
     const petCount = g.pets.length
-    const petGap = 8*S
-    const petSlotW = petIconSz
-    const totalPetW = petCount * petSlotW + (petCount - 1) * petGap
+    const petGap = 10*S
+    const totalPetW = petCount * petIconSz + (petCount - 1) * petGap
     let px = (W - totalPetW) / 2
     for (let pi = 0; pi < petCount; pi++) {
       const p = g.pets[pi]
       const ac = ATTR_COLOR[p.attr]
-      // 头像背景
+      const showDelay = Math.max(0, t - 20 - pi * 8)
+      const petAlpha = Math.min(1, showDelay / 10)
+      const petScale = 0.6 + 0.4 * Math.min(1, showDelay / 8)
+      ctx.save()
+      ctx.globalAlpha = petAlpha
+      const pcx = px + petIconSz/2, pcy = curY + petIconSz/2
+      ctx.translate(pcx, pcy); ctx.scale(petScale, petScale); ctx.translate(-pcx, -pcy)
       ctx.fillStyle = ac ? ac.bg : '#E8E0D8'
       R.rr(px, curY, petIconSz, petIconSz, 5*S); ctx.fill()
-      // 头像图片
       const petImg = R.getImg(getPetAvatarPath(p))
       if (petImg && petImg.width > 0) {
         ctx.save()
@@ -2362,26 +2427,28 @@ function _drawClearPanel(g) {
         ctx.drawImage(petImg, px+1, curY+1+(petIconSz-2-dh), dw, dh)
         ctx.restore()
       }
-      // 属性色边框
       ctx.strokeStyle = ac ? ac.border : '#C0A880'; ctx.lineWidth = 1.5*S
       R.rr(px, curY, petIconSz, petIconSz, 5*S); ctx.stroke()
-      // 名称
+      // 星级
+      const star = p.star || 1
+      ctx.fillStyle = '#ffd700'; ctx.font = `${7*S}px sans-serif`
       ctx.textAlign = 'center'
-      ctx.fillStyle = '#5C4A3A'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText(p.name, px + petIconSz/2, curY + petIconSz + 11*S)
-      px += petSlotW + petGap
+      ctx.fillText('★'.repeat(star), px + petIconSz/2, curY + petIconSz + 9*S)
+      // 名称
+      ctx.fillStyle = '#5C4A3A'; ctx.font = `${8*S}px "PingFang SC",sans-serif`
+      ctx.fillText(p.name, px + petIconSz/2, curY + petIconSz + 18*S)
+      ctx.restore()
+      px += petIconSz + petGap
     }
   }
   curY += petRowH
 
-  // 法宝（图标 + 名称）
+  // 法宝
   if (g.weapon) {
     const w = g.weapon
     const wx = (W - wpnIconSz) / 2
-    // 法宝图标背景
     ctx.fillStyle = '#1a1510'
     R.rr(wx, curY, wpnIconSz, wpnIconSz, 5*S); ctx.fill()
-    // 法宝图片
     const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
     if (wpnImg && wpnImg.width > 0) {
       ctx.save()
@@ -2391,23 +2458,50 @@ function _drawClearPanel(g) {
       ctx.restore()
     }
     R.drawWeaponFrame(wx, curY, wpnIconSz)
-    // 法宝名称
     ctx.textAlign = 'center'
     ctx.fillStyle = '#8B6914'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
     ctx.fillText(`法宝·${w.name}`, W*0.5, curY + wpnIconSz + 11*S)
   }
-  curY += wpnRowH
+  curY += wpnRowH + 10*S
 
-  // 背包信息
-  ctx.fillStyle = '#A09080'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`灵兽背包：${(g.petBag || []).length}只  法宝背包：${(g.weaponBag || []).length}件`, W*0.5, curY + 10*S)
-  curY += bagRowH + 12*S
+  // ── 战斗统计 ──
+  ctx.strokeStyle = 'rgba(160,140,110,0.25)'; ctx.lineWidth = 0.5*S
+  ctx.beginPath(); ctx.moveTo(panelX + innerPad, curY); ctx.lineTo(panelX + panelW - innerPad, curY); ctx.stroke()
+  curY += 8*S
 
-  // 确认按钮
-  const btnW = (panelW - innerPad*2) * 0.55, confirmBtnH = 30*S
+  const totalTurns = g.runTotalTurns || 0
+  const petBagCount = (g.petBag || []).length
+  const wpnBagCount = (g.weaponBag || []).length
+  const buffCount = (g.runBuffLog || []).length
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,245,220,0.06)'
+  R.rr(panelX + innerPad, curY, panelW - innerPad*2, statsH - 16*S, 8*S); ctx.fill()
+
+  const statsY = curY + 14*S
+  const col1X = panelX + panelW * 0.25
+  const col2X = panelX + panelW * 0.75
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#C09A40'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  ctx.fillText(String(totalTurns), col1X, statsY)
+  ctx.fillStyle = '#8B7B60'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('总回合数', col1X, statsY + 14*S)
+
+  ctx.fillStyle = '#C09A40'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
+  ctx.fillText(String(buffCount), col2X, statsY)
+  ctx.fillStyle = '#8B7B60'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('获得增益', col2X, statsY + 14*S)
+  ctx.restore()
+  curY += statsH
+
+  // ── 确认按钮 ──
+  const btnW = (panelW - innerPad*2) * 0.6, confirmBtnH = 34*S
   const btnX = panelX + (panelW - btnW) / 2, btnY = curY
-  R.drawDialogBtn(btnX, btnY, btnW, confirmBtnH, '返回主页', 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, confirmBtnH, '查看结算', 'confirm')
   g._clearConfirmRect = [btnX, btnY, btnW, confirmBtnH]
+
+  ctx.restore()
 }
 
 // ===== 胜利弹窗（内嵌奖励选择）=====

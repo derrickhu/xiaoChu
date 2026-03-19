@@ -8,6 +8,7 @@ const { petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
 const guideMgr = require('../engine/guideManager')
 const runMgr = require('../engine/runManager')
+const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
 
 function tBattle(g, type, x, y) {
@@ -48,12 +49,27 @@ function tBattle(g, type, x, y) {
   // 退出弹窗
   if (g.showExitDialog) {
     if (type !== 'end') return
-    if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) { g._saveAndExit(); return }
+    if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) {
+      if (g.battleMode === 'stage') {
+        MusicMgr.stopBossBgm()
+        g.showExitDialog = false
+        g.bState = 'none'
+        g.setScene('stageSelect')
+      } else {
+        g._saveAndExit()
+      }
+      return
+    }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
       MusicMgr.stopBossBgm()
       g.showExitDialog = false
-      runMgr.settleExp(g)
-      g.storage.clearRunState(); g._startRun(); return
+      if (g.battleMode === 'stage' && g._stageId && g._stageTeam) {
+        stageMgr.startStage(g, g._stageId, g._stageTeam)
+      } else {
+        runMgr.settleExp(g)
+        g.storage.clearRunState(); g._startRun()
+      }
+      return
     }
     if (g._exitCancelRect && g._hitRect(x,y,...g._exitCancelRect)) { g.showExitDialog = false; return }
     return
@@ -97,8 +113,9 @@ function tBattle(g, type, x, y) {
     if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g.cleared = true
+      g._clearPanelTimer = null; g._clearParticles = null
+      g._goAnimTimer = null
       g._endRun()
-      g.setScene('title')
       return
     }
     if (g.floor >= MAX_FLOOR) return
@@ -110,6 +127,7 @@ function tBattle(g, type, x, y) {
     if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
       g._star3Celebration = null
       if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
+      if (g._fragmentObtainedPopup) return
       g._nextFloor()
       return
     }

@@ -70,6 +70,7 @@ class Render {
   getImg(path) {
     if (this._imgCache[path]) return this._imgCache[path]
     const img = P.createImage()
+    img.onload = () => { if (this._onImageLoad) this._onImageLoad() }
     img.src = path
     this._imgCache[path] = img
     return img

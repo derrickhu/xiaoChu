@@ -68,10 +68,11 @@ function startStage(g, stageId, teamPetIds) {
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
   g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
 
-  // 局内状态重置
+  // 局内状态重置（清空肉鸽相关残留，确保两种模式完全隔离）
   g.weapon = null
   g.petBag = []
   g.weaponBag = []
+  g.sessionPetPool = []
   g.runBuffs = makeDefaultRunBuffs()
   g.runBuffLog = []
   g.heroBuffs = []

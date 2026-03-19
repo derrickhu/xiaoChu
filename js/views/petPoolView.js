@@ -8,6 +8,7 @@ const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill }
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
+const P = require('../platform')
 const { drawSeparator, wrapTextDraw, getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
 
 // 属性筛选标签
@@ -38,6 +39,19 @@ let _longPressActive = false
 let _longPressPetId = null
 
 const _getFilteredPool = _getFilteredPoolUtil
+
+// 离屏 canvas 缓存，用于派遣按钮像素对齐绘制（修复有红点时的模糊）
+let _idleBtnOC = null
+
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
 
 // ===== 主渲染 =====
 function rPetPool(g) {
@@ -139,30 +153,74 @@ function rPetPool(g) {
   c.restore()
 
   // === 派遣入口按钮（筛选行右侧留白区，避开系统按钮）===
+  // 有红点时用离屏 canvas 单独绘制，避免 strokeText+fillText+arc 混绘导致的模糊
   const hasIdleReward = g.storage.idleHasReward()
   const idleBtnH = filterH
   const idleBtnW = 52 * S
   const idleBtnX = W - idleBtnW - 12 * S
   const idleBtnY = filterY
-  c.save()
-  c.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
-  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.fill()
-  c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
-  c.lineWidth = 1.5 * S
-  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.stroke()
-  c.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
-  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2.5 * S
-  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.strokeText('派遣', idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
-  c.fillText('派遣', idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
-  if (hasIdleReward) {
-    c.beginPath()
-    c.arc(idleBtnX + idleBtnW - 3 * S, idleBtnY + 3 * S, 5 * S, 0, Math.PI * 2)
-    c.fillStyle = '#ff3333'; c.fill()
+  const iw = Math.max(1, Math.round(idleBtnW)), ih = Math.max(1, Math.round(idleBtnH))
+  const ix = Math.round(idleBtnX), iy = Math.round(idleBtnY)
+  const useOffscreen = hasIdleReward
+  let oc = useOffscreen ? _idleBtnOC : null
+  if (useOffscreen && (!oc || oc.width !== iw || oc.height !== ih)) {
+    oc = (P.createOffscreenCanvas && P.createOffscreenCanvas({ type: '2d', width: iw, height: ih })) ||
+      (typeof document !== 'undefined' && (() => { const dc = document.createElement('canvas'); dc.width = iw; dc.height = ih; return dc })())
+    _idleBtnOC = oc
+  }
+  if (useOffscreen && oc) {
+    const occ = oc.getContext('2d')
+    occ.clearRect(0, 0, iw, ih)
+    occ.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
+    _roundRect(occ, 0, 0, iw, ih, ih / 2)
+    occ.fill()
+    occ.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
+    occ.lineWidth = Math.max(1, Math.round(1.5 * S))
+    _roundRect(occ, 0, 0, iw, ih, ih / 2)
+    occ.stroke()
+    occ.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
+    const fontPx = Math.max(10, Math.round(11 * S))
+    occ.font = `bold ${fontPx}px "PingFang SC",sans-serif`
+    occ.textAlign = 'center'
+    occ.textBaseline = 'middle'
+    if (hasIdleReward) {
+      occ.fillText('派遣', iw / 2, ih / 2)
+    } else {
+      occ.strokeStyle = 'rgba(0,0,0,0.4)'
+      occ.lineWidth = Math.max(1, Math.round(2.5 * S))
+      occ.strokeText('派遣', iw / 2, ih / 2)
+      occ.fillText('派遣', iw / 2, ih / 2)
+    }
+    if (hasIdleReward) {
+      const dotR = Math.max(1, Math.round(5 * S))
+      const dotX = iw - dotR - 2
+      const dotY = dotR + 2
+      occ.fillStyle = '#ff3333'
+      occ.beginPath()
+      occ.arc(dotX, dotY, dotR, 0, Math.PI * 2)
+      occ.fill()
+    }
+    c.drawImage(oc, ix, iy, iw, ih)
+  } else {
+    c.save()
+    c.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
+    R.rr(ix, iy, iw, ih, ih / 2); c.fill()
+    c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
+    c.lineWidth = 1.5 * S
+    R.rr(ix, iy, iw, ih, ih / 2); c.stroke()
+    c.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
+    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    const tx = Math.round(ix + iw / 2), ty = Math.round(iy + ih / 2)
+    if (hasIdleReward) { c.fillText('派遣', tx, ty) }
+    else { c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2.5 * S; c.strokeText('派遣', tx, ty); c.fillText('派遣', tx, ty) }
+    if (hasIdleReward) {
+      const dotR = Math.max(1, Math.round(5 * S)), dotX = Math.round(ix + iw - 3 * S), dotY = Math.round(iy + 3 * S)
+      c.fillStyle = '#ff3333'; c.beginPath(); c.arc(dotX, dotY, dotR, 0, Math.PI * 2); c.fill()
+    }
+    c.restore()
   }
   _rects.idleBtnRect = [idleBtnX, idleBtnY, idleBtnW, idleBtnH]
-  c.restore()
 
   // === 卡片网格 ===
   const gridTop = filterY + filterH + 8 * S
@@ -303,9 +361,11 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
     c.save()
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.clip()
     const aw = img.width, ah = img.height
-    const scale = Math.max(avatarSize / aw, avatarSize / ah)
+    const isStar3 = (poolPet.star || 1) >= 3
+    const scale = isStar3 ? Math.min(avatarSize / aw, avatarSize / ah) * 0.82 : Math.max(avatarSize / aw, avatarSize / ah)
     const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    const offsetY = isStar3 ? 6 * S : 0
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2 + offsetY, dw, dh)
     c.restore()
   } else {
     c.fillStyle = attrColor ? attrColor.main : '#555'
@@ -508,8 +568,11 @@ function _drawDetailPanel(g) {
   const img = R.getImg(avatarPath)
   if (img && img.width > 0) {
     c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); c.clip()
-    c.drawImage(img, avatarX, avatarY, avatarSize, avatarSize)
+    const isStar3Detail = (poolPet.star || 1) >= 3
+    const clipPad = isStar3Detail ? 6 * S : 0
+    R.rr(avatarX - clipPad, avatarY - clipPad, avatarSize + clipPad * 2, avatarSize + clipPad * 2, 8*S); c.clip()
+    const drawSz = avatarSize + clipPad * 2
+    c.drawImage(img, avatarX - clipPad, avatarY - clipPad, drawSz, drawSz)
     c.restore()
   } else {
     c.fillStyle = ac
@@ -680,34 +743,36 @@ function _drawDetailPanel(g) {
     c.fillText(`升至 ${nextStarStr}`, indent, cy)
     cy += 20 * S
 
-    // 等级门槛
-    c.fillStyle = lvOk ? '#7ECF6A' : '#E06060'
     c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText(`等级 Lv.${poolPet.level} / Lv.${lvReq}`, indent, cy)
-    c.textAlign = 'right'
-    c.fillText(lvOk ? '✓' : '✗', rightEdge, cy)
+    c.textAlign = 'left'
+    c.fillStyle = lvOk ? '#7ECF6A' : '#E06060'
+    c.fillText(lvOk ? `等级已达到 Lv.${lvReq}` : `需要等级达到 Lv.${lvReq}（当前Lv.${poolPet.level}）`, indent, cy)
     cy += 16 * S
 
-    // 碎片进度
-    c.textAlign = 'left'
     c.fillStyle = fragOk ? '#7ECF6A' : '#E06060'
-    c.fillText(`碎片 ${poolPet.fragments} / ${fragCost}`, indent, cy)
-    c.textAlign = 'right'
-    c.fillText(fragOk ? '✓' : '✗', rightEdge, cy)
+    c.fillText(fragOk ? `碎片已足够 ${fragCost}片` : `需要碎片达到 ${fragCost}片（当前${poolPet.fragments}片）`, indent, cy)
     cy += 20 * S
 
-    // 操作按钮行
+    // 升星按钮
     const canStarUp = lvOk && fragOk
     const sBtnW = 90 * S, sBtnH = 30 * S
     const sBtnX = indent
     _drawActionBtn(c, R, S, sBtnX, cy, sBtnW, sBtnH, '升星', canStarUp, '#FFD700')
     _rects.starUpBtnRect = [sBtnX, cy, sBtnW, sBtnH]
+    cy += sBtnH + 10 * S
 
     if (poolPet.fragments > 0) {
-      const dBtnW = 110 * S
-      const dBtnX = sBtnX + sBtnW + 12 * S
-      _drawActionBtn(c, R, S, dBtnX, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
-      _rects.decomposeBtnRect = [dBtnX, cy, dBtnW, sBtnH]
+      const dBtnW = 130 * S
+      _drawActionBtn(c, R, S, indent, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
+      _rects.decomposeBtnRect = [indent, cy, dBtnW, sBtnH]
+      cy += sBtnH + 6 * S
+      c.fillStyle = 'rgba(200,180,140,0.45)'
+      c.font = `${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText('碎片用于升星，多余碎片可分解为宠物经验', indent, cy)
+      cy += 12 * S
+      c.fillStyle = 'rgba(220,100,80,0.6)'
+      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
   } else {
     c.fillStyle = '#FFD700'
@@ -725,6 +790,14 @@ function _drawDetailPanel(g) {
       const dBtnW = 130 * S, dBtnH = 30 * S
       _drawActionBtn(c, R, S, indent, cy, dBtnW, dBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
       _rects.decomposeBtnRect = [indent, cy, dBtnW, dBtnH]
+      cy += dBtnH + 6 * S
+      c.fillStyle = 'rgba(200,180,140,0.45)'
+      c.font = `${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText('已满星，碎片可分解为宠物经验', indent, cy)
+      cy += 12 * S
+      c.fillStyle = 'rgba(220,100,80,0.6)'
+      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
   }
 
@@ -752,21 +825,20 @@ function _drawDetailPanel(g) {
 function _drawActionBtn(c, R, S, x, y, w, h, text, enabled, color) {
   const r = 6 * S
   if (enabled) {
-    c.save()
-    c.shadowColor = color; c.shadowBlur = 8*S
-    c.fillStyle = color
-    c.globalAlpha = 0.15
+    const grad = c.createLinearGradient(x, y, x, y + h)
+    grad.addColorStop(0, color + '30')
+    grad.addColorStop(1, color + '18')
+    c.fillStyle = grad
     R.rr(x, y, w, h, r); c.fill()
-    c.restore()
     c.strokeStyle = color; c.lineWidth = 1.5*S
     R.rr(x, y, w, h, r); c.stroke()
     c.fillStyle = color
   } else {
-    c.fillStyle = 'rgba(80,80,80,0.2)'
+    c.fillStyle = 'rgba(80,80,80,0.12)'
     R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = '#666'; c.lineWidth = 1*S
+    c.strokeStyle = 'rgba(120,120,120,0.4)'; c.lineWidth = 1*S
     R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#888'
+    c.fillStyle = '#999'
   }
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'

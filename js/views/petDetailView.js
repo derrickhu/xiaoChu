@@ -344,13 +344,14 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.font = `bold ${15*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText('技能', indent, cy)
+  const skillLabelW = c.measureText('技能').width
   const fakePet = { ...basePet, star: 2 }
   const hasSkill = petHasSkill(fakePet)
   if (hasSkill) {
     c.fillStyle = '#2E8B2E'
     c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'right'
-    c.fillText(basePet.skill.name, rightEdge, cy + 1 * S)
+    c.textAlign = 'left'
+    c.fillText(basePet.skill.name, indent + skillLabelW + 10 * S, cy + 1 * S)
     cy += 20 * S
     const skillDesc = getPetSkillDesc(fakePet)
     c.fillStyle = 'rgba(70,50,30,0.85)'
@@ -507,12 +508,15 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const img = R.getImg(avatarPath)
   if (img && img.width > 0) {
     c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
+    const isStar3 = (poolPet.star || 1) >= 3
+    const clipPad = isStar3 ? 6 * S : 0
+    R.rr(avatarX - clipPad, avatarY - clipPad, avatarSize + clipPad * 2, avatarSize + clipPad * 2, 10 * S)
     c.clip()
     const aw = img.width, ah = img.height
-    const scale = Math.max(avatarSize / aw, avatarSize / ah)
+    const drawSz = avatarSize + clipPad * 2
+    const scale = Math.max(drawSz / aw, drawSz / ah)
     const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.drawImage(img, avatarX - clipPad + (drawSz - dw) / 2, avatarY - clipPad + (drawSz - dh) / 2, dw, dh)
     c.restore()
   } else {
     c.fillStyle = ac
@@ -701,13 +705,14 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.font = `bold ${fTitle}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText('技能', indent, cy)
+  const skillLabelW = c.measureText('技能').width
 
   if (hasSkill) {
     const skillDesc = getPetSkillDesc(fakePet)
     c.fillStyle = '#2E8B2E'
     c.font = `bold ${fSkillT}px "PingFang SC",sans-serif`
-    c.textAlign = 'right'
-    c.fillText(basePet.skill.name, rightEdge, cy + 1 * S)
+    c.textAlign = 'left'
+    c.fillText(basePet.skill.name, indent + skillLabelW + 10 * S, cy + 1 * S)
     cy += fTitle + gap * 0.6
     c.fillStyle = 'rgba(70,50,30,0.85)'
     c.font = `${fSkillD}px "PingFang SC",sans-serif`
@@ -812,7 +817,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const starUpLabel = '升至 '
     const starUpLabelW = c.measureText(starUpLabel).width
     c.fillText(starUpLabel, indent, cy)
-    // 星星逐个绘制：满星黄色，空星深灰色，统一用★
     let starX = indent + starUpLabelW
     for (let i = 0; i < maxStar; i++) {
       c.fillStyle = i < nextStar ? '#FFD700' : 'rgba(120,120,120,0.6)'
@@ -821,30 +825,34 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     }
     cy += fTitle + gap * 0.6
 
-    c.fillStyle = lvOk ? '#2E8B2E' : '#CC3333'
     c.font = `${fBody}px "PingFang SC",sans-serif`
-    c.fillText(`等级 Lv.${poolPet.level} / Lv.${lvReq}`, indent, cy)
-    c.textAlign = 'right'
-    c.fillText(lvOk ? '✓' : '✗', rightEdge, cy)
+    c.textAlign = 'left'
+    c.fillStyle = lvOk ? '#2E8B2E' : '#CC3333'
+    c.fillText(lvOk ? `等级已达到 Lv.${lvReq}` : `需要等级达到 Lv.${lvReq}（当前Lv.${poolPet.level}）`, indent, cy)
     cy += fBody + gap * 0.5
 
-    c.textAlign = 'left'
     c.fillStyle = fragOk ? '#2E8B2E' : '#CC3333'
-    c.fillText(`碎片 ${poolPet.fragments} / ${fragCost}`, indent, cy)
-    c.textAlign = 'right'
-    c.fillText(fragOk ? '✓' : '✗', rightEdge, cy)
+    c.fillText(fragOk ? `碎片已足够 ${fragCost}片` : `需要碎片达到 ${fragCost}片（当前${poolPet.fragments}片）`, indent, cy)
     cy += fBody + gapL
 
     const canStarUp = lvOk && fragOk
     const sBtnW = 72 * S
     _drawBtn(c, R, S, indent, cy, sBtnW, btnH, '升星', canStarUp, '#FFD700', fBtn)
     if (isCurrentPet) _rects.starUpBtnRect = [indent, cy, sBtnW, btnH]
+    cy += btnH + gap
 
     if (poolPet.fragments > 0) {
-      const dBtnW = 96 * S
-      const dBtnX = indent + sBtnW + 8 * S
-      _drawBtn(c, R, S, dBtnX, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
-      if (isCurrentPet) _rects.decomposeBtnRect = [dBtnX, cy, dBtnW, btnH]
+      const dBtnW = 110 * S
+      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
+      if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
+      cy += btnH + gap * 0.4
+      c.fillStyle = 'rgba(120,100,70,0.6)'
+      c.font = `${fSmall}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText(`碎片用于升星，多余碎片可分解为宠物经验`, indent, cy)
+      cy += fSmall + gap * 0.2
+      c.fillStyle = 'rgba(180,80,60,0.7)'
+      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
   } else {
     c.fillStyle = '#5A4530'
@@ -853,12 +861,9 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const fullLabel = '满星 '
     const fullLabelW = c.measureText(fullLabel).width
     c.fillText(fullLabel, indent, cy)
-    // 满星星星：黄色填充，无描边
     c.fillStyle = '#FFD700'
     let fullStarStr = ''
     for (let i = 0; i < maxStar; i++) fullStarStr += '★'
-    c.fillText(fullStarStr, indent + fullLabelW, cy)
-    c.fillStyle = '#FFD700'
     c.fillText(fullStarStr, indent + fullLabelW, cy)
     cy += fTitle + gap * 0.6
     c.fillStyle = 'rgba(90,70,40,0.75)'
@@ -869,6 +874,14 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       const dBtnW = 110 * S
       _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
       if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
+      cy += btnH + gap * 0.4
+      c.fillStyle = 'rgba(120,100,70,0.6)'
+      c.font = `${fSmall}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText('已满星，碎片可分解为宠物经验', indent, cy)
+      cy += fSmall + gap * 0.2
+      c.fillStyle = 'rgba(180,80,60,0.7)'
+      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
   }
 }
@@ -878,21 +891,20 @@ function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize) {
   const fs = fontSize || (10 * S)
   const r = 6 * S
   if (enabled) {
-    c.save()
-    c.shadowColor = color; c.shadowBlur = 6 * S
-    c.fillStyle = color
-    c.globalAlpha = 0.15
+    const grad = c.createLinearGradient(x, y, x, y + h)
+    grad.addColorStop(0, color + '30')
+    grad.addColorStop(1, color + '18')
+    c.fillStyle = grad
     R.rr(x, y, w, h, r); c.fill()
-    c.restore()
     c.strokeStyle = color; c.lineWidth = 1.5 * S
     R.rr(x, y, w, h, r); c.stroke()
     c.fillStyle = color
   } else {
-    c.fillStyle = 'rgba(80,80,80,0.2)'
+    c.fillStyle = 'rgba(80,80,80,0.12)'
     R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = '#666'; c.lineWidth = 1 * S
+    c.strokeStyle = 'rgba(120,120,120,0.4)'; c.lineWidth = 1 * S
     R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#888'
+    c.fillStyle = '#999'
   }
   c.font = `bold ${fs}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'

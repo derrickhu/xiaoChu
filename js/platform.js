@@ -106,6 +106,16 @@ const platform = {
 
   // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
   cloud: isWeChat ? base.cloud : _mockCloud,
+
+  /**
+   * 统一游戏内 Toast 提醒（简洁半透明遮罩 + 白字）
+   * 所有场景的短提示统一使用此方法，保持风格一致
+   * @param {string} msg - 提示文字
+   * @param {number} [duration=2000] - 显示时长(ms)
+   */
+  showGameToast(msg, duration) {
+    base.showToast({ title: msg, icon: 'none', duration: duration || 2000 })
+  },
 }
 
 module.exports = platform

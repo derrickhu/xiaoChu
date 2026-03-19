@@ -74,11 +74,13 @@ function rIdle(g) {
   const slots = dispatch.slots || []
   const now = Date.now()
 
-  // 说明文字
+  // 说明文字（深色+描边确保在浅色背景下可读）
   c.save()
-  c.fillStyle = 'rgba(255,235,180,0.8)'
-  c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.font = `${11*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 2.5 * S
+  c.strokeText('派遣灵宠自动修行，每4小时产出1枚碎片', W / 2, contentTop + 8 * S)
+  c.fillStyle = 'rgba(55,40,25,0.95)'
   c.fillText('派遣灵宠自动修行，每4小时产出1枚碎片', W / 2, contentTop + 8 * S)
   c.restore()
 

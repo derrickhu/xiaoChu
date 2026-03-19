@@ -378,6 +378,18 @@ function drawNode(c, x, y, r, key, lv, cfg, isMax, canUpgrade, isSelected, S, an
   c.font = `${9*S}px "PingFang SC",sans-serif`
   c.fillText(`${lv}/${cfg.maxLv}`, x, y + 12*S)
 
+  // 可加点红点提醒
+  if (canUpgrade) {
+    const dotR = 4 * S
+    const dotX = x + r * 0.65
+    const dotY = y - r * 0.65
+    c.fillStyle = '#E03030'
+    c.beginPath(); c.arc(dotX, dotY, dotR, 0, Math.PI * 2); c.fill()
+    c.strokeStyle = '#fff'
+    c.lineWidth = 1.5 * S
+    c.beginPath(); c.arc(dotX, dotY, dotR, 0, Math.PI * 2); c.stroke()
+  }
+
   c.restore()
 }
 
@@ -589,12 +601,11 @@ function drawAvatarPanel(g, c, R, W, H, S, characters, rects) {
     }
 
     if (!ch.unlocked) {
-      c.save()
-      c.fillStyle = '#aaa'
-      c.font = `${14*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('🔒', cardCx, cardY + previewH * 0.5)
-      c.restore()
+      const lockImg = R.getImg('assets/ui/lock.png')
+      const lockSz = 20 * S
+      if (lockImg && lockImg.width > 0) {
+        c.drawImage(lockImg, cardCx - lockSz / 2, cardY + previewH * 0.5 - lockSz / 2, lockSz, lockSz)
+      }
     }
 
     if (isSelected) {
@@ -613,7 +624,7 @@ function drawAvatarPanel(g, c, R, W, H, S, characters, rects) {
       c.restore()
     }
 
-    rects.avatarRects.push({ id: ch.id, rect: [cardX, cardY, cellW, cellH], unlocked: ch.unlocked })
+    rects.avatarRects.push({ id: ch.id, rect: [cardX, cardY, cellW, cellH], unlocked: ch.unlocked, unlockHint: ch.unlockHint })
   }
 
   rects.avatarPanelRect = [panelX, panelY, panelW, panelH]

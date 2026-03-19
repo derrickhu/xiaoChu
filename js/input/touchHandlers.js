@@ -18,10 +18,11 @@ function tReward(g, type, x, y) {
     g._nextFloor()
     return
   }
-  // ★3满星庆祝画面：点击关闭后检查待显示弹窗
+  // ★3满星庆祝画面：点击关闭后检查待显示弹窗（入池 / 碎片）
   if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null
     if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
+    if (g._fragmentObtainedPopup) return
     g._nextFloor()
     return
   }

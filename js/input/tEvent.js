@@ -87,6 +87,8 @@ function tEvent(g, type, x, y) {
   if (g._star3Celebration) return
   // === 弹窗层：只处理 end ===
   if (type === 'end') {
+    if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; return }
+    if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; return }
     if (g._shopPetObtained) {
       g._shopPetObtained = null; return
     }

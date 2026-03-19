@@ -5,6 +5,7 @@
  * 渲染入口：rStageInfo  触摸入口：tStageInfo
  */
 const V = require('./env')
+const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
@@ -62,23 +63,70 @@ function rStageInfo(g) {
   const contentW = W - 28 * S
   let cy = safeTop + 4 * S
 
-  // ── 顶部栏：返回 + 体力（深色半透明衬底保证可读） ──
+  // ── 顶部栏：返回圆形按钮 + 体力胶囊（与灵宠池页面风格一致） ──
   c.save()
-  c.fillStyle = 'rgba(0,0,0,0.35)'
-  c.fillRect(0, cy, W, 36 * S)
-  // 返回按钮文字：描边+填充双层
-  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'middle'
-  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
-  c.strokeText('‹ 返回', px, cy + 18 * S)
-  c.fillStyle = '#FFFFFF'
-  c.fillText('‹ 返回', px, cy + 18 * S)
-  _rects.backBtnRect = [0, cy, 80 * S, 36 * S]
-  // 体力
-  c.textAlign = 'right'
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.fillStyle = '#3aaeff'
-  c.fillText(`⚡${g.storage.currentStamina}/${g.storage.maxStamina}`, W - px, cy + 18 * S)
+
+  const topCenterY = cy + 17 * S
+
+  // 返回按钮（圆形半透明背景 + 箭头）
+  const btnSz = 36 * S
+  const btnX = 12 * S
+  const btnY = topCenterY - btnSz / 2
+  c.fillStyle = 'rgba(0,0,0,0.4)'
+  c.beginPath()
+  c.arc(btnX + btnSz / 2, topCenterY, btnSz / 2, 0, Math.PI * 2)
+  c.fill()
+  c.strokeStyle = '#fff'
+  c.lineWidth = 2.5 * S
+  c.lineCap = 'round'; c.lineJoin = 'round'
+  const arrowX = btnX + btnSz / 2 + 3 * S
+  c.beginPath()
+  c.moveTo(arrowX, topCenterY - 8 * S)
+  c.lineTo(arrowX - 8 * S, topCenterY)
+  c.lineTo(arrowX, topCenterY + 8 * S)
+  c.stroke()
+  _rects.backBtnRect = [btnX, btnY, btnSz, btnSz]
+
+  // 体力显示（图标 + 胶囊背景 + 数值，与灵宠池经验池风格一致）
+  const stIcon = R.getImg('assets/ui/icon_stamina.png')
+  const stTxt = `${g.storage.currentStamina}/${g.storage.maxStamina}`
+  if (stIcon && stIcon.width > 0) {
+    const iconSz = 32 * S
+    const iconX = btnX + btnSz + 8 * S
+    const iconY = topCenterY - iconSz / 2
+
+    const txtX = iconX + iconSz + 4 * S
+    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    const txtW = c.measureText(stTxt).width
+    const padR = 8 * S
+    const capH = 26 * S, capR = capH / 2
+    const capX = iconX + iconSz * 0.38
+    const capW = txtX + txtW + padR - capX
+    const capY = topCenterY - capH / 2
+    c.beginPath()
+    c.moveTo(capX + capR, capY); c.lineTo(capX + capW - capR, capY)
+    c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
+    c.lineTo(capX + capW, capY + capH - capR)
+    c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
+    c.lineTo(capX + capR, capY + capH)
+    c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
+    c.lineTo(capX, capY + capR)
+    c.quadraticCurveTo(capX, capY, capX + capR, capY)
+    c.closePath()
+    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
+
+    c.fillStyle = '#fff'
+    c.fillText(stTxt, txtX, topCenterY)
+
+    c.drawImage(stIcon, iconX, iconY, iconSz, iconSz)
+  } else {
+    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    c.fillStyle = '#fff'
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillText(`⚡${stTxt}`, btnX + btnSz + 12 * S, topCenterY)
+  }
+
   c.restore()
   cy += 40 * S
 
@@ -132,8 +180,8 @@ function rStageInfo(g) {
   const cardTop = cy
   const cardRad = 12 * S
   const indent = cardX + cardPad
-  const enemySize = 40 * S
-  const cardH = 260 * S
+  const enemySize = 56 * S
+  const cardH = 280 * S
 
   // 画卡片背景
   c.fillStyle = 'rgba(45,30,18,0.75)'
@@ -202,35 +250,47 @@ function rStageInfo(g) {
   for (const enemy of allEnemies) {
     const eAttrColor = ATTR_COLOR[enemy.attr]
     const ecx = ex + enemySize / 2, ecy = iy + enemySize / 2
-    // 圆形背景
+    const eR = 4 * S
+    // 方形背景
     c.fillStyle = 'rgba(60,40,30,0.85)'
-    c.beginPath(); c.arc(ecx, ecy, enemySize / 2, 0, Math.PI * 2); c.fill()
-    c.strokeStyle = eAttrColor ? eAttrColor.main + '80' : '#88888880'; c.lineWidth = 2 * S
-    c.beginPath(); c.arc(ecx, ecy, enemySize / 2, 0, Math.PI * 2); c.stroke()
-    // 名称首字
-    c.fillStyle = eAttrColor ? eAttrColor.main : '#ccc'
-    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(enemy.name.slice(0, 1), ecx, ecy)
-    // HP
-    c.fillStyle = 'rgba(200,180,140,0.6)'; c.font = `${8*S}px "PingFang SC",sans-serif`
-    c.textBaseline = 'top'
-    c.fillText(`${enemy.hp}`, ecx, iy + enemySize + 2 * S)
+    R.rr(ex, iy, enemySize, enemySize, eR); c.fill()
+    // 头像图片
+    const avatarName = enemy.avatar ? enemy.avatar.replace('stage_enemies/', '') : null
+    const avatarImg = avatarName ? R.getImg(`assets/stage_avatars/${avatarName}_avatar.png`) : null
+    if (avatarImg && avatarImg.width > 0) {
+      c.save()
+      R.rr(ex + 1 * S, iy + 1 * S, enemySize - 2 * S, enemySize - 2 * S, eR - 1 * S); c.clip()
+      c.drawImage(avatarImg, ex + 1 * S, iy + 1 * S, enemySize - 2 * S, enemySize - 2 * S)
+      c.restore()
+    } else {
+      c.fillStyle = eAttrColor ? eAttrColor.main : '#ccc'
+      c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText(enemy.name.slice(0, 1), ecx, ecy)
+    }
+    // 属性色边框
+    c.strokeStyle = eAttrColor ? eAttrColor.main : '#888'; c.lineWidth = 2 * S
+    R.rr(ex, iy, enemySize, enemySize, eR); c.stroke()
+    // 名称
+    c.fillStyle = '#E8D5A8'; c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'top'
+    c.fillText(enemy.name, ecx, iy + enemySize + 3 * S)
 
-    _rects.enemyRects.push({ waveIdx: enemy.waveIdx, enemyIdx: enemy.enemyIdx, rect: [ex, iy, enemySize, enemySize] })
+    _rects.enemyRects.push({ waveIdx: enemy.waveIdx, enemyIdx: enemy.enemyIdx, rect: [ex, iy, enemySize, enemySize + 16 * S] })
     ex += enemySize + enemyGap
   }
 
   // ── 卡片内容结束 ──
   const cardContentBottom = cardTop + cardH
 
-  // ── 敌人详情弹窗 ──
+  // ── 敌人详情面板（内联，不遮挡页面） ──
+  let detailPanelH = 0
   if (g._stageInfoEnemyDetail != null) {
     const eIdx = g._stageInfoEnemyDetail
     const flatEnemies = []
     stage.waves.forEach(w => w.enemies.forEach(e => flatEnemies.push(e)))
     if (eIdx < flatEnemies.length) {
-      _drawEnemyDetailPopup(c, R, S, W, H, flatEnemies[eIdx])
+      detailPanelH = _drawEnemyDetailInline(c, R, S, W, cardX, cardContentBottom, cardW, flatEnemies[eIdx])
     }
   }
 
@@ -245,7 +305,7 @@ function rStageInfo(g) {
   const iconStartX = (W - iconsW) / 2
 
   // 编队标签（放大+描边让文字醒目）
-  const teamLabelY = cardContentBottom + 16 * S
+  const teamLabelY = cardContentBottom + detailPanelH + 16 * S
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.font = `bold ${15*S}px "PingFang SC",sans-serif`
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
@@ -312,17 +372,7 @@ function rStageInfo(g) {
         c.textBaseline = 'alphabetic'
         c.restore()
 
-        // 队长标记
-        if (i === 0) {
-          const capW = 24 * S, capH = 12 * S
-          c.fillStyle = 'rgba(255,215,0,0.8)'
-          R.rr(ix, iconY, capW, capH, 3 * S); c.fill()
-          c.fillStyle = '#3D2B15'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText('队长', ix + capW / 2, iconY + capH / 2)
-        }
-
-
+        // 此页不显示队长标记
         _rects.petSlotRects.push({ petId: pid, rect: [ix, iconY, iconSize, iconSize] })
       }
     } else {
@@ -337,16 +387,19 @@ function rStageInfo(g) {
     }
   }
 
-  // "调整编队" 透明按钮（头像槽正下方居中）
+  // "调整编队" 按钮（深色衬底保证在亮色背景下可读）
   const editBtnW = 110 * S, editBtnH = 28 * S
   const editBtnX = (W - editBtnW) / 2
   const editBtnY = iconY + iconSize + 10 * S
-  c.fillStyle = 'rgba(255,255,255,0.08)'
+  c.fillStyle = 'rgba(45,30,18,0.75)'
   R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.fill()
-  c.strokeStyle = 'rgba(255,245,210,0.45)'; c.lineWidth = 1 * S
+  c.strokeStyle = 'rgba(201,168,76,0.5)'; c.lineWidth = 1.5 * S
   R.rr(editBtnX, editBtnY, editBtnW, editBtnH, editBtnH / 2); c.stroke()
-  c.fillStyle = '#FFF5E0'; c.font = `${11*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#FFF5E0'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeStyle = 'rgba(0,0,0,0.35)'; c.lineWidth = 2 * S
+  c.strokeText('调整编队 ›', editBtnX + editBtnW / 2, editBtnY + editBtnH / 2)
+  c.fillStyle = '#FFF5E0'
   c.fillText('调整编队 ›', editBtnX + editBtnW / 2, editBtnY + editBtnH / 2)
   _rects.editTeamBtnRect = [editBtnX, editBtnY, editBtnW, editBtnH]
 
@@ -361,25 +414,25 @@ function rStageInfo(g) {
   const goBtnW = W * 0.6
   const goBtnH = goBtnW / 4
   const goBtnX = (W - goBtnW) / 2
-  const btnY = H - goBtnH - 36 * S
+  const goBtnY = H - goBtnH - 36 * S
   if (canGo) {
     const btnImg = R.getImg('assets/ui/btn_start.png')
     if (btnImg && btnImg.width > 0) {
-      c.drawImage(btnImg, goBtnX, btnY, goBtnW, goBtnH)
+      c.drawImage(btnImg, goBtnX, goBtnY, goBtnW, goBtnH)
     } else {
-      drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '开始战斗')
+      drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '开始战斗')
     }
     // 按钮文字
     c.fillStyle = '#FFF5E0'
     c.font = `bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2 * S
-    c.strokeText('开始战斗', goBtnX + goBtnW / 2, btnY + goBtnH / 2)
-    c.fillText('开始战斗', goBtnX + goBtnW / 2, btnY + goBtnH / 2)
+    c.strokeText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+    c.fillText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
   } else {
-    drawGoldBtn(c, R, S, goBtnX, btnY, goBtnW, goBtnH, '编队不足', true)
+    drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '编队不足', true)
   }
-  _rects.startBtnRect = [goBtnX, btnY, goBtnW, goBtnH]
+  _rects.startBtnRect = [goBtnX, goBtnY, goBtnW, goBtnH]
 
   // ── 宠物详情弹窗 ──
   if (g._stageInfoPetDetail != null) {
@@ -439,11 +492,11 @@ function tStageInfo(g, x, y, type) {
       return
     }
     if (g.storage.currentStamina < stage.staminaCost) {
-      g._toastMsg = '体力不足'
+      P.showGameToast('体力不足')
       return
     }
     if (!g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
-      g._toastMsg = '今日挑战次数已用完'
+      P.showGameToast('今日挑战次数已用完')
       return
     }
     const stageMgr = require('../engine/stageManager')
@@ -463,50 +516,74 @@ function tStageInfo(g, x, y, type) {
 
 // ===== 绘制工具 =====
 
-/** 敌人详情弹窗 */
-function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {
-  c.fillStyle = 'rgba(0,0,0,0.6)'
-  c.fillRect(0, 0, W, H)
-  const pw = W * 0.75, ph = 160 * S
-  const px = (W - pw) / 2, py = (H - ph) / 2
-  const rad = 12 * S
-  const bg = c.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, '#3D2B15'); bg.addColorStop(1, '#1A120A')
-  c.fillStyle = bg
-  R.rr(px, py, pw, ph, rad); c.fill()
-  c.strokeStyle = '#C9A84C'; c.lineWidth = 2 * S
-  R.rr(px, py, pw, ph, rad); c.stroke()
-  const indent = px + 16 * S
-  let dy = py + 18 * S
+/** 敌人详情面板（内联在卡片下方，浅色暖白风格，返回占用高度） */
+function _drawEnemyDetailInline(c, R, S, W, cardX, topY, cardW, enemy) {
   const eAttrColor = ATTR_COLOR[enemy.attr]
-  c.fillStyle = '#F5E6C8'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  const ac = eAttrColor ? eAttrColor.main : '#888'
+  const pad = 14 * S
+  const ph = 96 * S
+  const py = topY + 6 * S
+  const rad = 12 * S
+
+  R.drawInfoPanel(cardX, py, cardW, ph)
+
+  // 左侧头像
+  const avatarSz = 52 * S
+  const avatarX = cardX + pad
+  const avatarY = py + (ph - avatarSz) / 2
+  const avatarR = 6 * S
+  c.fillStyle = 'rgba(0,0,0,0.08)'
+  R.rr(avatarX, avatarY, avatarSz, avatarSz, avatarR); c.fill()
+  const avatarName = enemy.avatar ? enemy.avatar.replace('stage_enemies/', '') : null
+  const avatarImg = avatarName ? R.getImg(`assets/stage_avatars/${avatarName}_avatar.png`) : null
+  if (avatarImg && avatarImg.width > 0) {
+    c.save()
+    R.rr(avatarX + 1 * S, avatarY + 1 * S, avatarSz - 2 * S, avatarSz - 2 * S, avatarR - 1 * S); c.clip()
+    c.drawImage(avatarImg, avatarX + 1 * S, avatarY + 1 * S, avatarSz - 2 * S, avatarSz - 2 * S)
+    c.restore()
+  }
+  c.strokeStyle = ac; c.lineWidth = 2 * S
+  R.rr(avatarX, avatarY, avatarSz, avatarSz, avatarR); c.stroke()
+
+  // 右侧信息
+  const textX = avatarX + avatarSz + 12 * S
+  const textW = cardX + cardW - pad - textX
+  let dy = py + 14 * S
+
   c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(enemy.name, indent, dy)
-  c.fillStyle = eAttrColor ? eAttrColor.main : '#888'
-  c.font = `${10*S}px "PingFang SC",sans-serif`; c.textAlign = 'right'
-  c.fillText(`${ATTR_NAME[enemy.attr] || '?'}属性`, px + pw - 16 * S, dy + 2 * S)
-  dy += 24 * S
-  c.fillStyle = '#E8D5A8'; c.font = `${11*S}px "PingFang SC",sans-serif`; c.textAlign = 'left'
-  c.fillText(`生命：${enemy.hp}`, indent, dy)
-  c.fillText(`攻击：${enemy.atk}`, indent + pw * 0.35, dy)
-  c.fillText(`防御：${enemy.def}`, indent + pw * 0.7, dy)
+  c.fillStyle = '#3D2B1F'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+  c.fillText(enemy.name, textX, dy)
+  c.fillStyle = ac; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'
+  c.fillText(`${ATTR_NAME[enemy.attr] || '?'}属性`, cardX + cardW - pad, dy + 2 * S)
   dy += 20 * S
+
+  c.textAlign = 'left'
+  c.fillStyle = '#5A4A3A'; c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.fillText(`生命 ${enemy.hp}`, textX, dy)
+  c.fillText(`攻击 ${enemy.atk}`, textX + textW * 0.38, dy)
+  c.fillText(`防御 ${enemy.def}`, textX + textW * 0.72, dy)
+  dy += 18 * S
+
   if (enemy.skills && enemy.skills.length > 0) {
-    c.fillStyle = '#B8A0E0'; c.font = `${10*S}px "PingFang SC",sans-serif`
     const skillNames = {
       atkBuff: '攻击增强', defBuff: '防御增强', healPct: '百分比回复',
       critStrike: '暴击一击', shieldBreak: '破盾', stunStrike: '眩晕攻击',
       reflect: '伤害反射', multiStrike: '连续攻击', selfHeal: '自我治愈',
     }
-    c.fillText(`技能：${enemy.skills.map(s => skillNames[s] || s).join('、')}`, indent, dy)
+    c.fillStyle = '#7A5C30'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText(`技能：${enemy.skills.map(s => skillNames[s] || s).join('、')}`, textX, dy)
   } else {
-    c.fillStyle = 'rgba(200,180,140,0.4)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('无特殊技能', indent, dy)
+    c.fillStyle = '#AAA090'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText('无特殊技能', textX, dy)
   }
-  dy += 22 * S
-  c.fillStyle = 'rgba(200,180,140,0.3)'; c.font = `${9*S}px "PingFang SC",sans-serif`
+
+  // 底部提示
+  c.fillStyle = '#B0A090'; c.font = `${8*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'bottom'
-  c.fillText('点击任意处关闭', W / 2, py + ph - 8 * S)
+  c.fillText('点击任意处关闭', cardX + cardW / 2, py + ph - 5 * S)
+
+  return ph + 6 * S
 }
 
 module.exports = { rStageInfo, tStageInfo }

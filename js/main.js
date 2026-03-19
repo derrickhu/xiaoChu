@@ -71,6 +71,7 @@ class Main {
     this.storage._eventBus = this.events
 
     initState(this)
+    R._onImageLoad = () => { this._dirty = true }
 
     this.events.on('scene:change', (newScene) => {
       if (newScene === 'petPool') {
@@ -310,6 +311,13 @@ class Main {
   // ===== 渲染入口 =====
   render() {
     if (this.scene !== this._lastRenderedScene) { this._dirty = true; this._lastRenderedScene = this.scene }
+    // 体力恢复倒计时：stageSelect 页面每秒刷新一次
+    if (this.scene === 'stageSelect' && this.storage.staminaRecoverSec > 0) {
+      const now = Date.now()
+      if (!this._staminaTickLast || now - this._staminaTickLast >= 1000) {
+        this._staminaTickLast = now; this._dirty = true
+      }
+    }
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageSelect' || this.scene === 'stageInfo')
@@ -446,9 +454,8 @@ class Main {
 
   async _openRanking() {
     const t0 = Date.now()
-    console.log('[Ranking] 打开排行榜, cloudReady=', this.storage._cloudReady, 'authorized=', this.storage.userAuthorized)
+    console.log('[Ranking] 打开排行榜, authorized=', this.storage.userAuthorized, 'bestFloor=', this.storage.bestFloor)
     this.storage.destroyUserInfoBtn()
-    // 抖音端：首次进排行榜时尝试获取真实用户信息
     if (P.isDouyin && this.storage.userInfo && this.storage.userInfo.nickName === '冒险者') {
       this.storage.requestDouyinUserInfo((ok, info) => {
         if (ok) console.log('[Ranking] 抖音授权成功:', info.nickName)
@@ -457,11 +464,8 @@ class Main {
     this.rankTab = 'all'
     this.rankScrollY = 0
     this.setScene('ranking')
-    if (this.storage._cloudReady) {
-      await this.storage.fetchRanking('all')
-    } else {
-      this.storage.rankLoadingMsg = '云环境未就绪'
-    }
+    const needSubmit = this.storage.userAuthorized && this.storage.bestFloor > 0
+    await this.storage.fetchRankingCombined('all', needSubmit)
     console.log('[Ranking] 排行榜加载完成, 总耗时', Date.now() - t0, 'ms')
   }
 

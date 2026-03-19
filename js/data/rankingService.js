@@ -95,8 +95,16 @@ class RankingService {
 
   async fetchRanking(tab, force) {
     if (!cloudSync.isReady()) {
-      console.warn('[Ranking] 云环境未就绪，跳过拉取')
-      return
+      console.warn('[Ranking] 云环境未就绪，2秒后重试')
+      this.rankLoadingMsg = '等待云环境...'
+      this.rankLoading = true
+      await new Promise(r => setTimeout(r, 2000))
+      this.rankLoading = false
+      this.rankLoadingMsg = ''
+      if (!cloudSync.isReady()) {
+        console.warn('[Ranking] 云环境仍未就绪，放弃拉取')
+        return
+      }
     }
     const now = Date.now()
     const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
@@ -137,7 +145,15 @@ class RankingService {
   }
 
   async fetchRankingCombined(tab, needSubmit) {
-    if (!cloudSync.isReady()) return
+    if (!cloudSync.isReady()) {
+      console.warn('[Ranking] 云环境未就绪，2秒后重试')
+      this.rankLoading = true
+      this.rankLoadingMsg = '等待云环境...'
+      await new Promise(r => setTimeout(r, 2000))
+      this.rankLoading = false
+      this.rankLoadingMsg = ''
+      if (!cloudSync.isReady()) { console.warn('[Ranking] 云环境仍未就绪'); return }
+    }
     this.rankLoading = true
     this.rankLoadingMsg = needSubmit ? '提交并加载中...' : '加载排行中...'
     const t0 = Date.now()

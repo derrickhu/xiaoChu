@@ -223,7 +223,7 @@ function render(g) {
   c.globalAlpha = 0.6
   c.fillStyle = 'rgba(0,0,0,0.4)'
   const skipW = 60 * S, skipH = 30 * S
-  const skipX = W - skipW - 15 * S, skipY = V.safeTop + 10 * S
+  const skipX = W - skipW - 15 * S, skipY = V.safeTop + 52 * S  // 下移避开微信胶囊
   R.rr(skipX, skipY, skipW, skipH, 8 * S)
   c.fill()
   c.fillStyle = '#fff'
@@ -240,9 +240,9 @@ function onTouch(g, type, x, y) {
 
   const W = V.W, H = V.H, S = V.S
 
-  // 跳过按钮
+  // 跳过按钮（与 render 中位置一致，下移避开微信胶囊）
   const skipW = 60 * S, skipH = 30 * S
-  const skipX = W - skipW - 15 * S, skipY = V.safeTop + 10 * S
+  const skipX = W - skipW - 15 * S, skipY = V.safeTop + 52 * S
   if (x >= skipX && x <= skipX + skipW && y >= skipY && y <= skipY + skipH) {
     _finish(g)
     return

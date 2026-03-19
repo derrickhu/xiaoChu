@@ -27,6 +27,8 @@ function drawExitDialog(g) {
   // 取消交互：点击任意位置取消（按钮区域优先由触摸逻辑先处理）
   g._exitCancelRect = [0, 0, W, H]
 
+  const isStage = g.battleMode === 'stage'
+
   // 标题
   ctx.textAlign = 'center'
   ctx.fillStyle = '#6B5014'
@@ -39,7 +41,7 @@ function drawExitDialog(g) {
   ctx.fillText('请选择退出方式', px + pw*0.5, py + 60*S)
   ctx.fillStyle = '#C0392B'
   ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText('重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
+  ctx.fillText(isStage ? '重新挑战将重新开始本关' : '重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
   ctx.fillStyle = '#8A7A62'
   ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击任意位置取消', px + pw*0.5, py + 94*S)
@@ -49,9 +51,9 @@ function drawExitDialog(g) {
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
   const btnY = py + 106*S
-  R.drawDialogBtn(btn1X, btnY, btnW, btnH, '暂存退出', 'cancel')
+  R.drawDialogBtn(btn1X, btnY, btnW, btnH, isStage ? '返回选关' : '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
-  R.drawDialogBtn(btn2X, btnY, btnW, btnH, '重新开局', 'confirm')
+  R.drawDialogBtn(btn2X, btnY, btnW, btnH, isStage ? '重新挑战' : '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
 }
 
@@ -693,27 +695,32 @@ function drawFragmentPopup(g) {
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
 
-  const pw = W * 0.65, ph = 100 * S
+  const pw = W * 0.7, ph = 120 * S
   const px = (W - pw) / 2, py = H * 0.38
   ctx.fillStyle = 'rgba(248,242,230,0.97)'
   R.rr(px, py, pw, ph, 12 * S); ctx.fill()
   ctx.strokeStyle = 'rgba(180,140,60,0.6)'; ctx.lineWidth = 1.5 * S
   R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
 
+  const cx = px + pw / 2
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+
+  ctx.fillStyle = '#998060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillText('灵宠已满星，重复获得转为碎片', cx, py + 18 * S)
+
   ctx.fillStyle = '#6B5014'
-  ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  ctx.fillText('获得碎片', px + pw / 2, py + 22 * S)
+  ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillText('获得碎片', cx, py + 42 * S)
 
   const attrColor = ATTR_COLOR[pet.attr]
   ctx.fillStyle = attrColor ? attrColor.main : '#fff'
   ctx.font = `${12*S}px "PingFang SC",sans-serif`
-  ctx.fillText(`${pet.name} ×${info.count}`, px + pw / 2, py + 48 * S)
+  ctx.fillText(`${pet.name} ×${info.count}`, cx, py + 66 * S)
 
   const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
   ctx.globalAlpha = blink
   ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-  ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
+  ctx.fillText('点击继续', cx, py + ph - 14 * S)
   ctx.globalAlpha = 1
 
   ctx.restore()

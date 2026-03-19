@@ -6,6 +6,7 @@
  * 渲染入口：rStageTeam  触摸入口：tStageTeam
  */
 const V = require('./env')
+const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
@@ -163,16 +164,6 @@ function rStageTeam(g) {
         }
 
 
-        // 队长标记
-        if (i === 0) {
-          const capW = 24 * S, capH = 12 * S
-          c.fillStyle = 'rgba(255,215,0,0.9)'
-          R.rr(sx, slotY, capW, capH, 3 * S); c.fill()
-          c.fillStyle = '#3D2B15'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText('队长', sx + capW / 2, slotY + capH / 2)
-        }
-
         // 星级
         const starStr = '★'.repeat(poolPet.star)
         c.fillStyle = '#ffd700'; c.font = `${7*S}px "PingFang SC",sans-serif`
@@ -194,62 +185,24 @@ function rStageTeam(g) {
   }
   cy += 64 * S
 
-  // ── 队长技能 ──
-  const leaderSkillY = cy
-  const lsGrad = c.createLinearGradient(8*S, leaderSkillY, 8*S, leaderSkillY + 52*S)
-  lsGrad.addColorStop(0, 'rgba(252,245,220,0.88)')
-  lsGrad.addColorStop(1, 'rgba(244,234,200,0.90)')
-  c.fillStyle = lsGrad
-  R.rr(8*S, leaderSkillY, W - 16*S, 52*S, 6*S); c.fill()
-  c.strokeStyle = 'rgba(201,168,76,0.35)'; c.lineWidth = 1*S
-  R.rr(8*S, leaderSkillY, W - 16*S, 52*S, 6*S); c.stroke()
-
-  if (selected.length > 0) {
-    const leaderId = selected[0]
-    const leaderPet = getPetById(leaderId)
-    const leaderPool = g.storage.getPoolPet(leaderId)
-    if (leaderPet && leaderPool) {
-      const fakePet = { ...leaderPet, star: leaderPool.star }
-      const hasSkill = petHasSkill(fakePet)
-      c.textAlign = 'left'; c.textBaseline = 'middle'
-      c.fillStyle = '#6B4A10'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.fillText('队长技能', px + 4*S, leaderSkillY + 14*S)
-      if (hasSkill) {
-        c.fillStyle = '#3a7a2a'; c.font = `${9*S}px "PingFang SC",sans-serif`
-        c.fillText(leaderPet.skill.name, px + 60*S, leaderSkillY + 14*S)
-        const desc = getPetSkillDesc(fakePet) || ''
-        c.fillStyle = '#8B6B30'; c.font = `${8*S}px "PingFang SC",sans-serif`
-        const maxW = W - 36 * S
-        const displayDesc = c.measureText(desc).width > maxW ? desc.slice(0, 20) + '…' : desc
-        c.fillText(displayDesc, px + 4*S, leaderSkillY + 34*S)
-      } else {
-        c.fillStyle = '#9B8B60'; c.font = `${9*S}px "PingFang SC",sans-serif`
-        c.fillText('★2解锁', px + 60*S, leaderSkillY + 14*S)
-      }
-    }
-  } else {
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillStyle = '#9B8B60'; c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('选择灵宠后显示队长技能', W / 2, leaderSkillY + 26*S)
-  }
-  cy = leaderSkillY + 56 * S
-
   // ── 备选角色标题 + 克制提示 + 长按提示 ──
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillStyle = '#C8B78A'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.textBaseline = 'top'
+  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
+
+  c.textAlign = 'left'
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.strokeText('◆ 备选角色', px, cy)
+  c.fillStyle = '#FFF5E0'
   c.fillText('◆ 备选角色', px, cy)
   if (recAttr) {
     c.textAlign = 'right'
-    c.fillStyle = ATTR_COLOR[recAttr] ? ATTR_COLOR[recAttr].main : '#ccc'
     c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText(`推荐${ATTR_NAME[recAttr]}属性克制`, W - px, cy)
+    const recText = `推荐${ATTR_NAME[recAttr]}属性克制`
+    c.strokeText(recText, W - px, cy)
+    c.fillStyle = ATTR_COLOR[recAttr] ? ATTR_COLOR[recAttr].lt || ATTR_COLOR[recAttr].main : '#fff'
+    c.fillText(recText, W - px, cy)
   }
-  cy += 16 * S
-  // 长按提示（小字，居右，灰色）
-  c.textAlign = 'right'; c.textBaseline = 'top'
-  c.fillStyle = 'rgba(200,190,160,0.7)'; c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.fillText('长按灵宠可查看详情', W - px, cy)
-  cy += 14 * S
+  cy += 28 * S   // 下移，避免与备选角色文字重合
 
   // ── 属性筛选标签 ──
   _rects.filterRects = []
@@ -275,9 +228,12 @@ function rStageTeam(g) {
   // ── 底部按钮栏（先画，再裁切列表区域） ──
   const btnBarH = 72 * S
   const btnBarY = H - btnBarH
-  c.fillStyle = 'rgba(20,14,8,0.92)'
+  const btnBarGrad = c.createLinearGradient(0, btnBarY, 0, H)
+  btnBarGrad.addColorStop(0, 'rgba(20,14,8,0.6)')
+  btnBarGrad.addColorStop(0.4, 'rgba(20,14,8,0.75)')
+  btnBarGrad.addColorStop(1, 'rgba(20,14,8,0.85)')
+  c.fillStyle = btnBarGrad
   c.fillRect(0, btnBarY, W, btnBarH)
-  // 上边线
   c.strokeStyle = 'rgba(200,168,80,0.3)'; c.lineWidth = 1 * S
   c.beginPath(); c.moveTo(0, btnBarY); c.lineTo(W, btnBarY); c.stroke()
 
@@ -530,10 +486,10 @@ function tStageTeam(g, x, y, type) {
     g.storage.saveStageteam(selected)
     // 检查体力
     if (g.storage.currentStamina < stage.staminaCost) {
-      g._toastMsg = '体力不足'; return
+      P.showGameToast('体力不足'); return
     }
     if (!g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
-      g._toastMsg = '今日挑战次数已用完'; return
+      P.showGameToast('今日挑战次数已用完'); return
     }
     const stageMgr = require('../engine/stageManager')
     stageMgr.startStage(g, g._selectedStageId, selected)

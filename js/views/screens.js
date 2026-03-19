@@ -243,35 +243,91 @@ function rGameover(g) {
   R.drawBg(g.af)
 
   if (g.cleared) {
-    // ===== 通关界面 =====
-    // 金色光芒背景
+    // ===== 通关结算界面 =====
+    // 动画计时器
+    if (g._goAnimTimer == null) g._goAnimTimer = 0
+    g._goAnimTimer++
+    const at = g._goAnimTimer
+    const fadeIn = Math.min(1, at / 25)
+
+    // 多层金色光芒背景
     ctx.save()
-    const glow = ctx.createRadialGradient(W*0.5, H*0.25, 0, W*0.5, H*0.25, W*0.6)
-    glow.addColorStop(0, 'rgba(255,215,0,0.3)')
-    glow.addColorStop(0.5, 'rgba(255,200,0,0.1)')
+    ctx.globalAlpha = fadeIn
+    const glow = ctx.createRadialGradient(W*0.5, H*0.18, 0, W*0.5, H*0.18, W*0.65)
+    glow.addColorStop(0, 'rgba(255,215,0,0.35)')
+    glow.addColorStop(0.3, 'rgba(255,200,0,0.15)')
+    glow.addColorStop(0.7, 'rgba(255,180,0,0.05)')
     glow.addColorStop(1, 'rgba(255,215,0,0)')
     ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+    // 旋转光线
+    const rayAlpha = 0.06 + 0.03 * Math.sin(at * 0.04)
+    ctx.globalAlpha = rayAlpha * fadeIn
+    ctx.translate(W*0.5, H*0.15)
+    ctx.rotate(at * 0.003)
+    for (let ri = 0; ri < 12; ri++) {
+      ctx.rotate(Math.PI / 6)
+      ctx.beginPath(); ctx.moveTo(0, 0)
+      ctx.lineTo(-15*S, -H*0.5); ctx.lineTo(15*S, -H*0.5)
+      ctx.closePath()
+      ctx.fillStyle = '#ffd700'; ctx.fill()
+    }
     ctx.restore()
 
+    ctx.save()
+    ctx.globalAlpha = fadeIn
+
+    // 标题
+    const titleGlow = 0.4 + 0.2 * Math.sin(at * 0.06)
     ctx.textAlign = 'center'
     ctx.save()
-    ctx.shadowColor = 'rgba(255,200,0,0.5)'; ctx.shadowBlur = 8*S
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
-    ctx.fillText('通天塔·通关', W*0.5, H*0.16)
+    ctx.shadowColor = `rgba(255,200,0,${titleGlow})`; ctx.shadowBlur = 20*S
+    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${26*S}px "PingFang SC",sans-serif`
+    ctx.fillText('✦ 登顶通天塔 ✦', W*0.5, H*0.13)
     ctx.restore()
+
     // 装饰线
-    const cdivW = W*0.28, cdivY = H*0.18
-    ctx.strokeStyle = 'rgba(212,175,55,0.4)'; ctx.lineWidth = 1*S
-    ctx.beginPath(); ctx.moveTo(W*0.5 - cdivW, cdivY); ctx.lineTo(W*0.5 + cdivW, cdivY); ctx.stroke()
+    const cdivW = W*0.3
+    ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1.5*S
+    ctx.beginPath(); ctx.moveTo(W*0.5 - cdivW, H*0.155); ctx.lineTo(W*0.5 + cdivW, H*0.155); ctx.stroke()
 
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `${16*S}px "PingFang SC",sans-serif`
-    ctx.fillText('恭喜修士登顶通天塔！', W*0.5, H*0.24)
+    // 副标题
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `${14*S}px "PingFang SC",sans-serif`
+    ctx.fillText('修士已突破重重试炼，功德圆满！', W*0.5, H*0.19)
 
-    ctx.fillStyle = '#e8a840'; ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`通关层数：第 ${g.floor > 60 ? 60 : g.floor} 层`, W*0.5, H*0.32)
+    // 通关统计卡片
+    const statY = H*0.23
+    const statH = 40*S
+    const statW = W * 0.76
+    const statX = (W - statW) / 2
+    const statBg = ctx.createLinearGradient(statX, statY, statX, statY + statH)
+    statBg.addColorStop(0, 'rgba(40,32,15,0.85)'); statBg.addColorStop(1, 'rgba(25,20,10,0.9)')
+    ctx.fillStyle = statBg; R.rr(statX, statY, statW, statH, 10*S); ctx.fill()
+    ctx.strokeStyle = 'rgba(212,175,55,0.3)'; ctx.lineWidth = 1*S
+    R.rr(statX, statY, statW, statH, 10*S); ctx.stroke()
 
-    ctx.fillStyle = TH.sub; ctx.font = `${14*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`历史最高：第 ${g.storage.bestFloor} 层`, W*0.5, H*0.38)
+    const bestTurns = g.storage.stats.bestTotalTurns || 0
+    const totalTurns = g.runTotalTurns || g.storage.stats.bestTotalTurns || 0
+    const isNewRecord = bestTurns > 0 && totalTurns <= bestTurns
+
+    // 左列：层数
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#FFD700'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`第 ${g.floor > 60 ? 60 : g.floor} 层`, statX + statW*0.3, statY + 18*S)
+    ctx.fillStyle = '#A89860'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText('通关层数', statX + statW*0.3, statY + 32*S)
+
+    // 分隔线
+    ctx.strokeStyle = 'rgba(212,175,55,0.2)'; ctx.lineWidth = 1*S
+    ctx.beginPath(); ctx.moveTo(statX + statW*0.5, statY + 8*S); ctx.lineTo(statX + statW*0.5, statY + statH - 8*S); ctx.stroke()
+
+    // 右列：总回合
+    ctx.fillStyle = isNewRecord ? '#FF6B35' : '#E8C870'
+    ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+    ctx.fillText(String(totalTurns), statX + statW*0.7, statY + 18*S)
+    ctx.fillStyle = '#A89860'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+    ctx.fillText(isNewRecord ? '总回合 新纪录!' : '总回合', statX + statW*0.7, statY + 32*S)
+
+    ctx.restore()
   } else {
     // ===== 失败界面 =====
     // 暗红光晕
@@ -621,17 +677,24 @@ function rRanking(g) {
       // 右侧数值（根据Tab不同）
       ctx.textAlign = 'right'
       if (tab === 'all') {
-        // 速通榜：同时显示层数和回合数
         const turns = item.totalTurns || 0
+        const valRight = W - padX - 12*S
         ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
         ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
-        ctx.fillText(`${item.floor}`, W - padX - 12*S, ry + 24*S)
+        const floorY = turns > 0 ? ry + 22*S : ry + 28*S
         ctx.restore()
-        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-        ctx.fillText('层', W - padX - 12*S, ry + 36*S)
+        ctx.save()
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
+        ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+        const layerW = ctx.measureText('层').width
+        ctx.fillText('层', valRight, floorY)
+        ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+        if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+        ctx.fillText(`${item.floor}`, valRight - layerW - 1*S, floorY)
+        ctx.restore()
         if (turns > 0) {
-          ctx.fillStyle = i < 3 ? 'rgba(240,220,160,0.7)' : TH.sub; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-          ctx.fillText(`${turns}回合`, W - padX - 12*S, ry + 50*S)
+          ctx.fillStyle = i < 3 ? '#C8A84E' : '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+          ctx.fillText(`${turns}回合`, valRight, ry + 42*S)
         }
       } else if (tab === 'dex') {
         const dexCount = item.petDexCount || 0
@@ -1521,21 +1584,39 @@ function rAdventure(g) {
   drawBackBtn(g)
 }
 
-// ===== 通用左上角返回首页按钮（btn_back.png 图片版） =====
+// ===== 通用左上角返回首页按钮 =====
+// 排行、统计页：圆形半透明+白箭头（与灵宠详情页一致）；其他页：btn_back.png
 function drawBackBtn(g) {
   const { ctx, R, S, safeTop } = V
+  const useCircularStyle = g.scene === 'ranking' || g.scene === 'stats'
+
+  if (useCircularStyle) {
+    // 圆形按钮（与灵宠详情页一致）
+    const btnSz = 36 * S
+    const bx = 12 * S, by = safeTop + 8 * S
+    ctx.save()
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'
+    ctx.beginPath()
+    ctx.arc(bx + btnSz / 2, by + btnSz / 2, btnSz / 2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    const ax = bx + btnSz / 2 + 3 * S, ay = by + btnSz / 2
+    ctx.beginPath()
+    ctx.moveTo(ax, ay - 8 * S); ctx.lineTo(ax - 8 * S, ay); ctx.lineTo(ax, ay + 8 * S)
+    ctx.stroke()
+    ctx.restore()
+    g._backBtnRect = [bx, by, btnSz, btnSz]
+    return
+  }
+
   const btnImg = R.getImg('assets/ui/btn_back.png')
-  // 图片宽高比约 2.2:1，高度固定 40*S
   const btnH = 40 * S
-  const btnW = btnImg && btnImg.width > 0
-    ? btnH * (btnImg.width / btnImg.height)
-    : 88 * S
+  const btnW = btnImg && btnImg.width > 0 ? btnH * (btnImg.width / btnImg.height) : 88 * S
   const bx = 4 * S, by = safeTop + 2 * S
   ctx.save()
   if (btnImg && btnImg.width > 0) {
     ctx.drawImage(btnImg, bx, by, btnW, btnH)
   } else {
-    // 降级：简单暖金圆角矩形 + 文字
     const fb = ctx.createLinearGradient(bx, by, bx, by + btnH)
     fb.addColorStop(0, 'rgba(200,158,60,0.9)'); fb.addColorStop(1, 'rgba(160,120,30,0.9)')
     ctx.fillStyle = fb; R.rr(bx, by, btnW, btnH, btnH * 0.5); ctx.fill()
@@ -1628,11 +1709,11 @@ function rDex(g) {
   ctx.beginPath(); R.rr(tipX, tipY, tipW, tipH, 6*S); ctx.fill()
   ctx.strokeStyle = 'rgba(212,175,55,0.25)'; ctx.lineWidth = 1*S
   ctx.beginPath(); R.rr(tipX, tipY, tipW, tipH, 6*S); ctx.stroke()
-  // 第一行：出战提示（醒目）
-  ctx.fillStyle = '#ffd54f'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  // 第一行：出战提示（深色保证可读）
+  ctx.fillStyle = '#8B6914'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('💡 点击已收集灵兽可选择「带它出战」', W*0.5, tipY + 13*S)
   // 第二行：收集规则
-  ctx.fillStyle = 'rgba(245,230,200,0.65)'; ctx.font = `${8.5*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = 'rgba(70,55,35,0.95)'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('收集规则：灵兽在冒险中升至满星（★★★）即永久录入图鉴', W*0.5, tipY + 28*S)
 
   // 滚动区域
