@@ -79,23 +79,6 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
-  // [DEBUG] 一键跳过战斗
-  if (type === 'end' && g._debugSkipRect && g._hitRect(x,y,...g._debugSkipRect)) {
-    if (g.enemy) {
-      g.enemy.hp = 0
-      const base = killExpBase(g.enemy, g.floor)
-      g.runExp = (g.runExp || 0) + base
-      g._runKillExp = (g._runKillExp || 0) + base
-      const simElim = Math.max(1, Math.floor(g.floor * 0.5))
-      g.runExp = (g.runExp || 0) + simElim
-      g._runElimExp = (g._runElimExp || 0) + simElim
-    }
-    g.lastTurnCount = g.turnCount || 1
-    g.lastSpeedKill = true
-    g.runTotalTurns = (g.runTotalTurns || 0) + (g.turnCount || 1)
-    g.bState = 'victory'
-    return
-  }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
     if (g.battleMode === 'stage') {
