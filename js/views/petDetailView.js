@@ -7,7 +7,7 @@
 const V = require('./env')
 const uiUtils = require('./uiUtils')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill, getPetLore } = require('../data/pets')
+const { getPetById, getPetTier, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill, getPetLore } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 
@@ -280,21 +280,8 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText(basePet.name, nameX, cy)
 
   cy += 28 * S
-
-  // 档位标签
-  const tierColor = tier === 'T1' ? '#FFD700' : tier === 'T2' ? '#8DF' : '#AAA'
-  c.fillStyle = tierColor; c.globalAlpha = 0.2
-  const tagW = 40 * S, tagH = 18 * S
-  R.rr((W - tagW) / 2, cy, tagW, tagH, 4 * S); c.fill()
-  c.globalAlpha = 1
-  c.strokeStyle = tierColor; c.lineWidth = 1 * S
-  R.rr((W - tagW) / 2, cy, tagW, tagH, 4 * S); c.stroke()
-  c.fillStyle = tierColor
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(tier, W / 2, cy + tagH / 2)
-
-  cy += tagH + 16 * S
+  // 未召唤页不展示 T1/T2/T3 档位标签（避免与「未获得」状态混淆）
+  cy += 16 * S
 
   // 信息卡片
   const cardX = 6 * S
@@ -339,31 +326,40 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += 10 * S
 
-  // 技能预览
+  // 技能预览（未召唤：展示二星基础效果 + 备注二星解锁）
   c.fillStyle = '#5A4530'
   c.font = `bold ${15*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText('技能', indent, cy)
   const skillLabelW = c.measureText('技能').width
-  const fakePet = { ...basePet, star: 2 }
-  const hasSkill = petHasSkill(fakePet)
-  if (hasSkill) {
+  const lineHSkill = 16 * S
+  if (basePet.skill) {
     c.fillStyle = '#2E8B2E'
     c.font = `bold ${13*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'
     c.fillText(basePet.skill.name, indent + skillLabelW + 10 * S, cy + 1 * S)
     cy += 20 * S
-    const skillDesc = getPetSkillDesc(fakePet)
+    const skillDesc = getPetSkillBaseDesc(basePet)
     c.fillStyle = 'rgba(70,50,30,0.85)'
     c.font = `${12*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'
-    wrapTextDraw(c, skillDesc || '', indent, cy, contentW, 16 * S)
-    cy += 20 * S
+    const skillLines = wrapTextDraw(c, skillDesc || '', indent, cy, contentW, lineHSkill)
+    cy += Math.max(1, skillLines) * lineHSkill + 4 * S
+    if (basePet.skill.cd || basePet.cd) {
+      c.fillStyle = 'rgba(90,70,40,0.7)'
+      c.font = `${11*S}px "PingFang SC",sans-serif`
+      c.fillText(`冷却: ${basePet.cd || basePet.skill.cd} 回合`, indent, cy)
+      cy += 14 * S
+    }
+    c.fillStyle = 'rgba(180,100,30,0.95)'
+    c.font = `${11*S}px "PingFang SC",sans-serif`
+    c.fillText('（二星解锁）', indent, cy)
+    cy += 18 * S
   } else {
     cy += 20 * S
     c.fillStyle = 'rgba(90,70,40,0.7)'
     c.font = `${13*S}px "PingFang SC",sans-serif`
-    c.fillText('此灵宠无技能', indent, cy)
+    c.fillText('此灵宠无主动技能', indent, cy)
     cy += 20 * S
   }
 
@@ -378,10 +374,25 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText('碎片召唤', indent, cy)
   cy += 22 * S
 
-  // 进度条
-  const barW2 = contentW * 0.6
+  // 进度条 + 右侧碎片数字（避免长数字顶到卷轴右缘）
   const barH3 = 14 * S
   const barX2 = indent
+  const gapMid = 8 * S
+  const marginR = 14 * S
+  const fragStr = `${bankFrag} / ${cost}`
+  const textRight = rightEdge - marginR
+  let fragFs = 13 * S
+  c.font = `${fragFs}px "PingFang SC",sans-serif`
+  let fragW = c.measureText(fragStr).width
+  let availForBar = contentW - marginR - fragW - gapMid
+  if (availForBar < 36 * S && fragFs > 11 * S) {
+    fragFs = 11 * S
+    c.font = `${fragFs}px "PingFang SC",sans-serif`
+    fragW = c.measureText(fragStr).width
+    availForBar = contentW - marginR - fragW - gapMid
+  }
+  // 条 + gapMid + 数字宽度 ≤ contentW - marginR；条宽优先取 60% 内容区以内
+  const barW2 = Math.min(contentW * 0.6, Math.max(0, availForBar))
   const progress = Math.min(1, bankFrag / cost)
   c.fillStyle = 'rgba(0,0,0,0.15)'
   R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.fill()
@@ -395,11 +406,10 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.strokeStyle = 'rgba(120,100,200,0.4)'; c.lineWidth = 1 * S
   R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.stroke()
 
-  // 碎片数字
   c.fillStyle = canSummon ? '#7ecf6a' : 'rgba(90,70,40,0.75)'
-  c.font = `${13*S}px "PingFang SC",sans-serif`
+  c.font = `${fragFs}px "PingFang SC",sans-serif`
   c.textAlign = 'right'; c.textBaseline = 'top'
-  c.fillText(`${bankFrag} / ${cost}`, rightEdge, cy)
+  c.fillText(fragStr, textRight, cy + (barH3 - fragFs) * 0.15)
   cy += barH3 + 16 * S
 
   // 召唤按钮
@@ -725,11 +735,32 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       c.fillText(`冷却: ${basePet.cd || basePet.skill.cd} 回合`, indent, cy)
       cy += fSmall + gap * 0.5
     }
+  } else if (basePet.skill) {
+    const skillDesc = getPetSkillBaseDesc(basePet)
+    c.fillStyle = '#2E8B2E'
+    c.font = `bold ${fSkillT}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'
+    c.fillText(basePet.skill.name, indent + skillLabelW + 10 * S, cy + 1 * S)
+    cy += fTitle + gap * 0.6
+    c.fillStyle = 'rgba(70,50,30,0.85)'
+    c.font = `${fSkillD}px "PingFang SC",sans-serif`
+    const wrappedLines = wrapTextDraw(c, skillDesc || '', indent, cy, contentW, lineH)
+    cy += Math.max(1, wrappedLines) * lineH + gap * 0.5
+    if (basePet.skill.cd || basePet.cd) {
+      c.fillStyle = 'rgba(90,70,40,0.7)'
+      c.font = `${fSmall}px "PingFang SC",sans-serif`
+      c.fillText(`冷却: ${basePet.cd || basePet.skill.cd} 回合`, indent, cy)
+      cy += fSmall + gap * 0.5
+    }
+    c.fillStyle = 'rgba(180,100,30,0.95)'
+    c.font = `${fSmall}px "PingFang SC",sans-serif`
+    c.fillText('（二星解锁）', indent, cy)
+    cy += fSmall + gap * 0.5
   } else {
     cy += fTitle + gap * 0.6
     c.fillStyle = 'rgba(90,70,40,0.7)'
     c.font = `${fBody}px "PingFang SC",sans-serif`
-    c.fillText('★2解锁技能', indent, cy)
+    c.fillText('此灵宠无主动技能', indent, cy)
     cy += fBody + gap
   }
 
@@ -845,14 +876,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       const dBtnW = 110 * S
       _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
       if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
-      cy += btnH + gap * 0.4
-      c.fillStyle = 'rgba(120,100,70,0.6)'
-      c.font = `${fSmall}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText(`碎片用于升星，多余碎片可分解为宠物经验`, indent, cy)
-      cy += fSmall + gap * 0.2
-      c.fillStyle = 'rgba(180,80,60,0.7)'
-      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
   } else {
     c.fillStyle = '#5A4530'
@@ -874,15 +897,17 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       const dBtnW = 110 * S
       _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
       if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
-      cy += btnH + gap * 0.4
-      c.fillStyle = 'rgba(120,100,70,0.6)'
-      c.font = `${fSmall}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('已满星，碎片可分解为宠物经验', indent, cy)
-      cy += fSmall + gap * 0.2
-      c.fillStyle = 'rgba(180,80,60,0.7)'
-      c.fillText('分解不可逆，请谨慎操作', indent, cy)
     }
+  }
+
+  // 碎片提示文字放在卡片下方（避免与卡片装饰边框重叠）
+  if (poolPet.fragments > 0) {
+    const tipX = cardX + 14 * S
+    const tipY = cardBottom + 4 * S
+    c.fillStyle = 'rgba(120,100,80,0.6)'
+    c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    c.fillText('碎片用于升星，多余碎片可分解为宠物经验。分解不可逆，请谨慎操作', tipX, tipY)
   }
 }
 
@@ -981,10 +1006,11 @@ function tPetDetail(g, x, y, type) {
 
     // 返回按钮
     if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-      g.scene = g._petDetailReturnScene || 'petPool'
+      const returnTo = g._petDetailReturnScene || 'petPool'
       g._petDetailReturnScene = null
       g._petDetailId = null
       g._petDetailUnowned = false
+      g.setScene(returnTo)
       MusicMgr.playClick && MusicMgr.playClick()
       return
     }

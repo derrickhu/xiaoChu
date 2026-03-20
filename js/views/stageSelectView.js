@@ -119,7 +119,7 @@ function rStageSelect(g) {
   let curY = contentTop + 8 * S + _scrollY
 
   for (const chapter of CHAPTERS) {
-    const unlocked = isChapterUnlocked(chapter.id, poolCount)
+    const unlocked = isChapterUnlocked(chapter.id, poolCount, g.storage.stageClearRecord)
     const stages = getChapterStages(chapter.id)
     const clearedCount = unlocked ? stages.filter(s => g.storage.getStageBestRating(s.id)).length : 0
 

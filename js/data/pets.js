@@ -330,6 +330,11 @@ function petHasSkill(pet) {
   return (pet.star || 1) >= 2 && !!pet.skill
 }
 
+// ★1 详情 UI：展示将在二星解锁的技能基础描述（等同★2 时效果文案，不含★3 覆写）
+function getPetSkillBaseDesc(pet) {
+  return pet && pet.skill ? (pet.skill.desc || '') : ''
+}
+
 // 获取宠物当前技能描述（★1无技能，★2基础技能，★3强化技能）
 function getPetSkillDesc(pet) {
   const star = pet.star || 1
@@ -652,6 +657,7 @@ module.exports = {
   getPetTier,
   petHasSkill,
   getPetSkillDesc,
+  getPetSkillBaseDesc,
   getStar3Override,
   getPetStarAtk,
   getPetStarSkillMul,

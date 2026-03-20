@@ -1,16 +1,15 @@
 /**
  * 固定关卡配置 — 3章×5关 = 15关
  *
- * 解锁条件：灵宠池 >= 5 只
- * 每章有独立解锁门槛（按灵宠池数量）
- * 关卡按顺序解锁，需通关前置关卡
+ * 全局线性解锁：stage_1_1 → stage_1_2 → ... → stage_2_1 → ... → stage_3_5
+ * 首通奖励：第一章赠送 T2 灵兽，第二三章赠送 T1 神兽（已拥有转碎片）
  */
 
 // ===== 章节 =====
 const CHAPTERS = [
   { id: 1, name: '灵山试炼', desc: '灵山脚下，试炼开始', unlockPool: 5 },
-  { id: 2, name: '幽冥秘境', desc: '幽暗深处，危机四伏', unlockPool: 10 },
-  { id: 3, name: '天劫雷域', desc: '九天雷劫，唯强者渡', unlockPool: 15 },
+  { id: 2, name: '幽冥秘境', desc: '幽暗深处，危机四伏', unlockPool: 5 },
+  { id: 3, name: '天劫雷域', desc: '九天雷劫，唯强者渡', unlockPool: 5 },
 ]
 
 // ===== 关卡 =====
@@ -19,13 +18,14 @@ const STAGES = [
   {
     id: 'stage_1_1', name: '初试·岩獾', chapter: 1, order: 1,
     waves: [
-      { enemies: [{ name: '岩獾', attr: 'earth', hp: 580, atk: 21, def: 7, skills: [], avatar: 'stage_enemies/rock_badger' }] },
+      { enemies: [{ name: '岩獾', attr: 'earth', hp: 850, atk: 28, def: 10, skills: [], avatar: 'stage_enemies/rock_badger' }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 3, a: 5 },
+    rating: { s: 4, a: 7 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'e4', fragCount: 10 },
         { type: 'fragment', target: 'random_earth', count: 5 },
         { type: 'exp', amount: 200 },
         { type: 'petExp', amount: 80 },
@@ -39,14 +39,15 @@ const STAGES = [
   {
     id: 'stage_1_2', name: '烈焰·焰狮', chapter: 1, order: 2,
     waves: [
-      { enemies: [{ name: '炎狐', attr: 'fire', hp: 700, atk: 23, def: 8, skills: [], avatar: 'stage_enemies/flame_fox' }] },
-      { enemies: [{ name: '焰狮', attr: 'fire', hp: 940, atk: 30, def: 10, skills: ['atkBuff'], avatar: 'stage_enemies/blaze_lion' }] },
+      { enemies: [{ name: '炎狐', attr: 'fire', hp: 1000, atk: 30, def: 11, skills: [], avatar: 'stage_enemies/flame_fox' }] },
+      { enemies: [{ name: '焰狮', attr: 'fire', hp: 1400, atk: 40, def: 14, skills: ['atkBuff'], avatar: 'stage_enemies/blaze_lion' }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 5, a: 8 },
+    rating: { s: 7, a: 11 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'f3', fragCount: 10 },
         { type: 'fragment', target: 'random_fire', count: 8 },
         { type: 'exp', amount: 300 },
         { type: 'petExp', amount: 120 },
@@ -60,14 +61,15 @@ const STAGES = [
   {
     id: 'stage_1_3', name: '寒潮·碧鲸', chapter: 1, order: 3,
     waves: [
-      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 820, atk: 26, def: 9, skills: ['defBuff'], avatar: 'stage_enemies/bubble_fish' }] },
-      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1050, atk: 33, def: 12, skills: ['healPct'], avatar: 'stage_enemies/tide_whale' }] },
+      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 1200, atk: 34, def: 12, skills: ['defBuff'], avatar: 'stage_enemies/bubble_fish' }] },
+      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1600, atk: 44, def: 16, skills: ['healPct'], avatar: 'stage_enemies/tide_whale' }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 5, a: 8 },
+    rating: { s: 7, a: 11 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 's4', fragCount: 10 },
         { type: 'fragment', target: 'random_water', count: 8 },
         { type: 'exp', amount: 300 },
         { type: 'petExp', amount: 120 },
@@ -81,14 +83,15 @@ const STAGES = [
   {
     id: 'stage_1_4', name: '金锋·雷貂', chapter: 1, order: 4,
     waves: [
-      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 940, atk: 28, def: 14, skills: ['defBuff'], avatar: 'stage_enemies/iron_armadillo' }] },
-      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1180, atk: 35, def: 12, skills: ['atkBuff'], avatar: 'stage_enemies/thunder_marten' }] },
+      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 1400, atk: 36, def: 18, skills: ['defBuff'], avatar: 'stage_enemies/iron_armadillo' }] },
+      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1800, atk: 46, def: 16, skills: ['atkBuff'], avatar: 'stage_enemies/thunder_marten' }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 6, a: 9 },
+    rating: { s: 8, a: 12 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'm4', fragCount: 10 },
         { type: 'fragment', target: 'random_metal', count: 10 },
         { type: 'exp', amount: 400 },
         { type: 'petExp', amount: 150 },
@@ -102,15 +105,16 @@ const STAGES = [
   {
     id: 'stage_1_5', name: '灵山守关·灵木麒麟', chapter: 1, order: 5,
     waves: [
-      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 700, atk: 24, def: 9, skills: [], avatar: 'stage_enemies/blossom_bunny' }] },
-      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 950, atk: 28, def: 12, skills: ['healPct'], avatar: 'stage_enemies/jade_cat' }] },
-      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 1400, atk: 38, def: 14, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
+      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 1000, atk: 32, def: 12, skills: [], avatar: 'stage_enemies/blossom_bunny' }] },
+      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 1400, atk: 38, def: 16, skills: ['healPct'], avatar: 'stage_enemies/jade_cat' }] },
+      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 2100, atk: 50, def: 18, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 8, a: 12 },
+    rating: { s: 11, a: 16 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'w5', fragCount: 10 },
         { type: 'fragment', target: 'random_wood', count: 12 },
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 200 },
@@ -122,18 +126,19 @@ const STAGES = [
     battlePetExp: 60,
   },
 
-  // ── 第二章：幽冥秘境 ──
+  // ── 第二章：幽冥秘境（需通关 stage_1_5 解锁） ──
   {
     id: 'stage_2_1', name: '幽影·月光水母', chapter: 2, order: 1,
     waves: [
-      { enemies: [{ name: '暮蝠', attr: 'water', hp: 1000, atk: 30, def: 10, skills: [], avatar: 'stage_enemies/dusk_bat' }] },
-      { enemies: [{ name: '月光水母', attr: 'water', hp: 1400, atk: 36, def: 12, skills: ['atkBuff'], avatar: 'stage_enemies/moon_jellyfish' }] },
+      { enemies: [{ name: '暮蝠', attr: 'water', hp: 1700, atk: 42, def: 14, skills: [], avatar: 'stage_enemies/dusk_bat' }] },
+      { enemies: [{ name: '月光水母', attr: 'water', hp: 2400, atk: 50, def: 17, skills: ['atkBuff'], avatar: 'stage_enemies/moon_jellyfish' }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 5, a: 8 },
+    rating: { s: 7, a: 11 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 's10', fragCount: 10 },
         { type: 'fragment', target: 'random_water', count: 10 },
         { type: 'exp', amount: 400 },
         { type: 'petExp', amount: 150 },
@@ -141,20 +146,21 @@ const STAGES = [
       repeatClear: { fragments: { min: 2, max: 5, pool: 'chapter' }, exp: 120, petExp: 80 },
     },
     dailyLimit: 3,
-    unlockCondition: { prevStage: null },
+    unlockCondition: { prevStage: 'stage_1_5' },
     battlePetExp: 50,
   },
   {
     id: 'stage_2_2', name: '烈焰·炽焰古龙', chapter: 2, order: 2,
     waves: [
-      { enemies: [{ name: '火灵', attr: 'fire', hp: 1200, atk: 34, def: 11, skills: ['atkBuff'], avatar: 'stage_enemies/fire_wisp' }] },
-      { enemies: [{ name: '炽焰古龙', attr: 'fire', hp: 1600, atk: 40, def: 14, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_dragon_awakened', isBoss: true }] },
+      { enemies: [{ name: '火灵', attr: 'fire', hp: 2000, atk: 46, def: 16, skills: ['atkBuff'], avatar: 'stage_enemies/fire_wisp' }] },
+      { enemies: [{ name: '炽焰古龙', attr: 'fire', hp: 2800, atk: 56, def: 20, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_dragon_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 6, a: 9 },
+    rating: { s: 8, a: 12 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'f10', fragCount: 10 },
         { type: 'fragment', target: 'random_fire', count: 12 },
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 180 },
@@ -168,14 +174,15 @@ const STAGES = [
   {
     id: 'stage_2_3', name: '冥土·玄岩貔貅', chapter: 2, order: 3,
     waves: [
-      { enemies: [{ name: '岩龟', attr: 'earth', hp: 1000, atk: 28, def: 16, skills: ['defBuff'], avatar: 'stage_enemies/stone_turtle' }] },
-      { enemies: [{ name: '玄岩貔貅', attr: 'earth', hp: 1800, atk: 38, def: 18, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/rock_pixiu_awakened', isBoss: true }] },
+      { enemies: [{ name: '岩龟', attr: 'earth', hp: 1700, atk: 40, def: 22, skills: ['defBuff'], avatar: 'stage_enemies/stone_turtle' }] },
+      { enemies: [{ name: '玄岩貔貅', attr: 'earth', hp: 3000, atk: 54, def: 25, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/rock_pixiu_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 7, a: 10 },
+    rating: { s: 9, a: 13 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'e10', fragCount: 10 },
         { type: 'fragment', target: 'random_earth', count: 12 },
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 180 },
@@ -189,14 +196,15 @@ const STAGES = [
   {
     id: 'stage_2_4', name: '金风·雷虎', chapter: 2, order: 4,
     waves: [
-      { enemies: [{ name: '雷鹰', attr: 'metal', hp: 1300, atk: 30, def: 18, skills: ['defBuff'], avatar: 'stage_enemies/bolt_eagle' }] },
-      { enemies: [{ name: '雷虎', attr: 'metal', hp: 1850, atk: 39, def: 15, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/storm_tiger_awakened', isBoss: true }] },
+      { enemies: [{ name: '雷鹰', attr: 'metal', hp: 2200, atk: 42, def: 25, skills: ['defBuff'], avatar: 'stage_enemies/bolt_eagle' }] },
+      { enemies: [{ name: '雷虎', attr: 'metal', hp: 3200, atk: 55, def: 22, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/storm_tiger_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 7, a: 11 },
+    rating: { s: 10, a: 15 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'm10', fragCount: 10 },
         { type: 'fragment', target: 'random_metal', count: 14 },
         { type: 'exp', amount: 600 },
         { type: 'petExp', amount: 200 },
@@ -210,15 +218,16 @@ const STAGES = [
   {
     id: 'stage_2_5', name: '幽冥深渊·百花蟒仙', chapter: 2, order: 5,
     waves: [
-      { enemies: [{ name: '叶鹿', attr: 'wood', hp: 920, atk: 28, def: 10, skills: [], avatar: 'stage_enemies/leaf_deer' }] },
-      { enemies: [{ name: '刺猬', attr: 'wood', hp: 1280, atk: 34, def: 14, skills: ['healPct'], avatar: 'stage_enemies/thorn_hedgehog' }] },
-      { enemies: [{ name: '百花蟒仙', attr: 'wood', hp: 2000, atk: 42, def: 15, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/flora_serpent_awakened', isBoss: true }] },
+      { enemies: [{ name: '叶鹿', attr: 'wood', hp: 1500, atk: 40, def: 14, skills: [], avatar: 'stage_enemies/leaf_deer' }] },
+      { enemies: [{ name: '刺猬', attr: 'wood', hp: 2200, atk: 48, def: 20, skills: ['healPct'], avatar: 'stage_enemies/thorn_hedgehog' }] },
+      { enemies: [{ name: '百花蟒仙', attr: 'wood', hp: 3600, atk: 60, def: 22, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/flora_serpent_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 10, a: 14 },
+    rating: { s: 14, a: 19 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'w10', fragCount: 10 },
         { type: 'fragment', target: 'random_wood', count: 15 },
         { type: 'exp', amount: 700 },
         { type: 'petExp', amount: 250 },
@@ -230,18 +239,19 @@ const STAGES = [
     battlePetExp: 80,
   },
 
-  // ── 第三章：天劫雷域 ──
+  // ── 第三章：天劫雷域（需通关 stage_2_5 解锁） ──
   {
     id: 'stage_3_1', name: '天劫·焰天狮王', chapter: 3, order: 1,
     waves: [
-      { enemies: [{ name: '朱雀雏', attr: 'fire', hp: 1620, atk: 37, def: 14, skills: ['atkBuff'], avatar: 'stage_enemies/vermilion_chick' }] },
-      { enemies: [{ name: '焰天狮王', attr: 'fire', hp: 2150, atk: 44, def: 15, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_lion_king_awakened', isBoss: true }] },
+      { enemies: [{ name: '朱雀雏', attr: 'fire', hp: 3000, atk: 54, def: 21, skills: ['atkBuff'], avatar: 'stage_enemies/vermilion_chick' }] },
+      { enemies: [{ name: '焰天狮王', attr: 'fire', hp: 4000, atk: 65, def: 23, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_lion_king_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 6, a: 9 },
+    rating: { s: 9, a: 13 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'f16', fragCount: 10 },
         { type: 'fragment', target: 'random_fire', count: 14 },
         { type: 'exp', amount: 600 },
         { type: 'petExp', amount: 220 },
@@ -249,20 +259,21 @@ const STAGES = [
       repeatClear: { fragments: { min: 3, max: 6, pool: 'chapter' }, exp: 200, petExp: 120 },
     },
     dailyLimit: 3,
-    unlockCondition: { prevStage: null },
+    unlockCondition: { prevStage: 'stage_2_5' },
     battlePetExp: 70,
   },
   {
     id: 'stage_3_2', name: '寒劫·碧海玄武', chapter: 3, order: 2,
     waves: [
-      { enemies: [{ name: '冰灵獭', attr: 'water', hp: 1800, atk: 39, def: 16, skills: ['defBuff'], avatar: 'stage_enemies/frost_otter' }] },
-      { enemies: [{ name: '碧海玄武', attr: 'water', hp: 2500, atk: 46, def: 17, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/ocean_xuanwu_awakened', isBoss: true }] },
+      { enemies: [{ name: '冰灵獭', attr: 'water', hp: 3400, atk: 58, def: 24, skills: ['defBuff'], avatar: 'stage_enemies/frost_otter' }] },
+      { enemies: [{ name: '碧海玄武', attr: 'water', hp: 4800, atk: 68, def: 26, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/ocean_xuanwu_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 7, a: 10 },
+    rating: { s: 10, a: 14 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 's17', fragCount: 10 },
         { type: 'fragment', target: 'random_water', count: 14 },
         { type: 'exp', amount: 700 },
         { type: 'petExp', amount: 240 },
@@ -276,14 +287,15 @@ const STAGES = [
   {
     id: 'stage_3_3', name: '岩劫·磐牛', chapter: 3, order: 3,
     waves: [
-      { enemies: [{ name: '金鳞穿山甲', attr: 'earth', hp: 1950, atk: 40, def: 20, skills: ['defBuff'], avatar: 'stage_enemies/golden_pangolin' }] },
-      { enemies: [{ name: '磐牛', attr: 'earth', hp: 2650, atk: 48, def: 18, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/boulder_ox_awakened', isBoss: true }] },
+      { enemies: [{ name: '金鳞穿山甲', attr: 'earth', hp: 3700, atk: 60, def: 30, skills: ['defBuff'], avatar: 'stage_enemies/golden_pangolin' }] },
+      { enemies: [{ name: '磐牛', attr: 'earth', hp: 5200, atk: 72, def: 28, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/boulder_ox_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 8, a: 12 },
+    rating: { s: 11, a: 16 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'e18', fragCount: 10 },
         { type: 'fragment', target: 'random_earth', count: 16 },
         { type: 'exp', amount: 800 },
         { type: 'petExp', amount: 260 },
@@ -297,15 +309,16 @@ const STAGES = [
   {
     id: 'stage_3_4', name: '刃劫·天罡白虎', chapter: 3, order: 4,
     waves: [
-      { enemies: [{ name: '风隼', attr: 'metal', hp: 2150, atk: 44, def: 18, skills: ['atkBuff'], avatar: 'stage_enemies/wind_falcon' }] },
-      { enemies: [{ name: '云豹', attr: 'metal', hp: 1800, atk: 52, def: 14, skills: ['atkBuff'], avatar: 'stage_enemies/cloud_leopard' }] },
-      { enemies: [{ name: '天罡白虎', attr: 'metal', hp: 2850, atk: 50, def: 18, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/celestial_white_tiger_awakened', isBoss: true }] },
+      { enemies: [{ name: '风隼', attr: 'metal', hp: 4000, atk: 65, def: 27, skills: ['atkBuff'], avatar: 'stage_enemies/wind_falcon' }] },
+      { enemies: [{ name: '云豹', attr: 'metal', hp: 3400, atk: 76, def: 22, skills: ['atkBuff'], avatar: 'stage_enemies/cloud_leopard' }] },
+      { enemies: [{ name: '天罡白虎', attr: 'metal', hp: 5500, atk: 75, def: 28, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/celestial_white_tiger_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 10, a: 14 },
+    rating: { s: 14, a: 19 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'm18', fragCount: 10 },
         { type: 'fragment', target: 'random_metal', count: 16 },
         { type: 'exp', amount: 800 },
         { type: 'petExp', amount: 280 },
@@ -319,15 +332,16 @@ const STAGES = [
   {
     id: 'stage_3_5', name: '天劫·万象龙神', chapter: 3, order: 5,
     waves: [
-      { enemies: [{ name: '竹灵熊猫', attr: 'wood', hp: 1800, atk: 40, def: 14, skills: ['healPct'], avatar: 'stage_enemies/bamboo_panda' }] },
-      { enemies: [{ name: '焰蝶', attr: 'fire', hp: 1950, atk: 46, def: 14, skills: ['atkBuff'], avatar: 'stage_enemies/flame_butterfly' }] },
-      { enemies: [{ name: '万象龙神', attr: 'earth', hp: 3400, atk: 53, def: 20, skills: ['atkBuff', 'defBuff', 'healPct'], avatar: 'stage_enemies/cosmos_dragon_awakened', isBoss: true }] },
+      { enemies: [{ name: '竹灵熊猫', attr: 'wood', hp: 3400, atk: 60, def: 22, skills: ['healPct'], avatar: 'stage_enemies/bamboo_panda' }] },
+      { enemies: [{ name: '焰蝶', attr: 'fire', hp: 3700, atk: 68, def: 22, skills: ['atkBuff'], avatar: 'stage_enemies/flame_butterfly' }] },
+      { enemies: [{ name: '万象龙神', attr: 'earth', hp: 6500, atk: 82, def: 30, skills: ['atkBuff', 'defBuff', 'healPct'], avatar: 'stage_enemies/cosmos_dragon_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
-    rating: { s: 12, a: 16 },
+    rating: { s: 16, a: 22 },
     staminaCost: 10,
     rewards: {
       firstClear: [
+        { type: 'pet', petId: 'w20', fragCount: 10 },
         { type: 'fragment', target: 'random_all', count: 20 },
         { type: 'exp', amount: 1000 },
         { type: 'petExp', amount: 350 },
@@ -354,23 +368,19 @@ function getChapterStages(chapterId) {
 }
 
 /**
- * 判断章节是否解锁（灵宠池数量达标）
+ * 判断章节是否解锁 — 当该章节有任意一关已解锁时返回 true
  */
-function isChapterUnlocked(chapterId, poolCount) {
-  const ch = CHAPTERS.find(c => c.id === chapterId)
-  return ch ? poolCount >= ch.unlockPool : false
+function isChapterUnlocked(chapterId, poolCount, clearRecord) {
+  const stages = getChapterStages(chapterId)
+  return stages.some(s => isStageUnlocked(s.id, clearRecord, poolCount))
 }
 
 /**
- * 判断关卡是否解锁
- * @param {string} stageId
- * @param {object} clearRecord - storage.stageClearRecord
- * @param {number} poolCount - 灵宠池数量
+ * 判断关卡是否解锁 — 纯线性：首关直接开放，其余需前置关卡通关
  */
 function isStageUnlocked(stageId, clearRecord, poolCount) {
   const stage = getStageById(stageId)
   if (!stage) return false
-  if (!isChapterUnlocked(stage.chapter, poolCount)) return false
   if (!stage.unlockCondition || !stage.unlockCondition.prevStage) return true
   const prev = clearRecord && clearRecord[stage.unlockCondition.prevStage]
   return !!(prev && prev.cleared)

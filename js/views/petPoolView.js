@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetTier, getPetSkillDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
+const { getPetById, getPetTier, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
@@ -259,7 +259,8 @@ function rPetPool(g) {
     if (cy + cardH < gridTop || cy > gridBottom) continue
 
     _drawPetCard(c, R, S, W, cx, cy, cardW, cardH, pet)
-    _rects.cardRects.push({ petId: pet.id, rect: [cx, cy, cardW, cardH] })
+    const clippedH = Math.min(cardH, gridBottom - cy)
+    _rects.cardRects.push({ petId: pet.id, rect: [cx, cy, cardW, clippedH] })
   }
 
   // 幽灵卡片：碎片银行中有碎片的未拥有宠物（半透明）
@@ -282,7 +283,8 @@ function rPetPool(g) {
     const cy = gridTop + row * (cardH + cardGap) + cardGap - scrollY
     if (cy + cardH < gridTop || cy > gridBottom) continue
     _drawGhostCard(c, R, S, W, cx, cy, cardW, cardH, ghostPets[gi], bank[ghostPets[gi]])
-    _rects.cardRects.push({ petId: ghostPets[gi], rect: [cx, cy, cardW, cardH], ghost: true })
+    const clippedGH = Math.min(cardH, gridBottom - cy)
+    _rects.cardRects.push({ petId: ghostPets[gi], rect: [cx, cy, cardW, clippedGH], ghost: true })
   }
   c.restore()
 
@@ -707,15 +709,32 @@ function _drawDetailPanel(g) {
     cy += 16 * S
     c.fillStyle = 'rgba(200,180,140,0.6)'
     c.font = `${9*S}px "PingFang SC",sans-serif`
-    const maxW = contentW
     const words = skillDesc || ''
-    wrapTextDraw(c, words, indent, cy, maxW, 13*S)
-    const lines = Math.ceil(c.measureText(words).width / maxW)
-    cy += Math.max(1, lines) * 13 * S + 4 * S
+    const lineCount = wrapTextDraw(c, words, indent, cy, contentW, 13 * S)
+    cy += Math.max(1, lineCount) * 13 * S + 4 * S
+  } else if (basePet.skill) {
+    const skillDesc = getPetSkillBaseDesc(basePet)
+    c.fillStyle = '#7ECF6A'
+    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText(basePet.skill.name, indent, cy)
+    cy += 16 * S
+    c.fillStyle = 'rgba(200,180,140,0.6)'
+    c.font = `${9*S}px "PingFang SC",sans-serif`
+    const lc = wrapTextDraw(c, skillDesc || '', indent, cy, contentW, 13 * S)
+    cy += Math.max(1, lc) * 13 * S + 4 * S
+    if (basePet.skill.cd || basePet.cd) {
+      c.fillStyle = 'rgba(200,180,140,0.55)'
+      c.fillText(`冷却: ${basePet.cd || basePet.skill.cd} 回合`, indent, cy)
+      cy += 14 * S
+    }
+    c.fillStyle = 'rgba(220,160,80,0.95)'
+    c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.fillText('（二星解锁）', indent, cy)
+    cy += 16 * S
   } else {
     c.fillStyle = 'rgba(200,180,140,0.4)'
     c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('★2解锁技能', indent, cy)
+    c.fillText('此灵宠无主动技能', indent, cy)
     cy += 16 * S
   }
 

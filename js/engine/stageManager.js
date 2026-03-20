@@ -9,7 +9,7 @@
  */
 
 const { getStageById, RATING_ORDER } = require('../data/stages')
-const { getPetById } = require('../data/pets')
+const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
 const { initBoard } = require('./battle')
@@ -49,7 +49,7 @@ function startStage(g, stageId, teamPetIds) {
       ...basePet,
       star: poolPet.star,
       atk: getPoolPetAtk(poolPet),
-      currentCd: 0,
+      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * 0.4) - 1) : 0,
       _poolId: id,
     }
   }).filter(Boolean)
@@ -194,9 +194,9 @@ function settleStage(g) {
   }
   if (petExp > 0) g.storage.addPetExp(petExp)
 
-  // 应用碎片奖励
+  // 应用碎片奖励（wasPet 的已在 resolveReward 中通过 addFragmentSmart 处理）
   rewards.forEach(r => {
-    if (r.type === 'fragment' && r.petId) {
+    if (r.type === 'fragment' && r.petId && !r.wasPet) {
       g.storage.addFragments(r.petId, r.count)
     }
   })
@@ -290,6 +290,17 @@ function pickFragmentTarget(g, poolScope) {
  * 解析首通奖励中的随机目标
  */
 function resolveReward(g, reward) {
+  if (reward.type === 'pet') {
+    const petId = reward.petId
+    const inPool = g.storage.petPool.find(p => p.id === petId)
+    if (inPool) {
+      const fragCount = reward.fragCount || 10
+      g.storage.addFragmentSmart(petId, fragCount)
+      return { type: 'fragment', petId, count: fragCount, wasPet: true }
+    }
+    g.storage.addToPetPool(petId, 'stage')
+    return { type: 'pet', petId }
+  }
   if (reward.type === 'fragment') {
     let petId = reward.target
     if (petId && petId.startsWith('random_')) {
