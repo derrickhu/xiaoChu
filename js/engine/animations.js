@@ -114,23 +114,24 @@ function updateAnimations(g) {
   _updateBeadConvertAnim(g)
   // Combo弹出动画
   _updateComboAnim(g, S)
-  // 宠物头像攻击数值动画
+  // 宠物头像攻击数值动画：直接显示最终值 + 弹跳缩放
   for (let i = 0; i < g.petAtkNums.length; i++) {
     const f = g.petAtkNums[i]
     if (f._dead) continue
     f.t++
     const prefix = f.isHeal ? '+' : ''
-    if (f.t <= f.rollFrames) {
-      const progress = f.t / f.rollFrames
-      const ease = 1 - Math.pow(1 - progress, 3)
-      f.displayVal = Math.round(f.finalVal * ease)
-      f.text = `${prefix}${f.displayVal}`
-      f.scale = 1.0 + 0.2 * Math.sin(f.t * 0.8)
-      if (f.t % 4 === 0) MusicMgr.playRolling()
-    } else {
+    if (f.t === 1) {
+      f.displayVal = f.finalVal
       f.text = `${prefix}${f.finalVal}`
+      f.scale = f.isCrit ? 1.8 : 1.5
+      MusicMgr.playPetDmgHit(f.isCrit)
+    }
+    if (f.t <= 10) {
+      const bounce = 1 + (f.scale - 1) * Math.max(0, 1 - f.t / 10)
+      f.scale = bounce
+    } else {
       f.scale = 1.0
-      if (f.t > f.rollFrames + 20) f.alpha -= 0.05
+      if (f.t > 30) f.alpha -= 0.05
     }
     if (f.alpha <= 0) f._dead = true
   }

@@ -526,7 +526,6 @@ function enterPetAtkShow(g) {
   }
   if (hasAny) {
     g.bState = 'petAtkShow'
-    MusicMgr.playRolling()
   } else {
     g.bState = 'preAttack'
   }
@@ -813,6 +812,15 @@ function settle(g) {
   g._pendingEnemyAtk = { timer: 0, delay: 24 }
   g._enemyWarning = 15  // 敌人回合预警红闪
   g.bState = 'playerTurn'; g.dragTimer = 0
+  // 时间压缩 debuff：临时缩短拖拽时间
+  const dtDebuff = g.heroBuffs.find(b => b.type === 'debuff' && b.field === 'dragTime')
+  if (dtDebuff) {
+    g._baseDragTimeLimit = g._baseDragTimeLimit || g.dragTimeLimit
+    g.dragTimeLimit = Math.round(g._baseDragTimeLimit * (1 - dtDebuff.rate))
+  } else if (g._baseDragTimeLimit) {
+    g.dragTimeLimit = g._baseDragTimeLimit
+    g._baseDragTimeLimit = 0
+  }
 }
 
 function enemyTurn(g) {
@@ -992,6 +1000,55 @@ function applyEnemySkill(g, skillKey) {
       }
       fillBoard(g)
       break
+    // ===== 固定关卡新增技能 =====
+    case 'sealCol': {
+      const sc = Math.floor(Math.random() * COLS)
+      for (let r = 0; r < ROWS; r++) {
+        if (g.board[r][sc]) g.board[r][sc].sealed = sk.dur || 2
+      }
+      break
+    }
+    case 'sealCounter': {
+      const counterAttr = COUNTER_BY[g.enemy.attr]
+      if (counterAttr) {
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (g.board[r][c] && g.board[r][c].attr === counterAttr) {
+              g.board[r][c].sealed = sk.dur || 2
+            }
+          }
+        }
+        g.skillEffects.push({ x:W*0.5, y:g.boardY+60*S, text:`${ATTR_NAME[counterAttr]||counterAttr}珠封印！`, color:'#ff4040', t:0, alpha:1, scale:1.5, _initScale:1.5 })
+      }
+      break
+    }
+    case 'attrAbsorb': {
+      const myAttr = g.enemy.attr
+      let converted = 0
+      const candidates = []
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (g.board[r][c] && g.board[r][c].attr === myAttr) candidates.push({ r, c })
+        }
+      }
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
+      }
+      const absorbCells = []
+      for (let i = 0; i < Math.min(sk.count || 3, candidates.length); i++) {
+        const { r, c } = candidates[i]
+        absorbCells.push({ r, c, fromAttr: g.board[r][c].attr, toAttr: 'heart' })
+        converted++
+      }
+      if (absorbCells.length) {
+        g._beadConvertAnim = { cells: absorbCells, timer: 0, phase: 'charge', duration: 24 }
+      }
+      const healAmt = Math.round(g.enemy.maxHp * (sk.healPct || 10) / 100)
+      g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + healAmt)
+      g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`+${healAmt}`, color:'#80ff80', t:0, alpha:1 })
+      break
+    }
     // ===== 封珠变体 =====
     case 'sealRow': {
       // 封锁整行灵珠

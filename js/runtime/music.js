@@ -32,7 +32,7 @@ class MusicManager {
     this._bgm = P.createInnerAudioContext()
     this._bgm.src = 'audio_bgm/bgm.mp3'
     this._bgm.loop = true
-    this._bgm.volume = 0.08
+    this._bgm.volume = 0.04
     this._bgm.playbackRate = 1.0
     this._bgm.onCanplay(() => {
       this._bgm.playbackRate = 1.0
@@ -60,7 +60,7 @@ class MusicManager {
       this._bossBgm = P.createInnerAudioContext()
       this._bossBgm.src = 'audio_bgm/boss_bgm.mp3'
       this._bossBgm.loop = true
-      this._bossBgm.volume = 0.1
+      this._bossBgm.volume = 0.05
       this._bossBgm.playbackRate = 1.0
     }
     this._bossBgm.play()
@@ -307,6 +307,18 @@ class MusicManager {
   playEnemySkill() {
     if (!this.enabled) return
     this._playSfx('audio/enemy_skill.mp3', 0.6)
+  }
+
+  /** 宠物伤害数值弹出：清脆跳跃的"叮弹"音，与攻击音明显区分 */
+  playPetDmgHit(isCrit) {
+    if (!this.enabled) return
+    // 主体：reward 高速播放，清脆短促的"叮"
+    this._playSfxEx('audio/reward.mp3', isCrit ? 0.5 : 0.38, 1.8)
+    // 叠加 eliminate 高速，增加弹跳的"嘣"感
+    this._playSfxEx('audio/eliminate.mp3', 0.2, 1.6)
+    if (isCrit) {
+      this._playSfxEx('audio/levelup.mp3', 0.3, 1.5)
+    }
   }
 
   /** 数值翻滚：竹简翻动短促音（带200ms防抖） */

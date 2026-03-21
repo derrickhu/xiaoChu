@@ -251,6 +251,11 @@ function rCultivation(g) {
   const charTouchCenterY = charPlatformY - avatarR * 2.0
   _rects.avatarCenter = { x: chartCenterX, y: charTouchCenterY, r: avatarR * 2.0 }
 
+  // 左上角属性加成面板
+  if (!_state.selectedNode && !_state.showAvatarPanel) {
+    _drawStatsSummary(c, S, chartTop, cult)
+  }
+
   // 详情面板
   if (_state.selectedNode) {
     Draw.drawDetailPanel(c, W, H, S, _state.selectedNode, cult, pts, _rects, _state.animFrame, _state.upgradeAmount)
@@ -593,6 +598,116 @@ function tCultivation(g, x, y, type) {
       }
     }
   }
+}
+
+// ===== 左上角属性加成面板 =====
+// base: 灵兽秘境基础值, maxBonus: 修炼满级最大加成
+const _STAT_ROWS = [
+  { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', base: 100, unit: '' },
+  { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', base: 0,   unit: '' },
+  { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', base: 12,  unit: '' },
+  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', base: 0,   unit: '' },
+  { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', base: 8,   unit: 's' },
+]
+
+function _drawStatsSummary(c, S, startY, cult) {
+  const px = 6 * S
+  const py = startY + 4 * S
+  const rowH = 22 * S
+  const panelW = 138 * S
+  const panelH = _STAT_ROWS.length * rowH + 16 * S
+  const rad = 8 * S
+
+  c.save()
+  c.fillStyle = 'rgba(30,20,10,0.5)'
+  _riRR(c, px, py, panelW, panelH, rad)
+  c.fill()
+
+  const iconR = 7 * S
+  const barW = 46 * S
+  const barH = 7 * S
+  const barX = px + 54 * S
+
+  for (let i = 0; i < _STAT_ROWS.length; i++) {
+    const row = _STAT_ROWS[i]
+    const cfg = CULT_CONFIG[row.key]
+    const lv = cult.levels[row.key] || 0
+    const bonus = effectValue(row.key, lv)
+    const maxBonus = effectValue(row.key, cfg.maxLv)
+    const total = row.base + bonus
+    const totalMax = row.base + maxBonus
+    const ry = py + 8 * S + i * rowH
+    const cy = ry + rowH / 2
+
+    // 彩色圆形底色 + 白色图标文字
+    const iconCx = px + 6 * S + iconR
+    c.fillStyle = row.color + '90'
+    c.beginPath()
+    c.arc(iconCx, cy, iconR, 0, Math.PI * 2)
+    c.fill()
+    c.fillStyle = '#fff'
+    c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(row.icon, iconCx, cy)
+
+    // 属性名
+    const labelX = iconCx + iconR + 3 * S
+    c.fillStyle = 'rgba(255,240,210,0.85)'
+    c.font = `${8*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'
+    c.fillText(row.label, labelX, cy)
+
+    // 双色进度条：灰底 → 暗色(基础) → 亮色(加成)
+    const barY = ry + (rowH - barH) / 2
+    c.fillStyle = 'rgba(255,255,255,0.1)'
+    _riRR(c, barX, barY, barW, barH, barH / 2)
+    c.fill()
+
+    if (totalMax > 0) {
+      const basePct = row.base / totalMax
+      const totalPct = total / totalMax
+      // 基础值部分（该属性的浅色）
+      if (basePct > 0) {
+        const baseW = Math.max(barH, barW * basePct)
+        c.fillStyle = row.color + '40'
+        _riRR(c, barX, barY, baseW, barH, barH / 2)
+        c.fill()
+      }
+      // 修炼加成部分（该属性的亮色，覆盖到总值位置）
+      if (bonus > 0) {
+        const totalW = Math.max(barH, barW * totalPct)
+        c.fillStyle = row.color + 'C0'
+        _riRR(c, barX, barY, totalW, barH, barH / 2)
+        c.fill()
+        // 基础部分用半透明白覆盖，使之比加成段更浅
+        if (basePct > 0) {
+          const baseW2 = Math.max(barH, barW * basePct)
+          c.fillStyle = 'rgba(255,255,255,0.2)'
+          _riRR(c, barX, barY, baseW2, barH, barH / 2)
+          c.fill()
+        }
+      }
+    }
+
+    // 总数值 = 基础+加成
+    const u = row.unit
+    c.font = `${8*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    if (bonus > 0) {
+      c.fillStyle = 'rgba(255,240,210,0.7)'
+      const baseStr = `${row.base}${u}`
+      c.fillText(baseStr, barX + barW + 4 * S, cy)
+      const baseStrW = c.measureText(baseStr).width
+      c.fillStyle = '#fff'
+      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.fillText(`+${bonus}${u}`, barX + barW + 4 * S + baseStrW + 1 * S, cy)
+    } else {
+      c.fillStyle = 'rgba(255,240,210,0.5)'
+      c.fillText(`${row.base}${u}`, barX + barW + 4 * S, cy)
+    }
+  }
+
+  c.restore()
 }
 
 module.exports = {

@@ -776,7 +776,9 @@ function drawPoolPetDetailPopup(g, petId, storage) {
   c.fillStyle = 'rgba(0,0,0,0.5)'
   c.fillRect(0, 0, W, H)
 
-  // 面板（浅色，使用 drawInfoPanel 或自绘）
+  // 面板底层不透明填充，防止背景透出影响阅读
+  c.fillStyle = 'rgba(252,246,230,0.95)'
+  c.beginPath(); R.rr(px, py, pw, ph, 14 * S); c.fill()
   R.drawInfoPanel(px, py, pw, ph)
 
   c.save()

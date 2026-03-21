@@ -35,7 +35,7 @@ function expToNextLevel(level) {
 // ===== 修炼树配置（加点制）=====
 // 每项每级消耗 1 修炼点
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:20, perLv:5,    unit:'HP上限',   desc:'灵兽秘境中英雄HP上限' },
+  body:    { name:'体魄', theme:'淬体', maxLv:20, perLv:5,    unit:'HP上限',   desc:'灵兽秘境中队伍HP上限' },
   spirit:  { name:'灵力', theme:'通脉', maxLv:15, perLv:1,    unit:'心珠回复', desc:'灵兽秘境中心珠回复基数' },
   wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, unit:'s转珠时间', desc:'灵兽秘境中转珠操作时间' },
   defense: { name:'根骨', theme:'筑基', maxLv:10, perLv:2,    unit:'减伤',     desc:'灵兽秘境中每次受伤减免固定值' },

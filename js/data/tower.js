@@ -164,6 +164,11 @@ const ENEMY_SKILLS = {
   defBuff:   { name:'坚甲术',   desc:'防御提升30%,持续2回合', type:'buff', field:'def', rate:0.3, dur:2 },
   healPct:   { name:'灵气回春', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
   breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
+  // ===== 固定关卡新增技能 =====
+  timeSqueeze:  { name:'时间压缩', desc:'拖拽时间减半,持续1回合', type:'debuff', field:'dragTime', rate:0.5, dur:1 },
+  attrAbsorb:   { name:'属性吸收', desc:'吞噬3颗己方属性灵珠化为心珠,回复10%生命', type:'attrAbsorb', count:3, healPct:10 },
+  sealColumn:   { name:'封灵柱',   desc:'封锁整列灵珠,持续2回合', type:'sealCol', dur:2 },
+  counterSeal:  { name:'克制封印', desc:'封锁所有克制自身属性的灵珠,持续2回合', type:'sealCounter', dur:2 },
   // ===== 精英封珠技能 =====
   eliteSealRow:   { name:'封灵锁链', desc:'封锁整行灵珠,持续2回合', type:'sealRow', dur:2 },
   eliteSealAttr:  { name:'属性封印', desc:'封锁所有指定属性灵珠,持续2回合', type:'sealAttr', dur:2 },

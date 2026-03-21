@@ -18,7 +18,7 @@ const STAGES = [
   {
     id: 'stage_1_1', name: '初试·岩獾', chapter: 1, order: 1,
     waves: [
-      { enemies: [{ name: '岩獾', attr: 'earth', hp: 850, atk: 28, def: 10, skills: [], avatar: 'stage_enemies/rock_badger' }] },
+      { enemies: [{ name: '岩獾', attr: 'earth', hp: 850, atk: 28, def: 10, skills: ['convert'], avatar: 'stage_enemies/rock_badger' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 4, a: 7 },
@@ -39,8 +39,8 @@ const STAGES = [
   {
     id: 'stage_1_2', name: '烈焰·焰狮', chapter: 1, order: 2,
     waves: [
-      { enemies: [{ name: '炎狐', attr: 'fire', hp: 1000, atk: 30, def: 11, skills: [], avatar: 'stage_enemies/flame_fox' }] },
-      { enemies: [{ name: '焰狮', attr: 'fire', hp: 1400, atk: 40, def: 14, skills: ['atkBuff'], avatar: 'stage_enemies/blaze_lion' }] },
+      { enemies: [{ name: '炎狐', attr: 'fire', hp: 1000, atk: 30, def: 11, skills: ['poison'], avatar: 'stage_enemies/flame_fox' }] },
+      { enemies: [{ name: '焰狮', attr: 'fire', hp: 1400, atk: 40, def: 14, skills: ['atkBuff', 'aoe'], avatar: 'stage_enemies/blaze_lion' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
@@ -61,8 +61,8 @@ const STAGES = [
   {
     id: 'stage_1_3', name: '寒潮·碧鲸', chapter: 1, order: 3,
     waves: [
-      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 1200, atk: 34, def: 12, skills: ['defBuff'], avatar: 'stage_enemies/bubble_fish' }] },
-      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1600, atk: 44, def: 16, skills: ['healPct'], avatar: 'stage_enemies/tide_whale' }] },
+      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 1200, atk: 34, def: 12, skills: ['defBuff', 'sealColumn'], avatar: 'stage_enemies/bubble_fish' }] },
+      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1600, atk: 44, def: 16, skills: ['healPct', 'convert'], avatar: 'stage_enemies/tide_whale' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
@@ -83,8 +83,8 @@ const STAGES = [
   {
     id: 'stage_1_4', name: '金锋·雷貂', chapter: 1, order: 4,
     waves: [
-      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 1400, atk: 36, def: 18, skills: ['defBuff'], avatar: 'stage_enemies/iron_armadillo' }] },
-      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1800, atk: 46, def: 16, skills: ['atkBuff'], avatar: 'stage_enemies/thunder_marten' }] },
+      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 1400, atk: 36, def: 18, skills: ['defBuff', 'defDown'], avatar: 'stage_enemies/iron_armadillo' }] },
+      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1800, atk: 46, def: 16, skills: ['atkBuff', 'stun'], avatar: 'stage_enemies/thunder_marten' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
@@ -105,9 +105,9 @@ const STAGES = [
   {
     id: 'stage_1_5', name: '灵山守关·灵木麒麟', chapter: 1, order: 5,
     waves: [
-      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 1000, atk: 32, def: 12, skills: [], avatar: 'stage_enemies/blossom_bunny' }] },
-      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 1400, atk: 38, def: 16, skills: ['healPct'], avatar: 'stage_enemies/jade_cat' }] },
-      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 2100, atk: 50, def: 18, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
+      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 1000, atk: 32, def: 12, skills: ['seal'], avatar: 'stage_enemies/blossom_bunny' }] },
+      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 1400, atk: 38, def: 16, skills: ['healPct', 'healBlock'], avatar: 'stage_enemies/jade_cat' }] },
+      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 2100, atk: 50, def: 18, skills: ['atkBuff', 'healPct', 'bossQuake'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 11, a: 16 },
@@ -130,8 +130,8 @@ const STAGES = [
   {
     id: 'stage_2_1', name: '幽影·月光水母', chapter: 2, order: 1,
     waves: [
-      { enemies: [{ name: '暮蝠', attr: 'water', hp: 1700, atk: 42, def: 14, skills: [], avatar: 'stage_enemies/dusk_bat' }] },
-      { enemies: [{ name: '月光水母', attr: 'water', hp: 2400, atk: 50, def: 17, skills: ['atkBuff'], avatar: 'stage_enemies/moon_jellyfish' }] },
+      { enemies: [{ name: '暮蝠', attr: 'water', hp: 1700, atk: 42, def: 14, skills: ['poison', 'stun'], avatar: 'stage_enemies/dusk_bat' }] },
+      { enemies: [{ name: '月光水母', attr: 'water', hp: 2400, atk: 50, def: 17, skills: ['atkBuff', 'timeSqueeze'], avatar: 'stage_enemies/moon_jellyfish' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
@@ -152,8 +152,8 @@ const STAGES = [
   {
     id: 'stage_2_2', name: '烈焰·炽焰古龙', chapter: 2, order: 2,
     waves: [
-      { enemies: [{ name: '火灵', attr: 'fire', hp: 2000, atk: 46, def: 16, skills: ['atkBuff'], avatar: 'stage_enemies/fire_wisp' }] },
-      { enemies: [{ name: '炽焰古龙', attr: 'fire', hp: 2800, atk: 56, def: 20, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_dragon_awakened', isBoss: true }] },
+      { enemies: [{ name: '火灵', attr: 'fire', hp: 2000, atk: 46, def: 16, skills: ['atkBuff', 'bossInferno'], avatar: 'stage_enemies/fire_wisp' }] },
+      { enemies: [{ name: '炽焰古龙', attr: 'fire', hp: 2800, atk: 56, def: 20, skills: ['atkBuff', 'defBuff', 'bossInferno', 'bossBlitz'], avatar: 'stage_enemies/inferno_dragon_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
@@ -174,8 +174,8 @@ const STAGES = [
   {
     id: 'stage_2_3', name: '冥土·玄岩貔貅', chapter: 2, order: 3,
     waves: [
-      { enemies: [{ name: '岩龟', attr: 'earth', hp: 1700, atk: 40, def: 22, skills: ['defBuff'], avatar: 'stage_enemies/stone_turtle' }] },
-      { enemies: [{ name: '玄岩貔貅', attr: 'earth', hp: 3000, atk: 54, def: 25, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/rock_pixiu_awakened', isBoss: true }] },
+      { enemies: [{ name: '岩龟', attr: 'earth', hp: 1700, atk: 40, def: 22, skills: ['defBuff', 'attrAbsorb'], avatar: 'stage_enemies/stone_turtle' }] },
+      { enemies: [{ name: '玄岩貔貅', attr: 'earth', hp: 3000, atk: 54, def: 25, skills: ['defBuff', 'healPct', 'bossMirror', 'bossQuake'], avatar: 'stage_enemies/rock_pixiu_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 9, a: 13 },
@@ -196,8 +196,8 @@ const STAGES = [
   {
     id: 'stage_2_4', name: '金风·雷虎', chapter: 2, order: 4,
     waves: [
-      { enemies: [{ name: '雷鹰', attr: 'metal', hp: 2200, atk: 42, def: 25, skills: ['defBuff'], avatar: 'stage_enemies/bolt_eagle' }] },
-      { enemies: [{ name: '雷虎', attr: 'metal', hp: 3200, atk: 55, def: 22, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/storm_tiger_awakened', isBoss: true }] },
+      { enemies: [{ name: '雷鹰', attr: 'metal', hp: 2200, atk: 42, def: 25, skills: ['defBuff', 'breakBead'], avatar: 'stage_enemies/bolt_eagle' }] },
+      { enemies: [{ name: '雷虎', attr: 'metal', hp: 3200, atk: 55, def: 22, skills: ['atkBuff', 'defBuff', 'bossWeaken', 'bossBlitz'], avatar: 'stage_enemies/storm_tiger_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 15 },
@@ -218,9 +218,9 @@ const STAGES = [
   {
     id: 'stage_2_5', name: '幽冥深渊·百花蟒仙', chapter: 2, order: 5,
     waves: [
-      { enemies: [{ name: '叶鹿', attr: 'wood', hp: 1500, atk: 40, def: 14, skills: [], avatar: 'stage_enemies/leaf_deer' }] },
-      { enemies: [{ name: '刺猬', attr: 'wood', hp: 2200, atk: 48, def: 20, skills: ['healPct'], avatar: 'stage_enemies/thorn_hedgehog' }] },
-      { enemies: [{ name: '百花蟒仙', attr: 'wood', hp: 3600, atk: 60, def: 22, skills: ['atkBuff', 'healPct'], avatar: 'stage_enemies/flora_serpent_awakened', isBoss: true }] },
+      { enemies: [{ name: '叶鹿', attr: 'wood', hp: 1500, atk: 40, def: 14, skills: ['convert', 'counterSeal'], avatar: 'stage_enemies/leaf_deer' }] },
+      { enemies: [{ name: '刺猬', attr: 'wood', hp: 2200, atk: 48, def: 20, skills: ['healPct', 'bossMirror'], avatar: 'stage_enemies/thorn_hedgehog' }] },
+      { enemies: [{ name: '百花蟒仙', attr: 'wood', hp: 3600, atk: 60, def: 22, skills: ['atkBuff', 'healPct', 'bossDevour', 'bossInferno'], avatar: 'stage_enemies/flora_serpent_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 14, a: 19 },
@@ -243,8 +243,8 @@ const STAGES = [
   {
     id: 'stage_3_1', name: '天劫·焰天狮王', chapter: 3, order: 1,
     waves: [
-      { enemies: [{ name: '朱雀雏', attr: 'fire', hp: 3000, atk: 54, def: 21, skills: ['atkBuff'], avatar: 'stage_enemies/vermilion_chick' }] },
-      { enemies: [{ name: '焰天狮王', attr: 'fire', hp: 4000, atk: 65, def: 23, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/inferno_lion_king_awakened', isBoss: true }] },
+      { enemies: [{ name: '朱雀雏', attr: 'fire', hp: 3000, atk: 54, def: 21, skills: ['atkBuff', 'bossInferno'], avatar: 'stage_enemies/vermilion_chick' }] },
+      { enemies: [{ name: '焰天狮王', attr: 'fire', hp: 4000, atk: 65, def: 23, skills: ['atkBuff', 'defBuff', 'bossRage', 'bossAnnihil'], avatar: 'stage_enemies/inferno_lion_king_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 9, a: 13 },
@@ -265,8 +265,8 @@ const STAGES = [
   {
     id: 'stage_3_2', name: '寒劫·碧海玄武', chapter: 3, order: 2,
     waves: [
-      { enemies: [{ name: '冰灵獭', attr: 'water', hp: 3400, atk: 58, def: 24, skills: ['defBuff'], avatar: 'stage_enemies/frost_otter' }] },
-      { enemies: [{ name: '碧海玄武', attr: 'water', hp: 4800, atk: 68, def: 26, skills: ['defBuff', 'healPct'], avatar: 'stage_enemies/ocean_xuanwu_awakened', isBoss: true }] },
+      { enemies: [{ name: '冰灵獭', attr: 'water', hp: 3400, atk: 58, def: 24, skills: ['defBuff', 'timeSqueeze'], avatar: 'stage_enemies/frost_otter' }] },
+      { enemies: [{ name: '碧海玄武', attr: 'water', hp: 4800, atk: 68, def: 26, skills: ['defBuff', 'healPct', 'bossMirror', 'bossDrain'], avatar: 'stage_enemies/ocean_xuanwu_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 14 },
@@ -287,8 +287,8 @@ const STAGES = [
   {
     id: 'stage_3_3', name: '岩劫·磐牛', chapter: 3, order: 3,
     waves: [
-      { enemies: [{ name: '金鳞穿山甲', attr: 'earth', hp: 3700, atk: 60, def: 30, skills: ['defBuff'], avatar: 'stage_enemies/golden_pangolin' }] },
-      { enemies: [{ name: '磐牛', attr: 'earth', hp: 5200, atk: 72, def: 28, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/boulder_ox_awakened', isBoss: true }] },
+      { enemies: [{ name: '金鳞穿山甲', attr: 'earth', hp: 3700, atk: 60, def: 30, skills: ['defBuff', 'breakBead', 'attrAbsorb'], avatar: 'stage_enemies/golden_pangolin' }] },
+      { enemies: [{ name: '磐牛', attr: 'earth', hp: 5200, atk: 72, def: 28, skills: ['atkBuff', 'defBuff', 'bossQuake', 'bossWeaken'], avatar: 'stage_enemies/boulder_ox_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 11, a: 16 },
@@ -309,9 +309,9 @@ const STAGES = [
   {
     id: 'stage_3_4', name: '刃劫·天罡白虎', chapter: 3, order: 4,
     waves: [
-      { enemies: [{ name: '风隼', attr: 'metal', hp: 4000, atk: 65, def: 27, skills: ['atkBuff'], avatar: 'stage_enemies/wind_falcon' }] },
-      { enemies: [{ name: '云豹', attr: 'metal', hp: 3400, atk: 76, def: 22, skills: ['atkBuff'], avatar: 'stage_enemies/cloud_leopard' }] },
-      { enemies: [{ name: '天罡白虎', attr: 'metal', hp: 5500, atk: 75, def: 28, skills: ['atkBuff', 'defBuff'], avatar: 'stage_enemies/celestial_white_tiger_awakened', isBoss: true }] },
+      { enemies: [{ name: '风隼', attr: 'metal', hp: 4000, atk: 65, def: 27, skills: ['atkBuff', 'bossBlitz'], avatar: 'stage_enemies/wind_falcon' }] },
+      { enemies: [{ name: '云豹', attr: 'metal', hp: 3400, atk: 76, def: 22, skills: ['atkBuff', 'stun', 'aoe'], avatar: 'stage_enemies/cloud_leopard' }] },
+      { enemies: [{ name: '天罡白虎', attr: 'metal', hp: 5500, atk: 75, def: 28, skills: ['atkBuff', 'defBuff', 'bossWeaken', 'bossAnnihil'], avatar: 'stage_enemies/celestial_white_tiger_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 14, a: 19 },
@@ -332,9 +332,9 @@ const STAGES = [
   {
     id: 'stage_3_5', name: '天劫·万象龙神', chapter: 3, order: 5,
     waves: [
-      { enemies: [{ name: '竹灵熊猫', attr: 'wood', hp: 3400, atk: 60, def: 22, skills: ['healPct'], avatar: 'stage_enemies/bamboo_panda' }] },
-      { enemies: [{ name: '焰蝶', attr: 'fire', hp: 3700, atk: 68, def: 22, skills: ['atkBuff'], avatar: 'stage_enemies/flame_butterfly' }] },
-      { enemies: [{ name: '万象龙神', attr: 'earth', hp: 6500, atk: 82, def: 30, skills: ['atkBuff', 'defBuff', 'healPct'], avatar: 'stage_enemies/cosmos_dragon_awakened', isBoss: true }] },
+      { enemies: [{ name: '竹灵熊猫', attr: 'wood', hp: 3400, atk: 60, def: 22, skills: ['healPct', 'counterSeal', 'selfHeal'], avatar: 'stage_enemies/bamboo_panda' }] },
+      { enemies: [{ name: '焰蝶', attr: 'fire', hp: 3700, atk: 68, def: 22, skills: ['atkBuff', 'bossInferno', 'convert'], avatar: 'stage_enemies/flame_butterfly' }] },
+      { enemies: [{ name: '万象龙神', attr: 'earth', hp: 6500, atk: 82, def: 30, skills: ['atkBuff', 'defBuff', 'healPct', 'bossUltimate', 'bossCurse'], avatar: 'stage_enemies/cosmos_dragon_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 16, a: 22 },

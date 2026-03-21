@@ -1928,77 +1928,98 @@ function _getDebuffTintCanvas(enemyImg, w, h, tintColor) {
   }
 }
 
-// ===== 敌人 Debuff 视觉特效 =====
+// ===== 敌人 Buff/Debuff 视觉特效（重构版） =====
 function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
-  const { ctx, S } = V
-  const hasBuffs = g.enemyBuffs && g.enemyBuffs.length > 0
+  const { ctx, R, S } = V
+  const bufs = g.enemyBuffs
+  const hasBuffs = bufs && bufs.length > 0
   const hasBreakDef = g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0
   if (!hasBuffs && !hasBreakDef) return
-  if (g._enemyDeathAnim) return // 死亡中不画
+  if (g._enemyDeathAnim) return
 
   const af = g.af || 0
   const cx = imgX + imgW / 2
   const cy = imgY + imgH / 2
-  const hasStun = hasBuffs && g.enemyBuffs.some(b => b.type === 'stun')
-  const hasDot = hasBuffs && g.enemyBuffs.some(b => b.type === 'dot')
-  const hasBuff = hasBuffs && g.enemyBuffs.some(b => b.type === 'buff' && !b.bad)
 
-  // --- 1. 中毒/灼烧：身体染色叠加 + 毒液/火焰粒子 ---
+  // 分类检测
+  const hasStun = hasBuffs && bufs.some(b => b.type === 'stun')
+  const hasDot = hasBuffs && bufs.some(b => b.type === 'dot')
+  const hasAtkBuff = hasBuffs && bufs.some(b => b.type === 'buff' && b.field === 'atk')
+  const hasDefBuff = hasBuffs && bufs.some(b => b.type === 'buff' && b.field === 'def')
+  const hasMirror = hasBuffs && bufs.some(b => b.type === 'bossMirror')
+  const hasVulnerable = hasBuffs && bufs.some(b => b.type === 'vulnerable')
+
+  // --- 1. 中毒/灼烧 ---
   if (hasDot) {
-    const dots = g.enemyBuffs.filter(b => b.type === 'dot')
+    const dots = bufs.filter(b => b.type === 'dot')
     const isBurn = dots.some(b => b.dotType === 'burn' || b.name === '灼烧')
     const isPoison = dots.some(b => b.dotType === 'poison' || (b.dotType !== 'burn' && b.name !== '灼烧'))
 
     ctx.save()
     if (isPoison) {
-      // 中毒：用离屏canvas生成绿色染色蒙版
-      const tintAlpha = 0.22 + 0.08 * Math.sin(af * 0.1)
+      const tintAlpha = 0.3 + 0.1 * Math.sin(af * 0.1)
       const oc = _getDebuffTintCanvas(enemyImg, imgW, imgH, '#00ff40')
       if (oc) {
         ctx.globalAlpha = tintAlpha
         ctx.drawImage(oc, imgX, imgY, imgW, imgH)
         ctx.globalAlpha = 1
       }
-
-      // 毒液滴落粒子
-      for (let i = 0; i < 6; i++) {
-        const px = imgX + imgW * 0.15 + (i / 6) * imgW * 0.7
-        const speed = 0.06 + (i % 3) * 0.02
-        const py = imgY + imgH * 0.3 + ((af * speed + i * 37) % (imgH * 0.6))
-        const pAlpha = 0.5 - ((af * speed + i * 37) % (imgH * 0.6)) / (imgH * 0.6) * 0.5
-        const pSize = (2 + (i % 3)) * S
+      // 底部毒雾
+      const fogY = imgY + imgH * 0.7
+      const fogH = imgH * 0.35
+      const fogGrd = ctx.createLinearGradient(cx, fogY + fogH, cx, fogY)
+      fogGrd.addColorStop(0, 'rgba(30,200,60,0.35)')
+      fogGrd.addColorStop(0.5, 'rgba(30,200,60,0.15)')
+      fogGrd.addColorStop(1, 'rgba(30,200,60,0)')
+      ctx.fillStyle = fogGrd
+      const fogWobble = Math.sin(af * 0.04) * 6 * S
+      ctx.fillRect(imgX - 8 * S + fogWobble, fogY, imgW + 16 * S, fogH)
+      // 毒液滴落粒子（更大更多）
+      for (let i = 0; i < 10; i++) {
+        const px = imgX + imgW * 0.1 + (i / 10) * imgW * 0.8
+        const speed = 0.05 + (i % 4) * 0.015
+        const py = imgY + imgH * 0.2 + ((af * speed + i * 31) % (imgH * 0.7))
+        const pAlpha = 0.7 - ((af * speed + i * 31) % (imgH * 0.7)) / (imgH * 0.7) * 0.7
+        const pSize = (3 + (i % 3) * 1.5) * S
         ctx.globalAlpha = pAlpha
         ctx.fillStyle = '#40ff60'
         ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI * 2); ctx.fill()
-        // 毒液拖尾
         ctx.fillStyle = '#20cc40'
-        ctx.globalAlpha = pAlpha * 0.4
-        ctx.beginPath(); ctx.arc(px, py - pSize * 2, pSize * 0.6, 0, Math.PI * 2); ctx.fill()
+        ctx.globalAlpha = pAlpha * 0.5
+        ctx.beginPath(); ctx.arc(px, py - pSize * 2.5, pSize * 0.7, 0, Math.PI * 2); ctx.fill()
       }
       ctx.globalAlpha = 1
     }
 
     if (isBurn) {
-      // 灼烧：用离屏canvas生成橙红色染色蒙版
-      const burnTintAlpha = 0.2 + 0.08 * Math.sin(af * 0.12)
+      const burnAlpha = 0.3 + 0.1 * Math.sin(af * 0.12)
       const oc = _getDebuffTintCanvas(enemyImg, imgW, imgH, '#ff4400')
       if (oc) {
-        ctx.globalAlpha = burnTintAlpha
+        ctx.globalAlpha = burnAlpha
         ctx.drawImage(oc, imgX, imgY, imgW, imgH)
         ctx.globalAlpha = 1
       }
-
-      // 火焰粒子（从底部向上飘）
-      for (let i = 0; i < 8; i++) {
-        const baseX = imgX + imgW * 0.1 + (i / 8) * imgW * 0.8
-        const speed = 0.08 + (i % 4) * 0.02
-        const phase = (af * speed + i * 47) % (imgH * 0.7)
+      // 底部橙色光晕
+      const glowR = imgW * 0.45
+      const glowY = imgY + imgH * 0.85
+      const glowAlpha = 0.25 + 0.1 * Math.sin(af * 0.1)
+      const grd = ctx.createRadialGradient(cx, glowY, 0, cx, glowY, glowR)
+      grd.addColorStop(0, `rgba(255,120,20,${glowAlpha})`)
+      grd.addColorStop(1, 'rgba(255,80,0,0)')
+      ctx.fillStyle = grd
+      ctx.beginPath(); ctx.arc(cx, glowY, glowR, 0, Math.PI * 2); ctx.fill()
+      // 火焰粒子（更大更亮）
+      for (let i = 0; i < 12; i++) {
+        const baseX = imgX + imgW * 0.05 + (i / 12) * imgW * 0.9
+        const speed = 0.07 + (i % 4) * 0.02
+        const phase = (af * speed + i * 43) % (imgH * 0.8)
         const py = imgY + imgH - phase
-        const pAlpha = 0.7 - phase / (imgH * 0.7) * 0.7
-        const wobble = Math.sin(af * 0.15 + i * 2.5) * 4 * S
-        const pSize = (2.5 + (i % 3) * 1.2) * S * (1 - phase / (imgH * 0.7) * 0.5)
+        const pAlpha = 0.85 - phase / (imgH * 0.8) * 0.85
+        const wobble = Math.sin(af * 0.15 + i * 2.3) * 5 * S
+        const pSize = (3.5 + (i % 3) * 1.5) * S * (1 - phase / (imgH * 0.8) * 0.4)
         ctx.globalAlpha = pAlpha
-        ctx.fillStyle = i % 3 === 0 ? '#ff6020' : i % 3 === 1 ? '#ffaa00' : '#ffdd44'
+        const colors = ['#ff4010', '#ff8020', '#ffbb30', '#ffdd60']
+        ctx.fillStyle = colors[i % 4]
         ctx.beginPath(); ctx.arc(baseX + wobble, py, pSize, 0, Math.PI * 2); ctx.fill()
       }
       ctx.globalAlpha = 1
@@ -2006,74 +2027,237 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
     ctx.restore()
   }
 
-  // --- 2. 眩晕：头顶旋转星星 + 晕圈 ---
+  // --- 2. 眩晕：头顶旋转星星 + 晕圈 + 文字 ---
   if (hasStun) {
     ctx.save()
     const stunCx = cx
-    const stunCy = imgY + imgH * 0.05 // 头顶位置
+    const stunCy = imgY + imgH * 0.02
     const starCount = 5
-    const orbitR = imgW * 0.22
+    const orbitR = imgW * 0.28
 
-    // 晕圈（椭圆环）
-    ctx.globalAlpha = 0.3 + 0.15 * Math.sin(af * 0.08)
-    ctx.strokeStyle = '#ffdd44'
-    ctx.lineWidth = 1.5 * S
-    ctx.beginPath()
-    ctx.ellipse(stunCx, stunCy, orbitR, orbitR * 0.35, 0, 0, Math.PI * 2)
-    ctx.stroke()
+    // 双层晕圈
+    for (let layer = 0; layer < 2; layer++) {
+      ctx.globalAlpha = (0.4 + 0.2 * Math.sin(af * 0.08 + layer)) * (layer === 0 ? 1 : 0.5)
+      ctx.strokeStyle = layer === 0 ? '#ffee55' : '#ffcc22'
+      ctx.lineWidth = (layer === 0 ? 2.5 : 1.5) * S
+      ctx.beginPath()
+      ctx.ellipse(stunCx, stunCy, orbitR * (1 + layer * 0.15), orbitR * 0.35 * (1 + layer * 0.15), 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
 
-    // 旋转星星
+    // 旋转星星（更大更亮）
     for (let i = 0; i < starCount; i++) {
-      const angle = (af * 0.06) + (i / starCount) * Math.PI * 2
+      const angle = (af * 0.07) + (i / starCount) * Math.PI * 2
       const sx = stunCx + Math.cos(angle) * orbitR
       const sy = stunCy + Math.sin(angle) * orbitR * 0.35
-      const starSize = (3 + Math.sin(af * 0.15 + i) * 1) * S
-      const starAlpha = 0.7 + 0.3 * Math.sin(af * 0.12 + i * 1.5)
-      ctx.globalAlpha = starAlpha
-      ctx.fillStyle = i % 2 === 0 ? '#ffee44' : '#ffaa00'
+      const starSize = (5 + Math.sin(af * 0.15 + i) * 1.5) * S
+      ctx.globalAlpha = 0.85 + 0.15 * Math.sin(af * 0.12 + i * 1.5)
+      ctx.fillStyle = i % 2 === 0 ? '#ffee44' : '#ffbb22'
       _drawStar(ctx, sx, sy, starSize)
+      // 星星光晕
+      ctx.globalAlpha = 0.3
+      ctx.fillStyle = '#ffee44'
+      ctx.beginPath(); ctx.arc(sx, sy, starSize * 1.8, 0, Math.PI * 2); ctx.fill()
     }
+
+    // "眩晕" 文字
+    ctx.globalAlpha = 0.7 + 0.2 * Math.sin(af * 0.1)
+    ctx.fillStyle = '#ffee44'
+    ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2 * S
+    ctx.strokeText('眩晕', stunCx, stunCy - orbitR * 0.35 - 8 * S)
+    ctx.fillText('眩晕', stunCx, stunCy - orbitR * 0.35 - 8 * S)
+    ctx.textBaseline = 'alphabetic'
     ctx.globalAlpha = 1
     ctx.restore()
   }
 
-  // --- 3. 破甲（防御为0）：脚下碎盾标记 ---
-  if (g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0) {
+  // --- 3. 破甲（防御为0）---
+  if (hasBreakDef) {
     ctx.save()
-    const bkAlpha = 0.55 + 0.15 * Math.sin(af * 0.08)
-    ctx.globalAlpha = bkAlpha
+    const bkPulse = 0.7 + 0.3 * Math.sin(af * 0.12)
+    ctx.globalAlpha = bkPulse
 
-    // 敌人脚下绘制向下箭头+「破防」文字标记
-    const tagW = 36 * S, tagH = 14 * S
+    const tagW = 46 * S, tagH = 18 * S
     const tagX = cx - tagW / 2
-    const tagY = imgY + imgH - 4 * S
+    const tagY = imgY + imgH - 6 * S
 
-    // 标签背景（深红半透明圆角矩形）
-    ctx.fillStyle = 'rgba(180,40,40,0.75)'
-    R.rr(tagX, tagY, tagW, tagH, 3 * S); ctx.fill()
+    // 标签背景
+    ctx.fillStyle = 'rgba(200,30,30,0.85)'
+    R.rr(tagX, tagY, tagW, tagH, 4 * S); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,100,100,0.6)'; ctx.lineWidth = 1.5 * S
+    R.rr(tagX, tagY, tagW, tagH, 4 * S); ctx.stroke()
 
-    // 「破防」文字
-    ctx.fillStyle = '#ffdddd'
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2 * S
+    ctx.strokeText('破 防', cx, tagY + tagH / 2)
+    ctx.fillText('破 防', cx, tagY + tagH / 2)
+    ctx.textBaseline = 'alphabetic'
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // --- 4. 攻击增益 buff：红色光晕 + 上升粒子 ---
+  if (hasAtkBuff) {
+    ctx.save()
+    // 红色径向光晕（脉冲呼吸）
+    const atkGlow = 0.2 + 0.12 * Math.sin(af * 0.1)
+    const atkAuraR = Math.max(imgW, imgH) * 0.55
+    const atkGrd = ctx.createRadialGradient(cx, cy, atkAuraR * 0.2, cx, cy, atkAuraR)
+    atkGrd.addColorStop(0, `rgba(255,50,30,${atkGlow * 0.5})`)
+    atkGrd.addColorStop(0.6, `rgba(255,40,40,${atkGlow})`)
+    atkGrd.addColorStop(1, 'rgba(255,20,20,0)')
+    ctx.fillStyle = atkGrd
+    ctx.beginPath(); ctx.arc(cx, cy, atkAuraR, 0, Math.PI * 2); ctx.fill()
+
+    // 上升红色能量粒子
+    for (let i = 0; i < 6; i++) {
+      const px = imgX + imgW * 0.15 + (i / 6) * imgW * 0.7
+      const speed = 0.06 + (i % 3) * 0.02
+      const phase = (af * speed + i * 53) % (imgH * 0.6)
+      const py = imgY + imgH * 0.8 - phase
+      const pAlpha = 0.6 - phase / (imgH * 0.6) * 0.6
+      ctx.globalAlpha = pAlpha
+      ctx.fillStyle = '#ff4040'
+      const pSize = (2.5 + (i % 2)) * S
+      ctx.beginPath(); ctx.arc(px, py, pSize, 0, Math.PI * 2); ctx.fill()
+    }
+
+    // "攻↑" 标签
+    ctx.globalAlpha = 0.8 + 0.15 * Math.sin(af * 0.1)
+    const atkTagW = 32 * S, atkTagH = 14 * S
+    const atkTagX = imgX + imgW - atkTagW - 2 * S
+    const atkTagY = imgY + 2 * S
+    ctx.fillStyle = 'rgba(200,30,30,0.8)'
+    R.rr(atkTagX, atkTagY, atkTagW, atkTagH, 3 * S); ctx.fill()
+    ctx.fillStyle = '#fff'
     ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('破防', cx, tagY + tagH / 2)
+    ctx.fillText('攻↑', atkTagX + atkTagW / 2, atkTagY + atkTagH / 2)
     ctx.textBaseline = 'alphabetic'
-
     ctx.globalAlpha = 1
     ctx.restore()
   }
 
-  // --- 4. 敌方增益buff：红色气场脉冲 ---
-  if (hasBuff) {
+  // --- 5. 防御增益 buff：蓝金盾形光环 ---
+  if (hasDefBuff) {
     ctx.save()
-    const auraAlpha = 0.15 + 0.1 * Math.sin(af * 0.08)
-    const auraR = Math.max(imgW, imgH) * 0.55 + Math.sin(af * 0.06) * 5 * S
-    const grd = ctx.createRadialGradient(cx, cy, auraR * 0.3, cx, cy, auraR)
-    grd.addColorStop(0, 'rgba(255,60,60,0)')
-    grd.addColorStop(0.7, `rgba(255,40,40,${auraAlpha})`)
-    grd.addColorStop(1, 'rgba(255,20,20,0)')
-    ctx.fillStyle = grd
-    ctx.beginPath(); ctx.arc(cx, cy, auraR, 0, Math.PI * 2); ctx.fill()
+    const defPulse = 0.3 + 0.15 * Math.sin(af * 0.08)
+    // 蓝金色半透明椭圆护盾
+    ctx.globalAlpha = defPulse
+    const shieldRx = imgW * 0.55 + Math.sin(af * 0.06) * 3 * S
+    const shieldRy = imgH * 0.5 + Math.sin(af * 0.06) * 2 * S
+    ctx.strokeStyle = '#60aaff'
+    ctx.lineWidth = 3 * S
+    ctx.shadowColor = '#4090ff'; ctx.shadowBlur = 8 * S
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, shieldRx, shieldRy, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+    // 内层金色薄环
+    ctx.globalAlpha = defPulse * 0.6
+    ctx.strokeStyle = '#ffd700'
+    ctx.lineWidth = 1.5 * S
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, shieldRx * 0.9, shieldRy * 0.9, 0, 0, Math.PI * 2)
+    ctx.stroke()
+
+    // "防↑" 标签
+    ctx.globalAlpha = 0.8 + 0.15 * Math.sin(af * 0.1 + 1)
+    const defTagW = 32 * S, defTagH = 14 * S
+    const defTagX = imgX + 2 * S
+    const defTagY = imgY + 2 * S
+    ctx.fillStyle = 'rgba(40,100,200,0.8)'
+    R.rr(defTagX, defTagY, defTagW, defTagH, 3 * S); ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('防↑', defTagX + defTagW / 2, defTagY + defTagH / 2)
+    ctx.textBaseline = 'alphabetic'
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // --- 6. bossMirror（妖力护体/反弹）：紫色旋转护盾 ---
+  if (hasMirror) {
+    ctx.save()
+    const mirrorBuf = bufs.find(b => b.type === 'bossMirror')
+    const reflectPct = mirrorBuf ? (mirrorBuf.reflectPct || 30) : 30
+    const mPulse = 0.35 + 0.15 * Math.sin(af * 0.09)
+    const mR = Math.max(imgW, imgH) * 0.55
+
+    // 旋转六边形护盾
+    const segCount = 6
+    const rotAngle = af * 0.03
+    ctx.globalAlpha = mPulse
+    ctx.strokeStyle = '#cc66ff'
+    ctx.lineWidth = 2.5 * S
+    ctx.shadowColor = '#aa44ff'; ctx.shadowBlur = 10 * S
+    ctx.beginPath()
+    for (let i = 0; i <= segCount; i++) {
+      const a = rotAngle + (i / segCount) * Math.PI * 2
+      const px = cx + Math.cos(a) * mR * 0.52
+      const py = cy + Math.sin(a) * mR * 0.48
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
+    ctx.stroke()
+    ctx.shadowBlur = 0
+
+    // 闪烁顶点光点
+    for (let i = 0; i < segCount; i++) {
+      const a = rotAngle + (i / segCount) * Math.PI * 2
+      const px = cx + Math.cos(a) * mR * 0.52
+      const py = cy + Math.sin(a) * mR * 0.48
+      ctx.globalAlpha = 0.5 + 0.4 * Math.sin(af * 0.15 + i * 1.2)
+      ctx.fillStyle = '#dd88ff'
+      ctx.beginPath(); ctx.arc(px, py, 3 * S, 0, Math.PI * 2); ctx.fill()
+    }
+
+    // "反弹X%" 标签
+    ctx.globalAlpha = 0.85
+    const mTagW = 46 * S, mTagH = 14 * S
+    const mTagX = cx - mTagW / 2
+    const mTagY = imgY + imgH + 2 * S
+    ctx.fillStyle = 'rgba(140,50,200,0.8)'
+    R.rr(mTagX, mTagY, mTagW, mTagH, 3 * S); ctx.fill()
+    ctx.fillStyle = '#eeddff'
+    ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(`反弹${reflectPct}%`, cx, mTagY + mTagH / 2)
+    ctx.textBaseline = 'alphabetic'
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // --- 7. vulnerable（易伤）：黄色闪烁光晕 ---
+  if (hasVulnerable) {
+    ctx.save()
+    const vPulse = 0.2 + 0.15 * Math.abs(Math.sin(af * 0.15))
+    const vAuraR = Math.max(imgW, imgH) * 0.5
+    const vGrd = ctx.createRadialGradient(cx, cy, vAuraR * 0.3, cx, cy, vAuraR)
+    vGrd.addColorStop(0, `rgba(255,220,0,${vPulse * 0.4})`)
+    vGrd.addColorStop(0.6, `rgba(255,200,0,${vPulse})`)
+    vGrd.addColorStop(1, 'rgba(255,180,0,0)')
+    ctx.fillStyle = vGrd
+    ctx.beginPath(); ctx.arc(cx, cy, vAuraR, 0, Math.PI * 2); ctx.fill()
+
+    // "易伤" 标签
+    ctx.globalAlpha = 0.8
+    const vTagW = 34 * S, vTagH = 14 * S
+    const vTagX = cx - vTagW / 2
+    const vTagY = imgY - vTagH - 2 * S
+    ctx.fillStyle = 'rgba(200,160,0,0.8)'
+    R.rr(vTagX, vTagY, vTagW, vTagH, 3 * S); ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('易伤', cx, vTagY + vTagH / 2)
+    ctx.textBaseline = 'alphabetic'
+    ctx.globalAlpha = 1
     ctx.restore()
   }
 }
