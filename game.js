@@ -49,28 +49,110 @@ _bg.addColorStop(1, '#1a1035')
 _ctx.fillStyle = _bg
 _ctx.fillRect(0, 0, _W, _H)
 // 加载主包内的 loading 背景图（不依赖分包）
+let _splashReady = false
 const _splashImg = P.createImage()
 _splashImg.src = 'loading_bg.jpg'
-_splashImg.onload = () => {
-  // 铺满整个 canvas（cover 模式）
-  const iw = _splashImg.width, ih = _splashImg.height
-  const scale = Math.max(_W / iw, _H / ih)
-  const dw = iw * scale, dh = ih * scale
-  _ctx.drawImage(_splashImg, (_W - dw) / 2, (_H - dh) / 2, dw, dh)
+_splashImg.onload = function () {
+  _splashReady = true
+  _drawBg()
+  _drawProgress(_loadedCount / _totalPkgs)
+}
+
+// 绘制背景（背景图就绪时铺满 canvas，否则用渐变兜底）
+function _drawBg() {
+  if (_splashReady) {
+    var iw = _splashImg.width, ih = _splashImg.height
+    var scale = Math.max(_W / iw, _H / ih)
+    var dw = iw * scale, dh = ih * scale
+    _ctx.drawImage(_splashImg, (_W - dw) / 2, (_H - dh) / 2, dw, dh)
+  } else {
+    _ctx.fillStyle = _bg
+    _ctx.fillRect(0, 0, _W, _H)
+  }
+}
+
+// 绘制分包加载进度条（与 screens.js rLoading 风格一致）
+function _drawProgress(pct) {
+  var S = _dpr
+  var barW = _W * 0.6
+  var barH = 10 * S
+  var barX = (_W - barW) / 2
+  var barY = _H - 60 * S
+  var r = barH / 2
+
+  _ctx.save()
+
+  // 底槽
+  _ctx.beginPath()
+  _roundRect(barX, barY, barW, barH, r)
+  _ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+  _ctx.fill()
+
+  // 填充
+  var fillW = Math.max(barH, barW * pct)
+  if (pct > 0) {
+    _ctx.beginPath()
+    _roundRect(barX, barY, fillW, barH, r)
+    var grad = _ctx.createLinearGradient(barX, barY, barX + fillW, barY)
+    grad.addColorStop(0, '#f0a030')
+    grad.addColorStop(0.5, '#ffd700')
+    grad.addColorStop(1, '#ffe066')
+    _ctx.fillStyle = grad
+    _ctx.fill()
+
+    // 高光
+    _ctx.beginPath()
+    _roundRect(barX, barY, fillW, barH * 0.45, r)
+    _ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+    _ctx.fill()
+  }
+
+  // 百分比文字
+  var pctText = Math.round(pct * 100) + '%'
+  _ctx.font = 'bold ' + (11 * S) + 'px "PingFang SC",sans-serif'
+  _ctx.textAlign = 'right'
+  _ctx.textBaseline = 'middle'
+  _ctx.strokeStyle = '#000'
+  _ctx.lineWidth = 3 * S
+  _ctx.lineJoin = 'round'
+  _ctx.strokeText(pctText, barX + barW, barY - 10 * S)
+  _ctx.fillStyle = '#ffd700'
+  _ctx.fillText(pctText, barX + barW, barY - 10 * S)
+
+  // 提示文字
+  _ctx.font = (12 * S) + 'px "PingFang SC",sans-serif'
+  _ctx.textAlign = 'center'
+  _ctx.strokeText('加载中...', _W / 2, barY - 28 * S)
+  _ctx.fillStyle = '#fff'
+  _ctx.fillText('加载中...', _W / 2, barY - 28 * S)
+
+  _ctx.restore()
+}
+
+// Canvas 圆角矩形（兼容无 roundRect 的低版本）
+function _roundRect(x, y, w, h, r) {
+  _ctx.moveTo(x + r, y)
+  _ctx.arcTo(x + w, y, x + w, y + h, r)
+  _ctx.arcTo(x + w, y + h, x, y + h, r)
+  _ctx.arcTo(x, y + h, x, y, r)
+  _ctx.arcTo(x, y, x + w, y, r)
+  _ctx.closePath()
 }
 
 // 分包加载
-const _subPkgNames = [
+var _subPkgNames = [
   'pets', 'enemies', 'stage_enemies', 'stage_avatars', 'backgrounds', 'ui', 'hero',
   'share', 'equipment', 'battle', 'orbs', 'intro',
   'audio', 'audio_bgm'
 ]
-let _loadedCount = 0
-const _totalPkgs = _subPkgNames.length
+var _loadedCount = 0
+var _totalPkgs = _subPkgNames.length
 
 function _onPkgDone(name, ok) {
   console.log('[SubPkg] ' + name + (ok ? ' 加载成功' : ' 加载失败'))
   _loadedCount++
+  _drawBg()
+  _drawProgress(_loadedCount / _totalPkgs)
   if (_loadedCount >= _totalPkgs) {
     console.log('[SubPkg] 全部 ' + _totalPkgs + ' 个分包加载完成，启动游戏')
     try {
@@ -78,7 +160,7 @@ function _onPkgDone(name, ok) {
       console.log('游戏初始化成功')
     } catch (e) {
       console.error('游戏初始化失败:', e)
-      const ctx = _canvas.getContext('2d')
+      var ctx = _canvas.getContext('2d')
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, _canvas.width, _canvas.height)
       ctx.fillStyle = '#f00'; ctx.font = '16px sans-serif'
       ctx.textAlign = 'left'; ctx.textBaseline = 'top'
