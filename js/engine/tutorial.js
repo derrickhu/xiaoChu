@@ -596,9 +596,21 @@ function needsTutorial() {
   } catch(e) { return true }
 }
 
+// 强制关闭教学状态（仅清理标志，不触发 nextFloor / startRun）
+// 用于：云同步恢复老玩家数据后，安全跳过教学回首页
+function _forceDeactivate() {
+  _active = false
+  _summaryShown = false
+  _step = 0
+  _round = 0
+  _phase = 'done'
+  try { P.setStorageSync('tutorialDone', true) } catch(e) {}
+}
+
 module.exports = {
   STEPS,
   isActive, getStep, getPhase, isSummary, needsTutorial,
   start, finish, update, onStoryCardTap, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
   onElim, onEnemyTurnEnd, canDrag, shouldEnemyAttack, getGuideData, skip,
+  _forceDeactivate,
 }

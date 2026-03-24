@@ -28,6 +28,7 @@ let _syncDirty = false
 let _syncRetryTimer = null
 let _syncing = false
 let _syncPending = false
+let _onSyncDone = null
 
 // init 时传入的引用和配置
 let _dataRef = null
@@ -202,6 +203,7 @@ async function init(persistData, opts) {
   _localKey = opts.localKey
   _currentVersion = opts.currentVersion
   _runMigrations = opts.runMigrations
+  _onSyncDone = opts.onSyncDone || null
 
   if (P.isDouyin) {
     try {
@@ -233,6 +235,9 @@ async function init(persistData, opts) {
 
   if (_cloudReady && P.isWeChat && _openid) await _syncFromCloud()
   if (_cloudReady && P.isDouyin) await _syncFromCloud()
+
+  // 通知外部：云同步初始化（含首次拉取合并）完成
+  if (_onSyncDone) _onSyncDone()
 
   _cloudInitDone = true
   if (_pendingSync && _cloudReady) {

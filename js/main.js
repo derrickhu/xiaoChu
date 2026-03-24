@@ -73,6 +73,21 @@ class Main {
     // 排行榜异步加载状态变化时，标记需要重绘
     this.events.on('ranking:dirty', () => { this._dirty = true })
 
+    // 云同步恢复老玩家数据时，跳过新手漫画/教学（修复清除缓存后重进的问题）
+    this.events.on('cloud:veteranRestored', () => {
+      if (this.scene === 'intro') {
+        console.log('[Main] 云端已恢复老玩家数据，跳过开场漫画')
+        this.setScene('title'); MusicMgr.playBgm()
+      } else if (this.scene === 'battle' && tutorial.isActive()) {
+        console.log('[Main] 云端已恢复老玩家数据，跳过战斗教学')
+        // 不调用 tutorial.finish() —— 它会触发 nextFloor 进入正式局
+        // 仅清理教学激活状态，然后安全回到首页
+        tutorial._forceDeactivate && tutorial._forceDeactivate()
+        this.bState = 'none'
+        this.setScene('title'); MusicMgr.playBgm()
+      }
+    })
+
     initState(this)
     R._onImageLoad = () => { this._dirty = true }
 

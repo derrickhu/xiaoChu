@@ -1181,8 +1181,33 @@ class Storage {
       localKey: LOCAL_KEY,
       currentVersion: CURRENT_VERSION,
       runMigrations,
+      onSyncDone: () => this._onCloudSyncDone(),
     })
     this._ranking.preheatRanking()
+  }
+
+  /**
+   * 云同步首次拉取完成后的回调
+   * 修复：清除缓存后重进，云端数据证明是老玩家时补写 introDone/tutorialDone
+   */
+  _onCloudSyncDone() {
+    const isVeteran = this._d.bestFloor > 0 || this._d.totalRuns > 0
+    if (!isVeteran) return
+
+    // 补写独立 key，防止下次启动还走新手流程
+    if (!P.getStorageSync('introDone')) {
+      P.setStorageSync('introDone', true)
+      console.log('[Storage] 云端为老玩家，补写 introDone')
+    }
+    if (!P.getStorageSync('tutorialDone')) {
+      P.setStorageSync('tutorialDone', true)
+      console.log('[Storage] 云端为老玩家，补写 tutorialDone')
+    }
+
+    // 通知主循环：如果当前还在 intro/教学中，应跳转回首页
+    if (this._eventBus) {
+      this._eventBus.emit('cloud:veteranRestored')
+    }
   }
 
 }
