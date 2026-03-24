@@ -138,7 +138,7 @@ function rPetDetail(g) {
   // 左右翻页箭头（头像两侧，半透明，可点击）— 未拥有宠物不显示
   _rects.leftArrowRect = null
   _rects.rightArrowRect = null
-  _rects.summonBtnRect = null
+  if (!isUnowned) _rects.summonBtnRect = null   // 仅非召唤页时重置，避免覆盖 _drawUnownedPage 设置的值
   if (!isUnowned && !_swiping && !_slideAnim) {
     const pool = _getFilteredPool(g)
     const idx = _getCurrentIndex(g)
@@ -977,6 +977,18 @@ function tPetDetail(g, x, y, type) {
   if (type === 'end') {
     _cancelLongPress()
 
+    // 召唤按钮（未拥有宠物）— 优先检测，避免被 _swiping 误拦截
+    if (_rects.summonBtnRect && g._petDetailUnowned && g._hitRect(x, y, ..._rects.summonBtnRect)) {
+      _swiping = false
+      _swipeDeltaX = 0
+      const result = g.storage.summonPet(g._petDetailId)
+      if (result.success) {
+        g._petDetailUnowned = false
+        MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
+      }
+      return
+    }
+
     // 处理滑动结束
     if (_swiping) {
       _swiping = false
@@ -1012,16 +1024,6 @@ function tPetDetail(g, x, y, type) {
       g._petDetailUnowned = false
       g.setScene(returnTo)
       MusicMgr.playClick && MusicMgr.playClick()
-      return
-    }
-
-    // 召唤按钮（未拥有宠物）
-    if (_rects.summonBtnRect && g._petDetailUnowned && g._hitRect(x, y, ..._rects.summonBtnRect)) {
-      const result = g.storage.summonPet(g._petDetailId)
-      if (result.success) {
-        g._petDetailUnowned = false
-        MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
-      }
       return
     }
 
