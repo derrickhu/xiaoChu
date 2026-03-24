@@ -70,6 +70,9 @@ class Main {
     this.events = new TinyEmitter()
     this.storage._eventBus = this.events
 
+    // 排行榜异步加载状态变化时，标记需要重绘
+    this.events.on('ranking:dirty', () => { this._dirty = true })
+
     initState(this)
     R._onImageLoad = () => { this._dirty = true }
 

@@ -12,9 +12,11 @@ class RankingService {
   /**
    * @param {object} deps
    * @param {() => object} deps.getContext - 返回排行榜所需的 Storage 上下文
+   * @param {() => void} [deps.markDirty] - 状态变化时通知渲染系统刷新
    */
-  constructor({ getContext }) {
+  constructor({ getContext, markDirty }) {
     this._getContext = getContext
+    this._markDirty = markDirty || (() => {})
 
     this.rankAllList = []
     this.rankDexList = []
@@ -22,10 +24,18 @@ class RankingService {
     this.rankAllMyRank = -1
     this.rankDexMyRank = -1
     this.rankComboMyRank = -1
-    this.rankLoading = false
+    this._rankLoading = false
     this.rankLoadingMsg = ''
     this.rankLastFetch = 0
     this.rankLastFetchTab = ''
+  }
+
+  get rankLoading() { return this._rankLoading }
+  set rankLoading(v) {
+    if (this._rankLoading !== v) {
+      this._rankLoading = v
+      this._markDirty()
+    }
   }
 
   async _callRanking(data) {

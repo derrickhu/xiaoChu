@@ -174,6 +174,7 @@ class Storage {
         bestFloorWeapon: this.stats.bestFloorWeapon,
         bestTotalTurns: this.stats.bestTotalTurns || 0,
       }),
+      markDirty: () => { if (this._eventBus) this._eventBus.emit('ranking:dirty') },
     })
     this._initCloud()
   }
