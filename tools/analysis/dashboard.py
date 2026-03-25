@@ -11,11 +11,17 @@ from collections import Counter, defaultdict
 
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / 'data'
+
+# 与 analyze.py 共用本地榜构建逻辑
+try:
+    from analyze import build_local_leaderboard_rows, build_rank_cross_report
+except ImportError:
+    build_local_leaderboard_rows = None
+    build_rank_cross_report = None
 
 # ========== 页面配置 ==========
 
@@ -107,9 +113,52 @@ st.divider()
 
 # ========== Tab 页 ==========
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    '📊 进度分布', '⚔️ 数值平衡', '🐾 宠物生态', '🧘 修炼系统', '🏰 关卡挑战', '💎 经济与引导'
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    '🏆 本地最高层榜', '📊 进度分布', '⚔️ 数值平衡', '🐾 宠物生态', '🧘 修炼系统', '🏰 关卡挑战', '💎 经济与引导',
+    '📎 排行·未完成局·挂机',
 ])
+
+# ---------- Tab 0: 本地最高层榜（playerData，无需排行授权）----------
+with tab0:
+    st.subheader('本地最高层榜')
+    st.caption(
+        '数据来自 playerData 全量；排序与云端速通榜规则一致（层数优先；≥30层看通关回合）。'
+    )
+    if build_local_leaderboard_rows is None:
+        st.error('无法加载 analyze.build_local_leaderboard_rows')
+    else:
+        lb_rows = build_local_leaderboard_rows(players)
+        lb_df = pd.DataFrame(lb_rows)
+        if not lb_df.empty:
+            disp = lb_df.rename(columns={
+                'rank': '名次',
+                '_openid': 'OpenID',
+                'bestFloor': '最高层',
+                'bestTotalTurns': '通关回合',
+                'maxCombo': '最高连击',
+                'totalRuns': '总对局',
+                'cultivationLevel': '修炼等级',
+                'petDexCount': '图鉴数',
+                '_updateTime': '_updateTime',
+            })
+            st.dataframe(disp, use_container_width=True, hide_index=True)
+            csv_bytes = disp.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label='下载 CSV',
+                data=csv_bytes,
+                file_name='local_floor_leaderboard.csv',
+                mime='text/csv',
+            )
+            top_n = min(30, len(lb_df))
+            head = lb_df.head(top_n)
+            fig = px.bar(
+                head, x='rank', y='bestFloor',
+                title=f'前 {top_n} 名 — 最高层数',
+                labels={'rank': '名次', 'bestFloor': '最高层'},
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info('无数据')
 
 # ---------- Tab 1: 进度分布 ----------
 with tab1:
@@ -418,6 +467,86 @@ with tab6:
                              color='全服碎片总量', color_continuous_scale='YlGn')
                 fig.update_layout(yaxis={'autorange': 'reversed'})
                 st.plotly_chart(fig, use_container_width=True)
+
+
+# ---------- Tab 7: 排行交叉、未完成局、派遣/体力（无 DAU 流水）----------
+with tab7:
+    st.caption('基于单次导出的截面数据；排行与存档对比可看出授权/提交覆盖，非留存指标。')
+    if build_rank_cross_report is None:
+        st.error('无法加载 build_rank_cross_report')
+    else:
+        rep = build_rank_cross_report(players)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric('playerData 人数', rep['player_total'])
+        m2.metric('bestFloor≥1', rep['players_with_floor_ge_1'])
+        m3.metric('有进度但不在速通榜', rep['has_progress_not_in_rankall'])
+        m4.metric('rankAll 去重 uid', rep['rank_all_uids'])
+        st.json({k: rep[k] for k in rep if k != 'sample_progress_not_rankall'})
+        if rep.get('sample_progress_not_rankall'):
+            st.caption('sample：有进度却不在速通榜的 openid 示例（前 20）')
+            st.code('\n'.join(rep['sample_progress_not_rankall'][:20]))
+
+    st.subheader('未完成局 savedRun')
+    if 'savedRun' in df.columns:
+        def _has_sr(x):
+            return isinstance(x, dict) and bool(x)
+
+        sr_ok = df['savedRun'].apply(_has_sr)
+        st.metric('带有进行中存档人数', int(sr_ok.sum()), delta=f'占比 {sr_ok.mean()*100:.1f}%')
+        floors = []
+        for x in df.loc[sr_ok, 'savedRun']:
+            floors.append(int(x.get('floor') or 0))
+        if floors:
+            fig = px.histogram(pd.Series(floors, name='层数'), nbins=min(24, max(floors) + 1),
+                               title='savedRun 当前层分布')
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info('无 savedRun 列')
+
+    st.subheader('派遣槽位 & 体力比例')
+    slot_list = []
+    ratio_list = []
+    for _, row in df.iterrows():
+        idle = row.get('idleDispatch') if isinstance(row.get('idleDispatch'), dict) else {}
+        slots = idle.get('slots') if isinstance(idle.get('slots'), list) else []
+        slot_list.append(min(3, len(slots)))
+        stam = row.get('stamina') if isinstance(row.get('stamina'), dict) else {}
+        try:
+            c, m = float(stam.get('current', 0)), float(stam.get('max', 0) or 0)
+            ratio_list.append(c / m if m > 0 else None)
+        except (TypeError, ValueError):
+            ratio_list.append(None)
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.histogram(pd.Series(slot_list, name='槽位数'), nbins=8,
+                           title='派遣占用槽位数')
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        rl = [x for x in ratio_list if x is not None]
+        if rl:
+            fig = px.histogram(pd.Series(rl, name='比例'), nbins=20, title='体力 current/max')
+            st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader('头像 & 固定关编队 Top')
+    ac1, ac2 = st.columns(2)
+    with ac1:
+        if 'selectedAvatar' in df.columns:
+            avdf = df['selectedAvatar'].fillna('(空)').astype(str).value_counts().reset_index()
+            avdf.columns = ['头像', '人数']
+            fig = px.bar(avdf.head(12), x='头像', y='人数', title='selectedAvatar')
+            st.plotly_chart(fig, use_container_width=True)
+    with ac2:
+        pet_ctr = Counter()
+        if 'savedStageTeam' in df.columns:
+            for team in df['savedStageTeam'].dropna():
+                if isinstance(team, list):
+                    for pid in team:
+                        pet_ctr[str(pid)] += 1
+        if pet_ctr:
+            tdf = pd.DataFrame(pet_ctr.most_common(12), columns=['petId', '次数'])
+            fig = px.bar(tdf, x='petId', y='次数', title='savedStageTeam 宠物出现次数')
+            st.plotly_chart(fig, use_container_width=True)
+
 
 # ========== 底部：原始数据查看 ==========
 
