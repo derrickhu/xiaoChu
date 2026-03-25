@@ -433,6 +433,8 @@ function _riRR(ctx, x, y, w, h, r) {
 
 // ===== 境界突破检查 =====
 function checkRealmBreak(g) {
+  // 先尝试补升（经验表下调后旧存档可能有溢出经验未消化）
+  g.storage._tryCultLevelUp()
   const cult = g.storage.cultivation
   const realm = currentRealm(cult.level)
   const { REALMS } = require('../data/cultivationConfig')

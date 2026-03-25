@@ -2,7 +2,7 @@
  * 修炼系统配置 — 等级 + 加点制
  * 
  * 核心流程：打肉鸽/灵兽秘境 → 累积经验 → 升级 → 获得修炼点 → 分配到升级树
- * 所有修炼属性仅在灵兽秘境模式（battleMode === 'stage'）中生效
+ * 所有修炼属性在灵兽秘境和通天塔中均100%生效（局外养成带入局内）
  */
 
 const {
@@ -25,21 +25,27 @@ const MAX_LEVEL = CULT_MAX_LEVEL
 
 function expToNextLevel(level) {
   if (level >= MAX_LEVEL) return Infinity
-  return Math.floor(CULT_EXP_BASE + level * CULT_EXP_LINEAR + Math.pow(level, CULT_EXP_POW_EXP) * CULT_EXP_POW_COEFF)
+  const base = Math.floor(CULT_EXP_BASE + level * CULT_EXP_LINEAR + Math.pow(level, CULT_EXP_POW_EXP) * CULT_EXP_POW_COEFF)
+  // 前三级大幅降低经验需求，让新手快速体验到修炼加成
+  if (level === 0) return Math.floor(base * 0.25)  // Lv0→1: 100
+  if (level === 1) return Math.floor(base * 0.3)   // Lv1→2: 151
+  if (level === 2) return Math.floor(base * 0.4)   // Lv2→3: 247
+  return base
 }
 
-// 经验节奏（参考）：通天塔10层失败≈300 exp，约2~3局升一级
-// Lv1→2: 506   Lv5→6: 978   Lv10→11: 1638   Lv20→21: 3123
+// 经验节奏（参考）：通天塔10层失败≈300 exp，约1局即可升前3级
+// Lv0→1: 100   Lv1→2: 151   Lv2→3: 247   Lv3→4: 736
+// Lv5→6: 978   Lv10→11: 1638   Lv20→21: 3123
 // Lv30→31: 4786   Lv50→51: 8536   Lv59→60: 10388
 
 // ===== 修炼树配置（加点制）=====
 // 每项每级消耗 1 修炼点
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:20, perLv:5,    unit:'HP上限',   desc:'灵兽秘境中队伍HP上限' },
-  spirit:  { name:'灵力', theme:'通脉', maxLv:15, perLv:1,    unit:'心珠回复', desc:'灵兽秘境中心珠回复基数' },
-  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, unit:'s转珠时间', desc:'灵兽秘境中转珠操作时间' },
-  defense: { name:'根骨', theme:'筑基', maxLv:10, perLv:2,    unit:'减伤',     desc:'灵兽秘境中每次受伤减免固定值' },
-  sense:   { name:'神识', theme:'开窍', maxLv:8,  perLv:8,    unit:'护盾',     desc:'灵兽秘境中开局获得护盾' },
+  body:    { name:'体魄', theme:'淬体', maxLv:20, perLv:5,    unit:'HP上限',   desc:'队伍HP上限（全模式生效）' },
+  spirit:  { name:'灵力', theme:'通脉', maxLv:15, perLv:1,    unit:'心珠回复', desc:'心珠回复基数（全模式生效）' },
+  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, unit:'s转珠时间', desc:'转珠操作时间（全模式生效）' },
+  defense: { name:'根骨', theme:'筑基', maxLv:10, perLv:2,    unit:'减伤',     desc:'每次受伤减免固定值（全模式生效）' },
+  sense:   { name:'神识', theme:'开窍', maxLv:8,  perLv:8,    unit:'护盾',     desc:'开局获得护盾（全模式生效）' },
 }
 
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']

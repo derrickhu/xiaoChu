@@ -1125,6 +1125,52 @@ function rEvent(g) {
 
   if (g._realmUpInfo) g._realmUpInfo = null
 
+  // 通天塔修炼加成提示（首层展示）
+  if (g._cultBonusSummary && g._cultBonusSummary.timer > 0) {
+    const cb = g._cultBonusSummary
+    cb.timer--
+    const fadePct = cb.timer < 30 ? cb.timer / 30 : (cb.timer > 150 ? Math.min(1, (180 - cb.timer) / 30) : 1)
+    ctx.save()
+    ctx.globalAlpha = fadePct * 0.95
+    // 半透明底板
+    const panelW = W * 0.7, panelH = 60 * S
+    const panelX = (W - panelW) / 2, panelY = curY - 8 * S
+    ctx.fillStyle = 'rgba(20,15,40,0.85)'
+    ctx.beginPath()
+    const rr = 8 * S
+    ctx.moveTo(panelX + rr, panelY)
+    ctx.lineTo(panelX + panelW - rr, panelY)
+    ctx.quadraticCurveTo(panelX + panelW, panelY, panelX + panelW, panelY + rr)
+    ctx.lineTo(panelX + panelW, panelY + panelH - rr)
+    ctx.quadraticCurveTo(panelX + panelW, panelY + panelH, panelX + panelW - rr, panelY + panelH)
+    ctx.lineTo(panelX + rr, panelY + panelH)
+    ctx.quadraticCurveTo(panelX, panelY + panelH, panelX, panelY + panelH - rr)
+    ctx.lineTo(panelX, panelY + rr)
+    ctx.quadraticCurveTo(panelX, panelY, panelX + rr, panelY)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#8866cc55'; ctx.lineWidth = 1 * S; ctx.stroke()
+    // 标题
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#cc99ff'
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('🔮 修炼加成生效', W * 0.5, panelY + 14 * S)
+    // 加成明细
+    ctx.fillStyle = '#ddd'
+    ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+    const lines = []
+    if (cb.bodyBonus > 0) lines.push(`HP+${cb.bodyBonus}`)
+    if (cb.senseBonus > 0) lines.push(`护盾+${cb.senseBonus}`)
+    if (cb.defBonus > 0) lines.push(`减伤+${cb.defBonus}`)
+    if (cb.spiritBonus > 0) lines.push(`心珠+${cb.spiritBonus}`)
+    if (cb.wisdomBonus > 0) lines.push(`转珠+${cb.wisdomBonus.toFixed(1)}s`)
+    ctx.fillText(lines.join('  '), W * 0.5, panelY + 32 * S)
+    ctx.fillStyle = '#999'
+    ctx.font = `${9 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('修炼加成已全额生效', W * 0.5, panelY + 48 * S)
+    ctx.restore()
+  }
+
   if (g._floorExpSummary && g._floorExpSummary.timer > 0) {
     const fs = g._floorExpSummary
     const fadePct = fs.timer < 30 ? fs.timer / 30 : 1

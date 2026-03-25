@@ -290,7 +290,7 @@ class Storage {
    * 每升一级获得 1 修炼点
    */
   addCultExp(amount) {
-    if (amount <= 0) return 0
+    if (amount <= 0) return this._tryCultLevelUp()  // amount=0时仍尝试补升（经验表变更导致的历史溢出）
     const { MAX_LEVEL, expToNextLevel } = require('./cultivationConfig')
     const cult = this._d.cultivation
     if (cult.level == null || cult.level < 1) cult.level = 1
@@ -308,6 +308,28 @@ class Storage {
     }
     // 满级后经验仍然累积（显示用），但不再升级
     this._save()
+    return levelUps
+  }
+
+  /**
+   * 尝试消化已有溢出经验（经验表下调后旧存档可能经验已够升级）
+   * 返回补升的次数
+   */
+  _tryCultLevelUp() {
+    const { MAX_LEVEL, expToNextLevel } = require('./cultivationConfig')
+    const cult = this._d.cultivation
+    if (!cult || cult.level == null || cult.level < 1) return 0
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    let levelUps = 0
+    while (cult.level < MAX_LEVEL) {
+      const needed = expToNextLevel(cult.level)
+      if (cult.exp < needed) break
+      cult.exp -= needed
+      cult.level++
+      cult.skillPoints++
+      levelUps++
+    }
+    if (levelUps > 0) this._save()
     return levelUps
   }
 

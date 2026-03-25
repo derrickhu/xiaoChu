@@ -121,18 +121,25 @@ function startRun(g) {
     if (g.events) g.events.emit('run:start')
     return
   }
-  // 固定关卡模式：应用修炼加成
-  if (g.battleMode === 'stage') {
+  // 应用修炼加成：通天塔与固定关卡均100%享受
+  {
     const cult = g.storage.cultivation
-    g.heroMaxHp  += cultEffectValue('body', cult.levels.body)
+    const isStage = g.battleMode === 'stage'
+    const bodyBonus = Math.round(cultEffectValue('body', cult.levels.body))
+    const senseBonus = Math.round(cultEffectValue('sense', cult.levels.sense))
+    const wisdomBonus = cultEffectValue('wisdom', cult.levels.wisdom)
+    const defBonus = Math.round(cultEffectValue('defense', cult.levels.defense))
+    const spiritBonus = +cultEffectValue('spirit', cult.levels.spirit).toFixed(2)
+    g.heroMaxHp  += bodyBonus
     g.heroHp      = g.heroMaxHp
-    g.heroShield  = cultEffectValue('sense', cult.levels.sense)
-    g.dragTimeLimit += Math.round(cultEffectValue('wisdom', cult.levels.wisdom) * 60)
-    g._cultDmgReduce = cultEffectValue('defense', cult.levels.defense)
-    g._cultHeartBase = cultEffectValue('spirit', cult.levels.spirit)
-  } else {
-    g._cultDmgReduce = 0
-    g._cultHeartBase = 0
+    g.heroShield  = senseBonus
+    g.dragTimeLimit += Math.round(wisdomBonus * 60)
+    g._cultDmgReduce = defBonus
+    g._cultHeartBase = spiritBonus
+    // 通天塔开局时展示修炼加成提示（有任何加成时才显示）
+    if (!isStage && (bodyBonus + senseBonus + defBonus) > 0) {
+      g._cultBonusSummary = { bodyBonus, senseBonus, defBonus, spiritBonus, wisdomBonus, timer: 180 }
+    }
   }
   g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
   if (g.events) g.events.emit('run:start')
@@ -354,8 +361,12 @@ function resumeRun(g) {
   g.turnCount = 0; g.combo = 0
   // 恢复修炼经验累积
   for (const k of EXP_FIELDS) g[k] = s[k] || 0
-  // 肉鸽模式不使用修炼加成（修炼加成仅固定关卡）
-  g._cultDmgReduce = 0; g._cultHeartBase = 0
+  // 肉鸽模式恢复修炼加成（100%）
+  {
+    const cult = g.storage.cultivation
+    g._cultDmgReduce = Math.round(cultEffectValue('defense', cult.levels.defense))
+    g._cultHeartBase = +cultEffectValue('spirit', cult.levels.spirit).toFixed(2)
+  }
   g.curEvent = s.curEvent
   // 兜底：如果存档中 curEvent 为空，重新生成当前层事件
   if (!g.curEvent) {
