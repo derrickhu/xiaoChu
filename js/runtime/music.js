@@ -14,9 +14,17 @@ class MusicManager {
   constructor() {
     this.enabled = true
     this.bgmEnabled = true
+    this._bgmVolume = 0.5  // 0~1，对应用户设置 0~100
     // 音效实例池：复用高频音效实例，减少GC
     this._sfxPool = {}
     this._poolSize = 4
+  }
+
+  /** 设置BGM音量（0~1），实时生效 */
+  setBgmVolume(vol) {
+    this._bgmVolume = Math.max(0, Math.min(1, vol))
+    if (this._bgm) this._bgm.volume = this._bgmVolume
+    if (this._bossBgm) this._bossBgm.volume = Math.min(1, this._bgmVolume * 1.2)
   }
 
   // ============ 背景音乐 ============
@@ -32,7 +40,7 @@ class MusicManager {
     this._bgm = P.createInnerAudioContext()
     this._bgm.src = 'audio_bgm/bgm.mp3'
     this._bgm.loop = true
-    this._bgm.volume = 0.04
+    this._bgm.volume = this._bgmVolume
     this._bgm.playbackRate = 1.0
     this._bgm.onCanplay(() => {
       this._bgm.playbackRate = 1.0
@@ -60,7 +68,7 @@ class MusicManager {
       this._bossBgm = P.createInnerAudioContext()
       this._bossBgm.src = 'audio_bgm/boss_bgm.mp3'
       this._bossBgm.loop = true
-      this._bossBgm.volume = 0.05
+      this._bossBgm.volume = Math.min(1, this._bgmVolume * 1.2)
       this._bossBgm.playbackRate = 1.0
     }
     this._bossBgm.play()

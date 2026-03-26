@@ -7,10 +7,9 @@ const runMgr = require('../engine/runManager')
 
 
 function tTitle(g, type, x, y) {
-  if (type !== 'end') return
-
   // ① 侧边栏复访弹窗
   if (g.showSidebarPanel) {
+    if (type !== 'end') return
     if (g._sidebarClaimRect && g._hitRect(x, y, ...g._sidebarClaimRect)) {
       const ok = g.storage.claimSidebarReward()
       if (ok) console.log('[Sidebar] 领取侧边栏复访奖励：体力+30')
@@ -36,6 +35,18 @@ function tTitle(g, type, x, y) {
 
   // ① 「更多」面板（最高优先级）
   if (g.showMorePanel) {
+    // 音量滑条：支持拖拽（start/move/end 都处理）
+    if (g._bgmVolSlider && (type === 'start' || type === 'move' || type === 'end')) {
+      const sl = g._bgmVolSlider
+      if (y >= sl.y - 10 && y <= sl.y + sl.h + 10 && x >= sl.sliderX - 20 && x <= sl.sliderX + sl.sliderW + 20) {
+        const pct = Math.max(0, Math.min(1, (x - sl.sliderX) / sl.sliderW))
+        const vol = Math.round(pct * 100)
+        g.storage.setBgmVolume(vol)
+        MusicMgr.setBgmVolume(vol / 100)
+        return
+      }
+    }
+    if (type !== 'end') return
     const panelY = g._morePanelY
     if (panelY && y < panelY) { g.showMorePanel = false; return }
     const rects = g._morePanelRects || {}
@@ -47,6 +58,8 @@ function tTitle(g, type, x, y) {
     }
     return
   }
+
+  if (type !== 'end') return
 
   // ② 开始/继续确认弹窗
   if (g.showTitleStartDialog) {

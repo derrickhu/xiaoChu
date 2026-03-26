@@ -602,7 +602,7 @@ function drawMorePanel(g) {
   ctx.fillStyle = 'rgba(0,0,0,0.5)'
   ctx.fillRect(0, 0, W, H)
 
-  const panelH = 200 * S + L.safeBottom
+  const panelH = 244 * S + L.safeBottom
   const panelY = H - panelH
   const rad = 16 * S
 
@@ -625,6 +625,7 @@ function drawMorePanel(g) {
   const items = [
     { key: 'sfx',      label: '音效',     toggle: g.storage.settings.sfxOn },
     { key: 'bgm',      label: '背景音乐', toggle: g.storage.settings.bgmOn },
+    { key: 'bgmVol',   label: '音乐音量', slider: true, value: g.storage.settings.bgmVolume != null ? g.storage.settings.bgmVolume : 50 },
     { key: 'feedback', label: '意见反馈', toggle: null },
   ]
 
@@ -635,6 +636,7 @@ function drawMorePanel(g) {
 
   g._morePanelRects = {}
   g._morePanelY = panelY
+  g._bgmVolSlider = null
 
   for (const item of items) {
     ctx.fillStyle = 'rgba(40,35,60,0.6)'
@@ -645,7 +647,40 @@ function drawMorePanel(g) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     ctx.fillText(item.label, listX + 12 * S, itemY + (itemH - 4 * S) / 2)
 
-    if (item.toggle !== null && item.toggle !== undefined) {
+    if (item.slider) {
+      // 音量滑条
+      const sliderW = listW * 0.45
+      const sliderX = listX + listW - sliderW - 12 * S
+      const sliderY = itemY + (itemH - 4 * S) / 2
+      const trackH = 4 * S
+      const pct = item.value / 100
+
+      // 轨道背景
+      ctx.fillStyle = 'rgba(100,100,120,0.5)'
+      R.rr(sliderX, sliderY - trackH / 2, sliderW, trackH, trackH / 2); ctx.fill()
+      // 已填充部分
+      const fillW = sliderW * pct
+      if (fillW > 0) {
+        ctx.fillStyle = 'rgba(77,204,77,0.8)'
+        R.rr(sliderX, sliderY - trackH / 2, fillW, trackH, trackH / 2); ctx.fill()
+      }
+      // 滑块圆点
+      const knobR = 8 * S
+      const knobX = sliderX + fillW
+      ctx.beginPath()
+      ctx.arc(knobX, sliderY, knobR, 0, Math.PI * 2)
+      ctx.fillStyle = '#fff'; ctx.fill()
+      ctx.strokeStyle = 'rgba(77,204,77,0.8)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+
+      // 百分比文字
+      ctx.fillStyle = '#ccc'
+      ctx.font = `${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`${item.value}%`, listX + listW - 4 * S, sliderY)
+
+      g._bgmVolSlider = { x: sliderX, y: sliderY - knobR, w: sliderW, h: knobR * 2, sliderX, sliderW }
+      g._morePanelRects[item.key] = [sliderX - knobR, sliderY - knobR, sliderW + knobR * 2, knobR * 2]
+    } else if (item.toggle !== null && item.toggle !== undefined) {
       const swW = 40 * S, swH = 22 * S
       const swX = listX + listW - swW - 8 * S
       const swY = itemY + (itemH - 4 * S) / 2 - swH / 2

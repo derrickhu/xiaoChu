@@ -89,6 +89,9 @@ class Main {
     })
 
     initState(this)
+    // 从存档恢复BGM音量设置
+    const savedBgmVol = this.storage.settings.bgmVolume
+    MusicMgr.setBgmVolume((savedBgmVol != null ? savedBgmVol : 50) / 100)
     R._onImageLoad = () => { this._dirty = true }
 
     this.events.on('scene:change', (newScene) => {

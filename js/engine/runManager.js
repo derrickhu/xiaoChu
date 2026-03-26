@@ -20,6 +20,7 @@ const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
 const { calcRoguelikePetExp } = require('../data/petPoolConfig')
 const { initBoard } = require('./battle')
 const ViewEnv = require('../views/env')
+const { isCurrentUserGM } = require('../data/gmConfig')
 
 /** 轻量深拷贝（仅用于可 JSON 序列化的游戏状态对象） */
 function _deepClone(obj) {
@@ -61,6 +62,7 @@ function startRun(g) {
   g.battleMode = 'roguelike'
   g.floor = 0
   g.cleared = false
+  g._isGM = isCurrentUserGM()  // GM标记：影响跳过按钮和排行提交
   // 道具系统：每局最多各用一次，需先分享获取再使用
   g.itemResetObtained = false  // 乾坤重置 — 已获取（分享后）
   g.itemResetUsed = false      // 乾坤重置 — 已使用
@@ -270,7 +272,7 @@ function endRun(g) {
   // 胜/败才算完成一局
   g.storage._d.totalRuns++; g.storage._save()
   g.storage.clearRunState()
-  if (g.storage.userAuthorized) {
+  if (g.storage.userAuthorized && !g._isGM) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
     g.storage.submitDexAndCombo()
   }
@@ -478,9 +480,23 @@ function useItemHeal(g) {
   return true
 }
 
+/** GM跳过当前战斗：直接击杀敌人进入胜利 */
+function gmSkipBattle(g) {
+  if (!g._isGM || !g.enemy || g.bState !== 'playerTurn') return false
+  g.enemy.hp = 0
+  g.lastTurnCount = g.turnCount
+  g.lastSpeedKill = false
+  g.runTotalTurns = (g.runTotalTurns || 0) + g.turnCount
+  MusicMgr.playVictory()
+  g.bState = 'victory'
+  g._enemyDeathAnim = { timer: 0, duration: 45 }
+  return true
+}
+
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
   startRun, nextFloor, restoreBattleHpMax, settleExp, endRun, saveAndExit, resumeRun,
   onDefeat, doAdRevive, adReviveCallback,
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
+  gmSkipBattle,
 }

@@ -8,6 +8,7 @@ const tutorial = require('../engine/tutorial')
 const MusicMgr = require('../runtime/music')
 const Particles = require('../engine/particles')
 const FXComposer = require('../engine/effectComposer')
+const { isCurrentUserGM } = require('../data/gmConfig')
 
 // ===== 战斗布局缓存（避免每帧重算常量布局值） =====
 let _layoutCache = null
@@ -458,6 +459,25 @@ function rBattle(g) {
   if (g._pendingEnemyAtk && g.bState === 'playerTurn') _drawEnemyTurnBanner(g)
 
   g._debugSkipRect = null
+  g._gmSkipRect = null
+
+  // GM跳过按钮（仅GM玩家在战斗中可见，实时检查openid）
+  const _isGM = g._isGM || isCurrentUserGM()
+  if (_isGM) g._isGM = true
+  if (_isGM && (g.bState === 'playerTurn' || g.bState === 'enemyTurn')) {
+    const gmBtnW = 60*S, gmBtnH = 28*S
+    const gmBtnX = 76*S, gmBtnY = safeTop + 8*S
+    ctx.save()
+    ctx.fillStyle = 'rgba(200,30,60,0.85)'
+    R.rr(gmBtnX, gmBtnY, gmBtnW, gmBtnH, 8*S); ctx.fill()
+    ctx.strokeStyle = '#ff6688'; ctx.lineWidth = 1*S
+    R.rr(gmBtnX, gmBtnY, gmBtnW, gmBtnH, 8*S); ctx.stroke()
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('GM跳过', gmBtnX + gmBtnW/2, gmBtnY + gmBtnH/2)
+    ctx.restore()
+    g._gmSkipRect = [gmBtnX, gmBtnY, gmBtnW, gmBtnH]
+  }
 
   if (g.bState === 'waveTransition') _drawWaveTransition(g)
   if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)

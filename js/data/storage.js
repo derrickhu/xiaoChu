@@ -35,6 +35,7 @@ function defaultPersist() {
     settings: {
       bgmOn: true,
       sfxOn: true,
+      bgmVolume: 50,  // 背景音乐音量 0~100，默认50
     },
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
@@ -218,6 +219,13 @@ class Storage {
     this._d.settings.sfxOn = !this._d.settings.sfxOn
     this._save()
     return this._d.settings.sfxOn
+  }
+
+  /** 设置背景音乐音量（0~100） */
+  setBgmVolume(vol) {
+    this._d.settings.bgmVolume = Math.max(0, Math.min(100, Math.round(vol)))
+    this._save()
+    return this._d.settings.bgmVolume
   }
 
   // 图鉴：记录收集到3星的宠物

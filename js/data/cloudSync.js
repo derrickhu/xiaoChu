@@ -195,6 +195,7 @@ async function _ensureCollections() {
 async function _getOpenid() {
   const r = await P.cloud.callFunction({ name: 'getOpenid' })
   _openid = (r.result && r.result.openid) || ''
+  console.log('[CloudSync] 当前用户 openid:', _openid)
 }
 
 // ===== 初始化入口 =====
