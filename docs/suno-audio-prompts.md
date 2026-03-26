@@ -32,61 +32,41 @@ feeling of immortal cultivator in tranquil spirit realm
 
 ### 2. `boss_bgm.mp3` — Boss战 BGM（生死对决，极度紧张）
 
-> ⚠️ **与普通BGM区分关键**：
-> - 主界面BGM：空灵禅意、92 BPM、大调、温暖
-> - Boss BGM：**黑暗压迫、180 BPM、小调、刺耳**
-> - 使用**不协和音程**（三全音、小二度）制造紧张
-> - **持续高压**，绝无喘息机会
+> ⚠️ **核心要求**：从第一个毫秒就是**最大音量、最大强度**，绝对没有前奏、没有渐入、没有build-up！
 
 **Suno Prompt:**
 ```
-Style of Music: Chinese dark battle orchestral, desperate xianxia boss fight
-NO INTRO NO BUILDUP, instant full assault from millisecond zero,
-180 BPM relentless assault that never ever lets up,
+NO INTRO. START AT MAXIMUM VOLUME FROM BEAT 1.
 
-RHYTHM SECTION:
-- massive taiko and tanggu war drums at maximum velocity
-- double-time drum pattern with syncopated accents
-- bass drum hits like heartbeat about to explode
-- relentless 16th note pulse that creates panic,
+Chinese dark battle music, 180 BPM, boss fight to the death.
 
-MELODY AND HARMONY:
-- erhu SCREAMING in highest register with distortion,
-- dissonant tritone intervals (Diablo in Chinese style),
-- pipa shredding at inhuman speed with aggressive plectrum,
-- guzheng violent glissandos like lightning strikes,
-- minor second intervals creating unease and dread,
-- NO pentatonic sweetness, only harsh dark intervals,
+INSTRUMENTS ATTACKING IMMEDIATELY:
+- Taiko drums POUNDING at full force from second 0
+- Erhu SCREAMING at highest pitch with distortion
+- Pipa shredding violently non-stop
+- Brass BLASTING aggressive stabs
+- Strings at maximum tremolo intensity
 
-ORCHESTRATION:
-- brass section blasting aggressive stabs every 2 bars,
-- strings tremolo at fortissimo creating wall of tension,
-- low Chinese gongs ringing with ominous decay,
-- occasional bamboo flute playing haunting dissonant trills,
+SOUND CHARACTERISTICS:
+- Harsh and aggressive, NO beauty NO sweetness
+- Dissonant chords (tritones, minor 2nds) everywhere
+- Relentless 16th note pulse creating panic
+- Never slows down, never gets quiet
+- Pure chaos and desperation
+- Life-or-death feeling
 
-EMOTIONAL ARC:
-- pure life-or-death desperation throughout,
-- no relief no quiet moments no breathers,
-- demonic qi energy suffocating the space,
-- feeling of cultivator facing ancient evil spirit,
-- heart-pounding adrenaline from start to finish,
+MOOD: Demon lord boss, ancient evil awakening, player about to die any second.
 
-NO VOCALS, seamless loop, maximum intensity always,
-should make player feel they might die any second
+NO VOCALS. SEAMLESS LOOP. NO QUIET MOMENTS. MAXIMUM INTENSITY ALWAYS.
 ```
 
-**Tags:** `boss fight`, `dark orchestral`, `180bpm`, `intense battle`, `chinese horror`, `desperate fight`, `no buildup`, `tritone dissonance`
+**Tags:** `boss battle`, `180bpm`, `intense`, `aggressive`, `no intro`, `dark orchestral`, `desperate fight`
 
 **时长:** 90秒 | **循环:** 是 | **导出:** MP3 128kbps
 
-> **区分度对比**：
-> | 元素 | 主界面BGM | Boss BGM |
-> |------|----------|----------|
-> | BPM | 92 | 180 |
-> | 调性 | 大调五声 | 小调+不协和 |
-> | 情绪 | 空灵禅意 | 黑暗压迫 |
-> | 音程 | 纯四/五度 | 三全音/小二度 |
-> | 动态 | 舒缓流动 | 持续高压 |
+> **关键区分点**：
+> - ❌ 绝对禁止：前奏、渐入、build-up、安静段落、舒缓旋律
+> - ✅ 必须要有：瞬炸开场、持续高压、不协和音程、最快节奏
 
 ---
 
