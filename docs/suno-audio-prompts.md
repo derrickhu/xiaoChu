@@ -30,43 +30,51 @@ feeling of immortal cultivator in tranquil spirit realm
 
 ---
 
-### 2. `boss_bgm.mp3` — Boss战 BGM（生死对决，极度紧张）
+### 2. `boss_bgm.mp3` — Boss战 BGM（神秘紧张，古风生死战）
 
-> ⚠️ **核心要求**：从第一个毫秒就是**最大音量、最大强度**，绝对没有前奏、没有渐入、没有build-up！
+> ⚠️ **核心要求**：
+> - **紧张刺激**：180 BPM、持续高压、瞬炸开场
+> - **修仙神秘**：古筝/琵琶/二胡、东方音阶、仙魔对决氛围
+> - 两相结合：用古老神秘乐器演奏出最激烈的战斗
 
 **Suno Prompt:**
 ```
-NO INTRO. START AT MAXIMUM VOLUME FROM BEAT 1.
+Chinese xianxia boss battle music, mysterious and intense.
 
-Chinese dark battle music, 180 BPM, boss fight to the death.
+TEMPO: 180 BPM, no intro, starts at full intensity immediately.
 
-INSTRUMENTS ATTACKING IMMEDIATELY:
-- Taiko drums POUNDING at full force from second 0
-- Erhu SCREAMING at highest pitch with distortion
-- Pipa shredding violently non-stop
-- Brass BLASTING aggressive stabs
-- Strings at maximum tremolo intensity
+INSTRUMENTS (Ancient Chinese + Dramatic):
+- Guzheng: rapid aggressive glissandos like lightning strikes
+- Pipa: violent tremolo shredding at maximum speed
+- Erhu: screaming melody in haunting mysterious scale
+- Taiko war drums: relentless pounding bass rhythm
+- Bianzhong (ancient bronze bells): ominous tolling chords
+- Dizi (bamboo flute): occasional dissonant trills from the void
 
-SOUND CHARACTERISTICS:
-- Harsh and aggressive, NO beauty NO sweetness
-- Dissonant chords (tritones, minor 2nds) everywhere
-- Relentless 16th note pulse creating panic
-- Never slows down, never gets quiet
-- Pure chaos and desperation
-- Life-or-death feeling
+MUSICAL STYLE:
+- Pentatonic scale but in dark mysterious mode
+- Tritone intervals for tension (ancient forbidden interval)
+- Minor key with eerie overtones
+- Constant driving rhythm, never slows
+- Feel of ancient demon lord awakening in spirit realm
 
-MOOD: Demon lord boss, ancient evil awakening, player about to die any second.
+ATMOSPHERE:
+- Mystical ancient Chinese temple under siege
+- Cultivator facing thousand-year-old evil spirit
+- Dark qi energy swirling, reality bending
+- Life-or-death battle in forbidden realm
+- Desperate but epic, terrifying but grand
 
-NO VOCALS. SEAMLESS LOOP. NO QUIET MOMENTS. MAXIMUM INTENSITY ALWAYS.
+DYNAMICS: Maximum intensity throughout, no quiet moments, seamless loop, no vocals.
 ```
 
-**Tags:** `boss battle`, `180bpm`, `intense`, `aggressive`, `no intro`, `dark orchestral`, `desperate fight`
+**Tags:** `xianxia boss`, `chinese dark`, `180bpm`, `mysterious`, `ancient battle`, `taiko`, `erhu`, `pipa`, `demon fight`
 
 **时长:** 90秒 | **循环:** 是 | **导出:** MP3 128kbps
 
-> **关键区分点**：
-> - ❌ 绝对禁止：前奏、渐入、build-up、安静段落、舒缓旋律
-> - ✅ 必须要有：瞬炸开场、持续高压、不协和音程、最快节奏
+> **氛围描述**：
+> 想象一位修仙者在**上古禁地**中，面对沉睡千年的**魔尊苏醒**。
+> 编钟回荡、古筝急奏、战鼓雷动——既有东方神秘，又有生死压迫。
 
 ---
 
