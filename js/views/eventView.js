@@ -1132,9 +1132,9 @@ function rEvent(g) {
     const fadePct = cb.timer < 30 ? cb.timer / 30 : (cb.timer > 150 ? Math.min(1, (180 - cb.timer) / 30) : 1)
     ctx.save()
     ctx.globalAlpha = fadePct * 0.95
-    // 半透明底板
+    // 半透明底板（放在队伍区域与进入战斗按钮之间的空白处）
     const panelW = W * 0.7, panelH = 60 * S
-    const panelX = (W - panelW) / 2, panelY = curY - 8 * S
+    const panelX = (W - panelW) / 2, panelY = H * 0.58
     ctx.fillStyle = 'rgba(20,15,40,0.85)'
     ctx.beginPath()
     const rr = 8 * S
