@@ -30,28 +30,63 @@ feeling of immortal cultivator in tranquil spirit realm
 
 ---
 
-### 2. `boss_bgm.mp3` — Boss战 BGM（紧张激烈）
+### 2. `boss_bgm.mp3` — Boss战 BGM（生死对决，极度紧张）
+
+> ⚠️ **与普通BGM区分关键**：
+> - 主界面BGM：空灵禅意、92 BPM、大调、温暖
+> - Boss BGM：**黑暗压迫、180 BPM、小调、刺耳**
+> - 使用**不协和音程**（三全音、小二度）制造紧张
+> - **持续高压**，绝无喘息机会
 
 **Suno Prompt:**
 ```
-Style of Music: Chinese epic battle orchestral, intense xianxia combat
-NO INTRO, start immediately with full intensity from beat one,
-massive taiko war drums pounding fast relentless rhythm,
-aggressive pipa tremolo shredding at maximum speed,
-erhu screaming power melody in minor pentatonic,
-guzheng rapid glissando strikes between drum hits,
-deep brass stabs and cinematic strings staccato,
-tempo 160 BPM high energy non-stop, never slowing down,
-drum fills and cymbal crashes every 4 bars keeping pressure,
-dark demonic qi energy, desperate life-or-death battle,
-boss fight panic and adrenaline rush,
-heavy sub bass drops shaking the earth,
-no vocals, seamless loop, no quiet sections, always intense
+Style of Music: Chinese dark battle orchestral, desperate xianxia boss fight
+NO INTRO NO BUILDUP, instant full assault from millisecond zero,
+180 BPM relentless assault that never ever lets up,
+
+RHYTHM SECTION:
+- massive taiko and tanggu war drums at maximum velocity
+- double-time drum pattern with syncopated accents
+- bass drum hits like heartbeat about to explode
+- relentless 16th note pulse that creates panic,
+
+MELODY AND HARMONY:
+- erhu SCREAMING in highest register with distortion,
+- dissonant tritone intervals (Diablo in Chinese style),
+- pipa shredding at inhuman speed with aggressive plectrum,
+- guzheng violent glissandos like lightning strikes,
+- minor second intervals creating unease and dread,
+- NO pentatonic sweetness, only harsh dark intervals,
+
+ORCHESTRATION:
+- brass section blasting aggressive stabs every 2 bars,
+- strings tremolo at fortissimo creating wall of tension,
+- low Chinese gongs ringing with ominous decay,
+- occasional bamboo flute playing haunting dissonant trills,
+
+EMOTIONAL ARC:
+- pure life-or-death desperation throughout,
+- no relief no quiet moments no breathers,
+- demonic qi energy suffocating the space,
+- feeling of cultivator facing ancient evil spirit,
+- heart-pounding adrenaline from start to finish,
+
+NO VOCALS, seamless loop, maximum intensity always,
+should make player feel they might die any second
 ```
 
-**Tags:** `boss fight`, `chinese epic battle`, `taiko drums`, `xianxia combat`, `fast intense`, `160bpm`
+**Tags:** `boss fight`, `dark orchestral`, `180bpm`, `intense battle`, `chinese horror`, `desperate fight`, `no buildup`, `tritone dissonance`
 
 **时长:** 90秒 | **循环:** 是 | **导出:** MP3 128kbps
+
+> **区分度对比**：
+> | 元素 | 主界面BGM | Boss BGM |
+> |------|----------|----------|
+> | BPM | 92 | 180 |
+> | 调性 | 大调五声 | 小调+不协和 |
+> | 情绪 | 空灵禅意 | 黑暗压迫 |
+> | 音程 | 纯四/五度 | 三全音/小二度 |
+> | 动态 | 舒缓流动 | 持续高压 |
 
 ---
 
@@ -100,20 +135,40 @@ bright major pentatonic, joyful and glorious, no vocals
 ## 二、SFX 战斗音效（打击爽感核心）
 
 > **关键原则**：打击音效要有 **肉感和冲击力**，不能薄和虚。
-> 低频给力量感，中频给存在感，高频给清脆反馈。
+> - **低频（100-250Hz）**：给力量感、拳头感
+> - **中频（500-2kHz）**：给存在感、识别度
+> - **高频（4-8kHz）**：给清脆反馈、打击感
+> - **瞬态**：必须有清晰 sharp 的 attack，不能软绵绵
 
-### 5. `attack.mp3` — 英雄普攻（要有打击爽感！）
+### 5. `attack.mp3` — 英雄普攻（打击爽感核心！）
+
+> ⚠️ 这是玩家听到最多的音效，必须**极致爽快**！
 
 **Suno Prompt:**
 ```
 [Sound Effect]
-sharp sword qi slash cutting through air with jade resonance,
-fast metallic SWOOSH followed by solid stone IMPACT hit,
-like immortal cultivator sword strike on demon,
-punchy mid-bass thud with bright high-frequency ring,
-short 0.3 second duration, clean powerful transient,
-satisfying melee hit with weight and crunch
+immortal sword qi slash with devastating impact,
+
+PHASE 1 (0.0-0.05s) - CUT:
+- sharp metallic SWOOSH cutting through air at high velocity,
+- bright high-frequency razor edge sound,
+
+PHASE 2 (0.05-0.15s) - IMPACT:
+- solid HEAVY impact with satisfying THUD,
+- mid-bass punch at 150-250Hz for weight and power,
+- jade crystal shattering undertone,
+- like blade hitting demon armor with full force,
+
+PHASE 3 (0.15-0.30s) - DECAY:
+- quick ring decay with slight metallic resonance,
+- no muddy tail, clean cutoff,
+
+TOTAL 0.3 seconds,
+must feel PUNCHY and POWERFUL,
+player should feel satisfaction on every tap
 ```
+
+**Tags:** `sword slash`, `impact hit`, `melee attack`, `satisfying`, `punchy`
 
 ---
 
@@ -135,17 +190,34 @@ pentatonic friendly base tone for combo system
 
 ---
 
-### 7. `eliminate.mp3` — 珠子消除（清脆满足感）
+### 7. `eliminate.mp3` — 珠子消除（消除爽感核心！）
+
+> ⚠️ 三消游戏的灵魂音效，每次消除都要有**满足感**！
 
 **Suno Prompt:**
 ```
 [Sound Effect]
-sparkling spirit beads shattering into light particles,
-ascending twinkle like three jade gems dissolving,
-bright crystalline POP with airy sparkle tail,
-satisfying match-3 clear sound, magical and crisp,
-0.3 second duration, high frequency dominant
+spirit bead match explosion with satisfying sparkle,
+
+PHASE 1 (0.0-0.08s) - BURST:
+- crystalline POP with quick upward pitch sweep,
+- like three jade gems simultaneously detonating into light,
+
+PHASE 2 (0.08-0.20s) - SPARKLE:
+- high-frequency shimmer cascade,
+- multiple tiny crystal fragments twinkling,
+- airy magical particles dissipating,
+
+PHASE 3 (0.20-0.35s) - FADE:
+- gentle high-frequency fadeout,
+- clean ending no mud,
+
+TOTAL 0.35 seconds,
+must feel REWARDING and SATISFYING,
+instant dopamine hit on every match
 ```
+
+**Tags:** `gem match`, `puzzle clear`, `sparkle pop`, `satisfying`, `magical`
 
 ---
 
