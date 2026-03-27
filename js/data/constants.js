@@ -80,6 +80,34 @@ const IDLE_MAX_ACCUMULATE = 24 * 3600 * 1000
 const IDLE_PET_EXP_PER_HOUR = 8
 const IDLE_PET_LV_EXP_FACTOR = 0.02
 
+// ===== 连击里程碑 (COMBO) =====
+// 阈值: 显示特殊文字的连击数
+// 文案: 对应里程碑显示的文字
+// 后续调整阶梯值只需改这里
+const COMBO_MILESTONES = [
+  { threshold: 3,  text: '破!',    color: '#4d88ff',  tier: 1 },  // 初级
+  { threshold: 6,  text: '无双!',  color: '#ff8c00',  tier: 2 },  // 中级
+  { threshold: 9,  text: '神威!',  color: '#ff4d6a',  tier: 3 },  // 高级
+  { threshold: 12, text: '天选!',  color: '#9d4dff',  tier: 4 },  // 顶级
+  { threshold: 15, text: '传说!',  color: '#ffd700',  tier: 5 },  // 传说
+  { threshold: 18, text: '神话!',  color: '#ff2a6a',  tier: 6 },  // 神话
+]
+const COMBO_MILESTONE_INTERVAL = 3  // 里程碑间隔（用于震动判断等）
+
+// 获取当前连击数对应的里程碑档位 (0=未命中任何里程碑)
+function getComboTier(combo) {
+  if (!combo || combo < COMBO_MILESTONES[0].threshold) return 0
+  for (let i = COMBO_MILESTONES.length - 1; i >= 0; i--) {
+    if (combo >= COMBO_MILESTONES[i].threshold) return COMBO_MILESTONES[i].tier
+  }
+  return 0
+}
+
+// 判断是否是里程碑阈值（精确匹配）
+function isComboMilestone(combo) {
+  return COMBO_MILESTONES.some(m => m.threshold === combo)
+}
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -138,4 +166,9 @@ module.exports = {
   IDLE_MAX_ACCUMULATE,
   IDLE_PET_EXP_PER_HOUR,
   IDLE_PET_LV_EXP_FACTOR,
+  // COMBO
+  COMBO_MILESTONES,
+  COMBO_MILESTONE_INTERVAL,
+  getComboTier,
+  isComboMilestone,
 }

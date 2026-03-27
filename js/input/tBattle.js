@@ -79,6 +79,7 @@ function tBattle(g, type, x, y) {
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
   if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
+  
   // GM跳过战斗
   if (type === 'end' && g._isGM && g._gmSkipRect && g._hitRect(x,y,...g._gmSkipRect)) {
     runMgr.gmSkipBattle(g); return

@@ -1,11 +1,12 @@
 const P = require('../platform')
+const { COMBO_MILESTONES, getComboTier } = require('../data/constants')
 /**
  * 灵宠消消塔 - 国风音效管理（增强版）
  * 音色风格：古筝、竹笛、钟磬、玉石、鼓点
  * 
  * 核心设计理念：
  * 1. 连击递进爽感 - combo音效随连击数音高递升+音量渐强，爽感拉满
- * 2. 里程碑突破感 - 5/8/12连击播放特殊升阶音效，强化成就感
+ * 2. 里程碑突破感 - 3/6/9/12连击播放特殊升阶音效，强化成就感（配置化）
  * 3. 消除层次感   - 3/4/5消音高递升，区分消除规模
  * 4. 交互反馈感   - 拾起、交换、暴击等细节音效全覆盖
  * 5. 打击节奏感   - 攻击/受击音效精确时序编排
@@ -136,17 +137,23 @@ class MusicManager {
   }
 
   /**
-   * 连击里程碑突破音效 — 和弦式爆发
-   * 5连(Sol): 主音+三度+五度 模拟大三和弦
-   * 8连(Do'): 高八度主音+五度 力量和弦
-   * 12连+:   全音阶扫弦式爆发
+   * 连击里程碑突破音效 — 和弦式爆发（配置化）
+   * 根据 COMBO_MILESTONES 配置的阈值播放不同层级音效
+   * tier 1-2: 和弦铺垫
+   * tier 3-4: 力量和弦  
+   * tier 5-6: 全爆发扫弦
    * @param {number} comboNum 当前连击数
    */
   playComboMilestone(comboNum) {
     if (!this.enabled) return
     const scale = MusicManager.SCALE
-    if (comboNum === 5) {
-      // Sol大三和弦：Sol + Si + Re'
+    const tier = getComboTier(comboNum)
+    
+    // 获取当前里程碑配置
+    const milestone = COMBO_MILESTONES.find(m => m.threshold === comboNum)
+    
+    if (tier === 1 || tier === 2) {
+      // 初级/中级里程碑：Sol大三和弦
       this._playSfxEx('audio/levelup.mp3', 0.6, scale[4])  // Sol
       setTimeout(() => {
         if (this.enabled) {
@@ -154,8 +161,8 @@ class MusicManager {
           this._playSfxEx('audio/eliminate.mp3', 0.35, scale[7]) // Do'
         }
       }, 40)
-    } else if (comboNum === 8) {
-      // 高八度力量和弦
+    } else if (tier === 3 || tier === 4) {
+      // 高级/顶级里程碑：高八度力量和弦
       this._playSfxEx('audio/skill.mp3', 0.7, scale[7])  // Do'
       setTimeout(() => {
         if (this.enabled) {
@@ -163,8 +170,8 @@ class MusicManager {
           this._playSfxEx('audio/attack.mp3', 0.4, scale[7]) // Do'
         }
       }, 50)
-    } else if (comboNum >= 12) {
-      // 全爆发：boss低音 + 快速上行扫弦
+    } else if (tier >= 5) {
+      // 传说/神话里程碑：全爆发
       this._playSfxEx('audio/boss.mp3', 0.6, scale[0])
       setTimeout(() => {
         if (this.enabled) {
@@ -174,8 +181,10 @@ class MusicManager {
         }
       }, 60)
     }
-    // 整10里程碑额外冲击音（10/20/30…）
-    if (comboNum >= 10 && comboNum % 10 === 0) {
+    
+    // 整3倍数里程碑额外冲击音（在配置的间隔基础上）
+    const interval = COMBO_MILESTONES[1] ? COMBO_MILESTONES[1].threshold - COMBO_MILESTONES[0].threshold : 3
+    if (comboNum >= 9 && comboNum % interval === 0) {
       const impactVol = Math.min(0.8, 0.5 + (comboNum / 10) * 0.1)
       this._playSfxEx('audio/boss.mp3', impactVol, 0.6)
       setTimeout(() => {

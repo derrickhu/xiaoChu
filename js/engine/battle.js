@@ -13,6 +13,7 @@ const tutorial = require('./tutorial')
 const { tween, Ease } = require('./tween')
 const Particles = require('./particles')
 const { killExpBase } = require('../data/cultivationConfig')
+const { COMBO_MILESTONES, COMBO_MILESTONE_INTERVAL, getComboTier, isComboMilestone } = require('../data/constants')
 
 // 击杀经验（统一调用避免遗漏）
 function _addKillExp(g) {
@@ -172,32 +173,32 @@ function startNextElimAnim(g) {
       })
     }
   }
-  // Combo弹出动画
+  // Combo弹出动画（使用配置的分档）
+  const tier = getComboTier(g.combo)
+  const isTierBreak = isComboMilestone(g.combo)
   g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
-  g._comboFlash = g.combo >= 5 ? 12 : 8
-  const isTierBreak = g.combo === 5 || g.combo === 8 || g.combo === 12 || g.combo === 16
+  g._comboFlash = tier >= 1 ? 12 : 8
   if (isTierBreak) {
     g._comboFlash = 16
     g._comboAnim.scale = 3.5; g._comboAnim._initScale = 3.5
   }
   // ★ Combo里程碑：仅保留视觉特效提示，不再给予隐藏的buff/护盾/回血
-  // （原设计：5连护盾、8连攻击+40%、12连伤害+80%+暴击、16连伤害+120%+暴击+回血+盾）
-  // 去掉原因：玩家无法感知来源，combo不断技能配合下数值爆炸
-  // 粒子
-  const pCount = (g.combo >= 12 ? 40 : g.combo >= 8 ? 28 : g.combo >= 5 ? 18 : 10) + (isTierBreak ? 20 : 0)
+  // 粒子数量根据 tier 递增
+  const pCount = (tier >= 4 ? 40 : tier >= 3 ? 32 : tier >= 2 ? 24 : tier >= 1 ? 18 : 10) + (isTierBreak ? 20 : 0)
   const pCx = W * 0.5, pCy = g.boardY + (ROWS * g.cellSize) * 0.32
-  const pColors = g.combo >= 12 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
-    : g.combo >= 8 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
-    : g.combo >= 5 ? ['#ff8c00','#ffd700','#fff','#ffcc66']
+  const pColors = tier >= 4 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
+    : tier >= 3 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
+    : tier >= 2 ? ['#ff8c00','#ffd700','#fff','#ffcc66']
+    : tier >= 1 ? ['#4d88ff','#ffd700','#fff','#8ec5ff']
     : ['#ffd700','#ffe066','#fff']
   for (let i = 0; i < pCount; i++) {
     const angle = Math.random() * Math.PI * 2
-    const speed = (2 + Math.random() * 4) * S * (g.combo >= 8 ? 1.5 : 1)
+    const speed = (2 + Math.random() * 4) * S * (tier >= 2 ? 1.5 : 1)
     g._comboParticles.push({
       x: pCx, y: pCy,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - (1 + Math.random() * 2) * S,
-      size: (2 + Math.random() * 3) * S * (g.combo >= 8 ? 1.3 : 1),
+      size: (2 + Math.random() * 3) * S * (tier >= 2 ? 1.3 : 1),
       color: pColors[Math.floor(Math.random() * pColors.length)],
       life: 20 + Math.floor(Math.random() * 20),
       t: 0, gravity: 0.15 * S,
@@ -205,8 +206,8 @@ function startNextElimAnim(g) {
     })
   }
   if (isTierBreak) {
-    const ringCount = g.combo >= 12 ? 24 : g.combo >= 8 ? 18 : 12
-    const ringColors = g.combo >= 12 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : g.combo >= 8 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#ffd700','#ffcc66']
+    const ringCount = tier >= 4 ? 24 : tier >= 3 ? 21 : tier >= 2 ? 18 : 12
+    const ringColors = tier >= 4 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : tier >= 3 ? ['#fff','#9d4dff','#ffd700'] : tier >= 2 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#4d88ff','#ffd700']
     for (let i = 0; i < ringCount; i++) {
       const angle = (i / ringCount) * Math.PI * 2
       const spd = (4 + Math.random() * 2) * S
@@ -229,9 +230,26 @@ function startNextElimAnim(g) {
   }
   MusicMgr.playComboHit(g.combo)
   if (isTierBreak) MusicMgr.playComboMilestone(g.combo)
-  if (g.combo >= 12) { g.shakeT = isTierBreak ? 14 : 10; g.shakeI = (isTierBreak ? 8 : 6)*S }
-  else if (g.combo >= 8) { g.shakeT = isTierBreak ? 10 : 7; g.shakeI = (isTierBreak ? 5.5 : 4)*S }
-  else if (g.combo >= 5) { g.shakeT = isTierBreak ? 7 : 5; g.shakeI = (isTierBreak ? 3.5 : 2.5)*S }
+  
+  // 屏幕震动：里程碑震动更强（使用配置的最大阈值作为档位边界）
+  const maxThreshold = COMBO_MILESTONES[COMBO_MILESTONES.length - 1]?.threshold || 12
+  const isMilestone = g.combo % COMBO_MILESTONE_INTERVAL === 0
+  if (g.combo >= maxThreshold) { 
+    g.shakeT = isMilestone ? 18 : 12; 
+    g.shakeI = (isMilestone ? 10 : 7) * S 
+  }
+  else if (g.combo >= maxThreshold * 0.75) { 
+    g.shakeT = isMilestone ? 16 : 10; 
+    g.shakeI = (isMilestone ? 8 : 6) * S 
+  }
+  else if (g.combo >= maxThreshold * 0.5) { 
+    g.shakeT = isMilestone ? 14 : 8; 
+    g.shakeI = (isMilestone ? 7 : 5) * S 
+  }
+  else if (g.combo >= maxThreshold * 0.25) { 
+    g.shakeT = isMilestone ? 12 : 6; 
+    g.shakeI = (isMilestone ? 5 : 3) * S 
+  }
   if (g.runBuffs.bonusCombo > 0 && g.combo === 1) { g.combo += g.runBuffs.bonusCombo }
   // 消除倍率
   let elimMul = 1.0

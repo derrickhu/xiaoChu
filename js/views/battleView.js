@@ -9,6 +9,7 @@ const MusicMgr = require('../runtime/music')
 const Particles = require('../engine/particles')
 const FXComposer = require('../engine/effectComposer')
 const { isCurrentUserGM } = require('../data/gmConfig')
+const { COMBO_MILESTONES, getComboTier, isComboMilestone } = require('../data/constants')
 
 // ===== 战斗布局缓存（避免每帧重算常量布局值） =====
 let _layoutCache = null
@@ -461,10 +462,11 @@ function rBattle(g) {
   g._debugSkipRect = null
   g._gmSkipRect = null
 
-  // GM跳过按钮（仅GM玩家在战斗中可见，实时检查openid）
+  // GM按钮区域（仅GM玩家在战斗中可见，实时检查openid）
   const _isGM = g._isGM || isCurrentUserGM()
   if (_isGM) g._isGM = true
   if (_isGM && (g.bState === 'playerTurn' || g.bState === 'enemyTurn')) {
+    // GM跳过按钮
     const gmBtnW = 60*S, gmBtnH = 28*S
     const gmBtnX = 76*S, gmBtnY = safeTop + 8*S
     ctx.save()
@@ -843,7 +845,7 @@ function _drawComboBgEffects(cs) {
     ctx.restore()
   }
 
-  if ((cs.combo === 5 || cs.combo === 8 || cs.combo === 12) && ca.timer < 18) {
+  if (isComboMilestone(cs.combo) && ca.timer < 18) {
     ctx.save()
     const ringP = ca.timer / 18
     const ringR = baseSz * (0.5 + ringP * 3.5)
@@ -867,6 +869,68 @@ function _drawComboBgEffects(cs) {
     ctx.shadowBlur = 0
     ctx.restore()
   }
+}
+
+// ===== Combo里程碑文字（3/6/9/12连击，配置化） =====
+function _drawComboMilestone(cs) {
+  const { ctx, S, comboCx, comboCy, baseSz, comboScale, comboAlpha, ca, combo } = cs
+  
+  // 判断是否命中配置的里程碑
+  const milestone = COMBO_MILESTONES.find(m => combo === m.threshold)
+  if (!milestone || !ca || ca.timer > 50) return
+  
+  const mt = milestone.text
+  
+  ctx.save()
+  // 位置在连击数字上方
+  ctx.translate(comboCx, comboCy - baseSz * 1.3)
+  // 缩放动画：先大后小
+  const ms = comboScale * (0.8 + Math.max(0, 1 - ca.timer / 30) * 0.4)
+  ctx.scale(ms, ms)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = `italic 900 ${baseSz * 0.9}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  
+  // 渐变色根据连击数变化
+  const mg = ctx.createLinearGradient(-60*S, 0, 60*S, 0)
+  if (combo >= 20) {
+    mg.addColorStop(0, '#ff2050')
+    mg.addColorStop(0.5, '#ffd700')
+    mg.addColorStop(1, '#ff2050')
+  } else if (combo >= 15) {
+    mg.addColorStop(0, '#ff4d6a')
+    mg.addColorStop(0.5, '#ffa500')
+    mg.addColorStop(1, '#ff4d6a')
+  } else if (combo >= 10) {
+    mg.addColorStop(0, '#ff8c00')
+    mg.addColorStop(0.5, '#ffd700')
+    mg.addColorStop(1, '#ff8c00')
+  } else {
+    mg.addColorStop(0, '#ffd700')
+    mg.addColorStop(0.5, '#fff')
+    mg.addColorStop(1, '#ffd700')
+  }
+  
+  // 描边
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'
+  ctx.lineWidth = 5 * S
+  ctx.strokeText(mt, 0, 0)
+  
+  // 填充
+  ctx.fillStyle = mg
+  ctx.fillText(mt, 0, 0)
+  
+  // 闪光效果（前20帧）
+  if (ca.timer < 20) {
+    ctx.globalAlpha = (1 - ca.timer / 20) * 0.8
+    ctx.shadowColor = '#fff'
+    ctx.shadowBlur = 25 * S
+    ctx.fillStyle = '#fff'
+    ctx.fillText(mt, 0, 0)
+    ctx.shadowBlur = 0
+  }
+  
+  ctx.restore()
 }
 
 // ===== Combo主文字（"N 连击"） =====
@@ -1146,16 +1210,20 @@ function _drawCombo(g, cellSize, boardTop) {
   const pctOffX = ca.pctOffX || 0
 
   const comboCx = W * 0.5
-  const isLow = g.combo < 4
+  const tier = getComboTier(g.combo)
+  const isLow = tier === 0
   const comboCy = isLow
     ? g.boardY + (ROWS * g.cellSize) * 0.12 + comboOffY
     : g.boardY + (ROWS * g.cellSize) * 0.32 + comboOffY
-  const isHigh = g.combo >= 5
-  const isSuper = g.combo >= 8
-  const isMega = g.combo >= 12
-  const mainColor = isMega ? '#ff2050' : isSuper ? '#ff4d6a' : isHigh ? '#ff8c00' : '#ffd700'
+  const isHigh = tier >= 1
+  const isSuper = tier >= 2
+  const isMega = tier >= 4
+  // 颜色从配置中读取
+  const milestone = COMBO_MILESTONES.find(m => m.tier === tier)
+  const mainColor = milestone ? milestone.color : '#ffd700'
   const glowColor = isMega ? '#ff4060' : isSuper ? '#ff6080' : isHigh ? '#ffaa33' : '#ffe066'
-  const baseSz = isMega ? 52*S : isSuper ? 44*S : isHigh ? 38*S : isLow ? 22*S : 32*S
+  // 字体大小根据 tier 递增
+  const baseSz = tier >= 4 ? 52*S : tier >= 3 ? 46*S : tier >= 2 ? 40*S : tier >= 1 ? 34*S : isLow ? 22*S : 32*S
   const lowAlphaMul = isLow ? 0.5 : 1.0
 
   let comboMulVal
@@ -1205,6 +1273,7 @@ function _drawCombo(g, cellSize, boardTop) {
   }
 
   _drawComboMainText(cs)
+  _drawComboMilestone(cs)
 
   _drawComboDmgText(cs)
 
