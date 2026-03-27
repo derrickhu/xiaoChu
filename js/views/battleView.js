@@ -882,212 +882,158 @@ function _drawComboMilestone(cs) {
   const mt = milestone.text
   
   ctx.save()
-  // 位置在连击数字上方
-  ctx.translate(comboCx, comboCy - baseSz * 1.3)
-  // 缩放动画：先大后小
-  const ms = comboScale * (0.8 + Math.max(0, 1 - ca.timer / 30) * 0.4)
+  // 位置在连击数字上方更高处，避免重叠
+  const mileY = comboCy - baseSz * 1.8
+  ctx.translate(comboCx, mileY)
+  // 缩放动画：先大后小，动画更夸张
+  const animProgress = Math.max(0, 1 - ca.timer / 30)
+  const ms = comboScale * (1.0 + animProgress * 0.5)
   ctx.scale(ms, ms)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.font = `italic 900 ${baseSz * 0.9}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-  
-  // 渐变色根据连击数变化
-  const mg = ctx.createLinearGradient(-60*S, 0, 60*S, 0)
-  if (combo >= 20) {
-    mg.addColorStop(0, '#ff2050')
-    mg.addColorStop(0.5, '#ffd700')
-    mg.addColorStop(1, '#ff2050')
-  } else if (combo >= 15) {
-    mg.addColorStop(0, '#ff4d6a')
-    mg.addColorStop(0.5, '#ffa500')
-    mg.addColorStop(1, '#ff4d6a')
-  } else if (combo >= 10) {
-    mg.addColorStop(0, '#ff8c00')
-    mg.addColorStop(0.5, '#ffd700')
-    mg.addColorStop(1, '#ff8c00')
-  } else {
-    mg.addColorStop(0, '#ffd700')
-    mg.addColorStop(0.5, '#fff')
-    mg.addColorStop(1, '#ffd700')
-  }
-  
-  // 描边
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)'
-  ctx.lineWidth = 5 * S
+  // 里程碑字体更大
+  ctx.font = `italic 900 ${baseSz * 1.1}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+
+  // 使用配置的颜色作为渐变
+  const mg = ctx.createLinearGradient(-80*S, 0, 80*S, 0)
+  mg.addColorStop(0, milestone.color)
+  mg.addColorStop(0.5, '#ffffff')
+  mg.addColorStop(1, milestone.color)
+
+  // 黑色描边
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'
+  ctx.lineWidth = 6 * S
   ctx.strokeText(mt, 0, 0)
-  
-  // 填充
+
+  // 填充（带外发光）
+  ctx.shadowColor = milestone.color
+  ctx.shadowBlur = 20 * S
   ctx.fillStyle = mg
   ctx.fillText(mt, 0, 0)
-  
+  ctx.shadowBlur = 0
+
   // 闪光效果（前20帧）
   if (ca.timer < 20) {
-    ctx.globalAlpha = (1 - ca.timer / 20) * 0.8
+    ctx.globalAlpha = (1 - ca.timer / 20) * 0.9
     ctx.shadowColor = '#fff'
-    ctx.shadowBlur = 25 * S
+    ctx.shadowBlur = 30 * S
     ctx.fillStyle = '#fff'
     ctx.fillText(mt, 0, 0)
     ctx.shadowBlur = 0
+    ctx.globalAlpha = 1
   }
-  
+
   ctx.restore()
 }
 
-// ===== Combo主文字（"N 连击"） =====
+// ===== Combo主文字（简化版：数字+"连击"分开绘制） =====
 function _drawComboMainText(cs) {
-  const { ctx, S, comboCx, comboCy, baseSz, comboScale, comboAlpha, mainColor, glowColor, isHigh, isSuper, isMega, ca, comboText, comboFont } = cs
+  const { ctx, S, comboCx, comboCy, baseSz, comboScale, mainColor, glowColor, combo, comboFont } = cs
   ctx.save()
   ctx.translate(comboCx, comboCy)
   ctx.scale(comboScale, comboScale)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  
+  // 分离数字和"连击"二字，整体居中布局
+  const numText = String(combo)
+  const suffixText = '连击'
+  
+  // 测量文字宽度
+  ctx.font = comboFont
+  const numMetrics = ctx.measureText(numText)
+  const numWidth = numMetrics.width
+  
+  // "连击"使用缩小字体
+  const suffixSz = baseSz * 0.5
+  ctx.font = `italic 700 ${suffixSz}px "PingFang SC",sans-serif`
+  const suffixMetrics = ctx.measureText(suffixText)
+  const suffixWidth = suffixMetrics.width
+  
+  // 计算整体居中位置：数字偏左，连击在右侧
+  const gap = 4 * S  // 数字和"连击"之间的间隙
+  const totalWidth = numWidth + gap + suffixWidth
+  const startX = -totalWidth / 2  // 从左侧开始
+  const numX = startX + numWidth / 2  // 数字居中位置
+  const suffixX = startX + numWidth + gap + suffixWidth / 2  // "连击"居中位置
+  
+  // 绘制数字（主视觉）
   ctx.font = comboFont
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
-  ctx.strokeText(comboText, 0, 0)
+  ctx.strokeText(numText, numX, 0)
   ctx.fillStyle = mainColor
-  ctx.fillText(comboText, 0, 0)
+  ctx.fillText(numText, numX, 0)
+  
+  // 简单的剪切高光（仅数字）
   ctx.save()
   ctx.beginPath()
-  ctx.moveTo(-baseSz*2, -baseSz*0.5)
-  ctx.lineTo(baseSz*1.5, -baseSz*0.5)
-  ctx.lineTo(baseSz*1.2, baseSz*0.05)
-  ctx.lineTo(-baseSz*2.3, baseSz*0.05)
+  ctx.moveTo(numX - baseSz*0.8, -baseSz*0.5)
+  ctx.lineTo(numX + baseSz*0.6, -baseSz*0.5)
+  ctx.lineTo(numX + baseSz*0.4, baseSz*0.05)
+  ctx.lineTo(numX - baseSz, baseSz*0.05)
   ctx.clip()
   ctx.fillStyle = glowColor
   ctx.globalAlpha = 0.55
-  ctx.fillText(comboText, 0, 0)
+  ctx.fillText(numText, numX, 0)
   ctx.restore()
-  if (isHigh) {
-    ctx.font = comboFont
-    ctx.shadowColor = mainColor
-    ctx.shadowBlur = (isMega ? 30 : isSuper ? 20 : 12) * S
-    ctx.fillStyle = mainColor
-    ctx.globalAlpha = 0.3
-    ctx.fillText(comboText, 0, 0)
-    ctx.shadowBlur = 0
-    ctx.globalAlpha = 1
-  }
-  if (isSuper) {
-    ctx.save()
-    const flameTime = ca.timer * 0.15
-    const flameW = isMega ? 5 : 3.5
-    for (let fl = 0; fl < (isMega ? 3 : 2); fl++) {
-      const flOff = fl * 0.7
-      ctx.font = comboFont
-      ctx.strokeStyle = isMega
-        ? `rgba(255,${80 + Math.sin(flameTime + flOff) * 40},${20 + Math.sin(flameTime * 1.3 + flOff) * 20},${0.25 - fl * 0.08})`
-        : `rgba(255,${120 + Math.sin(flameTime + flOff) * 40},${60 + Math.sin(flameTime * 1.3 + flOff) * 30},${0.2 - fl * 0.06})`
-      ctx.lineWidth = (flameW + fl * 3) * S
-      ctx.strokeText(comboText, Math.sin(flameTime * 2 + fl) * 1.5*S, Math.cos(flameTime * 1.5 + fl) * 1.5*S - fl * 1.5*S)
-    }
-    ctx.restore()
-  }
+  
+  // 绘制"连击"二字（弱化显示，灰色无彩色）
+  ctx.font = `italic 700 ${suffixSz}px "PingFang SC",sans-serif`
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2*S
+  ctx.strokeText(suffixText, suffixX, baseSz * 0.05)  // 稍微下沉对齐
+  ctx.fillStyle = '#aaaaaa'  // 统一灰色，不随 tier 变化
+  ctx.globalAlpha = 0.8
+  ctx.fillText(suffixText, suffixX, baseSz * 0.05)
+  ctx.globalAlpha = 1
+  
   ctx.restore()
 }
 
 // ===== Combo伤害数值文字 =====
 function _drawComboDmgText(cs) {
-  const { ctx, S, comboCx, comboCy, baseSz, comboAlpha, dmgAlpha, dmgScale, pctAlpha, pctScale, pctOffX, extraPct, totalMul, estTotalDmg, comboBonusPct, comboFont } = cs
+  const { ctx, S, comboCx, comboCy, baseSz, comboAlpha, dmgAlpha, dmgScale, extraPct, estTotalDmg, comboBonusPct } = cs
   if (dmgAlpha <= 0) return
 
   ctx.save()
   ctx.globalAlpha = comboAlpha * dmgAlpha
-  const dmgCy = comboCy + baseSz * 0.72
+  // 位置下移，避免和主文字重叠
+  const dmgCy = comboCy + baseSz * 0.9
   ctx.translate(comboCx, dmgCy)
   ctx.scale(dmgScale, dmgScale)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  const dmgSz = baseSz * 0.7
-  const dmgFont = `italic 900 ${dmgSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-  const dmgText = estTotalDmg > 0 ? `额外伤害 ${estTotalDmg}` : `额外伤害 ${extraPct}%`
-  ctx.font = dmgFont
-  const dmgGrd = ctx.createLinearGradient(0, -dmgSz*0.45, 0, dmgSz*0.4)
-  if (extraPct >= 300) {
-    dmgGrd.addColorStop(0, '#ff6666'); dmgGrd.addColorStop(0.4, '#ff1030'); dmgGrd.addColorStop(1, '#990018')
-  } else if (extraPct >= 200) {
-    dmgGrd.addColorStop(0, '#ff8080'); dmgGrd.addColorStop(0.4, '#ff2040'); dmgGrd.addColorStop(1, '#aa0020')
-  } else if (extraPct >= 100) {
-    dmgGrd.addColorStop(0, '#ff9999'); dmgGrd.addColorStop(0.4, '#ff3350'); dmgGrd.addColorStop(1, '#bb1530')
+  const dmgSz = baseSz * 0.65
+  const dmgFont = `italic 700 ${dmgSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  // 整合百分比到主文字
+  let dmgText
+  if (estTotalDmg > 0 && comboBonusPct > 0) {
+    dmgText = `额外伤害 ${estTotalDmg} (+${comboBonusPct}%)`
+  } else if (estTotalDmg > 0) {
+    dmgText = `额外伤害 ${estTotalDmg}`
   } else {
-    dmgGrd.addColorStop(0, '#ffaaaa'); dmgGrd.addColorStop(0.4, '#ff4d60'); dmgGrd.addColorStop(1, '#cc2040')
+    dmgText = `额外伤害 ${extraPct}%`
   }
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 5*S
+  ctx.font = dmgFont
+  // 简化：只保留描边+填充+简单高光
+  const dmgGrd = ctx.createLinearGradient(0, -dmgSz*0.45, 0, dmgSz*0.4)
+  dmgGrd.addColorStop(0, '#ff8888')
+  dmgGrd.addColorStop(0.5, '#ff2040')
+  dmgGrd.addColorStop(1, '#cc0020')
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4*S
   ctx.strokeText(dmgText, 0, 0)
   ctx.fillStyle = dmgGrd
   ctx.fillText(dmgText, 0, 0)
+  // 简单高光
   ctx.save()
   ctx.beginPath()
-  ctx.moveTo(-dmgSz*3, -dmgSz*0.45)
-  ctx.lineTo(dmgSz*3, -dmgSz*0.45)
-  ctx.lineTo(dmgSz*2.7, -dmgSz*0.05)
-  ctx.lineTo(-dmgSz*3.3, -dmgSz*0.05)
+  ctx.moveTo(-dmgSz*2.5, -dmgSz*0.4)
+  ctx.lineTo(dmgSz*2.5, -dmgSz*0.4)
+  ctx.lineTo(dmgSz*2.2, -dmgSz*0.05)
+  ctx.lineTo(-dmgSz*2.8, -dmgSz*0.05)
   ctx.clip()
-  ctx.font = dmgFont
   ctx.fillStyle = '#fff'
-  ctx.globalAlpha = 0.35
-  ctx.fillText(dmgText, 0, 0)
-  ctx.restore()
-  ctx.save()
-  const glowStr = extraPct >= 200 ? 28 : extraPct >= 100 ? 20 : 12
-  ctx.shadowColor = '#ff2040'
-  ctx.shadowBlur = glowStr * S
-  ctx.font = dmgFont
-  ctx.fillStyle = '#ff2040'
-  ctx.globalAlpha = 0.3
+  ctx.globalAlpha = 0.4
   ctx.fillText(dmgText, 0, 0)
   ctx.restore()
 
-  if (pctAlpha > 0 && extraPct > 0) {
-    ctx.save()
-    const pctSz = baseSz * 0.72
-    const pctFont = `italic 900 ${pctSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-    const pctText = `${extraPct}%`
-    const pctY = dmgSz * 0.6 + pctSz * 0.3
-    const pctBaseX = baseSz * 0.3 + pctOffX
-    ctx.translate(pctBaseX, pctY)
-    ctx.scale(pctScale, pctScale)
-    ctx.globalAlpha = comboAlpha * dmgAlpha * pctAlpha
-    ctx.font = pctFont
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const pctGrd = ctx.createLinearGradient(0, -pctSz*0.4, 0, pctSz*0.35)
-    if (extraPct >= 200) {
-      pctGrd.addColorStop(0, '#ff8888'); pctGrd.addColorStop(0.4, '#ff2244'); pctGrd.addColorStop(1, '#bb0020')
-    } else if (extraPct >= 100) {
-      pctGrd.addColorStop(0, '#ffaaaa'); pctGrd.addColorStop(0.4, '#ff4466'); pctGrd.addColorStop(1, '#cc2040')
-    } else {
-      pctGrd.addColorStop(0, '#ffbbbb'); pctGrd.addColorStop(0.4, '#ff5577'); pctGrd.addColorStop(1, '#dd3355')
-    }
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
-    ctx.strokeText(pctText, 0, 0)
-    ctx.fillStyle = pctGrd
-    ctx.fillText(pctText, 0, 0)
-    ctx.save()
-    ctx.beginPath()
-    ctx.moveTo(-pctSz*1.5, -pctSz*0.4)
-    ctx.lineTo(pctSz*1.5, -pctSz*0.4)
-    ctx.lineTo(pctSz*1.3, -pctSz*0.05)
-    ctx.lineTo(-pctSz*1.7, -pctSz*0.05)
-    ctx.clip()
-    ctx.font = pctFont; ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.4
-    ctx.fillText(pctText, 0, 0)
-    ctx.restore()
-    ctx.save()
-    ctx.shadowColor = '#ff3060'; ctx.shadowBlur = (extraPct >= 200 ? 24 : 14) * S
-    ctx.font = pctFont; ctx.fillStyle = '#ff3060'; ctx.globalAlpha = 0.35
-    ctx.fillText(pctText, 0, 0)
-    ctx.restore()
-    ctx.restore()
-  }
-
-  const tipSz = baseSz * 0.26
-  const tipY = dmgSz * 0.5 + (pctAlpha > 0 ? baseSz * 0.52 * 0.6 + baseSz * 0.26 * 0.5 : tipSz * 1.0)
-  ctx.font = `bold ${tipSz}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
-  const tipText = comboBonusPct > 0
-    ? `x${totalMul.toFixed(2)}倍率 (含Combo加成${comboBonusPct}%)`
-    : `x${totalMul.toFixed(2)}倍率`
-  ctx.strokeText(tipText, 0, tipY)
-  ctx.fillStyle = 'rgba(255,230,210,0.95)'
-  ctx.fillText(tipText, 0, tipY)
   ctx.restore()
 }
 
@@ -1199,15 +1145,12 @@ function _drawCombo(g, cellSize, boardTop) {
   const { ctx, R, TH, W, H, S, COLS, ROWS } = V
   if (g.combo < 2 || !(g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow')) return
 
-  const ca = g._comboAnim || { num: g.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1, pctScale: 1, pctAlpha: 1, pctOffX: 0 }
+  const ca = g._comboAnim || { num: g.combo, scale: 1, alpha: 1, offsetY: 0, dmgScale: 1, dmgAlpha: 1 }
   const comboScale = ca.scale || 1
   const comboAlpha = ca.alpha != null ? Math.max(ca.alpha, 0) : 1
   const comboOffY = ca.offsetY || 0
   const dmgScale = ca.dmgScale || 0
   const dmgAlpha = ca.dmgAlpha || 0
-  const pctScale = ca.pctScale || 0
-  const pctAlpha = ca.pctAlpha || 0
-  const pctOffX = ca.pctOffX || 0
 
   const comboCx = W * 0.5
   const tier = getComboTier(g.combo)
@@ -1260,8 +1203,8 @@ function _drawCombo(g, cellSize, boardTop) {
     ctx, S, W, H, ROWS, comboCx, comboCy, baseSz, comboScale, comboAlpha, lowAlphaMul,
     mainColor, glowColor, comboText, comboFont,
     isLow, isHigh, isSuper, isMega,
-    dmgAlpha, dmgScale, pctAlpha, pctScale, pctOffX,
-    extraPct, totalMul, estTotalDmg, comboBonusPct,
+    dmgAlpha, dmgScale,
+    extraPct, estTotalDmg, comboBonusPct,
     ca, combo: g.combo
   }
 

@@ -227,27 +227,6 @@ function _updateComboAnim(g, S) {
     g._comboAnim.dmgScale = 0
     g._comboAnim.dmgAlpha = 0
   }
-  // 百分比标签延迟12帧后飞入（12帧展开）
-  const pt = t - 12
-  if (pt > 0 && pt <= 12) {
-    const pp = pt / 12
-    if (pp < 0.5) g._comboAnim.pctOffX = (1 - pp / 0.5) * 80 * S
-    else if (pp < 0.8) g._comboAnim.pctOffX = -8 * S * ((pp - 0.5) / 0.3)
-    else g._comboAnim.pctOffX = 0
-    if (pp < 0.3) g._comboAnim.pctScale = 0.5 + 1.5 * (pp / 0.3)
-    else if (pp < 0.6) g._comboAnim.pctScale = 2.0 - 1.2 * ((pp - 0.3) / 0.3)
-    else if (pp < 0.85) g._comboAnim.pctScale = 0.8 + 0.3 * ((pp - 0.6) / 0.25)
-    else g._comboAnim.pctScale = 1.1
-    g._comboAnim.pctAlpha = Math.min(1, pt / 6)
-  } else if (pt > 12) {
-    g._comboAnim.pctOffX = 0
-    g._comboAnim.pctScale = 1.0
-    g._comboAnim.pctAlpha = 1
-  } else {
-    g._comboAnim.pctOffX = 80 * S
-    g._comboAnim.pctScale = 0
-    g._comboAnim.pctAlpha = 0
-  }
 }
 
 function updateBattleAnims(g) {

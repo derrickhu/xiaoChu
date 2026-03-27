@@ -176,7 +176,7 @@ function startNextElimAnim(g) {
   // Combo弹出动画（使用配置的分档）
   const tier = getComboTier(g.combo)
   const isTierBreak = isComboMilestone(g.combo)
-  g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0, pctScale: 0, pctAlpha: 0, pctOffX: 80*S }
+  g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0 }
   g._comboFlash = tier >= 1 ? 12 : 8
   if (isTierBreak) {
     g._comboFlash = 16
