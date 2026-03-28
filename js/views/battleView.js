@@ -455,7 +455,6 @@ function rBattle(g) {
   _drawCombo(g, cellSize, boardTop)
   if (g._skillFlash) _drawSkillFlash(g)
   if (g._petSkillWave) _drawPetSkillWave(g)
-  g.petAtkNums.forEach(f => R.drawPetAtkNum(f))
   if (g.dragging && g.bState === 'playerTurn') _drawDragTimer(g, cellSize, boardTop)
   if (g._pendingEnemyAtk && g.bState === 'playerTurn') _drawEnemyTurnBanner(g)
 
@@ -1711,14 +1710,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
         const p = g.pets[petIdx]
         const ac = ATTR_COLOR[p.attr]
         const ready = petHasSkill(p) && p.currentCd <= 0
-        let bounceY = 0
-        const atkAnim = g.petAtkNums && g.petAtkNums.find(f => f.petIdx === petIdx && f.t <= f.rollFrames)
-        if (atkAnim) {
-          const progress = atkAnim.t / atkAnim.rollFrames
-          bounceY = -Math.sin(progress * Math.PI) * 6 * S
-        }
         ctx.save()
-        ctx.translate(0, bounceY)
         ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
         ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
         ctx.save()

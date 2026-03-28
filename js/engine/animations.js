@@ -49,6 +49,13 @@ function updateAnimations(g) {
     const f = g.dmgFloats[i]
     if (f._dead) continue
     f.t++
+    // 入场弹跳缩放（前8帧：从1.6x弹到1.0x）
+    if (f._initScale === undefined) f._initScale = f.scale || 1
+    if (f.t <= 8) {
+      f.scale = f._initScale * (1 + 0.6 * Math.max(0, 1 - f.t / 8))
+    } else {
+      f.scale = f._initScale
+    }
     // 前30帧停留（缓慢上移），30-60帧正常上飘，60帧后加速消失
     if (f.t <= 30) { f.y -= 0.15*S }
     else if (f.t <= 60) { f.y -= 0.5*S; f.alpha -= 0.005 }
@@ -67,28 +74,28 @@ function updateAnimations(g) {
     }
     if (e.alpha <= 0) e._dead = true
   }
-  // 消除棋子处飘字动画（加大 + 弹入 + 缓出）
+  // 消除飘字动画（弹入 → 快速上浮淡出，在结算飘字出现前消失）
   for (let i = 0; i < g.elimFloats.length; i++) {
     const f = g.elimFloats[i]
     if (f._dead) continue
     f.t++
-    // 前10帧：弹入（scale从大到1.0，几乎不移动）
-    if (f.t <= 10) {
-      const bp = f.t / 10
-      f.scale = (f._baseScale || 1) * (1 + (1.5 - 1) * Math.max(0, 1 - bp * bp))
-      f.y -= 0.1*S
+    // 前8帧：弹入（scale从大到1.0）
+    if (f.t <= 8) {
+      const bp = f.t / 8
+      f.scale = (f._baseScale || 1) * (1 + 0.5 * Math.max(0, 1 - bp * bp))
+      f.y -= 0.2*S
     }
-    // 10-50帧：缓慢上浮，持续显示
-    else if (f.t <= 50) {
+    // 8-18帧：短暂停留，缓慢上浮
+    else if (f.t <= 18) {
       f.scale = f._baseScale || 1
-      f.y -= 0.3*S
+      f.y -= 0.4*S
     }
-    // 50-80帧：加速上浮 + 淡出
+    // 18-35帧：加速上浮 + 快速淡出
     else {
-      f.y -= 0.6*S
-      f.alpha -= 0.035
+      f.y -= 0.8*S
+      f.alpha -= 0.06
     }
-    if (f.alpha <= 0 || f.t >= 80) f._dead = true
+    if (f.alpha <= 0 || f.t >= 35) f._dead = true
   }
   // 经验飘字飞行动画
   if (g._expFloats) {
@@ -114,27 +121,6 @@ function updateAnimations(g) {
   _updateBeadConvertAnim(g)
   // Combo弹出动画
   _updateComboAnim(g, S)
-  // 宠物头像攻击数值动画：直接显示最终值 + 弹跳缩放
-  for (let i = 0; i < g.petAtkNums.length; i++) {
-    const f = g.petAtkNums[i]
-    if (f._dead) continue
-    f.t++
-    const prefix = f.isHeal ? '+' : ''
-    if (f.t === 1) {
-      f.displayVal = f.finalVal
-      f.text = `${prefix}${f.finalVal}`
-      f.scale = f.isCrit ? 1.8 : 1.5
-      MusicMgr.playPetDmgHit(f.isCrit)
-    }
-    if (f.t <= 10) {
-      const bounce = 1 + (f.scale - 1) * Math.max(0, 1 - f.t / 10)
-      f.scale = bounce
-    } else {
-      f.scale = 1.0
-      if (f.t > 30) f.alpha -= 0.05
-    }
-    if (f.alpha <= 0) f._dead = true
-  }
   // 每60帧压缩一次，清理 _dead 元素
   if (_compactFrame % 60 === 0) {
     g._comboParticles = g._comboParticles.filter(x => !x._dead)
@@ -142,7 +128,6 @@ function updateAnimations(g) {
     g.skillEffects = g.skillEffects.filter(x => !x._dead)
     g.elimFloats = g.elimFloats.filter(x => !x._dead)
     if (g._expFloats) g._expFloats = g._expFloats.filter(x => !x._dead)
-    g.petAtkNums = g.petAtkNums.filter(x => !x._dead)
   }
 }
 

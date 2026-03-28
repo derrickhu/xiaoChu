@@ -14,6 +14,10 @@ const { tween, Ease } = require('./tween')
 const Particles = require('./particles')
 const { killExpBase } = require('../data/cultivationConfig')
 const { COMBO_MILESTONES, COMBO_MILESTONE_INTERVAL, getComboTier, isComboMilestone } = require('../data/constants')
+const DF = require('./dmgFloat')
+
+// 属性图标映射（用于伤害飘字）
+const ATTR_ICON = { metal: '⚔️', wood: '🌿', earth: '🪨', water: '💧', fire: '🔥' }
 
 // 击杀经验（统一调用避免遗漏）
 function _addKillExp(g) {
@@ -298,18 +302,10 @@ function startNextElimAnim(g) {
     }
   }
   if (elimDisplayVal > 0 && cells.length > 0) {
-    const cs = g.cellSize, bx = g.boardX, by = g.boardY
-    let cx = 0, cy = 0
-    cells.forEach(({r,c}) => { cx += bx + c*cs + cs*0.5; cy += by + r*cs + cs*0.5 })
-    cx /= cells.length; cy /= cells.length
     const prefix = attr === 'heart' ? '+' : ''
+    const attrIcon = ATTR_ICON[attr] || (attr === 'heart' ? '❤️' : '')
     const baseScale = count >= 5 ? 1.4 : count === 4 ? 1.2 : 1.0
-    g.elimFloats.push({
-      x: cx, y: cy,
-      text: `${prefix}${elimDisplayVal}`,
-      color: elimDisplayColor,
-      t: 0, alpha: 1, scale: baseScale, _baseScale: baseScale
-    })
+    DF.elimDmg(g, `${attrIcon}${prefix}${elimDisplayVal}`, elimDisplayColor, attr, baseScale)
     MusicMgr.playEliminate(count)
   }
   // 法宝/buff 消除效果
@@ -329,8 +325,7 @@ function startNextElimAnim(g) {
   if (g.weapon && g.weapon.type === 'aoeOnElim' && g.weapon.attr === attr && count >= (g.weapon.minCount || 5) && g.enemy) {
     const aoeDmg = Math.round(g.enemy.maxHp * 0.1)
     g.enemy.hp = Math.max(0, g.enemy.hp - aoeDmg)
-    const { W, S } = V
-    g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S, text:`全体-${aoeDmg}`, color:(ATTR_COLOR[attr] && ATTR_COLOR[attr].main)||'#ff6347', t:0, alpha:1 })
+    DF.aoeDmg(g, aoeDmg, (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || '#ff6347')
     g.shakeT = 6; g.shakeI = 4
     if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }
@@ -422,10 +417,8 @@ function findMatchesSeparate(g) {
 
 // ===== 宠物头像攻击数值展示 =====
 function enterPetAtkShow(g) {
-  const { S, W, H } = V
-  const { TH } = V
+  const { S, W } = V
   g._stateTimer = 0
-  g.petAtkNums = []
   const dmgMap = g._pendingDmgMap || {}
   // combo伤害倍率递减
   let comboMul
@@ -438,12 +431,6 @@ function enterPetAtkShow(g) {
   const critMul = isCrit ? (1 + critDmg / 100) : 1
   g._pendingCrit = isCrit
   g._pendingCritMul = critMul
-  const L = g._getBattleLayout()
-  const sidePad = 8*S, petGap = 8*S, wpnGap = 12*S
-  const totalGapW = wpnGap + petGap * 4 + sidePad * 2
-  const iconSize = (W - totalGapW) / 6
-  const teamBarH = iconSize + 6*S
-  const iconY = L.teamBarY + (teamBarH - iconSize) / 2
 
   // 汇总 heroBuffs 中的临时攻击加成（用于展示数值）
   let buffAllDmgPct = 0, buffAllAtkPct = 0, buffComboDmgPct = 0, buffLowHpDmgPct = 0
@@ -507,17 +494,6 @@ function enterPetAtkShow(g) {
     } else if (isCountered) {
       g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'抵抗...', color:'#888888', t:0, alpha:1, scale:1.4, _initScale:1.4 })
     }
-    const slotIdx = i + 1
-    const ix = sidePad + iconSize + wpnGap + (slotIdx - 1) * (iconSize + petGap)
-    const cx = ix + iconSize * 0.5
-    const ac = ATTR_COLOR[pet.attr]
-    g.petAtkNums.push({
-      x: cx, y: iconY - 4*S,
-      finalVal: dmg, displayVal: 0, text: '0',
-      color: isCrit ? '#ffdd00' : (ac ? ac.main : '#ffd700'),
-      t: 0, alpha: 1, scale: isCrit ? 1.3 : 1.0,
-      rollFrames: 34, petIdx: i, isCrit: isCrit
-    })
   }
   // 心珠回复
   const pendingHeal = g._pendingHeal || 0
@@ -525,13 +501,6 @@ function enterPetAtkShow(g) {
     const heal = Math.round(pendingHeal * comboMul)
     if (heal > 0) {
       hasAny = true
-      const padX = 12*S
-      g.petAtkNums.push({
-        x: W - padX, y: L.hpBarY + 9*S,
-        finalVal: heal, displayVal: 0, text: '0',
-        color: '#4dcc4d', t: 0, alpha: 1, scale: 1.0,
-        rollFrames: 34, isHeal: true
-      })
       const oldHp = g.heroHp
       const oldPct = oldHp / g.heroMaxHp
       g.heroHp = Math.min(g.heroMaxHp, oldHp + heal)
@@ -582,7 +551,7 @@ function calcCrit(g) {
 }
 
 function applyFinalDamage(g, dmgMap, heal) {
-  const { S, W, H, TH } = V
+  const { S, W, H } = V
   // combo伤害倍率递减
   let comboMul
   if (g.combo <= 8) comboMul = 1 + (g.combo - 1) * 0.35
@@ -669,11 +638,6 @@ function applyFinalDamage(g, dmgMap, heal) {
     dmg = Math.round(dmg)
     if (dmg > 0) {
       totalDmg += dmg
-      const ac = ATTR_COLOR[attr]
-      // 飘字错位排列：每个属性的伤害飘字在y轴上递增偏移，避免重叠
-      const floatIdx = Object.keys(dmgMap).indexOf(attr)
-      const yOffset = floatIdx * 28 * S
-      g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-30*S - yOffset, text:`-${dmg}`, color: isCrit ? '#ffdd00' : (ac?ac.main:TH.danger), t:0, alpha:1, scale: isCrit ? 1.5 : 1.1 })
     }
   }
   if (g.nextDmgDouble) g.nextDmgDouble = false
@@ -681,7 +645,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   if (totalDmg > 0 && g.enemy) {
     const oldPct = g.enemy.hp / g.enemy.maxHp
     g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
-    g._enemyHpLoss = { fromPct: oldPct, timer: 0 }
+    g._enemyHpLoss = { fromPct: oldPct, timer: 0, dmg: totalDmg, isCrit: isCrit }
     g._playHeroAttack('', Object.keys(dmgMap)[0] || 'metal')
     g.shakeT = isCrit ? 14 : 8; g.shakeI = isCrit ? 8 : 4
     if (isCrit) g._comboFlash = 10  // 暴击白闪冲击
@@ -692,6 +656,8 @@ function applyFinalDamage(g, dmgMap, heal) {
     } else {
       MusicMgr.playAttack()
     }
+    
+    DF.enemyTotalDmg(g, totalDmg, isCrit)
     if (g.weapon && g.weapon.type === 'poisonChance' && Math.random()*100 < g.weapon.chance) {
       g.enemyBuffs.push({ type:'dot', name:'中毒', dmg:g.weapon.dmg, dur:g.weapon.dur, bad:true, dotType:'poison' })
     }
@@ -725,7 +691,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     g.heroHp = Math.min(g.heroMaxHp, g.heroHp + chAmt)
     if (g.heroHp > chOld) {
       g._heroHpGain = { fromPct: chOld / g.heroMaxHp, timer: 0 }
-      g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - chOld}`, color:'#88ff88', t:0, alpha:1 })
+      DF.heroHeal(g, g.heroHp - chOld, '#88ff88')
     }
   }
   // 胜利判定
@@ -742,7 +708,7 @@ function applyFinalDamage(g, dmgMap, heal) {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.weapon.pct / 100))
       if (g.heroHp > okOld) {
         g._heroHpGain = { fromPct: okOld / g.heroMaxHp, timer: 0 }
-        g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - okOld}`, color:'#4dcc4d', t:0, alpha:1 })
+        DF.heroHeal(g, g.heroHp - okOld)
       }
     }
     // 宠物技能onKillHeal buff：击杀回血
@@ -752,7 +718,7 @@ function applyFinalDamage(g, dmgMap, heal) {
         g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * b.pct / 100))
         if (g.heroHp > bkOld) {
           g._heroHpGain = { fromPct: bkOld / g.heroMaxHp, timer: 0 }
-          g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${g.heroHp - bkOld}`, color:'#4dcc4d', t:0, alpha:1 })
+          DF.heroHeal(g, g.heroHp - bkOld)
         }
       }
     })
@@ -791,7 +757,7 @@ function onPlayerTurnStart(g) {
     if (actual > 0) {
       g._heroHpGain = { fromPct: oldHp / g.heroMaxHp, timer: 0 }
       g._playHealEffect()
-      g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:H*0.65, text:`+${actual}`, color:'#4dcc4d', t:0, alpha:1 })
+      DF.heroHeal(g, actual)
     }
   }
 }
@@ -854,10 +820,12 @@ function enemyTurn(g) {
   if (stunBuff) {
     g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY(), text:'眩晕跳过！', color:TH.info, t:0, alpha:1 })
     // 眩晕跳过攻击，但仍需结算敌人身上的dot伤害
+    let dotIdx = 0
     g.enemyBuffs.forEach(b => {
       if (b.type === 'dot' && b.dmg > 0) {
         g.enemy.hp = Math.max(0, g.enemy.hp - b.dmg)
-        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${b.dmg}`, color:'#a040a0', t:0, alpha:1 })
+        DF.dotOnEnemy(g, b.dmg, b.dotType, dotIdx)
+        dotIdx++
       }
     })
     if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
@@ -903,7 +871,7 @@ function enemyTurn(g) {
   if (reflectPct > 0 && atkDmg > 0) {
     const refDmg = Math.round(atkDmg * reflectPct / 100)
     g.enemy.hp = Math.max(0, g.enemy.hp - refDmg)
-    g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`反弹-${refDmg}`, color:TH.info, t:0, alpha:1 })
+    DF.reflectToEnemy(g, refDmg, TH.info)
   }
   if (g.weapon && g.weapon.type === 'counterStun' && Math.random()*100 < g.weapon.chance) {
     g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
@@ -939,10 +907,12 @@ function enemyTurn(g) {
       g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
     }
   }
+  let dotIdx2 = 0
   g.enemyBuffs.forEach(b => {
     if (b.type === 'dot' && b.dmg > 0) {
       g.enemy.hp = Math.max(0, g.enemy.hp - b.dmg)
-      g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${b.dmg}`, color:'#a040a0', t:0, alpha:1 })
+      DF.dotOnEnemy(g, b.dmg, b.dotType, dotIdx2)
+      dotIdx2++
     }
   })
   g.enemyBuffs.forEach(b => {
@@ -959,6 +929,7 @@ function enemyTurn(g) {
 
 function applyEnemySkill(g, skillKey) {
   const { S, W, H, TH, ROWS, COLS } = V
+  const L = g._getBattleLayout()
   const sk = ENEMY_SKILLS[skillKey]
   if (!sk) return
   // 法宝immuneDebuff：免疫所有负面效果（dot/debuff/stun/seal等，不拦截buff/selfHeal/convert/breakBead/aoe）
@@ -1064,7 +1035,7 @@ function applyEnemySkill(g, skillKey) {
       }
       const healAmt = Math.round(g.enemy.maxHp * (sk.healPct || 10) / 100)
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + healAmt)
-      g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`+${healAmt}`, color:'#80ff80', t:0, alpha:1 })
+      DF.enemyHeal(g, healAmt)
       break
     }
     // ===== 封珠变体 =====
@@ -1167,7 +1138,7 @@ function applyEnemySkill(g, skillKey) {
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') drDmg = Math.round(drDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(drDmg)
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + drDmg)
-      g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`+${drDmg}`, color:'#80ff80', t:0, alpha:1 })
+      DF.enemyHeal(g, drDmg)
       break
     }
     case 'bossAnnihil': {
@@ -1250,7 +1221,7 @@ function enterBattle(g, enemyData) {
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
   g.elimQueue = []; g.elimAnimCells = null
-  g.elimFloats = []; g.petAtkNums = []
+  g.elimFloats = []
   g._elimSkipCombo = false
   g._enemyHpLoss = null; g._heroHpLoss = null; g._heroHpGain = null
   g.showEnemyDetail = false; g.showRunBuffDetail = false

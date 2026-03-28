@@ -301,7 +301,7 @@ function _setupStep(g) {
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
   g.elimQueue = []; g.elimAnimCells = null
-  g.elimFloats = []; g.petAtkNums = []
+  g.elimFloats = []
   g._enemyHpLoss = null; g._heroHpLoss = null; g._heroHpGain = null
   g.showEnemyDetail = false; g.showRunBuffDetail = false
   g.showWeaponDetail = false; g.showBattlePetDetail = null
@@ -374,7 +374,7 @@ function _advanceRound(g) {
   g.bState = 'playerTurn'
   g.combo = 0
   g.elimQueue = []; g.elimAnimCells = null
-  g.elimFloats = []; g.petAtkNums = []
+  g.elimFloats = []
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
   g._enemyHpLoss = null; g._heroHpLoss = null; g._heroHpGain = null

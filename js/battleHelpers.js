@@ -6,6 +6,7 @@ const { ATTR_COLOR } = require('./data/tower')
 const { TH } = require('./render')
 const MusicMgr = require('./runtime/music')
 const V = require('./views/env')
+const DF = require('./engine/dmgFloat')
 
 function getBattleLayout() {
   const { W, H, S, safeTop, COLS, ROWS } = V
@@ -67,7 +68,7 @@ function addShield(g, val) {
   }
   g.heroShield += val
   MusicMgr.playShieldGain()
-  g.dmgFloats.push({ x:V.W*0.5, y:V.H*0.65, text:`+${val}盾`, color:'#7ddfff', t:0, alpha:1 })
+  DF.heroShieldGain(g, val)
 }
 
 /** 对英雄造成伤害（含护盾、绝对防御、飘字） */
@@ -79,7 +80,7 @@ function dealDmgToHero(g, dmg) {
     if (dmg <= g.heroShield) {
       g.heroShield -= dmg
       g.skillEffects.push({ x:W*0.5, y:H*0.52, text:'完美抵挡！', color:'#40e8ff', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
-      g.dmgFloats.push({ x:W*0.5, y:H*0.6, text:`护盾吸收 ${dmg}`, color:'#7ddfff', t:0, alpha:1, scale:1.6 })
+      DF.heroShieldBlock(g, dmg)
       g.shakeT = 4; g.shakeI = 2
       g._blockFlash = 8
       MusicMgr.playBlock()
@@ -88,12 +89,12 @@ function dealDmgToHero(g, dmg) {
     const shieldAbs = g.heroShield
     dmg -= g.heroShield; g.heroShield = 0
     g.skillEffects.push({ x:W*0.5, y:H*0.52, text:'护盾击碎！', color:'#ff9040', t:0, alpha:1, scale:2.0, _initScale:2.0 })
-    g.dmgFloats.push({ x:W*0.45, y:H*0.6, text:`盾挡 ${shieldAbs}`, color:'#40b8e0', t:0, alpha:1, scale:1.4 })
+    DF.heroShieldBreak(g, shieldAbs)
   }
   const oldPct = g.heroHp / g.heroMaxHp
   g.heroHp = Math.max(0, g.heroHp - dmg)
   g._heroHpLoss = { fromPct: oldPct, timer: 0 }
-  g.dmgFloats.push({ x:W*0.5, y:H*0.7, text:`-${dmg}`, color:TH.danger, t:0, alpha:1 })
+  DF.heroDmg(g, dmg)
 }
 
 module.exports = { getBattleLayout, getEnemyCenterY, playHeroAttack, playEnemyAttack, playHealEffect, addShield, dealDmgToHero }

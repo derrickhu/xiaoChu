@@ -38,7 +38,6 @@ function initState(g) {
   // ===== 动画 =====
   g.dmgFloats = []; g.skillEffects = []
   g.elimFloats = []
-  g.petAtkNums = []
   g._comboAnim = { num: 0, timer: 0, scale: 1 }
   g._comboParticles = []
   g._comboFlash = 0
@@ -203,7 +202,7 @@ function _createDomainProxies(g) {
   ])
 
   _createDomainProxy(g, 'anim', [
-    'dmgFloats', 'skillEffects', 'elimFloats', 'petAtkNums',
+    'dmgFloats', 'skillEffects', 'elimFloats',
     '_comboAnim', '_comboParticles', '_comboFlash',
     '_petFinalDmg', '_petAtkRollTimer',
     'shakeT', 'shakeI', 'shakeDecay', '_hitStopFrames',

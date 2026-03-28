@@ -3,6 +3,7 @@
  */
 const V = require('../views/env')
 const { hasSameIdOnTeam } = require('../data/pets')
+const DF = require('../engine/dmgFloat')
 
 function _doEventPetSwap(g, drag, drop) {
   if (drag.source === drop.type) return
@@ -268,7 +269,7 @@ function tEvent(g, type, x, y) {
               const cost = Math.round(g.heroHp * 15 / 100)
               g.heroHp = Math.max(1, g.heroHp - cost)
               if (cost > 0) {
-                g.dmgFloats.push({ x: V.W * 0.5, y: V.H * 0.35, text: `-${cost} HP`, color: '#ff4444', t: 0, alpha: 1, scale: 1.1 })
+                DF.eventCost(g, cost)
               }
             }
             g._eventShopUsedItems = g._eventShopUsedItems || []

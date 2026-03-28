@@ -10,6 +10,7 @@ const {
 } = require('../data/tower')
 const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
+const DF = require('./dmgFloat')
 
 // 辅助：tryMergePet 后检查是否升到满星，记录图鉴 + 灵宠池入池/碎片
 function _mergePetAndDex(g, allPets, newPet) {
@@ -269,7 +270,7 @@ function triggerPetSkill(g, pet, idx) {
       if (g.heroHp > hpOld1) {
         g._heroHpGain = { fromPct: oldPct1, timer: 0 }
         g._playHealEffect()
-        g.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${g.heroHp - hpOld1}`, color:'#4dcc4d', t:0, alpha:1 })
+        DF.heroHeal(g, g.heroHp - hpOld1)
       }
       // ★3附加净化
       if (sk.cleanse) {
@@ -287,7 +288,7 @@ function triggerPetSkill(g, pet, idx) {
       if (g.heroHp > hpOld2) {
         g._heroHpGain = { fromPct: oldPct2, timer: 0 }
         g._playHealEffect()
-        g.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${g.heroHp - hpOld2}`, color:'#4dcc4d', t:0, alpha:1 })
+        DF.heroHeal(g, g.heroHp - hpOld2)
       }
       break
     }
@@ -297,7 +298,7 @@ function triggerPetSkill(g, pet, idx) {
       if (g.heroHp > hpOld3) {
         g._heroHpGain = { fromPct: oldPct3, timer: 0 }
         g._playHealEffect()
-        g.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${g.heroHp - hpOld3}`, color:'#4dcc4d', t:0, alpha:1 })
+        DF.heroHeal(g, g.heroHp - hpOld3)
       }
       break
     }
@@ -307,7 +308,7 @@ function triggerPetSkill(g, pet, idx) {
       if (g.heroHp > hpOld4) {
         g._heroHpGain = { fromPct: oldPct4, timer: 0 }
         g._playHealEffect()
-        g.dmgFloats.push({ x:W*0.5, y:H*0.65, text:`+${g.heroHp - hpOld4}`, color:'#4dcc4d', t:0, alpha:1 })
+        DF.heroHeal(g, g.heroHp - hpOld4)
       }
       if (sk.atkPct) g.heroBuffs.push({ type:'allAtkUp', pct:Math.round(sk.atkPct * sMul), dur:3, bad:false, name:sk.name })
       break
@@ -335,7 +336,7 @@ function triggerPetSkill(g, pet, idx) {
           dmg = Math.max(0, dmg + ignoreDef)  // 相当于少减防御
         }
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:(ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main)||V.TH.danger, t:0, alpha:1 })
+        DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         // ★3附加眩晕
         if (sk.stunDur) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
@@ -352,7 +353,7 @@ function triggerPetSkill(g, pet, idx) {
         let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||300) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        g.dmgFloats.push({ x:W*0.5, y:g._getEnemyCenterY(), text:`-${dmg}`, color:(ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main)||V.TH.danger, t:0, alpha:1 })
+        DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||40) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
         if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
@@ -362,12 +363,12 @@ function triggerPetSkill(g, pet, idx) {
       if (g.enemy) {
         const hits = sk.hits || 3
         let totalDmg = 0
+        const hitColor = (ATTR_COLOR[sk.attr||pet.attr] && ATTR_COLOR[sk.attr||pet.attr].main) || V.TH.danger
         for (let h = 0; h < hits; h++) {
           let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||100) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           totalDmg += dmg
-          const offY = (h - (hits-1)/2) * 12*S
-          g.dmgFloats.push({ x:W*0.4+Math.random()*W*0.2, y:g._getEnemyCenterY()+offY, text:`-${dmg}`, color:(ATTR_COLOR[sk.attr||pet.attr] && ATTR_COLOR[sk.attr||pet.attr].main)||V.TH.danger, t:h*4, alpha:1 })
+          DF.petMultiHitDmg(g, dmg, hitColor, h, hits)
         }
         g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
@@ -487,13 +488,14 @@ function triggerPetSkill(g, pet, idx) {
     case 'teamAttack': {
       if (g.enemy) {
         let totalTeamDmg = 0
-        g.pets.forEach(p => {
+        const totalPets = g.pets.length
+        g.pets.forEach((p, idx) => {
           let dmg = Math.round(getPetStarAtk(p) * (sk.pct || 100) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.allAtkPct / 100))
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
           totalTeamDmg += dmg
-          g.dmgFloats.push({ x:W*0.3+Math.random()*W*0.4, y:g._getEnemyCenterY()-10*S+Math.random()*20*S, text:`-${dmg}`, color:(ATTR_COLOR[p.attr] && ATTR_COLOR[p.attr].main)||V.TH.danger, t:0, alpha:1 })
+          DF.petTeamAtkDmg(g, dmg, (ATTR_COLOR[p.attr] && ATTR_COLOR[p.attr].main) || V.TH.danger, idx, totalPets)
         })
         g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
         g._playHeroAttack(sk.name, pet.attr, 'burst')

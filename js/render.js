@@ -435,7 +435,7 @@ class Render {
     c.fillStyle=ig; this.rr(x,y,w,h*0.4,h/2); c.fill()
     c.restore()
 
-    // 掉血灰色残影（在当前血量之前绘制）
+    // 掉血灰色残影（在当前血量之前绘制）+ 伤害数字
     if (hpLoss && hpLoss.fromPct > pct) {
       const totalFrames = 45
       const t = hpLoss.timer / totalFrames
@@ -452,6 +452,8 @@ class Render {
       c.fillStyle = 'rgba(180,180,180,0.8)'
       this.rr(x, y, w*lossPct, h, h/2); c.fill()
       c.restore()
+      
+      // 注意：总伤害现在统一在 battle.js 中通过 dmgFloats 显示，避免重复
     }
 
     // 加血绿色底层（先画亮绿增量，再画血条覆盖到旧血量位置，增量部分露出亮绿）
@@ -1595,10 +1597,10 @@ class Render {
     c.restore()
   }
 
-  // ===== 伤害飘字（加大加粗，高对比度） =====
+  // ===== 伤害飘字（加大加粗，高对比度 + 类型标签） =====
   drawDmgFloat(f) {
     const {ctx:c,S} = this
-    const {x,y,text,color,alpha,scale} = f
+    const {x,y,text,color,alpha,scale,tag} = f
     c.save(); c.globalAlpha=alpha||1
     const sz = (22*(scale||1))*S
     c.font=`bold ${sz}px "PingFang SC",sans-serif`
@@ -1610,6 +1612,17 @@ class Render {
     c.fillStyle=color||TH.danger
     c.fillText(text,x,y)
     c.shadowBlur = 0
+    // 类型标签（小字，显示在主数字下方）
+    if (tag) {
+      const tagSz = sz * 0.38
+      c.font = `bold ${tagSz}px "PingFang SC",sans-serif`
+      c.globalAlpha = (alpha || 1) * 0.75
+      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2*S
+      const tagY = y + sz * 0.6
+      c.strokeText(tag, x, tagY)
+      c.fillStyle = '#ffffff'
+      c.fillText(tag, x, tagY)
+    }
     c.restore()
   }
 
@@ -1639,26 +1652,6 @@ class Render {
       c.fillStyle = '#ffd700'
       c.fillText(subText, x, y + sz*0.7)
     }
-    c.restore()
-  }
-
-  // ===== 宠物头像攻击数值（翻滚效果） =====
-  drawPetAtkNum(f) {
-    const {ctx:c,S} = this
-    const {x, y, text, color, alpha, scale, isHeal} = f
-    c.save(); c.globalAlpha = alpha || 1
-    const sz = (16 * (scale || 1)) * S
-    c.font = `bold ${sz}px "PingFang SC",sans-serif`
-    c.textAlign = isHeal ? 'right' : 'center'
-    c.textBaseline = isHeal ? 'middle' : 'bottom'
-    // 发光效果
-    c.shadowColor = color || '#ffd700'
-    c.shadowBlur = 6 * S
-    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3*S
-    c.strokeText(text, x, y)
-    c.fillStyle = color || '#ffd700'
-    c.fillText(text, x, y)
-    c.shadowBlur = 0
     c.restore()
   }
 
