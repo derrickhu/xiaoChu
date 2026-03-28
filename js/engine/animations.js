@@ -4,6 +4,7 @@
  */
 const MusicMgr = require('../runtime/music')
 const ViewEnv = require('../views/env')
+const { ANIM_CFG: _animCfg } = require('./dmgFloat')
 
 let _compactFrame = 0
 
@@ -45,21 +46,27 @@ function updateAnimations(g) {
     p.vx *= 0.98
     if (p.t >= p.life) p._dead = true
   }
+  const AC_D = _animCfg.dmgFloat
   for (let i = 0; i < g.dmgFloats.length; i++) {
     const f = g.dmgFloats[i]
     if (f._dead) continue
     f.t++
-    // 入场弹跳缩放（前8帧：从1.6x弹到1.0x）
-    if (f._initScale === undefined) f._initScale = f.scale || 1
-    if (f.t <= 8) {
-      f.scale = f._initScale * (1 + 0.6 * Math.max(0, 1 - f.t / 8))
+    // 入场弹跳缩放（_initScale 和起始峰值 scale 由工厂预设，避免首帧跳变）
+    if (f.t <= AC_D.bounceDur) {
+      f.scale = f._initScale * (1 + AC_D.bounceAmp * Math.max(0, 1 - f.t / AC_D.bounceDur))
     } else {
       f.scale = f._initScale
     }
-    // 前30帧停留（缓慢上移），30-60帧正常上飘，60帧后加速消失
-    if (f.t <= 30) { f.y -= 0.15*S }
-    else if (f.t <= 60) { f.y -= 0.5*S; f.alpha -= 0.005 }
-    else { f.y -= 0.8*S; f.alpha -= 0.04 }
+    // 水平震动（回合总伤等带 _shake 标记的飘字）
+    if (f._shake && f.t <= AC_D.shakeDur) {
+      f._shakeOffset = Math.sin(f.t * 3.5) * AC_D.shakeAmp * S * (1 - f.t / AC_D.shakeDur)
+    } else {
+      f._shakeOffset = 0
+    }
+    // 停留 → 上飘 → 淡出
+    if (f.t <= AC_D.stayFrames) { f.y -= AC_D.staySpeed*S }
+    else if (f.t <= AC_D.floatFrames) { f.y -= AC_D.floatSpeed*S; f.alpha -= AC_D.floatAlphaDec }
+    else { f.y -= AC_D.fadeSpeed*S; f.alpha -= AC_D.fadeAlphaDec }
     if (f.alpha <= 0) f._dead = true
   }
   for (let i = 0; i < g.skillEffects.length; i++) {
@@ -74,28 +81,25 @@ function updateAnimations(g) {
     }
     if (e.alpha <= 0) e._dead = true
   }
-  // 消除飘字动画（弹入 → 快速上浮淡出，在结算飘字出现前消失）
+  const AC_E = _animCfg.elimFloat
   for (let i = 0; i < g.elimFloats.length; i++) {
     const f = g.elimFloats[i]
     if (f._dead) continue
     f.t++
-    // 前8帧：弹入（scale从大到1.0）
-    if (f.t <= 8) {
-      const bp = f.t / 8
-      f.scale = (f._baseScale || 1) * (1 + 0.5 * Math.max(0, 1 - bp * bp))
-      f.y -= 0.2*S
+    if (f.t <= AC_E.bounceDur) {
+      const bp = f.t / AC_E.bounceDur
+      f.scale = (f._baseScale || 1) * (1 + AC_E.bounceAmp * Math.max(0, 1 - bp * bp))
+      f.y -= AC_E.bounceSpeed*S
     }
-    // 8-18帧：短暂停留，缓慢上浮
-    else if (f.t <= 18) {
+    else if (f.t <= AC_E.stayFrames) {
       f.scale = f._baseScale || 1
-      f.y -= 0.4*S
+      f.y -= AC_E.staySpeed*S
     }
-    // 18-35帧：加速上浮 + 快速淡出
     else {
-      f.y -= 0.8*S
-      f.alpha -= 0.06
+      f.y -= AC_E.fadeSpeed*S
+      f.alpha -= AC_E.fadeAlphaDec
     }
-    if (f.alpha <= 0 || f.t >= 35) f._dead = true
+    if (f.alpha <= 0 || f.t >= AC_E.lifeFrames) f._dead = true
   }
   // 经验飘字飞行动画
   if (g._expFloats) {

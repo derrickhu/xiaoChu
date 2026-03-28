@@ -1597,61 +1597,49 @@ class Render {
     c.restore()
   }
 
-  // ===== 伤害飘字（加大加粗，高对比度 + 类型标签） =====
+  // ===== 伤害飘字（读取 RENDER_CFG 配置） =====
   drawDmgFloat(f) {
     const {ctx:c,S} = this
+    const RC = require('./engine/dmgFloat').RENDER_CFG.dmgFloat
     const {x,y,text,color,alpha,scale,tag} = f
+    const drawX = x + (f._shakeOffset || 0)
     c.save(); c.globalAlpha=alpha||1
-    const sz = (22*(scale||1))*S
+    const sz = (RC.fontSize*(scale||1))*S
     c.font=`bold ${sz}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
-    // 深色粗描边（提升对比度）
-    c.strokeStyle='rgba(0,0,0,0.85)'; c.lineWidth=3.5*S; c.strokeText(text,x,y)
-    // 发光效果
-    c.shadowColor = color || TH.danger; c.shadowBlur = 6*S
+    c.strokeStyle='rgba(0,0,0,0.85)'; c.lineWidth=RC.stroke*S; c.strokeText(text,drawX,y)
+    c.shadowColor = color || TH.danger; c.shadowBlur = RC.glow*S
     c.fillStyle=color||TH.danger
-    c.fillText(text,x,y)
+    c.fillText(text,drawX,y)
     c.shadowBlur = 0
-    // 类型标签（小字，显示在主数字下方）
     if (tag) {
-      const tagSz = sz * 0.38
+      const tagSz = sz * RC.tagRatio
       c.font = `bold ${tagSz}px "PingFang SC",sans-serif`
       c.globalAlpha = (alpha || 1) * 0.75
-      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2*S
-      const tagY = y + sz * 0.6
-      c.strokeText(tag, x, tagY)
+      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
+      const tagY = y + sz * 0.55
+      c.strokeText(tag, drawX, tagY)
       c.fillStyle = '#ffffff'
-      c.fillText(tag, x, tagY)
+      c.fillText(tag, drawX, tagY)
     }
     c.restore()
   }
 
-  // ===== 消除数值飘字（棋子处，加大加粗 + 发光） =====
+  // ===== 消除数值飘字（读取 RENDER_CFG 配置） =====
   drawElimFloat(f) {
     const {ctx:c,S} = this
-    const {x,y,text,color,alpha,scale,subText} = f
+    const RC = require('./engine/dmgFloat').RENDER_CFG.elimFloat
+    const {x,y,text,color,alpha,scale} = f
     c.save(); c.globalAlpha = alpha || 1
-    // 主数值（伤害/回复值）
-    const sz = (18*(scale||1))*S
+    const sz = (RC.fontSize*(scale||1))*S
     c.font = `bold ${sz}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    // 深色粗描边
-    c.strokeStyle = 'rgba(0,0,0,0.85)'; c.lineWidth = 3*S
+    c.strokeStyle = 'rgba(0,0,0,0.85)'; c.lineWidth = RC.stroke*S
     c.strokeText(text, x, y)
-    // 发光效果
-    c.shadowColor = color || '#fff'; c.shadowBlur = 5*S
+    c.shadowColor = color || '#fff'; c.shadowBlur = RC.glow*S
     c.fillStyle = color || '#fff'
     c.fillText(text, x, y)
     c.shadowBlur = 0
-    // 副文字（Combo N）
-    if (subText) {
-      const subSz = 11*S
-      c.font = `bold ${subSz}px "PingFang SC",sans-serif`
-      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
-      c.strokeText(subText, x, y + sz*0.7)
-      c.fillStyle = '#ffd700'
-      c.fillText(subText, x, y + sz*0.7)
-    }
     c.restore()
   }
 
