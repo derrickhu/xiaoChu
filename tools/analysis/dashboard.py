@@ -130,6 +130,9 @@ with tab0:
         lb_rows = build_local_leaderboard_rows(players)
         lb_df = pd.DataFrame(lb_rows)
         if not lb_df.empty:
+            # 将毫秒时间戳转换为可读日期时间
+            if '_updateTime' in lb_df.columns:
+                lb_df['updateTime'] = pd.to_datetime(lb_df['_updateTime'], unit='ms').dt.strftime('%Y-%m-%d %H:%M')
             disp = lb_df.rename(columns={
                 'rank': '名次',
                 '_openid': 'OpenID',
@@ -139,7 +142,7 @@ with tab0:
                 'totalRuns': '总对局',
                 'cultivationLevel': '修炼等级',
                 'petDexCount': '图鉴数',
-                '_updateTime': '_updateTime',
+                'updateTime': '更新时间',
             })
             st.dataframe(disp, use_container_width=True, hide_index=True)
             csv_bytes = disp.to_csv(index=False).encode('utf-8-sig')
