@@ -94,9 +94,23 @@ class Main {
     MusicMgr.setBgmVolume((savedBgmVol != null ? savedBgmVol : 50) / 100)
     R._onImageLoad = () => { this._dirty = true }
 
-    this.events.on('scene:change', (newScene) => {
+    this.events.on('scene:change', (newScene, oldScene) => {
       if (newScene === 'petPool') {
+        guideMgr.trigger(this, 'pet_pool_intro')
         guideMgr.trigger(this, 'idle_intro')
+        // 从派遣返回灵宠池时引导继续战斗
+        if (oldScene === 'idle' && this.storage.isGuideShown('pet_pool_intro')) {
+          guideMgr.trigger(this, 'newbie_after_dispatch')
+        }
+      }
+      // 从灵宠池/修炼返回主页时触发后续引导
+      if (newScene === 'title') {
+        if (this.storage.isGuideShown('newbie_stage_continue') && !this.storage.isStageCleared('stage_1_2')) {
+          guideMgr.trigger(this, 'newbie_after_pets')
+        }
+        if (this.storage.isGuideShown('newbie_team_ready')) {
+          guideMgr.trigger(this, 'newbie_after_cult')
+        }
       }
     })
 
@@ -246,8 +260,15 @@ class Main {
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {
       const pg = this._pendingGuide
-      this._pendingGuide = null
-      guideMgr.trigger(this, pg)
+      // 新手首页引导需要高亮"开始游戏"按钮，等按钮矩形就绪后再触发
+      if (pg === 'newbie_stage_start' && this._startBtnRect) {
+        this._pendingGuide = null
+        const [bx, by, bw, bh] = this._startBtnRect
+        guideMgr.trigger(this, pg, { x: bx, y: by, w: bw, h: bh })
+      } else if (pg !== 'newbie_stage_start') {
+        this._pendingGuide = null
+        guideMgr.trigger(this, pg)
+      }
     }
     // 宝箱奖励不再自动弹出，玩家需主动点击右上角宝箱按钮领取
     if (this.bState === 'elimAnim') battleEngine.processElim(this)
@@ -398,6 +419,9 @@ class Main {
     if (this._rogueIntro) {
       eventView.drawRogueIntro(this)
     }
+    if (this._newbiePetIntro) {
+      eventView.drawNewbiePetIntro(this)
+    }
     if (this._petObtainedPopup) {
       eventView.drawPetObtainedPopup(this, this._petObtainedPopup)
     }
@@ -421,10 +445,9 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
-    // 指引覆盖层拦截
+    // 指引覆盖层拦截（restrictToHighlight 模式下高亮区域点击可穿透到底层按钮）
     if (guideMgr.isActive()) {
-      guideOverlay.onTouch(this, type, x, y)
-      return
+      if (guideOverlay.onTouch(this, type, x, y)) return
     }
     // 宝箱弹窗拦截（全局覆盖式弹窗）
     if (this.showChestPanel) {

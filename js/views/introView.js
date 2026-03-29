@@ -261,13 +261,12 @@ function onTouch(g, type, x, y) {
 
 function _finish(g) {
   V.P.setStorageSync('introDone', true)
-  // 开场漫画与战斗教学强绑定：看完漫画必走教学，重置 tutorialDone
-  try { V.P.removeStorageSync('tutorialDone') } catch(e) {}
   g.storage.markGuideShown('intro_done')
   const MusicMgr = require('../runtime/music')
   MusicMgr.playBgm()
-  // 直接进入新手战斗教学，不经过首页
-  g._startRun()
+  // 进入首页并触发新手秘境指引（Roguelike 教学延迟到首次点塔时自然触发）
+  g._pendingGuide = 'newbie_stage_start'
+  g.setScene('title')
 }
 
 function _roundRect(ctx, x, y, w, h, r) {

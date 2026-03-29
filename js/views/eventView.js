@@ -6,6 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
+const { drawPanel, drawRibbonIcon } = require('./uiComponents')
 const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
@@ -1857,66 +1858,21 @@ function drawRogueIntro(g) {
   // 面板尺寸
   const pw = W * 0.86, ph = 310 * S
   const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
-  const rad = 14 * S
-
-  // 面板背景（浅米黄暖色）
-  const bg = ctx.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
-  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
-  _riRR(ctx, px, py, pw, ph, rad)
-  ctx.fillStyle = bg
-  ctx.fill()
-
-  // 外边框：金色
-  _riRR(ctx, px, py, pw, ph, rad)
-  ctx.strokeStyle = 'rgba(200,160,60,0.6)'
-  ctx.lineWidth = 1.5 * S
-  ctx.stroke()
-
-  // 顶部装饰条（暖金黄）
   const ribbonH = 44 * S
-  _riRR(ctx, px, py, pw, ribbonH, rad)
-  const rib = ctx.createLinearGradient(px, py, px + pw, py)
-  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
-  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
-  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
-  ctx.fillStyle = rib
-  ctx.fill()
 
-  // 图标圆（白色半透明）
-  const iconR = 22 * S
-  const iconX = px + 38 * S, iconY = py + ribbonH / 2
-  ctx.beginPath()
-  ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,255,255,0.3)'
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)'
-  ctx.lineWidth = 1.5 * S
-  ctx.stroke()
-  ctx.fillStyle = '#5a3000'
-  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(card.icon, iconX, iconY)
+  const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH })
+  drawRibbonIcon(ctx, S, px, ribbonCY, card.icon)
 
   // 标题（深棕色）
   ctx.fillStyle = '#3a1a00'
   ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
-
-  // 分割线
-  ctx.strokeStyle = 'rgba(160,120,40,0.25)'
-  ctx.lineWidth = 1 * S
-  ctx.beginPath()
-  ctx.moveTo(px + 20 * S, py + 52 * S)
-  ctx.lineTo(px + pw - 20 * S, py + 52 * S)
-  ctx.stroke()
+  ctx.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
 
   // 正文（深棕灰）
   const lineH = 30 * S
-  const textStartY = py + 78 * S
+  const textStartY = py + ribbonH + 28 * S
   ctx.fillStyle = '#4a3820'
   ctx.font = `${13 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
@@ -1975,4 +1931,247 @@ function _riRR(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup, drawRogueIntro }
+// ===== 新手宠物战前介绍卡（2 页图示教学，支持多宠物） =====
+const _ATTR_LABEL = { metal: '金', wood: '木', earth: '土', water: '水', fire: '火' }
+const _ATTR_COLOR_NAME = { metal: '金色', wood: '绿色', earth: '棕色', water: '蓝色', fire: '红色' }
+
+function drawNewbiePetIntro(g) {
+  const intro = g._newbiePetIntro
+  if (!intro) return
+  const { ctx, W, H, S, R } = V
+  const { getPetById } = require('../data/pets')
+
+  if (intro.page == null) intro.page = 0
+  if (intro.timer == null) intro.timer = 0
+  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.05)
+  intro.timer++
+  g._dirty = true
+
+  // 兼容新旧格式：petIds 数组 或 petId 单值
+  const petIds = intro.petIds || (intro.petId ? [intro.petId] : [])
+  const pets = petIds.map(id => getPetById(id)).filter(Boolean)
+  if (pets.length === 0) { g._newbiePetIntro = null; return }
+
+  ctx.save()
+
+  ctx.globalAlpha = intro.alpha * 0.78
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, W, H)
+  ctx.globalAlpha = intro.alpha
+
+  if (intro.page === 0) {
+    _drawPetIntroPage1(ctx, R, W, H, S, pets, intro)
+  } else {
+    _drawPetIntroPage2(ctx, R, W, H, S, pets, intro)
+  }
+
+  ctx.restore()
+}
+
+// 第 1 页：3 宠物横排展示（头像 + 名字 + 对应属性灵珠色标）
+function _drawPetIntroPage1(ctx, R, W, H, S, pets, intro) {
+  const pw = W * 0.90, ph = 360 * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
+  const rad = 14 * S
+
+  _drawIntroPanel(ctx, R, px, py, pw, ph, rad, S, '你的战斗伙伴')
+
+  const ribbonH = 44 * S
+  const cardW = 72 * S
+  const gap = 12 * S
+  const totalW = pets.length * cardW + (pets.length - 1) * gap
+  const startX = (W - totalW) / 2
+  const avatarTopY = py + ribbonH + 16 * S
+
+  pets.forEach((pet, i) => {
+    const delay = 5 + i * 10
+    const petAlpha = Math.min(1, Math.max(0, (intro.timer - delay) / 15))
+    ctx.save()
+    ctx.globalAlpha = intro.alpha * petAlpha
+
+    const cx = startX + i * (cardW + gap) + cardW / 2
+
+    // 头像
+    const avatarSize = 64 * S
+    _drawPetAvatar(ctx, R, S, pet, cx - avatarSize / 2, avatarTopY, avatarSize)
+
+    // 属性徽章（右下角）
+    const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    const badgeR = 12 * S
+    const bx = cx + avatarSize / 2 - badgeR * 0.5
+    const by = avatarTopY + avatarSize - badgeR * 0.5
+    ctx.beginPath(); ctx.arc(bx, by, badgeR, 0, Math.PI * 2)
+    ctx.fillStyle = ac.main; ctx.fill()
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * S; ctx.stroke()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(_ATTR_LABEL[pet.attr] || '金', bx, by)
+
+    // 宠物名称
+    const nameY = avatarTopY + avatarSize + 14 * S
+    ctx.fillStyle = ac.main
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(pet.name, cx, nameY)
+
+    // 对应属性珠示意
+    const orbY = nameY + 22 * S
+    const orbR = 9 * S
+    ctx.beginPath(); ctx.arc(cx, orbY, orbR, 0, Math.PI * 2)
+    const orbGrad = ctx.createRadialGradient(cx - orbR * 0.3, orbY - orbR * 0.3, 0, cx, orbY, orbR)
+    orbGrad.addColorStop(0, ac.lt || ac.main)
+    orbGrad.addColorStop(1, ac.dk || ac.main)
+    ctx.fillStyle = orbGrad; ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1 * S; ctx.stroke()
+
+    // "消X珠"
+    ctx.fillStyle = '#5a4020'
+    ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+    ctx.fillText(`消${_ATTR_COLOR_NAME[pet.attr] || '金色'}珠`, cx, orbY + orbR + 12 * S)
+
+    ctx.restore()
+  })
+
+  // 底部总结
+  const sumAlpha = Math.min(1, Math.max(0, (intro.timer - 35) / 15))
+  ctx.save(); ctx.globalAlpha = intro.alpha * sumAlpha
+  ctx.fillStyle = '#3a1a00'
+  ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('它们将在战斗中为你冲锋陷阵！', W / 2, py + ph - 50 * S)
+  ctx.restore()
+
+  _drawIntroHint(ctx, S, W, intro.alpha, py + ph - 18 * S, '点击了解战斗方式 →')
+}
+
+// 第 2 页：3 条"灵珠→攻击"因果链纵向排列
+function _drawPetIntroPage2(ctx, R, W, H, S, pets, intro) {
+  const pw = W * 0.90, ph = (120 + pets.length * 70) * S
+  const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
+  const rad = 14 * S
+
+  _drawIntroPanel(ctx, R, px, py, pw, ph, rad, S, '战斗方式')
+
+  const ribbonH = 44 * S
+  const t = intro.timer
+  const rowH = 60 * S
+  const rowStartY = py + ribbonH + 16 * S
+
+  pets.forEach((pet, i) => {
+    const delay = 5 + i * 15
+    const rowAlpha = Math.min(1, Math.max(0, (t - delay) / 15))
+    ctx.save()
+    ctx.globalAlpha = intro.alpha * rowAlpha
+
+    const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    const attrLabel = _ATTR_COLOR_NAME[pet.attr] || '金色'
+    const cy = rowStartY + i * rowH + rowH / 2
+
+    // 灵珠
+    const orbR = 12 * S
+    const orbX = px + 36 * S
+    ctx.beginPath(); ctx.arc(orbX, cy, orbR, 0, Math.PI * 2)
+    const orbGrad = ctx.createRadialGradient(orbX - orbR * 0.3, cy - orbR * 0.3, 0, orbX, cy, orbR)
+    orbGrad.addColorStop(0, ac.lt || ac.main)
+    orbGrad.addColorStop(1, ac.dk || ac.main)
+    ctx.fillStyle = orbGrad; ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2 * S; ctx.stroke()
+
+    // 箭头
+    const arrowPulse = 0.6 + 0.4 * Math.sin(t * 0.08)
+    ctx.save(); ctx.globalAlpha *= arrowPulse
+    _drawFlowArrow(ctx, S, orbX + orbR + 8 * S, cy, orbX + orbR + 28 * S, cy, ac.main)
+    ctx.restore()
+
+    // 宠物头像
+    const petSize = 38 * S
+    const petX = orbX + orbR + 34 * S
+    _drawPetAvatar(ctx, R, S, pet, petX, cy - petSize / 2, petSize)
+
+    // 箭头 2
+    ctx.save(); ctx.globalAlpha *= arrowPulse
+    _drawFlowArrow(ctx, S, petX + petSize + 8 * S, cy, petX + petSize + 28 * S, cy, ac.main)
+    ctx.restore()
+
+    // 文字说明
+    const textX = petX + petSize + 34 * S
+    ctx.fillStyle = '#3a1a00'
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText(`消${attrLabel}珠`, textX, cy - 7 * S)
+    ctx.fillStyle = ac.main
+    ctx.fillText(`${pet.name}攻击！`, textX, cy + 9 * S)
+
+    ctx.restore()
+  })
+
+  // 底部总结
+  const sumY = rowStartY + pets.length * rowH + 8 * S
+  const sumAlpha = Math.min(1, Math.max(0, (t - 5 - pets.length * 15) / 15))
+  ctx.save(); ctx.globalAlpha = intro.alpha * sumAlpha
+  ctx.fillStyle = '#3a1a00'
+  ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('消除对应颜色灵珠，灵宠就会攻击！', W / 2, sumY)
+  ctx.restore()
+
+  _drawIntroHint(ctx, S, W, intro.alpha, py + ph - 18 * S, '点击屏幕开始战斗')
+}
+
+// --- 公共绘制工具 ---
+
+function _drawIntroPanel(ctx, R, px, py, pw, ph, rad, S, title) {
+  const ribbonH = 44 * S
+  const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH, radius: rad })
+  ctx.fillStyle = '#3a1a00'
+  ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(title, (px * 2 + pw) / 2, ribbonCY)
+}
+
+function _drawPetAvatar(ctx, R, S, pet, x, y, size) {
+  const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+  const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    ctx.save()
+    _riRR(ctx, x, y, size, size, 10 * S); ctx.clip()
+    const aw = img.width, ah = img.height
+    const sc = Math.max(size / aw, size / ah)
+    const dw = aw * sc, dh = ah * sc
+    ctx.drawImage(img, x + (size - dw) / 2, y + (size - dh) / 2, dw, dh)
+    ctx.restore()
+    ctx.save()
+    ctx.shadowColor = ac.main; ctx.shadowBlur = 10 * S
+    _riRR(ctx, x, y, size, size, 10 * S)
+    ctx.strokeStyle = ac.main; ctx.lineWidth = 2 * S; ctx.stroke()
+    ctx.restore()
+  }
+}
+
+function _drawFlowArrow(ctx, S, x1, y1, x2, y2, color) {
+  const headLen = 8 * S
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5 * S
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+  const angle = Math.atan2(y2 - y1, x2 - x1)
+  ctx.beginPath()
+  ctx.moveTo(x2, y2)
+  ctx.lineTo(x2 - headLen * Math.cos(angle - 0.4), y2 - headLen * Math.sin(angle - 0.4))
+  ctx.lineTo(x2 - headLen * Math.cos(angle + 0.4), y2 - headLen * Math.sin(angle + 0.4))
+  ctx.closePath()
+  ctx.fillStyle = color; ctx.fill()
+}
+
+function _drawIntroHint(ctx, S, W, alpha, y, text) {
+  const blinkAlpha = 0.4 + 0.3 * Math.sin(Date.now() * 0.004)
+  ctx.save()
+  ctx.globalAlpha = alpha * blinkAlpha
+  ctx.fillStyle = '#8B7355'
+  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(text, W / 2, y)
+  ctx.restore()
+}
+
+module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup, drawRogueIntro, drawNewbiePetIntro }

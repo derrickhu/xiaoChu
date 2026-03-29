@@ -18,6 +18,7 @@ const { resetPrepBagScroll } = require('../views/prepareView')
 const tutorial = require('./tutorial')
 const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
 const { calcRoguelikePetExp } = require('../data/petPoolConfig')
+const { SETTLE_CFG } = require('../data/settleConfig')
 const { initBoard } = require('./battle')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
@@ -227,25 +228,25 @@ function restoreBattleHpMax(g) {
 }
 
 /**
- * 经验结算（可独立于 endRun 调用，如重新开局时）
- * 修炼经验：按失败保留 60%
- * 宠物经验：独立计算，汇入共享经验池
+ * 经验结算（可独立于 endRun 调用，如重新开局/放弃存档时）
+ * 修炼经验 + 宠物经验，数值从 SETTLE_CFG 读取
  */
 function settleExp(g) {
+  const cfg = SETTLE_CFG
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
-  const layerExp = finalFloor * 3
-  const clearBonus = g.cleared ? 500 : 0
+  const layerExp = finalFloor * cfg.cultExp.perFloor
+  const clearBonus = g.cleared ? cfg.cultExp.clearBonus : 0
   const rawTotal = (g.runExp || 0) + layerExp + clearBonus
-  const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * 0.6)
+  const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * cfg.cultExp.failRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
 
-  // 宠物经验：肉鸽局结算产出，汇入共享经验池
-  const petExp = calcRoguelikePetExp(
-    { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 },
-    finalFloor,
-    g.cleared
-  )
+  const combatDetail = { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 }
+  const rawCombat = combatDetail.elimExp + combatDetail.comboExp + combatDetail.killExp
+  const petBase = Math.floor(rawCombat * cfg.petExp.combatRatio)
+  const petFloor = finalFloor * cfg.petExp.floorBonus
+  const petClear = g.cleared ? cfg.petExp.clearBonus : 0
+  const petExp = petBase + petFloor + petClear
   if (petExp > 0) g.storage.addPetExp(petExp)
 
   g._lastRunExp = finalExp
@@ -253,16 +254,83 @@ function settleExp(g) {
   g._lastRunPrevLevel = prevLevel
   g._lastRunPetExp = petExp
   g._lastRunExpDetail = {
-    elimExp: g._runElimExp || 0,
-    comboExp: g._runComboExp || 0,
-    killExp: g._runKillExp || 0,
-    layerExp,
-    clearBonus,
-    rawTotal,
-    isCleared: g.cleared,
-    petExp,
+    ...combatDetail, layerExp, clearBonus, rawTotal,
+    isCleared: g.cleared, petExp,
   }
   return finalExp
+}
+
+/**
+ * 完整结算（仅 endRun 使用）：修炼经验 + 宠物经验 + 碎片
+ * 所有奖励统一写入 g._lastRunSettleRewards 供结算 UI 展示
+ */
+function settleAll(g) {
+  settleExp(g)
+  const cfg = SETTLE_CFG
+  const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+
+  // ── 碎片计算 ──
+  const bossCount = Math.floor(finalFloor / 10)
+  // 精英层：第 5 层固定 + 约每 7-8 层随机，简化为 floor/7 估算
+  const eliteEstimate = finalFloor >= 5 ? 1 + Math.floor((finalFloor - 5) / 7) : 0
+  const fragBase = finalFloor * cfg.fragment.perFloor
+  const fragBoss = bossCount * cfg.fragment.bossBonus
+  const fragElite = eliteEstimate * cfg.fragment.eliteBonus
+  const fragClear = g.cleared ? cfg.fragment.clearBonus : 0
+  const fragRaw = fragBase + fragBoss + fragElite + fragClear
+  const fragTotal = g.cleared ? fragRaw : Math.floor(fragRaw * cfg.fragment.failRatio)
+
+  // ── 碎片分配 ──
+  const fragDetails = []
+  if (fragTotal > 0 && g.pets && g.pets.length > 0) {
+    if (cfg.distribute.mode === 'team') {
+      const targets = g.pets.map(p => p.id)
+      if (cfg.distribute.evenSplit) {
+        const perPet = Math.floor(fragTotal / targets.length)
+        const remainder = fragTotal - perPet * targets.length
+        targets.forEach((id, i) => {
+          const cnt = perPet + (i < remainder ? 1 : 0)
+          if (cnt > 0) {
+            g.storage.addFragmentSmart(id, cnt)
+            fragDetails.push({ petId: id, count: cnt })
+          }
+        })
+      } else {
+        // 全部给队伍第一只（简化 V1）
+        g.storage.addFragmentSmart(targets[0], fragTotal)
+        fragDetails.push({ petId: targets[0], count: fragTotal })
+      }
+    } else {
+      // bank 模式：给队伍中随机一只
+      const id = g.pets[Math.floor(Math.random() * g.pets.length)].id
+      g.storage.addFragmentSmart(id, fragTotal)
+      fragDetails.push({ petId: id, count: fragTotal })
+    }
+  }
+
+  g._lastRunSettleRewards = {
+    cultExp: {
+      runExp: g._lastRunExpDetail.elimExp + g._lastRunExpDetail.comboExp + g._lastRunExpDetail.killExp,
+      layerExp: g._lastRunExpDetail.layerExp,
+      clearBonus: g._lastRunExpDetail.clearBonus,
+      failRatio: g.cleared ? 1 : cfg.cultExp.failRatio,
+      final: g._lastRunExp,
+      levelUps: g._lastRunLevelUps,
+      prevLevel: g._lastRunPrevLevel,
+    },
+    petExp: {
+      final: g._lastRunPetExp,
+    },
+    fragments: {
+      base: fragBase,
+      bossBonus: fragBoss,
+      eliteBonus: fragElite,
+      clearBonus: fragClear,
+      failRatio: g.cleared ? 1 : cfg.fragment.failRatio,
+      final: fragTotal,
+      details: fragDetails,
+    },
+  }
 }
 
 function endRun(g) {
@@ -276,7 +344,7 @@ function endRun(g) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
     g.storage.submitDexAndCombo()
   }
-  settleExp(g)
+  settleAll(g)
   if (g._lastRunExp > 0 && !g.storage.isGuideShown('cultivation_unlock')) {
     g._pendingGuide = 'cultivation_unlock'
   }
@@ -495,7 +563,7 @@ function gmSkipBattle(g) {
 
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
-  startRun, nextFloor, restoreBattleHpMax, settleExp, endRun, saveAndExit, resumeRun,
+  startRun, nextFloor, restoreBattleHpMax, settleExp, settleAll, endRun, saveAndExit, resumeRun,
   onDefeat, doAdRevive, adReviveCallback,
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
   gmSkipBattle,

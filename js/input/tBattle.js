@@ -13,6 +13,26 @@ const { killExpBase } = require('../data/cultivationConfig')
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
+  // === 新手宠物介绍卡拦截（2 页翻页） ===
+  if (g._newbiePetIntro) {
+    if (type === 'end') {
+      if ((g._newbiePetIntro.page || 0) < 1) {
+        g._newbiePetIntro.page = 1
+        g._newbiePetIntro.timer = 0
+        g._newbiePetIntro.alpha = 0
+      } else {
+        g._newbiePetIntro = null
+        // 介绍卡结束后触发简化版转珠教学
+        if (g._pendingStageTutorial) {
+          g._pendingStageTutorial = false
+          const tut = require('../engine/tutorial')
+          if (tut.startStageTutorial) tut.startStageTutorial(g)
+        }
+      }
+      g._dirty = true
+    }
+    return
+  }
   // === 教学系统拦截 ===
   if (tutorial.isActive()) {
     if (!tutorial.isSummary() && type === 'end' && g._tutorialSkipRect && g._hitRect(x, y, ...g._tutorialSkipRect)) {
@@ -44,6 +64,39 @@ function tBattle(g, type, x, y) {
       }
       return
     }
+  }
+  // === 帮助面板拦截 ===
+  if (g._showBattleHelp) {
+    if (type === 'start') {
+      g._helpSwipeStartX = x
+    } else if (type === 'end') {
+      // 关闭按钮
+      if (g._helpCloseRect && g._hitRect(x, y, ...g._helpCloseRect)) {
+        g._showBattleHelp = false; g._dirty = true; return
+      }
+      // 左右滑动翻页
+      const dx = x - (g._helpSwipeStartX || x)
+      const pageCount = 3
+      if (Math.abs(dx) > 40 * S) {
+        if (!g._battleHelpPage) g._battleHelpPage = 0
+        if (dx < 0 && g._battleHelpPage < pageCount - 1) g._battleHelpPage++
+        else if (dx > 0 && g._battleHelpPage > 0) g._battleHelpPage--
+        g._dirty = true; return
+      }
+      // 点击面板左右区域翻页
+      if (g._helpPanelRect) {
+        const [px, py, pw, ph] = g._helpPanelRect
+        if (g._hitRect(x, y, px, py, pw, ph)) {
+          if (!g._battleHelpPage) g._battleHelpPage = 0
+          if (x < px + pw * 0.25 && g._battleHelpPage > 0) { g._battleHelpPage--; g._dirty = true; return }
+          if (x > px + pw * 0.75 && g._battleHelpPage < pageCount - 1) { g._battleHelpPage++; g._dirty = true; return }
+          return
+        }
+      }
+      // 点击面板外关闭
+      g._showBattleHelp = false; g._dirty = true
+    }
+    return
   }
   // === 教学拦截结束，以下为原逻辑 ===
   // 退出弹窗
@@ -83,6 +136,11 @@ function tBattle(g, type, x, y) {
   // GM跳过战斗
   if (type === 'end' && g._isGM && g._gmSkipRect && g._hitRect(x,y,...g._gmSkipRect)) {
     runMgr.gmSkipBattle(g); return
+  }
+  // 帮助按钮
+  if (type === 'end' && g._helpBtnRect && g._hitRect(x, y, ...g._helpBtnRect)
+      && g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'adReviveOffer') {
+    g._showBattleHelp = true; g._battleHelpPage = 0; g._dirty = true; return
   }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {

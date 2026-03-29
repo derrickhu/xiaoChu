@@ -92,7 +92,7 @@ function rStageSelect(g) {
       c.fillText(`${mm}:${ss}后+1`, capRightX, topCenterY)
     } else {
       c.fillStyle = 'rgba(200,200,180,0.6)'
-      c.fillText('5分钟+1', capRightX, topCenterY)
+      c.fillText('3分钟+1', capRightX, topCenterY)
     }
   } else {
     c.font = `bold ${14*S}px "PingFang SC",sans-serif`
@@ -185,9 +185,10 @@ function rStageSelect(g) {
       }
 
       const cardH = 72 * S
-      const dailyUsed = g.storage.getStageDailyCount(stage.id)
-      const dailyLeft = stage.dailyLimit - dailyUsed
-      const exhausted = dailyLeft <= 0
+      const hasDailyLimit = stage.dailyLimit > 0
+      const dailyUsed = hasDailyLimit ? g.storage.getStageDailyCount(stage.id) : 0
+      const dailyLeft = hasDailyLimit ? stage.dailyLimit - dailyUsed : Infinity
+      const exhausted = hasDailyLimit && dailyLeft <= 0
       const ac = attrColor ? attrColor.main : '#887766'
       const avatarSz = cardH
       const textLeft = cardX + avatarSz + 10 * S
@@ -236,14 +237,15 @@ function rStageSelect(g) {
       c.fillStyle = '#FFF5E0'
       c.fillText(stage.name, textLeft, curY + 16 * S)
 
-      // 属性 | 波次 | 每日剩余
+      // 属性 | 波次 | 每日剩余（无限制时不显示次数）
       const attrName = ATTR_NAME[attr] || '?'
       c.font = `${10*S}px "PingFang SC",sans-serif`
       c.fillStyle = ac
       c.fillText(`${attrName}属性`, textLeft, curY + 34 * S)
       c.fillStyle = '#C8B890'
       const attrNameW = c.measureText(`${attrName}属性`).width
-      c.fillText(` | ${stage.waves.length}波 | 今日${dailyLeft}/${stage.dailyLimit}`, textLeft + attrNameW, curY + 34 * S)
+      const dailyStr = hasDailyLimit ? ` | 今日${dailyLeft}/${stage.dailyLimit}` : ''
+      c.fillText(` | ${stage.waves.length}波${dailyStr}`, textLeft + attrNameW, curY + 34 * S)
 
       // 体力消耗
       c.font = `${10*S}px "PingFang SC",sans-serif`
@@ -403,8 +405,7 @@ function tStageSelect(g, x, y, type) {
       if (g._hitRect(x, y, ...item.rect)) {
         const stage = getStageById(item.stageId)
         if (stage) {
-          const dailyUsed = g.storage.getStageDailyCount(item.stageId)
-          if (dailyUsed >= stage.dailyLimit) {
+          if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(item.stageId, stage.dailyLimit)) {
             P.showGameToast(`今日挑战次数已用完（${stage.dailyLimit}/${stage.dailyLimit}）`)
             return
           }

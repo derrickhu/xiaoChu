@@ -9,7 +9,7 @@ const BAR_ITEMS = [
   { key: 'cultivation', label: '修炼', icon: '☯', img: 'assets/ui/nav_hero.png' },
   { key: 'pets',   label: '灵宠',  icon: '🐾', img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
-  { key: 'battle', label: '战斗',  icon: '⚔',  center: true },
+  { key: 'stage', label: '秘境',  icon: '🏯',  center: true },
   { key: 'rank',   label: '排行',  icon: '🏆', img: 'assets/ui/nav_rank.png' },
   { key: 'stats',  label: '统计',  icon: '📊', img: 'assets/ui/nav_stats.png' },
   { key: 'more',   label: '更多',  icon: '⚙',  img: 'assets/ui/nav_more.png' },
@@ -80,6 +80,10 @@ function drawBottomBar(g) {
 
   const slotW = W / BAR_ITEMS.length
   g._bottomBarRects = []
+  if (!g._namedRects) g._namedRects = {}
+
+  // key → highlightId 映射（供引导系统使用）
+  const _KEY_TO_NAV = { cultivation: 'nav_cult', pets: 'nav_pet', dex: 'nav_dex', stage: 'nav_stage', rank: 'nav_rank' }
 
   // 判断当前选中的标签 key
   const activeKey = (() => {
@@ -150,7 +154,9 @@ function drawBottomBar(g) {
       ctx.fillStyle = isActive ? '#fff799' : '#ffe566'
       ctx.fillText(item.label, cx, cLabelY)
 
-      g._bottomBarRects.push([i * slotW, L.bottomBarY, slotW, L.bottomBarH])
+      const _cRect = [i * slotW, L.bottomBarY, slotW, L.bottomBarH]
+      g._bottomBarRects.push(_cRect)
+      if (_KEY_TO_NAV[item.key]) g._namedRects[_KEY_TO_NAV[item.key]] = { x: _cRect[0], y: _cRect[1], w: _cRect[2], h: _cRect[3] }
     } else {
       ctx.globalAlpha = isLocked ? 0.38 : 1
 
@@ -204,7 +210,9 @@ function drawBottomBar(g) {
       ctx.fillText(item.label, cx, labelBaseline)
       ctx.globalAlpha = 1
 
-      g._bottomBarRects.push([i * slotW, L.bottomBarY, slotW, L.bottomBarH])
+      const _nRect = [i * slotW, L.bottomBarY, slotW, L.bottomBarH]
+      g._bottomBarRects.push(_nRect)
+      if (_KEY_TO_NAV[item.key]) g._namedRects[_KEY_TO_NAV[item.key]] = { x: _nRect[0], y: _nRect[1], w: _nRect[2], h: _nRect[3] }
 
       // 图鉴红点：图标右上角
       if (item.key === 'dex') {

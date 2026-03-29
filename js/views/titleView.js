@@ -6,6 +6,8 @@ const V = require('./env')
 const P = require('../platform')
 
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
+const { CHAPTERS, getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER } = require('../data/stages')
+const guideMgr = require('../engine/guideManager')
 
 // 模式配置
 const MODE_CFG = {
@@ -29,6 +31,36 @@ function drawTopBar(g) {
   }
 }
 
+// ===== 秘境内嵌选关：获取当前展示的关卡数据 =====
+function _ensureBrowsableList(g) {
+  // 每帧重建（15关遍历，开销可忽略），确保通关后列表立即更新
+  g._browsableStages = getBrowsableStages(g.storage.stageClearRecord)
+  if (g._selectedStageIdx >= g._browsableStages.length) {
+    g._selectedStageIdx = Math.max(0, g._browsableStages.length - 1)
+  }
+  return g._browsableStages
+}
+
+function _getDisplayStage(g) {
+  const list = _ensureBrowsableList(g)
+
+  // 首次进入：自动定位到当前进度（最新解锁且未通关的关卡）
+  if (!g._stageIdxInitialized) {
+    g._stageIdxInitialized = true
+    let bestIdx = 0
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].unlocked && !g.storage.isStageCleared(list[i].stage.id)) {
+        bestIdx = i; break
+      }
+      if (list[i].unlocked) bestIdx = i
+    }
+    g._selectedStageIdx = bestIdx
+  }
+
+  const entry = list[g._selectedStageIdx]
+  return entry || null
+}
+
 // ===== ZONE 2: 场景区（背景 + 插画 + Logo）=====
 function drawSceneArea(g) {
   const { ctx, R, W, S } = V
@@ -37,32 +69,164 @@ function drawSceneArea(g) {
   R.drawHomeBg(g.af)
 
   const mode = g.titleMode || 'tower'
+
+  if (mode === 'stage') {
+    _drawStageSceneArea(g, ctx, R, W, S, L)
+    return
+  }
+
   const imgPath = MODE_CFG[mode].img
   const towerImg = R.getImg(imgPath)
   const sceneH = L.petRowY - L.topBarBottom
 
   if (towerImg && towerImg.width > 0) {
-    // 以场景高度为基准，使塔图填满纵向空间（最宽不超过 92%W）
     const targetH = sceneH * 0.88
     const ratioW = towerImg.width / towerImg.height
     const imgW = Math.min(targetH * ratioW, W * 0.92)
     const imgH = imgW / ratioW
     const imgX = (W - imgW) / 2
-    // 底部对齐到 petRowY + 14S（与按钮略微叠压）
     const imgY = L.petRowY - imgH + 14 * S
     ctx.drawImage(towerImg, imgX, imgY, imgW, imgH)
   } else {
-    // 无素材 fallback
-    const emoji = mode === 'tower' ? '🏯' : '🏰'
     ctx.save()
     ctx.font = `${80*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.globalAlpha = mode === 'stage' ? 0.35 : 0.6
-    ctx.fillText(emoji, W / 2, L.topBarBottom + sceneH * 0.45)
+    ctx.globalAlpha = 0.6
+    ctx.fillText('🏯', W / 2, L.topBarBottom + sceneH * 0.45)
     ctx.globalAlpha = 1
     ctx.restore()
   }
+}
 
+// ===== 秘境场景区：门框 + Boss头像 + 关卡名 =====
+function _drawStageSceneArea(g, ctx, R, W, S, L) {
+  const entry = _getDisplayStage(g)
+  if (!entry) return
+
+  const { stage, unlocked } = entry
+  const chapter = CHAPTERS.find(ch => ch.id === stage.chapter)
+  const chapterName = chapter ? chapter.name : ''
+
+  const gateImg = R.getImg('assets/ui/gate_stage.png')
+  const sceneH = L.petRowY - L.topBarBottom
+
+  // 门框尺寸与位置（同原逻辑）
+  let gateW, gateH, gateX, gateY
+  if (gateImg && gateImg.width > 0) {
+    const targetH = sceneH * 0.88
+    const ratioW = gateImg.width / gateImg.height
+    gateW = Math.min(targetH * ratioW, W * 0.92)
+    gateH = gateW / ratioW
+    gateX = (W - gateW) / 2
+    gateY = L.petRowY - gateH + 14 * S
+  } else {
+    gateW = W * 0.7
+    gateH = sceneH * 0.7
+    gateX = (W - gateW) / 2
+    gateY = L.topBarBottom + sceneH * 0.08
+  }
+
+  // Boss 头像绘制区域（门内区域，略小于门框）
+  const avatarPadX = gateW * 0.18
+  const avatarPadTop = gateH * 0.22
+  const avatarPadBot = gateH * 0.12
+  const avatarX = gateX + avatarPadX
+  const avatarY = gateY + avatarPadTop
+  const avatarW = gateW - avatarPadX * 2
+  const avatarH = gateH - avatarPadTop - avatarPadBot
+
+  // 滑动偏移
+  const swipeDx = g._stageSwipeDeltaX || 0
+
+  ctx.save()
+
+  // 绘制 Boss 头像（带滑动偏移），裁剪在门框区域内
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(avatarX, avatarY, avatarW, avatarH)
+  ctx.clip()
+
+  const bossAvatarPath = getStageBossAvatar(stage)
+  const bossImg = bossAvatarPath ? R.getImg(bossAvatarPath) : null
+
+  if (bossImg && bossImg.width > 0) {
+    const drawX = avatarX + swipeDx
+    const imgRatio = bossImg.width / bossImg.height
+    let drawW, drawH
+    if (imgRatio > avatarW / avatarH) {
+      drawH = avatarH * 0.85
+      drawW = drawH * imgRatio
+    } else {
+      drawW = avatarW * 0.75
+      drawH = drawW / imgRatio
+    }
+    const cx = drawX + avatarW / 2 - drawW / 2
+    const cy = avatarY + avatarH / 2 - drawH / 2
+
+    if (!unlocked) ctx.globalAlpha = 0.35
+    ctx.drawImage(bossImg, cx, cy, drawW, drawH)
+    ctx.globalAlpha = 1
+  } else {
+    // fallback: Boss 名称文字
+    ctx.fillStyle = unlocked ? 'rgba(80,50,20,0.6)' : 'rgba(80,80,80,0.4)'
+    ctx.font = `bold ${28*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(getStageBossName(stage), avatarX + avatarW / 2 + swipeDx, avatarY + avatarH / 2)
+  }
+
+  // 未解锁遮罩 + 锁图标
+  if (!unlocked) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'
+    ctx.fillRect(avatarX, avatarY, avatarW, avatarH)
+    ctx.font = `${36*S}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('🔒', avatarX + avatarW / 2, avatarY + avatarH / 2)
+  }
+  ctx.restore()
+
+  // 绘制门框图片（叠在头像上方）
+  if (gateImg && gateImg.width > 0) {
+    ctx.drawImage(gateImg, gateX, gateY, gateW, gateH)
+  }
+
+  // 门框上方：章节名 + 关卡名
+  const titleY = gateY - 8 * S
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+
+  // 关卡名（大字）
+  ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#5a2d0c'
+  ctx.shadowColor = 'rgba(255,245,220,0.8)'; ctx.shadowBlur = 4 * S
+  ctx.fillText(stage.name, W / 2, titleY)
+  ctx.shadowColor = 'transparent'
+
+  // 章节名（小字，在关卡名上方）
+  ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = 'rgba(120,80,30,0.7)'
+  ctx.fillText(chapterName, W / 2, titleY - 18 * S)
+
+  // 左右滑动箭头
+  const list = _ensureBrowsableList(g)
+  const arrowY = gateY + gateH / 2
+  const arrowSz = 18 * S
+
+  if (g._selectedStageIdx > 0) {
+    ctx.font = `bold ${arrowSz}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(120,80,20,0.5)'
+    ctx.fillText('◀', gateX - 6 * S, arrowY)
+  }
+  if (g._selectedStageIdx < list.length - 1) {
+    ctx.font = `bold ${arrowSz}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(120,80,20,0.5)'
+    ctx.fillText('▶', gateX + gateW + 6 * S, arrowY)
+  }
+
+  // 存储门框区域用于手势判定
+  g._stageGateRect = [gateX, gateY, gateW, gateH]
+
+  ctx.restore()
 }
 
 // ===== ZONE 3: 人物头像+等级（左上角常驻）=====
@@ -259,39 +423,111 @@ function drawStartBtn(g) {
     ctx.textBaseline = 'middle'
     ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
   } else {
-    // 灵兽秘境模式
-    const btnW = W * 0.55
+    // 灵兽秘境模式 — 内嵌选关
+    const entry = _getDisplayStage(g)
+    const stage = entry ? entry.stage : null
+    const stageUnlocked = entry ? entry.unlocked : false
+
+    const btnW = W * 0.60
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
     const btnY = L.startBtnY
-    const poolCount = g.storage.petPoolCount
-    const canPlay = poolCount >= 5
 
-    if (canPlay) {
-      // 可游玩：使用 btn_start.png，fallback 蓝色渐变
-      const btnImg = R.getImg('assets/ui/btn_start.png')
-      if (btnImg && btnImg.width > 0) {
-        ctx.drawImage(btnImg, btnX, btnY, btnW, btnH)
-      } else {
-        const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
-        grad.addColorStop(0, '#8ac8ff'); grad.addColorStop(1, '#4a8acc')
-        ctx.fillStyle = grad
-        R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
-      }
-      ctx.fillStyle = '#1a2a3c'
-      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('选择关卡', btnX + btnW / 2, btnY + btnH / 2)
-      g._startBtnRect = [btnX, btnY, btnW, btnH]
+    // 按钮底图
+    const btnImg = R.getImg('assets/ui/btn_start.png')
+    if (!stageUnlocked) ctx.globalAlpha = 0.5
+    if (btnImg && btnImg.width > 0) {
+      ctx.drawImage(btnImg, btnX, btnY, btnW, btnH)
     } else {
-      // 未解锁
-      ctx.fillStyle = 'rgba(100,100,120,0.35)'
+      const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
+      grad.addColorStop(0, '#f5d98a'); grad.addColorStop(0.5, '#d4a84b'); grad.addColorStop(1, '#b8862d')
+      ctx.fillStyle = grad
       R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
-      ctx.fillStyle = 'rgba(140,140,160,0.6)'
-      ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+    }
+    ctx.globalAlpha = 1
+
+    // 按钮文字
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    if (!stageUnlocked) {
+      ctx.fillStyle = '#666'
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      ctx.fillText('未解锁', btnX + btnW / 2, btnY + btnH / 2)
+    } else {
+      ctx.fillStyle = '#5a2d0c'
+      ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+      const cost = stage ? stage.staminaCost : 0
+      if (cost > 0) {
+        // "开始游戏" + 体力图标 + 数字
+        const text = '开始游戏'
+        const textW = ctx.measureText(text).width
+        const iconSz = 16 * S
+        const gap = 6 * S
+        const totalW = textW + gap + iconSz + ctx.measureText(String(cost)).width * 0.9
+        const startX = btnX + btnW / 2 - totalW / 2
+        ctx.textAlign = 'left'
+        ctx.fillText(text, startX, btnY + btnH / 2)
+
+        // 体力图标
+        const stIcon = R.getImg('assets/ui/icon_stamina.png')
+        const iconX = startX + textW + gap
+        const iconY = btnY + btnH / 2 - iconSz / 2
+        if (stIcon && stIcon.width > 0) {
+          ctx.drawImage(stIcon, iconX, iconY, iconSz, iconSz)
+        } else {
+          ctx.fillStyle = '#3aaeff'
+          ctx.font = `${12*S}px sans-serif`
+          ctx.fillText('⚡', iconX, btnY + btnH / 2)
+        }
+
+        // 体力数字
+        const hasEnough = g.storage.currentStamina >= cost
+        ctx.fillStyle = hasEnough ? '#5a2d0c' : '#c0392b'
+        ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        ctx.fillText(String(cost), iconX + iconSz + 2 * S, btnY + btnH / 2)
+      } else {
+        ctx.textAlign = 'center'
+        ctx.fillText('开始游戏', btnX + btnW / 2, btnY + btnH / 2)
+      }
+    }
+
+    g._startBtnRect = [btnX, btnY, btnW, btnH]
+
+    // 新手引导激活时：金色脉冲呼吸光晕
+    if (guideMgr.getCurrentId() === 'newbie_stage_start') {
+      const pulse = 0.3 + 0.25 * Math.sin(g.af * 0.08)
+      ctx.save()
+      ctx.globalAlpha = pulse
+      ctx.shadowColor = '#ffd700'
+      ctx.shadowBlur = 20 * S
+      R.rr(btnX - 4 * S, btnY - 4 * S, btnW + 8 * S, btnH + 8 * S, btnH * 0.4 + 4 * S)
+      ctx.strokeStyle = '#ffd700'
+      ctx.lineWidth = 3 * S
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // 按钮上方：通关星级评价
+    if (stage && stageUnlocked) {
+      const bestRating = g.storage.getStageBestRating(stage.id)
+      if (bestRating) {
+        const starCount = RATING_ORDER[bestRating] || 0
+        const starY = btnY - 14 * S
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.font = `${16*S}px sans-serif`
+        const starStr = '★'.repeat(starCount) + '☆'.repeat(3 - starCount)
+        ctx.fillStyle = '#d4a84b'
+        ctx.fillText(starStr, W / 2, starY)
+      }
+    }
+
+    // 进度文字（按钮下方）
+    if (stage && stageUnlocked) {
+      const clearCount = g.storage.getStageClearCount(stage.id)
+      const progressText = clearCount > 0 ? `已通关 ${clearCount} 次` : '尚未通关'
+      ctx.fillStyle = 'rgba(80,50,20,0.6)'
+      ctx.font = `${10*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(`🔒 灵宠池需 ${5 - poolCount} 只解锁`, btnX + btnW / 2, btnY + btnH / 2)
-      g._startBtnRect = null
+      ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
     }
   }
 

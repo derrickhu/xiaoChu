@@ -30,6 +30,32 @@ function rStageResult(g) {
   const result = g._stageResult
   if (!result) return
 
+  // 首次进入结算页时，检测是否需要触发新手宠物庆祝（1-1 和 1-2 首通均触发）
+  if (at === 1 && !result._celebrateTriggered && result.victory && result.isFirstClear
+      && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {
+    result._celebrateTriggered = true
+    const petRewards = result.rewards ? result.rewards.filter(r => r.type === 'pet') : []
+    if (petRewards.length > 0) {
+      g._newbiePetCelebrate = {
+        petIds: petRewards.map(r => r.petId),
+        currentIdx: 0,
+        alpha: 0, timer: 0,
+      }
+    }
+  }
+
+  // 新手宠物庆祝阶段（全屏覆盖，点击后切到队伍总览卡）
+  if (g._newbiePetCelebrate) {
+    _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop)
+    return
+  }
+
+  // 新手队伍总览卡（3 宠 + 对应属性珠，点击后切正常结算）
+  if (g._newbieTeamOverview) {
+    _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop)
+    return
+  }
+
   // === 全屏背景 ===
   const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
   if (poolBg && poolBg.width > 0) {
@@ -430,33 +456,331 @@ function _drawExpRow(c, R, S, x, cy, innerW, iconName, label, value, labelColor,
   c.fillText(value, x + innerW, cy + iconSz / 2)
 }
 
+// ===== 新手宠物庆祝全屏（逐一展示每只奖励宠物） =====
+function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
+  const cel = g._newbiePetCelebrate
+  if (!cel || !cel.petIds || cel.petIds.length === 0) { g._newbiePetCelebrate = null; return }
+  cel.timer++
+  cel.alpha = Math.min(1, cel.timer / 20)
+  g._dirty = true
+
+  const idx = cel.currentIdx || 0
+  const petId = cel.petIds[idx]
+  const pet = getPetById(petId)
+  if (!pet) { g._newbiePetCelebrate = null; return }
+
+  // 背景
+  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  if (poolBg && poolBg.width > 0) {
+    R._drawCoverImg(poolBg, 0, 0, W, H)
+  } else {
+    R.drawHomeBg(0)
+  }
+
+  c.save()
+  c.globalAlpha = cel.alpha
+
+  c.fillStyle = 'rgba(255,240,200,0.12)'
+  c.fillRect(0, 0, W, H)
+
+  // 旋转金色光芒
+  c.save()
+  c.globalAlpha = cel.alpha * (0.08 + 0.04 * Math.sin(cel.timer * 0.04))
+  const centerY = H * 0.38
+  c.translate(W * 0.5, centerY)
+  c.rotate(cel.timer * 0.003)
+  for (let i = 0; i < 12; i++) {
+    c.rotate(Math.PI / 6)
+    c.beginPath(); c.moveTo(0, 0)
+    c.lineTo(-20 * S, -H * 0.4); c.lineTo(20 * S, -H * 0.4)
+    c.closePath()
+    c.fillStyle = '#ffd700'; c.fill()
+  }
+  c.restore()
+
+  // 径向光晕
+  c.save()
+  c.globalAlpha = cel.alpha * 0.6
+  const glow = c.createRadialGradient(W * 0.5, centerY, 0, W * 0.5, centerY, W * 0.55)
+  glow.addColorStop(0, 'rgba(255,215,0,0.3)')
+  glow.addColorStop(0.5, 'rgba(255,200,0,0.1)')
+  glow.addColorStop(1, 'rgba(255,215,0,0)')
+  c.fillStyle = glow; c.fillRect(0, 0, W, H)
+  c.restore()
+
+  // 计数指示器（第 x/n 只）
+  if (cel.petIds.length > 1) {
+    c.fillStyle = 'rgba(200,170,80,0.7)'
+    c.font = `${12 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(`${idx + 1} / ${cel.petIds.length}`, W / 2, safeTop + 30 * S)
+  }
+
+  // 宠物头像（大尺寸弹入动画）
+  const bounceProgress = Math.min(1, cel.timer / 25)
+  const bounce = bounceProgress < 1
+    ? (1 + 0.2 * Math.sin(bounceProgress * Math.PI))
+    : (1 + 0.03 * Math.sin(cel.timer * 0.06))
+  const avatarSize = 130 * S * bounce
+  const avatarX = (W - avatarSize) / 2
+  const avatarY = centerY - avatarSize / 2 - 10 * S
+
+  const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+  const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    c.save()
+    c.shadowColor = ac.main; c.shadowBlur = 20 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S); c.clip()
+    const aw = img.width, ah = img.height
+    const sc = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * sc, dh = ah * sc
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+    c.save()
+    c.shadowColor = ac.main; c.shadowBlur = 16 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+    c.strokeStyle = ac.main; c.lineWidth = 3 * S; c.stroke()
+    c.restore()
+  }
+
+  // 宠物名称
+  const nameY = avatarY + avatarSize + 30 * S
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.save()
+  c.shadowColor = 'rgba(120,80,0,0.7)'; c.shadowBlur = 8 * S
+  c.fillStyle = ac.main
+  c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+  _strokeText(c, pet.name, W / 2, nameY, 'rgba(0,0,0,0.3)', 3 * S)
+  c.restore()
+
+  // 核心文案
+  const msgY = nameY + 32 * S
+  c.fillStyle = '#FFD700'
+  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  c.save()
+  c.shadowColor = 'rgba(100,60,0,0.6)'; c.shadowBlur = 6 * S
+  _strokeText(c, '正式加入你的队伍！', W / 2, msgY, 'rgba(80,50,0,0.4)', 3 * S)
+  c.restore()
+
+  // 副文案
+  const _ATTR_DESC = { metal: '消除金色灵珠时发动攻击', wood: '消除绿色灵珠时发动攻击', water: '消除蓝色灵珠时发动攻击', fire: '消除红色灵珠时发动攻击', earth: '消除棕色灵珠时发动攻击' }
+  c.fillStyle = 'rgba(90,70,40,0.8)'
+  c.font = `${12 * S}px "PingFang SC",sans-serif`
+  c.fillText(_ATTR_DESC[pet.attr] || '战斗中为你冲锋陷阵', W / 2, msgY + 28 * S)
+
+  // 底部点击提示
+  const blinkAlpha = 0.35 + 0.3 * Math.sin(Date.now() * 0.004)
+  c.globalAlpha = cel.alpha * blinkAlpha
+  c.fillStyle = '#8B7355'
+  c.font = `${11 * S}px "PingFang SC",sans-serif`
+  const tipText = idx < cel.petIds.length - 1 ? '点击查看下一只灵宠' : '点击屏幕继续'
+  c.fillText(tipText, W / 2, H - safeTop - 40 * S)
+
+  c.restore()
+}
+
+// ===== 新手队伍总览卡（3 宠物 + 对应属性珠色标） =====
+function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
+  const overview = g._newbieTeamOverview
+  if (!overview) return
+  overview.timer++
+  overview.alpha = Math.min(1, overview.timer / 20)
+  g._dirty = true
+
+  // 背景
+  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  if (poolBg && poolBg.width > 0) {
+    R._drawCoverImg(poolBg, 0, 0, W, H)
+  } else {
+    R.drawHomeBg(0)
+  }
+
+  c.save()
+  c.globalAlpha = overview.alpha
+
+  // 暖色叠加
+  c.fillStyle = 'rgba(255,240,200,0.12)'
+  c.fillRect(0, 0, W, H)
+
+  // 标题
+  const titleY = safeTop + 60 * S
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#FFD700'
+  c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+  c.save()
+  c.shadowColor = 'rgba(120,80,0,0.7)'; c.shadowBlur = 8 * S
+  _strokeText(c, '你的初始队伍', W / 2, titleY, 'rgba(0,0,0,0.3)', 3 * S)
+  c.restore()
+
+  // 副标题
+  c.fillStyle = 'rgba(90,70,40,0.8)'
+  c.font = `${13 * S}px "PingFang SC",sans-serif`
+  c.fillText('消除对应颜色灵珠，灵宠就会攻击', W / 2, titleY + 30 * S)
+
+  // 三只宠物横向排列
+  const pets = (overview.pets || []).map(id => getPetById(id)).filter(Boolean)
+  const cardW = 80 * S
+  const gap = 16 * S
+  const totalCardsW = pets.length * cardW + (pets.length - 1) * gap
+  const startX = (W - totalCardsW) / 2
+  const cardTopY = titleY + 64 * S
+
+  const _ATTR_LABEL = { metal: '金', wood: '木', earth: '土', water: '水', fire: '火' }
+
+  pets.forEach((pet, i) => {
+    const delay = 10 + i * 12
+    const petAlpha = Math.min(1, Math.max(0, (overview.timer - delay) / 15))
+    c.save()
+    c.globalAlpha = overview.alpha * petAlpha
+
+    const cx = startX + i * (cardW + gap) + cardW / 2
+    const cy = cardTopY
+
+    // 头像
+    const avatarSize = 68 * S
+    const ax = cx - avatarSize / 2
+    const ay = cy
+    const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+    const img = R.getImg(avatarPath)
+    const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    if (img && img.width > 0) {
+      c.save()
+      R.rr(ax, ay, avatarSize, avatarSize, 10 * S); c.clip()
+      const aw = img.width, ah = img.height
+      const sc = Math.max(avatarSize / aw, avatarSize / ah)
+      const dw = aw * sc, dh = ah * sc
+      c.drawImage(img, ax + (avatarSize - dw) / 2, ay + (avatarSize - dh) / 2, dw, dh)
+      c.restore()
+      c.save()
+      c.shadowColor = ac.main; c.shadowBlur = 8 * S
+      R.rr(ax, ay, avatarSize, avatarSize, 10 * S)
+      c.strokeStyle = ac.main; c.lineWidth = 2 * S; c.stroke()
+      c.restore()
+    }
+
+    // 宠物名称
+    c.fillStyle = ac.main
+    c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(pet.name, cx, ay + avatarSize + 16 * S)
+
+    // 对应属性灵珠示意（小圆球）
+    const orbY = ay + avatarSize + 36 * S
+    const orbR = 10 * S
+    c.beginPath(); c.arc(cx, orbY, orbR, 0, Math.PI * 2)
+    const orbGrad = c.createRadialGradient(cx - orbR * 0.3, orbY - orbR * 0.3, 0, cx, orbY, orbR)
+    orbGrad.addColorStop(0, ac.lt || ac.main)
+    orbGrad.addColorStop(1, ac.dk || ac.main)
+    c.fillStyle = orbGrad; c.fill()
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 1.2 * S; c.stroke()
+
+    // 属性标签
+    c.fillStyle = '#5a4020'
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillText(`消${_ATTR_LABEL[pet.attr] || '金'}珠攻击`, cx, orbY + orbR + 14 * S)
+
+    c.restore()
+  })
+
+  // 底部提示
+  const blinkAlpha = 0.35 + 0.3 * Math.sin(Date.now() * 0.004)
+  c.globalAlpha = overview.alpha * blinkAlpha
+  c.fillStyle = '#8B7355'
+  c.font = `${11 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.fillText('点击屏幕继续', W / 2, H - safeTop - 40 * S)
+
+  c.restore()
+}
+
 // ===== 触摸 =====
 function tStageResult(g, x, y, type) {
   if (type !== 'end') return
   const result = g._stageResult
   if (!result) return
 
+  // 新手宠物庆祝阶段：逐一展示，最后一只后切到团队概览卡
+  if (g._newbiePetCelebrate) {
+    const cel = g._newbiePetCelebrate
+    const idx = cel.currentIdx || 0
+    if (idx < cel.petIds.length - 1) {
+      // 还有下一只，推进索引并重置动画
+      cel.currentIdx = idx + 1
+      cel.timer = 0; cel.alpha = 0
+    } else {
+      // 全部展示完毕 → 团队概览卡
+      const petIds = cel.petIds.slice()
+      g._newbiePetCelebrate = null
+      g._newbieTeamOverview = { pets: petIds, alpha: 0, timer: 0 }
+    }
+    _animTimer = 0
+    g._dirty = true
+    return
+  }
+
+  // 新手队伍总览卡：首通直达灵宠页/修炼页，不回主页
+  if (g._newbieTeamOverview) {
+    g._newbieTeamOverview = null
+    if (result && result.victory && result.isFirstClear) {
+      if (result.stageId === 'stage_1_1') {
+        g.storage.markGuideShown('newbie_stage_continue')
+        g.setScene('petPool')
+        return
+      }
+      if (result.stageId === 'stage_1_2') {
+        g._pendingGuide = 'newbie_team_ready'
+        g.setScene('title')
+        return
+      }
+    }
+    _animTimer = 0
+    g._dirty = true
+    return
+  }
+
+  // 1-1/1-2 首通胜利：返回首页并触发后续引导
+  const _firstClearGuide = _getFirstClearGuide(result)
+
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-    g.setScene('stageSelect')
+    if (_firstClearGuide) {
+      g._pendingGuide = _firstClearGuide
+      g.setScene('title')
+    } else {
+      g.setScene('stageSelect')
+    }
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }
 
   if (_rects.nextBtnRect && g._hitRect(x, y, ..._rects.nextBtnRect)) {
-    const nextId = result.victory ? getNextStageId(result.stageId) : null
-    const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
-    if (hasNext) {
-      g._selectedStageId = nextId
-      g._stageInfoEnemyDetail = null
-      g.setScene('stageInfo')
+    if (_firstClearGuide) {
+      g._pendingGuide = _firstClearGuide
+      g.setScene('title')
     } else {
-      g._selectedStageId = result.stageId
-      g._stageInfoEnemyDetail = null
-      g.setScene('stageInfo')
+      const nextId = result.victory ? getNextStageId(result.stageId) : null
+      const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
+      if (hasNext) {
+        g._selectedStageId = nextId
+        g._stageInfoEnemyDetail = null
+        g.setScene('stageInfo')
+      } else {
+        g._selectedStageId = result.stageId
+        g._stageInfoEnemyDetail = null
+        g.setScene('stageInfo')
+      }
     }
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }
+}
+
+// 1-1 / 1-2 首通胜利时，返回首页并触发对应后续引导
+function _getFirstClearGuide(result) {
+  if (!result || !result.victory || !result.isFirstClear) return null
+  if (result.stageId === 'stage_1_1') return 'newbie_stage_continue'
+  if (result.stageId === 'stage_1_2') return 'newbie_team_ready'
+  return null
 }
 
 module.exports = { rStageResult, tStageResult }

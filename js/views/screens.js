@@ -7,6 +7,7 @@ const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
+const { drawPanel, drawRibbonIcon } = require('./uiComponents')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -420,48 +421,51 @@ function _drawTowerDefeat(g, c, R, W, H, S, safeTop, at, fadeIn) {
 // ===== 浅色奖励面板 =====
 function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
+  const { getPetById } = require('../data/pets')
   const pw = W * 0.88
   const px = (W - pw) / 2
   const pad = 16 * S
   const innerW = pw - pad * 2
 
+  const sr = g._lastRunSettleRewards
+  const cultFinal = sr ? sr.cultExp.final : (g._lastRunExp || 0)
+  const petExpFinal = sr ? sr.petExp.final : (g._lastRunPetExp || 0)
+  const fragFinal = sr ? sr.fragments.final : 0
+  const fragDetails = sr ? sr.fragments.details : []
+
   // 计算面板内容高度
   let contentH = pad * 0.5
-  // 阵容区域
   contentH += 20 * S // "上场灵兽" 标题
   contentH += 24 * S // 宠物名
   if (g.weapon) contentH += 22 * S
   contentH += 20 * S // 灵兽背包+法宝背包
   contentH += 8 * S  // 间距
+  contentH += 12 * S // 分隔线
 
-  // 分隔线
-  contentH += 12 * S
-
-  // 修炼经验
-  if (g._lastRunExp > 0) {
-    contentH += 28 * S // 图标行
+  if (cultFinal > 0) {
+    contentH += 28 * S
     const d = g._lastRunExpDetail
     if (d) {
-      contentH += 18 * S // 明细
-      if (!d.isCleared) contentH += 16 * S // 保底说明
+      contentH += 18 * S
+      if (!d.isCleared) contentH += 16 * S
     }
-    const levelUps = g._lastRunLevelUps || 0
+    const levelUps = sr ? sr.cultExp.levelUps : (g._lastRunLevelUps || 0)
     if (levelUps > 0) contentH += 20 * S
-    contentH += 24 * S // 经验条
+    contentH += 24 * S
+  }
+  if (petExpFinal > 0) contentH += 28 * S
+  if (fragFinal > 0) {
+    contentH += 28 * S // 碎片标题行
+    if (fragDetails.length > 0) contentH += 22 * S // 碎片明细行
   }
 
-  // 宠物经验
-  if (g._lastRunPetExp > 0) contentH += 28 * S
-
-  // 按钮区域
   contentH += pad + 46 * S
-  // 快捷按钮
   let hasQuickBtns = false
-  if (g._lastRunExp > 0) {
+  if (cultFinal > 0) {
     const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
     if (hasCultUpgradeAvailable(g.storage)) hasQuickBtns = true
   }
-  if (g._lastRunPetExp > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
+  if (petExpFinal > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
   if (hasQuickBtns) contentH += 42 * S
 
   const ph = contentH
@@ -502,8 +506,8 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   cy += 8 * S
 
   // === 修炼经验 ===
-  if (g._lastRunExp > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${g._lastRunExp}`, '#8B7355', '#B8860B')
+  if (cultFinal > 0) {
+    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${cultFinal}`, '#8B7355', '#B8860B')
     cy += 28 * S
 
     const d = g._lastRunExpDetail
@@ -525,11 +529,12 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     }
 
     const cult = g.storage.cultivation
-    const levelUps = g._lastRunLevelUps || 0
+    const levelUps = sr ? sr.cultExp.levelUps : (g._lastRunLevelUps || 0)
     if (levelUps > 0) {
+      const prev = sr ? sr.cultExp.prevLevel : (g._lastRunPrevLevel || 0)
       c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'
-      c.fillText(`升级！Lv.${g._lastRunPrevLevel || 0} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W * 0.5, cy + 6 * S)
+      c.fillText(`升级！Lv.${prev} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W * 0.5, cy + 6 * S)
       cy += 20 * S
     }
 
@@ -561,9 +566,25 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   }
 
   // === 宠物经验 ===
-  if (g._lastRunPetExp > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_pet_exp', '宠物经验池', `+${g._lastRunPetExp}`, '#5577AA', '#3366AA')
+  if (petExpFinal > 0) {
+    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_pet_exp', '宠物经验池', `+${petExpFinal}`, '#5577AA', '#3366AA')
     cy += 28 * S
+  }
+
+  // === 碎片奖励 ===
+  if (fragFinal > 0) {
+    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵兽碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
+    cy += 28 * S
+
+    if (fragDetails.length > 0) {
+      c.fillStyle = '#A09070'; c.font = `${9*S}px "PingFang SC",sans-serif`; c.textAlign = 'center'
+      const parts = fragDetails.map(fd => {
+        const pet = getPetById(fd.petId)
+        return `${pet ? pet.name : fd.petId} +${fd.count}`
+      })
+      c.fillText(parts.join('  '), W * 0.5, cy + 6 * S)
+      cy += 22 * S
+    }
   }
 
   // === 底部按钮 ===
@@ -578,11 +599,11 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   // 快捷按钮行
   const quickBtns = []
-  if (g._lastRunExp > 0) {
+  if (cultFinal > 0) {
     const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
     if (hasCultUpgradeAvailable(g.storage)) quickBtns.push({ label: '前往修炼', key: 'cult' })
   }
-  if (g._lastRunPetExp > 0 && g.storage.petPoolCount > 0) quickBtns.push({ label: '前往灵宠', key: 'pet' })
+  if (petExpFinal > 0 && g.storage.petPoolCount > 0) quickBtns.push({ label: '前往灵宠', key: 'pet' })
 
   g._cultBtnRect = null
   g._petPoolBtnRect = null
@@ -2288,44 +2309,16 @@ function _drawDexIntro(g) {
   // 面板尺寸
   const pw = W * 0.88, ph = 360 * S
   const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
-  const rad = 14 * S
-
-  // 面板背景（浅米黄暖色）
-  const bg = ctx.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
-  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
-  _dexRR(ctx, px, py, pw, ph, rad)
-  ctx.fillStyle = bg; ctx.fill()
-
-  // 外边框（金色）
-  _dexRR(ctx, px, py, pw, ph, rad)
-  ctx.strokeStyle = 'rgba(200,160,60,0.6)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
-
-  // 顶部装饰条（暖金黄）
   const ribbonH = 56 * S
-  _dexRR(ctx, px, py, pw, ribbonH, rad)
-  const rib = ctx.createLinearGradient(px, py, px + pw, py)
-  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
-  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
-  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
-  ctx.fillStyle = rib; ctx.fill()
 
-  // 图标圆（在装饰条内左侧）
-  const iconR = 24 * S
-  const iconCX = px + 42 * S, iconCY = py + ribbonH / 2
-  ctx.beginPath(); ctx.arc(iconCX, iconCY, iconR, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
-  ctx.fillStyle = '#5a3000'
-  ctx.font = `bold ${20 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(card.icon, iconCX, iconCY)
+  const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH })
+  drawRibbonIcon(ctx, S, px, ribbonCY, card.icon)
 
   // 标题（深棕色，装饰条内）
   ctx.fillStyle = '#3a1a00'
   ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
+  ctx.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
 
   // 分隔线（带菱形装饰）
   const sepY = py + ribbonH + 14 * S
@@ -2378,19 +2371,6 @@ function _drawDexIntro(g) {
   ctx.fillText(page >= total - 1 ? '点击进入图鉴 ›' : '点击继续 ›', W / 2, py + ph - 16 * S)
 
   ctx.restore()
-}
-
-function _dexRR(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r)
-  ctx.quadraticCurveTo(x, y, x + r, y)
-  ctx.closePath()
 }
 
 // 图鉴文本换行辅助（按实际像素宽度换行）

@@ -120,6 +120,14 @@ function initState(g) {
   g._loadPct = 0
   g._pendingGuide = null
   g._rogueIntro = null
+  g._newbiePetIntro = null     // 新手宠物战前介绍卡 { petId, alpha, page, timer }
+  g._newbiePetCelebrate = null // 新手首通宠物庆祝阶段 { petId, alpha, timer }
+  g._newbieTeamOverview = null // 新手队伍总览卡 { pets, alpha, timer }
+  g._pendingStageTutorial = false // 介绍卡结束后触发简化教学
+  g._isNewbieStage = false        // 新手首关模式（偏向棋盘 + 浮动提示）
+  g._showBattleHelp = false       // 局内玩法帮助面板
+  g._helpBtnRect = null           // 帮助按钮点击区域
+  g._namedRects = {}              // 命名矩形注册表（供引导系统按 highlightId 查找）
   g._pressedBtn = null
   g._petLongPressTimer = null
   g._petLongPressIndex = -1
@@ -135,7 +143,7 @@ function initState(g) {
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
   g.showChestPanel = false        // 宝箱奖励全屏弹窗（玩家主动点击触发）
-  g.titleMode = 'tower'           // 首页当前展示的模式：'tower' | 'stage'
+  g.titleMode = 'stage'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
 
@@ -169,9 +177,16 @@ function initState(g) {
   g._waveTransTimer = 0         // 波间过渡倒计时
   g._stageSelectScroll = 0      // 关卡选择页滚动
   g._selectedStageId = null     // 选中准备编队的关卡
+  g._selectedStageIdx = 0       // 首页秘境内嵌选关：当前展示关卡在可浏览列表中的索引
+  g._stageIdxInitialized = false // 是否已自动定位过初始关卡
+  g._stageSwipeStartX = 0      // 滑动手势起始 X
+  g._stageSwipeStartY = 0      // 滑动手势起始 Y
+  g._stageSwipeDeltaX = 0      // 实时滑动偏移（用于渲染动画）
+  g._stageSwipeActive = false   // 是否正在滑动中
   g._stageInfoEnemyDetail = null // 关卡信息页 - 点击敌人查看详情
   g._stageInfoPetDetail = null  // 关卡信息页 - 长按/点击宠物查看详情
   g._stageTeamPetDetail = null  // 编队页 - 长按宠物查看详情
+  g._stageTeamReturnScene = null // 编队页返回目标场景（null 默认回 stageInfo）
 
   // ===== 域分组子对象（向后兼容：g.xxx 和 g.domain.xxx 双向可用）=====
   _createDomainProxies(g)

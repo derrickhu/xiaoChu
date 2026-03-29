@@ -51,8 +51,9 @@ function rStageInfo(g) {
   const attrName = ATTR_NAME[stageAttr] || '?'
   const bestRating = g.storage.getStageBestRating(stage.id)
   const isFirstClear = !g.storage.isStageCleared(stage.id)
-  const dailyUsed = g.storage.getStageDailyCount(stage.id)
-  const dailyLeft = stage.dailyLimit - dailyUsed
+  const hasDailyLimit = stage.dailyLimit > 0
+  const dailyUsed = hasDailyLimit ? g.storage.getStageDailyCount(stage.id) : 0
+  const dailyLeft = hasDailyLimit ? stage.dailyLimit - dailyUsed : Infinity
   const savedTeam = g.storage.getValidSavedTeam()
   const maxSlots = stage.teamSize.max
   const minTeam = stage.teamSize.min
@@ -139,8 +140,9 @@ function rStageInfo(g) {
   c.fillText(stage.name, W / 2, cy + 12 * S)
   cy += 30 * S
 
-  // 副标题：属性 + 波次 + 消耗 + 次数（加胶囊衬底）
-  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost}  ·  今日${dailyLeft}/${stage.dailyLimit}`
+  // 副标题：属性 + 波次 + 消耗（无限制时不显示次数）
+  const dailyStr = hasDailyLimit ? `  ·  今日${dailyLeft}/${stage.dailyLimit}` : ''
+  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost}${dailyStr}`
   c.font = `${10*S}px "PingFang SC",sans-serif`
   const subW = c.measureText(subText).width + 20 * S
   const subH = 20 * S
@@ -535,7 +537,7 @@ function tStageInfo(g, x, y, type) {
       P.showGameToast('体力不足')
       return
     }
-    if (!g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
+    if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
       P.showGameToast('今日挑战次数已用完')
       return
     }

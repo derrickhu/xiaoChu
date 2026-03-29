@@ -40,19 +40,6 @@ let _longPressPetId = null
 
 const _getFilteredPool = _getFilteredPoolUtil
 
-// 离屏 canvas 缓存，用于派遣按钮像素对齐绘制（修复有红点时的模糊）
-let _idleBtnOC = null
-
-function _roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y)
-  ctx.closePath()
-}
-
 // ===== 主渲染 =====
 function rPetPool(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
@@ -68,8 +55,11 @@ function rPetPool(g) {
 
   const L = getTitleLayout()
   const topY = safeTop + 4 * S
-  const contentTop = topY + 36 * S
-  const contentBottom = L.bottomBarY - 4 * S
+  // 内容区略下移，避免属性筛选条与「灵宠池」标题装饰底边重叠
+  const contentTop = topY + 42 * S
+  // 底栏云纹图向上凸出（与 bottomBar.js drawBottomBar 中 overlapH 一致），否则派遣按钮会被云挡住
+  const navCloudReserve = 26 * S
+  const contentBottom = L.bottomBarY - 4 * S - navCloudReserve
   _rects.backBtnRect = null
 
   // === 顶栏 ===
@@ -122,10 +112,9 @@ function rPetPool(g) {
   c.restore()
 
   // === 属性筛选 ===
-  const filterY = contentTop + 4 * S
+  const filterY = contentTop + 10 * S
   const filterH = 26 * S
-  const idleBtnReserve = 60 * S   // 右侧为派遣按钮预留空间
-  const filterW = (W - 24 * S - idleBtnReserve) / FILTERS.length
+  const filterW = (W - 24 * S) / FILTERS.length
   _rects.filterRects = []
   c.save()
   for (let i = 0; i < FILTERS.length; i++) {
@@ -152,79 +141,12 @@ function rPetPool(g) {
   }
   c.restore()
 
-  // === 派遣入口按钮（筛选行右侧留白区，避开系统按钮）===
-  // 有红点时用离屏 canvas 单独绘制，避免 strokeText+fillText+arc 混绘导致的模糊
-  const hasIdleReward = g.storage.idleHasReward()
-  const idleBtnH = filterH
-  const idleBtnW = 52 * S
-  const idleBtnX = W - idleBtnW - 12 * S
-  const idleBtnY = filterY
-  const iw = Math.max(1, Math.round(idleBtnW)), ih = Math.max(1, Math.round(idleBtnH))
-  const ix = Math.round(idleBtnX), iy = Math.round(idleBtnY)
-  const useOffscreen = hasIdleReward
-  let oc = useOffscreen ? _idleBtnOC : null
-  if (useOffscreen && (!oc || oc.width !== iw || oc.height !== ih)) {
-    oc = (P.createOffscreenCanvas && P.createOffscreenCanvas({ type: '2d', width: iw, height: ih })) ||
-      (typeof document !== 'undefined' && (() => { const dc = document.createElement('canvas'); dc.width = iw; dc.height = ih; return dc })())
-    _idleBtnOC = oc
-  }
-  if (useOffscreen && oc) {
-    const occ = oc.getContext('2d')
-    occ.clearRect(0, 0, iw, ih)
-    occ.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
-    _roundRect(occ, 0, 0, iw, ih, ih / 2)
-    occ.fill()
-    occ.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
-    occ.lineWidth = Math.max(1, Math.round(1.5 * S))
-    _roundRect(occ, 0, 0, iw, ih, ih / 2)
-    occ.stroke()
-    occ.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
-    const fontPx = Math.max(10, Math.round(11 * S))
-    occ.font = `bold ${fontPx}px "PingFang SC",sans-serif`
-    occ.textAlign = 'center'
-    occ.textBaseline = 'middle'
-    if (hasIdleReward) {
-      occ.fillText('派遣', iw / 2, ih / 2)
-    } else {
-      occ.strokeStyle = 'rgba(0,0,0,0.4)'
-      occ.lineWidth = Math.max(1, Math.round(2.5 * S))
-      occ.strokeText('派遣', iw / 2, ih / 2)
-      occ.fillText('派遣', iw / 2, ih / 2)
-    }
-    if (hasIdleReward) {
-      const dotR = Math.max(1, Math.round(5 * S))
-      const dotX = iw - dotR - 2
-      const dotY = dotR + 2
-      occ.fillStyle = '#ff3333'
-      occ.beginPath()
-      occ.arc(dotX, dotY, dotR, 0, Math.PI * 2)
-      occ.fill()
-    }
-    c.drawImage(oc, ix, iy, iw, ih)
-  } else {
-    c.save()
-    c.fillStyle = hasIdleReward ? 'rgba(255,180,50,0.9)' : 'rgba(80,60,120,0.7)'
-    R.rr(ix, iy, iw, ih, ih / 2); c.fill()
-    c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.8)' : 'rgba(200,180,240,0.4)'
-    c.lineWidth = 1.5 * S
-    R.rr(ix, iy, iw, ih, ih / 2); c.stroke()
-    c.fillStyle = hasIdleReward ? '#5a2d0c' : '#ffe8a0'
-    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    const tx = Math.round(ix + iw / 2), ty = Math.round(iy + ih / 2)
-    if (hasIdleReward) { c.fillText('派遣', tx, ty) }
-    else { c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2.5 * S; c.strokeText('派遣', tx, ty); c.fillText('派遣', tx, ty) }
-    if (hasIdleReward) {
-      const dotR = Math.max(1, Math.round(5 * S)), dotX = Math.round(ix + iw - 3 * S), dotY = Math.round(iy + 3 * S)
-      c.fillStyle = '#ff3333'; c.beginPath(); c.arc(dotX, dotY, dotR, 0, Math.PI * 2); c.fill()
-    }
-    c.restore()
-  }
-  _rects.idleBtnRect = [idleBtnX, idleBtnY, idleBtnW, idleBtnH]
+  // 派遣按钮 rect 占位（实际绘制在卡片网格下方）
+  _rects.idleBtnRect = null
 
   // === 卡片网格 ===
   const gridTop = filterY + filterH + 8 * S
-  const gridBottom = contentBottom
+  const gridBottom = contentBottom - 78 * S
   const pool = _getFilteredPool(g)
   const cols = 3
   const cardGap = 8 * S
@@ -288,14 +210,62 @@ function rPetPool(g) {
   }
   c.restore()
 
-  // 收集提示
+  // === 派遣大按钮（卡片区下方，底栏上方） ===
+  const hasIdleReward = g.storage.idleHasReward()
+  const idleBtnW = W - 48 * S
+  const idleBtnH = 42 * S
+  const idleBtnX = (W - idleBtnW) / 2
+  const idleBtnY = contentBottom - idleBtnH - 8 * S
+  _rects.idleBtnRect = [idleBtnX, idleBtnY, idleBtnW, idleBtnH]
+  if (!g._namedRects) g._namedRects = {}
+  g._namedRects['idle_btn'] = { x: idleBtnX, y: idleBtnY, w: idleBtnW, h: idleBtnH }
+
+  c.save()
+  // 渐变背景
+  const ibGrd = c.createLinearGradient(idleBtnX, idleBtnY, idleBtnX + idleBtnW, idleBtnY)
+  if (hasIdleReward) {
+    ibGrd.addColorStop(0, 'rgba(255,160,40,0.95)')
+    ibGrd.addColorStop(0.5, 'rgba(255,200,60,1)')
+    ibGrd.addColorStop(1, 'rgba(255,160,40,0.95)')
+  } else {
+    ibGrd.addColorStop(0, 'rgba(100,70,170,0.85)')
+    ibGrd.addColorStop(0.5, 'rgba(130,90,210,0.9)')
+    ibGrd.addColorStop(1, 'rgba(100,70,170,0.85)')
+  }
+  c.fillStyle = ibGrd
+  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.fill()
+  // 边框
+  c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.9)' : 'rgba(180,160,240,0.6)'
+  c.lineWidth = 2 * S
+  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.stroke()
+  // 文字
+  c.fillStyle = hasIdleReward ? '#5a2d0c' : '#fff'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  var idleBtnLabel = hasIdleReward ? '🎁 派遣修行（有奖励可领！）' : '✨ 派遣灵宠自动修行'
+  c.fillText(idleBtnLabel, idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
+  // 呼吸脉冲边框（引导阶段更醒目）
+  if (hasIdleReward) {
+    var ibPulse = 0.3 + 0.3 * Math.sin((g.af || 0) * 0.08)
+    c.globalAlpha = ibPulse
+    c.strokeStyle = '#fff'
+    c.lineWidth = 3 * S
+    R.rr(idleBtnX - 2 * S, idleBtnY - 2 * S, idleBtnW + 4 * S, idleBtnH + 4 * S, (idleBtnH + 4 * S) / 2); c.stroke()
+  }
+  c.restore()
+
+  // 收集提示（在派遣按钮上方，带背景条保证可读性）
   const poolCount = g.storage.petPoolCount
   if (poolCount < 5) {
     c.save()
-    c.fillStyle = 'rgba(255,200,50,0.7)'
-    c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'bottom'
-    c.fillText(`灵兽秘境解锁条件：灵宠池≥5只（当前 ${poolCount} 只）`, W / 2, contentBottom - 2 * S)
+    var tipY = idleBtnY - 22 * S
+    var tipH = 18 * S
+    c.fillStyle = 'rgba(0,0,0,0.35)'
+    R.rr(24 * S, tipY, W - 48 * S, tipH, tipH / 2); c.fill()
+    c.fillStyle = '#ffe080'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(`灵兽秘境解锁条件：灵宠池≥5只（当前 ${poolCount} 只）`, W / 2, tipY + tipH / 2)
     c.restore()
   }
 

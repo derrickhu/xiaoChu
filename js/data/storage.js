@@ -587,6 +587,7 @@ class Storage {
   }
 
   canChallengeStage(stageId, dailyLimit) {
+    if (!dailyLimit) return true
     this._refreshDailyChallenges()
     const counts = this._d.dailyChallenges.counts
     return (counts[stageId] || 0) < dailyLimit

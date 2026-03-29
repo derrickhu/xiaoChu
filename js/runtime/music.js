@@ -217,14 +217,14 @@ class MusicManager {
 
   playPickUp() {
     if (!this.enabled) return
-    this._playSfxEx('audio/eliminate.mp3', 0.15, 1.5)
+    this._playSfxEx('audio/eliminate.mp3', 0.55, 1.3)
   }
 
   playSwap() {
     if (!this.enabled) return
     if (this._swapPlaying) return
     this._swapPlaying = true
-    this._playSfxEx('audio/rolling.mp3', 0.12, 1.8)
+    this._playSfxEx('audio/rolling.mp3', 0.50, 1.3)
     setTimeout(() => { this._swapPlaying = false }, 80)
   }
 
@@ -261,7 +261,7 @@ class MusicManager {
 
   playDragEnd() {
     if (!this.enabled) return
-    this._playSfxEx('audio/eliminate.mp3', 0.2, 0.8)
+    this._playSfxEx('audio/eliminate.mp3', 0.55, 0.8)
   }
 
   // ============ 战斗音效（增强版） ============

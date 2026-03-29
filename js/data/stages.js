@@ -2,14 +2,19 @@
  * 固定关卡配置 — 3章×5关 = 15关
  *
  * 全局线性解锁：stage_1_1 → stage_1_2 → ... → stage_2_1 → ... → stage_3_5
- * 首通奖励：第一章赠送 T2 灵兽，第二三章赠送 T1 神兽（已拥有转碎片）
+ * 体力按章节分档：第一章5, 第二章8, 第三章12（1-1免费）
+ * dailyLimit: 0 表示无限制（纯体力驱动）
+ * 1-1/1-2 首通奖励赠送初始宠物，让新手通过秘境获取队伍
  */
+
+// ===== 章节体力配置（同章统一，跨章递增） =====
+const CHAPTER_STAMINA = { 1: 5, 2: 8, 3: 12 }
 
 // ===== 章节 =====
 const CHAPTERS = [
-  { id: 1, name: '灵山试炼', desc: '灵山脚下，试炼开始', unlockPool: 5 },
-  { id: 2, name: '幽冥秘境', desc: '幽暗深处，危机四伏', unlockPool: 5 },
-  { id: 3, name: '天劫雷域', desc: '九天雷劫，唯强者渡', unlockPool: 5 },
+  { id: 1, name: '灵山试炼', desc: '灵山脚下，试炼开始', unlockPool: 0 },
+  { id: 2, name: '幽冥秘境', desc: '幽暗深处，危机四伏', unlockPool: 0 },
+  { id: 3, name: '天劫雷域', desc: '九天雷劫，唯强者渡', unlockPool: 0 },
 ]
 
 // ===== 关卡 =====
@@ -18,55 +23,57 @@ const STAGES = [
   {
     id: 'stage_1_1', name: '初试·岩獾', chapter: 1, order: 1,
     waves: [
-      { enemies: [{ name: '岩獾', attr: 'earth', hp: 850, atk: 28, def: 10, skills: ['convert'], avatar: 'stage_enemies/rock_badger' }] },
+      { enemies: [{ name: '岩獾', attr: 'earth', hp: 300, atk: 12, def: 5, skills: ['convert'], avatar: 'stage_enemies/rock_badger' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 4, a: 7 },
-    staminaCost: 10,
+    staminaCost: 0,
     rewards: {
       firstClear: [
-        { type: 'pet', petId: 'e4', fragCount: 10 },
-        { type: 'fragment', target: 'random_earth', count: 5 },
-        { type: 'exp', amount: 200 },
-        { type: 'petExp', amount: 80 },
+        { type: 'pet', petId: 'm1', fragCount: 10 },  // 教学宠物 → 正式入队（庆祝重点突出）
+        { type: 'pet', petId: 'w1', fragCount: 10 },  // 额外赠送：凑齐初始三人队
+        { type: 'pet', petId: 's1', fragCount: 10 },
+        { type: 'exp', amount: 100 },
+        { type: 'petExp', amount: 50 },
       ],
-      repeatClear: { fragments: { min: 1, max: 3, pool: 'chapter' }, exp: 50, petExp: 40 },
+      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 80, petExp: 50 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: null },
     battlePetExp: 30,
   },
   {
     id: 'stage_1_2', name: '烈焰·焰狮', chapter: 1, order: 2,
     waves: [
-      { enemies: [{ name: '炎狐', attr: 'fire', hp: 1000, atk: 30, def: 11, skills: ['poison'], avatar: 'stage_enemies/flame_fox' }] },
-      { enemies: [{ name: '焰狮', attr: 'fire', hp: 1400, atk: 40, def: 14, skills: ['atkBuff', 'aoe'], avatar: 'stage_enemies/blaze_lion' }] },
+      { enemies: [{ name: '炎狐', attr: 'fire', hp: 600, atk: 20, def: 8, skills: ['poison'], avatar: 'stage_enemies/flame_fox' }] },
+      { enemies: [{ name: '焰狮', attr: 'fire', hp: 900, atk: 28, def: 10, skills: ['atkBuff', 'aoe'], avatar: 'stage_enemies/blaze_lion' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[1],
     rewards: {
       firstClear: [
-        { type: 'pet', petId: 'f3', fragCount: 10 },
-        { type: 'fragment', target: 'random_fire', count: 8 },
-        { type: 'exp', amount: 300 },
-        { type: 'petExp', amount: 120 },
+        { type: 'pet', petId: 'f1', fragCount: 10 },
+        { type: 'pet', petId: 'e1', fragCount: 10 },
+        { type: 'fragment', target: 'random_fire', count: 5 },
+        { type: 'exp', amount: 200 },
+        { type: 'petExp', amount: 80 },
       ],
-      repeatClear: { fragments: { min: 2, max: 4, pool: 'chapter' }, exp: 80, petExp: 60 },
+      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 100, petExp: 60 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_1_1' },
     battlePetExp: 40,
   },
   {
     id: 'stage_1_3', name: '寒潮·碧鲸', chapter: 1, order: 3,
     waves: [
-      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 1200, atk: 34, def: 12, skills: ['defBuff', 'sealColumn'], avatar: 'stage_enemies/bubble_fish' }] },
-      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1600, atk: 44, def: 16, skills: ['healPct', 'convert'], avatar: 'stage_enemies/tide_whale' }] },
+      { enemies: [{ name: '泡泡鱼', attr: 'water', hp: 960, atk: 27, def: 10, skills: ['defBuff', 'sealColumn'], avatar: 'stage_enemies/bubble_fish' }] },
+      { enemies: [{ name: '碧潮鲸', attr: 'water', hp: 1280, atk: 35, def: 13, skills: ['healPct', 'convert'], avatar: 'stage_enemies/tide_whale' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[1],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 's4', fragCount: 10 },
@@ -74,21 +81,21 @@ const STAGES = [
         { type: 'exp', amount: 300 },
         { type: 'petExp', amount: 120 },
       ],
-      repeatClear: { fragments: { min: 2, max: 4, pool: 'chapter' }, exp: 80, petExp: 60 },
+      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 100, petExp: 60 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_1_2' },
     battlePetExp: 40,
   },
   {
     id: 'stage_1_4', name: '金锋·雷貂', chapter: 1, order: 4,
     waves: [
-      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 1400, atk: 36, def: 18, skills: ['defBuff', 'defDown'], avatar: 'stage_enemies/iron_armadillo' }] },
-      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1800, atk: 46, def: 16, skills: ['atkBuff', 'stun'], avatar: 'stage_enemies/thunder_marten' }] },
+      { enemies: [{ name: '铁甲犰狳', attr: 'metal', hp: 1120, atk: 29, def: 14, skills: ['defBuff', 'defDown'], avatar: 'stage_enemies/iron_armadillo' }] },
+      { enemies: [{ name: '雷貂', attr: 'metal', hp: 1440, atk: 37, def: 13, skills: ['atkBuff', 'stun'], avatar: 'stage_enemies/thunder_marten' }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[1],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'm4', fragCount: 10 },
@@ -96,22 +103,22 @@ const STAGES = [
         { type: 'exp', amount: 400 },
         { type: 'petExp', amount: 150 },
       ],
-      repeatClear: { fragments: { min: 2, max: 5, pool: 'chapter' }, exp: 100, petExp: 70 },
+      repeatClear: { fragments: { min: 4, max: 6, pool: 'chapter' }, exp: 120, petExp: 70 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_1_3' },
     battlePetExp: 50,
   },
   {
     id: 'stage_1_5', name: '灵山守关·灵木麒麟', chapter: 1, order: 5,
     waves: [
-      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 1000, atk: 32, def: 12, skills: ['seal'], avatar: 'stage_enemies/blossom_bunny' }] },
-      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 1400, atk: 38, def: 16, skills: ['healPct', 'healBlock'], avatar: 'stage_enemies/jade_cat' }] },
-      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 2100, atk: 50, def: 18, skills: ['atkBuff', 'healPct', 'bossQuake'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
+      { enemies: [{ name: '花灵兔', attr: 'wood', hp: 800, atk: 26, def: 10, skills: ['seal'], avatar: 'stage_enemies/blossom_bunny' }] },
+      { enemies: [{ name: '翠玉灵猫', attr: 'wood', hp: 1120, atk: 30, def: 13, skills: ['healPct', 'healBlock'], avatar: 'stage_enemies/jade_cat' }] },
+      { enemies: [{ name: '灵木麒麟', attr: 'wood', hp: 1680, atk: 40, def: 14, skills: ['atkBuff', 'healPct', 'bossQuake'], avatar: 'stage_enemies/wood_qilin_awakened', isBoss: true }] },
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 11, a: 16 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[1],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'w5', fragCount: 10 },
@@ -119,9 +126,9 @@ const STAGES = [
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 200 },
       ],
-      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 120, petExp: 80 },
+      repeatClear: { fragments: { min: 4, max: 6, pool: 'chapter' }, exp: 150, petExp: 80 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_1_4' },
     battlePetExp: 60,
   },
@@ -135,7 +142,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 7, a: 11 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[2],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 's10', fragCount: 10 },
@@ -143,9 +150,9 @@ const STAGES = [
         { type: 'exp', amount: 400 },
         { type: 'petExp', amount: 150 },
       ],
-      repeatClear: { fragments: { min: 2, max: 5, pool: 'chapter' }, exp: 120, petExp: 80 },
+      repeatClear: { fragments: { min: 4, max: 6, pool: 'chapter' }, exp: 150, petExp: 100 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_1_5' },
     battlePetExp: 50,
   },
@@ -157,7 +164,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 8, a: 12 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[2],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'f10', fragCount: 10 },
@@ -165,9 +172,9 @@ const STAGES = [
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 180 },
       ],
-      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 140, petExp: 90 },
+      repeatClear: { fragments: { min: 5, max: 7, pool: 'chapter' }, exp: 170, petExp: 110 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_2_1' },
     battlePetExp: 60,
   },
@@ -179,7 +186,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 9, a: 13 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[2],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'e10', fragCount: 10 },
@@ -187,9 +194,9 @@ const STAGES = [
         { type: 'exp', amount: 500 },
         { type: 'petExp', amount: 180 },
       ],
-      repeatClear: { fragments: { min: 3, max: 5, pool: 'chapter' }, exp: 140, petExp: 90 },
+      repeatClear: { fragments: { min: 5, max: 7, pool: 'chapter' }, exp: 170, petExp: 110 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_2_2' },
     battlePetExp: 60,
   },
@@ -201,7 +208,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 15 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[2],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'm10', fragCount: 10 },
@@ -209,9 +216,9 @@ const STAGES = [
         { type: 'exp', amount: 600 },
         { type: 'petExp', amount: 200 },
       ],
-      repeatClear: { fragments: { min: 3, max: 6, pool: 'chapter' }, exp: 160, petExp: 100 },
+      repeatClear: { fragments: { min: 6, max: 8, pool: 'chapter' }, exp: 190, petExp: 120 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_2_3' },
     battlePetExp: 70,
   },
@@ -224,7 +231,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 14, a: 19 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[2],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'w10', fragCount: 10 },
@@ -232,9 +239,9 @@ const STAGES = [
         { type: 'exp', amount: 700 },
         { type: 'petExp', amount: 250 },
       ],
-      repeatClear: { fragments: { min: 4, max: 6, pool: 'chapter' }, exp: 180, petExp: 110 },
+      repeatClear: { fragments: { min: 6, max: 8, pool: 'chapter' }, exp: 220, petExp: 130 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_2_4' },
     battlePetExp: 80,
   },
@@ -248,7 +255,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 9, a: 13 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[3],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'f16', fragCount: 10 },
@@ -256,9 +263,9 @@ const STAGES = [
         { type: 'exp', amount: 600 },
         { type: 'petExp', amount: 220 },
       ],
-      repeatClear: { fragments: { min: 3, max: 6, pool: 'chapter' }, exp: 200, petExp: 120 },
+      repeatClear: { fragments: { min: 5, max: 8, pool: 'chapter' }, exp: 250, petExp: 150 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_2_5' },
     battlePetExp: 70,
   },
@@ -270,7 +277,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 10, a: 14 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[3],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 's17', fragCount: 10 },
@@ -278,9 +285,9 @@ const STAGES = [
         { type: 'exp', amount: 700 },
         { type: 'petExp', amount: 240 },
       ],
-      repeatClear: { fragments: { min: 4, max: 6, pool: 'chapter' }, exp: 220, petExp: 130 },
+      repeatClear: { fragments: { min: 6, max: 9, pool: 'chapter' }, exp: 280, petExp: 160 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_3_1' },
     battlePetExp: 80,
   },
@@ -292,7 +299,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 11, a: 16 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[3],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'e18', fragCount: 10 },
@@ -300,9 +307,9 @@ const STAGES = [
         { type: 'exp', amount: 800 },
         { type: 'petExp', amount: 260 },
       ],
-      repeatClear: { fragments: { min: 4, max: 7, pool: 'chapter' }, exp: 240, petExp: 140 },
+      repeatClear: { fragments: { min: 7, max: 10, pool: 'chapter' }, exp: 300, petExp: 170 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_3_2' },
     battlePetExp: 90,
   },
@@ -315,7 +322,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 14, a: 19 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[3],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'm18', fragCount: 10 },
@@ -323,9 +330,9 @@ const STAGES = [
         { type: 'exp', amount: 800 },
         { type: 'petExp', amount: 280 },
       ],
-      repeatClear: { fragments: { min: 4, max: 7, pool: 'chapter' }, exp: 260, petExp: 150 },
+      repeatClear: { fragments: { min: 7, max: 10, pool: 'chapter' }, exp: 320, petExp: 180 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_3_3' },
     battlePetExp: 100,
   },
@@ -338,7 +345,7 @@ const STAGES = [
     ],
     teamSize: { min: 3, max: 5 },
     rating: { s: 16, a: 22 },
-    staminaCost: 10,
+    staminaCost: CHAPTER_STAMINA[3],
     rewards: {
       firstClear: [
         { type: 'pet', petId: 'w20', fragCount: 10 },
@@ -346,9 +353,9 @@ const STAGES = [
         { type: 'exp', amount: 1000 },
         { type: 'petExp', amount: 350 },
       ],
-      repeatClear: { fragments: { min: 5, max: 8, pool: 'all' }, exp: 300, petExp: 180 },
+      repeatClear: { fragments: { min: 8, max: 10, pool: 'all' }, exp: 350, petExp: 200 },
     },
-    dailyLimit: 3,
+    dailyLimit: 0,
     unlockCondition: { prevStage: 'stage_3_4' },
     battlePetExp: 120,
   },
@@ -408,9 +415,37 @@ function getNextStageId(stageId) {
   return nextChStages.length > 0 ? nextChStages[0].id : null
 }
 
+/** 获取可浏览关卡列表：所有已解锁 + 紧邻的下一个未解锁关卡（作为预告） */
+function getBrowsableStages(clearRecord) {
+  const result = []
+  for (const stage of STAGES) {
+    const unlocked = isStageUnlocked(stage.id, clearRecord, 0)
+    result.push({ stage, unlocked })
+    if (!unlocked) break
+  }
+  return result
+}
+
+/** 获取 Boss 头像路径（最后一波最后一个敌人） */
+function getStageBossAvatar(stage) {
+  if (!stage || !stage.waves || !stage.waves.length) return null
+  const lastWave = stage.waves[stage.waves.length - 1]
+  const lastEnemy = lastWave.enemies[lastWave.enemies.length - 1]
+  return lastEnemy ? `assets/${lastEnemy.avatar}.png` : null
+}
+
+/** 获取 Boss 名称（最后一波最后一个敌人） */
+function getStageBossName(stage) {
+  if (!stage || !stage.waves || !stage.waves.length) return ''
+  const lastWave = stage.waves[stage.waves.length - 1]
+  const lastEnemy = lastWave.enemies[lastWave.enemies.length - 1]
+  return lastEnemy ? lastEnemy.name : ''
+}
+
 module.exports = {
   CHAPTERS,
   STAGES,
+  CHAPTER_STAMINA,
   RATING_ORDER,
   getStageById,
   getChapterStages,
@@ -418,4 +453,7 @@ module.exports = {
   isStageUnlocked,
   getStageAttr,
   getNextStageId,
+  getBrowsableStages,
+  getStageBossAvatar,
+  getStageBossName,
 }

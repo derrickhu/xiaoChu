@@ -6,6 +6,7 @@
  */
 const V = require('./env')
 const P = require('../platform')
+const { drawPanel, drawRibbonIcon } = require('./uiComponents')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
   effectValue, usedPoints, currentRealm, nextRealm,
@@ -314,66 +315,21 @@ function _drawCultIntro(c, R, g, W, H, S) {
 
   const pw = W * 0.86, ph = 310 * S
   const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
-  const rad = 14 * S
-
-  // 面板背景（浅米黄暖色）
-  const bg = c.createLinearGradient(px, py, px, py + ph)
-  bg.addColorStop(0, 'rgba(252,246,228,0.97)')
-  bg.addColorStop(1, 'rgba(244,234,208,0.97)')
-  _riRR(c, px, py, pw, ph, rad)
-  c.fillStyle = bg
-  c.fill()
-
-  // 外边框：金色
-  _riRR(c, px, py, pw, ph, rad)
-  c.strokeStyle = 'rgba(200,160,60,0.6)'
-  c.lineWidth = 1.5 * S
-  c.stroke()
-
-  // 顶部装饰条（暖金黄）
   const ribbonH = 44 * S
-  _riRR(c, px, py, pw, ribbonH, rad)
-  const rib = c.createLinearGradient(px, py, px + pw, py)
-  rib.addColorStop(0, 'rgba(200,158,60,0.85)')
-  rib.addColorStop(0.5, 'rgba(228,185,80,0.92)')
-  rib.addColorStop(1, 'rgba(200,158,60,0.85)')
-  c.fillStyle = rib
-  c.fill()
 
-  // 图标圆（白色半透明）
-  const iconR = 22 * S
-  const iconX = px + 38 * S, iconY = py + ribbonH / 2
-  c.beginPath()
-  c.arc(iconX, iconY, iconR, 0, Math.PI * 2)
-  c.fillStyle = 'rgba(255,255,255,0.3)'
-  c.fill()
-  c.strokeStyle = 'rgba(255,255,255,0.7)'
-  c.lineWidth = 1.5 * S
-  c.stroke()
-  c.fillStyle = '#5a3000'
-  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText(card.icon, iconX, iconY)
+  const { ribbonCY } = drawPanel(c, S, px, py, pw, ph, { ribbonH })
+  drawRibbonIcon(c, S, px, ribbonCY, card.icon)
 
   // 标题（深棕色）
   c.fillStyle = '#3a1a00'
   c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(card.heading, W / 2 + 14 * S, py + ribbonH / 2)
-
-  // 分割线
-  c.strokeStyle = 'rgba(160,120,40,0.25)'
-  c.lineWidth = 1 * S
-  c.beginPath()
-  c.moveTo(px + 20 * S, py + 52 * S)
-  c.lineTo(px + pw - 20 * S, py + 52 * S)
-  c.stroke()
+  c.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
 
   // 正文（深棕灰）
   const lineH = 30 * S
-  const textStartY = py + 78 * S
+  const textStartY = py + ribbonH + 28 * S
   c.fillStyle = '#4a3820'
   c.font = `${13 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'

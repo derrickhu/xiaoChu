@@ -488,7 +488,7 @@ function tStageTeam(g, x, y, type) {
     if (g.storage.currentStamina < stage.staminaCost) {
       P.showGameToast('体力不足'); return
     }
-    if (!g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
+    if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
       P.showGameToast('今日挑战次数已用完'); return
     }
     const stageMgr = require('../engine/stageManager')
@@ -496,10 +496,12 @@ function tStageTeam(g, x, y, type) {
     return
   }
 
-  // 返回（回到关卡信息页，同时保存编队）
+  // 返回（回到上级页面，同时保存编队）
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g.storage.saveStageteam(selected)
-    g.setScene('stageInfo')
+    const returnScene = g._stageTeamReturnScene || 'stageInfo'
+    g._stageTeamReturnScene = null
+    g.setScene(returnScene)
     return
   }
 

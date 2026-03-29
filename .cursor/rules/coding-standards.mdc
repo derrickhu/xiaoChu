@@ -1,0 +1,33 @@
+---
+description: 项目编码规范 — 避免硬编码、模块化封装、持续小重构、公共代码抽取
+globs: "**/*.js"
+alwaysApply: true
+---
+
+# 编码规范
+
+## 避免硬编码
+
+数值、配置、阈值等抽取到独立配置文件（如 `settleConfig.js`、`stages.js`、`constants.js`），逻辑代码只读取配置，不内联魔法数字。
+
+```js
+// ❌ BAD
+if (pool.length >= 5) { ... }
+const interval = 5 * 60 * 1000
+
+// ✅ GOOD
+const { UNLOCK_THRESHOLD } = require('./constants')
+if (pool.length >= UNLOCK_THRESHOLD) { ... }
+```
+
+## 模块化封装
+
+每个功能点独立函数/模块，单一职责，通过 `module.exports` 暴露清晰接口。避免在一个函数内堆砌多个不相关逻辑。
+
+## 持续小重构
+
+开发过程中发现重复代码、过长函数、混乱依赖时，随手重构而非堆积技术债。新增功能时如果发现相邻代码有坏味道，一并修正。
+
+## 公共代码抽取
+
+多处使用的工具函数、UI 绘制片段、数据转换逻辑，提取到公共模块（如 `uiUtils.js`、`helpers.js`）复用，避免复制粘贴。

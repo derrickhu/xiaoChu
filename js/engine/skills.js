@@ -13,25 +13,26 @@ const { randomWeapon } = require('../data/weapons')
 const DF = require('./dmgFloat')
 
 // 辅助：tryMergePet 后检查是否升到满星，记录图鉴 + 灵宠池入池/碎片
+// 爬塔模式下仅解锁图鉴，不自动入永久池/给碎片（改为结算时统一发碎片）
 function _mergePetAndDex(g, allPets, newPet) {
   const result = tryMergePet(allPets, newPet)
   if (result.merged && result.target && (result.target.star || 1) >= MAX_STAR) {
     const alreadyInDex = (g.storage.petDex || []).includes(result.target.id)
     g.storage.addPetDex(result.target.id)
 
-    if (!alreadyInDex) {
-      // 首次★3图鉴 → 入池（★1 Lv.5 + 2碎片）
-      const added = g.storage.addToPetPool(result.target.id, 'roguelike')
-      if (added) {
-        // 延迟到★3庆祝动画关闭后再弹入池提示
-        g._pendingPoolEntry = { petId: result.target.id }
-      }
-    } else {
-      // 再次★3 → 给碎片（仅已入池的宠物）
-      const inPool = g.storage.petPool.find(p => p.id === result.target.id)
-      if (inPool) {
-        g.storage.addFragments(result.target.id, 5)
-        g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
+    // 爬塔模式：局内升星仅局内有效，不入永久池、不给碎片
+    if (g.battleMode === 'stage') {
+      if (!alreadyInDex) {
+        const added = g.storage.addToPetPool(result.target.id, 'stage')
+        if (added) {
+          g._pendingPoolEntry = { petId: result.target.id }
+        }
+      } else {
+        const inPool = g.storage.petPool.find(p => p.id === result.target.id)
+        if (inPool) {
+          g.storage.addFragments(result.target.id, 5)
+          g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
+        }
       }
     }
   }

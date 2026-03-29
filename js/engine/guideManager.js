@@ -76,6 +76,52 @@ const GUIDE_DEFS = {
       { text: '派遣灵宠自动修行，每 4 小时产出碎片，用于升星', position: 'center' },
     ],
   },
+
+  // 新手秘境引导序列（漫画结束后触发，渐进式引导到主玩法）
+  newbie_stage_start: {
+    steps: [
+      { text: '灵兽秘境在召唤你！\n点击下方按钮，开始第一场冒险！', position: 'bottom', restrictToHighlight: true },
+    ],
+  },
+  newbie_stage_continue: {
+    steps: [
+      { text: '恭喜通关！你获得了 3 只灵宠伙伴！\n它们已正式加入你的队伍', position: 'center' },
+      { text: '点击「灵宠」查看你的队伍\n在这里可以培养和强化灵宠', position: 'bottom', highlightId: 'nav_pet', restrictToHighlight: true },
+    ],
+  },
+  // 从灵宠池/派遣返回主页后触发
+  newbie_after_pets: {
+    steps: [
+      { text: '继续挑战下一关\n击败更强的敌人，收集新灵宠！', position: 'center' },
+    ],
+  },
+  newbie_team_ready: {
+    steps: [
+      { text: '五行灵宠集齐！你的队伍已初具规模！', position: 'center' },
+      { text: '点击「修炼」消耗经验强化属性\n战斗会更加轻松', position: 'bottom', highlightId: 'nav_cult', restrictToHighlight: true },
+    ],
+  },
+  // 从修炼返回主页后触发
+  newbie_after_cult: {
+    steps: [
+      { text: '新手引导完成！你已掌握所有核心玩法\n接下来尽情探索秘境，不断强化阵容吧！', position: 'center' },
+    ],
+  },
+  // 灵宠池首次进入引导
+  pet_pool_intro: {
+    steps: [
+      { text: '这里是灵宠池，管理你的所有灵宠', position: 'center' },
+      { text: '收集碎片可以为灵宠升星\n升星后攻击力大幅提升，还能解锁技能', position: 'center' },
+      { text: '点击下方「派遣修行」\n灵宠自动修行，定时收取碎片奖励！', position: 'center', highlightId: 'idle_btn', restrictToHighlight: true },
+    ],
+  },
+  // 从派遣返回灵宠池后触发
+  newbie_after_dispatch: {
+    steps: [
+      { text: '派遣已设置！灵宠会自动修行\n记得定时回来收取奖励哦', position: 'center' },
+      { text: '回到秘境继续战斗\n收集更多灵宠来壮大队伍！', position: 'bottom', highlightId: 'nav_stage', restrictToHighlight: true },
+    ],
+  },
 }
 
 let _currentGuide = null
@@ -119,10 +165,15 @@ function getCurrent() {
   if (!_currentGuide) return null
   return {
     ..._currentGuide.steps[_stepIdx],
+    guideId: _currentGuide.id,
     highlight: _currentGuide.highlight,
     stepIdx: _stepIdx,
     totalSteps: _currentGuide.steps.length,
   }
+}
+
+function getCurrentId() {
+  return _currentGuide ? _currentGuide.id : null
 }
 
 function advance(g) {
@@ -160,6 +211,7 @@ module.exports = {
   trigger,
   isActive,
   getCurrent,
+  getCurrentId,
   advance,
   updateFade,
   getFadeAlpha,

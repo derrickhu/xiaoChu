@@ -16,6 +16,9 @@ const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 
+// 新手教学临时宠物：金/木/水 3 只，让玩家直观体验"不同颜色珠子 → 不同宠物攻击"
+const NEWBIE_TEMP_PET_IDS = ['m1', 'w1', 's1']
+
 /**
  * 开始固定关卡战斗
  * @param {object} g - 游戏状态
@@ -94,12 +97,98 @@ function startStage(g, stageId, teamPetIds) {
   g._runComboExp = 0
   g._runKillExp = 0
 
+  g._isNewbieStage = false
+
   // 加载第一波敌人
   loadWave(g, 0)
 
   // 初始化棋盘
   initBoard(g)
   g.bState = 'playerTurn'
+  g.setScene('battle')
+  g.floor = 1
+  g.cleared = false
+  return true
+}
+
+/**
+ * 新手零宠物时专用：跳过编队，自动分配临时宠物，直接进入战斗
+ * 不扣体力、不记每日次数（1-1 体力已是 0）
+ */
+function startStageNewbie(g, stageId) {
+  const stage = getStageById(stageId)
+  if (!stage) return false
+
+  if (stage.staminaCost > 0) g.storage.consumeStamina(stage.staminaCost)
+  g.storage.recordStageChallenge(stageId)
+
+  g.battleMode = 'stage'
+  g._stageId = stageId
+  g._stageWaves = stage.waves
+  g._stageWaveIdx = 0
+  g._stageTotalTurns = 0
+  g._stageTeam = NEWBIE_TEMP_PET_IDS.slice()
+
+  // 构建临时宠物（不来自灵宠池，仅本局使用）
+  g.pets = NEWBIE_TEMP_PET_IDS.map(id => {
+    const basePet = getPetById(id)
+    if (!basePet) return null
+    return { ...basePet, star: 1, atk: basePet.atk || 10, currentCd: 0, _temp: true }
+  }).filter(Boolean)
+
+  g.heroMaxHp = 100
+  g.heroHp = 100
+  g.heroShield = 0
+
+  const cult = g.storage.cultivation
+  g.heroMaxHp += effectValue('body', cult.levels.body)
+  g.heroHp = g.heroMaxHp
+  g.heroShield = effectValue('sense', cult.levels.sense)
+  g.dragTimeLimit = (8 + effectValue('wisdom', cult.levels.wisdom)) * 60
+  g._cultDmgReduce = effectValue('defense', cult.levels.defense)
+  g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+
+  g.weapon = null
+  g.petBag = []
+  g.weaponBag = []
+  g.sessionPetPool = []
+  g.runBuffs = makeDefaultRunBuffs()
+  g.runBuffLog = []
+  g.heroBuffs = []
+  g.enemyBuffs = []
+  g.skipNextBattle = false
+  g.nextStunEnemy = false
+  g.nextDmgDouble = false
+  g.tempRevive = false
+  g.immuneOnce = false
+  g.comboNeverBreak = false
+  g.weaponReviveUsed = false
+  g.goodBeadsNextTurn = false
+  g.adReviveUsed = false
+  g.turnCount = 0
+  g.combo = 0
+  g.runTotalTurns = 0
+  g.runExp = 0
+  g._runElimExp = 0
+  g._runComboExp = 0
+  g._runKillExp = 0
+
+  loadWave(g, 0)
+
+  // 新手模式弱化敌人：确保 3 只临时宠物可在 4-5 回合内通关
+  if (g.enemy) {
+    g.enemy.hp = 80; g.enemy.maxHp = 80
+    g.enemy.atk = 4; g.enemy.def = 0
+  }
+
+  g._isNewbieStage = true
+  initBoard(g)
+  g.bState = 'playerTurn'
+
+  // 设置新手宠物介绍卡（战前全屏遮罩，点击翻页后触发简化教学）
+  g._newbiePetIntro = { petIds: NEWBIE_TEMP_PET_IDS.slice(), alpha: 0, page: 0, timer: 0 }
+  g._pendingStageTutorial = true
+
   g.setScene('battle')
   g.floor = 1
   g.cleared = false
@@ -325,6 +414,7 @@ function _randomInt(min, max) {
 
 module.exports = {
   startStage,
+  startStageNewbie,
   loadWave,
   advanceWave,
   isLastWave,

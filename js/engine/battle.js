@@ -46,6 +46,12 @@ function _addKillExp(g) {
 }
 
 // ===== 棋盘 =====
+// 新手 1-1 棋盘偏向：提升宠物属性珠权重，减少无用色
+function _applyNewbieBias(g, weights) {
+  if (!g._isNewbieStage) return
+  g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] = 2.0 })
+}
+
 function initBoard(g) {
   const { ROWS, COLS } = V
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
@@ -53,6 +59,7 @@ function initBoard(g) {
     g.goodBeadsNextTurn = false
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
   }
+  _applyNewbieBias(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
   g.board = []
   for (let r = 0; r < ROWS; r++) {
@@ -85,6 +92,7 @@ function fillBoard(g) {
     g.goodBeadsNextTurn = false
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
   }
+  _applyNewbieBias(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
   // 记录每列最大掉落距离（用于瀑布错开延迟）
   let maxDrop = 0
@@ -155,6 +163,13 @@ function startNextElimAnim(g) {
   g._runElimExp = (g._runElimExp || 0) + elimExp
   // 移除combo断链：所有消除都计入combo（大幅提升爽感）
   g.combo++
+  // 新手首关：每次达成 combo 里程碑时弹庆祝横幅（逐级升级）
+  if (g._isNewbieStage && g.combo >= 2) {
+    var _cb = g.combo
+    if (_cb === 2 || _cb === 3 || _cb === 5 || (_cb >= 7 && _cb % 2 === 1)) {
+      g._newbieComboBanner = { timer: 0, combo: _cb }
+    }
+  }
   // 修炼经验：每段 combo
   g.runExp += 2
   g._runComboExp = (g._runComboExp || 0) + 2

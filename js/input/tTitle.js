@@ -4,7 +4,9 @@
 const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const runMgr = require('../engine/runManager')
+const { getBrowsableStages } = require('../data/stages')
 
+const SWIPE_THRESHOLD = 40
 
 function tTitle(g, type, x, y) {
   // ① 侧边栏复访弹窗
@@ -35,7 +37,6 @@ function tTitle(g, type, x, y) {
 
   // ① 「更多」面板（最高优先级）
   if (g.showMorePanel) {
-    // 音量滑条：支持拖拽（start/move/end 都处理）
     if (g._bgmVolSlider && (type === 'start' || type === 'move' || type === 'end')) {
       const sl = g._bgmVolSlider
       if (y >= sl.y - 10 && y <= sl.y + sl.h + 10 && x >= sl.sliderX - 20 && x <= sl.sliderX + sl.sliderW + 20) {
@@ -59,9 +60,44 @@ function tTitle(g, type, x, y) {
     return
   }
 
+  // ② 秘境模式滑动手势（start/move 阶段需要处理）
+  const isStageMode = (g.titleMode || 'tower') === 'stage'
+  if (isStageMode && !g.showTitleStartDialog && !g.showNewRunConfirm) {
+    if (type === 'start') {
+      g._stageSwipeStartX = x
+      g._stageSwipeStartY = y
+      g._stageSwipeDeltaX = 0
+      g._stageSwipeActive = true
+      return
+    }
+    if (type === 'move' && g._stageSwipeActive) {
+      g._stageSwipeDeltaX = x - g._stageSwipeStartX
+      return
+    }
+  }
+
   if (type !== 'end') return
 
-  // ② 开始/继续确认弹窗
+  // 秘境滑动结算
+  if (isStageMode && g._stageSwipeActive) {
+    g._stageSwipeActive = false
+    const dx = x - g._stageSwipeStartX
+    const dy = y - g._stageSwipeStartY
+    g._stageSwipeDeltaX = 0
+
+    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      const list = getBrowsableStages(g.storage.stageClearRecord)
+      if (dx < 0 && g._selectedStageIdx < list.length - 1) {
+        g._selectedStageIdx++
+      } else if (dx > 0 && g._selectedStageIdx > 0) {
+        g._selectedStageIdx--
+      }
+      return
+    }
+    // 不是滑动 → 继续走点击逻辑
+  }
+
+  // ③ 开始/继续确认弹窗（通天塔）
   if (g.showTitleStartDialog) {
     const hasSave = g.storage.hasSavedRun()
     if (hasSave) {
@@ -92,7 +128,7 @@ function tTitle(g, type, x, y) {
     g.showTitleStartDialog = false; return
   }
 
-  // ③ 新挑战确认弹窗
+  // ④ 新挑战确认弹窗（通天塔）
   if (g.showNewRunConfirm) {
     if (g._newRunConfirmRect && g._hitRect(x,y,...g._newRunConfirmRect)) {
       g.showNewRunConfirm = false
@@ -113,41 +149,44 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ④ 开始按钮
+  // ⑤ 开始按钮
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
-    if ((g.titleMode || 'tower') === 'stage') {
-      const { resetScroll } = require('../views/stageSelectView')
-      resetScroll()
-      g.setScene('stageSelect')
+    if (isStageMode) {
+      _handleStageStart(g)
+      return
+    }
+    // 通天塔：灵宠池 >= 5
+    if (g.storage.petPoolCount < 5) {
+      P.showGameToast(`灵宠池需 ${5 - g.storage.petPoolCount} 只才能挑战通天塔`)
       return
     }
     g.showNewRunConfirm = false
     g.showTitleStartDialog = true; return
   }
 
-  // ⑤ 左下角模式切换浮钮
+  // ⑥ 左下角模式切换浮钮
   if (g._modeSwitchRect && g._hitRect(x,y,...g._modeSwitchRect)) {
     g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
   }
 
-  // ⑤b 宝箱浮钮
+  // ⑥b 宝箱浮钮
   if (g._chestBtnRect && g._hitRect(x, y, ...g._chestBtnRect)) {
-    g._chestPressTime = Date.now()  // 动画始终触发
+    g._chestPressTime = Date.now()
     const chestView = require('../views/chestView')
     chestView.initChestQueue(g)
     if (chestView.hasMore()) {
-      MusicMgr.playChestOpen()      // 只有有奖励时才播音效
+      MusicMgr.playChestOpen()
       g.showChestPanel = true
     }
     return
   }
 
-  // ⑤c 右下角侧边栏复访入口（抖音专属）
+  // ⑥c 右下角侧边栏复访入口（抖音专属）
   if (g._sidebarBtnRect && g._hitRect(x, y, ...g._sidebarBtnRect)) {
     g.showSidebarPanel = true; return
   }
 
-  // ⑥ 底部 7 标签导航
+  // ⑦ 底部 7 标签导航
   const barRects = g._bottomBarRects || []
   for (let i = 0; i < barRects.length; i++) {
     if (!g._hitRect(x, y, ...barRects[i])) continue
@@ -172,7 +211,7 @@ function tTitle(g, type, x, y) {
         if (g.storage.petPoolCount >= 1) { g._dexScrollY = 0; g.setScene('dex') }
         return
       }
-      case 3: g.titleMode = 'tower'; g.setScene('title'); return
+      case 3: g.titleMode = 'stage'; g.setScene('title'); return
       case 4:
         if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
         g._openRanking(); return
@@ -180,7 +219,38 @@ function tTitle(g, type, x, y) {
       case 6: g.showMorePanel = true; return
     }
   }
+}
 
+/** 秘境"开始游戏"按钮处理 */
+function _handleStageStart(g) {
+  const list = getBrowsableStages(g.storage.stageClearRecord)
+  const entry = list[g._selectedStageIdx]
+  if (!entry || !entry.unlocked) {
+    P.showGameToast('该关卡尚未解锁')
+    return
+  }
+
+  const stage = entry.stage
+
+  // 新手（零宠物）：直接进入 1-1 战斗
+  if (g.storage.petPoolCount === 0) {
+    const stageMgr = require('../engine/stageManager')
+    stageMgr.startStageNewbie(g, stage.id)
+    return
+  }
+
+  // 体力检查
+  if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
+    const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
+    const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
+    P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+    return
+  }
+
+  // 老玩家 → 跳转编队页
+  g._selectedStageId = stage.id
+  g._stageTeamReturnScene = 'title'
+  g.setScene('stageTeam')
 }
 
 module.exports = tTitle
