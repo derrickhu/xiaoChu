@@ -115,8 +115,8 @@ function _drawBubble(c, W, H, S, info) {
 }
 
 function onTouch(g, type, x, y) {
-  if (type !== 'start') return false
   if (!guide.isActive()) return false
+  if (type !== 'start' && type !== 'end') return false
 
   const info = guide.getCurrent()
   const hl = info ? _resolveHighlight(g, info) : null
@@ -127,15 +127,13 @@ function onTouch(g, type, x, y) {
     const pad = 6 * S
     if (x >= hl.x - pad && x <= hl.x + hl.w + pad &&
         y >= hl.y - pad && y <= hl.y + hl.h + pad) {
-      guide.advance(g)
-      g._dirty = true
-      return false  // 放行底层按钮处理
+      if (type === 'start') { guide.advance(g); g._dirty = true }
+      return false  // 放行底层按钮处理（start + end 均穿透）
     }
-    return true  // 屏蔽非高亮区域的点击
+    return true  // 屏蔽非高亮区域（start + end 均拦截）
   }
 
-  guide.advance(g)
-  g._dirty = true
+  if (type === 'start') { guide.advance(g); g._dirty = true }
   return true
 }
 

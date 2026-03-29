@@ -1,5 +1,5 @@
 /**
- * 灵宠派遣界面 — 挂机产出碎片 + 宠物经验
+ * 灵宠派遣界面 — 挂机产出碎片 + 灵石
  * 3个槽位，从灵宠池中选宠物派遣，离线自动累积产出
  * 渲染入口：rIdle  触摸入口：tIdle
  */
@@ -216,7 +216,7 @@ function rIdle(g) {
     c.fillStyle = '#ffe8a0'
     c.font = `bold ${12*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(`碎片 +${res.totalFragments}  经验 +${res.totalPetExp}`, W / 2, tipY + tipH / 2)
+    c.fillText(`碎片 +${res.totalFragments}  灵石 +${res.totalSoulStone}`, W / 2, tipY + tipH / 2)
     c.restore()
   }
 

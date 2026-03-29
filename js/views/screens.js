@@ -4,7 +4,8 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill } = require('../data/pets')
+const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getPetStarAtk, getStar3Override, petHasSkill, getPetRarity } = require('../data/pets')
+const { RARITY_VISUAL } = require('../data/economyConfig')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
 const { drawPanel, drawRibbonIcon } = require('./uiComponents')
@@ -429,7 +430,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   const sr = g._lastRunSettleRewards
   const cultFinal = sr ? sr.cultExp.final : (g._lastRunExp || 0)
-  const petExpFinal = sr ? sr.petExp.final : (g._lastRunPetExp || 0)
+  const soulStoneFinal = sr ? sr.soulStone.final : (g._lastRunSoulStone || 0)
   const fragFinal = sr ? sr.fragments.final : 0
   const fragDetails = sr ? sr.fragments.details : []
 
@@ -453,7 +454,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     if (levelUps > 0) contentH += 20 * S
     contentH += 24 * S
   }
-  if (petExpFinal > 0) contentH += 28 * S
+  if (soulStoneFinal > 0) contentH += 28 * S
   if (fragFinal > 0) {
     contentH += 28 * S // 碎片标题行
     if (fragDetails.length > 0) contentH += 22 * S // 碎片明细行
@@ -465,7 +466,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
     if (hasCultUpgradeAvailable(g.storage)) hasQuickBtns = true
   }
-  if (petExpFinal > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
+  if (soulStoneFinal > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
   if (hasQuickBtns) contentH += 42 * S
 
   const ph = contentH
@@ -483,8 +484,18 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   g.pets.forEach((p, i) => {
     const ac = ATTR_COLOR[p.attr]
+    const rv = RARITY_VISUAL[getPetRarity(p.id)] || RARITY_VISUAL.R
+    const petNameX = px + pad + (i + 0.5) * (innerW / g.pets.length)
+    const petNameY = cy + 6 * S
     c.fillStyle = ac ? ac.main : '#666'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText(p.name, px + pad + (i + 0.5) * (innerW / g.pets.length), cy + 6 * S)
+    c.fillText(p.name, petNameX, petNameY)
+    // 品质色下划线
+    const nameW2 = c.measureText(p.name).width
+    c.strokeStyle = rv.borderColor; c.lineWidth = 1.5 * S
+    c.beginPath()
+    c.moveTo(petNameX - nameW2 / 2, petNameY + 7 * S)
+    c.lineTo(petNameX + nameW2 / 2, petNameY + 7 * S)
+    c.stroke()
   })
   cy += 24 * S
 
@@ -565,9 +576,9 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     cy += 24 * S
   }
 
-  // === 宠物经验 ===
-  if (petExpFinal > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_pet_exp', '宠物经验池', `+${petExpFinal}`, '#5577AA', '#3366AA')
+  // === 灵石 ===
+  if (soulStoneFinal > 0) {
+    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${soulStoneFinal}`, '#5577AA', '#3366AA')
     cy += 28 * S
   }
 
@@ -577,12 +588,28 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     cy += 28 * S
 
     if (fragDetails.length > 0) {
-      c.fillStyle = '#A09070'; c.font = `${9*S}px "PingFang SC",sans-serif`; c.textAlign = 'center'
-      const parts = fragDetails.map(fd => {
+      // 碎片明细：每只宠物用品质色显示
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      const fragY = cy + 6 * S
+      const fragParts = fragDetails.map(fd => {
         const pet = getPetById(fd.petId)
-        return `${pet ? pet.name : fd.petId} +${fd.count}`
+        const rv = RARITY_VISUAL[getPetRarity(fd.petId)] || RARITY_VISUAL.R
+        return { text: `${pet ? pet.name : fd.petId} +${fd.count}`, color: rv.borderColor }
       })
-      c.fillText(parts.join('  '), W * 0.5, cy + 6 * S)
+      // 计算总宽度以居中绘制
+      c.font = `${9*S}px "PingFang SC",sans-serif`
+      const sep = '  '
+      const sepW = c.measureText(sep).width
+      const totalFragW = fragParts.reduce((sum, p, i) => sum + c.measureText(p.text).width + (i > 0 ? sepW : 0), 0)
+      let fragDrawX = W * 0.5 - totalFragW / 2
+      fragParts.forEach((fp, i) => {
+        if (i > 0) fragDrawX += sepW
+        c.textAlign = 'left'
+        c.fillStyle = fp.color; c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+        c.fillText(fp.text, fragDrawX, fragY)
+        fragDrawX += c.measureText(fp.text).width
+      })
+      c.textBaseline = 'alphabetic'
       cy += 22 * S
     }
   }
@@ -603,7 +630,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
     if (hasCultUpgradeAvailable(g.storage)) quickBtns.push({ label: '前往修炼', key: 'cult' })
   }
-  if (petExpFinal > 0 && g.storage.petPoolCount > 0) quickBtns.push({ label: '前往灵宠', key: 'pet' })
+  if (soulStoneFinal > 0 && g.storage.petPoolCount > 0) quickBtns.push({ label: '前往灵宠', key: 'pet' })
 
   g._cultBtnRect = null
   g._petPoolBtnRect = null

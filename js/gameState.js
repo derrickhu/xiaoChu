@@ -160,7 +160,7 @@ function initState(g) {
   g._petDetailId = null         // 宠物详情全屏页当前宠物 petId
   g._petDetailReturnScene = null // 宠物详情页返回目标场景（null则默认回 petPool）
   g._petPoolLevelUpAnim = null  // 升级动画 { petId, fromLv, toLv }
-  g._lastRunPetExp = 0          // 上一局获得的宠物经验
+  g._lastRunSoulStone = 0       // 上一局获得的灵石
   g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
 
   // ===== Phase 3：固定关卡 =====
@@ -173,6 +173,7 @@ function initState(g) {
   g._stageTeamFilter = 'all'    // 编队属性筛选
   g._stageTeamScroll = 0        // 编队列表滚动
   g._stageTotalTurns = 0        // 关卡总回合数（跨波次累计）
+  g._stageSettlePending = false  // 防止重复结算
   g._stageResult = null         // 结算数据
   g._waveTransTimer = 0         // 波间过渡倒计时
   g._stageSelectScroll = 0      // 关卡选择页滚动
@@ -261,7 +262,7 @@ function _createDomainProxies(g) {
     '_petPoolEntryPopup', '_fragmentObtainedPopup',
     '_petPoolFilter', '_petPoolScroll', '_petPoolDetail',
     '_petDetailId', '_petDetailReturnScene', '_petPoolLevelUpAnim',
-    '_lastRunPetExp', '_petPoolBtnRect',
+    '_lastRunSoulStone', '_petPoolBtnRect',
   ])
 
   _createDomainProxy(g, 'buffs', [

@@ -170,26 +170,26 @@ const PETS = {
   ],
 }
 
-// ===== 宠物强度分档（T1神兽 / T2灵兽 / T3幼兽） =====
-// T1: ATK≥13 或拥有终极技能（500%爆裂、战神、复活、眩晕+3倍等）
-// T2: ATK 10-12 且技能中等偏强
-// T3: ATK 8-9 或技能偏弱/偏辅助
-const PET_TIER = {
-  T1: [
+// ===== 宠物品质分级（SSR传说 / SR超稀有 / R稀有） =====
+// SSR: ATK≥13 或拥有终极技能（500%爆裂、战神、复活、眩晕+3倍等）
+// SR:  ATK 10-12 且技能中等偏强
+// R:   ATK 8-9 或技能偏弱/偏辅助
+const PET_RARITY = {
+  SSR: [
     'm10','m18','m19','m20',        // 九天金凰、金锋战神、金耀星君、万钧金神
     'w10','w20',                    // 万木之主、神木麒麟
     's10','s17',                    // 沧海龙神、沧澜鲲鹏
     'f10','f16','f17',              // 朱雀神火、焚天火蟒、赤焰麒麟
     'e10','e18','e20',              // 后土神兽、镇地神牛、玄武神君
   ],
-  T2: [
+  SR: [
     'm4','m5','m6','m9','m11','m13','m14','m15','m16','m17',  // 金属性中坚
     'w5','w6','w7','w12','w14','w15','w16','w17','w18','w19', // 木属性中坚
     's4','s6','s8','s11','s12','s14','s15','s16','s18','s19','s20', // 水属性中坚
     'f3','f4','f5','f6','f7','f8','f11','f12','f13','f14','f15','f18','f19','f20', // 火属性中坚
     'e4','e5','e8','e9','e11','e12','e13','e14','e15','e16','e17','e19', // 土属性中坚
   ],
-  T3: [
+  R: [
     'm1','m2','m3','m7','m8','m12',  // 金属性幼兽
     'w1','w2','w3','w4','w8','w9','w11','w13', // 木属性幼兽
     's1','s2','s3','s5','s7','s9','s13', // 水属性幼兽
@@ -198,21 +198,21 @@ const PET_TIER = {
   ],
 }
 
-// 根据宠物ID获取档位
-function getPetTier(id) {
-  if (PET_TIER.T1.includes(id)) return 'T1'
-  if (PET_TIER.T2.includes(id)) return 'T2'
-  return 'T3'
+// 根据宠物ID获取品质
+function getPetRarity(id) {
+  if (PET_RARITY.SSR.includes(id)) return 'SSR'
+  if (PET_RARITY.SR.includes(id)) return 'SR'
+  return 'R'
 }
 
-// 不同获取渠道的档位权重
-const TIER_WEIGHTS = {
-  starter:   { T3:100, T2:0,  T1:0  },  // 开局初始：全T3
-  normal:    { T3:50,  T2:40, T1:10 },  // 普通战斗
-  elite:     { T3:15,  T2:55, T1:30 },  // 精英战斗
-  boss:      { T3:0,   T2:40, T1:60 },  // BOSS战斗
-  shop:      { T3:30,  T2:50, T1:20 },  // 商店招募
-  adventure: { T3:0,   T2:30, T1:70 },  // 奇遇
+// 不同获取渠道的品质权重
+const RARITY_WEIGHTS = {
+  starter:   { R:100, SR:0,  SSR:0  },  // 开局初始：全R
+  normal:    { R:50,  SR:40, SSR:10 },  // 普通战斗
+  elite:     { R:15,  SR:55, SSR:30 },  // 精英战斗
+  boss:      { R:0,   SR:40, SSR:60 },  // BOSS战斗
+  shop:      { R:30,  SR:50, SSR:20 },  // 商店招募
+  adventure: { R:0,   SR:30, SSR:70 },  // 奇遇
 }
 
 // ===== ★3满星技能强化覆写 =====
@@ -325,6 +325,49 @@ const STAR3_SKILL_OVERRIDE = {
   e20: { desc:'眩晕3回合+土伤×4倍', stunDur:3, pct:300 },
 }
 
+// ===== ★4 觉醒被动（按品质模板批量分配） =====
+// 每只宠物在 ★4 解锁一个被动能力
+const STAR4_PASSIVE = {
+  // R 品质被动：「韧性」— 受到致死伤害时保留 1HP（每局 1 次）
+  R:   { name: '韧性', desc: '受到致死伤害时保留1HP（每局1次）', type: 'lastStand' },
+  // SR 品质被动：「专精」— 该属性消除伤害 +15%
+  SR:  { name: '专精', desc: '该属性消除伤害+15%', type: 'attrDmgUp', pct: 15 },
+  // SSR 品质被动：「霸体」— 免疫首次控制效果
+  SSR: { name: '霸体', desc: '免疫首次控制效果', type: 'immuneFirstCC' },
+}
+
+// 获取宠物 ★4 觉醒被动（根据品质）
+function getStar4Passive(petId) {
+  const rarity = getPetRarity(petId)
+  return STAR4_PASSIVE[rarity] || STAR4_PASSIVE.R
+}
+
+// ===== ★5 超越技能覆写（在 ★3 基础上进一步强化 ~30-50%） =====
+// 仅列出与 STAR3 的差异部分，运行时合并
+const STAR5_SKILL_OVERRIDE = {
+  // --- 金属性 ---
+  m1:  { desc:'下次金属性伤害×4倍，持续3回合', pct:300, dur:3 },
+  m4:  { desc:'对敌造成500%伤害+无视75%防御', pct:500, ignoreDefPct:75 },
+  m10: { desc:'抵挡致死+回复100%血量+无敌2回合', healPct:100, immuneDur:2 },
+  m18: { desc:'全队攻击+70%持续5回合+必暴击3回合', pct:70, dur:5, critDur:3 },
+  m20: { desc:'900%金属性爆裂伤害+溅射全体50%', pct:900, splash:50 },
+  // --- 木属性 ---
+  w1:  { desc:'回复70%血量+清除所有负面', pct:70, cleanse:99 },
+  w10: { desc:'全队全属性伤害+70%持续5回合', pct:70, dur:5 },
+  w20: { desc:'900%木属性爆裂伤害+全体回复25%', pct:900, teamHealPct:25 },
+  // --- 水属性 ---
+  s10: { desc:'全场一半珠子变水珠+水伤+50%', count:18, dmgBoost:50 },
+  s17: { desc:'900%水属性爆裂伤害+冰冻2回合', pct:900, stunDur:2 },
+  // --- 火属性 ---
+  f10: { desc:'全队暴击率+90%持续4回合', pct:90, dur:4 },
+  f16: { desc:'900%火属性爆裂伤害+灼烧60点4回合', pct:900, dotDmg:60, dotDur:4 },
+  f17: { desc:'全队攻击+80%持续5回合', pct:80, dur:5 },
+  // --- 土属性 ---
+  e10: { desc:'全队防御+100%持续5回合', pct:100, dur:5 },
+  e18: { desc:'900%土属性爆裂伤害+眩晕2回合', pct:900, stunDur:2 },
+  e20: { desc:'眩晕4回合+土伤×5倍', stunDur:4, pct:400 },
+}
+
 // 判断宠物当前星级是否已解锁技能（★1无技能，★2+解锁）
 function petHasSkill(pet) {
   return (pet.star || 1) >= 2 && !!pet.skill
@@ -335,10 +378,15 @@ function getPetSkillBaseDesc(pet) {
   return pet && pet.skill ? (pet.skill.desc || '') : ''
 }
 
-// 获取宠物当前技能描述（★1无技能，★2基础技能，★3强化技能）
+// 获取宠物当前技能描述（★1无技能，★2基础，★3强化，★4同★3，★5超越）
 function getPetSkillDesc(pet) {
   const star = pet.star || 1
-  if (star < 2) return ''  // ★1无技能
+  if (star < 2) return ''
+  // ★5 超越技能优先
+  if (star >= 5 && STAR5_SKILL_OVERRIDE[pet.id]) {
+    return STAR5_SKILL_OVERRIDE[pet.id].desc
+  }
+  // ★3/★4 通灵/觉醒技能
   if (star >= 3 && STAR3_SKILL_OVERRIDE[pet.id]) {
     return STAR3_SKILL_OVERRIDE[pet.id].desc
   }
@@ -350,22 +398,30 @@ function getStar3Override(petId) {
   return STAR3_SKILL_OVERRIDE[petId] || null
 }
 
-// ===== 星级融合系统常量 =====
-const MAX_STAR = 3          // 最高星级
-const STAR_ATK_MUL = 1.3    // 每升1星ATK倍率
-const STAR_SKILL_MUL = 1.25 // 每升1星技能数值倍率
-
-// 获取宠物星级加成后的ATK
-function getPetStarAtk(pet) {
-  const star = pet.star || 1
-  return Math.floor(pet.atk * Math.pow(STAR_ATK_MUL, star - 1))
+// 获取★5超越数据（若有）
+function getStar5Override(petId) {
+  return STAR5_SKILL_OVERRIDE[petId] || null
 }
 
-// 获取宠物星级技能数值倍率（★1无技能，★2=1.0基础，★3=1.25强化）
+// ===== 星级系统常量（★1初始 → ★2觉知 → ★3通灵 → ★4觉醒 → ★5超越） =====
+const MAX_STAR = 5          // 最高星级
+const STAR_ATK_MUL = 1.3    // 每升1星ATK倍率（局内肉鸽用，局外灵宠池用 POOL_STAR_ATK_MUL）
+const STAR_SKILL_MUL = 1.25 // 每升1星技能数值倍率
+
+// 星级名称映射
+const STAR_NAMES = { 1: '初始', 2: '觉知', 3: '通灵', 4: '觉醒', 5: '超越' }
+
+// 获取宠物星级加成后的ATK（局内肉鸽用）
+function getPetStarAtk(pet) {
+  const star = pet.star || 1
+  return Math.floor(pet.atk * Math.pow(STAR_ATK_MUL, Math.min(star - 1, 2)))
+}
+
+// 获取宠物星级技能数值倍率（★1无技能，★2=1.0基础，★3=1.25强化，★4/★5同★3）
 function getPetStarSkillMul(pet) {
   const star = pet.star || 1
-  if (star < 2) return 0  // ★1无技能
-  return Math.pow(STAR_SKILL_MUL, star - 2)  // ★2=1.0, ★3=1.25
+  if (star < 2) return 0
+  return Math.pow(STAR_SKILL_MUL, Math.min(star - 2, 1))
 }
 
 // 尝试融合宠物：在已有宠物列表中查找同ID宠物，找到则升星
@@ -442,19 +498,19 @@ function randomPetFromPool(sessionPool, ownedIds, source, maxedIds) {
     if (pool.length === 0) pool = sessionPool // 全满星时退化为全池
   }
 
-  const weights = TIER_WEIGHTS[source] || TIER_WEIGHTS.normal
+  const weights = RARITY_WEIGHTS[source] || RARITY_WEIGHTS.normal
 
-  // 按权重roll档位
-  const totalW = weights.T3 + weights.T2 + weights.T1
+  // 按权重roll品质
+  const totalW = weights.R + weights.SR + weights.SSR
   let roll = Math.random() * totalW
-  let tier = 'T3'
-  if (roll < weights.T1) tier = 'T1'
-  else if (roll < weights.T1 + weights.T2) tier = 'T2'
-  else tier = 'T3'
+  let rarity = 'R'
+  if (roll < weights.SSR) rarity = 'SSR'
+  else if (roll < weights.SSR + weights.SR) rarity = 'SR'
+  else rarity = 'R'
 
-  // 从本局池中筛出该档位的宠物
-  let tierPool = pool.filter(p => getPetTier(p.id) === tier)
-  // 若该档位在池中没有（极端情况），退化为全池
+  // 从本局池中筛出该品质的宠物
+  let tierPool = pool.filter(p => getPetRarity(p.id) === rarity)
+  // 若该品质在池中没有（极端情况），退化为全池
   if (tierPool.length === 0) tierPool = pool
 
   // 30%概率偏向已有宠物（兼顾升星与新鲜感）
@@ -469,14 +525,14 @@ function randomPetFromPool(sessionPool, ownedIds, source, maxedIds) {
   return { ...p, star: 1 }
 }
 
-// 生成本局宠物池：每属性保证1只T1+1只T2+1只T3，共15只（分层组池+升星友好）
+// 生成本局宠物池：每属性保证1只SSR+1只SR+1只R，共15只（分层组池+升星友好）
 function generateSessionPetPool() {
   const pool = []
   for (const attr of ['metal','wood','water','fire','earth']) {
     const attrPets = PETS[attr]
-    const t1 = attrPets.filter(p => PET_TIER.T1.includes(p.id))
-    const t2 = attrPets.filter(p => PET_TIER.T2.includes(p.id))
-    const t3 = attrPets.filter(p => PET_TIER.T3.includes(p.id))
+    const t1 = attrPets.filter(p => PET_RARITY.SSR.includes(p.id))
+    const t2 = attrPets.filter(p => PET_RARITY.SR.includes(p.id))
+    const t3 = attrPets.filter(p => PET_RARITY.R.includes(p.id))
     // 每档随机选1只
     const shuffle = arr => {
       const a = [...arr]
@@ -493,7 +549,7 @@ function generateSessionPetPool() {
   return pool
 }
 
-// 开局生成初始4只宠物（从本局池中选T3幼兽，保证成长曲线）
+// 开局生成初始4只宠物（从本局池中选R品质幼兽，保证成长曲线）
 function generateStarterPets(sessionPool) {
   const allAttrs = ['metal','wood','water','fire','earth']
   // 随机打乱后取前4个属性
@@ -503,14 +559,14 @@ function generateStarterPets(sessionPool) {
   }
   const chosen = allAttrs.slice(0, 4)
   return chosen.map(attr => {
-    // 优先从本局池中该属性的T3幼兽选
+    // 优先从本局池中该属性的R品质幼兽选
     if (sessionPool) {
-      const t3Pool = sessionPool.filter(p => p.attr === attr && getPetTier(p.id) === 'T3')
+      const t3Pool = sessionPool.filter(p => p.attr === attr && getPetRarity(p.id) === 'R')
       if (t3Pool.length > 0) {
         const pet = t3Pool[Math.floor(Math.random() * t3Pool.length)]
         return { ...pet, attr, star: 1, currentCd: 0 }
       }
-      // 若T3没有，从该属性全池中选最弱的
+      // 若R品质没有，从该属性全池中选最弱的
       const attrPool = sessionPool.filter(p => p.attr === attr)
       attrPool.sort((a, b) => a.atk - b.atk)
       if (attrPool.length > 0) {
@@ -652,9 +708,15 @@ function getPetLore(petId) {
 module.exports = {
   PETS,
   MAX_STAR,
-  PET_TIER,
+  PET_RARITY,
+  RARITY_WEIGHTS,
+  STAR_NAMES,
   STAR3_SKILL_OVERRIDE,
-  getPetTier,
+  STAR4_PASSIVE,
+  STAR5_SKILL_OVERRIDE,
+  getStar4Passive,
+  getStar5Override,
+  getPetRarity,
   petHasSkill,
   getPetSkillDesc,
   getPetSkillBaseDesc,
@@ -674,6 +736,10 @@ module.exports = {
   getPetAvatarPath,
   getPetLore,
   getMaxedPetIds,
+  // deprecated: 向后兼容别名，后续版本移除
+  PET_TIER: PET_RARITY,
+  TIER_WEIGHTS: RARITY_WEIGHTS,
+  getPetTier: getPetRarity,
 }
 
 // 收集已满星(★3)宠物ID集合

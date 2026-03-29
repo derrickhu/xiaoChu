@@ -139,24 +139,33 @@ function drawPanel(c, S, x, y, w, h, opts) {
 }
 
 /**
- * 在装饰条左侧绘制图标圆（白底 + 图标字符）
+ * 在装饰条左侧绘制图标（小菱形底座 + 图标字符，与金色条融合）
  * 适用于带 ribbon 的面板
  */
 function drawRibbonIcon(c, S, x, ribbonCY, icon) {
-  var iconR = 22 * S
-  var iconX = x + 38 * S
+  var iconX = x + 28 * S
+  var ds = 12 * S
+  // 菱形金色底座
+  c.save()
   c.beginPath()
-  c.arc(iconX, ribbonCY, iconR, 0, Math.PI * 2)
-  c.fillStyle = 'rgba(255,255,255,0.3)'
+  c.moveTo(iconX, ribbonCY - ds)
+  c.lineTo(iconX + ds, ribbonCY)
+  c.lineTo(iconX, ribbonCY + ds)
+  c.lineTo(iconX - ds, ribbonCY)
+  c.closePath()
+  c.fillStyle = 'rgba(90,48,0,0.25)'
   c.fill()
-  c.strokeStyle = 'rgba(255,255,255,0.7)'
-  c.lineWidth = 1.5 * S
+  c.strokeStyle = 'rgba(255,240,180,0.5)'
+  c.lineWidth = 1 * S
   c.stroke()
-  c.fillStyle = '#5a3000'
-  c.font = 'bold ' + (16 * S) + 'px "PingFang SC",sans-serif'
+  // 图标字符
+  c.fillStyle = '#fff'
+  c.font = 'bold ' + (14 * S) + 'px "PingFang SC",sans-serif'
   c.textAlign = 'center'
   c.textBaseline = 'middle'
+  c.shadowColor = 'rgba(255,240,180,0.6)'; c.shadowBlur = 4 * S
   c.fillText(icon, iconX, ribbonCY)
+  c.restore()
 }
 
 /**
@@ -183,4 +192,242 @@ function wrapText(c, text, maxWidth) {
   return lines
 }
 
-module.exports = { drawPanel, drawRibbonIcon, wrapText }
+/**
+ * 全屏弹窗对话框（遮罩 + drawPanel + 标题栏 + 入场动画 + 底部按钮）
+ * 高频复用的"精美提示/指南/确认"弹窗壳子，内容区由调用方通过 renderContent 回调自行绘制
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} W  画布宽
+ * @param {number} H  画布高
+ * @param {object} opts
+ * @param {string}   opts.title          标题文字
+ * @param {string}   [opts.icon]         装饰条左侧图标字符（如 '💡'）
+ * @param {number}   [opts.panelW]       面板宽度，默认 W*0.86
+ * @param {number}   [opts.panelH]       面板高度，默认 240*S
+ * @param {number}   [opts.timer]        当前帧计数（用于入场动画，0 开始递增）
+ * @param {number}   [opts.frame]        全局帧号（用于脉冲动画）
+ * @param {string}   [opts.btnText]      底部按钮文字，默认 '知道了'；传 null 则不绘制按钮
+ * @param {Function} opts.renderContent  内容区回调 (c, S, contentArea) => void
+ *   contentArea = { x, y, w, h } 可用内容区域矩形
+ * @param {object}   [opts.rr]           圆角矩形函数所在对象（需有 rr 方法），用于底部按钮
+ * @returns {{ panelX, panelY, panelW, panelH, btnRect }}
+ */
+function drawDialog(c, S, W, H, opts) {
+  opts = opts || {}
+  var timer = opts.timer || 0
+  var frame = opts.frame || 0
+  var alpha = Math.min(1, timer / 15)
+
+  c.save()
+
+  // ---- 1. 全屏径向渐变遮罩 ----
+  c.globalAlpha = alpha * 0.65
+  var maskGrd = c.createRadialGradient(W / 2, H * 0.42, 0, W / 2, H * 0.42, H * 0.7)
+  maskGrd.addColorStop(0, 'rgba(20,15,5,0.3)')
+  maskGrd.addColorStop(1, 'rgba(10,8,2,0.95)')
+  c.fillStyle = maskGrd
+  c.fillRect(0, 0, W, H)
+  c.globalAlpha = alpha
+
+  // ---- 2. 面板尺寸与入场动画 ----
+  var panelW = opts.panelW || W * 0.86
+  var panelH = opts.panelH || 240 * S
+  var px = (W - panelW) / 2
+  var targetY = (H - panelH) / 2 - 10 * S
+  var py = timer < 15
+    ? targetY + (H * 0.15) * (1 - timer / 15)
+    : targetY
+  var scale = timer < 12
+    ? 0.85 + 0.15 * (timer / 12) + 0.04 * Math.sin(timer / 12 * Math.PI)
+    : 1
+
+  c.save()
+  c.translate(W / 2, py + panelH / 2)
+  c.scale(scale, scale)
+  c.translate(-W / 2, -(py + panelH / 2))
+
+  // ---- 3. 绘制面板 ----
+  var ribbonH = 44 * S
+  var panelResult = drawPanel(c, S, px, py, panelW, panelH, { ribbonH: ribbonH })
+  var ribbonCY = panelResult.ribbonCY
+
+  // ---- 4. 标题栏（图标与文字内联居中） ----
+  var titleText = opts.title || ''
+  c.font = 'bold ' + (16 * S) + 'px "PingFang SC",sans-serif'
+  if (opts.icon) {
+    // 图标+标题作为整体居中
+    var iconGap = 6 * S
+    var titleW = c.measureText(titleText).width
+    var iconFontSz = 16 * S
+    var totalTitleW = iconFontSz + iconGap + titleW
+    var titleStartX = W / 2 - totalTitleW / 2
+    // 图标
+    c.fillStyle = '#fff'
+    c.font = (iconFontSz) + 'px "PingFang SC",sans-serif'
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.shadowColor = 'rgba(255,240,180,0.5)'; c.shadowBlur = 3 * S
+    c.fillText(opts.icon, titleStartX, ribbonCY)
+    c.shadowBlur = 0
+    // 标题文字
+    c.fillStyle = '#5a3000'
+    c.font = 'bold ' + (16 * S) + 'px "PingFang SC",sans-serif'
+    c.fillText(titleText, titleStartX + iconFontSz + iconGap, ribbonCY)
+  } else {
+    c.fillStyle = '#5a3000'
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(titleText, W / 2, ribbonCY)
+  }
+
+  // ---- 5. 内容区回调 ----
+  var contentArea = {
+    x: px + 22 * S,
+    y: py + ribbonH + 16 * S,
+    w: panelW - 44 * S,
+    h: panelH - ribbonH - 32 * S,
+  }
+  if (typeof opts.renderContent === 'function') {
+    opts.renderContent(c, S, contentArea)
+  }
+
+  c.restore()
+
+  // ---- 6. 底部按钮（面板外，不受缩放影响） ----
+  var btnRect = null
+  var btnText = opts.btnText !== undefined ? opts.btnText : '知道了'
+  if (btnText) {
+    var btnW = 140 * S, btnH = 36 * S
+    var btnX = (W - btnW) / 2, btnY = py + panelH + 18 * S
+    var pulse = 0.7 + 0.3 * Math.sin(frame * 0.08)
+
+    c.globalAlpha = alpha * pulse
+    var btnGrd = c.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
+    btnGrd.addColorStop(0, 'rgba(198,162,58,0.9)')
+    btnGrd.addColorStop(1, 'rgba(165,125,40,0.9)')
+    c.fillStyle = btnGrd
+    _rr(c, btnX, btnY, btnW, btnH, btnH / 2); c.fill()
+    c.strokeStyle = 'rgba(255,240,180,0.5)'; c.lineWidth = 1 * S
+    _rr(c, btnX, btnY, btnW, btnH, btnH / 2); c.stroke()
+
+    c.globalAlpha = alpha
+    c.fillStyle = '#4a2800'
+    c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(btnText, W / 2, btnY + btnH / 2)
+
+    btnRect = [btnX, btnY, btnW, btnH]
+  }
+
+  c.restore()
+  return { panelX: px, panelY: py, panelW: panelW, panelH: panelH, btnRect: btnRect }
+}
+
+/**
+ * 图标+标签+描述 的内容行（适用于提示面板、指南列表等）
+ * icon 支持两种模式：
+ *   字符串 → 绘制在圆形底座内（如 '♥'）
+ *   对象 { shape:'sword'|'circle'|'heart', color } → 手绘矢量图标（跨平台一致）
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x          行起始 X
+ * @param {number} y          行起始 Y
+ * @param {number} lineH      行高
+ * @param {string|object} icon  图标
+ * @param {string} label      加粗标签
+ * @param {string} desc       描述文字
+ * @param {string} labelColor 标签/图标颜色
+ * @param {string} [descColor] 描述颜色，默认 '#6B5B50'
+ */
+function drawTipRow(c, S, x, y, lineH, icon, label, desc, labelColor, descColor) {
+  var iconR = 10 * S
+  var iconCX = x + iconR, iconCY = y + lineH / 2
+
+  c.save()
+  // 圆形底座（柔和填充+边框）
+  c.fillStyle = labelColor + '18'
+  c.beginPath(); c.arc(iconCX, iconCY, iconR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = labelColor + '44'; c.lineWidth = 1 * S
+  c.beginPath(); c.arc(iconCX, iconCY, iconR, 0, Math.PI * 2); c.stroke()
+
+  // 根据 icon 类型绘制图标
+  if (icon && typeof icon === 'object') {
+    _drawTipIcon(c, S, iconCX, iconCY, iconR, icon, labelColor)
+  } else {
+    c.fillStyle = labelColor
+    c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(icon || '', iconCX, iconCY)
+  }
+  c.restore()
+
+  // 标签
+  var textLeft = x + iconR * 2 + 8 * S
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.fillStyle = labelColor
+  c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+  c.fillText(label, textLeft, iconCY)
+  // 描述
+  var labelW = c.measureText(label).width
+  c.fillStyle = descColor || '#6B5B50'
+  c.font = (10.5 * S) + 'px "PingFang SC",sans-serif'
+  c.fillText(desc, textLeft + labelW + 6 * S, iconCY)
+}
+
+/**
+ * 内部：绘制手绘矢量图标（不依赖 Unicode，跨平台一致）
+ */
+function _drawTipIcon(c, S, cx, cy, r, iconObj, fallbackColor) {
+  var color = iconObj.color || fallbackColor
+  var shape = iconObj.shape
+  c.fillStyle = color
+  c.strokeStyle = color
+
+  if (shape === 'sword' || shape === 'burst' || shape === 'bolt') {
+    // 闪电⚡（通用攻击/伤害符号，与棋盘标记一致）
+    var bw = r * 1.1, bh = r * 1.5
+    var blx = cx - bw * 0.3, bty = cy - bh * 0.5
+    c.beginPath()
+    c.moveTo(blx + bw * 0.55, bty)
+    c.lineTo(blx + bw * 0.15, bty + bh * 0.48)
+    c.lineTo(blx + bw * 0.5,  bty + bh * 0.44)
+    c.lineTo(blx + bw * 0.2,  bty + bh)
+    c.lineTo(blx + bw * 0.85, bty + bh * 0.38)
+    c.lineTo(blx + bw * 0.48, bty + bh * 0.42)
+    c.lineTo(blx + bw * 0.75, bty + bh * 0.05)
+    c.closePath()
+    c.fill()
+  } else if (shape === 'dim') {
+    // 暗淡圆（虚线圆环表示无效）
+    c.globalAlpha = 0.5
+    c.setLineDash([2 * S, 2 * S]); c.lineWidth = 1.5 * S
+    c.beginPath(); c.arc(cx, cy, r * 0.5, 0, Math.PI * 2); c.stroke()
+    c.setLineDash([])
+    c.globalAlpha = 1
+  } else if (shape === 'heart') {
+    // 实心爱心
+    var s = r * 0.45
+    c.beginPath()
+    c.moveTo(cx, cy + s * 0.7)
+    c.bezierCurveTo(cx - s * 1.3, cy - s * 0.1, cx - s * 0.7, cy - s * 1.1, cx, cy - s * 0.45)
+    c.bezierCurveTo(cx + s * 0.7, cy - s * 1.1, cx + s * 1.3, cy - s * 0.1, cx, cy + s * 0.7)
+    c.fill()
+  }
+}
+
+/**
+ * 水平分割线（金色，适用于面板内分区）
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x1   左端 X
+ * @param {number} x2   右端 X
+ * @param {number} y    Y 坐标
+ */
+function drawDivider(c, S, x1, x2, y) {
+  c.strokeStyle = 'rgba(175,135,48,0.25)'
+  c.lineWidth = 1 * S
+  c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
+}
+
+module.exports = { drawPanel, drawRibbonIcon, wrapText, drawDialog, drawTipRow, drawDivider }

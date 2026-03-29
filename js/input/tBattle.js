@@ -65,6 +65,16 @@ function tBattle(g, type, x, y) {
       return
     }
   }
+  // === 珠子攻击提示拦截 ===
+  if (g._showOrbAttackTip) {
+    if (type === 'end') {
+      g._showOrbAttackTip = false
+      g._orbTipTimer = 0
+      if (g.storage) g.storage.markGuideShown('orb_attack_tip')
+      g._dirty = true
+    }
+    return
+  }
   // === 帮助面板拦截 ===
   if (g._showBattleHelp) {
     if (type === 'start') {
@@ -76,7 +86,7 @@ function tBattle(g, type, x, y) {
       }
       // 左右滑动翻页
       const dx = x - (g._helpSwipeStartX || x)
-      const pageCount = 3
+      const pageCount = 4
       if (Math.abs(dx) > 40 * S) {
         if (!g._battleHelpPage) g._battleHelpPage = 0
         if (dx < 0 && g._battleHelpPage < pageCount - 1) g._battleHelpPage++
@@ -144,18 +154,8 @@ function tBattle(g, type, x, y) {
   }
   // 胜利/失败
   if (g.bState === 'victory' && type === 'end') {
-    if (g.battleMode === 'stage') {
-      if (g._victoryTapReady) {
-        const stageMgr = require('../engine/stageManager')
-        if (!stageMgr.isLastWave(g)) {
-          g.bState = 'waveTransition'
-          g._waveTransTimer = 60
-        } else {
-          stageMgr.settleStage(g)
-        }
-      }
-      return
-    }
+    // 秘境模式由 _handleStageVictory 自动结算，不需要触摸处理
+    if (g.battleMode === 'stage') return
     if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
       if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
       g.cleared = true

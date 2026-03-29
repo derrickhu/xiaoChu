@@ -4,8 +4,9 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetTier, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
+const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
@@ -68,9 +69,9 @@ function rPetPool(g) {
 
   drawPageTitle(c, R, W, S, W * 0.5, topY + 24 * S, '灵宠池')
 
-  // 经验池图标和余额（左上角显示）
-  const expPool = g.storage.petExpPool || 0
-  const expIcon = R.getImg('assets/ui/icon_pet_exp.png')
+  // 灵石图标和余额（左上角显示）
+  const expPool = g.storage.soulStone || 0
+  const expIcon = R.getImg('assets/ui/icon_soul_stone.png')
   if (expIcon && expIcon.width > 0) {
     const iconSz = 32 * S
     const centerY = topY + 17 * S
@@ -282,7 +283,8 @@ function rPetPool(g) {
 function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   const basePet = getPetById(poolPet.id)
   if (!basePet) return
-  const tier = getPetTier(poolPet.id)
+  const rarity = getPetRarity(poolPet.id)
+  const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
   const atk = getPoolPetAtk(poolPet)
   const attrColor = ATTR_COLOR[poolPet.attr]
 
@@ -297,7 +299,28 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
 
-  // 去掉属性色外边框
+  // 品质渐变背景叠加
+  const rarityGrad = c.createLinearGradient(x, y, x, y + h)
+  rarityGrad.addColorStop(0, rv.bgGradient[0] + 'cc')
+  rarityGrad.addColorStop(1, rv.bgGradient[1] + '88')
+  c.fillStyle = rarityGrad
+  R.rr(x, y, w, h, 8 * S); c.fill()
+
+  // SSR 金色发光效果
+  if (rarity === 'SSR' && rv.hasParticles) {
+    c.save()
+    c.shadowColor = rv.glowColor
+    c.shadowBlur = 12 * S
+    c.strokeStyle = rv.borderColor
+    c.lineWidth = 2.5 * S
+    R.rr(x, y, w, h, 8 * S); c.stroke()
+    c.restore()
+  }
+
+  // 品质色边框
+  c.strokeStyle = rv.borderColor
+  c.lineWidth = 2 * S
+  R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 左上角五行珠子图标（调整位置，贴合卡片内侧）
   const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
@@ -363,21 +386,35 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.fillStyle = '#fff'
   c.fillText(displayName, x + w / 2, nameY)
 
-  // 星级（逐个绘制：满星黄色，空星深灰色，统一用★）
+  // 星级（根据 STAR_VISUAL 着色，★4 光环，★5 彩虹）
   const starY = nameY + 14 * S
-  c.font = `${10*S}px "PingFang SC",sans-serif`
+  const curStar = poolPet.star || 1
+  const sv = STAR_VISUAL[curStar] || STAR_VISUAL[1]
+  const displayMax = 5
+  c.font = `${9*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
-  // 先计算总宽度用于居中
   let starStr = ''
-  for (let i = 0; i < 3; i++) starStr += '★'
+  for (let i = 0; i < displayMax; i++) starStr += '★'
   const totalStarW = c.measureText(starStr).width
   let starX = x + w / 2 - totalStarW / 2
   c.textAlign = 'left'
-  for (let i = 0; i < 3; i++) {
-    c.fillStyle = i < poolPet.star ? '#ffd700' : 'rgba(120,120,120,0.6)'
+  c.save()
+  if (curStar >= 5) {
+    // ★5 彩虹光效
+    const hue = (Date.now() * 0.1) % 360
+    c.shadowColor = `hsl(${hue}, 100%, 60%)`
+    c.shadowBlur = 6 * S
+  } else if (curStar >= 4) {
+    // ★4 紫色微弱光环
+    c.shadowColor = '#b44dff'
+    c.shadowBlur = 4 * S
+  }
+  for (let i = 0; i < displayMax; i++) {
+    c.fillStyle = i < curStar ? sv.color : 'rgba(120,120,120,0.6)'
     c.fillText('★', starX, starY)
     starX += c.measureText('★').width
   }
+  c.restore()
   c.textAlign = 'center'
 
   // 等级 + ATK（加深色描边）
@@ -389,6 +426,19 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.fillStyle = '#fff'
   c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
 
+  // 品质徽标（左上角）
+  const badgeText = rv.label
+  c.save()
+  c.font = `bold ${10 * S}px sans-serif`
+  const tw = c.measureText(badgeText).width
+  const bw = tw + 6 * S, bh = 14 * S
+  c.fillStyle = rv.badgeBg
+  R.rr(x + 2 * S, y + 2 * S, bw, bh, 3 * S); c.fill()
+  c.fillStyle = rv.badgeColor
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(badgeText, x + 5 * S, y + 4 * S)
+  c.restore()
+
   c.restore()
 }
 
@@ -396,10 +446,11 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
 function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   const basePet = getPetById(petId)
   if (!basePet) return
-  const tier = getPetTier(petId)
+  const rarity = getPetRarity(petId)
+  const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
   const attrColor = ATTR_COLOR[basePet.attr]
   const { SUMMON_FRAG_COST } = require('../data/chestConfig')
-  const cost = SUMMON_FRAG_COST[tier] || 15
+  const cost = SUMMON_FRAG_COST[rarity] || 15
 
   c.save()
   c.globalAlpha = 0.5
@@ -411,6 +462,18 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
     c.fillStyle = 'rgba(30,20,10,0.75)'
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
+
+  // 品质渐变背景叠加
+  const gRarityGrad = c.createLinearGradient(x, y, x, y + h)
+  gRarityGrad.addColorStop(0, rv.bgGradient[0] + 'cc')
+  gRarityGrad.addColorStop(1, rv.bgGradient[1] + '88')
+  c.fillStyle = gRarityGrad
+  R.rr(x, y, w, h, 8 * S); c.fill()
+
+  // 品质色边框
+  c.strokeStyle = rv.borderColor
+  c.lineWidth = 2 * S
+  R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 头像
   const avatarSize = w * 0.62
@@ -462,6 +525,20 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.fillText(`${fragCount}/${cost}`, x + w / 2, barY2 + barH2 + 3 * S)
 
+  // 品质徽标（左上角，全不透明）
+  c.globalAlpha = 1
+  const gBadgeText = rv.label
+  c.save()
+  c.font = `bold ${10 * S}px sans-serif`
+  const gTw = c.measureText(gBadgeText).width
+  const gBw = gTw + 6 * S, gBh = 14 * S
+  c.fillStyle = rv.badgeBg
+  R.rr(x + 2 * S, y + 2 * S, gBw, gBh, 3 * S); c.fill()
+  c.fillStyle = rv.badgeColor
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(gBadgeText, x + 5 * S, y + 4 * S)
+  c.restore()
+
   c.restore()
 }
 
@@ -474,12 +551,12 @@ function _drawDetailPanel(g) {
   const basePet = getPetById(petId)
   if (!basePet) { g._petPoolDetail = null; return }
 
-  const tier = getPetTier(petId)
+  const rarity = getPetRarity(petId)
   const atk = getPoolPetAtk(poolPet)
   const attrColor = ATTR_COLOR[poolPet.attr]
   const attrName = ATTR_NAME[poolPet.attr] || poolPet.attr
-  const expPool = g.storage.petExpPool || 0
-  const nextLvExp = petExpToNextLevel(poolPet.level, tier)
+  const expPool = g.storage.soulStone || 0
+  const nextLvExp = petExpToNextLevel(poolPet.level, rarity)
   const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
   const isMaxLv = poolPet.level >= maxLv
 
@@ -577,14 +654,33 @@ function _drawDetailPanel(g) {
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(`${attrName}属性`, infoX + 26*S, tagY + 9*S)
 
-  // 星级（头像下方）
+  // 星级（头像下方，根据 STAR_VISUAL 着色）
   const starY = tagY + 24 * S
-  let starStr = ''
-  for (let i = 0; i < 3; i++) starStr += i < poolPet.star ? '★' : '☆'
-  c.fillStyle = '#FFD700'
+  const detailCurStar = poolPet.star || 1
+  const detailSv = STAR_VISUAL[detailCurStar] || STAR_VISUAL[1]
+  const detailMaxStar = 5
   c.font = `${14*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(starStr, infoX, starY)
+  c.save()
+  if (detailCurStar >= 5) {
+    const hue = (Date.now() * 0.1) % 360
+    c.shadowColor = `hsl(${hue}, 100%, 60%)`
+    c.shadowBlur = 8 * S
+  } else if (detailCurStar >= 4) {
+    c.shadowColor = '#b44dff'
+    c.shadowBlur = 4 * S
+  }
+  let dStarX = infoX
+  for (let i = 0; i < detailMaxStar; i++) {
+    c.fillStyle = i < detailCurStar ? detailSv.color : 'rgba(120,120,120,0.6)'
+    c.fillText('★', dStarX, starY)
+    dStarX += c.measureText('★').width
+  }
+  c.restore()
+  // 星级名称
+  c.fillStyle = detailSv.color
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.fillText(detailSv.name, dStarX + 4 * S, starY + 3 * S)
 
   cy = avatarY + avatarSize + 14 * S
 
@@ -604,7 +700,7 @@ function _drawDetailPanel(g) {
   cy += 20 * S
 
   const baseAtk = basePet.atk
-  const lvBonus = tier === 'T3' ? Math.floor(poolPet.level * 0.8) : poolPet.level
+  const lvBonus = rarity === 'R' ? Math.floor(poolPet.level * 0.8) : poolPet.level
   const starMul = POOL_STAR_ATK_MUL[poolPet.star] || 1.0
   c.fillStyle = 'rgba(200,180,140,0.5)'
   c.font = `${9*S}px "PingFang SC",sans-serif`
@@ -616,7 +712,7 @@ function _drawDetailPanel(g) {
   drawSeparator(c, indent, cy, rightEdge, null, 0.4)
   cy += 10 * S
 
-  // ── 等级 + 经验 + 升级按钮 ──
+  // ── 等级 + 灵石 + 升级按钮 ──
   c.fillStyle = '#E8D5A8'
   c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
@@ -655,7 +751,7 @@ function _drawDetailPanel(g) {
   c.fillStyle = 'rgba(200,180,140,0.5)'
   c.font = `${9*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(`经验池：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
+  c.fillText(`灵石：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
   cy += 16 * S
 
   // ── 分隔线 ──
@@ -714,7 +810,7 @@ function _drawDetailPanel(g) {
 
   // ── 升星信息 ──
   const nextStar = poolPet.star + 1
-  const maxStar = poolPet.source === 'stage' ? 4 : 3
+  const maxStar = 5
   _rects.starUpBtnRect = null
   _rects.decomposeBtnRect = null
 
@@ -752,13 +848,13 @@ function _drawDetailPanel(g) {
 
     if (poolPet.fragments > 0) {
       const dBtnW = 130 * S
-      _drawActionBtn(c, R, S, indent, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
+      _drawActionBtn(c, R, S, indent, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0')
       _rects.decomposeBtnRect = [indent, cy, dBtnW, sBtnH]
       cy += sBtnH + 6 * S
       c.fillStyle = 'rgba(200,180,140,0.45)'
       c.font = `${8*S}px "PingFang SC",sans-serif`
       c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('碎片用于升星，多余碎片可分解为宠物经验', indent, cy)
+      c.fillText('碎片用于升星，多余碎片可分解为灵石', indent, cy)
       cy += 12 * S
       c.fillStyle = 'rgba(220,100,80,0.6)'
       c.fillText('分解不可逆，请谨慎操作', indent, cy)
@@ -777,13 +873,13 @@ function _drawDetailPanel(g) {
     cy += 20 * S
     if (poolPet.fragments > 0) {
       const dBtnW = 130 * S, dBtnH = 30 * S
-      _drawActionBtn(c, R, S, indent, cy, dBtnW, dBtnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0')
+      _drawActionBtn(c, R, S, indent, cy, dBtnW, dBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0')
       _rects.decomposeBtnRect = [indent, cy, dBtnW, dBtnH]
       cy += dBtnH + 6 * S
       c.fillStyle = 'rgba(200,180,140,0.45)'
       c.font = `${8*S}px "PingFang SC",sans-serif`
       c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('已满星，碎片可分解为宠物经验', indent, cy)
+      c.fillText('已满星，碎片可分解为灵石', indent, cy)
       cy += 12 * S
       c.fillStyle = 'rgba(220,100,80,0.6)'
       c.fillText('分解不可逆，请谨慎操作', indent, cy)
@@ -972,10 +1068,10 @@ function _doLevelUp(g) {
   if (!petId) return
   const poolPet = g.storage.getPoolPet(petId)
   if (!poolPet) return
-  const tier = getPetTier(petId)
-  const needed = petExpToNextLevel(poolPet.level, tier)
-  if ((g.storage.petExpPool || 0) < needed) return
-  const ups = g.storage.investPetExp(petId, needed)
+  const rarity = getPetRarity(petId)
+  const needed = petExpToNextLevel(poolPet.level, rarity)
+  if ((g.storage.soulStone || 0) < needed) return
+  const ups = g.storage.investSoulStone(petId, needed)
   if (ups > 0) {
     MusicMgr.playLevelUp && MusicMgr.playLevelUp()
   }
@@ -1006,9 +1102,9 @@ function _longPressLoop(g) {
   const poolPet = g.storage.getPoolPet(_longPressPetId)
   const maxLv = poolPet && poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
   if (poolPet && poolPet.level < maxLv) {
-    const tier = getPetTier(_longPressPetId)
-    const needed = petExpToNextLevel(poolPet.level, tier)
-    if ((g.storage.petExpPool || 0) >= needed) {
+    const rarity = getPetRarity(_longPressPetId)
+    const needed = petExpToNextLevel(poolPet.level, rarity)
+    if ((g.storage.soulStone || 0) >= needed) {
       _longPressTimer = setTimeout(() => _longPressLoop(g), 120)
       return
     }

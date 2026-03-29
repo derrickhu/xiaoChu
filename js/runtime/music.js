@@ -433,7 +433,7 @@ class MusicManager {
 
   /**
    * 宝箱奖励弹出音效，按奖励类型区分音色
-   * @param {'pet'|'fragment'|'exp'|'petExp'|'stamina'|string} rewardType
+   * @param {'pet'|'fragment'|'exp'|'soulStone'|'stamina'|string} rewardType
    */
   playChestReward(rewardType) {
     if (!this.enabled) return
@@ -453,8 +453,8 @@ class MusicManager {
         // 修炼经验：升阶感
         this._playSfxEx('audio/levelup.mp3', 0.45, 1.1)
         break
-      case 'petExp':
-        // 宠物经验：灵动高频
+      case 'soulStone':
+        // 灵石：灵动高频
         this._playSfxEx('audio/reward.mp3', 0.4, 1.5)
         break
       case 'stamina':

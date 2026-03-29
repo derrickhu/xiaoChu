@@ -12,9 +12,12 @@ const { getStageById, RATING_ORDER } = require('../data/stages')
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
+const { STAR_REWARDS, CHAPTER_MILESTONES } = require('../data/economyConfig')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
+
+const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
 
 // 新手教学临时宠物：金/木/水 3 只，让玩家直观体验"不同颜色珠子 → 不同宠物攻击"
 const NEWBIE_TEMP_PET_IDS = ['m1', 'w1', 's1']
@@ -247,8 +250,9 @@ function settleStage(g) {
   const isFirstClear = !g.storage.isStageCleared(g._stageId)
   const rating = calculateRating(g._stageTotalTurns, stage.rating)
   const ratingMul = { S: 2.0, A: 1.5, B: 1.0 }[rating]
+  const starCount = RATING_TO_STARS[rating] || 1
 
-  // 碎片奖励
+  // ---- 基础奖励（首通 + 周回） ----
   const rewards = []
   if (isFirstClear && stage.rewards.firstClear) {
     stage.rewards.firstClear.forEach(r => {
@@ -274,44 +278,117 @@ function settleStage(g) {
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
 
-  // 宠物经验（进入共享经验池）
-  const basePetExp = stage.rewards.repeatClear.petExp || 0
-  let petExp = Math.ceil(basePetExp * ratingMul)
+  // 灵石（周回 + 首通基础）
+  const baseSoulStone = stage.rewards.repeatClear.soulStone || 0
+  let soulStone = Math.ceil(baseSoulStone * ratingMul)
   if (isFirstClear && stage.rewards.firstClear) {
-    const fcPet = stage.rewards.firstClear.find(r => r.type === 'petExp')
-    if (fcPet) petExp += fcPet.amount
+    const fcSS = stage.rewards.firstClear.find(r => r.type === 'soulStone')
+    if (fcSS) soulStone += fcSS.amount
   }
-  if (petExp > 0) g.storage.addPetExp(petExp)
 
-  // 应用碎片奖励（wasPet 的已在 resolveReward 中通过 addFragmentSmart 处理）
+  // ---- 星级首次达成奖励 ----
+  const prevClaimed = g.storage.getStageStarsClaimed(g._stageId)
+  const newStars = []
+  let starSoulStone = 0
+  let starAwakenStone = 0
+  const starFragments = []
+  const chIdx = stage.order - 1
+  const starCfg = STAR_REWARDS[stage.chapter] && STAR_REWARDS[stage.chapter][chIdx]
+
+  if (starCfg) {
+    // 1★ 标记（跟随 firstClear 自动领取）
+    if (!prevClaimed[0] && starCount >= 1) {
+      g.storage.claimStageStar(g._stageId, 0)
+      newStars.push(1)
+    }
+    // 2★ 增量奖励
+    if (!prevClaimed[1] && starCount >= 2) {
+      const r2 = starCfg.star2
+      starSoulStone += r2.soulStone || 0
+      if (r2.fragment) starFragments.push({ count: r2.fragment })
+      if (r2.awakenStone) starAwakenStone += r2.awakenStone
+      g.storage.claimStageStar(g._stageId, 1)
+      newStars.push(2)
+    }
+    // 3★ 增量奖励
+    if (!prevClaimed[2] && starCount >= 3) {
+      const r3 = starCfg.star3
+      starSoulStone += r3.soulStone || 0
+      if (r3.fragment) starFragments.push({ count: r3.fragment })
+      if (r3.awakenStone) starAwakenStone += r3.awakenStone
+      g.storage.claimStageStar(g._stageId, 2)
+      newStars.push(3)
+    }
+  }
+
+  // 发放星级奖励
+  soulStone += starSoulStone
+  if (soulStone > 0) g.storage.addSoulStone(soulStone)
+  if (starAwakenStone > 0) g.storage.addAwakenStone(starAwakenStone)
+  starFragments.forEach(sf => {
+    const target = pickFragmentTarget(g, 'all')
+    if (target) {
+      g.storage.addFragments(target, sf.count)
+      rewards.push({ type: 'fragment', petId: target, count: sf.count, fromStar: true })
+    }
+  })
+
+  // 应用基础碎片奖励
   rewards.forEach(r => {
-    if (r.type === 'fragment' && r.petId && !r.wasPet) {
+    if (r.type === 'fragment' && r.petId && !r.wasPet && !r.fromStar) {
       g.storage.addFragments(r.petId, r.count)
     }
   })
 
-  // 记录通关
+  // 记录通关（更新 bestRating 等）
   g.storage.recordStageClear(g._stageId, rating, isFirstClear)
+
+  // ---- 章节星级里程碑检查 ----
+  const milestoneRewards = []
+  const milestoneCfg = CHAPTER_MILESTONES[stage.chapter]
+  if (milestoneCfg && newStars.length > 0) {
+    const totalStars = g.storage.getChapterTotalStars(stage.chapter)
+    const claimed = g.storage.getChapterMilestones(stage.chapter)
+    milestoneCfg.forEach((ms, idx) => {
+      if (!claimed[idx] && totalStars >= ms.stars) {
+        const mr = ms.rewards
+        if (mr.soulStone) g.storage.addSoulStone(mr.soulStone)
+        if (mr.awakenStone) g.storage.addAwakenStone(mr.awakenStone)
+        if (mr.fragment) {
+          const target = pickFragmentTarget(g, 'all')
+          if (target) g.storage.addFragments(target, mr.fragment)
+        }
+        g.storage.claimChapterMilestone(stage.chapter, idx)
+        milestoneRewards.push({ milestoneStars: ms.stars, ...mr })
+      }
+    })
+  }
 
   g._stageResult = {
     stageId: g._stageId,
     stageName: stage.name,
     rating,
+    starCount,
     isFirstClear,
     rewards,
     cultExp: rawTotal,
     cultLevelUps,
     cultPrevLevel: prevLevel,
-    petExp,
+    soulStone,
     totalTurns: g._stageTotalTurns,
     victory: true,
+    newStars,
+    starBonusSoulStone: starSoulStone,
+    starBonusAwakenStone: starAwakenStone,
+    starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
+    milestoneRewards,
   }
 
   g.setScene('stageResult')
 }
 
 /**
- * 失败结算 — 不给碎片，修炼经验 60%、宠物经验 50%
+ * 失败结算 — 不给碎片，修炼经验 60%、灵石 50%
  */
 function settleStageDefeat(g) {
   const stage = getStageById(g._stageId)
@@ -325,10 +402,10 @@ function settleStageDefeat(g) {
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
 
-  // 宠物经验（50%）
-  const basePetExp = stage.rewards.repeatClear.petExp || 0
-  const petExp = Math.floor(basePetExp * 0.5)
-  if (petExp > 0) g.storage.addPetExp(petExp)
+  // 灵石（50%）
+  const baseSoulStone = stage.rewards.repeatClear.soulStone || 0
+  const soulStone = Math.floor(baseSoulStone * 0.5)
+  if (soulStone > 0) g.storage.addSoulStone(soulStone)
 
   g._stageResult = {
     stageId: g._stageId,
@@ -339,7 +416,7 @@ function settleStageDefeat(g) {
     cultExp: rawTotal,
     cultLevelUps,
     cultPrevLevel: prevLevel,
-    petExp,
+    soulStone,
     totalTurns: g._stageTotalTurns,
     victory: false,
   }

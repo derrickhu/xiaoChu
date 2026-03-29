@@ -6,7 +6,8 @@
  */
 const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
-const { getPetById, getPetAvatarPath } = require('../data/pets')
+const { getPetById, getPetAvatarPath, getPetRarity } = require('../data/pets')
+const { RARITY_VISUAL } = require('../data/economyConfig')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
 const MusicMgr = require('../runtime/music')
@@ -139,7 +140,8 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   const starY = safeTop + 108 * S
   const starSize = 30 * S
   const starGap = 6 * S
-  const starCount = result.rating === 'S' ? 3 : result.rating === 'A' ? 2 : 1
+  const starCount = result.starCount || (result.rating === 'S' ? 3 : result.rating === 'A' ? 2 : 1)
+  const newStars = result.newStars || []
   const totalStarsW = 3 * starSize + 2 * starGap
   const starStartX = (W - totalStarsW) / 2
 
@@ -149,6 +151,7 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
     const starProgress = Math.min(1, Math.max(0, (at - 10 - delay) / 12))
     if (starProgress <= 0) continue
 
+    const isNew = newStars.includes(i + 1)
     const bounce = i < starCount ? (1 + 0.15 * Math.sin((at - delay) * 0.08)) : 1
     const scale = (0.3 + 0.7 * starProgress) * bounce
 
@@ -167,6 +170,19 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
       c.fillText('★', 0, 0)
     }
     c.restore()
+
+    // NEW! 角标（新获得的星级）
+    if (isNew && starProgress > 0.8) {
+      c.save()
+      const newAlpha = Math.min(1, (starProgress - 0.8) / 0.2)
+      c.globalAlpha = newAlpha * (0.8 + 0.2 * Math.sin(at * 0.1))
+      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillStyle = '#FF4444'
+      c.shadowColor = 'rgba(255,0,0,0.6)'; c.shadowBlur = 4 * S
+      c.fillText('NEW', sx, starY - starSize * 0.55)
+      c.restore()
+    }
   }
 
   // 评价等级
@@ -253,7 +269,14 @@ function _drawRewardPanel(g, c, R, W, H, S, result, panelTop) {
     }
     contentH += 10 * S
   }
-  if (result.petExp > 0) contentH += 32 * S
+  // 星级奖励区
+  const hasStarBonus = (result.starBonusSoulStone > 0 || result.starBonusAwakenStone > 0 || result.starBonusFragments > 0)
+  if (hasStarBonus) contentH += 28 * S + 10 * S
+  // 里程碑区
+  const hasMilestones = result.milestoneRewards && result.milestoneRewards.length > 0
+  if (hasMilestones) contentH += 10 * S + result.milestoneRewards.length * 26 * S
+
+  if (result.soulStone > 0) contentH += 32 * S
   if (result.cultExp > 0) {
     contentH += 30 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
@@ -290,8 +313,8 @@ function _drawRewardPanel(g, c, R, W, H, S, result, panelTop) {
       } else if (r.type === 'exp') {
         _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${r.amount}`, '#8B7355', '#B8860B')
         cy += 28 * S
-      } else if (r.type === 'petExp') {
-        _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_pet_exp', '宠物经验', `+${r.amount}`, '#6688AA', '#4488CC')
+      } else if (r.type === 'soulStone') {
+        _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${r.amount}`, '#6688AA', '#4488CC')
         cy += 28 * S
       }
     }
@@ -303,9 +326,51 @@ function _drawRewardPanel(g, c, R, W, H, S, result, panelTop) {
     cy += 8 * S
   }
 
-  // === 宠物经验池 ===
-  if (result.petExp > 0) {
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_pet_exp', '宠物经验池', `+${result.petExp}`, '#5577AA', '#3366AA')
+  // === 星级达成奖励 ===
+  if (hasStarBonus) {
+    c.save()
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillStyle = '#C07020'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    const maxNew = result.newStars ? Math.max(...result.newStars) : 0
+    c.fillText(`${'★'.repeat(maxNew)} 达成奖励`, px + pad, cy + 6 * S)
+    c.textAlign = 'right'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    const parts = []
+    if (result.starBonusSoulStone > 0) parts.push(`灵石+${result.starBonusSoulStone}`)
+    if (result.starBonusFragments > 0) parts.push(`碎片+${result.starBonusFragments}`)
+    if (result.starBonusAwakenStone > 0) parts.push(`觉醒石+${result.starBonusAwakenStone}`)
+    c.fillStyle = '#D4A030'
+    c.fillText(parts.join('  '), px + pw - pad, cy + 6 * S)
+    c.restore()
+    cy += 28 * S
+
+    c.strokeStyle = 'rgba(180,160,120,0.3)'; c.lineWidth = 1 * S
+    c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
+    cy += 10 * S
+  }
+
+  // === 章节里程碑达成 ===
+  if (hasMilestones) {
+    for (const ms of result.milestoneRewards) {
+      c.save()
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      c.fillStyle = '#B44DFF'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      c.fillText(`🏆 章节里程碑 ${ms.milestoneStars}★ 达成！`, px + pad, cy + 6 * S)
+      c.textAlign = 'right'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      const mParts = []
+      if (ms.soulStone) mParts.push(`灵石+${ms.soulStone}`)
+      if (ms.fragment) mParts.push(`碎片+${ms.fragment}`)
+      if (ms.awakenStone) mParts.push(`觉醒石+${ms.awakenStone}`)
+      c.fillStyle = '#9060D0'
+      c.fillText(mParts.join(' '), px + pw - pad, cy + 6 * S)
+      c.restore()
+      cy += 26 * S
+    }
+    cy += 10 * S
+  }
+
+  // === 灵石 ===
+  if (result.soulStone > 0) {
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${result.soulStone}`, '#5577AA', '#3366AA')
     cy += 32 * S
   }
 
@@ -387,11 +452,25 @@ function _drawPetRow(c, R, S, x, cy, innerW, reward) {
       const dw = aw * scale, dh = ah * scale
       c.drawImage(img, x + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
       c.restore()
-      // 金色高亮边框
-      c.strokeStyle = '#FFD700'; c.lineWidth = 2 * S
+      // 品质色边框
+      const rv = RARITY_VISUAL[getPetRarity(reward.petId)] || RARITY_VISUAL.R
+      c.strokeStyle = rv.borderColor; c.lineWidth = 2 * S
       R.rr(x, iconY, iconSz, iconSz, 5 * S); c.stroke()
     }
   }
+
+  // 品质徽标（头像右上角）
+  const rv2 = RARITY_VISUAL[getPetRarity(reward.petId)] || RARITY_VISUAL.R
+  const badgeW = rv2.label.length * 7 * S + 6 * S
+  const badgeH = 12 * S
+  const badgeX = x + iconSz - badgeW + 2 * S
+  const badgeY = iconY - 2 * S
+  c.fillStyle = rv2.badgeBg
+  R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.fill()
+  c.fillStyle = rv2.badgeColor; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(rv2.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
+  c.textBaseline = 'alphabetic'
 
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.fillStyle = attrColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
@@ -537,12 +616,27 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     const dw = aw * sc, dh = ah * sc
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
     c.restore()
+    // 品质色边框
+    const rvCel = RARITY_VISUAL[getPetRarity(petId)] || RARITY_VISUAL.R
     c.save()
-    c.shadowColor = ac.main; c.shadowBlur = 16 * S
+    c.shadowColor = rvCel.glowColor; c.shadowBlur = 16 * S
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
-    c.strokeStyle = ac.main; c.lineWidth = 3 * S; c.stroke()
+    c.strokeStyle = rvCel.borderColor; c.lineWidth = 3 * S; c.stroke()
     c.restore()
   }
+
+  // 品质徽标（头像右上角）
+  const rvBadge = RARITY_VISUAL[getPetRarity(petId)] || RARITY_VISUAL.R
+  const celBadgeW = rvBadge.label.length * 10 * S + 8 * S
+  const celBadgeH = 18 * S
+  const celBadgeX = avatarX + avatarSize - celBadgeW + 4 * S
+  const celBadgeY = avatarY - 4 * S
+  c.fillStyle = rvBadge.badgeBg
+  R.rr(celBadgeX, celBadgeY, celBadgeW, celBadgeH, 4 * S); c.fill()
+  c.fillStyle = rvBadge.badgeColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(rvBadge.label, celBadgeX + celBadgeW / 2, celBadgeY + celBadgeH / 2)
+  c.textBaseline = 'alphabetic'
 
   // 宠物名称
   const nameY = avatarY + avatarSize + 30 * S

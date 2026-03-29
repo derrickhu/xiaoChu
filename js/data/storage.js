@@ -17,7 +17,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 9
+const CURRENT_VERSION = 11
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -51,7 +51,8 @@ function defaultPersist() {
     unlockedAvatars: ['boy1', 'girl1'], // 已解锁的形象列表
     // Phase 2：灵宠池
     petPool: [],             // 灵宠池宠物列表
-    petExpPool: 0,           // 共享宠物经验池（未分配）
+    soulStone: 0,            // 灵石（共享宠物升级货币）
+    awakenStone: 0,          // 觉醒石数量
     // Phase 2：体力系统（仅固定关卡消耗，肉鸽不消耗）
     stamina: {
       current: STAMINA_INITIAL,
@@ -59,7 +60,8 @@ function defaultPersist() {
       lastRecoverTime: 0,   // 首次进入时初始化为 Date.now()
     },
     // Phase 3：固定关卡
-    stageClearRecord: {},    // { 'stage_1_1': { cleared: true, bestRating: 'S', clearCount: 5 } }
+    stageClearRecord: {},    // { 'stage_1_1': { cleared, bestRating, clearCount, starsClaimed:[bool,bool,bool] } }
+    chapterStarMilestones: {},  // { 1: [false,false,false], ... } 对应 5★/10★/15★
     dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
     savedStageTeam: [],      // 持久化保存的编队（灵宠ID列表）
     sidebarRewardDate: '',   // 侧边栏复访奖励最后领取日期
@@ -133,6 +135,29 @@ const migrations = {
   8: (d) => {
     if (!d.guideFlags) d.guideFlags = {}
     if (d.tutorialDone) d.guideFlags.battle_tutorial = true
+  },
+  // v9→v10：灵石重命名 + 觉醒石
+  9: (d) => {
+    if (d.petExpPool !== undefined) {
+      d.soulStone = d.petExpPool
+      delete d.petExpPool
+    }
+    if (d.soulStone === undefined) d.soulStone = 0
+    if (d.awakenStone === undefined) d.awakenStone = 0
+  },
+  // v10→v11：关卡星级奖励 + 章节里程碑
+  10: (d) => {
+    const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
+    const record = d.stageClearRecord || {}
+    for (const sid of Object.keys(record)) {
+      const r = record[sid]
+      if (!r.starsClaimed) {
+        // 根据历史最佳评级补发标记（已通关的按最佳评级设定已领取标记）
+        const best = RATING_TO_STARS[r.bestRating] || 0
+        r.starsClaimed = [best >= 1, best >= 2, best >= 3]
+      }
+    }
+    if (!d.chapterStarMilestones) d.chapterStarMilestones = {}
   },
 }
 
@@ -354,7 +379,9 @@ class Storage {
 
   get petPool() { return this._d.petPool || [] }
   get petPoolCount() { return (this._d.petPool || []).length }
-  get petExpPool() { return this._d.petExpPool || 0 }
+  get soulStone() { return this._d.soulStone || 0 }
+  // 向后兼容旧名
+  get petExpPool() { return this.soulStone }
 
   /**
    * 宠物入池（★3图鉴首次解锁时调用）
@@ -405,49 +432,67 @@ class Storage {
     if (!entry || entry.fragments < count || count <= 0) return 0
     entry.fragments -= count
     const expGained = count * FRAGMENT_TO_EXP
-    this._d.petExpPool = (this._d.petExpPool || 0) + expGained
+    this._d.soulStone = (this._d.soulStone || 0) + expGained
     this._save()
     return expGained
   }
 
-  /** 增加共享宠物经验池 */
-  addPetExp(amount) {
+  /** 增加灵石 */
+  addSoulStone(amount) {
     if (amount <= 0) return
-    this._d.petExpPool = (this._d.petExpPool || 0) + amount
+    this._d.soulStone = (this._d.soulStone || 0) + amount
     this._save()
   }
 
+  /** 消耗灵石，返回是否成功 */
+  consumeAwakenStone(amount) {
+    if (amount <= 0) return false
+    if ((this._d.awakenStone || 0) < amount) return false
+    this._d.awakenStone -= amount
+    this._save()
+    return true
+  }
+
+  /** 增加觉醒石 */
+  addAwakenStone(amount) {
+    if (amount <= 0) return
+    this._d.awakenStone = (this._d.awakenStone || 0) + amount
+    this._save()
+  }
+
+  /** 读取觉醒石数量 */
+  get awakenStone() { return this._d.awakenStone || 0 }
+
   /**
-   * 从共享经验池投入经验给指定宠物，返回升级次数
+   * 从灵石池投入经验给指定宠物，返回升级次数
    * @param {string} petId - 目标宠物ID
-   * @param {number} amount - 投入经验量
+   * @param {number} amount - 投入灵石量
    */
-  investPetExp(petId, amount) {
+  investSoulStone(petId, amount) {
     const { petExpToNextLevel, POOL_MAX_LV, POOL_ADV_MAX_LV } = require('./petPoolConfig')
-    const { getPetTier } = require('./pets')
+    const { getPetRarity } = require('./pets')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry || amount <= 0) return 0
-    const available = Math.min(amount, this._d.petExpPool || 0)
+    const available = Math.min(amount, this._d.soulStone || 0)
     if (available <= 0) return 0
     const maxLv = entry.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
     if (entry.level >= maxLv) return 0
-    const tier = getPetTier(entry.id)
+    const rarity = getPetRarity(entry.id)
     let spent = 0, levelUps = 0
-    // 模拟投入经验逐级升级
     let remaining = available
     while (entry.level < maxLv && remaining > 0) {
-      const needed = petExpToNextLevel(entry.level, tier)
+      const needed = petExpToNextLevel(entry.level, rarity)
       if (remaining >= needed) {
         remaining -= needed
         spent += needed
         entry.level++
         levelUps++
       } else {
-        break // 剩余不够升级，不扣经验（避免经验被吃掉但没升级）
+        break
       }
     }
     if (spent > 0) {
-      this._d.petExpPool -= spent
+      this._d.soulStone -= spent
       this._save()
     }
     return levelUps
@@ -457,7 +502,7 @@ class Storage {
    * 升星（消耗碎片，需满足等级门槛）
    */
   upgradePoolPetStar(petId) {
-    const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ } = require('./petPoolConfig')
+    const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST } = require('./petPoolConfig')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry) return { ok: false, reason: 'not_found' }
     const nextStar = entry.star + 1
@@ -467,7 +512,13 @@ class Storage {
     if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }
     const fragCost = POOL_STAR_FRAG_COST[nextStar]
     if (entry.fragments < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
+    // ★4/★5 升星额外需要觉醒石
+    const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
+    if (awakenCost > 0 && (this._d.awakenStone || 0) < awakenCost) {
+      return { ok: false, reason: 'awaken_stone_low', required: awakenCost }
+    }
     entry.fragments -= fragCost
+    if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
     this._save()
     return { ok: true, newStar: nextStar }
@@ -567,14 +618,56 @@ class Storage {
   recordStageClear(stageId, rating, isFirst) {
     const RATING_ORDER = { B: 1, A: 2, S: 3 }
     const record = this._d.stageClearRecord || (this._d.stageClearRecord = {})
-    if (!record[stageId]) record[stageId] = { cleared: false, bestRating: null, clearCount: 0 }
+    if (!record[stageId]) record[stageId] = { cleared: false, bestRating: null, clearCount: 0, starsClaimed: [false, false, false] }
     const r = record[stageId]
     r.cleared = true
     r.clearCount++
     if (!r.bestRating || RATING_ORDER[rating] > RATING_ORDER[r.bestRating]) {
       r.bestRating = rating
     }
+    if (!r.starsClaimed) r.starsClaimed = [false, false, false]
     this._save()
+  }
+
+  // ===== 星级奖励领取 =====
+
+  getStageStarsClaimed(stageId) {
+    const r = this._d.stageClearRecord && this._d.stageClearRecord[stageId]
+    return (r && r.starsClaimed) || [false, false, false]
+  }
+
+  claimStageStar(stageId, starIndex) {
+    const record = this._d.stageClearRecord || (this._d.stageClearRecord = {})
+    if (!record[stageId]) record[stageId] = { cleared: false, bestRating: null, clearCount: 0, starsClaimed: [false, false, false] }
+    if (!record[stageId].starsClaimed) record[stageId].starsClaimed = [false, false, false]
+    record[stageId].starsClaimed[starIndex] = true
+    this._save()
+  }
+
+  // ===== 章节星级里程碑 =====
+
+  getChapterMilestones(chapterId) {
+    const m = this._d.chapterStarMilestones || (this._d.chapterStarMilestones = {})
+    return m[chapterId] || [false, false, false]
+  }
+
+  claimChapterMilestone(chapterId, milestoneIndex) {
+    const m = this._d.chapterStarMilestones || (this._d.chapterStarMilestones = {})
+    if (!m[chapterId]) m[chapterId] = [false, false, false]
+    m[chapterId][milestoneIndex] = true
+    this._save()
+  }
+
+  getChapterTotalStars(chapterId) {
+    const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
+    const { getChapterStages } = require('./stages')
+    const stages = getChapterStages(chapterId)
+    let total = 0
+    for (const s of stages) {
+      const best = this.getStageBestRating(s.id)
+      total += RATING_TO_STARS[best] || 0
+    }
+    return total
   }
 
   // ===== 每日挑战次数 =====
@@ -666,14 +759,14 @@ class Storage {
 
   /**
    * 收取所有派遣产出（碎片归各宠物，经验归共享池）
-   * @returns {{ totalFragments: number, totalPetExp: number, details: Array }} 产出明细
+   * @returns {{ totalFragments: number, totalSoulStone: number, details: Array }} 产出明细
    */
   idleCollect() {
     const { calcIdleReward } = require('./petPoolConfig')
     const dispatch = this.idleDispatch
     if (dispatch.slots.length === 0) return null
     const now = Date.now()
-    let totalFragments = 0, totalPetExp = 0
+    let totalFragments = 0, totalSoulStone = 0
     const details = []
     for (const slot of dispatch.slots) {
       const elapsed = now - slot.startTime
@@ -684,18 +777,18 @@ class Storage {
         poolPet.fragments = (poolPet.fragments || 0) + reward.fragments
         totalFragments += reward.fragments
       }
-      if (reward.petExp > 0) {
-        totalPetExp += reward.petExp
+      if (reward.soulStone > 0) {
+        totalSoulStone += reward.soulStone
       }
-      details.push({ petId: slot.petId, fragments: reward.fragments, petExp: reward.petExp })
+      details.push({ petId: slot.petId, fragments: reward.fragments, soulStone: reward.soulStone })
       slot.startTime = now
     }
-    if (totalPetExp > 0) {
-      this._d.petExpPool = (this._d.petExpPool || 0) + totalPetExp
+    if (totalSoulStone > 0) {
+      this._d.soulStone = (this._d.soulStone || 0) + totalSoulStone
     }
     dispatch.lastCollect = now
     this._save()
-    return { totalFragments, totalPetExp, details }
+    return { totalFragments, totalSoulStone, details }
   }
 
   /** 获取当前派遣中的宠物ID列表 */
@@ -727,14 +820,14 @@ class Storage {
   }
 
   /**
-   * 按 tierWeights 分配碎片给随机宠物（一次分配 count 片给同一只宠物）
+   * 按品质权重分配碎片给随机宠物（一次分配 count 片给同一只宠物）
    * @param {number} count
-   * @param {object} tierWeights - { T3: 80, T2: 20, T1: 0 }
+   * @param {object} rarityWeights - { R: 80, SR: 20, SSR: 0 }
    * @returns {{ petId, count }}
    */
-  addRandomFragments(count, tierWeights) {
-    const { rollPetByTier } = require('./chestConfig')
-    const petId = rollPetByTier(tierWeights)
+  addRandomFragments(count, rarityWeights) {
+    const { rollPetByRarity } = require('./chestConfig')
+    const petId = rollPetByRarity(rarityWeights)
     this.addFragmentSmart(petId, count)
     return { petId, count }
   }
@@ -759,12 +852,12 @@ class Storage {
    */
   summonPet(petId) {
     const { SUMMON_FRAG_COST } = require('./chestConfig')
-    const { getPetTier } = require('./pets')
+    const { getPetRarity } = require('./pets')
 
     this._ensureCultivationFields()
     const banked = this._d.fragmentBank[petId] || 0
-    const tier = getPetTier(petId)
-    const cost = SUMMON_FRAG_COST[tier] || 15
+    const rarity = getPetRarity(petId)
+    const cost = SUMMON_FRAG_COST[rarity] || 15
 
     if (banked < cost) return { success: false, message: `碎片不足（需${cost}，有${banked}）` }
     if (this.getPoolPet(petId)) return { success: false, message: '已拥有该灵宠' }
@@ -783,7 +876,7 @@ class Storage {
    * @returns {Array} resolved rewards
    */
   claimChestReward(milestoneId) {
-    const { CHEST_MILESTONES, rollPetByTier, rollUnownedPet } = require('./chestConfig')
+    const { CHEST_MILESTONES, rollPetByRarity, rollUnownedPet } = require('./chestConfig')
     this._ensureCultivationFields()
 
     if (this._d.chestRewards.claimed[milestoneId]) return []
@@ -794,7 +887,7 @@ class Storage {
     for (const r of milestone.rewards) {
       switch (r.type) {
         case 'fragment': {
-          const petId = rollPetByTier(r.tierWeights)
+          const petId = rollPetByRarity(r.rarityWeights)
           this.addFragmentSmart(petId, r.count)
           const { getPetById } = require('./pets')
           const petData = getPetById(petId)
@@ -821,9 +914,9 @@ class Storage {
           resolved.push({ type: 'exp', amount: r.amount })
           break
         }
-        case 'petExp': {
-          this._d.petExpPool = (this._d.petExpPool || 0) + (r.amount || 0)
-          resolved.push({ type: 'petExp', amount: r.amount })
+        case 'soulStone': {
+          this._d.soulStone = (this._d.soulStone || 0) + (r.amount || 0)
+          resolved.push({ type: 'soulStone', amount: r.amount })
           break
         }
         case 'stamina': {
@@ -1183,7 +1276,8 @@ class Storage {
     if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
     // Phase 2 字段补全
     if (!this._d.petPool) this._d.petPool = []
-    if (this._d.petExpPool == null) this._d.petExpPool = 0
+    if (this._d.soulStone == null) this._d.soulStone = 0
+    if (this._d.awakenStone == null) this._d.awakenStone = 0
     if (!this._d.stamina) this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
     // Phase 3 字段补全
     if (!this._d.stageClearRecord) this._d.stageClearRecord = {}

@@ -17,7 +17,7 @@ const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 const tutorial = require('./tutorial')
 const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
-const { calcRoguelikePetExp } = require('../data/petPoolConfig')
+const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
 const { SETTLE_CFG } = require('../data/settleConfig')
 const { initBoard } = require('./battle')
 const ViewEnv = require('../views/env')
@@ -229,7 +229,7 @@ function restoreBattleHpMax(g) {
 
 /**
  * 经验结算（可独立于 endRun 调用，如重新开局/放弃存档时）
- * 修炼经验 + 宠物经验，数值从 SETTLE_CFG 读取
+ * 修炼经验 + 灵石，数值从 SETTLE_CFG 读取
  */
 function settleExp(g) {
   const cfg = SETTLE_CFG
@@ -243,25 +243,25 @@ function settleExp(g) {
 
   const combatDetail = { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 }
   const rawCombat = combatDetail.elimExp + combatDetail.comboExp + combatDetail.killExp
-  const petBase = Math.floor(rawCombat * cfg.petExp.combatRatio)
-  const petFloor = finalFloor * cfg.petExp.floorBonus
-  const petClear = g.cleared ? cfg.petExp.clearBonus : 0
-  const petExp = petBase + petFloor + petClear
-  if (petExp > 0) g.storage.addPetExp(petExp)
+  const petBase = Math.floor(rawCombat * cfg.soulStone.combatRatio)
+  const petFloor = finalFloor * cfg.soulStone.floorBonus
+  const petClear = g.cleared ? cfg.soulStone.clearBonus : 0
+  const soulStone = petBase + petFloor + petClear
+  if (soulStone > 0) g.storage.addSoulStone(soulStone)
 
   g._lastRunExp = finalExp
   g._lastRunLevelUps = levelUps
   g._lastRunPrevLevel = prevLevel
-  g._lastRunPetExp = petExp
+  g._lastRunSoulStone = soulStone
   g._lastRunExpDetail = {
     ...combatDetail, layerExp, clearBonus, rawTotal,
-    isCleared: g.cleared, petExp,
+    isCleared: g.cleared, soulStone,
   }
   return finalExp
 }
 
 /**
- * 完整结算（仅 endRun 使用）：修炼经验 + 宠物经验 + 碎片
+ * 完整结算（仅 endRun 使用）：修炼经验 + 灵石 + 碎片
  * 所有奖励统一写入 g._lastRunSettleRewards 供结算 UI 展示
  */
 function settleAll(g) {
@@ -318,8 +318,8 @@ function settleAll(g) {
       levelUps: g._lastRunLevelUps,
       prevLevel: g._lastRunPrevLevel,
     },
-    petExp: {
-      final: g._lastRunPetExp,
+    soulStone: {
+      final: g._lastRunSoulStone,
     },
     fragments: {
       base: fragBase,

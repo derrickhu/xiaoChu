@@ -10,6 +10,7 @@ const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr } = require('../data/stages')
+const { STAR_REWARDS } = require('../data/economyConfig')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
 
@@ -88,7 +89,7 @@ function rStageInfo(g) {
   c.stroke()
   _rects.backBtnRect = [btnX, btnY, btnSz, btnSz]
 
-  // 体力显示（图标 + 胶囊背景 + 数值，与灵宠池经验池风格一致）
+  // 体力显示（图标 + 胶囊背景 + 数值，与灵宠池灵石栏风格一致）
   const stIcon = R.getImg('assets/ui/icon_stamina.png')
   const stTxt = `${g.storage.currentStamina}/${g.storage.maxStamina}`
   if (stIcon && stIcon.width > 0) {
@@ -184,8 +185,8 @@ function rStageInfo(g) {
   const indent = cardX + cardPad
   const enemySize = 56 * S
 
-  // 先预估卡片高度：基础挑战目标区 + 奖励区 + 敌方阵容区
-  let estH = cardPad + 18 * S + 14 * 3 * S + 16 * S + 8 * S + 18 * S
+  // 先预估卡片高度：星级目标区 + 奖励区 + 敌方阵容区
+  let estH = cardPad + 18 * S + 14 * 3 * S + 4 * S + 8 * S + 18 * S
   if (isFirstClear && stage.rewards.firstClear) {
     estH += 16 * S
     for (const r of stage.rewards.firstClear) {
@@ -205,16 +206,48 @@ function rStageInfo(g) {
 
   let iy = cardTop + cardPad
 
-  // ── 挑战目标 ──
+  // ── 星级目标与奖励预览 ──
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillStyle = '#D4A843'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.fillText('挑战目标', indent, iy)
+  c.fillText('星级目标', indent, iy)
   iy += 18 * S
 
-  c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.fillText(`◇ ${stage.rating.s}回合内通关 → S评价（碎片×2 经验×2）`, indent + 6 * S, iy); iy += 14 * S
-  c.fillText(`◇ ${stage.rating.a}回合内通关 → A评价（碎片×1.5 经验×1.5）`, indent + 6 * S, iy); iy += 14 * S
-  c.fillText(`◇ 通关即可 → B评价（碎片×1 经验×1）`, indent + 6 * S, iy); iy += 16 * S
+  const starsClaimed = g.storage.getStageStarsClaimed(stage.id)
+  const chIdx = stage.order - 1
+  const starCfg = STAR_REWARDS[stage.chapter] && STAR_REWARDS[stage.chapter][chIdx]
+
+  const starDefs = [
+    { star: 1, label: '★', cond: '通关即可', mul: '×1', claimed: starsClaimed[0], extra: null },
+    { star: 2, label: '★★', cond: `≤${stage.rating.a}回合`, mul: '×1.5', claimed: starsClaimed[1], extra: starCfg ? starCfg.star2 : null },
+    { star: 3, label: '★★★', cond: `≤${stage.rating.s}回合`, mul: '×2', claimed: starsClaimed[2], extra: starCfg ? starCfg.star3 : null },
+  ]
+
+  for (const sd of starDefs) {
+    const rowY = iy
+    // 星标
+    c.fillStyle = sd.claimed ? '#90EE90' : '#FFD700'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.textBaseline = 'top'
+    const prefix = sd.claimed ? '✓ ' : '  '
+    c.fillText(`${prefix}${sd.label}`, indent + 2 * S, rowY)
+    // 条件
+    c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    c.fillText(sd.cond, indent + 48 * S, rowY)
+    // 额外奖励（2★/3★）
+    if (sd.extra) {
+      const parts = []
+      if (sd.extra.soulStone) parts.push(`灵石+${sd.extra.soulStone}`)
+      if (sd.extra.fragment) parts.push(`碎片+${sd.extra.fragment}`)
+      if (sd.extra.awakenStone) parts.push(`觉醒石+${sd.extra.awakenStone}`)
+      c.textAlign = 'right'
+      c.fillStyle = sd.claimed ? '#90EE90' : '#D4A030'
+      c.font = `${9*S}px "PingFang SC",sans-serif`
+      c.fillText(parts.join(' '), cardX + cardW - cardPad, rowY + 1 * S)
+      c.textAlign = 'left'
+    }
+    iy += 14 * S
+  }
+  iy += 4 * S
 
   // 分隔线
   drawSeparator(c, indent, iy, cardX + cardW - cardPad, null, 0.25, 0.15, 0.85)
@@ -264,9 +297,9 @@ function rStageInfo(g) {
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
         c.fillText(`  修炼经验 +${r.amount}`, indent + 12 * S, iy)
         iy += 13 * S
-      } else if (r.type === 'petExp') {
+      } else if (r.type === 'soulStone') {
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  宠物经验 +${r.amount}`, indent + 12 * S, iy)
+        c.fillText(`  灵石 +${r.amount}`, indent + 12 * S, iy)
         iy += 13 * S
       }
     }
@@ -274,7 +307,7 @@ function rStageInfo(g) {
   }
   c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
   const rep = stage.rewards.repeatClear
-  c.fillText(`碎片 ×${rep.fragments.min}~${rep.fragments.max}  |  修炼经验 +${rep.exp}  |  宠物经验 +${rep.petExp}`, indent + 6 * S, iy)
+  c.fillText(`碎片 ×${rep.fragments.min}~${rep.fragments.max}  |  修炼经验 +${rep.exp}  |  灵石 +${rep.soulStone}`, indent + 6 * S, iy)
   iy += 16 * S
 
   // 分隔线

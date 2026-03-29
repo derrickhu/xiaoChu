@@ -20,11 +20,11 @@ const SETTLE_CFG = {
     failRatio:   0.6,   // 失败折扣
   },
 
-  // ── 宠物经验池 ──
-  petExp: {
+  // ── 灵石 ──
+  soulStone: {
     combatRatio: 0.3,   // 战斗经验折算比例（消除+连击+击杀）
-    floorBonus:  2,     // 每层额外宠物经验
-    clearBonus:  200,   // 通关额外宠物经验
+    floorBonus:  2,     // 每层额外灵石
+    clearBonus:  200,   // 通关额外灵石
   },
 
   // ── 碎片分配策略 ──

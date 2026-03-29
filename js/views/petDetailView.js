@@ -7,9 +7,10 @@
 const V = require('./env')
 const uiUtils = require('./uiUtils')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetTier, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill, getPetLore } = require('../data/pets')
-const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill, getPetLore, getStar4Passive, getStar5Override } = require('../data/pets')
+const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
+const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 
 // 触摸区域
 const _rects = {
@@ -198,12 +199,13 @@ function rPetDetail(g) {
 function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   const basePet = getPetById(petId)
   if (!basePet) return
-  const tier = getPetTier(petId)
+  const rarity = getPetRarity(petId)
+  const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
   const attrColor = ATTR_COLOR[basePet.attr]
   const attrName = ATTR_NAME[basePet.attr] || basePet.attr
   const ac = attrColor ? attrColor.main : '#666'
   const { SUMMON_FRAG_COST } = require('../data/chestConfig')
-  const cost = SUMMON_FRAG_COST[tier] || 15
+  const cost = SUMMON_FRAG_COST[rarity] || 15
   const bankFrag = g.storage.getBankFragments(petId)
   const canSummon = bankFrag >= cost
 
@@ -258,6 +260,16 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(fragFrame, frameX, frameY, frameSz, frameSz)
   }
 
+  // 品质色边框发光
+  c.save()
+  c.strokeStyle = rv.borderColor
+  c.lineWidth = 2.5 * S
+  c.shadowColor = rv.glowColor
+  c.shadowBlur = 10 * S
+  R.rr(avatarX - 3 * S, avatarY - 3 * S, avatarSize + 6 * S, avatarSize + 6 * S, 12 * S)
+  c.stroke()
+  c.restore()
+
   // 名称区域
   let cy = avatarY + avatarSize * 1.11 + 10 * S
   const orbPath = `assets/orbs/orb_${basePet.attr || 'metal'}.png`
@@ -265,7 +277,12 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   const orbSz = 22 * S
   c.font = `bold ${20*S}px "PingFang SC",sans-serif`
   const nameW = c.measureText(basePet.name).width
-  const totalNameW = orbSz + 4 * S + nameW
+  // 品质标签尺寸
+  const badgeText = `[${rv.label}]`
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  const badgeW = c.measureText(badgeText).width
+  const badgeGap = 4 * S
+  const totalNameW = orbSz + 4 * S + nameW + badgeGap + badgeW
   const nameStartX = (W - totalNameW) / 2
 
   if (orbImg && orbImg.width > 0) {
@@ -278,6 +295,14 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.strokeText(basePet.name, nameX, cy)
   c.fillStyle = 'rgba(200,200,220,0.8)'
   c.fillText(basePet.name, nameX, cy)
+
+  // 品质标签（名字右侧）
+  c.save()
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillStyle = rv.badgeColor
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(badgeText, nameX + nameW + badgeGap, cy + 5 * S)
+  c.restore()
 
   cy += 28 * S
   // 未召唤页不展示 T1/T2/T3 档位标签（避免与「未获得」状态混淆）
@@ -301,6 +326,16 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = 'rgba(20,15,10,0.75)'
     R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.fill()
   }
+
+  // 品质色调叠加
+  c.save()
+  R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
+  const rarityGrad = c.createLinearGradient(cardX, cardTop, cardX, cardTop + cardH2 * 0.5)
+  rarityGrad.addColorStop(0, rv.bgGradient[0] + '30')
+  rarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
+  c.fillStyle = rarityGrad
+  c.fillRect(cardX, cardTop, cardW2, cardH2)
+  c.restore()
 
   const borderL = Math.round(cardW2 * 0.25)
   const borderR = Math.round(cardW2 * 0.10)
@@ -426,16 +461,17 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const basePet = getPetById(petId)
   if (!basePet) return
 
-  const tier = getPetTier(petId)
+  const rarity = getPetRarity(petId)
+  const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
   const atk = getPoolPetAtk(poolPet)
   const attrColor = ATTR_COLOR[poolPet.attr]
   const attrName = ATTR_NAME[poolPet.attr] || poolPet.attr
-  const expPool = g.storage.petExpPool || 0
-  const nextLvExp = petExpToNextLevel(poolPet.level, tier)
+  const expPool = g.storage.soulStone || 0
+  const nextLvExp = petExpToNextLevel(poolPet.level, rarity)
   const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
   const isMaxLv = poolPet.level >= maxLv
   const ac = attrColor ? attrColor.main : '#666'
-  const maxStar = poolPet.source === 'stage' ? 4 : 3
+  const maxStar = 5
 
   // 只为当前展示的宠物绘制按钮
   const isCurrentPet = (petId === g._petDetailId && !_slideAnim)
@@ -450,8 +486,8 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = 'rgba(0,0,0,0.15)'
   c.fillRect(0, 0, W, H)
 
-  // === 经验池图标+数值（返回按钮右侧） ===
-  const expIcon = R.getImg('assets/ui/icon_pet_exp.png')
+  // === 灵石图标+数值（返回按钮右侧） ===
+  const expIcon = R.getImg('assets/ui/icon_soul_stone.png')
   const expIconCenterY = safeTop + 26 * S
   if (expIcon && expIcon.width > 0) {
     const iconSz = 32 * S
@@ -551,6 +587,16 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(frameImg, frameX, frameY, frameSz, frameSz)
   }
 
+  // 品质色边框发光
+  c.save()
+  c.strokeStyle = rv.borderColor
+  c.lineWidth = 2.5 * S
+  c.shadowColor = rv.glowColor
+  c.shadowBlur = 10 * S
+  R.rr(avatarX - 3 * S, avatarY - 3 * S, avatarSize + 6 * S, avatarSize + 6 * S, 12 * S)
+  c.stroke()
+  c.restore()
+
   // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
   let cy = avatarY + avatarSize * 1.11 + 10 * S
 
@@ -567,7 +613,12 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const tierTagH = 17 * S
   const nameGap = 6 * S
   const orbGap = 4 * S
-  const totalNameW = orbSz + orbGap + nameW + nameGap + tierTagW
+  // 品质标签尺寸
+  const badgeText = `[${rv.label}]`
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  const badgeW = c.measureText(badgeText).width
+  const badgeGap = 4 * S
+  const totalNameW = orbSz + orbGap + nameW + badgeGap + badgeW + nameGap + tierTagW
   const nameStartX = (W - totalNameW) / 2
 
   // 转珠图标（名称前面）
@@ -585,8 +636,16 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = '#fff'
   c.fillText(basePet.name, nameX, cy)
 
-  // 等级标签（名称右侧，醒目白底深色字）
-  const tierTagX = nameX + nameW + nameGap
+  // 品质标签（名字右侧）
+  c.save()
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillStyle = rv.badgeColor
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(badgeText, nameX + nameW + badgeGap, cy + 5 * S)
+  c.restore()
+
+  // 等级标签（品质标签右侧，醒目白底深色字）
+  const tierTagX = nameX + nameW + badgeGap + badgeW + nameGap
   const tierTagY = cy + 3 * S
   c.fillStyle = 'rgba(255,255,255,0.85)'
   R.rr(tierTagX, tierTagY, tierTagW, tierTagH, 4 * S); c.fill()
@@ -599,19 +658,43 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 
   cy += 24 * S
 
-  // === 星星（名称下方，居中横排） ===
+  // === 星星（名称下方，居中横排，根据 STAR_VISUAL 着色） ===
   const starSize = 14 * S
+  const curStar = poolPet.star || 1
+  const sv = STAR_VISUAL[curStar] || STAR_VISUAL[1]
   c.font = `${starSize}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
-  let starTotalStr = ''
-  for (let i = 0; i < maxStar; i++) starTotalStr += '★'
-  const starTotalW = c.measureText(starTotalStr).width
+  // 星星 + 名称标签的总宽度用于居中
+  const singleStarW = c.measureText('★').width
+  const starsW = singleStarW * maxStar
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  const starNameW = c.measureText(sv.name).width
+  const starGap = 4 * S
+  const starTotalW = starsW + starGap + starNameW
   let starDrawX = (W - starTotalW) / 2
-  for (let i = 0; i < maxStar; i++) {
-    c.fillStyle = i < poolPet.star ? '#FFD700' : 'rgba(120,120,120,0.6)'
-    c.fillText('★', starDrawX, cy)
-    starDrawX += c.measureText('★').width
+  c.font = `${starSize}px "PingFang SC",sans-serif`
+  c.save()
+  if (curStar >= 5) {
+    // ★5 彩虹光效
+    const hue = (Date.now() * 0.1) % 360
+    c.shadowColor = `hsl(${hue}, 100%, 60%)`
+    c.shadowBlur = 8 * S
+  } else if (curStar >= 4) {
+    // ★4 紫色光环
+    c.shadowColor = '#b44dff'
+    c.shadowBlur = 4 * S
   }
+  for (let i = 0; i < maxStar; i++) {
+    c.fillStyle = i < curStar ? sv.color : 'rgba(120,120,120,0.6)'
+    c.fillText('★', starDrawX, cy)
+    starDrawX += singleStarW
+  }
+  c.restore()
+  // 星级名称标签（紧跟星星右侧）
+  c.fillStyle = sv.color
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(sv.name, starDrawX + starGap, cy + (starSize - 10 * S) / 2)
 
   cy += starSize + 6 * S
 
@@ -643,6 +726,16 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.stroke()
     c.restore()
   }
+
+  // 品质色调叠加
+  c.save()
+  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.clip()
+  const rarityGrad = c.createLinearGradient(cardX, cardTop, cardX, cardTop + cardH * 0.5)
+  rarityGrad.addColorStop(0, rv.bgGradient[0] + '30')
+  rarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
+  c.fillStyle = rarityGrad
+  c.fillRect(cardX, cardTop, cardW, cardH)
+  c.restore()
 
   // pet_card_bg 有装饰性边框（金色花纹+祥云），按卡片尺寸比例计算内边距
   const borderL = Math.round(cardW * 0.25)   // 左边框 ~25%
@@ -697,7 +790,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   cy += fBig + gap
 
   const baseAtk = basePet.atk
-  const lvBonus = tier === 'T3' ? Math.floor(poolPet.level * 0.8) : poolPet.level
+  const lvBonus = rarity === 'R' ? Math.floor(poolPet.level * 0.8) : poolPet.level
   const starMul = POOL_STAR_ATK_MUL[poolPet.star] || 1.0
   c.fillStyle = 'rgba(90,70,40,0.75)'
   c.font = `${fSmall}px "PingFang SC",sans-serif`
@@ -766,6 +859,34 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 
   cy += gap * 0.5
 
+  // ★4 觉醒被动
+  if (curStar >= 4) {
+    const passive = getStar4Passive(petId)
+    if (passive) {
+      c.fillStyle = STAR_VISUAL[4].color
+      c.font = `bold ${fSmall}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText(`觉醒被动: ${passive.name}`, indent, cy)
+      cy += fSmall + gap * 0.3
+      c.fillStyle = 'rgba(70,50,30,0.85)'
+      c.font = `${fSmall}px "PingFang SC",sans-serif`
+      c.fillText(passive.desc, indent, cy)
+      cy += fSmall + gap * 0.5
+    }
+  }
+
+  // ★5 超越技能信息
+  if (curStar >= 5) {
+    const star5Data = getStar5Override(petId)
+    if (star5Data) {
+      c.fillStyle = STAR_VISUAL[5].color
+      c.font = `bold ${fSmall}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText('超越强化: 技能已超越进化', indent, cy)
+      cy += fSmall + gap * 0.5
+    }
+  }
+
   // ═══════════════════════════════
   // 分隔：状态区 vs 操作区
   // ═══════════════════════════════
@@ -823,7 +944,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = 'rgba(90,70,40,0.75)'
   c.font = `${fSmall}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(`经验池：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
+  c.fillText(`灵石：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
   cy += fSmall + gap
 
   drawSeparator(c, indent, cy, rightEdge, '180,140,60')
@@ -848,9 +969,10 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const starUpLabel = '升至 '
     const starUpLabelW = c.measureText(starUpLabel).width
     c.fillText(starUpLabel, indent, cy)
+    const nextSv = STAR_VISUAL[nextStar] || STAR_VISUAL[1]
     let starX = indent + starUpLabelW
     for (let i = 0; i < maxStar; i++) {
-      c.fillStyle = i < nextStar ? '#FFD700' : 'rgba(120,120,120,0.6)'
+      c.fillStyle = i < nextStar ? nextSv.color : 'rgba(120,120,120,0.6)'
       c.fillText('★', starX, cy)
       starX += c.measureText('★').width
     }
@@ -864,9 +986,20 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 
     c.fillStyle = fragOk ? '#2E8B2E' : '#CC3333'
     c.fillText(fragOk ? `碎片已足够 ${fragCost}片` : `需要碎片达到 ${fragCost}片（当前${poolPet.fragments}片）`, indent, cy)
-    cy += fBody + gapL
+    cy += fBody + gap * 0.5
 
-    const canStarUp = lvOk && fragOk
+    // ★4/★5 需要觉醒石
+    const awakenCost = POOL_STAR_AWAKEN_COST[nextStar] || 0
+    const playerAwaken = g.storage.awakenStone || 0
+    const awakenOk = awakenCost === 0 || playerAwaken >= awakenCost
+    if (awakenCost > 0) {
+      c.fillStyle = awakenOk ? '#2E8B2E' : '#CC3333'
+      c.fillText(awakenOk ? `觉醒石 ×${awakenCost} ✓` : `觉醒石 ×${awakenCost}（当前${playerAwaken}）`, indent, cy)
+      cy += fBody + gap * 0.5
+    }
+    cy += gap * 0.5
+
+    const canStarUp = lvOk && fragOk && awakenOk
     const sBtnW = 72 * S
     _drawBtn(c, R, S, indent, cy, sBtnW, btnH, '升星', canStarUp, '#FFD700', fBtn)
     if (isCurrentPet) _rects.starUpBtnRect = [indent, cy, sBtnW, btnH]
@@ -874,7 +1007,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 
     if (poolPet.fragments > 0) {
       const dBtnW = 110 * S
-      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
+      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtn)
       if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
     }
   } else {
@@ -884,10 +1017,15 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const fullLabel = '满星 '
     const fullLabelW = c.measureText(fullLabel).width
     c.fillText(fullLabel, indent, cy)
-    c.fillStyle = '#FFD700'
+    c.fillStyle = sv.color
     let fullStarStr = ''
     for (let i = 0; i < maxStar; i++) fullStarStr += '★'
     c.fillText(fullStarStr, indent + fullLabelW, cy)
+    // 满星名称
+    const fullStarStrW = c.measureText(fullStarStr).width
+    c.fillStyle = sv.color
+    c.font = `bold ${fSmall}px "PingFang SC",sans-serif`
+    c.fillText(` ${sv.name}`, indent + fullLabelW + fullStarStrW, cy + 2 * S)
     cy += fTitle + gap * 0.6
     c.fillStyle = 'rgba(90,70,40,0.75)'
     c.font = `${fBody}px "PingFang SC",sans-serif`
@@ -895,7 +1033,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     cy += fBody + gapL
     if (poolPet.fragments > 0) {
       const dBtnW = 110 * S
-      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}经验`, true, '#B8A0E0', fBtn)
+      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtn)
       if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
     }
   }
@@ -907,7 +1045,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = 'rgba(120,100,80,0.6)'
     c.font = `${9*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'top'
-    c.fillText('碎片用于升星，多余碎片可分解为宠物经验。分解不可逆，请谨慎操作', tipX, tipY)
+    c.fillText('碎片用于升星，多余碎片可分解为灵石。分解不可逆，请谨慎操作', tipX, tipY)
   }
 }
 
@@ -1077,10 +1215,10 @@ function _doLevelUp(g) {
   if (!petId) return
   const poolPet = g.storage.getPoolPet(petId)
   if (!poolPet) return
-  const tier = getPetTier(petId)
-  const needed = petExpToNextLevel(poolPet.level, tier)
-  if ((g.storage.petExpPool || 0) < needed) return
-  const ups = g.storage.investPetExp(petId, needed)
+  const rarity = getPetRarity(petId)
+  const needed = petExpToNextLevel(poolPet.level, rarity)
+  if ((g.storage.soulStone || 0) < needed) return
+  const ups = g.storage.investSoulStone(petId, needed)
   if (ups > 0) {
     MusicMgr.playLevelUp && MusicMgr.playLevelUp()
   }
@@ -1110,9 +1248,9 @@ function _longPressLoop(g) {
   const poolPet = g.storage.getPoolPet(g._petDetailId)
   const maxLv = poolPet && poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
   if (poolPet && poolPet.level < maxLv) {
-    const tier = getPetTier(g._petDetailId)
-    const needed = petExpToNextLevel(poolPet.level, tier)
-    if ((g.storage.petExpPool || 0) >= needed) {
+    const rarity = getPetRarity(g._petDetailId)
+    const needed = petExpToNextLevel(poolPet.level, rarity)
+    if ((g.storage.soulStone || 0) >= needed) {
       _longPressTimer = setTimeout(() => _longPressLoop(g), 120)
       return
     }

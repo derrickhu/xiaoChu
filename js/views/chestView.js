@@ -294,8 +294,8 @@ function _drawSingleIcon(c, R, S, g, r, ix, iy, sz) {
       break
     }
 
-    case 'petExp': {
-      const img = R.getImg('assets/ui/icon_pet_exp.png')
+    case 'soulStone': {
+      const img = R.getImg('assets/ui/icon_soul_stone.png')
       _drawIconBox(c, R, S, img, ix, iy, sz, '🔮', 'rgba(100,40,160,0.7)')
       break
     }
@@ -411,7 +411,7 @@ function _rewardLabel(r) {
     }
     case 'pet':    return r.petName || (r.petId && (getPetById(r.petId) || {}).name) || '新灵宠'
     case 'exp':    return `+${r.amount}`
-    case 'petExp': return `+${r.amount}`
+    case 'soulStone': return `+${r.amount}`
     case 'stamina':return `+${r.amount}`
     case 'avatar': return _AVATAR_LABEL[r.avatarId] || r.avatarId
     default:       return ''
@@ -423,7 +423,7 @@ function _rewardTypeName(r) {
     case 'fragment': return '宠物碎片'
     case 'pet':      return '新灵宠'
     case 'exp':      return '修炼经验'
-    case 'petExp':   return '宠物经验'
+    case 'soulStone':   return '灵石'
     case 'stamina':  return '体力'
     case 'avatar':   return '修炼形象'
     default:         return ''

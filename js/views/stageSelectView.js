@@ -5,9 +5,12 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { CHAPTERS, getChapterStages, isChapterUnlocked, isStageUnlocked, getStageAttr, getStageById } = require('../data/stages')
+const { CHAPTER_MILESTONES } = require('../data/economyConfig')
 const { drawSeparator } = require('./uiUtils')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
+
+const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
 
 const _rects = {
   backBtnRect: null,
@@ -123,7 +126,9 @@ function rStageSelect(g) {
     const stages = getChapterStages(chapter.id)
     const clearedCount = unlocked ? stages.filter(s => g.storage.getStageBestRating(s.id)).length : 0
 
-    // ── 章节标题 ──
+    // ── 章节标题 + 星级进度 ──
+    const totalStars = unlocked ? g.storage.getChapterTotalStars(chapter.id) : 0
+    const maxStars = stages.length * 3
     c.save()
     c.textAlign = 'left'; c.textBaseline = 'middle'
     const chTitleY = curY + 12 * S
@@ -134,16 +139,76 @@ function rStageSelect(g) {
     c.fillText(chapter.name, 16 * S, chTitleY)
 
     if (unlocked) {
-      c.font = `${10*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'right'
+      // 星数文字
+      c.textAlign = 'right'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      const starTxt = `★ ${totalStars}/${maxStars}`
       c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
-      const progressTxt = `${clearedCount}/${stages.length}`
-      c.strokeText(progressTxt, W - 16 * S, chTitleY)
-      c.fillStyle = clearedCount === stages.length ? '#90EE90' : '#C8B890'
-      c.fillText(progressTxt, W - 16 * S, chTitleY)
+      c.strokeText(starTxt, W - 16 * S, chTitleY)
+      c.fillStyle = totalStars >= maxStars ? '#FFD700' : '#C8B890'
+      c.fillText(starTxt, W - 16 * S, chTitleY)
     }
     c.restore()
-    curY += 28 * S
+    curY += 24 * S
+
+    // 里程碑进度条（仅已解锁章节）
+    if (unlocked) {
+      const milestoneCfg = CHAPTER_MILESTONES[chapter.id] || []
+      const claimed = g.storage.getChapterMilestones(chapter.id)
+      const barX = 16 * S, barW = W - 32 * S, barH = 6 * S
+      const barY = curY + 2 * S
+
+      // 进度条底
+      c.fillStyle = 'rgba(0,0,0,0.25)'
+      R.rr(barX, barY, barW, barH, barH / 2); c.fill()
+      // 进度条填充
+      const pct = maxStars > 0 ? Math.min(1, totalStars / maxStars) : 0
+      if (pct > 0) {
+        const fillW = Math.max(barH, barW * pct)
+        const barGrd = c.createLinearGradient(barX, barY, barX + fillW, barY)
+        barGrd.addColorStop(0, '#e8c55a'); barGrd.addColorStop(1, '#d4a830')
+        c.fillStyle = barGrd
+        R.rr(barX, barY, fillW, barH, barH / 2); c.fill()
+      }
+
+      // 里程碑节点
+      const nodeCY = barY + barH / 2
+      for (let mi = 0; mi < milestoneCfg.length; mi++) {
+        const ms = milestoneCfg[mi]
+        const msPct = maxStars > 0 ? ms.stars / maxStars : 0
+        const nodeX = barX + barW * msPct
+        const nodeR = 6 * S
+        const reached = totalStars >= ms.stars
+        const isClaimed = claimed[mi]
+
+        c.save()
+        c.beginPath(); c.arc(nodeX, nodeCY, nodeR, 0, Math.PI * 2)
+        if (isClaimed) {
+          c.fillStyle = '#90EE90'; c.fill()
+          c.strokeStyle = '#4a8a4a'; c.lineWidth = 1.5 * S; c.stroke()
+          c.fillStyle = '#fff'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
+          c.textAlign = 'center'; c.textBaseline = 'middle'
+          c.fillText('✓', nodeX, nodeCY)
+        } else if (reached) {
+          // 可领取：脉冲高亮
+          const pulseA = 0.7 + 0.3 * Math.sin((g.af || 0) * 0.08)
+          c.fillStyle = `rgba(255,215,0,${pulseA})`; c.fill()
+          c.strokeStyle = '#c8a84e'; c.lineWidth = 1.5 * S; c.stroke()
+          c.fillStyle = '#fff'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
+          c.textAlign = 'center'; c.textBaseline = 'middle'
+          c.fillText('!', nodeX, nodeCY)
+        } else {
+          c.fillStyle = 'rgba(60,50,40,0.7)'; c.fill()
+          c.strokeStyle = 'rgba(120,100,80,0.4)'; c.lineWidth = 1 * S; c.stroke()
+          c.fillStyle = '#887766'; c.font = `${7*S}px "PingFang SC",sans-serif`
+          c.textAlign = 'center'; c.textBaseline = 'middle'
+          c.fillText(`${ms.stars}`, nodeX, nodeCY)
+        }
+        c.restore()
+      }
+      curY += barH + 12 * S
+    } else {
+      curY += 4 * S
+    }
 
     if (!unlocked) {
       // 未解锁章节提示
@@ -266,21 +331,47 @@ function rStageSelect(g) {
       }
       c.restore()
 
-      // 通关评价
+      // 通关评价（3颗独立星）
       if (bestRating) {
         c.save()
-        c.textAlign = 'right'; c.textBaseline = 'middle'
-        const ratingX = cardX + cardW - 14 * S
-        const stars = bestRating === 'S' ? '★★★' : bestRating === 'A' ? '★★☆' : '★☆☆'
-        const ratingColor = bestRating === 'S' ? '#FFD700' : bestRating === 'A' ? '#C0C0C0' : '#A87040'
-        c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-        c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
-        c.strokeText(stars, ratingX, curY + 18 * S)
-        c.fillStyle = ratingColor
-        c.fillText(stars, ratingX, curY + 18 * S)
+        const earnedStars = RATING_TO_STARS[bestRating] || 0
+        const starSz = 16 * S
+        const starGapR = 2 * S
+        const starsW = 3 * starSz + 2 * starGapR
+        const starsRX = cardX + cardW - 14 * S
+        const starsLX = starsRX - starsW
+        const starCY = curY + 20 * S
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.font = `${starSz}px "PingFang SC",sans-serif`
+        for (let si = 0; si < 3; si++) {
+          const scx = starsLX + si * (starSz + starGapR) + starSz / 2
+          if (si < earnedStars) {
+            c.save()
+            c.shadowColor = 'rgba(255,200,0,0.6)'; c.shadowBlur = 6 * S
+            c.fillStyle = '#FFD700'
+            c.strokeStyle = 'rgba(160,100,0,0.4)'; c.lineWidth = 1.5 * S
+            c.strokeText('★', scx, starCY)
+            c.fillText('★', scx, starCY)
+            c.restore()
+          } else {
+            c.fillStyle = 'rgba(160,140,100,0.25)'
+            c.fillText('★', scx, starCY)
+          }
+        }
+        // 已通关标签
         c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'right'; c.textBaseline = 'middle'
         c.fillStyle = '#90EE90'
-        c.fillText('已通关', ratingX, curY + 36 * S)
+        c.fillText('已通关', starsRX, curY + 38 * S)
+
+        // 红点：有未领取的星级奖励
+        const starsClaimed = g.storage.getStageStarsClaimed(stage.id)
+        const hasUnclaimed = (earnedStars >= 2 && !starsClaimed[1]) || (earnedStars >= 3 && !starsClaimed[2])
+        if (hasUnclaimed) {
+          c.beginPath()
+          c.arc(starsRX, curY + 8 * S, 4 * S, 0, Math.PI * 2)
+          c.fillStyle = '#FF4444'; c.fill()
+        }
         c.restore()
       } else {
         c.save()
