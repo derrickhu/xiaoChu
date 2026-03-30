@@ -20,7 +20,7 @@ function getLayout() {
   const { W, H, S, safeTop } = V
   const safeBottom = 10 * S
 
-  const topBarH     = 36 * S
+  const topBarH     = 48 * S + 42 * S + 42 * S + 8 * S   // 状态栏行(48+42) + Logo(42) + 间距(8)
   const bottomBarH  = 62 * S
   const modeSwitchH = 52 * S   // 正方形图标边长（图案区）
   const startBtnH   = 44 * S   // 开始按钮高度

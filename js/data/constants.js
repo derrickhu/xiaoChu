@@ -116,6 +116,28 @@ function isComboMilestone(combo) {
   return COMBO_MILESTONES.some(m => m.threshold === combo)
 }
 
+// ===== 秘境选关卡片布局 (STAGE_CARD) =====
+// 所有值都是乘以 S（缩放因子）前的"设计稿 pt"，运行时会自动 * S
+const STAGE_CARD = {
+  marginV: 12,       // 卡片上下边距
+  marginH: 46,       // 卡片左右边距（留出箭头空间）
+  headerH: 52,       // 标题横幅高度
+  footerH: 22,       // 圆底至卡片底（含当前星级一行 + 边距）
+  gap: 4,            // 头/图、图/底 间隙
+  innerPad: 14,      // 立绘区左右内边距
+  cardRadius: 16,    // 卡片圆角
+  imgRadius: 12,     // 立绘圆角
+  imgInset: 10,      // 立绘在容器内再缩进的边距（0 = 贴满）
+  maxImgPt: 160,   // 立绘圆直径上限（pt）
+  /** 与 titleView drawStartBtn 星级说明条一致，用于秘境块垂直锚定 */
+  condPanelPt: 38,
+  condAboveStartBtnPt: 10,
+  /** 怪物卡片底边与星级说明条顶边的间距 */
+  blockAboveCondGapPt: 6,
+  bgAlpha: 0.92,     // 卡片底板透明度
+  borderAlpha: 0.42, // 卡片外框透明度 (0~1)
+}
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -183,4 +205,6 @@ module.exports = {
   COMBO_MILESTONE_INTERVAL,
   getComboTier,
   isComboMilestone,
+  // 秘境选关卡片布局
+  STAGE_CARD,
 }

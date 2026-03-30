@@ -634,13 +634,13 @@ function getNextStageId(stageId) {
   return nextChStages.length > 0 ? nextChStages[0].id : null
 }
 
-/** 获取可浏览关卡列表：所有已解锁 + 紧邻的下一个未解锁关卡（作为预告） */
+/** 获取可浏览关卡列表：仅返回已解锁的关卡 */
 function getBrowsableStages(clearRecord) {
   const result = []
   for (const stage of STAGES) {
     const unlocked = isStageUnlocked(stage.id, clearRecord, 0)
-    result.push({ stage, unlocked })
     if (!unlocked) break
+    result.push({ stage, unlocked })
   }
   return result
 }

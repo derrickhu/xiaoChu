@@ -165,7 +165,6 @@ class Main {
       'assets/ui/btn_mode_switch.png',
       'assets/ui/lock.png',
       'assets/ui/tower_rogue.png',
-      'assets/ui/gate_stage.png',
       // 底部导航栏图标及背景
       'assets/ui/nav_bar_bg.png',
       'assets/ui/nav_hero.png',
@@ -185,6 +184,7 @@ class Main {
       'assets/ui/icon_stamina.png',
       'assets/ui/icon_cult_exp.png',
       'assets/ui/icon_pet_exp.png',
+      'assets/ui/icon_soul_stone.png',
       // 角色形象（首页头像立即显示，不延迟）
       'assets/hero/char_boy1.png',
       'assets/hero/char_girl1.png',

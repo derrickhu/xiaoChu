@@ -149,6 +149,17 @@ function tTitle(g, type, x, y) {
     return
   }
 
+  // ④b 秘境左右箭头按钮
+  if (isStageMode) {
+    if (g._stageArrowLeftRect && g._hitRect(x, y, ...g._stageArrowLeftRect) && g._selectedStageIdx > 0) {
+      g._selectedStageIdx--; return
+    }
+    if (g._stageArrowRightRect && g._hitRect(x, y, ...g._stageArrowRightRect)) {
+      const _list = getBrowsableStages(g.storage.stageClearRecord)
+      if (g._selectedStageIdx < _list.length - 1) { g._selectedStageIdx++; return }
+    }
+  }
+
   // ⑤ 开始按钮
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
     if (isStageMode) {
