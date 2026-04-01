@@ -12,10 +12,9 @@ const { STAGE_CARD: SC, TITLE_LOGO } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
 
-// 模式配置（秘境首页已改为卡片选关，不再使用 gate_stage 图）
 const MODE_CFG = {
   tower: { name: '通天塔', img: 'assets/ui/tower_rogue.png', icon: '⚔', switchKey: 'stage' },
-  stage: { name: '灵兽秘境', img: 'assets/ui/tower_rogue.png', icon: '🏯', switchKey: 'tower' },
+  stage: { name: '灵兽秘境', img: 'assets/ui/gate_stage.png', icon: '🏯', switchKey: 'tower' },
 }
 
 // ===== ZONE 1: 顶栏（游戏标题Logo，位于状态栏下方）=====
@@ -80,6 +79,8 @@ function drawSceneArea(g) {
     return
   }
 
+  g._stageOverrideBtnY = null
+
   const imgPath = MODE_CFG[mode].img
   const towerImg = R.getImg(imgPath)
   const sceneH = L.petRowY - L.topBarBottom
@@ -107,62 +108,67 @@ function drawSceneArea(g) {
 function _drawStageSceneArea(g, ctx, R, W, S, L) {
   if (!g._stageDifficulty) g._stageDifficulty = 'normal'
   const isElite = g._stageDifficulty === 'elite'
-
   const entry = _getDisplayStage(g)
-
   const sceneTop = L.topBarBottom
-  const sceneBot = L.petRowY
-  const sceneH = sceneBot - sceneTop
   const cx = W / 2
 
-  // ── 布局：标题横幅 + 怪物卡片（两段式）──
+  // ── 仙门图尺寸（门优先，按钮跟着门走）──
+  const gateImg = R.getImg('assets/ui/gate_stage.png')
+  const gateNatW = (gateImg && gateImg.width > 0) ? gateImg.width : 512
+  const gateNatH = (gateImg && gateImg.height > 0) ? gateImg.height : 685
+  const gateAspect = gateNatH / gateNatW
+
+  const portalRelCx = 0.50
+  const portalRelCy = 0.52
+  const portalRelR = 0.245
+
+  const tabH = 24 * S
+  const tabGap = 4 * S
+  const titleBlockH = 30 * S
+  const titleGateGap = 2 * S
+  const gateStarGap = 6 * S
+  const starH = 18 * S
   const marginV = SC.marginV * S
-  const marginH = SC.marginH * S
-  const cardR = SC.cardRadius * S
-  const innerPad = SC.innerPad * S
-  const bannerH = SC.headerH * S
-  const footerH = SC.footerH * S
-  const gap = SC.gap * S
-  const imgInset = SC.imgInset * S
-  const bannerGap = 8 * S
-  const cardPadTop = 6 * S
-
-  const cardX = marginH
-  const cardW = W - marginH * 2
-
-  const maxByWidth = cardW - innerPad * 2
-  const maxByConfig = SC.maxImgPt ? SC.maxImgPt * S : Infinity
-  const imgSide = Math.min(maxByWidth, maxByConfig)
-
-  // 怪物卡片按内容紧凑高度（不再拉满到场景底，避免圆与星级之间大块空白）
-  const cardH = cardPadTop + imgSide + gap + footerH
-  const totalBlockH = bannerH + bannerGap + cardH
   const minTop = sceneTop + marginV
-  // 底边贴在星级说明条上方（与 drawStartBtn 中 condY 同一套尺寸）
-  const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
+
+  // 可用高度 = 顶栏下方到底栏上方
+  const bottomLimit = L.bottomBarY || (V.H - 72 * S)
+  const nonGateH = tabH + tabGap + titleBlockH + titleGateGap + gateStarGap + starH
+  const maxGateH = (bottomLimit - minTop) * 0.58
+  const gateWDesired = W * 0.72
+  const gateHDesired = gateWDesired * gateAspect
+
+  let gateW, gateH
+  if (gateHDesired > maxGateH) {
+    gateH = maxGateH
+    gateW = gateH / gateAspect
+  } else {
+    gateW = gateWDesired
+    gateH = gateHDesired
+  }
+
+  // 从顶部向下排列：Tab → 标题区 → 门 → 星级
+  const tabY = minTop
+  const titleTopY = tabY + tabH + tabGap
+  const gateX = cx - gateW / 2
+  const gateY = titleTopY + titleBlockH + titleGateGap
+  const starBaseY = gateY + gateH + gateStarGap
+
   const condAboveBtn = (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
-  const blockAboveCond = (SC.blockAboveCondGapPt != null ? SC.blockAboveCondGapPt : 12) * S
-  const condTop = L.startBtnY - condPanelH - condAboveBtn
-  const blockBottomTarget = condTop - blockAboveCond
-  const tabH = 26 * S
-  const tabGap = 5 * S
-  const fullBlockH = totalBlockH + tabH + tabGap
-  let blockTopY = blockBottomTarget - fullBlockH
-  if (blockTopY < minTop) blockTopY = minTop
+  const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
+  const stageCondY = starBaseY + starH + 4 * S
+  const stageBtnY = stageCondY + condPanelH + condAboveBtn
+  g._stageOverrideBtnY = stageBtnY
 
-  const tabY = blockTopY
-  let bannerY = tabY + tabH + tabGap
-
-  const cardY = bannerY + bannerH + bannerGap
-
-  const imgX = cx - imgSide / 2
-  const imgY = cardY + cardPadTop
+  const portalCx = gateX + gateW * portalRelCx
+  const portalCy = gateY + gateH * portalRelCy
+  const portalR = gateW * portalRelR
 
   ctx.save()
 
-  // ══════ 难度 Tab 切换按钮 ══════
+  // ══════ 难度 Tab ══════
   {
-    const tabW = cardW * 0.52
+    const tabW = W * 0.36
     const tabBtnW = tabW / 2
     const tabX = cx - tabW / 2
     const tabR = tabH / 2
@@ -170,14 +176,9 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     const nSel = !isElite
     ctx.save()
     ctx.fillStyle = nSel ? 'rgba(160, 120, 50, 0.85)' : 'rgba(200, 185, 150, 0.25)'
-    R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR)
-    ctx.fill()
-    if (nSel) {
-      ctx.strokeStyle = 'rgba(195, 160, 60, 0.5)'; ctx.lineWidth = 1 * S
-      R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke()
-    }
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.fill()
+    if (nSel) { ctx.strokeStyle = 'rgba(195, 160, 60, 0.5)'; ctx.lineWidth = 1 * S; R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke() }
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillStyle = nSel ? '#fff' : 'rgba(120, 100, 70, 0.6)'
     ctx.fillText('普通', tabX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
     ctx.restore()
@@ -186,14 +187,9 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     const eX = tabX + tabBtnW + 2 * S
     ctx.save()
     ctx.fillStyle = isElite ? 'rgba(180, 120, 20, 0.9)' : 'rgba(200, 185, 150, 0.25)'
-    R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR)
-    ctx.fill()
-    if (isElite) {
-      ctx.strokeStyle = 'rgba(218, 165, 32, 0.6)'; ctx.lineWidth = 1 * S
-      R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke()
-    }
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.fill()
+    if (isElite) { ctx.strokeStyle = 'rgba(218, 165, 32, 0.6)'; ctx.lineWidth = 1 * S; R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke() }
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillStyle = isElite ? '#fff8e0' : 'rgba(120, 100, 70, 0.6)'
     ctx.fillText('精英', eX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
     ctx.restore()
@@ -201,271 +197,157 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   }
 
   if (!entry) {
-    ctx.font = `${14 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.font = `${14 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillStyle = 'rgba(120, 100, 70, 0.7)'
-    ctx.fillText('🔒 需普通3星通关解锁', cx, bannerY + (sceneBot - bannerY) / 2)
+    ctx.fillText('🔒 需普通3星通关解锁', cx, gateY + gateH / 2)
     ctx.restore()
-    g._stageGateRect = null
-    g._stageArrowLeftRect = null
-    g._stageArrowRightRect = null
+    g._stageGateRect = null; g._stageArrowLeftRect = null; g._stageArrowRightRect = null
     return
   }
 
   const { stage, unlocked } = entry
   const swipeDx = g._stageSwipeDeltaX || 0
 
-  // ══════ 标题横幅（暖色渐变底 + 特效文字）══════
-  ctx.save()
-  const bx = cardX + 4 * S
-  const bw = cardW - 8 * S
-  const bR = 12 * S
-  ctx.shadowColor = 'rgba(140, 90, 30, 0.15)'
-  ctx.shadowBlur = 10 * S
-  ctx.shadowOffsetY = 2 * S
-  const bannerBg = ctx.createLinearGradient(bx, bannerY, bx, bannerY + bannerH)
-  bannerBg.addColorStop(0, 'rgba(245, 228, 195, 0.92)')
-  bannerBg.addColorStop(0.5, 'rgba(235, 215, 175, 0.94)')
-  bannerBg.addColorStop(1, 'rgba(225, 205, 162, 0.90)')
-  ctx.fillStyle = bannerBg
-  R.rr(bx, bannerY, bw, bannerH, bR)
-  ctx.fill()
-  ctx.shadowColor = 'transparent'
-  ctx.strokeStyle = 'rgba(195, 160, 60, 0.4)'
-  ctx.lineWidth = 1.2 * S
-  R.rr(bx, bannerY, bw, bannerH, bR)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(255, 245, 210, 0.45)'
-  ctx.lineWidth = 0.5 * S
-  R.rr(bx + 2 * S, bannerY + 2 * S, bw - 4 * S, bannerH - 4 * S, Math.max(1, bR - 2 * S))
-  ctx.stroke()
-  ctx.restore()
-
-  // "关卡 X-X" 主标题（清晰无描边）
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const stageLabel = `关卡 ${stage.chapter}-${stage.order}`
-  const labelFontSz = 17 * S
-  ctx.font = `bold ${labelFontSz}px "PingFang SC",sans-serif`
-  const labelCY = bannerY + bannerH * 0.30
-
-  ctx.save()
-  ctx.strokeStyle = 'rgba(255, 242, 205, 0.6)'
-  ctx.lineWidth = 3.5 * S
-  ctx.lineJoin = 'round'
-  ctx.strokeText(stageLabel, cx, labelCY)
-  ctx.shadowColor = 'rgba(100, 60, 10, 0.2)'
-  ctx.shadowBlur = 2 * S
-  ctx.shadowOffsetY = 1 * S
-  ctx.fillStyle = '#5a2d05'
-  ctx.fillText(stageLabel, cx, labelCY)
-  ctx.restore()
-
-  // 装饰分隔线
-  const divY = bannerY + bannerH * 0.52
-  ctx.save()
-  ctx.strokeStyle = 'rgba(185, 150, 70, 0.3)'
-  ctx.lineWidth = 0.8 * S
-  const divHalfW = 28 * S
-  ctx.beginPath()
-  ctx.moveTo(cx - divHalfW, divY)
-  ctx.lineTo(cx + divHalfW, divY)
-  ctx.stroke()
-  ctx.fillStyle = 'rgba(195, 160, 65, 0.45)'
-  ctx.beginPath()
-  ctx.arc(cx, divY, 1.5 * S, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.restore()
-
-  // 关卡名称（分隔线下方）
-  let nameFontPx = 12 * S
-  ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
-  const maxNameW = bw - innerPad * 2
-  while (ctx.measureText(stage.name).width > maxNameW && nameFontPx > 9 * S) {
-    nameFontPx -= S
-    ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
+  // ══════ 仙门主体 ══════
+  if (gateImg && gateImg.width > 0) {
+    ctx.drawImage(gateImg, gateX, gateY, gateW, gateH)
   }
-  const nameCY = bannerY + bannerH * 0.76
-  ctx.save()
-  ctx.fillStyle = 'rgba(100, 65, 20, 0.7)'
-  ctx.fillText(stage.name, cx, nameCY)
-  ctx.restore()
 
-  // ══════ 怪物卡片（暖色渐变 + 金框）══════
-  ctx.save()
-  ctx.shadowColor = 'rgba(120, 80, 20, 0.14)'
-  ctx.shadowBlur = 12 * S
-  ctx.shadowOffsetY = 2 * S
-  const mcBg = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH)
-  mcBg.addColorStop(0, 'rgba(255, 250, 240, 0.90)')
-  mcBg.addColorStop(0.5, 'rgba(248, 238, 215, 0.86)')
-  mcBg.addColorStop(1, 'rgba(240, 225, 195, 0.88)')
-  ctx.fillStyle = mcBg
-  R.rr(cardX, cardY, cardW, cardH, cardR)
-  ctx.fill()
-  ctx.shadowColor = 'transparent'
-  ctx.strokeStyle = isElite ? 'rgba(218, 165, 32, 0.65)' : 'rgba(195, 158, 60, 0.36)'
-  ctx.lineWidth = isElite ? 2 * S : 1.2 * S
-  R.rr(cardX, cardY, cardW, cardH, cardR)
-  ctx.stroke()
-  const fInset = 4 * S
-  ctx.strokeStyle = 'rgba(200, 170, 80, 0.18)'
-  ctx.lineWidth = 0.6 * S
-  R.rr(cardX + fInset, cardY + fInset, cardW - fInset * 2, cardH - fInset * 2, Math.max(1, cardR - 3 * S))
-  ctx.stroke()
-  ctx.restore()
+  // ══════ 关卡标题（Tab 和门之间的独立区域）══════
+  {
+    const stageLabel = `${stage.chapter}-${stage.order}`
+    const mainY = titleTopY + 10 * S
+    const subY = titleTopY + 24 * S
 
-  // ── 灵力光晕（怪物背后的柔光场）──
-  const portalCx = cx
-  const portalCy = imgY + imgSide / 2
-  const portalR = imgSide * 0.58
-  ctx.save()
-  const outerAura = ctx.createRadialGradient(portalCx, portalCy, portalR * 0.1, portalCx, portalCy, portalR)
-  outerAura.addColorStop(0, 'rgba(255, 250, 230, 0.36)')
-  outerAura.addColorStop(0.5, 'rgba(242, 228, 185, 0.12)')
-  outerAura.addColorStop(1, 'rgba(228, 210, 160, 0)')
-  ctx.fillStyle = outerAura
-  ctx.beginPath()
-  ctx.arc(portalCx, portalCy, portalR, 0, Math.PI * 2)
-  ctx.fill()
-  const innerAura = ctx.createRadialGradient(portalCx, portalCy - 2 * S, 0, portalCx, portalCy, portalR * 0.4)
-  innerAura.addColorStop(0, 'rgba(255, 255, 250, 0.3)')
-  innerAura.addColorStop(0.6, 'rgba(255, 248, 228, 0.08)')
-  innerAura.addColorStop(1, 'rgba(250, 240, 210, 0)')
-  ctx.fillStyle = innerAura
-  ctx.beginPath()
-  ctx.arc(portalCx, portalCy, portalR * 0.5, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.beginPath()
-  ctx.arc(portalCx, portalCy, portalR * 0.7, 0, Math.PI * 2)
-  ctx.strokeStyle = 'rgba(210, 180, 100, 0.13)'
-  ctx.lineWidth = S
-  ctx.stroke()
-  ctx.restore()
+    ctx.save()
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+    ctx.strokeStyle = 'rgba(255, 245, 215, 0.7)'; ctx.lineWidth = 3 * S; ctx.lineJoin = 'round'
+    ctx.strokeText(stageLabel, cx, mainY)
+    ctx.fillStyle = '#4a2205'
+    ctx.fillText(stageLabel, cx, mainY)
+    ctx.restore()
 
-  // ── 立绘区域（圆形裁切）──
-  const clipR = imgSide / 2
+    let nameFontPx = 10 * S
+    ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
+    const maxNameW = gateW * 0.6
+    while (ctx.measureText(stage.name).width > maxNameW && nameFontPx > 8 * S) {
+      nameFontPx -= S; ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
+    }
+    ctx.save()
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(80, 50, 15, 0.6)'
+    ctx.fillText(stage.name, cx, subY)
+    ctx.restore()
+  }
+
+  // ── 门内灵力光效（脉冲动画）──
+  const af = g.af || 0
+  const pulse = 0.6 + 0.4 * Math.sin(af * 0.04)
   ctx.save()
   ctx.beginPath()
-  ctx.arc(portalCx, portalCy, clipR, 0, Math.PI * 2)
+  ctx.arc(portalCx, portalCy, portalR * 1.15, 0, Math.PI * 2)
   ctx.clip()
 
-  const glow = ctx.createRadialGradient(portalCx, portalCy - imgSide * 0.08, imgSide * 0.06, portalCx, portalCy, clipR)
-  glow.addColorStop(0, 'rgba(255,252,240,0.4)')
-  glow.addColorStop(0.5, 'rgba(245,235,210,0.1)')
-  glow.addColorStop(1, 'rgba(235,218,185,0)')
-  ctx.fillStyle = glow
-  ctx.fillRect(imgX, imgY, imgSide, imgSide)
+  const outerGlow = ctx.createRadialGradient(portalCx, portalCy, portalR * 0.1, portalCx, portalCy, portalR * 1.15)
+  outerGlow.addColorStop(0, `rgba(200, 220, 255, ${0.12 * pulse})`)
+  outerGlow.addColorStop(0.5, `rgba(180, 200, 240, ${0.06 * pulse})`)
+  outerGlow.addColorStop(1, 'rgba(160, 180, 220, 0)')
+  ctx.fillStyle = outerGlow
+  ctx.fillRect(portalCx - portalR * 1.2, portalCy - portalR * 1.2, portalR * 2.4, portalR * 2.4)
+  ctx.restore()
 
+  // ── 怪物头像（圆形嵌入门中央）──
   const bossAvatarPath = getStageBossAvatar(stage)
   const bossImg = bossAvatarPath ? R.getImg(bossAvatarPath) : null
+  const avatarClipR = portalR
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(portalCx, portalCy, avatarClipR, 0, Math.PI * 2)
+  ctx.clip()
+
   if (bossImg && bossImg.width > 0) {
-    const sw = bossImg.width, sh = bossImg.height
     if (!unlocked) ctx.globalAlpha = 0.4
-    // 整图「包含」进圆内：按比例缩放，四角落在圆内（不切头尾）
-    const Rin = Math.max(2 * S, clipR - imgInset)
+    const sw = bossImg.width, sh = bossImg.height
+    // 对角线法：整个矩形图片内接于圆，四角不被裁切
     const diag = Math.sqrt(sw * sw + sh * sh)
-    const scale = diag > 0 ? (2 * Rin) / diag : 0
-    const drawW = Math.max(1, sw * scale)
-    const drawH = Math.max(1, sh * scale)
-    const drawX = portalCx - drawW / 2 + swipeDx
-    const drawY = portalCy - drawH / 2
-    ctx.drawImage(bossImg, drawX, drawY, drawW, drawH)
+    const sc = diag > 0 ? (2 * avatarClipR) / diag : 0
+    const dw = sw * sc, dh = sh * sc
+    ctx.drawImage(bossImg, portalCx - dw / 2 + swipeDx, portalCy - dh / 2, dw, dh)
     ctx.globalAlpha = 1
   } else {
     ctx.fillStyle = unlocked ? 'rgba(110,75,40,0.55)' : 'rgba(80,80,80,0.4)'
     ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-    ctx.fillText(getStageBossName(stage) || stage.name, cx + swipeDx, imgY + imgSide / 2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(getStageBossName(stage) || stage.name, portalCx + swipeDx, portalCy)
   }
+
   if (!unlocked) {
-    ctx.fillStyle = 'rgba(0,0,0,0.4)'
-    ctx.fillRect(imgX, imgY, imgSide, imgSide)
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'
+    ctx.fillRect(portalCx - avatarClipR, portalCy - avatarClipR, avatarClipR * 2, avatarClipR * 2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.font = `${28 * S}px sans-serif`
-    ctx.fillText('🔒', cx, imgY + imgSide * 0.4)
+    ctx.fillText('🔒', portalCx, portalCy - 6 * S)
     const reason = isElite ? getEliteLockReason(stage.id, g.storage.stageClearRecord) : null
     if (reason) {
-      ctx.font = `${10 * S}px "PingFang SC",sans-serif`
-      ctx.fillStyle = 'rgba(255,220,120,0.9)'
-      ctx.fillText(reason, cx, imgY + imgSide * 0.65)
+      ctx.font = `${10 * S}px "PingFang SC",sans-serif`; ctx.fillStyle = 'rgba(255,220,120,0.9)'
+      ctx.fillText(reason, portalCx, portalCy + 14 * S)
     }
   }
   ctx.restore()
 
-  // 金色圆环边框
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(portalCx, portalCy, clipR + 1.5 * S, 0, Math.PI * 2)
-  const ringGrad = ctx.createLinearGradient(portalCx - clipR, portalCy - clipR, portalCx + clipR, portalCy + clipR)
-  ringGrad.addColorStop(0, 'rgba(215, 185, 75, 0.48)')
-  ringGrad.addColorStop(0.5, 'rgba(250, 230, 150, 0.52)')
-  ringGrad.addColorStop(1, 'rgba(195, 160, 50, 0.48)')
-  ctx.strokeStyle = ringGrad
-  ctx.lineWidth = 2 * S
-  ctx.stroke()
-  ctx.restore()
+  // 不再画金色圆环，直接使用门图自带的灵阵边框
 
-
-  // ── 已获星级展示 ──
+  // ── 已获星级展示（门下方）──
   if (unlocked && stage.rating) {
     const bestRt = g.storage.getStageBestRating(stage.id)
     const bestSt = bestRt ? (RATING_ORDER[bestRt] || 0) : 0
-    const starY = portalCy + clipR + 10 * S
     const starFontSz = 16 * S
     ctx.save()
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.font = `${starFontSz}px sans-serif`
     let starStr = ''
-    for (let si = 1; si <= 3; si++) {
-      starStr += si <= bestSt ? '★' : '☆'
-    }
+    for (let si = 1; si <= 3; si++) starStr += si <= bestSt ? '★' : '☆'
     ctx.shadowColor = bestSt > 0 ? 'rgba(220, 170, 30, 0.45)' : 'transparent'
     ctx.shadowBlur = 6 * S
     ctx.fillStyle = bestSt > 0 ? '#c89520' : 'rgba(160, 140, 100, 0.4)'
-    ctx.fillText(starStr, cx, starY)
+    ctx.fillText(starStr, cx, starBaseY)
     ctx.restore()
   }
 
+  // ── 左右切换箭头（门两侧半透明胶囊）──
   const list = _ensureBrowsableList(g)
+  const arrowCY = portalCy
+  const arrowW = 24 * S, arrowH = 40 * S, arrowR = 8 * S
 
-  // ── 左右切换箭头 ──
-  const arrowCY = imgY + imgSide / 2
-  const arrowR = 16 * S
-  function _drawArrowBtn(acx, acy, symbol) {
+  function _drawArrowBtn(ax, ay, symbol) {
     ctx.save()
-    ctx.beginPath()
-    ctx.arc(acx, acy, arrowR, 0, Math.PI * 2)
-    const aGrad = ctx.createRadialGradient(acx, acy - 2 * S, 0, acx, acy, arrowR)
-    aGrad.addColorStop(0, 'rgba(220, 185, 80, 0.92)')
-    aGrad.addColorStop(1, 'rgba(160, 115, 35, 0.82)')
-    ctx.fillStyle = aGrad
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(255, 235, 160, 0.6)'
-    ctx.lineWidth = 1.2 * S
-    ctx.stroke()
-    ctx.font = `bold ${15 * S}px sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#fff8e0'
-    ctx.fillText(symbol, acx, acy)
+    ctx.fillStyle = 'rgba(60, 45, 25, 0.35)'
+    R.rr(ax, ay, arrowW, arrowH, arrowR); ctx.fill()
+    ctx.strokeStyle = 'rgba(200, 170, 80, 0.4)'; ctx.lineWidth = 1 * S
+    R.rr(ax, ay, arrowW, arrowH, arrowR); ctx.stroke()
+    ctx.font = `bold ${16 * S}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(255, 245, 210, 0.85)'
+    ctx.fillText(symbol, ax + arrowW / 2, ay + arrowH / 2)
     ctx.restore()
   }
-  if (g._selectedStageIdx > 0) {
-    const lx = arrowR + 6 * S
-    _drawArrowBtn(lx, arrowCY, '◀')
-    g._stageArrowLeftRect = [lx - arrowR, arrowCY - arrowR, arrowR * 2, arrowR * 2]
-  } else {
-    g._stageArrowLeftRect = null
-  }
-  if (g._selectedStageIdx < list.length - 1) {
-    const rx = W - arrowR - 6 * S
-    _drawArrowBtn(rx, arrowCY, '▶')
-    g._stageArrowRightRect = [rx - arrowR, arrowCY - arrowR, arrowR * 2, arrowR * 2]
-  } else {
-    g._stageArrowRightRect = null
-  }
 
-  const totalH = bannerH + bannerGap + cardH
-  g._stageGateRect = [cardX, bannerY, cardW, totalH]
+  if (g._selectedStageIdx > 0) {
+    const lx = Math.max(2 * S, gateX - arrowW - 4 * S)
+    const ly = arrowCY - arrowH / 2
+    _drawArrowBtn(lx, ly, '◀')
+    g._stageArrowLeftRect = [lx, ly, arrowW, arrowH]
+  } else { g._stageArrowLeftRect = null }
+
+  if (g._selectedStageIdx < list.length - 1) {
+    const rx = Math.min(W - arrowW - 2 * S, gateX + gateW + 4 * S)
+    const ry = arrowCY - arrowH / 2
+    _drawArrowBtn(rx, ry, '▶')
+    g._stageArrowRightRect = [rx, ry, arrowW, arrowH]
+  } else { g._stageArrowRightRect = null }
+
+  g._stageGateRect = [gateX, gateY, gateW, gateH + gateStarGap + starH]
   ctx.restore()
 }
 
@@ -681,7 +563,7 @@ function drawStartBtn(g) {
     const btnW = W * 0.60
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
-    const btnY = L.startBtnY
+    const btnY = g._stageOverrideBtnY || L.startBtnY
 
     // 按钮底图
     const btnImg = R.getImg('assets/ui/btn_start.png')
@@ -804,7 +686,7 @@ function drawStartBtn(g) {
       ctx.fillStyle = 'rgba(80,50,20,0.6)'
       ctx.font = `${10*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
+      ctx.fillText(progressText, W / 2, btnY + btnH + 10 * S)
     }
   }
 
