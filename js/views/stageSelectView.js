@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { CHAPTERS, getChapterStages, isChapterUnlocked, isStageUnlocked, getStageAttr, getStageById } = require('../data/stages')
+const { CHAPTERS, getChapterStages, isChapterUnlocked, isStageUnlocked, getStageAttr, getStageById, getEnemyPortraitPath } = require('../data/stages')
 const { CHAPTER_MILESTONES } = require('../data/economyConfig')
 const { drawSeparator } = require('./uiUtils')
 const MusicMgr = require('../runtime/music')
@@ -270,8 +270,8 @@ function rStageSelect(g) {
       c.fillRect(cardX, curY, cardW, cardH)
 
       // Boss 头像（填满左侧，无边框，与卡片融为一体）
-      const bossAvatarName = bossEnemy.avatar ? bossEnemy.avatar.replace('stage_enemies/', '') : null
-      const bossAvatar = bossAvatarName ? R.getImg(`assets/stage_avatars/${bossAvatarName}_avatar.png`) : null
+      const bossPortraitPath = getEnemyPortraitPath(bossEnemy.avatar)
+      const bossAvatar = bossPortraitPath ? R.getImg(bossPortraitPath) : null
       if (bossAvatar && bossAvatar.width > 0) {
         c.drawImage(bossAvatar, cardX, curY, avatarSz, avatarSz)
       } else {

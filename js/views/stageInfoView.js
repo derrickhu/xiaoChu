@@ -9,7 +9,7 @@ const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr } = require('../data/stages')
+const { getStageById, getStageAttr, getEnemyPortraitPath } = require('../data/stages')
 const { STAR_REWARDS } = require('../data/economyConfig')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
@@ -335,8 +335,8 @@ function rStageInfo(g) {
     c.fillStyle = 'rgba(60,40,30,0.85)'
     R.rr(ex, iy, enemySize, enemySize, eR); c.fill()
     // 头像图片
-    const avatarName = enemy.avatar ? enemy.avatar.replace('stage_enemies/', '') : null
-    const avatarImg = avatarName ? R.getImg(`assets/stage_avatars/${avatarName}_avatar.png`) : null
+    const portraitPath = getEnemyPortraitPath(enemy.avatar)
+    const avatarImg = portraitPath ? R.getImg(portraitPath) : null
     if (avatarImg && avatarImg.width > 0) {
       c.save()
       R.rr(ex + 1 * S, iy + 1 * S, enemySize - 2 * S, enemySize - 2 * S, eR - 1 * S); c.clip()
@@ -627,8 +627,8 @@ function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {
   const avatarR = 6 * S
   c.fillStyle = 'rgba(0,0,0,0.08)'
   R.rr(avatarX, avatarY, avatarSz, avatarSz, avatarR); c.fill()
-  const avatarName = enemy.avatar ? enemy.avatar.replace('stage_enemies/', '') : null
-  const avatarImg = avatarName ? R.getImg(`assets/stage_avatars/${avatarName}_avatar.png`) : null
+  const portraitPath = getEnemyPortraitPath(enemy.avatar)
+  const avatarImg = portraitPath ? R.getImg(portraitPath) : null
   if (avatarImg && avatarImg.width > 0) {
     c.save()
     R.rr(avatarX + 1 * S, avatarY + 1 * S, avatarSz - 2 * S, avatarSz - 2 * S, avatarR - 1 * S); c.clip()

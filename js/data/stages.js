@@ -583,6 +583,32 @@ function getBrowsableStages(clearRecord, difficulty) {
   return result
 }
 
+/** 塔/通用怪关卡头像（与 stage_avatars 分包区分，避免预编译把 enemies/ 误代入 _avatar 路径） */
+function getTowerEnemyPortraitPath(avatar) {
+  if (!avatar || typeof avatar !== 'string') return null
+  const id = avatar.replace(/^enemies\//, '').replace(/\.png$/i, '')
+  if (!id || id.includes('/')) return null
+  return 'assets/enemies/' + id + '.png'
+}
+
+/** 秘境定制怪头像（stage_enemies 表） */
+function getStageEnemyPortraitPath(avatar) {
+  if (!avatar || typeof avatar !== 'string') return null
+  const slug = avatar.replace(/^stage_enemies\//, '')
+  if (!slug || slug === avatar || slug.includes('/')) return null
+  return 'assets/stage_avatars/' + slug + '_avatar.png'
+}
+
+/**
+ * 关卡信息/选关等 UI 用：先分流再拼路径，减少微信开发者工具静态扫描误报 stage_avatars/enemies/...
+ */
+function getEnemyPortraitPath(avatar) {
+  if (!avatar || typeof avatar !== 'string') return null
+  if (avatar.startsWith('enemies/')) return getTowerEnemyPortraitPath(avatar)
+  if (avatar.startsWith('stage_enemies/')) return getStageEnemyPortraitPath(avatar)
+  return null
+}
+
 function getStageBossAvatar(stage) {
   if (!stage || !stage.waves || !stage.waves.length) return null
   const lastWave = stage.waves[stage.waves.length - 1]
@@ -618,6 +644,7 @@ module.exports = {
   getNextStageId,
   getBrowsableStages,
   getStageBossAvatar,
+  getEnemyPortraitPath,
   getStageBossName,
   getStageRewardDifficulty,
 }

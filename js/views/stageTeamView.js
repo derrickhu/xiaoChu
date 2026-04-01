@@ -521,14 +521,30 @@ function tStageTeam(g, x, y, type) {
     }
   }
 
-  // 宠物卡片（选入/取消）
+  // 宠物卡片（选入/取消；同属性最多一只，点选同属性其他宠会替换该槽位）
   for (const item of _rects.petCardRects) {
     if (g._hitRect(x, y, ...item.rect)) {
       const idx = selected.indexOf(item.petId)
       if (idx >= 0) {
         selected.splice(idx, 1)
+        return
+      }
+      const pet = getPetById(item.petId)
+      if (!pet || pet.attr == null || pet.attr === '') {
+        if (selected.length < stage.teamSize.max) selected.push(item.petId)
+        else P.showGameToast('编队已满')
+        return
+      }
+      const dupIdx = selected.findIndex(pid => {
+        const p = getPetById(pid)
+        return p && p.attr === pet.attr
+      })
+      if (dupIdx >= 0) {
+        selected[dupIdx] = item.petId
       } else if (selected.length < stage.teamSize.max) {
         selected.push(item.petId)
+      } else {
+        P.showGameToast('编队已满')
       }
       return
     }

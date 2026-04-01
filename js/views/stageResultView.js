@@ -8,7 +8,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
-const { RARITY_VISUAL } = require('../data/economyConfig')
+const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
 const { MAX_LEVEL, expToNextLevel, currentRealm, usedPoints } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
@@ -22,16 +22,36 @@ const _rects = {
 let _animTimer = 0
 let _lastScene = null
 
+/** 胜利结算奖励面板：总可滚高度超出屏高时，在面板可视区内滚动 */
+let _victoryRewardScroll = 0
+let _victoryRewardScrollMax = 0
+let _victoryRewardViewport = null
+let _victScrollActive = false
+let _victScrollStartY = 0
+let _victScrollLastY = 0
+let _victScrollMoved = false
+
 function rStageResult(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
 
-  if (_lastScene !== 'stageResult') { _animTimer = 0; _lastScene = 'stageResult' }
+  if (_lastScene !== 'stageResult') {
+    _animTimer = 0
+    _lastScene = 'stageResult'
+    _victoryRewardScroll = 0
+    _victoryRewardScrollMax = 0
+    _victoryRewardViewport = null
+  }
   _animTimer++
   const at = _animTimer
   const fadeIn = Math.min(1, at / 20)
 
   const result = g._stageResult
   if (!result) return
+
+  if (!result.victory) {
+    _victoryRewardScrollMax = 0
+    _victoryRewardViewport = null
+  }
 
   // 首次进入结算页时，检测是否需要触发新手宠物庆祝（1-1 和 1-2 首通均触发）
   if (at === 1 && !result._celebrateTriggered && result.victory && result.isFirstClear
@@ -85,34 +105,328 @@ function _strokeText(c, text, x, y, strokeColor, strokeWidth) {
   c.fillText(text, x, y)
 }
 
-// ===== 胜利全屏 =====
-function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
-  c.fillStyle = 'rgba(255,240,200,0.1)'
-  c.fillRect(0, 0, W, H)
-
-  // 旋转光芒
+/** 关卡通关页：暗角 + 强放射光 + 金粉粒子（参考高满足感获得页） */
+function _drawCelebrationBackdrop(c, W, H, S, centerY, at, fadeIn) {
   c.save()
-  c.globalAlpha = fadeIn * (0.06 + 0.03 * Math.sin(at * 0.04))
-  c.translate(W * 0.5, safeTop + 80 * S)
-  c.rotate(at * 0.003)
-  for (let i = 0; i < 12; i++) {
-    c.rotate(Math.PI / 6)
+  c.globalAlpha = fadeIn
+  const vig = c.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.12, W * 0.5, H * 0.45, Math.max(W, H) * 0.72)
+  vig.addColorStop(0, 'rgba(55,38,22,0)')
+  vig.addColorStop(1, 'rgba(18,12,8,0.62)')
+  c.fillStyle = vig
+  c.fillRect(0, 0, W, H)
+  c.fillStyle = 'rgba(90,55,28,0.14)'
+  c.fillRect(0, 0, W, H)
+  c.restore()
+
+  c.save()
+  c.globalAlpha = fadeIn * (0.14 + 0.07 * Math.sin(at * 0.034))
+  c.translate(W * 0.5, centerY)
+  c.rotate(at * 0.0023)
+  const nRays = 16
+  for (let i = 0; i < nRays; i++) {
+    c.rotate((Math.PI * 2) / nRays)
     c.beginPath(); c.moveTo(0, 0)
-    c.lineTo(-16 * S, -H * 0.35); c.lineTo(16 * S, -H * 0.35)
+    c.lineTo(-24 * S, -H * 0.55); c.lineTo(24 * S, -H * 0.55)
     c.closePath()
-    c.fillStyle = '#ffd700'; c.fill()
+    const rg = c.createLinearGradient(0, 0, 0, -H * 0.52)
+    rg.addColorStop(0, 'rgba(255,235,160,0.95)')
+    rg.addColorStop(0.35, 'rgba(255,200,80,0.35)')
+    rg.addColorStop(1, 'rgba(255,180,40,0)')
+    c.fillStyle = rg
+    c.fill()
   }
   c.restore()
 
-  // 金色径向光晕
   c.save()
-  c.globalAlpha = fadeIn * 0.7
-  const glow = c.createRadialGradient(W * 0.5, safeTop + 80 * S, 0, W * 0.5, safeTop + 80 * S, W * 0.5)
-  glow.addColorStop(0, 'rgba(255,215,0,0.25)')
-  glow.addColorStop(0.5, 'rgba(255,200,0,0.08)')
-  glow.addColorStop(1, 'rgba(255,215,0,0)')
-  c.fillStyle = glow; c.fillRect(0, 0, W, H)
+  c.globalAlpha = fadeIn * 0.88
+  const glow = c.createRadialGradient(W * 0.5, centerY, 0, W * 0.5, centerY, W * 0.68)
+  glow.addColorStop(0, 'rgba(255,220,120,0.38)')
+  glow.addColorStop(0.42, 'rgba(255,170,70,0.14)')
+  glow.addColorStop(1, 'rgba(255,200,80,0)')
+  c.fillStyle = glow
+  c.fillRect(0, 0, W, H)
   c.restore()
+
+  c.save()
+  c.globalAlpha = fadeIn * 0.5
+  const t = at * 0.018
+  for (let i = 0; i < 26; i++) {
+    const sx = ((Math.sin(i * 12.9898 + t * 1.1) * 0.5 + 0.5) * 0.92 + 0.04) * W
+    const sy = ((Math.cos(i * 7.1234 + t * 0.75) * 0.5 + 0.5) * 0.78 + 0.06) * H
+    const r = (2.5 + (i % 6)) * S * (0.85 + 0.15 * Math.sin(at * 0.048 + i * 0.7))
+    const ga = 0.12 + 0.14 * Math.sin(at * 0.07 + i)
+    c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2)
+    c.fillStyle = `rgba(255,230,180,${ga})`
+    c.fill()
+  }
+  c.globalAlpha = fadeIn * 0.65
+  for (let i = 0; i < 36; i++) {
+    const sx = (i * 113 + at * 1.7 + Math.sin(i) * 40) % (W - 4 * S)
+    const sy = (i * 67 + at * 1.1) % (H * 0.92)
+    const tw = (1 + (i % 3)) * S
+    c.fillStyle = `rgba(255,255,255,${0.18 + 0.22 * Math.sin(at * 0.11 + i)})`
+    c.fillRect(sx, sy, tw, tw)
+  }
+  c.restore()
+}
+
+function _drawPedestalCloud(c, R, S, cx, avatarBottomY, width) {
+  const cy = avatarBottomY - 4 * S
+  const rx = width * 0.5
+  const ry = 14 * S
+  const grd = c.createRadialGradient(cx, cy - 4 * S, 0, cx, cy, rx * 1.1)
+  grd.addColorStop(0, 'rgba(255,250,240,0.82)')
+  grd.addColorStop(0.45, 'rgba(255,235,210,0.4)')
+  grd.addColorStop(1, 'rgba(255,210,170,0)')
+  c.fillStyle = grd
+  c.beginPath()
+  if (typeof c.ellipse === 'function') {
+    c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  } else {
+    R.rr(cx - rx, cy - ry, rx * 2, ry * 2, ry)
+  }
+  c.fill()
+}
+
+function _drawRarityDiamondBadge(c, S, cx, cy, rv, tag) {
+  const r = 11 * S
+  c.save()
+  c.translate(cx, cy)
+  c.rotate(-0.1)
+  c.beginPath()
+  c.moveTo(0, -r)
+  c.lineTo(r * 0.92, 0)
+  c.lineTo(0, r)
+  c.lineTo(-r * 0.92, 0)
+  c.closePath()
+  c.shadowColor = rv.glowColor || 'rgba(180,100,255,0.55)'
+  c.shadowBlur = 10 * S
+  c.fillStyle = rv.badgeBg || 'rgba(80,30,120,0.9)'
+  c.fill()
+  c.strokeStyle = rv.borderColor
+  c.lineWidth = 1.2 * S
+  c.stroke()
+  c.shadowBlur = 0
+  c.fillStyle = rv.badgeColor
+  c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText(tag, 0, 0.5 * S)
+  c.restore()
+}
+
+/** 顶部「恭喜获得」并排展示：首通灵宠 + 本次新入库法宝（与 _isFeaturedNewDrop 一致） */
+function _heroSpotlightItems(result) {
+  if (!result || !result.rewards) return []
+  return result.rewards.filter(_isFeaturedNewDrop)
+}
+
+function _heroSpotlightRewardKeys(result) {
+  const keys = new Set()
+  for (const r of _heroSpotlightItems(result)) {
+    if (r.type === 'pet' && r.petId) keys.add(`pet:${r.petId}`)
+    if (r.type === 'weapon' && r.weaponId) keys.add(`weapon:${r.weaponId}`)
+  }
+  return keys
+}
+
+function _spotlightRarityTag(rarityKey, attrKey) {
+  const rv = rarityVisualForAttr(rarityKey, attrKey || 'metal')
+  return { rv, tag: rv.label }
+}
+
+/** 关卡通关后：恭喜获得区高度（多卡并排时略压缩单卡尺寸） */
+function _victoryHeroBlockHeight(S, result) {
+  const items = _heroSpotlightItems(result)
+  const n = items.length
+  if (n === 0) return 0
+  const avatarSz = n <= 1 ? 86 * S : n === 2 ? 74 * S : 64 * S
+  const hasPet = items.some(r => r.type === 'pet')
+  const below = hasPet ? (14 * S + 20 * S + 12 * S) : (24 * S + 12 * S)
+  return 34 * S + avatarSz + below
+}
+
+function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatarY, avatarSize, at, heroCount) {
+  const petId = reward.petId
+  const pet = getPetById(petId)
+  if (!pet) return
+  const rarityKey = getPetRarity(petId)
+  const { rv, tag } = _spotlightRarityTag(rarityKey, pet.attr)
+  const poolPet = g.storage.getPoolPet(petId)
+  const starLv = (poolPet && poolPet.star) ? poolPet.star : 1
+
+  const badgeCx = avatarX + 6 * S
+  const badgeCy = avatarY + 14 * S
+  _drawRarityDiamondBadge(c, S, badgeCx, badgeCy, rv, tag)
+
+  c.save()
+  c.translate(avatarX + avatarSize + 4 * S, avatarY - 2 * S)
+  c.rotate(-0.22)
+  c.fillStyle = 'rgba(180,120,20,0.95)'
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
+  c.strokeStyle = 'rgba(255,240,200,0.7)'; c.lineWidth = 1 * S
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
+  c.fillStyle = '#FFF8E0'
+  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('New', 0, 0)
+  c.restore()
+
+  const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+  const avatarPath = getPetAvatarPath({ ...pet, star: starLv })
+  const img = R.getImg(avatarPath)
+  if (img && img.width > 0) {
+    c.save()
+    c.shadowColor = ac.main; c.shadowBlur = 18 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.clip()
+    const aw = img.width, ah = img.height
+    const sc = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * sc, dh = ah * sc
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+    c.save()
+    c.shadowColor = ac.main; c.shadowBlur = 12 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S)
+    c.strokeStyle = ac.main; c.lineWidth = 2.5 * S; c.stroke()
+    c.restore()
+  }
+
+  const starY = avatarY + avatarSize + 14 * S
+  const starN = Math.min(Math.max(starLv, 1), 5)
+  const starStep = Math.min(15 * S, avatarSize / Math.max(starN, 1) + 4 * S)
+  const span = (starN - 1) * starStep
+  c.font = `${Math.min(15 * S, avatarSize * 0.22)}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  for (let si = 0; si < starN; si++) {
+    c.fillStyle = ac.main
+    c.shadowColor = rgbaFromHex(ac.main, 0.55)
+    c.shadowBlur = 6 * S
+    c.fillText('★', cx - span / 2 + si * starStep, starY)
+    c.shadowBlur = 0
+  }
+
+  const subY = starY + 20 * S
+  c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#fff5e0'
+  if (heroCount <= 1) {
+    _strokeText(c, `获得灵宠「${pet.name}」`, cx, subY, 'rgba(0,0,0,0.45)', 2.5 * S)
+  } else {
+    const shortName = pet.name.length > 6 ? pet.name.slice(0, 6) + '…' : pet.name
+    _strokeText(c, `灵宠「${shortName}」`, cx, subY, 'rgba(0,0,0,0.45)', 2 * S)
+  }
+}
+
+function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, nameY, heroCount) {
+  const wid = reward.weaponId
+  const w = getWeaponById(wid)
+  if (!w) return
+  const rarityKey = getWeaponRarity(wid) || 'R'
+  const { rv, tag } = _spotlightRarityTag(rarityKey, w.attr || 'metal')
+
+  const badgeCxW = avatarX + 6 * S
+  const badgeCyW = avatarY + 14 * S
+  _drawRarityDiamondBadge(c, S, badgeCxW, badgeCyW, rv, tag)
+
+  if (reward.isNew) {
+    c.save()
+    c.translate(avatarX + avatarSize + 4 * S, avatarY - 2 * S)
+    c.rotate(-0.22)
+    c.fillStyle = 'rgba(180,120,20,0.95)'
+    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
+    c.strokeStyle = 'rgba(255,240,200,0.7)'; c.lineWidth = 1 * S
+    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
+    c.fillStyle = '#FFF8E0'
+    c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('New', 0, 0)
+    c.restore()
+  }
+
+  const wAc = w.attr ? (ATTR_COLOR[w.attr] || ATTR_COLOR.metal) : null
+  const strokeAttr = wAc ? wAc.main : rv.borderColor
+
+  const iconPath = `assets/equipment/fabao_${wid}.png`
+  const img = R.getImg(iconPath)
+  if (img && img.width > 0) {
+    c.save()
+    c.shadowColor = strokeAttr; c.shadowBlur = 16 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.clip()
+    const aw = img.width, ah = img.height
+    const sc = Math.max(avatarSize / aw, avatarSize / ah)
+    const dw = aw * sc, dh = ah * sc
+    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.restore()
+    c.strokeStyle = strokeAttr; c.lineWidth = 2.5 * S
+    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.stroke()
+  }
+
+  c.textAlign = 'center'
+  c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#fff5e0'
+  if (heroCount <= 1) {
+    _strokeText(c, `获得法宝「${w.name}」`, cx, nameY, 'rgba(0,0,0,0.45)', 2.5 * S)
+  } else {
+    const shortName = w.name.length > 6 ? w.name.slice(0, 6) + '…' : w.name
+    _strokeText(c, `法宝「${shortName}」`, cx, nameY, 'rgba(0,0,0,0.45)', 2 * S)
+  }
+}
+
+function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) {
+  const items = _heroSpotlightItems(result)
+  if (!items.length) return
+  const enter = Math.min(1, Math.max(0, (at - 6) / 16))
+  const bounce = enter < 1 ? (0.88 + 0.12 * Math.sin(enter * Math.PI)) : (1 + 0.02 * Math.sin(at * 0.07))
+
+  c.save()
+  c.globalAlpha = fadeIn * enter
+
+  const n = items.length
+  const gap = 12 * S
+  const avatarSize = (n <= 1 ? 86 * S : n === 2 ? 74 * S : 64 * S) * bounce
+  const rowW = n * avatarSize + (n - 1) * gap
+  const startX = (W - rowW) / 2
+
+  let y = blockTop
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#FFF5E0'
+  c.font = `bold ${17 * S}px "PingFang SC",sans-serif`
+  _strokeText(c, '恭喜获得', W / 2, y + 12 * S, 'rgba(55,35,18,0.55)', 3 * S)
+  y += 34 * S
+
+  const avatarY = y
+  const hasPet = items.some(r => r.type === 'pet')
+  const nameY = hasPet ? avatarY + avatarSize + 14 * S + 20 * S : avatarY + avatarSize + 20 * S
+
+  _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, Math.max(rowW * 0.5, avatarSize * 1.15))
+
+  for (let i = 0; i < n; i++) {
+    const reward = items[i]
+    const tileCx = startX + i * (avatarSize + gap) + avatarSize / 2
+    const avatarX = tileCx - avatarSize / 2
+    const delay = i * 5
+    const tileIn = Math.min(1, Math.max(0, (at - 8 - delay) / 12))
+    c.save()
+    c.globalAlpha *= tileIn
+    const rowSlide = (1 - tileIn) * 16 * S
+    c.translate(rowSlide, 0)
+    if (reward.type === 'pet' && reward.petId) {
+      _drawVictoryHeroPetTile(g, c, R, S, result, reward, tileCx, avatarX, avatarY, avatarSize, at, n)
+    } else if (reward.type === 'weapon' && reward.weaponId) {
+      _drawVictoryHeroWeaponTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, nameY, n)
+    }
+    c.restore()
+  }
+
+  c.restore()
+}
+
+// ===== 胜利全屏 =====
+function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
+  const spotlightCenterY = safeTop + 115 * S
+  _drawCelebrationBackdrop(c, W, H, S, spotlightCenterY, at, fadeIn)
+
+  c.fillStyle = 'rgba(255,240,200,0.06)'
+  c.fillRect(0, 0, W, H)
 
   c.save()
   c.globalAlpha = fadeIn
@@ -192,8 +506,31 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   c.fillStyle = 'rgba(90,70,40,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
   _strokeText(c, `总回合数：${result.totalTurns}`, W * 0.5, starY + starSize / 2 + 38 * S, 'rgba(255,255,255,0.4)', 2 * S)
 
-  // === 奖励面板 ===
-  const panelTop = starY + starSize / 2 + 56 * S
+  // 星级结算加成已反映在下方灵石/碎片等总额中，此处只作提示，不再单独列数字，避免与面板重复
+  const hasStarSettleBonus =
+    (result.starBonusSoulStone > 0 || result.starBonusAwakenStone > 0 || result.starBonusFragments > 0)
+  const starBandExtra = hasStarSettleBonus ? 16 * S : 0
+  if (hasStarSettleBonus) {
+    const hintY = starY + starSize / 2 + 52 * S
+    const hintIn = Math.min(1, Math.max(0, (at - 26) / 14))
+    c.save()
+    c.globalAlpha *= hintIn
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.font = `${9 * S}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(140,100,50,0.92)'
+    const mxNew = result.newStars && result.newStars.length ? Math.max(...result.newStars) : starCount
+    const starTag = mxNew > 0 ? `${'★'.repeat(Math.min(mxNew, 3))} ` : ''
+    c.fillText(`${starTag}本关星级奖励已计入下方总收益`, W * 0.5, hintY)
+    c.restore()
+  }
+
+  // === 核心奖励高光（灵宠/法宝） + 奖励明细面板 ===
+  let panelTop = starY + starSize / 2 + 56 * S + starBandExtra
+  if (_heroSpotlightItems(result).length > 0) {
+    _drawVictoryHeroSpotlight(g, c, R, W, S, result, panelTop, at, fadeIn)
+    panelTop += _victoryHeroBlockHeight(S, result)
+  }
   _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at)
 
   c.restore()
@@ -568,27 +905,187 @@ function _generateDefeatTips(g, result) {
   return tips.slice(0, 3)
 }
 
-// ===== 胜利奖励面板（增强版：大图标 + 分区高亮 + 入场动画） =====
-function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
-  const pw = W * 0.88
-  const px = (W - pw) / 2
-  const pad = 14 * S
-  const innerW = pw - pad * 2
+/** 首通灵宠 + isNew 法宝等并排展示 */
+function _isFeaturedNewDrop(r) {
+  if (!r) return false
+  if (r.type === 'pet' && r.petId) return true
+  if (r.type === 'weapon' && r.weaponId && r.isNew) return true
+  return false
+}
 
-  const hasRewards = result.rewards && result.rewards.length > 0
-  const hasStarBonus = (result.starBonusSoulStone > 0 || result.starBonusAwakenStone > 0 || result.starBonusFragments > 0)
+/**
+ * 掉落区：去掉灵石/经验配置项；去掉已在顶部「恭喜获得」并排展示的御灵/新法宝，避免重复。
+ */
+function _victoryDropRewardsForDisplay(result) {
+  const rewards = result && result.rewards
+  if (!rewards || !rewards.length) return []
+  const skip = _heroSpotlightRewardKeys(result)
+  return rewards.filter(r => {
+    if (r.type === 'exp' || r.type === 'soulStone') return false
+    if (r.type === 'pet' && r.petId && skip.has(`pet:${r.petId}`)) return false
+    if (r.type === 'weapon' && r.weaponId && skip.has(`weapon:${r.weaponId}`)) return false
+    return true
+  })
+}
+
+function _partitionDropRewards(rewards) {
+  if (!rewards || !rewards.length) return []
+  const out = []
+  let i = 0
+  while (i < rewards.length) {
+    if (_isFeaturedNewDrop(rewards[i])) {
+      const items = []
+      while (i < rewards.length && _isFeaturedNewDrop(rewards[i])) {
+        items.push(rewards[i])
+        i++
+      }
+      out.push({ kind: 'newGroup', items })
+    } else {
+      out.push({ kind: 'single', reward: rewards[i] })
+      i++
+    }
+  }
+  return out
+}
+
+function _newDropRowHeight(S) {
+  return 92 * S
+}
+
+function _heightForDropPart(part, S) {
+  if (part.kind === 'newGroup') return _newDropRowHeight(S)
+  const r = part.reward
+  return (r.type === 'pet' ? 46 : r.type === 'fragment' ? 40 : r.type === 'weapon' ? 56 : 30) * S
+}
+
+function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
+  const pulse = 0.85 + 0.15 * Math.sin((at + subDelay) * 0.07)
+  const padTop = 5 * S
+  const iconSz = Math.min(46 * S, Math.max(28 * S, tileW - 8 * S))
+  const iconX = left + (tileW - iconSz) / 2
+  const iconY = cy + padTop
+
+  const drawNewRibbon = () => {
+    c.save()
+    c.translate(iconX + 2 * S, iconY - 1 * S)
+    c.rotate(0.18)
+    c.globalAlpha *= pulse
+    c.fillStyle = 'rgba(180,120,20,0.95)'
+    R.rr(-15 * S, -6 * S, 30 * S, 12 * S, 3 * S); c.fill()
+    c.strokeStyle = 'rgba(255,240,200,0.75)'; c.lineWidth = 1 * S
+    R.rr(-15 * S, -6 * S, 30 * S, 12 * S, 3 * S); c.stroke()
+    c.fillStyle = '#FFF8E0'
+    c.font = `bold ${7.5 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('New', 0, 0)
+    c.restore()
+  }
+
+  if (reward.type === 'pet' && reward.petId) {
+    const pet = getPetById(reward.petId)
+    if (!pet) return
+    const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    const strokeC = ac.main
+    const rarityKey = getPetRarity(reward.petId)
+    const rv = rarityVisualForAttr(rarityKey, pet.attr)
+
+    const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+    const img = R.getImg(avatarPath)
+    if (img && img.width > 0) {
+      c.save()
+      R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.clip()
+      const aw = img.width, ah = img.height
+      const sc = Math.max(iconSz / aw, iconSz / ah)
+      const dw = aw * sc, dh = ah * sc
+      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
+      c.restore()
+    }
+    c.strokeStyle = strokeC; c.lineWidth = 2 * S
+    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
+
+    const badgeW = Math.max(rv.label.length * 6.5 * S + 4 * S, 22 * S)
+    const badgeH = 11 * S
+    const badgeX = iconX + iconSz - badgeW - 1 * S
+    const badgeY = iconY + 1 * S
+    c.fillStyle = rv.badgeBg
+    R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.fill()
+    c.fillStyle = rv.badgeColor; c.font = `bold ${7 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
+
+    drawNewRibbon()
+
+    const nameY = iconY + iconSz + 5 * S
+    const displayName = pet.name.length > 5 ? pet.name.slice(0, 5) + '…' : pet.name
+    c.textAlign = 'center'; c.textBaseline = 'top'
+    c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
+    c.fillStyle = ac.main
+    c.fillText(displayName, left + tileW / 2, nameY)
+  } else if (reward.type === 'weapon' && reward.weaponId) {
+    const w = getWeaponById(reward.weaponId)
+    if (!w) return
+    const rarityKey = getWeaponRarity(reward.weaponId) || 'R'
+    const rv = rarityVisualForAttr(rarityKey, w.attr || 'metal')
+    const wAc = w.attr ? (ATTR_COLOR[w.attr] || ATTR_COLOR.metal) : null
+    const strokeC = wAc ? wAc.main : rv.borderColor
+
+    const iconPath = `assets/equipment/fabao_${reward.weaponId}.png`
+    const img = R.getImg(iconPath)
+    if (img && img.width > 0) {
+      c.save()
+      R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.clip()
+      const aw = img.width, ah = img.height
+      const sc = Math.max(iconSz / aw, iconSz / ah)
+      const dw = aw * sc, dh = ah * sc
+      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
+      c.restore()
+    }
+    c.strokeStyle = strokeC; c.lineWidth = 2 * S
+    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
+
+    const badgeW = Math.max(rv.label.length * 6.5 * S + 4 * S, 22 * S)
+    const badgeH = 11 * S
+    const badgeX = iconX + iconSz - badgeW - 1 * S
+    const badgeY = iconY + 1 * S
+    c.fillStyle = rv.badgeBg
+    R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.fill()
+    c.fillStyle = rv.badgeColor; c.font = `bold ${7 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
+
+    if (reward.isNew) drawNewRibbon()
+
+    const nameY = iconY + iconSz + 5 * S
+    const displayName = w.name.length > 5 ? w.name.slice(0, 5) + '…' : w.name
+    c.textAlign = 'center'; c.textBaseline = 'top'
+    c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
+    c.fillStyle = wAc ? wAc.main : '#6B5038'
+    c.fillText(displayName, left + tileW / 2, nameY)
+  }
+}
+
+function _drawNewDropsRow(c, R, S, x, cy, innerW, items, g, at, rowDelay) {
+  const n = items.length
+  if (n <= 0) return
+  const gap = 5 * S
+  const tileW = (innerW - gap * (n - 1)) / n
+  for (let i = 0; i < n; i++) {
+    _drawNewDropTile(c, R, S, x + i * (tileW + gap), cy, tileW, items[i], g, at, rowDelay + i * 3)
+  }
+}
+
+function _computeVictoryRewardContentHeight(result, S, pad) {
+  const dropRewards = _victoryDropRewardsForDisplay(result)
+  const hasRewards = dropRewards.length > 0
   const hasMilestones = result.milestoneRewards && result.milestoneRewards.length > 0
-
-  // 预算面板内容高度
   let contentH = pad * 0.5
   if (hasRewards) {
     contentH += 24 * S
-    for (const r of result.rewards) {
-      contentH += (r.type === 'pet' ? 46 : r.type === 'fragment' ? 40 : r.type === 'weapon' ? 52 : 30) * S
+    for (const part of _partitionDropRewards(dropRewards)) {
+      contentH += _heightForDropPart(part, S)
     }
     contentH += 10 * S
   }
-  if (hasStarBonus) contentH += 30 * S + 10 * S
   if (hasMilestones) contentH += 10 * S + result.milestoneRewards.length * 28 * S
   if (result.soulStone > 0) contentH += 32 * S
   if (result.cultExp > 0) {
@@ -596,11 +1093,46 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     if (result.cultLevelUps > 0) contentH += 16 * S
     contentH += 26 * S
   }
-  // 汇总行
   contentH += 24 * S
   contentH += pad + 48 * S
+  return contentH
+}
 
-  R.drawInfoPanel(px, panelTop, pw, contentH)
+// ===== 胜利奖励面板（增强版：大图标 + 分区高亮 + 入场动画；过长时可滑动） =====
+function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
+  const pw = W * 0.88
+  const px = (W - pw) / 2
+  const pad = 14 * S
+  const innerW = pw - pad * 2
+  const panelRad = 14 * S
+
+  const dropRewards = _victoryDropRewardsForDisplay(result)
+  const hasRewards = dropRewards.length > 0
+  const hasMilestones = result.milestoneRewards && result.milestoneRewards.length > 0
+
+  const contentH = _computeVictoryRewardContentHeight(result, S, pad)
+  const marginBottom = 10 * S
+  const screenBottom = H - marginBottom
+  let viewportH = contentH
+  let scrollMax = 0
+  if (panelTop + contentH > screenBottom) {
+    const avail = Math.max(0, screenBottom - panelTop)
+    viewportH = Math.min(contentH, Math.max(100 * S, avail))
+    scrollMax = Math.max(0, contentH - viewportH)
+  }
+  if (_victoryRewardScroll > scrollMax) _victoryRewardScroll = scrollMax
+  if (_victoryRewardScroll < 0) _victoryRewardScroll = 0
+  const scroll = _victoryRewardScroll
+
+  _victoryRewardScrollMax = scrollMax
+  _victoryRewardViewport = scrollMax > 0 ? [px, panelTop, pw, viewportH] : null
+
+  R.drawInfoPanel(px, panelTop, pw, viewportH)
+
+  c.save()
+  R.rr(px, panelTop, pw, viewportH, panelRad)
+  c.clip()
+  c.translate(0, -scroll)
 
   let cy = panelTop + pad * 0.6
   let rowIdx = 0
@@ -620,13 +1152,14 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     }
     cy += 24 * S
 
-    for (const r of result.rewards) {
+    for (const part of _partitionDropRewards(dropRewards)) {
       const rowDelay = 15 + rowIdx * 6
       const rowAlpha = Math.min(1, Math.max(0, (at - rowDelay) / 12))
       const rowSlide = (1 - rowAlpha) * 20 * S
+      const stepH = _heightForDropPart(part, S)
 
       if (rowAlpha <= 0) {
-        cy += (r.type === 'pet' ? 46 : r.type === 'fragment' ? 40 : r.type === 'weapon' ? 52 : 30) * S
+        cy += stepH
         rowIdx++
         continue
       }
@@ -635,21 +1168,21 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
       c.globalAlpha *= rowAlpha
       c.translate(rowSlide, 0)
 
-      if (r.type === 'pet' && r.petId) {
-        _drawPetRowEnhanced(c, R, S, px + pad, cy, innerW, r, at, rowDelay)
-        cy += 46 * S
-      } else if (r.type === 'fragment' && r.petId) {
-        _drawFragmentRowEnhanced(c, R, S, px + pad, cy, innerW, r, g)
-        cy += 40 * S
-      } else if (r.type === 'weapon' && r.weaponId) {
-        _drawWeaponRowEnhanced(c, R, S, px + pad, cy, innerW, r, at)
-        cy += 52 * S
-      } else if (r.type === 'exp') {
-        _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${r.amount}`, '#8B7355', '#B8860B')
-        cy += 30 * S
-      } else if (r.type === 'soulStone') {
-        _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${r.amount}`, '#6688AA', '#4488CC')
-        cy += 30 * S
+      if (part.kind === 'newGroup') {
+        _drawNewDropsRow(c, R, S, px + pad, cy, innerW, part.items, g, at, rowDelay)
+        cy += _newDropRowHeight(S)
+      } else {
+        const r = part.reward
+        if (r.type === 'pet' && r.petId) {
+          _drawPetRowEnhanced(c, R, S, px + pad, cy, innerW, r, at, rowDelay)
+          cy += 46 * S
+        } else if (r.type === 'fragment' && r.petId) {
+          _drawFragmentRowEnhanced(c, R, S, px + pad, cy, innerW, r, g)
+          cy += 40 * S
+        } else if (r.type === 'weapon' && r.weaponId) {
+          _drawWeaponRowEnhanced(c, R, S, px + pad, cy, innerW, r, at)
+          cy += 56 * S
+        }
       }
 
       c.restore()
@@ -660,41 +1193,6 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     c.strokeStyle = 'rgba(180,160,120,0.3)'; c.lineWidth = 1 * S
     c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
     cy += 8 * S
-  }
-
-  // === 星级达成奖励（高亮条） ===
-  if (hasStarBonus) {
-    const starRowDelay = 15 + rowIdx * 6
-    const starRowAlpha = Math.min(1, Math.max(0, (at - starRowDelay) / 12))
-    c.save()
-    c.globalAlpha *= starRowAlpha
-
-    // 高亮背景
-    const hlH = 24 * S
-    const hlGrad = c.createLinearGradient(px + pad, cy, px + pw - pad, cy)
-    hlGrad.addColorStop(0, 'rgba(255,215,0,0.12)')
-    hlGrad.addColorStop(1, 'rgba(255,215,0,0.03)')
-    c.fillStyle = hlGrad
-    R.rr(px + pad, cy, innerW, hlH, 5 * S); c.fill()
-
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    c.fillStyle = '#C07020'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    const maxNew = result.newStars ? Math.max(...result.newStars) : 0
-    c.fillText(`${'★'.repeat(maxNew)} 达成奖励`, px + pad + 6 * S, cy + hlH / 2)
-    c.textAlign = 'right'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    const parts = []
-    if (result.starBonusSoulStone > 0) parts.push(`灵石+${result.starBonusSoulStone}`)
-    if (result.starBonusFragments > 0) parts.push(`碎片+${result.starBonusFragments}`)
-    if (result.starBonusAwakenStone > 0) parts.push(`觉醒石+${result.starBonusAwakenStone}`)
-    c.fillStyle = '#D4A030'
-    c.fillText(parts.join('  '), px + pw - pad - 6 * S, cy + hlH / 2)
-    c.restore()
-    cy += 30 * S
-    rowIdx++
-
-    c.strokeStyle = 'rgba(180,160,120,0.3)'; c.lineWidth = 1 * S
-    c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
-    cy += 10 * S
   }
 
   // === 章节里程碑 ===
@@ -727,7 +1225,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 10 * S
   }
 
-  // === 灵石 ===
+  // === 本关灵石 / 修炼经验（总额） ===
   if (result.soulStone > 0) {
     const ssDelay = 15 + rowIdx * 6
     const ssAlpha = Math.min(1, Math.max(0, (at - ssDelay) / 12))
@@ -816,13 +1314,28 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   const btnY = cy + 4 * S
 
   R.drawDialogBtn(px + pad, btnY, btnW, btnH, '返回', 'cancel')
-  _rects.backBtnRect = [px + pad, btnY, btnW, btnH]
+  _rects.backBtnRect = [px + pad, btnY - scroll, btnW, btnH]
 
   const nextId = getNextStageId(result.stageId)
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
   const rightLabel = hasNext ? '下一关' : '再次挑战'
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, 'confirm')
-  _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY, btnW, btnH]
+  _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY - scroll, btnW, btnH]
+
+  c.restore()
+
+  if (scrollMax > 0) {
+    const trackX = px + pw - 5 * S
+    const trackY = panelTop + 8 * S
+    const trackH = viewportH - 16 * S
+    const thumbH = Math.max(22 * S, (viewportH / contentH) * trackH)
+    const thumbTravel = Math.max(0, trackH - thumbH)
+    const thumbY = trackY + (scrollMax > 0 ? (scroll / scrollMax) * thumbTravel : 0)
+    c.fillStyle = 'rgba(90,70,50,0.2)'
+    R.rr(trackX - 2 * S, trackY, 4 * S, trackH, 2 * S); c.fill()
+    c.fillStyle = 'rgba(170,130,70,0.55)'
+    R.rr(trackX - 2 * S, thumbY, 4 * S, thumbH, 2 * S); c.fill()
+  }
 }
 
 // ===== 首通宠物奖励行（增强版：大图标 + 光效） =====
@@ -836,11 +1349,12 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
   // 高亮背景条
   const hlH = 40 * S
   const hlGrad = c.createLinearGradient(x, cy, x + innerW, cy)
-  hlGrad.addColorStop(0, 'rgba(255,215,0,0.1)')
-  hlGrad.addColorStop(1, 'rgba(255,215,0,0.02)')
+  hlGrad.addColorStop(0, rgbaFromHex(ac.main, 0.12))
+  hlGrad.addColorStop(1, rgbaFromHex(ac.main, 0.02))
   c.fillStyle = hlGrad
   R.rr(x, cy, innerW, hlH, 6 * S); c.fill()
-  c.strokeStyle = 'rgba(200,170,60,0.25)'; c.lineWidth = 0.8 * S
+  c.strokeStyle = rgbaFromHex(ac.main, 0.28)
+  c.lineWidth = 0.8 * S
   R.rr(x, cy, innerW, hlH, 6 * S); c.stroke()
 
   const iconSz = 36 * S
@@ -859,17 +1373,16 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
       const dw = aw * scale, dh = ah * scale
       c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
       c.restore()
-      const rv = RARITY_VISUAL[getPetRarity(reward.petId)] || RARITY_VISUAL.R
       c.save()
-      c.shadowColor = rv.glowColor || attrColor; c.shadowBlur = 6 * S
-      c.strokeStyle = rv.borderColor; c.lineWidth = 2 * S
+      c.shadowColor = attrColor; c.shadowBlur = 6 * S
+      c.strokeStyle = attrColor; c.lineWidth = 2 * S
       R.rr(iconX, iconY, iconSz, iconSz, 7 * S); c.stroke()
       c.restore()
     }
   }
 
-  // 品质徽标
-  const rv2 = RARITY_VISUAL[getPetRarity(reward.petId)] || RARITY_VISUAL.R
+  // 品质徽标（描边/底色跟属性）
+  const rv2 = rarityVisualForAttr(getPetRarity(reward.petId), attr)
   const badgeW = rv2.label.length * 8 * S + 6 * S
   const badgeH = 13 * S
   const badgeX = iconX + iconSz - badgeW + 2 * S
@@ -889,8 +1402,10 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
   const glowAlpha = 0.7 + 0.3 * Math.sin(at * 0.08)
   c.save()
   c.globalAlpha *= glowAlpha
-  c.fillStyle = '#FFD700'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.shadowColor = 'rgba(200,150,0,0.5)'; c.shadowBlur = 4 * S
+  c.fillStyle = ac.main
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.shadowColor = rgbaFromHex(ac.main, 0.5)
+  c.shadowBlur = 4 * S
   c.fillText('获得灵宠！', iconX + iconSz + 8 * S, cy + hlH / 2 + 10 * S)
   c.restore()
 }
@@ -900,7 +1415,8 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
   const pet = getPetById(reward.petId)
   const name = pet ? pet.name : reward.petId
   const attr = pet ? pet.attr : 'metal'
-  const attrColor = pet ? ((ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || '#888') : '#888'
+  const ac = pet ? (ATTR_COLOR[attr] || ATTR_COLOR.metal) : ATTR_COLOR.metal
+  const attrColor = ac.main || '#888'
 
   const iconSz = 32 * S
   const rowH = 34 * S
@@ -929,7 +1445,8 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
   c.fillStyle = attrColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
   c.fillText(`${name}碎片`, textX, cy + rowH / 2 - 4 * S)
 
-  c.fillStyle = '#D4A030'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillStyle = ac.dk || ac.main
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.textAlign = 'right'
   c.fillText(`×${reward.count}`, x + innerW, cy + rowH / 2 - 4 * S)
 
@@ -941,7 +1458,7 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
     if (cost) {
       const current = poolPet.fragments || 0
       c.textAlign = 'left'
-      c.fillStyle = current >= cost ? '#D4A030' : '#A09070'
+      c.fillStyle = current >= cost ? (ac.lt || ac.main) : '#A09070'
       c.font = `${8*S}px "PingFang SC",sans-serif`
       const progressText = current >= cost
         ? `碎片足够升${nextStar}★！`
@@ -956,16 +1473,17 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
   const w = getWeaponById(reward.weaponId)
   const name = w ? w.name : reward.weaponId
   const desc = w ? w.desc : ''
-  const rarityKey = getWeaponRarity(reward.weaponId) || 'R'
-  const rv = RARITY_VISUAL[rarityKey] || RARITY_VISUAL.R
+  const wAttr = (w && w.attr) || 'metal'
+  const wAc = ATTR_COLOR[wAttr] || ATTR_COLOR.metal
 
-  const hlH = 52 * S
+  const hlH = 56 * S
   const hlGrad = c.createLinearGradient(x, cy, x + innerW, cy)
-  hlGrad.addColorStop(0, 'rgba(255,215,0,0.08)')
-  hlGrad.addColorStop(1, 'rgba(255,215,0,0.02)')
+  hlGrad.addColorStop(0, rgbaFromHex(wAc.main, 0.1))
+  hlGrad.addColorStop(1, rgbaFromHex(wAc.main, 0.02))
   c.fillStyle = hlGrad
   R.rr(x, cy, innerW, hlH, 6 * S); c.fill()
-  c.strokeStyle = 'rgba(200,170,60,0.2)'; c.lineWidth = 0.8 * S
+  c.strokeStyle = rgbaFromHex(wAc.main, 0.22)
+  c.lineWidth = 0.8 * S
   R.rr(x, cy, innerW, hlH, 6 * S); c.stroke()
 
   const iconSz = 40 * S
@@ -974,9 +1492,11 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
   const fabaoPath = `assets/equipment/fabao_${reward.weaponId}.png`
   const img = R.getImg(fabaoPath)
 
+  const strokeW = wAc.main
+
   if (img && img.width > 0) {
     c.save()
-    c.shadowColor = rv.glowColor || rv.borderColor; c.shadowBlur = 6 * S
+    c.shadowColor = strokeW; c.shadowBlur = 6 * S
     R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.clip()
     const aw = img.width, ah = img.height
     const scale = Math.max(iconSz / aw, iconSz / ah)
@@ -984,14 +1504,14 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
     c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
     c.restore()
     c.save()
-    c.strokeStyle = rv.borderColor; c.lineWidth = 2 * S
+    c.strokeStyle = strokeW; c.lineWidth = 2 * S
     R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.stroke()
     c.restore()
   } else {
     c.save()
     c.fillStyle = 'rgba(120,100,60,0.2)'
     R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.fill()
-    c.strokeStyle = rv.borderColor; c.lineWidth = 2 * S
+    c.strokeStyle = strokeW; c.lineWidth = 2 * S
     R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.stroke()
     c.restore()
   }
@@ -1010,8 +1530,10 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
 
   const textX = iconX + iconSz + 8 * S
   c.textAlign = 'left'
-  c.fillStyle = '#FFD700'; c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-  c.shadowColor = 'rgba(100,70,0,0.35)'; c.shadowBlur = 3 * S
+  c.fillStyle = wAc.main
+  c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  c.shadowColor = rgbaFromHex(wAc.main, 0.35)
+  c.shadowBlur = 3 * S
   c.textBaseline = 'top'
   c.fillText(name, textX, cy + 10 * S)
   c.shadowBlur = 0
@@ -1090,43 +1612,25 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     R.drawHomeBg(0)
   }
 
+  const centerY = H * 0.38
+  _drawCelebrationBackdrop(c, W, H, S, centerY, cel.timer, cel.alpha)
+
   c.save()
   c.globalAlpha = cel.alpha
 
-  c.fillStyle = 'rgba(255,240,200,0.12)'
+  c.fillStyle = 'rgba(255,240,200,0.06)'
   c.fillRect(0, 0, W, H)
 
-  // 旋转金色光芒
-  c.save()
-  c.globalAlpha = cel.alpha * (0.08 + 0.04 * Math.sin(cel.timer * 0.04))
-  const centerY = H * 0.38
-  c.translate(W * 0.5, centerY)
-  c.rotate(cel.timer * 0.003)
-  for (let i = 0; i < 12; i++) {
-    c.rotate(Math.PI / 6)
-    c.beginPath(); c.moveTo(0, 0)
-    c.lineTo(-20 * S, -H * 0.4); c.lineTo(20 * S, -H * 0.4)
-    c.closePath()
-    c.fillStyle = '#ffd700'; c.fill()
-  }
-  c.restore()
-
-  // 径向光晕
-  c.save()
-  c.globalAlpha = cel.alpha * 0.6
-  const glow = c.createRadialGradient(W * 0.5, centerY, 0, W * 0.5, centerY, W * 0.55)
-  glow.addColorStop(0, 'rgba(255,215,0,0.3)')
-  glow.addColorStop(0.5, 'rgba(255,200,0,0.1)')
-  glow.addColorStop(1, 'rgba(255,215,0,0)')
-  c.fillStyle = glow; c.fillRect(0, 0, W, H)
-  c.restore()
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#FFF5E0'
+  c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+  _strokeText(c, '恭喜获得', W / 2, safeTop + 40 * S, 'rgba(55,35,18,0.5)', 3 * S)
 
   // 计数指示器（第 x/n 只）
   if (cel.petIds.length > 1) {
-    c.fillStyle = 'rgba(200,170,80,0.7)'
-    c.font = `${12 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(`${idx + 1} / ${cel.petIds.length}`, W / 2, safeTop + 30 * S)
+    c.fillStyle = 'rgba(200,170,80,0.85)'
+    c.font = `${11 * S}px "PingFang SC",sans-serif`
+    c.fillText(`${idx + 1} / ${cel.petIds.length}`, W / 2, safeTop + 62 * S)
   }
 
   // 宠物头像（大尺寸弹入动画）
@@ -1136,9 +1640,29 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     : (1 + 0.03 * Math.sin(cel.timer * 0.06))
   const avatarSize = 130 * S * bounce
   const avatarX = (W - avatarSize) / 2
-  const avatarY = centerY - avatarSize / 2 - 10 * S
+  const avatarY = centerY - avatarSize / 2 - 6 * S
+
+  _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, avatarSize * 1.2)
 
   const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+
+  const rkNewbie = getPetRarity(petId)
+  const spotRv = _spotlightRarityTag(rkNewbie, pet.attr)
+  _drawRarityDiamondBadge(c, S, avatarX + 10 * S, avatarY + 20 * S, spotRv.rv, spotRv.tag)
+
+  c.save()
+  c.translate(avatarX + avatarSize - 8 * S, avatarY - 4 * S)
+  c.rotate(-0.2)
+  c.fillStyle = 'rgba(180,120,20,0.95)'
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
+  c.strokeStyle = 'rgba(255,240,200,0.75)'; c.lineWidth = 1 * S
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
+  c.fillStyle = '#FFF8E0'
+  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('New', 0, 0)
+  c.restore()
+
   const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
   const img = R.getImg(avatarPath)
   if (img && img.width > 0) {
@@ -1150,27 +1674,15 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     const dw = aw * sc, dh = ah * sc
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
     c.restore()
-    // 品质色边框
-    const rvCel = RARITY_VISUAL[getPetRarity(petId)] || RARITY_VISUAL.R
     c.save()
-    c.shadowColor = rvCel.glowColor; c.shadowBlur = 16 * S
+    c.shadowColor = rgbaFromHex(ac.main, 0.5)
+    c.shadowBlur = 16 * S
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
-    c.strokeStyle = rvCel.borderColor; c.lineWidth = 3 * S; c.stroke()
+    c.strokeStyle = ac.main
+    c.lineWidth = 3 * S
+    c.stroke()
     c.restore()
   }
-
-  // 品质徽标（头像右上角）
-  const rvBadge = RARITY_VISUAL[getPetRarity(petId)] || RARITY_VISUAL.R
-  const celBadgeW = rvBadge.label.length * 10 * S + 8 * S
-  const celBadgeH = 18 * S
-  const celBadgeX = avatarX + avatarSize - celBadgeW + 4 * S
-  const celBadgeY = avatarY - 4 * S
-  c.fillStyle = rvBadge.badgeBg
-  R.rr(celBadgeX, celBadgeY, celBadgeW, celBadgeH, 4 * S); c.fill()
-  c.fillStyle = rvBadge.badgeColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(rvBadge.label, celBadgeX + celBadgeW / 2, celBadgeY + celBadgeH / 2)
-  c.textBaseline = 'alphabetic'
 
   // 宠物名称
   const nameY = avatarY + avatarSize + 30 * S
@@ -1184,11 +1696,12 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
 
   // 核心文案
   const msgY = nameY + 32 * S
-  c.fillStyle = '#FFD700'
+  c.fillStyle = ac.lt || ac.main
   c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
   c.save()
-  c.shadowColor = 'rgba(100,60,0,0.6)'; c.shadowBlur = 6 * S
-  _strokeText(c, '正式加入你的队伍！', W / 2, msgY, 'rgba(80,50,0,0.4)', 3 * S)
+  c.shadowColor = rgbaFromHex(ac.main, 0.55)
+  c.shadowBlur = 6 * S
+  _strokeText(c, '正式加入你的队伍！', W / 2, msgY, 'rgba(0,0,0,0.35)', 3 * S)
   c.restore()
 
   // 副文案
@@ -1324,20 +1837,22 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
 
 // ===== 触摸 =====
 function tStageResult(g, x, y, type) {
-  if (type !== 'end') return
   const result = g._stageResult
   if (!result) return
+
+  // 新手流程仅处理抬起
+  if (g._newbiePetCelebrate || g._newbieTeamOverview) {
+    if (type !== 'end') return
+  }
 
   // 新手宠物庆祝阶段：逐一展示，最后一只后切到团队概览卡
   if (g._newbiePetCelebrate) {
     const cel = g._newbiePetCelebrate
     const idx = cel.currentIdx || 0
     if (idx < cel.petIds.length - 1) {
-      // 还有下一只，推进索引并重置动画
       cel.currentIdx = idx + 1
       cel.timer = 0; cel.alpha = 0
     } else {
-      // 全部展示完毕 → 团队概览卡
       const petIds = cel.petIds.slice()
       g._newbiePetCelebrate = null
       g._newbieTeamOverview = { pets: petIds, alpha: 0, timer: 0 }
@@ -1367,7 +1882,43 @@ function tStageResult(g, x, y, type) {
     return
   }
 
-  // 1-1/1-2 首通胜利：返回首页并触发后续引导
+  const canScroll = result.victory && _victoryRewardViewport && _victoryRewardScrollMax > 0
+  if (canScroll) {
+    if (type === 'start') {
+      if (g._hitRect(x, y, ..._victoryRewardViewport)) {
+        _victScrollActive = true
+        _victScrollStartY = y
+        _victScrollLastY = y
+        _victScrollMoved = false
+      } else {
+        _victScrollActive = false
+      }
+      return
+    }
+    if (type === 'move' && _victScrollActive) {
+      const dy = y - _victScrollLastY
+      _victScrollLastY = y
+      if (Math.abs(y - _victScrollStartY) > 6 * V.S) _victScrollMoved = true
+      _victoryRewardScroll -= dy
+      if (_victoryRewardScroll < 0) _victoryRewardScroll = 0
+      if (_victoryRewardScroll > _victoryRewardScrollMax) _victoryRewardScroll = _victoryRewardScrollMax
+      return
+    }
+    if (type === 'end') {
+      if (_victScrollActive && _victScrollMoved) {
+        _victScrollActive = false
+        _victScrollMoved = false
+        return
+      }
+      _victScrollActive = false
+      _victScrollMoved = false
+    }
+  } else if (type !== 'end') {
+    return
+  }
+
+  if (type !== 'end') return
+
   const _firstClearGuide = _getFirstClearGuide(result)
 
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {

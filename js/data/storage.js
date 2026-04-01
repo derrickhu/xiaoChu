@@ -1,4 +1,5 @@
 const P = require('../platform')
+const { getPetById } = require('./pets')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
 const RankingService = require('./rankingService')
@@ -711,11 +712,31 @@ class Storage {
     return this._d.savedStageTeam || []
   }
 
+  /** 每种属性最多保留一只（先出现的顺位优先），用于编队限制与读档规范化 */
+  _dedupeStageTeamByAttr(teamIds) {
+    const out = []
+    const seenAttr = new Set()
+    for (const id of teamIds || []) {
+      const pet = getPetById(id)
+      if (!pet) continue
+      const a = pet.attr
+      if (a == null || a === '') {
+        out.push(id)
+        continue
+      }
+      if (seenAttr.has(a)) continue
+      seenAttr.add(a)
+      out.push(id)
+    }
+    return out
+  }
+
   /** 保存编队，同时过滤掉已不在灵宠池中的宠物 */
   saveStageteam(teamIds) {
     const pool = this._d.petPool || []
     const poolIds = new Set(pool.map(p => p.id))
-    this._d.savedStageTeam = (teamIds || []).filter(id => poolIds.has(id))
+    const inPool = (teamIds || []).filter(id => poolIds.has(id))
+    this._d.savedStageTeam = this._dedupeStageTeamByAttr(inPool)
     this._save()
   }
 
@@ -725,7 +746,17 @@ class Storage {
     if (saved.length === 0) return []
     const pool = this._d.petPool || []
     const poolIds = new Set(pool.map(p => p.id))
-    return saved.filter(id => poolIds.has(id))
+    const inPool = saved.filter(id => poolIds.has(id))
+    const deduped = this._dedupeStageTeamByAttr(inPool)
+    const dirty =
+      deduped.length !== inPool.length ||
+      deduped.some((id, i) => id !== inPool[i]) ||
+      inPool.length !== saved.length
+    if (dirty) {
+      this._d.savedStageTeam = deduped
+      this._save()
+    }
+    return deduped
   }
 
   // ===== 灵宠派遣（挂机）系统 =====
