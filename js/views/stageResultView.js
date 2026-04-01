@@ -5,13 +5,14 @@
  * 渲染入口：rStageResult  触摸入口：tStageResult
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
-const { MAX_LEVEL, expToNextLevel, currentRealm, usedPoints } = require('../data/cultivationConfig')
+const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
+const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 
 const _rects = {
@@ -585,7 +586,8 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   const pad = 14 * S
   const innerW = pw - pad * 2
 
-  const tips = _generateDefeatTips(g, result)
+  const tipsData = _generateDefeatTips(g, result)
+  const tips = tipsData.items || []
 
   // 预算面板高度
   let contentH = pad * 0.6
@@ -593,6 +595,9 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   if (hasEnemy) contentH += 62 * S
   if (result.waveTotal > 1) contentH += 22 * S
   contentH += 6 * S // 分隔线间距
+
+  // 战力对比条
+  if (tipsData.powerPct < 100) contentH += 40 * S
 
   // 变强建议区
   if (tips.length > 0) contentH += 24 * S + tips.length * 34 * S + 6 * S
@@ -710,6 +715,34 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
   cy += 6 * S
 
+  // ── 战力对比条 ──
+  if (tipsData.powerPct < 100) {
+    const barX = px + pad, barW = innerW, barH = 10 * S
+    const pct = Math.min(1, Math.max(0, tipsData.powerPct / 100))
+    const animPct = Math.min(1, at / 30) * pct
+    const barColor = pct < 0.5 ? '#cc3030' : pct < 0.8 ? '#D4A030' : '#40A060'
+
+    c.textAlign = 'left'; c.fillStyle = '#8B5040'; c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.fillText(`我方 ${tipsData.teamAtk}`, barX, cy + 4 * S)
+    c.textAlign = 'right'; c.fillStyle = '#606050'
+    c.fillText(`建议 ${tipsData.suggestedAtk}+`, barX + barW, cy + 4 * S)
+    cy += 14 * S
+
+    c.fillStyle = 'rgba(0,0,0,0.06)'
+    R.rr(barX, cy, barW, barH, barH / 2); c.fill()
+    if (animPct > 0) {
+      const fillW = Math.max(barH, barW * animPct)
+      const barGrad = c.createLinearGradient(barX, cy, barX + fillW, cy)
+      barGrad.addColorStop(0, barColor); barGrad.addColorStop(1, barColor + '80')
+      c.fillStyle = barGrad
+      R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
+    }
+    cy += barH + 8 * S
+    c.textAlign = 'center'; c.fillStyle = barColor; c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    c.fillText(`战力达标 ${tipsData.powerPct}%`, barX + barW / 2, cy)
+    cy += 12 * S
+  }
+
   // ── 区块2：变强建议 ──
   if (tips.length > 0) {
     c.textAlign = 'left'; c.textBaseline = 'middle'
@@ -717,6 +750,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     c.fillText('如何变强', px + pad, cy + 6 * S)
     cy += 24 * S
 
+    _rects.tipRects = []
     for (let i = 0; i < tips.length; i++) {
       const tip = tips[i]
       const tipDelay = 20 + i * 10
@@ -726,7 +760,6 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
       c.save()
       c.globalAlpha *= tipAlpha
 
-      // 建议背景条
       const tipH = 28 * S
       const tipBg = c.createLinearGradient(px + pad, cy, px + pw - pad, cy)
       tipBg.addColorStop(0, tip.bgColor || 'rgba(200,180,140,0.1)')
@@ -751,6 +784,14 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
       c.fillText(tip.title, iconX + iconSz + 4 * S, iconCY - 4 * S)
       c.fillStyle = '#8B7355'; c.font = `${9*S}px "PingFang SC",sans-serif`
       c.fillText(tip.desc, iconX + iconSz + 4 * S, iconCY + 8 * S)
+
+      // 跳转箭头
+      if (tip.action) {
+        c.fillStyle = '#B8A080'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'right'
+        c.fillText('›', px + pw - pad - 6 * S, iconCY)
+        _rects.tipRects.push({ rect: [px + pad, cy, innerW, tipH], action: tip.action, stageId: result.stageId })
+      }
 
       c.restore()
       cy += 34 * S
@@ -810,99 +851,27 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY, btnW, btnH]
 }
 
-// ===== 失败建议生成 =====
+// ===== 失败建议生成（数据驱动，由 strategyAdvisor 提供） =====
 function _generateDefeatTips(g, result) {
-  const tips = []
-  const team = result.teamSnapshot || []
-  const enemyAttr = result.enemyAttr
-  const pool = g.storage.petPool || []
-
-  // 1. 属性克制检查
-  if (enemyAttr && COUNTER_MAP) {
-    const counterAttr = Object.keys(COUNTER_MAP).find(k => COUNTER_MAP[k] === enemyAttr)
-    if (counterAttr) {
-      const hasCounter = team.some(p => p.attr === counterAttr)
-      if (!hasCounter) {
-        const attrName = ATTR_NAME[counterAttr] || counterAttr
-        tips.push({
-          icon: '⚔',
-          iconColor: (ATTR_COLOR[counterAttr] && ATTR_COLOR[counterAttr].main) || '#888',
-          title: `带入${attrName}属性灵宠`,
-          desc: `克制敌人可造成 2.5 倍伤害`,
-          bgColor: 'rgba(180,140,60,0.12)',
-          borderColor: 'rgba(180,160,80,0.3)',
-          priority: 10,
-        })
-      }
-    }
+  const analysis = analyzeDefeat(g.storage, result)
+  const COLOR_MAP = {
+    '📊': { bg: 'rgba(200,80,60,0.10)',  border: 'rgba(200,100,80,0.25)' },
+    '⚔':  { bg: 'rgba(180,140,60,0.12)', border: 'rgba(180,160,80,0.3)' },
+    '★':  { bg: 'rgba(200,180,40,0.10)', border: 'rgba(200,180,60,0.3)' },
+    '⬆':  { bg: 'rgba(60,120,200,0.08)', border: 'rgba(60,120,200,0.2)' },
+    '🧘': { bg: 'rgba(140,80,200,0.08)', border: 'rgba(140,80,200,0.2)' },
+    '🎨': { bg: 'rgba(60,100,160,0.08)', border: 'rgba(60,100,160,0.2)' },
   }
-
-  // 2. 宠物可升级检查
-  const upgradable = pool.filter(p => {
-    const soulStone = g.storage.soulStone || 0
-    return soulStone >= 10 && p.level < 50
-  })
-  if (upgradable.length > 0) {
-    tips.push({
-      icon: '⬆',
-      iconColor: '#4488CC',
-      title: '灵宠升级',
-      desc: `${upgradable.length}只灵宠可提升等级，增强攻击力`,
-      bgColor: 'rgba(60,120,200,0.08)',
-      borderColor: 'rgba(60,120,200,0.2)',
-      priority: 8,
-    })
+  return {
+    powerPct: analysis.powerPct,
+    teamAtk: analysis.teamTotalAtk,
+    suggestedAtk: analysis.suggestedAtk,
+    items: analysis.tips.map(t => ({
+      ...t,
+      bgColor: (COLOR_MAP[t.icon] || {}).bg || 'rgba(200,180,140,0.1)',
+      borderColor: (COLOR_MAP[t.icon] || {}).border || 'rgba(180,160,120,0.2)',
+    })),
   }
-
-  // 3. 碎片升星检查
-  const canStarUp = pool.filter(p => {
-    const nextStar = p.star + 1
-    const cost = POOL_STAR_FRAG_COST[nextStar]
-    return cost && (p.fragments || 0) >= cost
-  })
-  if (canStarUp.length > 0) {
-    tips.push({
-      icon: '★',
-      iconColor: '#FFD700',
-      title: '灵宠升星',
-      desc: `${canStarUp.length}只灵宠碎片足够升星，大幅提升攻击`,
-      bgColor: 'rgba(200,180,40,0.1)',
-      borderColor: 'rgba(200,180,60,0.3)',
-      priority: 9,
-    })
-  }
-
-  // 4. 修炼点未分配
-  const cult = g.storage.cultivation
-  const totalPoints = cult.level || 0
-  const used = usedPoints(cult.levels || {})
-  if (totalPoints > used) {
-    tips.push({
-      icon: '🧘',
-      iconColor: '#9060D0',
-      title: '修炼加点',
-      desc: `有 ${totalPoints - used} 点修炼点未分配，可提升属性`,
-      bgColor: 'rgba(140,80,200,0.08)',
-      borderColor: 'rgba(140,80,200,0.2)',
-      priority: 7,
-    })
-  }
-
-  // 5. 修炼等级低
-  if ((cult.level || 0) < 5 && tips.length < 3) {
-    tips.push({
-      icon: '📖',
-      iconColor: '#8B7355',
-      title: '积累修炼经验',
-      desc: '多打几关提升等级，解锁更多属性加成',
-      bgColor: 'rgba(140,120,80,0.08)',
-      borderColor: 'rgba(140,120,80,0.2)',
-      priority: 3,
-    })
-  }
-
-  tips.sort((a, b) => b.priority - a.priority)
-  return tips.slice(0, 3)
 }
 
 /** 首通灵宠 + isNew 法宝等并排展示 */
@@ -1925,6 +1894,22 @@ function tStageResult(g, x, y, type) {
   }
 
   if (type !== 'end') return
+
+  // 失败建议条跳转
+  if (_rects.tipRects && !result.victory) {
+    for (const tr of _rects.tipRects) {
+      if (g._hitRect(x, y, ...tr.rect)) {
+        MusicMgr.playClick && MusicMgr.playClick()
+        if (tr.action === 'petPool') { g.setScene('petPool'); return }
+        if (tr.action === 'cultivation') { g.setScene('cultivation'); return }
+        if (tr.action === 'stageTeam') {
+          g._selectedStageId = tr.stageId
+          g.setScene('stageTeam')
+          return
+        }
+      }
+    }
+  }
 
   const _firstClearGuide = _getFirstClearGuide(result)
 

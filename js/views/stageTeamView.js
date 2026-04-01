@@ -185,15 +185,9 @@ function rStageTeam(g) {
   }
   cy += 64 * S
 
-  // ── 备选角色标题 + 克制提示 + 长按提示 ──
+  // ── 克制推荐（右侧一行）──
   c.textBaseline = 'top'
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
-
-  c.textAlign = 'left'
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.strokeText('◆ 备选角色', px, cy)
-  c.fillStyle = '#FFF5E0'
-  c.fillText('◆ 备选角色', px, cy)
   if (recAttr) {
     c.textAlign = 'right'
     c.font = `bold ${11*S}px "PingFang SC",sans-serif`
@@ -202,7 +196,7 @@ function rStageTeam(g) {
     c.fillStyle = ATTR_COLOR[recAttr] ? ATTR_COLOR[recAttr].lt || ATTR_COLOR[recAttr].main : '#fff'
     c.fillText(recText, W - px, cy)
   }
-  cy += 28 * S   // 下移，避免与备选角色文字重合
+  cy += 28 * S
 
   // ── 属性筛选标签 ──
   _rects.filterRects = []

@@ -10,6 +10,7 @@ const guideMgr = require('../engine/guideManager')
 const runMgr = require('../engine/runManager')
 const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
+const { HELP_PAGE_COUNT } = require('../views/battleView')
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
@@ -86,7 +87,7 @@ function tBattle(g, type, x, y) {
       }
       // 左右滑动翻页
       const dx = x - (g._helpSwipeStartX || x)
-      const pageCount = 4
+      const pageCount = HELP_PAGE_COUNT
       if (Math.abs(dx) > 40 * S) {
         if (!g._battleHelpPage) g._battleHelpPage = 0
         if (dx < 0 && g._battleHelpPage < pageCount - 1) g._battleHelpPage++

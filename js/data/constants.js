@@ -148,6 +148,9 @@ const TITLE_LOGO = {
 /** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
 const STAGE_FORMATION_MIN_PETS = 3
 
+/** 局内「攻略」按钮顶边距 = safeTop + 此项×S，避开微信小游戏/小程序右上角胶囊菜单 */
+const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -219,4 +222,5 @@ module.exports = {
   STAGE_CARD,
   TITLE_LOGO,
   STAGE_FORMATION_MIN_PETS,
+  BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
 }
