@@ -7,19 +7,12 @@ const { TH } = require('./render')
 const MusicMgr = require('./runtime/music')
 const V = require('./views/env')
 const DF = require('./engine/dmgFloat')
+const { getBattleLayout: computeBattleLayout } = require('./views/battle/battleLayout')
 
+/** 与战斗界面共用布局（含 eAreaBottom）；此处保留旧字段子集以兼容既有调用 */
 function getBattleLayout() {
-  const { W, H, S, safeTop, COLS, ROWS } = V
-  const boardPad = 6*S, cellSize = (W-boardPad*2)/COLS, boardH = ROWS*cellSize
-  const boardTop = H-8*S-boardH
-  const sidePad = 8*S, petGap = 8*S, wpnGap = 12*S
-  const totalGapW = wpnGap + petGap * 4 + sidePad * 2
-  const iconSize = (W - totalGapW) / 6
-  const teamBarH = iconSize + 6*S
-  const hpBarH = 18*S
-  const hpBarY = boardTop - hpBarH - 4*S
-  const teamBarY = hpBarY - teamBarH - 2*S
-  const eAreaTop = safeTop + 4*S
+  const L = computeBattleLayout()
+  const { boardPad, cellSize, boardH, boardTop, iconSize, teamBarH, teamBarY, hpBarY, eAreaTop } = L
   return { boardPad, cellSize, boardH, boardTop, iconSize, teamBarH, teamBarY, hpBarY, eAreaTop }
 }
 

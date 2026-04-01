@@ -142,7 +142,6 @@ function initState(g) {
   g.showMorePanel = false         // 首页「更多」面板
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
-  g.showChestPanel = false        // 宝箱奖励全屏弹窗（玩家主动点击触发）
   g.titleMode = 'stage'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
@@ -171,6 +170,7 @@ function initState(g) {
   g._stageTeam = []             // 编队灵宠 ID 列表
   g._stageTeamSelected = []     // 编队页已选宠物
   g._stageTeamFilter = 'all'    // 编队属性筛选
+  g._showWeaponPicker = false   // 编队页法宝选择浮层
   g._stageTeamScroll = 0        // 编队列表滚动
   g._stageTotalTurns = 0        // 关卡总回合数（跨波次累计）
   g._stageSettlePending = false  // 防止重复结算
@@ -247,12 +247,12 @@ function _createDomainProxies(g) {
     '_petSwipeIndex', '_petSwipeStartX', '_petSwipeStartY', '_petSwipeTriggered',
     'skillPreview', 'showExitDialog', 'showNewRunConfirm',
     'showMorePanel', 'showTitleStartDialog', 'showSidebarPanel',
-    'showChestPanel', 'titleMode', 'titleTowerIndex', 'shopUsed',
+    'titleMode', 'titleTowerIndex', 'shopUsed',
   ])
 
   _createDomainProxy(g, 'stage', [
     'battleMode', '_stageId', '_stageWaves', '_stageWaveIdx',
-    '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll',
+    '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll', '_showWeaponPicker',
     '_stageTotalTurns', '_stageResult', '_waveTransTimer',
     '_stageSelectScroll', '_selectedStageId',
     '_stageInfoEnemyDetail', '_stageInfoPetDetail', '_stageTeamPetDetail',

@@ -71,11 +71,8 @@ function defaultPersist() {
       slots: [],              // [{ petId, startTime }]  最多3个
       lastCollect: 0,         // 上次收取时间戳
     },
-    // Phase 5：宝箱奖励 + 碎片银行
+    // Phase 5：碎片银行
     fragmentBank: {},          // { petId: count } 未入池宠物的碎片
-    chestRewards: {
-      claimed: {},             // { milestoneId: true }
-    },
     guideFlags: {},            // { guideId: true } 新手指引已完成标记
     weaponCollection: [],      // 已获得法宝ID: ['w1','w5',...]
     equippedWeaponId: null,    // 当前装备的法宝ID
@@ -129,10 +126,9 @@ const migrations = {
   6: (d) => {
     if (!d.idleDispatch) d.idleDispatch = { slots: [], lastCollect: 0 }
   },
-  // v7→v8：宝箱奖励 + 碎片银行
+  // v7→v8：碎片银行
   7: (d) => {
     if (!d.fragmentBank) d.fragmentBank = {}
-    if (!d.chestRewards) d.chestRewards = { claimed: {} }
   },
   // v8→v9：新手指引标记
   8: (d) => {
@@ -942,89 +938,6 @@ class Storage {
     this.addToPetPool(petId, 'summon')
     return { success: true, message: '召唤成功' }
   }
-
-  // ===== 宝箱领取 =====
-
-  /**
-   * 领取某里程碑奖励，返回实际发放的奖励列表
-   * @returns {Array} resolved rewards
-   */
-  claimChestReward(milestoneId) {
-    const { CHEST_MILESTONES, rollPetByRarity, rollUnownedPet } = require('./chestConfig')
-    this._ensureCultivationFields()
-
-    if (this._d.chestRewards.claimed[milestoneId]) return []
-    const milestone = CHEST_MILESTONES.find(m => m.id === milestoneId)
-    if (!milestone) return []
-
-    const resolved = []
-    for (const r of milestone.rewards) {
-      switch (r.type) {
-        case 'fragment': {
-          const petId = rollPetByRarity(r.rarityWeights)
-          this.addFragmentSmart(petId, r.count)
-          const { getPetById } = require('./pets')
-          const petData = getPetById(petId)
-          resolved.push({ type: 'fragment', petId, petName: petData ? petData.name : petId, count: r.count })
-          break
-        }
-        case 'pet': {
-          const petId = rollUnownedPet(this._d, r.tier)
-          if (petId) {
-            this.addToPetPool(petId, 'chest')
-            const { getPetById } = require('./pets')
-            const petData = getPetById(petId)
-            resolved.push({ type: 'pet', petId, petName: petData ? petData.name : petId, tier: r.tier })
-          } else {
-            this.addRandomFragments(10, { T3: 0, T2: 30, T1: 70 })
-            resolved.push({ type: 'fragment', petId: '(补偿)', petName: '(全已拥有补偿碎片)', count: 10 })
-          }
-          break
-        }
-        case 'exp': {
-          const cult = this._d.cultivation || {}
-          cult.exp = (cult.exp || 0) + (r.amount || 0)
-          this._d.cultivation = cult
-          resolved.push({ type: 'exp', amount: r.amount })
-          break
-        }
-        case 'soulStone': {
-          this._d.soulStone = (this._d.soulStone || 0) + (r.amount || 0)
-          resolved.push({ type: 'soulStone', amount: r.amount })
-          break
-        }
-        case 'stamina': {
-          if (!this._d.stamina || typeof this._d.stamina !== 'object') {
-            this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
-          }
-          const s = this._d.stamina
-          s.current = Math.min(s.max, (s.current || 0) + (r.amount || 0))
-          resolved.push({ type: 'stamina', amount: r.amount })
-          break
-        }
-        case 'avatar': {
-          this.unlockAvatar(r.avatarId)
-          resolved.push({ type: 'avatar', avatarId: r.avatarId })
-          break
-        }
-        default: {
-          resolved.push({ type: r.type, ...r })
-          break
-        }
-      }
-    }
-    this._d.chestRewards.claimed[milestoneId] = true
-    this._save()
-    return resolved
-  }
-
-  /** 获取已领取记录 */
-  get chestClaimed() {
-    this._ensureCultivationFields()
-    return this._d.chestRewards.claimed
-  }
-
-  /** (petPoolCount getter 定义在第294行，此处删除重复的错误版本) */
 
   // ===== 局内暂存（暂存退出用）=====
   saveRunState(runState) {

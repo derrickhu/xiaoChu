@@ -11,6 +11,7 @@ const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr, getEffectiveStageTeamMin } = require('../data/stages')
+const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 
 const FILTERS = [
@@ -24,6 +25,8 @@ const FILTERS = [
 
 const _rects = {
   slotRects: [],
+  weaponSlotRect: null,
+  weaponCardRects: [],
   filterRects: [],
   petCardRects: [],
   startBtnRect: null,
@@ -107,8 +110,9 @@ function rStageTeam(g) {
 
   const slotSize = 52 * S
   const slotGap = 8 * S
+  const wpnGap = 12 * S
   const maxSlots = stage.teamSize.max
-  const slotsW = maxSlots * slotSize + (maxSlots - 1) * slotGap
+  const slotsW = slotSize + wpnGap + maxSlots * slotSize + (maxSlots - 1) * slotGap
   const slotStartX = (W - slotsW) / 2
   const slotY = cy + 8 * S
   const slotFrameScale = 1.12
@@ -116,8 +120,43 @@ function rStageTeam(g) {
   const slotFrameOf = (slotFrameSz - slotSize) / 2
   _rects.slotRects = []
 
+  // 法宝槽（最左侧）
+  const wpnSlotX = slotStartX
+  const eqId = g.storage.equippedWeaponId
+  const eqWeapon = eqId ? getWeaponById(eqId) : null
+  {
+    const sx = wpnSlotX
+    c.fillStyle = eqWeapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
+    c.fillRect(sx + 1, slotY + 1, slotSize - 2, slotSize - 2)
+    if (eqWeapon) {
+      const wpnImg = R.getImg(`assets/equipment/fabao_${eqWeapon.id}.png`)
+      c.save()
+      c.beginPath(); c.rect(sx + 1, slotY + 1, slotSize - 2, slotSize - 2); c.clip()
+      if (wpnImg && wpnImg.width > 0) {
+        c.drawImage(wpnImg, sx + 1, slotY + 1, slotSize - 2, slotSize - 2)
+      } else {
+        c.fillStyle = '#ffd700'; c.font = `bold ${slotSize*0.38}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText('⚔', sx + slotSize / 2, slotY + slotSize / 2)
+      }
+      c.restore()
+    } else {
+      c.fillStyle = 'rgba(80,70,50,0.5)'
+      R.rr(sx, slotY, slotSize, slotSize, 8*S); c.fill()
+      c.fillStyle = '#888'; c.font = `${14*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText('⚔', sx + slotSize / 2, slotY + slotSize / 2 - 4*S)
+      c.fillStyle = '#666'; c.font = `${7*S}px "PingFang SC",sans-serif`
+      c.fillText('法宝', sx + slotSize / 2, slotY + slotSize / 2 + 10*S)
+    }
+    R.drawWeaponFrame(sx, slotY, slotSize)
+    _rects.weaponSlotRect = [sx, slotY, slotSize, slotSize]
+  }
+
+  // 宠物槽
+  const petSlotStartX = slotStartX + slotSize + wpnGap
   for (let i = 0; i < maxSlots; i++) {
-    const sx = slotStartX + i * (slotSize + slotGap)
+    const sx = petSlotStartX + i * (slotSize + slotGap)
     _rects.slotRects.push([sx, slotY, slotSize, slotSize])
 
     if (i < selected.length) {
@@ -430,6 +469,117 @@ function rStageTeam(g) {
 
   c.restore()
 
+  // ── 法宝选择浮层 ──
+  if (g._showWeaponPicker) {
+    _drawWeaponPicker(g, c, R, S, W, H)
+  }
+}
+
+// ===== 法宝选择浮层 =====
+function _drawWeaponPicker(g, c, R, S, W, H) {
+  c.fillStyle = 'rgba(0,0,0,0.6)'
+  c.fillRect(0, 0, W, H)
+
+  const pw = W * 0.88, ph = H * 0.55
+  const px = (W - pw) / 2, py = H * 0.2
+  const pad = 14 * S
+
+  c.fillStyle = 'rgba(30,22,14,0.95)'
+  R.rr(px, py, pw, ph, 12*S); c.fill()
+  c.strokeStyle = 'rgba(200,168,80,0.4)'; c.lineWidth = 1.5*S
+  R.rr(px, py, pw, ph, 12*S); c.stroke()
+
+  c.fillStyle = '#F5E6C8'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('选择法宝', W / 2, py + 22*S)
+
+  const collection = g.storage.weaponCollection || []
+  const eqId = g.storage.equippedWeaponId
+  const cols = 4
+  const iconGap = 8 * S
+  const innerW = pw - pad * 2
+  const iconSz = Math.floor((innerW - iconGap * (cols - 1)) / cols)
+  const textH = 28 * S
+  let wy = py + 44 * S
+
+  _rects.weaponCardRects = []
+
+  // "卸下" 按钮
+  if (eqId) {
+    const ubtnW = 80*S, ubtnH = 28*S
+    const ubtnX = px + (pw - ubtnW) / 2
+    c.fillStyle = 'rgba(180,80,80,0.3)'
+    R.rr(ubtnX, wy, ubtnW, ubtnH, 6*S); c.fill()
+    c.strokeStyle = 'rgba(255,120,120,0.5)'; c.lineWidth = 1*S
+    R.rr(ubtnX, wy, ubtnW, ubtnH, 6*S); c.stroke()
+    c.fillStyle = '#ff9999'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('卸下法宝', ubtnX + ubtnW / 2, wy + ubtnH / 2)
+    _rects.unequipBtnRect = [ubtnX, wy, ubtnW, ubtnH]
+    wy += ubtnH + 10 * S
+  } else {
+    _rects.unequipBtnRect = null
+  }
+
+  if (collection.length === 0) {
+    c.fillStyle = '#888'; c.font = `${12*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('暂无法宝，通关关卡可获得', W / 2, wy + 40*S)
+  }
+
+  for (let i = 0; i < collection.length; i++) {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const wx = px + pad + col * (iconSz + iconGap)
+    const cardY = wy + row * (iconSz + textH + iconGap)
+    const wpn = getWeaponById(collection[i])
+    if (!wpn) continue
+
+    const isEquipped = wpn.id === eqId
+    c.fillStyle = isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
+    c.fillRect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
+
+    const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
+    if (wpnImg && wpnImg.width > 0) {
+      c.save()
+      c.beginPath(); c.rect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2); c.clip()
+      c.drawImage(wpnImg, wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
+      c.restore()
+    } else {
+      c.fillStyle = '#ffd700'; c.font = `bold ${iconSz*0.35}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText('⚔', wx + iconSz / 2, cardY + iconSz / 2)
+    }
+
+    R.drawWeaponFrame(wx, cardY, iconSz)
+
+    if (isEquipped) {
+      c.save()
+      c.shadowColor = 'rgba(255,215,0,0.6)'; c.shadowBlur = 6*S
+      c.strokeStyle = '#ffd700'; c.lineWidth = 2*S
+      c.strokeRect(wx, cardY, iconSz, iconSz)
+      c.restore()
+      c.fillStyle = 'rgba(0,0,0,0.6)'
+      R.rr(wx + iconSz/2 - 14*S, cardY + 2*S, 28*S, 12*S, 3*S); c.fill()
+      c.fillStyle = '#ffd700'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText('装备中', wx + iconSz / 2, cardY + 8*S)
+    }
+
+    c.fillStyle = '#ddd'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'top'
+    const wName = wpn.name.length > 4 ? wpn.name.slice(0, 4) + '…' : wpn.name
+    c.fillText(wName, wx + iconSz / 2, cardY + iconSz + 3*S)
+
+    c.fillStyle = '#999'; c.font = `${7*S}px "PingFang SC",sans-serif`
+    const wDesc = wpn.desc.length > 6 ? wpn.desc.slice(0, 6) + '…' : wpn.desc
+    c.fillText(wDesc, wx + iconSz / 2, cardY + iconSz + 14*S)
+
+    _rects.weaponCardRects.push({ weaponId: wpn.id, rect: [wx, cardY, iconSz, iconSz + textH] })
+  }
+
+  // 关闭区域（面板外点击关闭）
+  _rects.weaponPickerRect = [px, py, pw, ph]
 }
 
 // ===== 触摸 =====
@@ -457,6 +607,30 @@ function tStageTeam(g, x, y, type) {
     return
   }
   if (type !== 'end') return
+
+  // 法宝选择浮层交互
+  if (g._showWeaponPicker) {
+    if (_scrolling) return
+    // 卸下按钮
+    if (_rects.unequipBtnRect && g._hitRect(x, y, ..._rects.unequipBtnRect)) {
+      g.storage.unequipWeapon()
+      g._showWeaponPicker = false
+      return
+    }
+    // 法宝卡片
+    for (const item of _rects.weaponCardRects) {
+      if (g._hitRect(x, y, ...item.rect)) {
+        g.storage.equipWeapon(item.weaponId)
+        g._showWeaponPicker = false
+        return
+      }
+    }
+    // 点击面板外关闭
+    if (_rects.weaponPickerRect && !g._hitRect(x, y, ..._rects.weaponPickerRect)) {
+      g._showWeaponPicker = false
+    }
+    return
+  }
 
   // 长按检测（≥500ms 且未滚动 → 跳转宠物详情全屏页）
   const elapsed = Date.now() - _holdStartTime
@@ -497,6 +671,12 @@ function tStageTeam(g, x, y, type) {
     const returnScene = g._stageTeamReturnScene || 'stageInfo'
     g._stageTeamReturnScene = null
     g.setScene(returnScene)
+    return
+  }
+
+  // 法宝槽点击（打开法宝选择浮层）
+  if (_rects.weaponSlotRect && g._hitRect(x, y, ..._rects.weaponSlotRect)) {
+    g._showWeaponPicker = true
     return
   }
 

@@ -19,7 +19,6 @@ const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
 const idleView = require('./views/idleView')
-const chestView = require('./views/chestView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
 const eventView = require('./views/eventView')
@@ -199,10 +198,6 @@ class Main {
       // 开场漫画
       'assets/intro/intro_1.jpg',
       'assets/intro/intro_2.jpg',
-      // 宝箱奖励弹窗素材
-      'assets/ui/icon_chest.png',
-      'assets/ui/banner_reward.png',
-      'assets/ui/frame_fragment.png',
       'assets/ui/icon_stamina.png',
       'assets/ui/icon_cult_exp.png',
       'assets/ui/icon_pet_exp.png',
@@ -380,7 +375,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this.showChestPanel && !this.showSidebarPanel && !this.showMorePanel) return
+    if (isStatic && !this._dirty && !this.showSidebarPanel && !this.showMorePanel) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -450,7 +445,6 @@ class Main {
     if (this._fragmentObtainedPopup) {
       dialogs.drawFragmentPopup(this)
     }
-    chestView.drawChestOverlay(this)
     guideOverlay.draw(this)
     ctx.restore()
   }
@@ -464,11 +458,6 @@ class Main {
     // 指引覆盖层拦截（restrictToHighlight 模式下高亮区域点击可穿透到底层按钮）
     if (guideMgr.isActive()) {
       if (guideOverlay.onTouch(this, type, x, y)) return
-    }
-    // 宝箱弹窗拦截（全局覆盖式弹窗）
-    if (this.showChestPanel) {
-      chestView.tChestOverlay(this, type, x, y)
-      return
     }
     switch(this.scene) {
       case 'intro': introView.onTouch(this, type, x, y); break

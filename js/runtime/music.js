@@ -422,50 +422,6 @@ class MusicManager {
     }, 100)
   }
 
-  /** 宝箱打开音效：沉稳开启感 + 短暂延迟后亮光发散音 */
-  playChestOpen() {
-    if (!this.enabled) return
-    this._playSfxEx('audio/boss.mp3', 0.28, 1.5)
-    setTimeout(() => {
-      if (this.enabled) this._playSfxEx('audio/reward.mp3', 0.45, 1.15)
-    }, 160)
-  }
-
-  /**
-   * 宝箱奖励弹出音效，按奖励类型区分音色
-   * @param {'pet'|'fragment'|'exp'|'soulStone'|'stamina'|string} rewardType
-   */
-  playChestReward(rewardType) {
-    if (!this.enabled) return
-    switch (rewardType) {
-      case 'pet':
-        // 新灵宠：双层叮咚，强烈惊喜感
-        this.playPetObtained()
-        break
-      case 'fragment':
-        // 宠物碎片：清脆短促，略带神秘
-        this._playSfxEx('audio/reward.mp3', 0.45, 1.35)
-        setTimeout(() => {
-          if (this.enabled) this._playSfxEx('audio/skill.mp3', 0.28, 1.2)
-        }, 75)
-        break
-      case 'exp':
-        // 修炼经验：升阶感
-        this._playSfxEx('audio/levelup.mp3', 0.45, 1.1)
-        break
-      case 'soulStone':
-        // 灵石：灵动高频
-        this._playSfxEx('audio/reward.mp3', 0.4, 1.5)
-        break
-      case 'stamina':
-        // 体力：清脆回复感
-        this._playSfxEx('audio/skill.mp3', 0.38, 1.7)
-        break
-      default:
-        this.playReward()
-    }
-  }
-
   // ============ 开关 ============
 
   toggleBgm() {

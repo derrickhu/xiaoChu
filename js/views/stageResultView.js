@@ -1260,10 +1260,17 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     c.save()
     c.globalAlpha *= summaryAlpha
     const sumParts = []
-    const totalSS = result.soulStone || 0
+    // 关卡结算灵石在 result.soulStone；章节里程碑另行列出但已实际入账，汇总须并入避免与「里程碑 +xxx」不一致
+    let totalSS = result.soulStone || 0
     const totalExp = result.cultExp || 0
     let totalFrags = 0
     if (result.rewards) result.rewards.forEach(r => { if (r.type === 'fragment') totalFrags += r.count })
+    if (result.milestoneRewards && result.milestoneRewards.length) {
+      for (const ms of result.milestoneRewards) {
+        totalSS += ms.soulStone || 0
+        totalFrags += ms.fragment || 0
+      }
+    }
     if (totalSS > 0) sumParts.push(`灵石 +${totalSS}`)
     if (totalFrags > 0) sumParts.push(`碎片 +${totalFrags}`)
     if (totalExp > 0) sumParts.push(`经验 +${totalExp}`)

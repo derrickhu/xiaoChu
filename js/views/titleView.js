@@ -1101,76 +1101,12 @@ function drawMorePanel(g) {
   ctx.restore()
 }
 
-// ===== 宝箱浮钮（右下角，与模式切换左右对称） =====
-// ===== 宝箱浮钮（右上角，顶栏旁边）=====
-function drawChestBtn(g) {
-  const { ctx, R, W, S, safeTop } = V
-  const { getUnclaimedCount } = require('../data/chestConfig')
-
-  // 图标尺寸：避开右上角系统按钮（...），下移至其下方
-  const btnSz = 48 * S
-  const btnX = W - btnSz - 10 * S
-  const btnY = safeTop + 52 * S
-
-  ctx.save()
-
-  // 点击缩放动画：按下 → 弹起回弹
-  const pressAge = g._chestPressTime ? (Date.now() - g._chestPressTime) : 9999
-  let pressScale = 1.0
-  if (pressAge < 120) {
-    // 0~120ms：压下，scale 1→0.82
-    pressScale = 1.0 - 0.18 * (pressAge / 120)
-  } else if (pressAge < 300) {
-    // 120~300ms：弹起回弹，用 sin 模拟弹性
-    pressScale = 0.82 + 0.25 * Math.sin(Math.PI * (pressAge - 120) / 180)
-  }
-
-  const cx = btnX + btnSz / 2
-  const cy = btnY + btnSz / 2
-  ctx.translate(cx, cy)
-  ctx.scale(pressScale, pressScale)
-  ctx.translate(-cx, -cy)
-
-  const chestImg = R.getImg('assets/ui/icon_chest.png')
-  if (chestImg && chestImg.width > 0) {
-    ctx.drawImage(chestImg, btnX, btnY, btnSz, btnSz)
-  } else {
-    // fallback：绘制圆形背景 + emoji
-    ctx.fillStyle = 'rgba(20,18,38,0.75)'
-    R.rr(btnX, btnY, btnSz, btnSz, 8 * S); ctx.fill()
-    ctx.font = `${btnSz * 0.55}px sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('🎁', btnX + btnSz / 2, btnY + btnSz / 2)
-  }
-
-  // 红点 + 数字（右上角）
-  const count = getUnclaimedCount(g.storage)
-  if (count > 0) {
-    const dotR = 8 * S
-    const dotX = btnX + btnSz - dotR * 0.5
-    const dotY = btnY + dotR * 0.5
-    ctx.beginPath()
-    ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2)
-    ctx.fillStyle = '#ff3333'
-    ctx.fill()
-    ctx.fillStyle = '#fff'
-    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(String(count), dotX, dotY)
-  }
-
-  g._chestBtnRect = [btnX, btnY, btnSz, btnSz]
-  ctx.restore()
-}
-
-
 // ===== 主入口 =====
 function rTitle(g) {
   drawSceneArea(g)
   drawTopBar(g)
   drawStartBtn(g)
   drawModeSwitchBtn(g)
-  drawChestBtn(g)
   drawSidebarBtn(g)
   drawBottomBar(g)
   drawAvatarWidget(g)

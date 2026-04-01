@@ -198,19 +198,7 @@ function tTitle(g, type, x, y) {
     g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
   }
 
-  // ⑥b 宝箱浮钮
-  if (g._chestBtnRect && g._hitRect(x, y, ...g._chestBtnRect)) {
-    g._chestPressTime = Date.now()
-    const chestView = require('../views/chestView')
-    chestView.initChestQueue(g)
-    if (chestView.hasMore()) {
-      MusicMgr.playChestOpen()
-      g.showChestPanel = true
-    }
-    return
-  }
-
-  // ⑥c 右下角侧边栏复访入口（抖音专属）
+  // ⑥b 右下角侧边栏复访入口（抖音专属）
   if (g._sidebarBtnRect && g._hitRect(x, y, ...g._sidebarBtnRect)) {
     g.showSidebarPanel = true; return
   }
