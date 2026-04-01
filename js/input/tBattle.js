@@ -117,7 +117,7 @@ function tBattle(g, type, x, y) {
         MusicMgr.stopBossBgm()
         g.showExitDialog = false
         g.bState = 'none'
-        g.setScene('stageSelect')
+        g.setScene('title')
       } else {
         g._saveAndExit()
       }

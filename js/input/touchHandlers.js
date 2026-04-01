@@ -160,8 +160,9 @@ function tDex(g, type, x, y) {
           const petId = g._dexDetailPetId
           g._dexDetailPetId = null
           g._dexBattleBtnRect = null
-          g._designatedPetId = petId
-          g._startRun()
+          const pool = g.storage.petPool.slice(0, 5).map(p => p.id)
+          if (!pool.includes(petId)) pool.unshift(petId)
+          g._startRun(pool.slice(0, 5))
           return
         }
       }

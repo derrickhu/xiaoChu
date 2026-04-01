@@ -7,8 +7,9 @@ const P = require('../platform')
 
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
 const { drawPanel } = require('./uiComponents')
-const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER } = require('../data/stages')
-const { STAGE_CARD: SC } = require('../data/constants')
+const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, getEliteLockReason } = require('../data/stages')
+const { STAGE_CARD: SC, TITLE_LOGO } = require('../data/constants')
+const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
 
 // 模式配置（秘境首页已改为卡片选关，不再使用 gate_stage 图）
@@ -22,12 +23,11 @@ function drawTopBar(g) {
   const { ctx, R, W, S, safeTop } = V
   const logoImg = R.getImg('assets/ui/title_logo.png')
   if (logoImg && logoImg.width > 0) {
-    // 状态栏行底部 = safeTop + 48S + 42S，Logo 紧贴其下
-    const statusBarBottom = safeTop + 48 * S + 42 * S
-    const logoH = 42 * S
+    const statusBarBottom = safeTop + 48 * S + 48 * S
+    const logoH = TITLE_LOGO.heightPt * S
     const logoW = logoH * (logoImg.width / logoImg.height)
     const logoX = (W - logoW) / 2
-    const logoY = statusBarBottom + 4 * S
+    const logoY = statusBarBottom + TITLE_LOGO.gapBelowStatusPt * S
     ctx.save()
     ctx.globalAlpha = 1
     ctx.drawImage(logoImg, logoX, logoY, logoW, logoH)
@@ -38,7 +38,8 @@ function drawTopBar(g) {
 // ===== 秘境内嵌选关：获取当前展示的关卡数据 =====
 function _ensureBrowsableList(g) {
   // 每帧重建（15关遍历，开销可忽略），确保通关后列表立即更新
-  g._browsableStages = getBrowsableStages(g.storage.stageClearRecord)
+  const diff = g._stageDifficulty || 'normal'
+  g._browsableStages = getBrowsableStages(g.storage.stageClearRecord, diff)
   if (g._selectedStageIdx >= g._browsableStages.length) {
     g._selectedStageIdx = Math.max(0, g._browsableStages.length - 1)
   }
@@ -104,14 +105,14 @@ function drawSceneArea(g) {
 
 // ===== 秘境场景区：精致卡片选关 =====
 function _drawStageSceneArea(g, ctx, R, W, S, L) {
-  const entry = _getDisplayStage(g)
-  if (!entry) return
+  if (!g._stageDifficulty) g._stageDifficulty = 'normal'
+  const isElite = g._stageDifficulty === 'elite'
 
-  const { stage, unlocked } = entry
+  const entry = _getDisplayStage(g)
+
   const sceneTop = L.topBarBottom
   const sceneBot = L.petRowY
   const sceneH = sceneBot - sceneTop
-  const swipeDx = g._stageSwipeDeltaX || 0
   const cx = W / 2
 
   // ── 布局：标题横幅 + 怪物卡片（两段式）──
@@ -140,11 +141,17 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   // 底边贴在星级说明条上方（与 drawStartBtn 中 condY 同一套尺寸）
   const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
   const condAboveBtn = (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
-  const blockAboveCond = (SC.blockAboveCondGapPt != null ? SC.blockAboveCondGapPt : 6) * S
+  const blockAboveCond = (SC.blockAboveCondGapPt != null ? SC.blockAboveCondGapPt : 12) * S
   const condTop = L.startBtnY - condPanelH - condAboveBtn
   const blockBottomTarget = condTop - blockAboveCond
-  let bannerY = blockBottomTarget - totalBlockH
-  if (bannerY < minTop) bannerY = minTop
+  const tabH = 26 * S
+  const tabGap = 5 * S
+  const fullBlockH = totalBlockH + tabH + tabGap
+  let blockTopY = blockBottomTarget - fullBlockH
+  if (blockTopY < minTop) blockTopY = minTop
+
+  const tabY = blockTopY
+  let bannerY = tabY + tabH + tabGap
 
   const cardY = bannerY + bannerH + bannerGap
 
@@ -152,6 +159,61 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const imgY = cardY + cardPadTop
 
   ctx.save()
+
+  // ══════ 难度 Tab 切换按钮 ══════
+  {
+    const tabW = cardW * 0.52
+    const tabBtnW = tabW / 2
+    const tabX = cx - tabW / 2
+    const tabR = tabH / 2
+
+    const nSel = !isElite
+    ctx.save()
+    ctx.fillStyle = nSel ? 'rgba(160, 120, 50, 0.85)' : 'rgba(200, 185, 150, 0.25)'
+    R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR)
+    ctx.fill()
+    if (nSel) {
+      ctx.strokeStyle = 'rgba(195, 160, 60, 0.5)'; ctx.lineWidth = 1 * S
+      R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke()
+    }
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = nSel ? '#fff' : 'rgba(120, 100, 70, 0.6)'
+    ctx.fillText('普通', tabX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
+    ctx.restore()
+    g._diffTabNormalRect = [tabX, tabY, tabBtnW - 2 * S, tabH]
+
+    const eX = tabX + tabBtnW + 2 * S
+    ctx.save()
+    ctx.fillStyle = isElite ? 'rgba(180, 120, 20, 0.9)' : 'rgba(200, 185, 150, 0.25)'
+    R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR)
+    ctx.fill()
+    if (isElite) {
+      ctx.strokeStyle = 'rgba(218, 165, 32, 0.6)'; ctx.lineWidth = 1 * S
+      R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke()
+    }
+    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = isElite ? '#fff8e0' : 'rgba(120, 100, 70, 0.6)'
+    ctx.fillText('精英', eX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
+    ctx.restore()
+    g._diffTabEliteRect = [eX, tabY, tabBtnW - 2 * S, tabH]
+  }
+
+  if (!entry) {
+    ctx.font = `${14 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(120, 100, 70, 0.7)'
+    ctx.fillText('🔒 需普通3星通关解锁', cx, bannerY + (sceneBot - bannerY) / 2)
+    ctx.restore()
+    g._stageGateRect = null
+    g._stageArrowLeftRect = null
+    g._stageArrowRightRect = null
+    return
+  }
+
+  const { stage, unlocked } = entry
+  const swipeDx = g._stageSwipeDeltaX || 0
 
   // ══════ 标题横幅（暖色渐变底 + 特效文字）══════
   ctx.save()
@@ -242,8 +304,8 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   R.rr(cardX, cardY, cardW, cardH, cardR)
   ctx.fill()
   ctx.shadowColor = 'transparent'
-  ctx.strokeStyle = 'rgba(195, 158, 60, 0.36)'
-  ctx.lineWidth = 1.2 * S
+  ctx.strokeStyle = isElite ? 'rgba(218, 165, 32, 0.65)' : 'rgba(195, 158, 60, 0.36)'
+  ctx.lineWidth = isElite ? 2 * S : 1.2 * S
   R.rr(cardX, cardY, cardW, cardH, cardR)
   ctx.stroke()
   const fInset = 4 * S
@@ -319,7 +381,13 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.fillStyle = 'rgba(0,0,0,0.4)'
     ctx.fillRect(imgX, imgY, imgSide, imgSide)
     ctx.font = `${28 * S}px sans-serif`
-    ctx.fillText('🔒', cx, imgY + imgSide / 2)
+    ctx.fillText('🔒', cx, imgY + imgSide * 0.4)
+    const reason = isElite ? getEliteLockReason(stage.id, g.storage.stageClearRecord) : null
+    if (reason) {
+      ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = 'rgba(255,220,120,0.9)'
+      ctx.fillText(reason, cx, imgY + imgSide * 0.65)
+    }
   }
   ctx.restore()
 
@@ -401,7 +469,7 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   ctx.restore()
 }
 
-// ===== ZONE 3: 状态栏（头像 + 灵石 + 体力，同一排）=====
+// ===== ZONE 3: 状态栏（头像 + 灵石 + 体力，同一排 + 经验条）=====
 function drawAvatarWidget(g) {
   const { ctx, R, W, S, safeTop } = V
   const cult = g.storage.cultivation
@@ -418,9 +486,8 @@ function drawAvatarWidget(g) {
   }
   const sitPath = CHAR_MAP[selectedId] || CHAR_MAP.boy1
 
-  // 整排位置：微信胶囊按钮下方（safeTop + 约50S）
   const rowY = safeTop + 48 * S
-  const iconSz = 42 * S
+  const iconSz = 48 * S
   const iconX = 10 * S
   const iconCX = iconX + iconSz / 2
   const iconCY = rowY + iconSz / 2
@@ -451,7 +518,7 @@ function drawAvatarWidget(g) {
     ctx.strokeStyle = 'rgba(220,180,60,0.9)'; ctx.lineWidth = 2 * S; ctx.stroke()
   }
 
-  // 等级角标
+  // 等级角标（头像左上方）
   const lvText = `Lv.${level}`
   ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
@@ -461,7 +528,7 @@ function drawAvatarWidget(g) {
   const lvCapH = 16 * S
   const lvCapR = lvCapH / 2
   const lvCapCX = iconCX + iconSz * 0.22
-  const lvCapCY = iconCY + iconSz * 0.40
+  const lvCapCY = iconCY + iconSz * 0.42
   const lvCapX = lvCapCX - lvCapW / 2
   const lvCapY = lvCapCY - lvCapH / 2
 
@@ -472,15 +539,16 @@ function drawAvatarWidget(g) {
   ctx.fillStyle = '#fff8cc'
   ctx.fillText(lvText, lvCapCX, lvCapCY)
 
-  // ── 灵石 + 体力胶囊（头像右侧，同一排）──
-  const pillH = 24 * S
-  const pillR = pillH / 2
-  const pillIconSz = 20 * S
-  const pillGap = 6 * S
-  const pillStartX = iconX + iconSz + 8 * S
-  const pillCY = iconCY
+  // ── 右侧区域起点 ──
+  const rightX = iconX + iconSz + 8 * S
 
-  // 通用胶囊绘制
+  // ── 灵石 + 体力胶囊（上排）──
+  const pillH = 22 * S
+  const pillR = pillH / 2
+  const pillIconSz = 18 * S
+  const pillGap = 6 * S
+  const pillCY = rowY + iconSz * 0.32
+
   function _drawPill(px, text, iconPath) {
     ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
@@ -506,15 +574,48 @@ function drawAvatarWidget(g) {
     return pillW
   }
 
-  // 灵石
   const soulStone = g.storage.soulStone || 0
-  const ssPillW = _drawPill(pillStartX, String(soulStone), 'assets/ui/icon_soul_stone.png')
+  const ssPillW = _drawPill(rightX, String(soulStone), 'assets/ui/icon_soul_stone.png')
 
-  // 体力
   const stamina = g.storage.currentStamina
   const maxSt = g.storage.maxStamina
   const stText = `${stamina}/${maxSt}`
-  _drawPill(pillStartX + ssPillW + pillGap, stText, 'assets/ui/icon_stamina.png')
+  const stPillW = _drawPill(rightX + ssPillW + pillGap, stText, 'assets/ui/icon_stamina.png')
+
+  // ── 经验条（灵石/体力下方）──
+  const expBarY = pillCY + pillH / 2 + 4 * S
+  const expBarH = 7 * S
+  const expBarX = rightX
+  const expBarW = ssPillW + pillGap + stPillW
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'
+  R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()
+
+  if (level < MAX_LEVEL) {
+    const needed = expToNextLevel(level)
+    const curExp = (cult && cult.exp) || 0
+    const pct = Math.min(curExp / needed, 1)
+    if (pct > 0) {
+      const fillW = Math.max(expBarH, expBarW * pct)
+      const barGrad = ctx.createLinearGradient(expBarX, expBarY, expBarX + fillW, expBarY)
+      barGrad.addColorStop(0, '#D4A843')
+      barGrad.addColorStop(1, '#F0C860')
+      ctx.fillStyle = barGrad
+      R.rr(expBarX, expBarY, fillW, expBarH, expBarH / 2); ctx.fill()
+    }
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.font = `${8*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`${curExp}/${needed}`, expBarX + expBarW - 2 * S, expBarY + expBarH / 2)
+  } else {
+    const barGrad = ctx.createLinearGradient(expBarX, expBarY, expBarX + expBarW, expBarY)
+    barGrad.addColorStop(0, '#D4A843')
+    barGrad.addColorStop(1, '#F0C860')
+    ctx.fillStyle = barGrad
+    R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.font = `${8*S}px "PingFang SC",sans-serif`
+    ctx.fillText('MAX', expBarX + expBarW / 2, expBarY + expBarH / 2)
+  }
 
   ctx.restore()
 }

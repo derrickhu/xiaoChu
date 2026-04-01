@@ -17,7 +17,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 11
+const CURRENT_VERSION = 12
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -76,6 +76,8 @@ function defaultPersist() {
       claimed: {},             // { milestoneId: true }
     },
     guideFlags: {},            // { guideId: true } 新手指引已完成标记
+    weaponCollection: [],      // 已获得法宝ID: ['w1','w5',...]
+    equippedWeaponId: null,    // 当前装备的法宝ID
   }
 }
 
@@ -158,6 +160,11 @@ const migrations = {
       }
     }
     if (!d.chapterStarMilestones) d.chapterStarMilestones = {}
+  },
+  // v11→v12：法宝背包 + 装备系统
+  11: (d) => {
+    if (!d.weaponCollection) d.weaponCollection = []
+    if (d.equippedWeaponId === undefined) d.equippedWeaponId = null
   },
 }
 
@@ -658,10 +665,10 @@ class Storage {
     this._save()
   }
 
-  getChapterTotalStars(chapterId) {
+  getChapterTotalStars(chapterId, difficulty) {
     const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
     const { getChapterStages } = require('./stages')
-    const stages = getChapterStages(chapterId)
+    const stages = getChapterStages(chapterId, difficulty || 'normal')
     let total = 0
     for (const s of stages) {
       const best = this.getStageBestRating(s.id)
@@ -794,6 +801,42 @@ class Storage {
   /** 获取当前派遣中的宠物ID列表 */
   get idleSlotPetIds() {
     return (this.idleDispatch.slots || []).map(s => s.petId)
+  }
+
+  // ===== 法宝背包 & 装备 =====
+
+  get weaponCollection() {
+    return this._d.weaponCollection || []
+  }
+
+  get equippedWeaponId() {
+    return this._d.equippedWeaponId || null
+  }
+
+  addWeapon(weaponId) {
+    if (!this._d.weaponCollection) this._d.weaponCollection = []
+    if (!this._d.weaponCollection.includes(weaponId)) {
+      this._d.weaponCollection.push(weaponId)
+      this._save()
+      return true
+    }
+    return false
+  }
+
+  equipWeapon(weaponId) {
+    if (weaponId && !this._d.weaponCollection.includes(weaponId)) return false
+    this._d.equippedWeaponId = weaponId
+    this._save()
+    return true
+  }
+
+  unequipWeapon() {
+    this._d.equippedWeaponId = null
+    this._save()
+  }
+
+  hasWeapon(weaponId) {
+    return (this._d.weaponCollection || []).includes(weaponId)
   }
 
   // ===== 碎片银行 =====

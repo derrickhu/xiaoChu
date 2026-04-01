@@ -533,7 +533,7 @@ function tStageInfo(g, x, y, type) {
 
   // 返回
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
-    g.setScene('stageSelect')
+    g.setScene('title')
     return
   }
 

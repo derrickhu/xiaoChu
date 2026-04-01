@@ -3,6 +3,7 @@
  * 从 titleView.js 抽出，避免 titleView ↔ cultivationView 循环依赖
  */
 const V = require('./env')
+const { TITLE_LOGO } = require('../data/constants')
 
 // 底部 7 标签定义（index=3 为中心凸起按钮）
 const BAR_ITEMS = [
@@ -20,7 +21,8 @@ function getLayout() {
   const { W, H, S, safeTop } = V
   const safeBottom = 10 * S
 
-  const topBarH     = 48 * S + 42 * S + 42 * S + 8 * S   // 状态栏行(48+42) + Logo(42) + 间距(8)
+  const topBarH = 48 * S + 48 * S
+    + TITLE_LOGO.gapBelowStatusPt * S + TITLE_LOGO.heightPt * S + TITLE_LOGO.gapBelowLogoPt * S
   const bottomBarH  = 62 * S
   const modeSwitchH = 52 * S   // 正方形图标边长（图案区）
   const startBtnH   = 44 * S   // 开始按钮高度

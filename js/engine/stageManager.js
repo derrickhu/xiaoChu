@@ -13,6 +13,7 @@ const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
 const { STAR_REWARDS, CHAPTER_MILESTONES } = require('../data/economyConfig')
+const { getWeaponById } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
@@ -44,6 +45,7 @@ function startStage(g, stageId, teamPetIds) {
   g._stageWaves = stage.waves
   g._stageWaveIdx = 0
   g._stageTotalTurns = 0
+  g._stageSettlePending = false
   g._stageTeam = teamPetIds.slice()
 
   // 从灵宠池构建战斗用宠物数组
@@ -74,8 +76,9 @@ function startStage(g, stageId, teamPetIds) {
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
   g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
 
-  // 局内状态重置（清空肉鸽相关残留，确保两种模式完全隔离）
-  g.weapon = null
+  // 加载玩家装备的法宝（固定关卡持久化装备）
+  const eqId = g.storage.equippedWeaponId
+  g.weapon = eqId ? { ...getWeaponById(eqId) } : null
   g.petBag = []
   g.weaponBag = []
   g.sessionPetPool = []
@@ -130,6 +133,7 @@ function startStageNewbie(g, stageId) {
   g._stageWaves = stage.waves
   g._stageWaveIdx = 0
   g._stageTotalTurns = 0
+  g._stageSettlePending = false
   g._stageTeam = NEWBIE_TEMP_PET_IDS.slice()
 
   // 构建临时宠物（不来自灵宠池，仅本局使用）
@@ -419,6 +423,18 @@ function settleStageDefeat(g) {
     soulStone,
     totalTurns: g._stageTotalTurns,
     victory: false,
+    enemyHp: g.enemy ? g.enemy.hp : 0,
+    enemyMaxHp: g.enemy ? g.enemy.maxHp : 0,
+    enemyName: g.enemy ? g.enemy.name : '',
+    enemyAttr: g.enemy ? g.enemy.attr : '',
+    enemyAvatar: g.enemy ? g.enemy.avatar : '',
+    waveIdx: g._stageWaveIdx || 0,
+    waveTotal: g._stageWaves ? g._stageWaves.length : 1,
+    teamSnapshot: (g.pets || []).map(p => ({
+      id: p.id, name: p.name, attr: p.attr,
+      atk: p.atk, star: p.star,
+    })),
+    cultLevel: g.storage.cultivation.level || 0,
   }
 
   g.setScene('stageResult')
@@ -460,12 +476,17 @@ function resolveReward(g, reward) {
     const petId = reward.petId
     const inPool = g.storage.petPool.find(p => p.id === petId)
     if (inPool) {
-      const fragCount = reward.fragCount || 10
+      const fragCount = reward.fragCount || 5
       g.storage.addFragmentSmart(petId, fragCount)
       return { type: 'fragment', petId, count: fragCount, wasPet: true }
     }
     g.storage.addToPetPool(petId, 'stage')
     return { type: 'pet', petId }
+  }
+  if (reward.type === 'weapon') {
+    const weaponId = reward.weaponId
+    const isNew = g.storage.addWeapon(weaponId)
+    return { type: 'weapon', weaponId, isNew }
   }
   if (reward.type === 'fragment') {
     let petId = reward.target

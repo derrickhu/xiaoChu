@@ -15,7 +15,6 @@ const screens = require('./views/screens')
 const cultView = require('./views/cultivationView')
 const petPoolView = require('./views/petPoolView')
 const petDetailView = require('./views/petDetailView')
-const stageSelectView = require('./views/stageSelectView')
 const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
@@ -205,7 +204,7 @@ class Main {
   }
 
   // ===== Run管理（委托到 runManager）=====
-  _startRun() { runMgr.startRun(this) }
+  _startRun(petIds) { runMgr.startRun(this, petIds) }
   _nextFloor() { runMgr.nextFloor(this) }
   _restoreBattleHpMax() { runMgr.restoreBattleHpMax(this) }
   _endRun() { runMgr.endRun(this) }
@@ -353,16 +352,9 @@ class Main {
   // ===== 渲染入口 =====
   render() {
     if (this.scene !== this._lastRenderedScene) { this._dirty = true; this._lastRenderedScene = this.scene }
-    // 体力恢复倒计时：stageSelect 页面每秒刷新一次
-    if (this.scene === 'stageSelect' && this.storage.staminaRecoverSec > 0) {
-      const now = Date.now()
-      if (!this._staminaTickLast || now - this._staminaTickLast >= 1000) {
-        this._staminaTickLast = now; this._dirty = true
-      }
-    }
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
-      this.scene === 'stageSelect' || this.scene === 'stageInfo')
+      this.scene === 'stageInfo')
     if (isStatic && !this._dirty && !this.showChestPanel && !this.showSidebarPanel && !this.showMorePanel) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
@@ -393,7 +385,6 @@ class Main {
       case 'cultivation': cultView.rCultivation(this); break
       case 'petPool': petPoolView.rPetPool(this); break
       case 'petDetail': petDetailView.rPetDetail(this); break
-      case 'stageSelect': stageSelectView.rStageSelect(this); break
       case 'stageInfo': stageInfoView.rStageInfo(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
       case 'stageResult': stageResultView.rStageResult(this); break
@@ -471,7 +462,6 @@ class Main {
       case 'cultivation': cultView.tCultivation(this,x,y,type); break
       case 'petPool': petPoolView.tPetPool(this,x,y,type); break
       case 'petDetail': petDetailView.tPetDetail(this,x,y,type); break
-      case 'stageSelect': stageSelectView.tStageSelect(this,x,y,type); break
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
       case 'stageResult': stageResultView.tStageResult(this,x,y,type); break

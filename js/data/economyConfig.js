@@ -1,7 +1,7 @@
 /**
  * 经济系统配置 — 灵宠消消塔
  * 集中管理所有经济数值：货币定义、品质视觉、章节奖励、通天塔奖励、派遣奖励
- * 调整数值只需改此文件，逻辑代码只读取配置
+ * 适配 5章 × 8关 普通/精英双难度 = 80关
  */
 
 // ===== 货币定义 =====
@@ -38,8 +38,6 @@ const RARITY_VISUAL = {
     badgeBg: 'rgba(100,80,10,0.85)',
     hasParticles: true,
   },
-  // 预留扩展
-  // UR: { label: 'UR', name: '超越传说', borderColor: '#ff4d9a', ... },
 }
 
 // ===== 星级视觉配置 =====
@@ -51,101 +49,156 @@ const STAR_VISUAL = {
   5: { color: '#ff4d9a', name: '超越',  effect: 'rainbow' },
 }
 
-// ===== 各章节秘境奖励配置（按关卡顺序 1-5） =====
+// ===== 每章关卡数 =====
+const STAGES_PER_CHAPTER = 8
+
+// ===== 各章节秘境奖励配置（索引 0-7 对应本章第 1-8 关） =====
+// 普通难度和精英难度分别配置
 const STAGE_REWARDS = {
   1: {
-    soulStone:   { first: [50, 80, 120, 150, 200],  repeat: [30, 35, 40, 45, 50] },
-    fragment:    { first: [5, 8, 8, 10, 12],         repeat: [3, 3, 4, 4, 5] },
-    awakenStone: { first: [0, 0, 0, 0, 0],           repeat: 0 },
+    normal: {
+      soulStone: { first: [40,50,60,80,100,120,150,200],   repeat: [20,25,25,30,30,35,40,50] },
+      fragment:  { first: [0,0,2,2,2,3,3,4],                repeat: [1,1,1,1,2,2,2,3] },
+      awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
+    },
+    elite: {
+      soulStone: { first: [60,80,100,120,150,180,200,300],  repeat: [30,35,40,45,50,55,60,80] },
+      fragment:  { first: [3,3,3,4,4,4,5,5],                repeat: [2,2,2,2,3,3,3,4] },
+      awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
+    },
   },
   2: {
-    soulStone:   { first: [120, 150, 180, 200, 250], repeat: [60, 70, 80, 90, 100] },
-    fragment:    { first: [8, 10, 10, 12, 15],        repeat: [4, 4, 5, 5, 6] },
-    awakenStone: { first: [0, 0, 0, 0, 0],           repeat: 0 },
+    normal: {
+      soulStone: { first: [80,100,120,150,150,180,200,250],  repeat: [40,45,50,55,60,70,80,100] },
+      fragment:  { first: [2,2,3,3,3,4,4,5],                 repeat: [2,2,2,3,3,3,3,4] },
+      awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
+    },
+    elite: {
+      soulStone: { first: [120,150,180,220,220,270,300,380], repeat: [60,70,80,85,90,100,120,150] },
+      fragment:  { first: [4,4,5,5,5,6,6,8],                 repeat: [3,3,3,4,4,4,5,6] },
+      awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
+    },
   },
   3: {
-    soulStone:   { first: [200, 220, 250, 280, 350], repeat: [100, 110, 120, 130, 150] },
-    fragment:    { first: [10, 12, 12, 14, 16],       repeat: [5, 5, 6, 6, 7] },
-    awakenStone: { first: [1, 1, 1, 2, 2],           repeat: 0.15 },
+    normal: {
+      soulStone: { first: [150,180,200,220,250,280,300,350],  repeat: [80,90,100,110,120,130,140,150] },
+      fragment:  { first: [3,3,4,4,5,5,6,8],                  repeat: [3,3,3,4,4,4,5,5] },
+      awakenStone: { first: [0,0,1,1,1,1,1,2],               repeat: 0.10 },
+    },
+    elite: {
+      soulStone: { first: [220,270,300,330,380,420,450,530],  repeat: [120,130,150,160,180,200,210,230] },
+      fragment:  { first: [5,6,6,7,7,8,8,10],                 repeat: [4,5,5,5,6,6,6,8] },
+      awakenStone: { first: [1,1,1,1,2,2,2,3],               repeat: 0.15 },
+    },
   },
   4: {
-    soulStone:   { first: [300, 330, 360, 400, 500], repeat: [130, 140, 150, 170, 200] },
-    fragment:    { first: [12, 14, 14, 16, 18],       repeat: [6, 6, 7, 7, 8] },
-    awakenStone: { first: [2, 2, 2, 3, 3],           repeat: 0.15 },
+    normal: {
+      soulStone: { first: [250,280,300,330,350,380,400,500],  repeat: [120,130,140,150,160,170,190,200] },
+      fragment:  { first: [5,5,6,6,8,8,8,10],                 repeat: [4,4,4,5,5,5,6,6] },
+      awakenStone: { first: [1,1,1,2,2,2,2,3],               repeat: 0.12 },
+    },
+    elite: {
+      soulStone: { first: [380,420,450,500,530,570,600,750],  repeat: [180,200,210,230,240,260,280,300] },
+      fragment:  { first: [8,8,9,9,10,10,12,15],              repeat: [6,6,7,7,8,8,9,10] },
+      awakenStone: { first: [2,2,2,3,3,3,4,5],               repeat: 0.20 },
+    },
   },
   5: {
-    soulStone:   { first: [400, 440, 480, 520, 650], repeat: [180, 200, 220, 250, 300] },
-    fragment:    { first: [14, 16, 16, 18, 20],       repeat: [7, 8, 8, 9, 10] },
-    awakenStone: { first: [3, 3, 4, 4, 5],           repeat: 0.20 },
+    normal: {
+      soulStone: { first: [350,380,400,440,460,500,550,700],   repeat: [160,180,200,220,240,260,280,300] },
+      fragment:  { first: [6,6,8,8,8,10,10,12],                repeat: [5,5,6,6,6,7,7,8] },
+      awakenStone: { first: [2,2,2,3,3,3,4,5],                repeat: 0.15 },
+    },
+    elite: {
+      soulStone: { first: [530,570,600,660,690,750,830,1050],  repeat: [240,270,300,330,360,400,420,450] },
+      fragment:  { first: [10,10,12,12,14,14,15,18],            repeat: [8,8,9,9,10,10,12,14] },
+      awakenStone: { first: [3,3,4,4,5,5,6,8],                repeat: 0.25 },
+    },
   },
 }
 
-// ===== 关卡星级奖励（2★/3★首次达成增量奖励，1★=现有firstClear） =====
-// 索引 0–4 对应本章第 1–5 关
+// ===== 关卡星级奖励（2★/3★首次达成增量奖励，普通和精英共用同一套配置） =====
+// 索引 0-7 对应本章第 1-8 关
 const STAR_REWARDS = {
   1: [
-    { star2: { soulStone: 20, fragment: 2 },  star3: { soulStone: 30, fragment: 3 } },
-    { star2: { soulStone: 30, fragment: 2 },  star3: { soulStone: 40, fragment: 3 } },
-    { star2: { soulStone: 40, fragment: 3 },  star3: { soulStone: 50, fragment: 4 } },
-    { star2: { soulStone: 50, fragment: 3 },  star3: { soulStone: 60, fragment: 4 } },
-    { star2: { soulStone: 60, fragment: 4 },  star3: { soulStone: 80, fragment: 5 } },
+    { star2: { soulStone: 15, fragment: 0 },  star3: { soulStone: 25, fragment: 1 } },
+    { star2: { soulStone: 15, fragment: 0 },  star3: { soulStone: 25, fragment: 1 } },
+    { star2: { soulStone: 20, fragment: 1 },  star3: { soulStone: 30, fragment: 2 } },
+    { star2: { soulStone: 20, fragment: 1 },  star3: { soulStone: 30, fragment: 2 } },
+    { star2: { soulStone: 25, fragment: 1 },  star3: { soulStone: 40, fragment: 2 } },
+    { star2: { soulStone: 25, fragment: 1 },  star3: { soulStone: 40, fragment: 2 } },
+    { star2: { soulStone: 30, fragment: 2 },  star3: { soulStone: 50, fragment: 3 } },
+    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
   ],
   2: [
-    { star2: { soulStone: 50, fragment: 3 },  star3: { soulStone: 80, fragment: 4 } },
-    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 90, fragment: 4 } },
-    { star2: { soulStone: 70, fragment: 4 },  star3: { soulStone: 100, fragment: 5 } },
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 120, fragment: 5 } },
-    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 150, fragment: 6 } },
+    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
+    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
+    { star2: { soulStone: 50, fragment: 2 },  star3: { soulStone: 70, fragment: 3 } },
+    { star2: { soulStone: 50, fragment: 2 },  star3: { soulStone: 70, fragment: 4 } },
+    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 80, fragment: 4 } },
+    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 80, fragment: 4 } },
+    { star2: { soulStone: 70, fragment: 3 },  star3: { soulStone: 100, fragment: 4 } },
+    { star2: { soulStone: 80, fragment: 3 },  star3: { soulStone: 120, fragment: 5 } },
   ],
   3: [
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 120, fragment: 5, awakenStone: 1 } },
-    { star2: { soulStone: 90, fragment: 4 },  star3: { soulStone: 130, fragment: 5, awakenStone: 1 } },
-    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 150, fragment: 6, awakenStone: 1 } },
-    { star2: { soulStone: 110, fragment: 5 }, star3: { soulStone: 170, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 130, fragment: 6 }, star3: { soulStone: 200, fragment: 7, awakenStone: 2 } },
+    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 100, fragment: 4, awakenStone: 1 } },
+    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 100, fragment: 4, awakenStone: 1 } },
+    { star2: { soulStone: 70, fragment: 3 },  star3: { soulStone: 120, fragment: 5, awakenStone: 1 } },
+    { star2: { soulStone: 70, fragment: 4 },  star3: { soulStone: 120, fragment: 5, awakenStone: 1 } },
+    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 140, fragment: 5, awakenStone: 1 } },
+    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 140, fragment: 5, awakenStone: 2 } },
+    { star2: { soulStone: 100, fragment: 4 }, star3: { soulStone: 160, fragment: 6, awakenStone: 2 } },
+    { star2: { soulStone: 110, fragment: 5 }, star3: { soulStone: 180, fragment: 6, awakenStone: 2 } },
   ],
   4: [
-    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 150, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 110, fragment: 5 }, star3: { soulStone: 170, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 120, fragment: 6 }, star3: { soulStone: 180, fragment: 7, awakenStone: 2 } },
-    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 200, fragment: 7, awakenStone: 3 } },
-    { star2: { soulStone: 160, fragment: 7 }, star3: { soulStone: 250, fragment: 8, awakenStone: 3 } },
+    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 130, fragment: 5, awakenStone: 2 } },
+    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 130, fragment: 5, awakenStone: 2 } },
+    { star2: { soulStone: 90, fragment: 4 },  star3: { soulStone: 150, fragment: 6, awakenStone: 2 } },
+    { star2: { soulStone: 90, fragment: 5 },  star3: { soulStone: 150, fragment: 6, awakenStone: 2 } },
+    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 170, fragment: 6, awakenStone: 3 } },
+    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 170, fragment: 7, awakenStone: 3 } },
+    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 200, fragment: 7, awakenStone: 3 } },
+    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 220, fragment: 8, awakenStone: 3 } },
   ],
   5: [
-    { star2: { soulStone: 150, fragment: 6 }, star3: { soulStone: 200, fragment: 8, awakenStone: 3 } },
-    { star2: { soulStone: 160, fragment: 6 }, star3: { soulStone: 220, fragment: 8, awakenStone: 3 } },
-    { star2: { soulStone: 180, fragment: 7 }, star3: { soulStone: 250, fragment: 9, awakenStone: 4 } },
-    { star2: { soulStone: 200, fragment: 7 }, star3: { soulStone: 280, fragment: 9, awakenStone: 4 } },
-    { star2: { soulStone: 250, fragment: 8 }, star3: { soulStone: 350, fragment: 10, awakenStone: 5 } },
+    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 180, fragment: 7, awakenStone: 3 } },
+    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 180, fragment: 7, awakenStone: 3 } },
+    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 200, fragment: 8, awakenStone: 3 } },
+    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 200, fragment: 8, awakenStone: 4 } },
+    { star2: { soulStone: 160, fragment: 6 }, star3: { soulStone: 230, fragment: 8, awakenStone: 4 } },
+    { star2: { soulStone: 160, fragment: 7 }, star3: { soulStone: 230, fragment: 9, awakenStone: 4 } },
+    { star2: { soulStone: 200, fragment: 7 }, star3: { soulStone: 280, fragment: 9, awakenStone: 5 } },
+    { star2: { soulStone: 220, fragment: 8 }, star3: { soulStone: 320, fragment: 10, awakenStone: 5 } },
   ],
 }
 
-// ===== 章节星级里程碑（5★ / 10★ / 15★） =====
+// ===== 章节星级里程碑（8★ / 16★ / 24★，对应 8 关 × 3 星 = 24 满星） =====
+// 普通和精英各自独立的里程碑
 const CHAPTER_MILESTONES = {
   1: [
-    { stars: 5,  rewards: { soulStone: 200 } },
-    { stars: 10, rewards: { soulStone: 400, fragment: 10 } },
-    { stars: 15, rewards: { soulStone: 600, fragment: 15 } },
+    { stars: 8,  rewards: { soulStone: 200 } },
+    { stars: 16, rewards: { soulStone: 400, fragment: 3 } },
+    { stars: 24, rewards: { soulStone: 600, fragment: 5 } },
   ],
   2: [
-    { stars: 5,  rewards: { soulStone: 400 } },
-    { stars: 10, rewards: { soulStone: 600, fragment: 15 } },
-    { stars: 15, rewards: { soulStone: 800, fragment: 20, awakenStone: 1 } },
+    { stars: 8,  rewards: { soulStone: 400 } },
+    { stars: 16, rewards: { soulStone: 600, fragment: 5 } },
+    { stars: 24, rewards: { soulStone: 800, fragment: 8 } },
   ],
   3: [
-    { stars: 5,  rewards: { soulStone: 600, awakenStone: 1 } },
-    { stars: 10, rewards: { soulStone: 800, fragment: 15, awakenStone: 2 } },
-    { stars: 15, rewards: { soulStone: 1200, fragment: 20, awakenStone: 3 } },
+    { stars: 8,  rewards: { soulStone: 600, awakenStone: 1 } },
+    { stars: 16, rewards: { soulStone: 800, fragment: 5, awakenStone: 2 } },
+    { stars: 24, rewards: { soulStone: 1200, fragment: 10, awakenStone: 3 } },
   ],
   4: [
-    { stars: 5,  rewards: { soulStone: 800, awakenStone: 2 } },
-    { stars: 10, rewards: { soulStone: 1000, fragment: 20, awakenStone: 3 } },
-    { stars: 15, rewards: { soulStone: 1500, fragment: 25, awakenStone: 5 } },
+    { stars: 8,  rewards: { soulStone: 800, awakenStone: 2 } },
+    { stars: 16, rewards: { soulStone: 1000, fragment: 8, awakenStone: 3 } },
+    { stars: 24, rewards: { soulStone: 1500, fragment: 12, awakenStone: 5 } },
   ],
   5: [
-    { stars: 5,  rewards: { soulStone: 1000, awakenStone: 3 } },
-    { stars: 10, rewards: { soulStone: 1200, fragment: 20, awakenStone: 4 } },
-    { stars: 15, rewards: { soulStone: 2000, fragment: 30, awakenStone: 8 } },
+    { stars: 8,  rewards: { soulStone: 1000, awakenStone: 3 } },
+    { stars: 16, rewards: { soulStone: 1200, fragment: 10, awakenStone: 4 } },
+    { stars: 24, rewards: { soulStone: 2000, fragment: 15, awakenStone: 8 } },
   ],
 }
 
@@ -164,13 +217,57 @@ const IDLE_REWARDS = {
   awakenStonePerDay: 1,
 }
 
+// ===== 工具函数：获取关卡奖励配置 =====
+
+/**
+ * 获取指定章节/关序/难度的奖励配置
+ * @param {number} chapter 章节号 1-5
+ * @param {number} order 关卡序号 1-8 (0-indexed internally)
+ * @param {string} difficulty 'normal' | 'elite'
+ */
+function getStageRewardConfig(chapter, order, difficulty) {
+  const chRewards = STAGE_REWARDS[chapter]
+  if (!chRewards) return null
+  const diffRewards = chRewards[difficulty || 'normal']
+  if (!diffRewards) return null
+  const idx = order - 1
+  return {
+    soulStone: {
+      first: diffRewards.soulStone.first[idx] || 0,
+      repeat: diffRewards.soulStone.repeat[idx] || 0,
+    },
+    fragment: {
+      first: diffRewards.fragment.first[idx] || 0,
+      repeat: diffRewards.fragment.repeat[idx] || 0,
+    },
+    awakenStone: {
+      first: (diffRewards.awakenStone.first && diffRewards.awakenStone.first[idx]) || 0,
+      repeat: diffRewards.awakenStone.repeat || 0,
+    },
+  }
+}
+
+/**
+ * 获取指定章节/关序的星级奖励配置
+ * @param {number} chapter 章节号 1-5
+ * @param {number} order 关卡序号 1-8 (0-indexed internally)
+ */
+function getStarRewardConfig(chapter, order) {
+  const chStars = STAR_REWARDS[chapter]
+  if (!chStars) return null
+  return chStars[order - 1] || null
+}
+
 module.exports = {
   CURRENCY,
   RARITY_VISUAL,
   STAR_VISUAL,
+  STAGES_PER_CHAPTER,
   STAGE_REWARDS,
   STAR_REWARDS,
   CHAPTER_MILESTONES,
   TOWER_REWARDS,
   IDLE_REWARDS,
+  getStageRewardConfig,
+  getStarRewardConfig,
 }

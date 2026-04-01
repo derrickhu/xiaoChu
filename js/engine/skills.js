@@ -15,6 +15,7 @@ const DF = require('./dmgFloat')
 // 辅助：tryMergePet 后检查是否升到满星，记录图鉴 + 灵宠池入池/碎片
 // 爬塔模式下仅解锁图鉴，不自动入永久池/给碎片（改为结算时统一发碎片）
 function _mergePetAndDex(g, allPets, newPet) {
+  if (g.battleMode === 'roguelike') return { merged: false, target: null }
   const result = tryMergePet(allPets, newPet)
   if (result.merged && result.target && (result.target.star || 1) >= MAX_STAR) {
     const alreadyInDex = (g.storage.petDex || []).includes(result.target.id)
@@ -510,47 +511,8 @@ function triggerPetSkill(g, pet, idx) {
 // ===== 奖励应用 =====
 function applyReward(g, rw) {
   if (!rw) return
-  // 记录本次奖励结果，供事件页显示 NEW/UP 角标
   g._lastRewardInfo = null
   switch(rw.type) {
-    case REWARD_TYPES.NEW_PET: {
-      const newPet = { ...rw.data, star: rw.data.star || 1, currentCd: 0 }
-      const allPets = [...g.pets, ...g.petBag]
-      const mergeResult = _mergePetAndDex(g, allPets, newPet)
-      if (!mergeResult.merged) {
-        g.petBag.push(newPet)
-        g._lastRewardInfo = { type: 'newPet', petId: newPet.id }
-        // 获得新宠物：弹出提示 + 音效
-        g._petObtainedPopup = { pet: { ...newPet }, type: 'new' }
-        MusicMgr.playPetObtained()
-      } else if (mergeResult.target) {
-        // 已有同ID宠物→升星
-        g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
-        const newStar = mergeResult.target.star || 1
-        // 升至★3满星：触发庆祝画面
-        if (newStar >= MAX_STAR) {
-          g._star3Celebration = {
-            pet: mergeResult.target,
-            timer: 0,
-            phase: 'fadeIn',  // fadeIn → show → ready
-            particles: [],
-          }
-          MusicMgr.playStar3Unlock()
-        } else {
-          // 升至★2：弹出提示（★3已有图鉴解锁庆祝，不重复显示）+ 音效
-          g._petObtainedPopup = { pet: { ...mergeResult.target }, type: 'starUp' }
-          MusicMgr.playPetObtained()
-        }
-      }
-      break
-    }
-    case REWARD_TYPES.NEW_WEAPON: {
-      const newWpn = { ...rw.data }
-      g.weaponBag.push(newWpn)
-      g._lastRewardInfo = { type: 'newWeapon', weaponId: newWpn.id }
-      guideMgr.trigger(g, 'weapon_equip')
-      break
-    }
     case REWARD_TYPES.BUFF:
       applyBuffReward(g, rw.data)
       guideMgr.trigger(g, 'buff_first')

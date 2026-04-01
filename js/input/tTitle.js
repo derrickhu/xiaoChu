@@ -86,7 +86,7 @@ function tTitle(g, type, x, y) {
     g._stageSwipeDeltaX = 0
 
     if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
-      const list = getBrowsableStages(g.storage.stageClearRecord)
+      const list = getBrowsableStages(g.storage.stageClearRecord, g._stageDifficulty || 'normal')
       if (dx < 0 && g._selectedStageIdx < list.length - 1) {
         g._selectedStageIdx++
       } else if (dx > 0 && g._selectedStageIdx > 0) {
@@ -149,13 +149,31 @@ function tTitle(g, type, x, y) {
     return
   }
 
+  // ④a 难度 Tab 切换
+  if (isStageMode) {
+    if (g._diffTabNormalRect && g._hitRect(x, y, ...g._diffTabNormalRect) && g._stageDifficulty !== 'normal') {
+      g._stageDifficulty = 'normal'
+      g._selectedStageIdx = 0
+      g._stageIdxInitialized = false
+      g._dirty = true
+      return
+    }
+    if (g._diffTabEliteRect && g._hitRect(x, y, ...g._diffTabEliteRect) && g._stageDifficulty !== 'elite') {
+      g._stageDifficulty = 'elite'
+      g._selectedStageIdx = 0
+      g._stageIdxInitialized = false
+      g._dirty = true
+      return
+    }
+  }
+
   // ④b 秘境左右箭头按钮
   if (isStageMode) {
     if (g._stageArrowLeftRect && g._hitRect(x, y, ...g._stageArrowLeftRect) && g._selectedStageIdx > 0) {
       g._selectedStageIdx--; return
     }
     if (g._stageArrowRightRect && g._hitRect(x, y, ...g._stageArrowRightRect)) {
-      const _list = getBrowsableStages(g.storage.stageClearRecord)
+      const _list = getBrowsableStages(g.storage.stageClearRecord, g._stageDifficulty || 'normal')
       if (g._selectedStageIdx < _list.length - 1) { g._selectedStageIdx++; return }
     }
   }
@@ -234,7 +252,7 @@ function tTitle(g, type, x, y) {
 
 /** 秘境"开始游戏"按钮处理 */
 function _handleStageStart(g) {
-  const list = getBrowsableStages(g.storage.stageClearRecord)
+  const list = getBrowsableStages(g.storage.stageClearRecord, g._stageDifficulty || 'normal')
   const entry = list[g._selectedStageIdx]
   if (!entry || !entry.unlocked) {
     P.showGameToast('该关卡尚未解锁')

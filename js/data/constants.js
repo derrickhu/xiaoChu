@@ -128,14 +128,21 @@ const STAGE_CARD = {
   cardRadius: 16,    // 卡片圆角
   imgRadius: 12,     // 立绘圆角
   imgInset: 10,      // 立绘在容器内再缩进的边距（0 = 贴满）
-  maxImgPt: 160,   // 立绘圆直径上限（pt）
+  maxImgPt: 140,   // 立绘圆直径上限（pt）
   /** 与 titleView drawStartBtn 星级说明条一致，用于秘境块垂直锚定 */
   condPanelPt: 38,
   condAboveStartBtnPt: 10,
   /** 怪物卡片底边与星级说明条顶边的间距 */
-  blockAboveCondGapPt: 6,
+  blockAboveCondGapPt: 14,
   bgAlpha: 0.92,     // 卡片底板透明度
   borderAlpha: 0.42, // 卡片外框透明度 (0~1)
+}
+
+/** 首页标题 Logo（title_logo.png）布局，与 drawTopBar / getLayout.topBarH 同步 */
+const TITLE_LOGO = {
+  heightPt: 70,
+  gapBelowStatusPt: 15,
+  gapBelowLogoPt: 15,
 }
 
 module.exports = {
@@ -207,4 +214,5 @@ module.exports = {
   isComboMilestone,
   // 秘境选关卡片布局
   STAGE_CARD,
+  TITLE_LOGO,
 }

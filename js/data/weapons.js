@@ -79,6 +79,50 @@ const WEAPONS = [
   { id:'w50', name:'玄冰琉璃',   desc:'每回合概率挡一次伤害',              type:'blockChance',   chance:20 },
 ]
 
+// ===== 法宝品质分级（用于固定关卡掉落） =====
+const WEAPON_RARITY = {
+  R: [
+    'w1','w2','w3','w4','w5','w6','w7','w8','w9',   // 攻击增伤
+    'w13','w14','w15','w16','w17',                    // 防御减伤
+    'w18','w19','w20',                                // 回血治疗
+  ],
+  SR: [
+    'w10','w11','w12',                                // 暴击
+    'w21','w22','w23',                                // 高级治疗
+    'w24','w25','w26','w27','w28','w29',              // 护盾/血量
+    'w30','w31','w32','w33','w34',                    // 珠率
+    'w35','w36','w37',                                // 操控/斩杀
+  ],
+  SSR: [
+    'w38','w39','w40','w41','w42','w43',              // 特殊触发
+    'w44','w45','w46','w47',                          // 免疫
+    'w50',                                            // 格挡
+  ],
+}
+
+// w48/w49 为通天塔专属（perFloorBuff），不纳入固定关卡掉落
+const TOWER_ONLY_WEAPONS = ['w48', 'w49']
+
+// 获取法宝品质
+function getWeaponRarity(id) {
+  if (WEAPON_RARITY.SSR.includes(id)) return 'SSR'
+  if (WEAPON_RARITY.SR.includes(id)) return 'SR'
+  if (WEAPON_RARITY.R.includes(id)) return 'R'
+  return null
+}
+
+// 按品质筛选法宝
+function getWeaponsByRarity(rarity) {
+  const ids = WEAPON_RARITY[rarity]
+  if (!ids) return []
+  return ids.map(id => WEAPONS.find(w => w.id === id)).filter(Boolean)
+}
+
+// 获取固定关卡可掉落的法宝池（排除通天塔专属）
+function getStageWeaponPool() {
+  return WEAPONS.filter(w => !TOWER_ONLY_WEAPONS.includes(w.id))
+}
+
 // 获取所有法宝
 function getAllWeapons() {
   return WEAPONS.slice()
@@ -98,6 +142,16 @@ function randomWeapon(excludeIds) {
   return { ...WEAPONS[Math.floor(Math.random() * WEAPONS.length)] }
 }
 
+// 按品质随机一件法宝（用于固定关卡掉落）
+function randomWeaponByRarity(rarity, excludeIds) {
+  let pool = getWeaponsByRarity(rarity)
+  if (excludeIds && excludeIds.size > 0) {
+    pool = pool.filter(w => !excludeIds.has(w.id))
+  }
+  if (pool.length === 0) return null
+  return { ...pool[Math.floor(Math.random() * pool.length)] }
+}
+
 // 开局随机一件基础法宝（从前20件较基础效果中选）
 function generateStarterWeapon() {
   const pool = WEAPONS.slice(0, 20)
@@ -106,8 +160,14 @@ function generateStarterWeapon() {
 
 module.exports = {
   WEAPONS,
+  WEAPON_RARITY,
+  TOWER_ONLY_WEAPONS,
   getAllWeapons,
   getWeaponById,
+  getWeaponRarity,
+  getWeaponsByRarity,
+  getStageWeaponPool,
   randomWeapon,
+  randomWeaponByRarity,
   generateStarterWeapon,
 }

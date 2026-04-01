@@ -198,11 +198,27 @@ const PET_RARITY = {
   ],
 }
 
+// 预留给通天塔排名周奖励的宠物（10 SSR + 10 SR），固定关卡不投放
+const RESERVED_PETS = [
+  'm18','m19','m20','w10','w20','s17','f16','f17','e18','e20',  // 10 SSR
+  'm16','m17','w18','w19','s19','s20','f19','f20','e17','e19',  // 10 SR (各属性顶级 ×2)
+]
+
 // 根据宠物ID获取品质
 function getPetRarity(id) {
   if (PET_RARITY.SSR.includes(id)) return 'SSR'
   if (PET_RARITY.SR.includes(id)) return 'SR'
   return 'R'
+}
+
+// 判断宠物是否为预留宠（通天塔排名专属）
+function isReservedPet(id) {
+  return RESERVED_PETS.includes(id)
+}
+
+// 获取固定关卡可用宠物池（排除预留宠）
+function getStageAvailablePets() {
+  return getAllPets().filter(p => !RESERVED_PETS.includes(p.id))
 }
 
 // 不同获取渠道的品质权重
@@ -709,6 +725,7 @@ module.exports = {
   PETS,
   MAX_STAR,
   PET_RARITY,
+  RESERVED_PETS,
   RARITY_WEIGHTS,
   STAR_NAMES,
   STAR3_SKILL_OVERRIDE,
@@ -717,6 +734,8 @@ module.exports = {
   getStar4Passive,
   getStar5Override,
   getPetRarity,
+  isReservedPet,
+  getStageAvailablePets,
   petHasSkill,
   getPetSkillDesc,
   getPetSkillBaseDesc,

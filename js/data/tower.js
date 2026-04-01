@@ -4,8 +4,9 @@
  * 无局外养成，每局完全重置
  */
 
-const { randomPetByAttr, randomPet, randomPetFromPool } = require('./pets')
-const { randomWeapon } = require('./weapons')
+// 宠物/法宝随机函数保留导入兼容（其他模块可能通过 tower 间接引用）
+// const { randomPetByAttr, randomPet, randomPetFromPool } = require('./pets')
+// const { randomWeapon } = require('./weapons')
 const {
   TOWER_MAX_FLOOR,
   TOWER_COUNTER_MUL,
@@ -213,10 +214,8 @@ const BOSS_SKILL_SETS = {
 
 // ===== 奇遇事件（30个） =====
 const ADVENTURES = [
-  { id:'adv1',  name:'灵兽来投',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv2',  name:'捡到仙丹',   desc:'立即回血50%',              effect:'healPct',     pct:50 },
   { id:'adv3',  name:'上古洞府',   desc:'血量上限+10%',             effect:'hpMaxUp',     pct:10 },
-  { id:'adv4',  name:'天降灵物',   desc:'随机获得一件法宝',          effect:'getWeapon' },
   { id:'adv5',  name:'仙兽引路',   desc:'下一层必定不遇怪',          effect:'skipBattle' },
   { id:'adv6',  name:'秘境泉水',   desc:'满血回复',                  effect:'fullHeal' },
   { id:'adv7',  name:'道骨仙风',   desc:'转珠时间+0.5秒',           effect:'extraTime',   sec:0.5 },
@@ -228,12 +227,9 @@ const ADVENTURES = [
   { id:'adv13', name:'火焰赐福',   desc:'火属性伤害+8%',            effect:'attrDmgUp',   attr:'fire', pct:8 },
   { id:'adv14', name:'大地加持',   desc:'土属性伤害+5%',            effect:'attrDmgUp',   attr:'earth', pct:5 },
   { id:'adv15', name:'道心稳固',   desc:'下次战斗Combo不会断',      effect:'comboNeverBreak' },
-  { id:'adv16', name:'仙人点化',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv17', name:'无尘之地',   desc:'清除所有负面状态',          effect:'clearDebuff' },
   { id:'adv18', name:'灵泉洗礼',   desc:'心珠效果+20%',             effect:'heartBoost',  pct:20 },
   { id:'adv19', name:'神兵残影',   desc:'法宝效果临时提升20%',       effect:'weaponBoost', pct:20 },
-  { id:'adv20', name:'遗落法宝',   desc:'随机获得一件法宝',          effect:'getWeapon' },
-  { id:'adv21', name:'灵兽投缘',   desc:'随机获得一只新灵兽',        effect:'getPet' },
   { id:'adv22', name:'妖巢宝箱',   desc:'全队攻击+8%持续本局',       effect:'allDmgUp',    pct:8 },
   { id:'adv23', name:'上古战魂',   desc:'下一层伤害翻倍',            effect:'nextDmgDouble' },
   { id:'adv24', name:'静心咒',     desc:'转珠时间+1秒',             effect:'extraTime',   sec:1 },
@@ -247,9 +243,6 @@ const ADVENTURES = [
 
 // ===== 商店物品池（新版：10件，按权重抽4件，免费选1件，第2件消耗15%血） =====
 const SHOP_ITEMS = [
-  { id:'shop1',  name:'灵兽招募',   desc:'选择属性，获得该属性灵兽', effect:'getPetByAttr', weight:10, rarity:'normal' },
-  { id:'shop2',  name:'法宝寻宝',   desc:'随机获得一件法宝',         effect:'getWeapon',    weight:10, rarity:'normal' },
-  { id:'shop3',  name:'升星灵石',   desc:'选择一只灵兽直接升1星',    effect:'starUp',       weight:8,  rarity:'rare' },
   { id:'shop4',  name:'攻击秘药',   desc:'选择一只灵兽，攻击+25%',   effect:'upgradePet',   pct:25, weight:6, rarity:'rare' },
   { id:'shop5',  name:'悟道丹',     desc:'选择一只灵兽，技能CD-1',   effect:'cdReduce',     weight:3,  rarity:'epic' },
   { id:'shop6',  name:'满血回复',   desc:'血量恢复至上限',           effect:'fullHeal',     weight:10, rarity:'normal' },
@@ -577,19 +570,14 @@ function generateFloorEvent(floor) {
   }
 }
 
-// ===== 生成胜利后三选一奖励 =====
+// ===== 生成胜利后三选一奖励（纯 Buff 模式） =====
 // eventType: 'battle' | 'elite' | 'boss'
 // speedKill: 是否速通（5回合内击败）
-// sessionPetPool: 本局宠物池（15只）
-// ownedPetIds: 已拥有宠物ID集合（用于偏向抽取促进升星）
+// 其余参数保留签名兼容，但不再使用
 function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPetPool, ownedPetIds, maxedPetIds) {
   const rewards = []
   const usedIds = new Set()
-  // 根据事件类型确定宠物获取渠道
-  const petSource = eventType === 'boss' ? 'boss' : eventType === 'elite' ? 'elite' : 'normal'
-  const _rPet = () => randomPetFromPool(sessionPetPool, ownedPetIds, petSource, maxedPetIds)
 
-  // 从指定池中随机选一个不重复的
   function pickFrom(pool) {
     const avail = pool.filter(b => !usedIds.has(b.id))
     if (avail.length === 0) return null
@@ -598,63 +586,18 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
     return { type: REWARD_TYPES.BUFF, label: b.label, data: { ...b } }
   }
 
-  // 法宝排除已拥有 + 本次已选的
-  const wpnExclude = new Set(ownedWeaponIds || [])
-
   if (eventType === 'boss') {
-    // BOSS战斗：1只灵宠 + 1件法宝 + 1个大档buff 三选一（速通4选1）
-    const newPet = _rPet()
-    rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
-    let w = randomWeapon(wpnExclude)
-    wpnExclude.add(w.id)
-    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
-    rewards.push(pickFrom(BUFF_POOL_MAJOR))
+    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MAJOR))
   } else if (eventType === 'elite') {
-    // 精英战斗：1只灵宠 + 1件法宝 + 1个中档buff 三选一（速通4选1）
-    const newPet = _rPet()
-    rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${newPet.name}`, data: newPet })
-    let w = randomWeapon(wpnExclude)
-    wpnExclude.add(w.id)
-    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
-    rewards.push(pickFrom(BUFF_POOL_MEDIUM))
+    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
-    // 普通战斗：2只灵宠 + 1件法宝 三选一（全实物，无buff）
-    const petIds = new Set()
-    for (let i = 0; i < 2; i++) {
-      let p = _rPet()
-      let tries = 0
-      while (petIds.has(p.id) && tries < 20) { p = _rPet(); tries++ }
-      petIds.add(p.id)
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${p.name}`, data: p })
-    }
-    let w = randomWeapon(wpnExclude)
-    wpnExclude.add(w.id)
-    rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
+    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MINOR))
   }
 
-  // 速通额外奖励：精英/boss追加同类型第4个选项，普通战追加速通buff
   if (speedKill) {
-    if (eventType === 'boss') {
-      const existIds = new Set(rewards.map(r => r.data && r.data.id))
-      existIds.forEach(id => wpnExclude.add(id))
-      let w = randomWeapon(wpnExclude)
-      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
-    } else if (eventType === 'elite') {
-      const existIds = new Set(rewards.map(r => r.data && r.data.id))
-      existIds.forEach(id => wpnExclude.add(id))
-      let w = randomWeapon(wpnExclude)
-      rewards.push({ type: REWARD_TYPES.NEW_WEAPON, label: `新法宝：${w.name}`, data: w })
-    } else {
-      // 普通战斗速通：额外奖励1只灵宠（促进升星）
-      let speedPet = _rPet()
-      const existPetIds = new Set(rewards.filter(r => r.type === REWARD_TYPES.NEW_PET).map(r => r.data.id))
-      let tries = 0
-      while (existPetIds.has(speedPet.id) && tries < 20) { speedPet = _rPet(); tries++ }
-      rewards.push({ type: REWARD_TYPES.NEW_PET, label: `新灵兽：${speedPet.name}`, data: speedPet, isSpeed: true })
-    }
+    rewards.push(pickFrom(BUFF_POOL_SPEEDKILL))
   }
 
-  // 安全过滤null（池子耗尽情况）
   return rewards.filter(r => r != null)
 }
 

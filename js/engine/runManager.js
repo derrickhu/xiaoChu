@@ -11,8 +11,9 @@ const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
   generateFloorEvent, getRealmInfo,
 } = require('../data/tower')
-const { generateStarterPets, generateSessionPetPool, PETS } = require('../data/pets')
-const { generateStarterWeapon } = require('../data/weapons')
+const { generateStarterPets, generateSessionPetPool, PETS, getPetById, petHasSkill } = require('../data/pets')
+const { generateStarterWeapon, getWeaponById } = require('../data/weapons')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 const tutorial = require('./tutorial')
@@ -59,53 +60,37 @@ function makeDefaultRunBuffs() {
   return JSON.parse(JSON.stringify(DEFAULT_RUN_BUFFS))
 }
 
-function startRun(g) {
+function startRun(g, petIds) {
   g.battleMode = 'roguelike'
   g.floor = 0
   g.cleared = false
-  g._isGM = isCurrentUserGM()  // GM标记：影响跳过按钮和排行提交
-  // 道具系统：每局最多各用一次，需先分享获取再使用
-  g.itemResetObtained = false  // 乾坤重置 — 已获取（分享后）
-  g.itemResetUsed = false      // 乾坤重置 — 已使用
-  g.itemHealObtained = false   // 回春妙术 — 已获取（分享后）
-  g.itemHealUsed = false       // 回春妙术 — 已使用
-  g._showItemMenu = false      // 道具菜单显示状态
-  // 生成本局宠物池（每属性5只，共25只），所有宠物获取从此池抽取
-  g.sessionPetPool = generateSessionPetPool()
-  g.pets = generateStarterPets(g.sessionPetPool)
+  g._isGM = isCurrentUserGM()
+  g.itemResetObtained = false
+  g.itemResetUsed = false
+  g.itemHealObtained = false
+  g.itemHealUsed = false
+  g._showItemMenu = false
 
-  // 图鉴"带它出战"：指定宠物以★1形态替换初始队伍
-  if (g._designatedPetId) {
-    const dpId = g._designatedPetId
-    g._designatedPetId = null
-    let dpData = null, dpAttr = ''
-    for (const attr of ['metal','wood','water','fire','earth']) {
-      const found = PETS[attr].find(p => p.id === dpId)
-      if (found) { dpData = found; dpAttr = attr; break }
+  // 从灵宠池构建战斗宠物（带自己的宠物冲塔）
+  const teamIds = petIds || g.storage.petPool.slice(0, 5).map(p => p.id)
+  g.pets = teamIds.map(id => {
+    const poolPet = g.storage.getPoolPet(id)
+    const basePet = getPetById(id)
+    if (!basePet || !poolPet) return null
+    return {
+      ...basePet,
+      star: poolPet.star,
+      atk: getPoolPetAtk(poolPet),
+      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * 0.4) - 1) : 0,
+      _poolId: id,
     }
-    if (dpData) {
-      const designatedPet = { ...dpData, attr: dpAttr, star: 1, currentCd: 0 }
+  }).filter(Boolean)
 
-      // 高级灵宠：加入当局 sessionPetPool（确保肉鸽内也能抽到它升星）
-      const poolEntry = g.storage.petPool.find(p => p.id === dpId)
-      if (poolEntry && poolEntry.source === 'stage') {
-        if (g.sessionPetPool[dpAttr] && !g.sessionPetPool[dpAttr].find(p => p.id === dpId)) {
-          g.sessionPetPool[dpAttr].push(dpData)
-        }
-      }
-
-      const sameAttrIdx = g.pets.findIndex(p => p.attr === dpAttr)
-      if (sameAttrIdx >= 0) {
-        g.pets[sameAttrIdx] = designatedPet
-      } else {
-        g.pets[g.pets.length - 1] = designatedPet
-      }
-    }
-  }
+  g.sessionPetPool = []
   g.petBag = []
   g.weaponBag = []
   g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
-  g.realmLevel = 1  // 修仙境界等级（对应当前层数）
+  g.realmLevel = 1
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
   g.runBuffLog = []
@@ -114,20 +99,18 @@ function startRun(g) {
   g.weaponReviveUsed = false; g.goodBeadsNextTurn = false
   g.adReviveUsed = false
   g.turnCount = 0; g.combo = 0; g.runTotalTurns = 0
-  // 修炼经验：局内累积字段初始化
   for (const k of EXP_FIELDS) g[k] = 0
   g._floorStartExp = 0; g._floorExpSummary = null; g._expFloats = []
-  // totalRuns 在 endRun 时计数（胜/败才算完成一局，saveAndExit 不计）
-  // 首次游戏触发新手教学（教学中使用固定宠物、无法宝）
+
   if (tutorial.needsTutorial()) {
     tutorial.start(g)
     if (g.events) g.events.emit('run:start')
     return
   }
-  // 应用修炼加成：通天塔与固定关卡均100%享受
+
+  // 应用修炼加成
   {
     const cult = g.storage.cultivation
-    const isStage = g.battleMode === 'stage'
     const bodyBonus = Math.round(cultEffectValue('body', cult.levels.body))
     const senseBonus = Math.round(cultEffectValue('sense', cult.levels.sense))
     const wisdomBonus = cultEffectValue('wisdom', cult.levels.wisdom)
@@ -139,12 +122,15 @@ function startRun(g) {
     g.dragTimeLimit += Math.round(wisdomBonus * 60)
     g._cultDmgReduce = defBonus
     g._cultHeartBase = spiritBonus
-    // 通天塔开局时展示修炼加成提示（有任何加成时才显示）
-    if (!isStage && (bodyBonus + senseBonus + defBonus) > 0) {
+    if ((bodyBonus + senseBonus + defBonus) > 0) {
       g._cultBonusSummary = { bodyBonus, senseBonus, defBonus, spiritBonus, wisdomBonus, timer: 180 }
     }
   }
-  g.weapon = generateStarterWeapon()  // 开局赠送一件基础法宝并自动装备
+
+  // 加载玩家装备的法宝（带自己的法宝冲塔）
+  const eqId = g.storage.equippedWeaponId
+  g.weapon = eqId ? { ...getWeaponById(eqId) } : null
+
   if (g.events) g.events.emit('run:start')
   nextFloor(g)
 }
@@ -363,7 +349,7 @@ function saveAndExit(g) {
   if (g.battleMode === 'stage') {
     g.showExitDialog = false
     g.bState = 'none'
-    g.setScene('stageSelect')
+    g.setScene('title')
     return
   }
   restoreBattleHpMax(g)

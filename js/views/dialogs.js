@@ -51,7 +51,7 @@ function drawExitDialog(g) {
   const btn1X = px + pw*0.5 - btnW - gap*0.5
   const btn2X = px + pw*0.5 + gap*0.5
   const btnY = py + 106*S
-  R.drawDialogBtn(btn1X, btnY, btnW, btnH, isStage ? '返回选关' : '暂存退出', 'cancel')
+  R.drawDialogBtn(btn1X, btnY, btnW, btnH, isStage ? '返回' : '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
   R.drawDialogBtn(btn2X, btnY, btnW, btnH, isStage ? '重新挑战' : '重新开局', 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
