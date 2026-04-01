@@ -10,7 +10,7 @@ const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr } = require('../data/stages')
+const { getStageById, getStageAttr, getEffectiveStageTeamMin } = require('../data/stages')
 const { drawGoldBtn } = require('./uiUtils')
 
 const FILTERS = [
@@ -237,7 +237,8 @@ function rStageTeam(g) {
   c.strokeStyle = 'rgba(200,168,80,0.3)'; c.lineWidth = 1 * S
   c.beginPath(); c.moveTo(0, btnBarY); c.lineTo(W, btnBarY); c.stroke()
 
-  const canGo = selected.length >= stage.teamSize.min
+  const minTeam = getEffectiveStageTeamMin(g.storage, stage)
+  const canGo = selected.length >= minTeam
   const goBtnW = W * 0.6, goBtnH = 44 * S
   const goBtnX = (W - goBtnW) / 2, goBtnY = btnBarY + 20 * S
   // 消耗提示（按钮上方，图标+数值，带描边增强可读性）

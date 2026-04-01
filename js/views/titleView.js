@@ -625,7 +625,8 @@ function drawStartBtn(g) {
     g._startBtnRect = [btnX, btnY, btnW, btnH]
 
     // 新手引导激活时：金色脉冲呼吸光晕
-    if (guideMgr.getCurrentId() === 'newbie_stage_start') {
+    const curGuide = guideMgr.getCurrentId()
+    if (curGuide === 'newbie_stage_start' || curGuide === 'newbie_continue_1_2' || curGuide === 'newbie_continue_1_3') {
       const pulse = 0.3 + 0.25 * Math.sin(g.af * 0.08)
       ctx.save()
       ctx.globalAlpha = pulse

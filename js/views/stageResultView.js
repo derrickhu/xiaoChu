@@ -53,9 +53,9 @@ function rStageResult(g) {
     _victoryRewardViewport = null
   }
 
-  // 首次进入结算页时，检测是否需要触发新手宠物庆祝（1-1 和 1-2 首通均触发）
+  // 首次进入结算页时，检测是否需要触发新手宠物庆祝（1-1 / 1-2 / 1-3 首通均触发）
   if (at === 1 && !result._celebrateTriggered && result.victory && result.isFirstClear
-      && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {
+      && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2' || result.stageId === 'stage_1_3')) {
     result._celebrateTriggered = true
     const petRewards = result.rewards ? result.rewards.filter(r => r.type === 'pet') : []
     if (petRewards.length > 0) {
@@ -1862,7 +1862,7 @@ function tStageResult(g, x, y, type) {
     return
   }
 
-  // 新手队伍总览卡：首通直达灵宠页/修炼页，不回主页
+  // 新手队伍总览卡：首通直达灵宠页/主页，渐进式引导
   if (g._newbieTeamOverview) {
     g._newbieTeamOverview = null
     if (result && result.victory && result.isFirstClear) {
@@ -1872,7 +1872,14 @@ function tStageResult(g, x, y, type) {
         return
       }
       if (result.stageId === 'stage_1_2') {
+        g._pendingGuide = 'newbie_continue_1_3'
+        g._stageIdxInitialized = false
+        g.setScene('title')
+        return
+      }
+      if (result.stageId === 'stage_1_3') {
         g._pendingGuide = 'newbie_team_ready'
+        g._stageIdxInitialized = false
         g.setScene('title')
         return
       }
@@ -1954,11 +1961,12 @@ function tStageResult(g, x, y, type) {
   }
 }
 
-// 1-1 / 1-2 首通胜利时，返回首页并触发对应后续引导
+// 1-1 / 1-2 / 1-3 首通胜利时，返回首页并触发对应后续引导
 function _getFirstClearGuide(result) {
   if (!result || !result.victory || !result.isFirstClear) return null
   if (result.stageId === 'stage_1_1') return 'newbie_stage_continue'
-  if (result.stageId === 'stage_1_2') return 'newbie_team_ready'
+  if (result.stageId === 'stage_1_2') return 'newbie_continue_1_2'
+  if (result.stageId === 'stage_1_3') return 'newbie_team_ready'
   return null
 }
 

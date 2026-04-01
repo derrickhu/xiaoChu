@@ -5,6 +5,7 @@
  */
 
 const { STAGE_REWARDS } = require('./economyConfig')
+const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 
 // ===== 章节体力（普通/精英分档） =====
 const CHAPTER_STAMINA = {
@@ -83,7 +84,7 @@ const STAGE_SPECS = {
     {
       name: '烈焰·焰狮',
       enemy: { name: '焰狮', attr: 'fire', hp: 125, atk: 5, def: 0, skills: ['convert'], avatar: 'stage_enemies/blaze_lion' },
-      pet: 'w1', weapon: null, exp: 90, repExp: 60, bs: 22, rating: { s: 5, a: 8 },
+      pet: 'f1', weapon: null, exp: 90, repExp: 60, bs: 22, rating: { s: 5, a: 8 },
       teamSize: { min: 1, max: 5 },
       ePet: 'w3', eWpn: 'w2', eExp: 110, eRepExp: 75, eBs: 28, eRating: { s: 7, a: 10 },
       eSkills: ['atkBuff'],
@@ -91,7 +92,7 @@ const STAGE_SPECS = {
     {
       name: '寒潮·碧潮鲸',
       enemy: { name: '碧潮鲸', attr: 'water', hp: 170, atk: 6, def: 1, skills: ['convert'], avatar: 'stage_enemies/tide_whale' },
-      pet: 's1', weapon: 'w4', exp: 100, repExp: 70, bs: 25, rating: { s: 6, a: 9 },
+      pet: 'e1', weapon: 'w4', exp: 100, repExp: 70, bs: 25, rating: { s: 6, a: 9 },
       teamSize: { min: 2, max: 5 },
       ePet: 's3', eWpn: null, eExp: 120, eRepExp: 80, eBs: 30, eRating: { s: 8, a: 11 },
       eSkills: ['atkBuff'],
@@ -627,6 +628,19 @@ function getStageRewardDifficulty(stageId) {
   return isEliteStage(stageId) ? 'elite' : 'normal'
 }
 
+/**
+ * 实际开战所需上阵人数：关卡下限、全局编队下限、灵宠池数量三者取合理交集。
+ * 池子不足 3 只时，降为「至多能选几只就选几只」即可开战。
+ */
+function getEffectiveStageTeamMin(storage, stage) {
+  if (!stage || !stage.teamSize) return 1
+  const smin = stage.teamSize.min
+  const poolCount = storage.petPoolCount
+  if (poolCount === 0) return smin
+  const need = Math.max(smin, Math.min(STAGE_FORMATION_MIN_PETS, poolCount))
+  return Math.min(poolCount, need)
+}
+
 module.exports = {
   CHAPTERS,
   STAGES,
@@ -647,4 +661,5 @@ module.exports = {
   getEnemyPortraitPath,
   getStageBossName,
   getStageRewardDifficulty,
+  getEffectiveStageTeamMin,
 }

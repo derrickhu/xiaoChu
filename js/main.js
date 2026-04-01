@@ -103,22 +103,45 @@ class Main {
         }
       }
       // 从灵宠池/修炼返回主页时触发后续引导
-      if (newScene === 'title') {
+      if (newScene === 'title' && !this._pendingGuide) {
+        // 1-1 已通、1-2 未通 → 引导继续 1-2（需等开始按钮渲染后触发）
         if (this.storage.isGuideShown('newbie_stage_continue') && !this.storage.isStageCleared('stage_1_2')) {
-          guideMgr.trigger(this, 'newbie_after_pets')
+          this._stageIdxInitialized = false
+          this._pendingGuide = 'newbie_continue_1_2'
         }
-        if (this.storage.isGuideShown('newbie_team_ready')) {
+        // 1-2 已通、1-3 未通 → 引导继续 1-3
+        else if (this.storage.isStageCleared('stage_1_2') && !this.storage.isStageCleared('stage_1_3')
+            && this.storage.petPoolCount < 5) {
+          this._stageIdxInitialized = false
+          this._pendingGuide = 'newbie_continue_1_3'
+        }
+        // 五行集齐后从修炼返回 → 新手引导完成
+        else if (this.storage.isGuideShown('newbie_team_ready')) {
           guideMgr.trigger(this, 'newbie_after_cult')
         }
       }
     })
 
     this.events.on('petPool:add', ({ petId, count }) => {
-      // 首只三星永久宠物入池：立即解锁灵宠池 + 图鉴（无需等到局末）
+      // 新手引导流程中（1-1 送 3 宠），petPool_unlock / stage_unlock 由专用引导替代
+      const inNewbieFlow = !this.storage.isGuideShown('newbie_team_ready')
+        && (this._isNewbieStage || this.storage.isGuideShown('newbie_stage_continue')
+            || this.storage.isStageCleared('stage_1_1'))
+
       if (count === 1 && !this.storage.isGuideShown('petPool_unlock')) {
-        this._pendingGuide = 'petPool_unlock'
+        if (inNewbieFlow) {
+          this.storage.markGuideShown('petPool_unlock')
+        } else {
+          this._pendingGuide = 'petPool_unlock'
+        }
       }
-      if (count === 5) this._pendingGuide = 'stage_unlock'
+      if (count === 5) {
+        if (inNewbieFlow) {
+          this.storage.markGuideShown('stage_unlock')
+        } else {
+          this._pendingGuide = 'stage_unlock'
+        }
+      }
     })
 
     // 触摸事件注册
@@ -259,12 +282,14 @@ class Main {
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {
       const pg = this._pendingGuide
-      // 新手首页引导需要高亮"开始游戏"按钮，等按钮矩形就绪后再触发
-      if (pg === 'newbie_stage_start' && this._startBtnRect) {
+      // 需要高亮"开始游戏"按钮的引导，等按钮矩形就绪后再触发
+      const needStartBtn = pg === 'newbie_stage_start'
+        || pg === 'newbie_continue_1_2' || pg === 'newbie_continue_1_3'
+      if (needStartBtn && this._startBtnRect) {
         this._pendingGuide = null
         const [bx, by, bw, bh] = this._startBtnRect
         guideMgr.trigger(this, pg, { x: bx, y: by, w: bw, h: bh })
-      } else if (pg !== 'newbie_stage_start') {
+      } else if (!needStartBtn) {
         this._pendingGuide = null
         guideMgr.trigger(this, pg)
       }

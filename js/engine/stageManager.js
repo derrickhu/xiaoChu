@@ -8,7 +8,7 @@
  * settleStageDefeat — 失败结算（部分经验）
  */
 
-const { getStageById, RATING_ORDER } = require('../data/stages')
+const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../data/stages')
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
@@ -33,7 +33,7 @@ const NEWBIE_TEMP_PET_IDS = ['m1', 'w1', 's1']
 function startStage(g, stageId, teamPetIds) {
   const stage = getStageById(stageId)
   if (!stage) return false
-  if (teamPetIds.length < stage.teamSize.min) return false
+  if (teamPetIds.length < getEffectiveStageTeamMin(g.storage, stage)) return false
 
   // 扣除体力
   g.storage.consumeStamina(stage.staminaCost)
@@ -263,6 +263,17 @@ function settleStage(g) {
       rewards.push(resolveReward(g, r))
     })
   }
+
+  // 新手教学关（1-1）：把所有临时宠物都送入灵宠池
+  if (g._isNewbieStage && isFirstClear) {
+    NEWBIE_TEMP_PET_IDS.forEach(petId => {
+      if (!rewards.find(r => r.type === 'pet' && r.petId === petId)) {
+        const added = g.storage.addToPetPool(petId, 'stage')
+        if (added) rewards.push({ type: 'pet', petId })
+      }
+    })
+  }
+
   const fragRange = stage.rewards.repeatClear.fragments
   const fragCount = Math.ceil(_randomInt(fragRange.min, fragRange.max) * ratingMul)
   const fragTarget = pickFragmentTarget(g, fragRange.pool)

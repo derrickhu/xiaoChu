@@ -9,7 +9,7 @@ const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr, getEnemyPortraitPath } = require('../data/stages')
+const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin } = require('../data/stages')
 const { STAR_REWARDS } = require('../data/economyConfig')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
@@ -57,7 +57,7 @@ function rStageInfo(g) {
   const dailyLeft = hasDailyLimit ? stage.dailyLimit - dailyUsed : Infinity
   const savedTeam = g.storage.getValidSavedTeam()
   const maxSlots = stage.teamSize.max
-  const minTeam = stage.teamSize.min
+  const minTeam = getEffectiveStageTeamMin(g.storage, stage)
   const teamCount = savedTeam.length
   const canGo = teamCount >= minTeam
 
@@ -560,7 +560,7 @@ function tStageInfo(g, x, y, type) {
     const stage = getStageById(g._selectedStageId)
     if (!stage) return
     const savedTeam = g.storage.getValidSavedTeam()
-    if (savedTeam.length < stage.teamSize.min) {
+    if (savedTeam.length < getEffectiveStageTeamMin(g.storage, stage)) {
       g._stageTeamSelected = savedTeam.slice()
       g._stageTeamFilter = 'all'
       g.setScene('stageTeam')

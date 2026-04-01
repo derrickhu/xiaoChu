@@ -268,6 +268,17 @@ function _handleStageStart(g) {
     return
   }
 
+  // 新手引导中（1-2/1-3 首次）：自动全员出战，跳过编队页
+  const isNewbieAuto = g.storage.petPoolCount >= 1 && g.storage.petPoolCount < 5
+    && !g.storage.isStageCleared(stage.id)
+    && (stage.id === 'stage_1_2' || stage.id === 'stage_1_3')
+  if (isNewbieAuto) {
+    const stageMgr = require('../engine/stageManager')
+    const teamIds = g.storage.petPool.map(p => p.id)
+    stageMgr.startStage(g, stage.id, teamIds)
+    return
+  }
+
   // 体力检查
   if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
     const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')

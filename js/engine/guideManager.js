@@ -89,7 +89,19 @@ const GUIDE_DEFS = {
       { text: '点击「灵宠」查看你的队伍\n在这里可以培养和强化灵宠', position: 'bottom', highlightId: 'nav_pet', restrictToHighlight: true },
     ],
   },
-  // 从灵宠池/派遣返回主页后触发
+  // 从灵宠池/派遣返回主页后触发（1-1 完成 → 引导到 1-2）
+  newbie_continue_1_2: {
+    steps: [
+      { text: '继续挑战下一关！\n击败焰狮，获得火属性灵宠！', position: 'bottom', restrictToHighlight: true },
+    ],
+  },
+  // 1-2 完成 → 引导到 1-3
+  newbie_continue_1_3: {
+    steps: [
+      { text: '最后一关！击败碧潮鲸\n集齐五行灵宠，完成新手修炼！', position: 'bottom', restrictToHighlight: true },
+    ],
+  },
+  // 旧版兼容保留
   newbie_after_pets: {
     steps: [
       { text: '继续挑战下一关\n击败更强的敌人，收集新灵宠！', position: 'center' },

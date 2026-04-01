@@ -145,6 +145,9 @@ const TITLE_LOGO = {
   gapBelowLogoPt: 15,
 }
 
+/** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
+const STAGE_FORMATION_MIN_PETS = 3
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -215,4 +218,5 @@ module.exports = {
   // 秘境选关卡片布局
   STAGE_CARD,
   TITLE_LOGO,
+  STAGE_FORMATION_MIN_PETS,
 }
