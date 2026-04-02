@@ -430,4 +430,149 @@ function drawDivider(c, S, x1, x2, y) {
   c.beginPath(); c.moveTo(x1, y); c.lineTo(x2, y); c.stroke()
 }
 
-module.exports = { drawPanel, drawRibbonIcon, wrapText, drawDialog, drawTipRow, drawDivider }
+/**
+ * 游戏风格确认弹窗（双按钮：取消 + 确认）
+ * 用于替代系统 showModal，保持游戏 UI 一致性。
+ *
+ * 调用方在 g 上设置 g._confirmDialog = { title, content, confirmText, cancelText, onConfirm, onCancel, timer:0 }
+ * 每帧调 drawConfirmDialog(g) 绘制；触摸用 handleConfirmDialogTouch(g,x,y) 处理点击。
+ * 弹窗结束后自动置 g._confirmDialog = null。
+ *
+ * @param {object} g - 游戏状态
+ */
+function drawConfirmDialog(g) {
+  var d = g._confirmDialog
+  if (!d) return
+  var V = require('./env')
+  var c = V.ctx, S = V.S, W = V.W, H = V.H, R = V.R
+  d.timer = (d.timer || 0) + 1
+  var timer = d.timer
+  var alpha = Math.min(1, timer / 12)
+
+  c.save()
+
+  // 全屏遮罩
+  c.globalAlpha = alpha * 0.65
+  c.fillStyle = 'rgba(10,8,2,0.85)'
+  c.fillRect(0, 0, W, H)
+  c.globalAlpha = alpha
+
+  // 面板尺寸
+  var panelW = W * 0.82
+  c.font = (12 * S) + 'px "PingFang SC",sans-serif'
+  var contentLines = wrapText(c, d.content || '', panelW - 52 * S)
+  var lineH = 20 * S
+  var contentH = contentLines.length * lineH
+  var ribbonH = 42 * S
+  var btnAreaH = 52 * S
+  var panelH = ribbonH + 24 * S + contentH + 18 * S + btnAreaH + 18 * S
+  var px = (W - panelW) / 2
+  var targetY = (H - panelH) / 2 - 8 * S
+  var py = timer < 12 ? targetY + 30 * S * (1 - timer / 12) : targetY
+
+  // 入场缩放
+  var scale = timer < 10 ? 0.88 + 0.12 * (timer / 10) : 1
+  c.save()
+  c.translate(W / 2, py + panelH / 2)
+  c.scale(scale, scale)
+  c.translate(-W / 2, -(py + panelH / 2))
+
+  // 面板底板
+  var panelResult = drawPanel(c, S, px, py, panelW, panelH, { ribbonH: ribbonH })
+  var ribbonCY = panelResult.ribbonCY
+
+  // 标题
+  c.fillStyle = '#5a3000'
+  c.font = 'bold ' + (15 * S) + 'px "PingFang SC",sans-serif'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(d.title || '提示', W / 2, ribbonCY)
+
+  // 正文（自动换行）
+  var textY = py + ribbonH + 24 * S
+  c.fillStyle = '#4a3820'
+  c.font = (12 * S) + 'px "PingFang SC",sans-serif'
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  for (var i = 0; i < contentLines.length; i++) {
+    c.fillText(contentLines[i], W / 2, textY + i * lineH)
+  }
+
+  c.restore() // 缩放 restore
+
+  // 双按钮（面板底部，不受缩放影响以保持点击精度）
+  var btnGap = 14 * S
+  var btnW = (panelW - 52 * S - btnGap) / 2
+  var btnH = 38 * S
+  var btnY = py + panelH - btnAreaH - 8 * S
+  var btnLeftX = px + 26 * S
+  var btnRightX = btnLeftX + btnW + btnGap
+
+  // 取消按钮（浅灰底 + 金边）
+  _rr(c, btnLeftX, btnY, btnW, btnH, btnH / 2)
+  c.fillStyle = 'rgba(220,210,190,0.95)'; c.fill()
+  c.strokeStyle = 'rgba(175,135,48,0.5)'; c.lineWidth = 1.5 * S
+  _rr(c, btnLeftX, btnY, btnW, btnH, btnH / 2); c.stroke()
+  c.fillStyle = '#6B5B40'
+  c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(d.cancelText || '取消', btnLeftX + btnW / 2, btnY + btnH / 2)
+
+  // 确认按钮（金色渐变底）
+  var cfmGrd = c.createLinearGradient(btnRightX, btnY, btnRightX, btnY + btnH)
+  cfmGrd.addColorStop(0, '#B8451A'); cfmGrd.addColorStop(0.5, '#9C3512'); cfmGrd.addColorStop(1, '#7A2A0E')
+  _rr(c, btnRightX, btnY, btnW, btnH, btnH / 2)
+  c.fillStyle = cfmGrd; c.fill()
+  c.strokeStyle = '#D4A843'; c.lineWidth = 1.5 * S
+  _rr(c, btnRightX, btnY, btnW, btnH, btnH / 2); c.stroke()
+  // 高光
+  c.save(); c.globalAlpha = 0.18
+  var hl = c.createLinearGradient(btnRightX, btnY, btnRightX, btnY + btnH * 0.4)
+  hl.addColorStop(0, '#fff'); hl.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = hl
+  _rr(c, btnRightX + 2*S, btnY + 2*S, btnW - 4*S, btnH * 0.4, btnH / 2); c.fill()
+  c.restore()
+  c.fillStyle = '#FFE8B8'
+  c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(d.confirmText || '确认', btnRightX + btnW / 2, btnY + btnH / 2)
+
+  // 缓存按钮区域供触摸使用
+  d._cancelRect = [btnLeftX, btnY, btnW, btnH]
+  d._confirmRect = [btnRightX, btnY, btnW, btnH]
+  d._fullRect = [0, 0, W, H]
+
+  c.restore()
+}
+
+/**
+ * 处理确认弹窗的触摸事件（仅 end 生效）
+ * @returns {boolean} 是否拦截了此次触摸
+ */
+function handleConfirmDialogTouch(g, x, y, type) {
+  var d = g._confirmDialog
+  if (!d) return false
+  if (type !== 'end') return true // 非 end 事件也拦截，防止穿透
+  function _hit(rx, ry, rw, rh) {
+    return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
+  }
+  if (d._confirmRect && _hit.apply(null, d._confirmRect)) {
+    var onConfirm = d.onConfirm
+    g._confirmDialog = null
+    if (typeof onConfirm === 'function') onConfirm()
+    return true
+  }
+  if (d._cancelRect && _hit.apply(null, d._cancelRect)) {
+    var onCancel = d.onCancel
+    g._confirmDialog = null
+    if (typeof onCancel === 'function') onCancel()
+    return true
+  }
+  // 点击面板外 = 取消
+  g._confirmDialog = null
+  if (typeof d.onCancel === 'function') d.onCancel()
+  return true
+}
+
+module.exports = {
+  drawPanel, drawRibbonIcon, wrapText, drawDialog, drawTipRow, drawDivider,
+  drawConfirmDialog, handleConfirmDialogTouch,
+}

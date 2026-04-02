@@ -13,6 +13,7 @@ const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getEffectiveStageTeamMin } = require('../data/stages')
 const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
+const { drawConfirmDialog, handleConfirmDialogTouch } = require('./uiComponents')
 
 const FILTERS = [
   { key: 'all', label: '全部' },
@@ -25,6 +26,31 @@ const FILTERS = [
 
 /** 编队不足时槽位/卡片引导描边的闪烁周期（与 needPickWeapon 一致） */
 const TEAM_GUIDE_PULSE_PERIOD = 420
+
+/** 灵宠池里是否还有未编入当前队伍的灵宠 */
+function _hasUnpickedPetsInPool(g, selectedIds) {
+  const pool = g.storage.petPool || []
+  for (let i = 0; i < pool.length; i++) {
+    const p = pool[i]
+    if (p && p.id && selectedIds.indexOf(p.id) < 0) return true
+  }
+  return false
+}
+
+/** 保存编队并开始秘境战斗（体力、次数校验在内） */
+function _startStageBattle(g, selected, stage) {
+  g.storage.saveStageteam(selected)
+  if (g.storage.currentStamina < stage.staminaCost) {
+    P.showGameToast('体力不足')
+    return
+  }
+  if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
+    P.showGameToast('今日挑战次数已用完')
+    return
+  }
+  const stageMgr = require('../engine/stageManager')
+  stageMgr.startStage(g, g._selectedStageId, selected)
+}
 
 const _rects = {
   slotRects: [],
@@ -241,8 +267,13 @@ function rStageTeam(g) {
       c.fillStyle = '#666'; c.font = `${20*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText('+', sx + slotSize / 2, slotY + slotSize / 2)
-      // 编队未满且无需先选法宝：引导点击空槽或下方卡片
-      if (teamNeedMore && !needPickWeapon && i === selected.length) {
+      // 未達最低人數，或已可開戰但仍有空位且池中有可補位靈寵：引導點空槽
+      const pulseEmpty =
+        !needPickWeapon &&
+        i === selected.length &&
+        selected.length < maxSlots &&
+        (teamNeedMore || (selected.length >= minTeam && _hasUnpickedPetsInPool(g, selected)))
+      if (pulseEmpty) {
         const pulse = 0.45 + 0.35 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
         c.strokeStyle = `rgba(232,197,71,${pulse})`
         c.lineWidth = 2.5 * S
@@ -303,10 +334,13 @@ function rStageTeam(g) {
   cy += 28 * S
 
   const canGo = selected.length >= minTeam
-  // 编队不足时在底部多留一行点击提示，避免与灰按钮挤在一起
+  const maxSlotsBtn = stage.teamSize.max
+  const suggestCompleteTeam =
+    canGo && selected.length < maxSlotsBtn && _hasUnpickedPetsInPool(g, selected)
+  // 灰按钮或「可开战但未满编」时在底部多留一行提示
   const BTN_BAR_H_NORMAL = 72
   const BTN_BAR_H_WITH_FOOT_HINT = 82
-  const btnBarH = (!canGo ? BTN_BAR_H_WITH_FOOT_HINT : BTN_BAR_H_NORMAL) * S
+  const btnBarH = (!canGo || suggestCompleteTeam ? BTN_BAR_H_WITH_FOOT_HINT : BTN_BAR_H_NORMAL) * S
   const btnBarY = H - btnBarH
 
   // ── 底部按钮栏（先画，再裁切列表区域） ──
@@ -363,6 +397,22 @@ function rStageTeam(g) {
     c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2 * S
     c.strokeText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
     c.fillText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+    if (suggestCompleteTeam) {
+      c.save()
+      const subPulse = 0.72 + 0.28 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
+      c.globalAlpha = subPulse
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      const footY = Math.min(goBtnY + goBtnH + 8 * S, btnBarY + btnBarH - 4 * S)
+      const nEmpty = maxSlotsBtn - selected.length
+      const tip = `还可编入 ${nEmpty} 只灵宠；点「开始战斗」时若仍未满会再确认`
+      c.strokeStyle = 'rgba(0,0,0,0.72)'; c.lineWidth = 2 * S
+      c.strokeText(tip, W / 2, footY)
+      c.fillStyle = '#B8E8C8'
+      c.fillText(tip, W / 2, footY)
+      c.restore()
+    }
   } else {
     drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '编队不足', true, 13)
     // 底部栏：说明「此按钮暂不可点」，引导去上方/列表点击（缓解只看灰按钮的困惑）
@@ -405,7 +455,11 @@ function rStageTeam(g) {
   const cw = (W - 20 * S - gap * (cols - 1)) / cols
   const ch = cw * 1.45
   let curY = listTop + gap + _scrollY
-  let pulseFirstPickCard = teamNeedMore && !needPickWeapon
+  const pulseBenchHint =
+    !needPickWeapon &&
+    (teamNeedMore ||
+      (selected.length >= minTeam && selected.length < maxSlots && _hasUnpickedPetsInPool(g, selected)))
+  let pulseFirstPickCard = pulseBenchHint
 
   for (let i = 0; i < sorted.length; i++) {
     const col = i % cols
@@ -539,6 +593,9 @@ function rStageTeam(g) {
   if (g._showWeaponPicker) {
     _drawWeaponPicker(g, c, R, S, W, H)
   }
+
+  // ── 确认弹窗（游戏风格，覆盖最顶层） ──
+  drawConfirmDialog(g)
 }
 
 // ===== 法宝说明：按宽度折行（中文） =====
@@ -746,6 +803,9 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
 
 // ===== 触摸 =====
 function tStageTeam(g, x, y, type) {
+  // 确认弹窗处于最顶层，优先拦截所有触摸
+  if (handleConfirmDialogTouch(g, x, y, type)) return
+
   if (type === 'start') {
     _touchStartY = y; _touchLastY = y; _touchStartX = x; _scrolling = false
     _holdStartTime = Date.now()
@@ -833,17 +893,24 @@ function tStageTeam(g, x, y, type) {
       P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再开始战斗')
       return
     }
-    // 保存编队
-    g.storage.saveStageteam(selected)
-    // 检查体力
-    if (g.storage.currentStamina < stage.staminaCost) {
-      P.showGameToast('体力不足'); return
+    const maxSlots = stage.teamSize.max
+    const needConfirmIncomplete =
+      selected.length < maxSlots && _hasUnpickedPetsInPool(g, selected)
+    if (needConfirmIncomplete) {
+      const empty = maxSlots - selected.length
+      g._confirmDialog = {
+        title: '编队未满',
+        content:
+          `上方还有 ${empty} 个空位，下方仍有可上阵的灵宠。\n` +
+          '建议补满编队，战力更完整！',
+        confirmText: '继续开战',
+        cancelText: '去补充',
+        timer: 0,
+        onConfirm() { _startStageBattle(g, selected, stage) },
+      }
+      return
     }
-    if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
-      P.showGameToast('今日挑战次数已用完'); return
-    }
-    const stageMgr = require('../engine/stageManager')
-    stageMgr.startStage(g, g._selectedStageId, selected)
+    _startStageBattle(g, selected, stage)
     return
   }
 
