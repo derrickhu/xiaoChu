@@ -1260,11 +1260,42 @@ function enterBattle(g, enemyData) {
   g.dragTimeLimit = (8 + extraTime) * 60
 }
 
+function _safeBattle(fn) {
+  return function (g) {
+    try {
+      return fn.apply(this, arguments)
+    } catch (e) {
+      console.error('[Battle] ' + fn.name + ' error:', e)
+      if (g && typeof g === 'object') {
+        if (g.bState && g.bState !== 'playerTurn' && g.bState !== 'victory' && g.bState !== 'defeat') {
+          g.bState = 'playerTurn'
+          g.dragTimer = 0
+        }
+        g.elimQueue = g.elimQueue || []
+        g.elimAnimCells = null
+        try {
+          var P = require('../platform')
+          P.showGameToast('战斗异常已恢复，请继续')
+        } catch (_) {}
+      }
+    }
+  }
+}
+
 module.exports = {
   initBoard, fillBoard, cellAttr,
-  checkAndElim, startNextElimAnim, processElim, processDropAnim,
-  findMatchesSeparate, enterPetAtkShow,
-  executeAttack, calcCrit, applyFinalDamage,
-  settle, enemyTurn, applyEnemySkill,
-  enterBattle, onPlayerTurnStart,
+  checkAndElim: _safeBattle(checkAndElim),
+  startNextElimAnim: _safeBattle(startNextElimAnim),
+  processElim: _safeBattle(processElim),
+  processDropAnim: _safeBattle(processDropAnim),
+  findMatchesSeparate,
+  enterPetAtkShow: _safeBattle(enterPetAtkShow),
+  executeAttack: _safeBattle(executeAttack),
+  calcCrit,
+  applyFinalDamage: _safeBattle(applyFinalDamage),
+  settle: _safeBattle(settle),
+  enemyTurn: _safeBattle(enemyTurn),
+  applyEnemySkill: _safeBattle(applyEnemySkill),
+  enterBattle: _safeBattle(enterBattle),
+  onPlayerTurnStart: _safeBattle(onPlayerTurnStart),
 }

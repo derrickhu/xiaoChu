@@ -73,7 +73,13 @@ const GUIDE_DEFS = {
   },
   idle_intro: {
     steps: [
-      { text: '派遣灵宠自动修行，每 4 小时产出碎片，用于升星', position: 'center' },
+      {
+        text: '点下面亮框里的「点击派遣」空位，再选一只灵宠上阵\n派遣后每 4 小时自动产出碎片',
+        position: 'top',
+        highlightId: 'idle_dispatch_slot',
+        restrictToHighlight: true,
+        showFinger: true,
+      },
     ],
   },
 

@@ -9,7 +9,7 @@ const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin } = require('../data/stages')
+const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin, getStageChapterOrderLabel } = require('../data/stages')
 const { STAR_REWARDS } = require('../data/economyConfig')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
@@ -132,14 +132,24 @@ function rStageInfo(g) {
   c.restore()
   cy += 40 * S
 
-  // ── 关卡标题区（大号，居中） ──
+  // ── 关卡编号 + 标题（先显示 章-关，再显示关卡名） ──
   c.textAlign = 'center'; c.textBaseline = 'middle'
+  const stageOrderLabel = getStageChapterOrderLabel(stage)
+  if (stageOrderLabel) {
+    c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(255,236,200,0.95)'
+    c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 2 * S
+    const orderLine = `秘境 ${stageOrderLabel}`
+    c.strokeText(orderLine, W / 2, cy + 7 * S)
+    c.fillText(orderLine, W / 2, cy + 7 * S)
+  }
   c.fillStyle = '#FFF5E0'
   c.font = `bold ${20*S}px "PingFang SC",sans-serif`
   c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 3 * S
-  c.strokeText(stage.name, W / 2, cy + 12 * S)
-  c.fillText(stage.name, W / 2, cy + 12 * S)
-  cy += 30 * S
+  const nameY = stageOrderLabel ? cy + 26 * S : cy + 12 * S
+  c.strokeText(stage.name, W / 2, nameY)
+  c.fillText(stage.name, W / 2, nameY)
+  cy += stageOrderLabel ? 38 * S : 30 * S
 
   // 副标题：属性 + 波次 + 消耗（无限制时不显示次数）
   const dailyStr = hasDailyLimit ? `  ·  今日${dailyLeft}/${stage.dailyLimit}` : ''

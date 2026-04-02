@@ -243,7 +243,8 @@ function _victoryHeroBlockHeight(S, result) {
   if (n === 0) return 0
   const avatarSz = n <= 1 ? 86 * S : n === 2 ? 74 * S : 64 * S
   const hasPet = items.some(r => r.type === 'pet')
-  const below = hasPet ? (14 * S + 20 * S + 12 * S) : (24 * S + 12 * S)
+  // 星级叠在头像左下角内侧，不再占头像下方一整行
+  const below = hasPet ? (16 * S + 12 * S) : (24 * S + 12 * S)
   return 34 * S + avatarSz + below
 }
 
@@ -292,21 +293,30 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
     c.restore()
   }
 
-  const starY = avatarY + avatarSize + 14 * S
   const starN = Math.min(Math.max(starLv, 1), 5)
-  const starStep = Math.min(15 * S, avatarSize / Math.max(starN, 1) + 4 * S)
-  const span = (starN - 1) * starStep
-  c.font = `${Math.min(15 * S, avatarSize * 0.22)}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
+  const starFontPx = Math.min(24 * S, avatarSize * 0.34)
+  const starStep = starFontPx * 0.78
+  const padL = 8 * S
+  const padB = 10 * S
+  const starY = avatarY + avatarSize - padB
+  const starX0 = avatarX + padL
+  c.font = `bold ${starFontPx}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'middle'
   for (let si = 0; si < starN; si++) {
+    const sx = starX0 + si * starStep
+    const sy = starY
+    c.strokeStyle = 'rgba(0,0,0,0.55)'
+    c.lineWidth = 2.2 * S
+    c.strokeText('★', sx, sy)
     c.fillStyle = ac.main
-    c.shadowColor = rgbaFromHex(ac.main, 0.55)
-    c.shadowBlur = 6 * S
-    c.fillText('★', cx - span / 2 + si * starStep, starY)
+    c.shadowColor = rgbaFromHex(ac.main, 0.5)
+    c.shadowBlur = 5 * S
+    c.fillText('★', sx, sy)
     c.shadowBlur = 0
   }
 
-  const subY = starY + 20 * S
+  const subY = avatarY + avatarSize + 16 * S
   c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
   c.fillStyle = '#fff5e0'
   if (heroCount <= 1) {
@@ -396,7 +406,7 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
 
   const avatarY = y
   const hasPet = items.some(r => r.type === 'pet')
-  const nameY = hasPet ? avatarY + avatarSize + 14 * S + 20 * S : avatarY + avatarSize + 20 * S
+  const nameY = hasPet ? avatarY + avatarSize + 16 * S : avatarY + avatarSize + 20 * S
 
   _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, Math.max(rowW * 0.5, avatarSize * 1.15))
 

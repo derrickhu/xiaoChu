@@ -68,6 +68,22 @@ function draw(g) {
   // 气泡文字
   _drawBubble(c, W, H, S, info)
 
+  // 手指指向高亮区（派遣空位等）
+  if (hl && info.showFinger) {
+    const bounce = Math.sin(g.af * 0.1) * 6 * S
+    c.save()
+    c.globalAlpha = alpha * 0.92
+    c.font = `${32 * S}px "PingFang SC", "Apple Color Emoji", sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    const fx = hl.x + hl.w * 0.5
+    const fy = hl.y + hl.h + 22 * S + bounce
+    c.shadowColor = 'rgba(0,0,0,0.5)'
+    c.shadowBlur = 4 * S
+    c.fillText('\uD83D\uDC46', fx, fy)
+    c.restore()
+  }
+
   // "点击继续" / "知道了"
   const isLast = info.stepIdx === info.totalSteps - 1
   const btnText = isLast ? '知道了' : '点击继续'

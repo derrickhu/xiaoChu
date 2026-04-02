@@ -8,6 +8,7 @@ const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { IDLE_MAX_SLOTS, IDLE_FRAG_INTERVAL, IDLE_MAX_ACCUMULATE, calcIdleReward } = require('../data/petPoolConfig')
 const { drawBottomBar, getLayout: getTitleLayout } = require('./bottomBar')
+const guideMgr = require('../engine/guideManager')
 
 const _rects = {
   backBtnRect: null,
@@ -92,6 +93,7 @@ function rIdle(g) {
   _rects.slotRects = []
 
   let hasReward = false
+  let firstEmptySlotIdx = -1
 
   for (let i = 0; i < IDLE_MAX_SLOTS; i++) {
     const sx = gap + i * (slotW + gap)
@@ -168,6 +170,7 @@ function rIdle(g) {
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText('✕', recallX + recallSize / 2, recallY + recallSize / 2)
     } else {
+      if (firstEmptySlotIdx < 0) firstEmptySlotIdx = i
       // 空槽：显示 + 号
       c.fillStyle = 'rgba(200,180,120,0.3)'
       c.font = `${36*S}px sans-serif`
@@ -179,6 +182,14 @@ function rIdle(g) {
       c.fillText('点击派遣', cx, sy + slotH * 0.62)
     }
     c.restore()
+  }
+
+  if (!g._namedRects) g._namedRects = {}
+  if (guideMgr.getCurrentId() === 'idle_intro' && firstEmptySlotIdx >= 0 && _rects.slotRects[firstEmptySlotIdx]) {
+    const r = _rects.slotRects[firstEmptySlotIdx]
+    g._namedRects.idle_dispatch_slot = { x: r[0], y: r[1], w: r[2], h: r[3] }
+  } else if (g._namedRects.idle_dispatch_slot) {
+    delete g._namedRects.idle_dispatch_slot
   }
 
   // 收取按钮

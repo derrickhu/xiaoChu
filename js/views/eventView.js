@@ -928,7 +928,7 @@ function _drawBattlePetBag(g, e, curY, lyt) {
       g._eventBagPetRects.push([bx, by, bagIconSize, bagIconSize])
       const isDragSource = drag && drag.source === 'bag' && drag.index === i
       if (isDragSource) ctx.globalAlpha = 0.3
-      _drawPetIconCompact(ctx, R, TH, S, bx, by, bagIconSize, g.petBag[i], framePetMap, bagFrameSize, bagFrameOff, false)
+      _drawPetIcon(ctx, R, TH, S, bx, by, bagIconSize, g.petBag[i], framePetMap, bagFrameSize, bagFrameOff, false, false)
       if (isDragSource) ctx.globalAlpha = 1
       const bPet = g.petBag[i]
       const bri = g._lastRewardInfo
@@ -1080,7 +1080,7 @@ function _drawEventBattle(g, ev, startY) {
     const dragFSz = dragSz * frameScale
     const dragFOff = (dragFSz - dragSz) / 2
     ctx.globalAlpha = 0.85
-    _drawPetIcon(ctx, R, TH, S, drag.x - dragSz/2, drag.y - dragSz/2, dragSz, drag.pet, framePetMap, dragFSz, dragFOff, false)
+    _drawPetIcon(ctx, R, TH, S, drag.x - dragSz/2, drag.y - dragSz/2, dragSz, drag.pet, framePetMap, dragFSz, dragFOff, false, false)
     ctx.globalAlpha = 1
   }
 
@@ -1267,7 +1267,8 @@ function _drawWeaponCard(ctx, R, TH, S, x, y, w, h, weapon, isEquipped, slotsArr
 }
 
 // ===== 灵宠图标绘制（紧凑版，无文字说明） =====
-function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, frameOff, isSelected) {
+// ===== 灵宠图标绘制（统一版，showLabel 控制底部名字+ATK） =====
+function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, frameOff, isSelected, showLabel) {
   const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
   const ac = ATTR_COLOR[pet.attr]
   const cxP = px + size/2
@@ -1304,7 +1305,6 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
     ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
   }
 
-  // 星级标记（左下角）
   if ((pet.star || 1) >= 1) {
     const starText = '★'.repeat(pet.star || 1)
     ctx.save()
@@ -1322,73 +1322,16 @@ function _drawPetIconCompact(ctx, R, TH, S, px, py, size, pet, framePetMap, fram
     ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
     ctx.strokeRect(px - 1, py - 1, size + 2, size + 2)
   }
-}
 
-// ===== 灵宠图标绘制 =====
-function _drawPetIcon(ctx, R, TH, S, px, py, size, pet, framePetMap, frameSize, frameOff, isSelected) {
-  const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-  const ac = ATTR_COLOR[pet.attr]
-  const cxP = px + size/2
-  const cyP = py + size/2
-
-  ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
-  ctx.fillRect(px, py, size, size)
-  ctx.save()
-  const grd = ctx.createRadialGradient(cxP, cyP - size*0.06, 0, cxP, cyP - size*0.06, size*0.38)
-  grd.addColorStop(0, (ac ? ac.main : '#888') + '40')
-  grd.addColorStop(1, 'transparent')
-  ctx.fillStyle = grd
-  ctx.fillRect(px, py, size, size)
-  ctx.restore()
-
-  const petAvatar = R.getImg(getPetAvatarPath(pet))
-  if (petAvatar && petAvatar.width > 0) {
-    const aw = petAvatar.width, ah = petAvatar.height
-    const drawW = size - 2, drawH = drawW * (ah / aw)
-    const dy = py + (size - 2) - drawH
-    ctx.save()
-    ctx.beginPath(); ctx.rect(px + 1, py + 1, size - 2, size - 2); ctx.clip()
-    ctx.drawImage(petAvatar, px + 1, dy, drawW, drawH)
-    ctx.restore()
-  } else {
-    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${size*0.35}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(ATTR_NAME[pet.attr] || '', cxP, cyP)
-    ctx.textBaseline = 'alphabetic'
+  if (showLabel) {
+    ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText(pet.name.substring(0,4), cxP, py + size + 10*S)
+    const starAtk = getPetStarAtk(pet)
+    const atkDisplay = (pet.star || 1) > 1 ? `ATK:${pet.atk}→${starAtk}` : `ATK:${pet.atk}`
+    ctx.fillStyle = TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
+    ctx.fillText(atkDisplay, cxP, py + size + 19*S)
   }
-
-  const petFrame = framePetMap[pet.attr] || framePetMap.metal
-  if (petFrame && petFrame.width > 0) {
-    ctx.drawImage(petFrame, px - frameOff, py - frameOff, frameSize, frameSize)
-  }
-
-  // 星级标记（左下角）
-  if ((pet.star || 1) >= 1) {
-    const starText = '★'.repeat(pet.star || 1)
-    ctx.save()
-    ctx.font = `bold ${size * 0.14}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
-    ctx.strokeText(starText, px + 2*S, py + size - 2*S)
-    ctx.fillStyle = '#ffd700'
-    ctx.fillText(starText, px + 2*S, py + size - 2*S)
-    ctx.textBaseline = 'alphabetic'
-    ctx.restore()
-  }
-
-  // 选中高亮
-  if (isSelected) {
-    ctx.strokeStyle = TH.accent; ctx.lineWidth = 2.5*S
-    ctx.strokeRect(px - 1, py - 1, size + 2, size + 2)
-  }
-
-  ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.fillText(pet.name.substring(0,4), cxP, py + size + 10*S)
-  const starAtk = getPetStarAtk(pet)
-  const atkDisplay = (pet.star || 1) > 1 ? `ATK:${pet.atk}→${starAtk}` : `ATK:${pet.atk}`
-  ctx.fillStyle = TH.dim; ctx.font = `${7*S}px "PingFang SC",sans-serif`
-  ctx.fillText(atkDisplay, cxP, py + size + 19*S)
 }
 
 // ===== 灵宠详情弹窗（程序绘制浅色面板） =====

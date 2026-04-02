@@ -547,10 +547,35 @@ function gmSkipBattle(g) {
   return true
 }
 
+function _safeRun(fn) {
+  return function (g) {
+    try {
+      return fn.apply(this, arguments)
+    } catch (e) {
+      console.error('[RunManager] ' + fn.name + ' error:', e)
+      if (g && typeof g === 'object' && typeof g.setScene === 'function') {
+        try {
+          P.showGameToast('运行异常，已返回首页')
+          g.setScene('title')
+        } catch (_) {}
+      }
+    }
+  }
+}
+
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
-  startRun, nextFloor, restoreBattleHpMax, settleExp, settleAll, endRun, saveAndExit, resumeRun,
-  onDefeat, doAdRevive, adReviveCallback,
+  startRun: _safeRun(startRun),
+  nextFloor: _safeRun(nextFloor),
+  restoreBattleHpMax,
+  settleExp: _safeRun(settleExp),
+  settleAll: _safeRun(settleAll),
+  endRun: _safeRun(endRun),
+  saveAndExit: _safeRun(saveAndExit),
+  resumeRun: _safeRun(resumeRun),
+  onDefeat: _safeRun(onDefeat),
+  doAdRevive: _safeRun(doAdRevive),
+  adReviveCallback: _safeRun(adReviveCallback),
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
-  gmSkipBattle,
+  gmSkipBattle: _safeRun(gmSkipBattle),
 }

@@ -173,72 +173,36 @@ class Render {
     })
   }
 
-  drawHomeBg(frame) {
-    const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/home_bg.jpg')
-    if (img && img.width > 0) {
-      this._drawCoverImg(img, 0, 0, W, H)
-    } else {
-      c.fillStyle = this.cachedLinearGrad('homeBg',0,0,0,H,[[0,'#1a1035'],[0.5,'#0d0d2a'],[1,'#050510']]); c.fillRect(0,0,W,H)
-    }
-
+  static SCENE_BG_CFG = {
+    home:      { fill: '#050510', img: 'assets/backgrounds/home_bg.jpg', gradKey: 'homeBg', grad: [[0,'#1a1035'],[0.5,'#0d0d2a'],[1,'#050510']] },
+    loading:   { fill: '#050510', img: 'assets/backgrounds/loading_bg.jpg' },
+    shop:      { fill: '#f5ead0', img: 'assets/backgrounds/shop_bg.jpg' },
+    rest:      { fill: '#e8f0e8', img: 'assets/backgrounds/rest_bg.jpg' },
+    adventure: { fill: '#f0ead8', img: 'assets/backgrounds/adventure_bg.jpg' },
+    reward:    { fill: '#f5ead0', img: 'assets/backgrounds/reward_bg.jpg' },
   }
 
-  drawLoadingBg(frame) {
+  _drawSceneBg(scene, frame) {
+    const cfg = Render.SCENE_BG_CFG[scene]
+    if (!cfg) { this.drawBg(frame); return }
     const {ctx:c,W,H} = this
-    c.fillStyle = '#050510'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/loading_bg.jpg')
+    c.fillStyle = cfg.fill; c.fillRect(0,0,W,H)
+    const img = this.getImg(cfg.img)
     if (img && img.width > 0) {
       this._drawCoverImg(img, 0, 0, W, H)
-    } else {
-      this.drawBg(frame)
-    }
-  }
-
-  drawShopBg(frame) {
-    const {ctx:c,W,H} = this
-    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/shop_bg.jpg')
-    if (img && img.width > 0) {
-      this._drawCoverImg(img, 0, 0, W, H)
+    } else if (cfg.grad) {
+      c.fillStyle = this.cachedLinearGrad(cfg.gradKey,0,0,0,H,cfg.grad); c.fillRect(0,0,W,H)
     } else {
       this.drawBg(frame)
     }
   }
 
-  drawRestBg(frame) {
-    const {ctx:c,W,H} = this
-    c.fillStyle = '#e8f0e8'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/rest_bg.jpg')
-    if (img && img.width > 0) {
-      this._drawCoverImg(img, 0, 0, W, H)
-    } else {
-      this.drawBg(frame)
-    }
-  }
-
-  drawAdventureBg(frame) {
-    const {ctx:c,W,H} = this
-    c.fillStyle = '#f0ead8'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/adventure_bg.jpg')
-    if (img && img.width > 0) {
-      this._drawCoverImg(img, 0, 0, W, H)
-    } else {
-      this.drawBg(frame)
-    }
-  }
-
-  drawRewardBg(frame) {
-    const {ctx:c,W,H} = this
-    c.fillStyle = '#f5ead0'; c.fillRect(0,0,W,H)
-    const img = this.getImg('assets/backgrounds/reward_bg.jpg')
-    if (img && img.width > 0) {
-      this._drawCoverImg(img, 0, 0, W, H)
-    } else {
-      this.drawBg(frame)
-    }
-  }
+  drawHomeBg(frame)      { this._drawSceneBg('home', frame) }
+  drawLoadingBg(frame)   { this._drawSceneBg('loading', frame) }
+  drawShopBg(frame)      { this._drawSceneBg('shop', frame) }
+  drawRestBg(frame)      { this._drawSceneBg('rest', frame) }
+  drawAdventureBg(frame) { this._drawSceneBg('adventure', frame) }
+  drawRewardBg(frame)    { this._drawSceneBg('reward', frame) }
 
   drawEventBg(frame) {
     const {ctx:c,W,H} = this

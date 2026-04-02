@@ -629,6 +629,18 @@ function getStageRewardDifficulty(stageId) {
 }
 
 /**
+ * 关卡短标签：章-序号（如 1-5），精英关为「3-2 · 精英」
+ * @param {object|null} stage getStageById 返回值
+ * @returns {string}
+ */
+function getStageChapterOrderLabel(stage) {
+  if (!stage || stage.chapter == null || stage.order == null) return ''
+  const base = `${stage.chapter}-${stage.order}`
+  if (stage.difficulty === 'elite') return `${base} · 精英`
+  return base
+}
+
+/**
  * 实际开战所需上阵人数：关卡下限、全局编队下限、灵宠池数量三者取合理交集。
  * 池子不足 3 只时，降为「至多能选几只就选几只」即可开战。
  */
@@ -661,5 +673,6 @@ module.exports = {
   getEnemyPortraitPath,
   getStageBossName,
   getStageRewardDifficulty,
+  getStageChapterOrderLabel,
   getEffectiveStageTeamMin,
 }

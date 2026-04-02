@@ -95,11 +95,14 @@ class Main {
     this.events.on('scene:change', (newScene, oldScene) => {
       if (newScene === 'petPool') {
         guideMgr.trigger(this, 'pet_pool_intro')
-        guideMgr.trigger(this, 'idle_intro')
         // 从派遣返回灵宠池时引导继续战斗
         if (oldScene === 'idle' && this.storage.isGuideShown('pet_pool_intro')) {
           guideMgr.trigger(this, 'newbie_after_dispatch')
         }
+      }
+      // 灵宠派遣页：在走完灵宠池介绍后再提示点击空位（与高亮槽位、手指一致）
+      if (newScene === 'idle' && this.storage.isGuideShown('pet_pool_intro')) {
+        guideMgr.trigger(this, 'idle_intro')
       }
       // 从灵宠池/修炼返回主页时触发后续引导
       if (newScene === 'title' && !this._pendingGuide) {
@@ -163,10 +166,19 @@ class Main {
       this.dt = rawDt * this.timeScale
       this.af++
       try {
-        // 顿帧（hit-stop）：冻结游戏逻辑但保持渲染
         if (this._hitStopFrames > 0) { this._hitStopFrames--; TweenMgr.updateTweens(this.dt); Particles.update(); this.render(); requestAnimationFrame(loop); return }
         this.update(); this.render()
-      } catch(e) { console.error('loop error:', e) }
+        this._loopErrorCount = 0
+      } catch(e) {
+        console.error('[GameLoop]', e)
+        this._loopErrorCount = (this._loopErrorCount || 0) + 1
+        if (this._loopErrorCount >= 3 && this.scene !== 'title') {
+          console.error('[GameLoop] 连续异常，回退到首页')
+          this._loopErrorCount = 0
+          try { this.setScene('title') } catch (_) {}
+          try { P.showGameToast('游戏遇到问题，已返回首页') } catch (_) {}
+        }
+      }
       requestAnimationFrame(loop)
     }
     requestAnimationFrame(loop)

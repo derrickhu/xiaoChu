@@ -5,6 +5,23 @@ const V = require('../env')
 const { ATTR_COLOR } = require('../../data/tower')
 const tutorial = require('../../engine/tutorial')
 
+// 与 battleTutorialView 路径遮罩一致，突出棋盘上的引导区域
+const NEWBIE_BOARD_DIM = 'rgba(0,0,0,0.6)'
+
+function _drawNewbieBoardMaskExceptCells(ctx, ROWS, COLS, cs, bx, by, keepSet) {
+  ctx.save()
+  ctx.globalAlpha = 1
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (!keepSet.has(r + ',' + c)) {
+        ctx.fillStyle = NEWBIE_BOARD_DIM
+        ctx.fillRect(bx + c * cs, by + r * cs, cs, cs)
+      }
+    }
+  }
+  ctx.restore()
+}
+
 // ===== 新手棋盘引导：扫描可消除的宠物属性珠组 =====
 let _newbieHighlightCache = null
 let _newbieHighlightFrame = -1
@@ -182,11 +199,17 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
   if (!g._isNewbieStage || g.bState !== 'playerTurn' || g.dragging) return
   if (tutorial.isActive()) return
 
-  var ctx = V.ctx, S = V.S, COLS = V.COLS
+  var ctx = V.ctx, S = V.S, COLS = V.COLS, ROWS = V.ROWS
 
   // 优先：棋盘上已有可消除组 → 在高亮珠上画呼吸手指
   var highlight = _getNewbieHighlightCells(g)
   if (highlight && highlight.size > 0) {
+    var keepHi = new Set()
+    for (var idx of highlight) {
+      var hr = Math.floor(idx / COLS), hc = idx % COLS
+      keepHi.add(hr + ',' + hc)
+    }
+    _drawNewbieBoardMaskExceptCells(ctx, ROWS, COLS, cs, bx, by, keepHi)
     var groups = _groupHighlightCells(highlight, COLS)
     for (var i = 0; i < Math.min(groups.length, 2); i++) {
       var cell = groups[i]
@@ -207,6 +230,12 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
   // 搜索长拖拽路径（转珠演示）
   var hint = _findLongDragHint(g)
   if (hint && hint.path) {
+    var keepPath = new Set()
+    for (var pi = 0; pi < hint.path.length; pi++) {
+      var cell = hint.path[pi]
+      keepPath.add(cell[0] + ',' + cell[1])
+    }
+    _drawNewbieBoardMaskExceptCells(ctx, ROWS, COLS, cs, bx, by, keepPath)
     _drawLongDragAnim(g, ctx, S, cs, bx, by, hint)
     return
   }
