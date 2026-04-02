@@ -276,6 +276,10 @@ function _handleStageVictory(g) {
   g._stageSettlePending = true
   const stageMgr = require('../../engine/stageManager')
   stageMgr.settleStage(g)
+  if (g.storage && g.storage.addDailyTaskProgress) {
+    g.storage.addDailyTaskProgress('battle_1', 1)
+    g.storage.addDailyTaskProgress('battle_3', 1)
+  }
 }
 
 // ===== 胜利弹窗（内嵌奖励选择）=====
@@ -835,10 +839,10 @@ function drawDefeatOverlay(g) {
   R.drawDialogPanel(panelX, panelY, panelW, panelH)
 
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#C0392B'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText('修士陨落...', W*0.5, panelY + 42*S)
 
-  ctx.fillStyle = 'rgba(220,215,200,0.8)'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`止步第 ${g.floor} 层`, W*0.5, panelY + 62*S)
 
   const btnW = panelW * 0.7, btnH = 40*S
@@ -856,13 +860,13 @@ function drawAdReviveOverlay(g) {
   ctx.save()
   ctx.beginPath()
   R.rr(panelX, panelY, panelW, 4*S, 14*S); ctx.clip()
-  ctx.fillStyle = '#ffd700'
+  ctx.fillStyle = TH.danger
   ctx.fillRect(panelX, panelY, panelW, 4*S)
   ctx.restore()
   ctx.textAlign = 'center'
   ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
   ctx.fillText('修士陨落', W*0.5, panelY + 40*S)
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5014'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
   ctx.fillText('分享给好友，获得满血复活！', W*0.5, panelY + 72*S)
   ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`当前第 ${g.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)

@@ -26,15 +26,8 @@ const {
   POOL_ENTRY_LEVEL,
   POOL_ENTRY_FRAGMENTS,
   POOL_R_LV_BONUS_RATE,
-  POOL_ROGUE_EXP_RATIO,
-  POOL_ROGUE_FLOOR_BONUS,
-  POOL_ROGUE_CLEAR_BONUS,
-  IDLE_MAX_SLOTS,
-  IDLE_FRAG_INTERVAL,
-  IDLE_MAX_ACCUMULATE,
-  IDLE_PET_EXP_PER_HOUR,
-  IDLE_PET_LV_EXP_FACTOR,
 } = require('./constants')
+const { ROGUE_SETTLE, IDLE_CFG } = require('./economyConfig')
 
 // ===== 等级系统 =====
 
@@ -97,9 +90,9 @@ const ENTRY_FRAGMENTS = POOL_ENTRY_FRAGMENTS
  */
 function calcRoguelikeSoulStone(expDetail, floor, cleared) {
   const rawExp = (expDetail.elimExp || 0) + (expDetail.comboExp || 0) + (expDetail.killExp || 0)
-  const baseFromCombat = Math.floor(rawExp * POOL_ROGUE_EXP_RATIO)
-  const floorBonus = floor * POOL_ROGUE_FLOOR_BONUS
-  const clearBonus = cleared ? POOL_ROGUE_CLEAR_BONUS : 0
+  const baseFromCombat = Math.floor(rawExp * ROGUE_SETTLE.combatExpRatio)
+  const floorBonus = floor * ROGUE_SETTLE.floorBonus
+  const clearBonus = cleared ? ROGUE_SETTLE.clearBonus : 0
   return baseFromCombat + floorBonus + clearBonus
 }
 
@@ -114,10 +107,10 @@ function calcRoguelikeSoulStone(expDetail, floor, cleared) {
  * @returns {{ fragments: number, soulStone: number }}
  */
 function calcIdleReward(elapsedMs, petLevel) {
-  const capped = Math.min(elapsedMs, IDLE_MAX_ACCUMULATE)
-  const fragments = Math.floor(capped / IDLE_FRAG_INTERVAL)
+  const capped = Math.min(elapsedMs, IDLE_CFG.maxAccumulateMs)
+  const fragments = Math.floor(capped / IDLE_CFG.fragIntervalMs)
   const hours = capped / (3600 * 1000)
-  const soulStone = Math.floor(hours * IDLE_PET_EXP_PER_HOUR * (1 + petLevel * IDLE_PET_LV_EXP_FACTOR))
+  const soulStone = Math.floor(hours * IDLE_CFG.soulStonePerHour * (1 + petLevel * IDLE_CFG.petLvExpFactor))
   return { fragments, soulStone }
 }
 
@@ -125,7 +118,7 @@ module.exports = {
   POOL_MAX_LV,
   POOL_ADV_MAX_LV,
   RARITY_EXP_MUL,
-  TIER_EXP_MUL: RARITY_EXP_MUL, // 兼容旧名
+  TIER_EXP_MUL: RARITY_EXP_MUL,
   petExpToNextLevel,
   POOL_STAR_FRAG_COST,
   POOL_STAR_LV_REQ,
@@ -138,9 +131,9 @@ module.exports = {
   ENTRY_LEVEL,
   ENTRY_FRAGMENTS,
   calcRoguelikeSoulStone,
-  IDLE_MAX_SLOTS,
-  IDLE_FRAG_INTERVAL,
-  IDLE_MAX_ACCUMULATE,
-  IDLE_PET_EXP_PER_HOUR,
+  IDLE_MAX_SLOTS: IDLE_CFG.maxSlots,
+  IDLE_FRAG_INTERVAL: IDLE_CFG.fragIntervalMs,
+  IDLE_MAX_ACCUMULATE: IDLE_CFG.maxAccumulateMs,
+  IDLE_PET_EXP_PER_HOUR: IDLE_CFG.soulStonePerHour,
   calcIdleReward,
 }

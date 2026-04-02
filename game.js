@@ -11,6 +11,9 @@ if (typeof P.onShow === 'function') {
   P.onShow(function (res) {
     console.log('[Sidebar] onShow:', JSON.stringify(res))
     GameGlobal.__launchInfo = res || {}
+    if (res && res.query && res.query.inviter) {
+      GameGlobal.__inviterId = res.query.inviter
+    }
   })
 }
 if (typeof P.checkScene === 'function') {

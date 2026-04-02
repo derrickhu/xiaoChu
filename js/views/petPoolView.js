@@ -1083,6 +1083,7 @@ function _doStarUp(g) {
   const result = g.storage.upgradePoolPetStar(petId)
   if (result.ok) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
+    g._pendingShareScene = { scene: 'petStarUp', data: { petName: (require('../data/pets').getPetById(petId) || {}).name || petId, star: result.newStar } }
   }
 }
 

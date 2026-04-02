@@ -64,6 +64,12 @@ class Main {
     this.scene = 'loading'
     this.af = 0
 
+    // 邀请系统：检查 onShow query 中的 inviter 参数
+    if (GameGlobal.__inviterId) {
+      this.storage.processInvite(GameGlobal.__inviterId)
+      GameGlobal.__inviterId = null
+    }
+
     // 事件总线：新增/修改模块优先使用 g.events 解耦通信
     this.events = new TinyEmitter()
     this.storage._eventBus = this.events
@@ -104,6 +110,16 @@ class Main {
       if (newScene === 'idle' && this.storage.isGuideShown('pet_pool_intro')) {
         guideMgr.trigger(this, 'idle_intro')
       }
+      // 回归奖励检测 & 活跃日期更新
+      if (newScene === 'title') {
+        this.storage.updateActiveDate()
+        if (!this._comebackChecked) {
+          this._comebackChecked = true
+          const comeback = this.storage.checkComeback()
+          if (comeback) P.showGameToast('欢迎回来！体力已回满，灵石+300')
+        }
+      }
+
       // 从灵宠池/修炼返回主页时触发后续引导
       if (newScene === 'title' && !this._pendingGuide) {
         // 1-1 已通、1-2 未通 → 引导继续 1-2（需等开始按钮渲染后触发）

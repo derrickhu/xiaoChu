@@ -4,16 +4,16 @@
  * 精英关: 对应普通关 bestRating === 'S' 解锁
  */
 
-const { STAGE_REWARDS } = require('./economyConfig')
+const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 
 // ===== 章节体力（普通/精英分档） =====
 const CHAPTER_STAMINA = {
-  1: { normal: 4, elite: 6 },
-  2: { normal: 6, elite: 9 },
-  3: { normal: 10, elite: 15 },
-  4: { normal: 12, elite: 18 },
-  5: { normal: 15, elite: 22 },
+  1: { normal: 6, elite: 9 },
+  2: { normal: 10, elite: 15 },
+  3: { normal: 15, elite: 22 },
+  4: { normal: 20, elite: 30 },
+  5: { normal: 25, elite: 38 },
 }
 
 // ===== 精英倍率（基于对应普通关数值） =====
@@ -25,13 +25,13 @@ const ELITE_MULTIPLIERS = {
   5: { hp: 3.0, atk: 1.8, def: 2.0 },
 }
 
-// ===== 周回碎片档位 =====
-const CHAPTER_REP_FRAG = {
-  1: { normal: { min: 1, max: 2, pool: 'chapter' }, elite: { min: 1, max: 3, pool: 'chapter' } },
-  2: { normal: { min: 2, max: 3, pool: 'chapter' }, elite: { min: 2, max: 4, pool: 'chapter' } },
-  3: { normal: { min: 2, max: 4, pool: 'chapter' }, elite: { min: 3, max: 5, pool: 'chapter' } },
-  4: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 6, pool: 'chapter' } },
-  5: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 7, pool: 'chapter' } },
+// ===== 章节建议战力（用于 UI 提示，不做硬拦截） =====
+const CHAPTER_RECOMMENDED = {
+  1: { cultLevel: 1, petStar: 1 },
+  2: { cultLevel: 5, petStar: 2 },
+  3: { cultLevel: 15, petStar: 2 },
+  4: { cultLevel: 25, petStar: 3 },
+  5: { cultLevel: 35, petStar: 4 },
 }
 
 // ===== 章节 =====
@@ -657,6 +657,7 @@ module.exports = {
   CHAPTERS,
   STAGES,
   CHAPTER_STAMINA,
+  CHAPTER_RECOMMENDED,
   RATING_ORDER,
   getStageById,
   getChapterStages,

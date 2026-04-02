@@ -6,18 +6,24 @@ const { PET_RARITY, getPetRarity } = require('./pets')
 
 const SUMMON_FRAG_COST = { R: 10, SR: 15, SSR: 25 }
 
+/** 签到/日任等未传权重时的默认碎片稀有度分布（R 为主、少量 SR） */
+const DEFAULT_RANDOM_FRAG_WEIGHTS = { R: 80, SR: 20, SSR: 0 }
+
 /**
  * 按 rarityWeights 随机选一只宠物，集中分配碎片
- * @param {object} rarityWeights - { R: 80, SR: 20, SSR: 0 }
+ * @param {object} [rarityWeights] - { R: 80, SR: 20, SSR: 0 }；缺省则用 {@link DEFAULT_RANDOM_FRAG_WEIGHTS}
  * @returns {string} petId
  */
 function rollPetByRarity(rarityWeights) {
-  const totalW = (rarityWeights.R || 0) + (rarityWeights.SR || 0) + (rarityWeights.SSR || 0)
+  const w = rarityWeights && typeof rarityWeights === 'object'
+    ? rarityWeights
+    : DEFAULT_RANDOM_FRAG_WEIGHTS
+  const totalW = (w.R || 0) + (w.SR || 0) + (w.SSR || 0)
   if (totalW <= 0) return PET_RARITY.R[0]
   let roll = Math.random() * totalW
   let rarity = 'R'
-  if (roll < (rarityWeights.SSR || 0)) rarity = 'SSR'
-  else if (roll < (rarityWeights.SSR || 0) + (rarityWeights.SR || 0)) rarity = 'SR'
+  if (roll < (w.SSR || 0)) rarity = 'SSR'
+  else if (roll < (w.SSR || 0) + (w.SR || 0)) rarity = 'SR'
 
   const candidates = PET_RARITY[rarity]
   if (!candidates || candidates.length === 0) return PET_RARITY.R[0]
@@ -38,6 +44,7 @@ function rollUnownedPet(storage, rarity) {
 
 module.exports = {
   SUMMON_FRAG_COST,
+  DEFAULT_RANDOM_FRAG_WEIGHTS,
   rollPetByRarity,
   rollUnownedPet,
 }

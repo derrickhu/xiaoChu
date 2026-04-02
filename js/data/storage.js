@@ -76,6 +76,31 @@ function defaultPersist() {
     guideFlags: {},            // { guideId: true } 新手指引已完成标记
     weaponCollection: [],      // 已获得法宝ID: ['w1','w5',...]
     equippedWeaponId: null,    // 当前装备的法宝ID
+    // 签到系统
+    loginSign: {
+      day: 0,                  // 当前签到天数 (1-7)
+      lastDate: '',            // 上次签到日期 'YYYY-MM-DD'
+      isNewbie: true,          // 是否仍在新手 7 日周期
+    },
+    // 每日任务
+    dailyTaskProgress: {
+      date: '',
+      tasks: {},               // { taskId: currentCount }
+      claimed: {},             // { taskId: true }
+      allClaimed: false,
+    },
+    // 分享追踪
+    shareTracking: {
+      date: '',
+      rewardCount: 0,          // 当日已领奖次数
+      firstEverDone: false,    // 是否完成过首次分享
+    },
+    // 邀请追踪
+    inviteCount: 0,
+    invitedBy: null,
+    // 回归 / 删档
+    lastActiveDate: '',
+    dataVersion: 0,
   }
 }
 
@@ -497,6 +522,7 @@ class Storage {
     }
     if (spent > 0) {
       this._d.soulStone -= spent
+      this.addDailyTaskProgress('pet_feed', 1)
       this._save()
     }
     return levelUps
@@ -601,7 +627,183 @@ class Storage {
     return true
   }
 
+  // ===== 签到系统 =====
+
+  _ensureLoginSign() {
+    if (!this._d.loginSign) this._d.loginSign = { day: 0, lastDate: '', isNewbie: true }
+  }
+
+  get loginSign() { this._ensureLoginSign(); return this._d.loginSign }
+
+  get canSignToday() {
+    this._ensureLoginSign()
+    return this._d.loginSign.lastDate !== new Date().toISOString().slice(0, 10)
+  }
+
+  claimLoginReward() {
+    if (!this.canSignToday) return null
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    sign.day = (sign.day % 7) + 1
+    if (sign.day === 1 && sign.lastDate) sign.isNewbie = false
+    sign.lastDate = new Date().toISOString().slice(0, 10)
+    const { LOGIN_REWARDS, LOGIN_WEEKLY_RATIO } = require('./giftConfig')
+    const base = LOGIN_REWARDS[sign.day - 1]
+    if (!base) { this._save(); return null }
+    const ratio = sign.isNewbie ? 1 : LOGIN_WEEKLY_RATIO
+    const r = base.rewards
+    if (r.soulStone) this.addSoulStone(Math.floor(r.soulStone * ratio))
+    if (r.awakenStone) this.addAwakenStone(Math.floor(r.awakenStone * ratio))
+    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + Math.floor(r.stamina * ratio)) }
+    if (r.fragment) this.addRandomFragments(Math.floor(r.fragment * ratio))
+    this._save()
+    return { day: sign.day, rewards: r, isNewbie: sign.isNewbie, ratio }
+  }
+
+  // ===== 每日任务 =====
+
+  _ensureDailyTask() {
+    const today = new Date().toISOString().slice(0, 10)
+    if (!this._d.dailyTaskProgress || this._d.dailyTaskProgress.date !== today) {
+      this._d.dailyTaskProgress = { date: today, tasks: {}, claimed: {}, allClaimed: false }
+    }
+  }
+
+  get dailyTaskProgress() { this._ensureDailyTask(); return this._d.dailyTaskProgress }
+
+  /** 首页「每日奖励」入口红点：今日未签到、任一条任务可领未领、或全完成但未领额外奖 */
+  get hasDailyRewardEntryBadge() {
+    if (this.canSignToday) return true
+    this._ensureDailyTask()
+    const p = this._d.dailyTaskProgress
+    const { DAILY_TASKS } = require('./giftConfig')
+    for (const task of DAILY_TASKS) {
+      const cur = p.tasks[task.id] || 0
+      if (cur >= task.condition.count && !p.claimed[task.id]) return true
+    }
+    const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
+    if (allDone && !p.allClaimed) return true
+    return false
+  }
+
+  addDailyTaskProgress(taskId, amount) {
+    this._ensureDailyTask()
+    const p = this._d.dailyTaskProgress
+    p.tasks[taskId] = (p.tasks[taskId] || 0) + (amount || 1)
+    this._save()
+  }
+
+  claimDailyTask(taskId) {
+    this._ensureDailyTask()
+    const p = this._d.dailyTaskProgress
+    if (p.claimed[taskId]) return false
+    const { DAILY_TASKS, getScaledDailyTaskReward } = require('./giftConfig')
+    const task = DAILY_TASKS.find(t => t.id === taskId)
+    if (!task) return false
+    if ((p.tasks[taskId] || 0) < task.condition.count) return false
+    p.claimed[taskId] = true
+    const r = getScaledDailyTaskReward(task, this.currentChapter)
+    if (r.soulStone) this.addSoulStone(r.soulStone)
+    if (r.fragment) this.addRandomFragments(r.fragment)
+    if (r.awakenStone) this.addAwakenStone(r.awakenStone)
+    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + r.stamina) }
+    this._save()
+    return true
+  }
+
+  claimDailyAllBonus() {
+    this._ensureDailyTask()
+    const p = this._d.dailyTaskProgress
+    if (p.allClaimed) return false
+    const { DAILY_TASKS, getScaledDailyAllBonus } = require('./giftConfig')
+    const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
+    if (!allDone) return false
+    p.allClaimed = true
+    const r = getScaledDailyAllBonus(this.currentChapter)
+    if (r.soulStone) this.addSoulStone(r.soulStone)
+    if (r.fragment) this.addRandomFragments(r.fragment)
+    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + r.stamina) }
+    this._save()
+    return true
+  }
+
+  // ===== 分享追踪 =====
+
+  _ensureShareTracking() {
+    const today = new Date().toISOString().slice(0, 10)
+    if (!this._d.shareTracking || this._d.shareTracking.date !== today) {
+      this._d.shareTracking = { date: today, rewardCount: this._d.shareTracking ? 0 : 0, firstEverDone: (this._d.shareTracking && this._d.shareTracking.firstEverDone) || false }
+    }
+  }
+
+  get shareTracking() { this._ensureShareTracking(); return this._d.shareTracking }
+
+  recordShare() {
+    this._ensureShareTracking()
+    const st = this._d.shareTracking
+    const { SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS } = require('./giftConfig')
+    let rewarded = false
+    if (st.rewardCount < SHARE_DAILY_MAX) {
+      st.rewardCount++
+      if (SHARE_PER_REWARD.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + SHARE_PER_REWARD.stamina) }
+      rewarded = true
+    }
+    if (!st.firstEverDone) {
+      st.firstEverDone = true
+      if (SHARE_FIRST_EVER_BONUS.soulStone) this.addSoulStone(SHARE_FIRST_EVER_BONUS.soulStone)
+    }
+    this.addDailyTaskProgress('share_1', 1)
+    this._save()
+    return rewarded
+  }
+
+  // ===== 回归检测 =====
+
+  checkComeback() {
+    const now = Date.now()
+    const last = this._d.lastActiveDate
+    this._d.lastActiveDate = new Date().toISOString().slice(0, 10)
+    if (!last) { this._save(); return false }
+    const lastTs = new Date(last + 'T00:00:00').getTime()
+    const { COMEBACK_THRESHOLD_MS, COMEBACK_REWARD } = require('./giftConfig')
+    if (now - lastTs < COMEBACK_THRESHOLD_MS) { this._save(); return false }
+    if (COMEBACK_REWARD.staminaFull) { this._recoverStamina(); this._d.stamina.current = this._d.stamina.max }
+    if (COMEBACK_REWARD.soulStone) this.addSoulStone(COMEBACK_REWARD.soulStone)
+    this._save()
+    return true
+  }
+
+  updateActiveDate() {
+    this._d.lastActiveDate = new Date().toISOString().slice(0, 10)
+    this._save()
+  }
+
+  // ===== 邀请系统 =====
+
+  processInvite(inviterId) {
+    if (!inviterId) return false
+    if (this._d.invitedBy) return false
+    const { INVITE_REWARD } = require('./giftConfig')
+    this._d.invitedBy = inviterId
+    if (INVITE_REWARD.soulStone) this.addSoulStone(INVITE_REWARD.soulStone)
+    this._save()
+    return true
+  }
+
   // ===== 固定关卡记录 =====
+
+  /** 根据已通关记录推算玩家当前所在章节（1-5），用于经济体系缩放 */
+  get currentChapter() {
+    const rec = this._d.stageClearRecord || {}
+    let maxCh = 1
+    for (const sid of Object.keys(rec)) {
+      if (rec[sid] && rec[sid].cleared) {
+        const m = sid.match(/^stage_(\d+)_/)
+        if (m) { const ch = parseInt(m[1], 10); if (ch > maxCh) maxCh = ch }
+      }
+    }
+    return Math.min(maxCh, 5)
+  }
 
   get stageClearRecord() {
     return this._d.stageClearRecord || (this._d.stageClearRecord = {})
@@ -821,6 +1023,7 @@ class Storage {
       this._d.soulStone = (this._d.soulStone || 0) + totalSoulStone
     }
     dispatch.lastCollect = now
+    this.addDailyTaskProgress('idle_collect', 1)
     this._save()
     return { totalFragments, totalSoulStone, details }
   }
@@ -892,7 +1095,7 @@ class Storage {
   /**
    * 按品质权重分配碎片给随机宠物（一次分配 count 片给同一只宠物）
    * @param {number} count
-   * @param {object} rarityWeights - { R: 80, SR: 20, SSR: 0 }
+   * @param {object} [rarityWeights] - 缺省时使用 chestConfig.DEFAULT_RANDOM_FRAG_WEIGHTS
    * @returns {{ petId, count }}
    */
   addRandomFragments(count, rarityWeights) {
@@ -1240,12 +1443,30 @@ class Storage {
         }
         // 确保 cultivation 字段完整（防止迁移失败或字段缺失）
         this._ensureCultivationFields()
+        // 二测删档检测
+        this._checkDataVersion()
       } else {
         this._d = defaultPersist()
       }
     } catch(e) {
       console.warn('Storage load error:', e)
       this._d = defaultPersist()
+    }
+  }
+
+  _checkDataVersion() {
+    const { DATA_VERSION, BETA1_COMPENSATION } = require('./giftConfig')
+    if ((this._d.dataVersion || 0) < DATA_VERSION) {
+      const playerId = this._d.playerId || null
+      this._d = defaultPersist()
+      if (playerId) this._d.playerId = playerId
+      this._d.dataVersion = DATA_VERSION
+      if (BETA1_COMPENSATION.staminaFull) this._d.stamina.current = this._d.stamina.max
+      if (BETA1_COMPENSATION.soulStone) this._d.soulStone = BETA1_COMPENSATION.soulStone
+      if (BETA1_COMPENSATION.awakenStone) this._d.awakenStone = BETA1_COMPENSATION.awakenStone
+      this._d._beta1Compensated = true
+      this._save()
+      console.log('[Storage] 二测删档完成，已发放补偿')
     }
   }
 

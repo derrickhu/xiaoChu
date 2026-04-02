@@ -456,9 +456,11 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   }
   if (soulStoneFinal > 0) contentH += 28 * S
   if (fragFinal > 0) {
-    contentH += 28 * S // 碎片标题行
-    if (fragDetails.length > 0) contentH += 22 * S // 碎片明细行
+    contentH += 28 * S
+    if (fragDetails.length > 0) contentH += 22 * S
   }
+  const _srNewWpns = sr && sr.newWeapons && sr.newWeapons.length > 0
+  if (_srNewWpns) contentH += 48 * S
 
   contentH += pad + 46 * S
   let hasQuickBtns = false
@@ -612,6 +614,16 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
       c.textBaseline = 'alphabetic'
       cy += 22 * S
     }
+  }
+
+  // === 本局新获法宝 ===
+  const newWpns = sr && sr.newWeapons && sr.newWeapons.length > 0 ? sr.newWeapons : null
+  if (newWpns) {
+    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_weapon', '本局新获法宝', `${newWpns.length}件`, '#B8860B', '#B8860B')
+    cy += 28 * S
+    c.textAlign = 'center'; c.fillStyle = '#B8860B'; c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.fillText(newWpns.map(w => w.name).join('、'), W * 0.5, cy + 4 * S)
+    cy += 20 * S
   }
 
   // === 底部按钮 ===

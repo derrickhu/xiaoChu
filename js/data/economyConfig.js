@@ -57,60 +57,60 @@ const STAGES_PER_CHAPTER = 8
 const STAGE_REWARDS = {
   1: {
     normal: {
-      soulStone: { first: [40,50,60,80,100,120,150,200],   repeat: [20,25,25,30,30,35,40,50] },
+      soulStone: { first: [40,50,60,80,100,120,150,200],   repeat: [10,12,12,15,15,17,20,24] },
       fragment:  { first: [0,0,2,2,2,3,3,4],                repeat: [1,1,1,1,2,2,2,3] },
       awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
     },
     elite: {
-      soulStone: { first: [60,80,100,120,150,180,200,300],  repeat: [30,35,40,45,50,55,60,80] },
+      soulStone: { first: [60,80,100,120,150,180,200,300],  repeat: [15,17,20,22,24,27,30,40] },
       fragment:  { first: [3,3,3,4,4,4,5,5],                repeat: [2,2,2,2,3,3,3,4] },
       awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
     },
   },
   2: {
     normal: {
-      soulStone: { first: [80,100,120,150,150,180,200,250],  repeat: [40,45,50,55,60,70,80,100] },
+      soulStone: { first: [80,100,120,150,150,180,200,250],  repeat: [24,27,30,33,36,42,48,60] },
       fragment:  { first: [2,2,3,3,3,4,4,5],                 repeat: [2,2,2,3,3,3,3,4] },
       awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
     },
     elite: {
-      soulStone: { first: [120,150,180,220,220,270,300,380], repeat: [60,70,80,85,90,100,120,150] },
+      soulStone: { first: [120,150,180,220,220,270,300,380], repeat: [36,42,48,51,54,60,72,90] },
       fragment:  { first: [4,4,5,5,5,6,6,8],                 repeat: [3,3,3,4,4,4,5,6] },
       awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
     },
   },
   3: {
     normal: {
-      soulStone: { first: [150,180,200,220,250,280,300,350],  repeat: [80,90,100,110,120,130,140,150] },
+      soulStone: { first: [150,180,200,220,250,280,300,350],  repeat: [48,54,60,66,72,78,84,90] },
       fragment:  { first: [3,3,4,4,5,5,6,8],                  repeat: [3,3,3,4,4,4,5,5] },
       awakenStone: { first: [0,0,1,1,1,1,1,2],               repeat: 0.10 },
     },
     elite: {
-      soulStone: { first: [220,270,300,330,380,420,450,530],  repeat: [120,130,150,160,180,200,210,230] },
+      soulStone: { first: [220,270,300,330,380,420,450,530],  repeat: [72,78,90,96,108,120,126,138] },
       fragment:  { first: [5,6,6,7,7,8,8,10],                 repeat: [4,5,5,5,6,6,6,8] },
       awakenStone: { first: [1,1,1,1,2,2,2,3],               repeat: 0.15 },
     },
   },
   4: {
     normal: {
-      soulStone: { first: [250,280,300,330,350,380,400,500],  repeat: [120,130,140,150,160,170,190,200] },
+      soulStone: { first: [250,280,300,330,350,380,400,500],  repeat: [72,78,84,90,96,102,114,120] },
       fragment:  { first: [5,5,6,6,8,8,8,10],                 repeat: [4,4,4,5,5,5,6,6] },
       awakenStone: { first: [1,1,1,2,2,2,2,3],               repeat: 0.12 },
     },
     elite: {
-      soulStone: { first: [380,420,450,500,530,570,600,750],  repeat: [180,200,210,230,240,260,280,300] },
+      soulStone: { first: [380,420,450,500,530,570,600,750],  repeat: [108,120,126,138,144,156,168,180] },
       fragment:  { first: [8,8,9,9,10,10,12,15],              repeat: [6,6,7,7,8,8,9,10] },
       awakenStone: { first: [2,2,2,3,3,3,4,5],               repeat: 0.20 },
     },
   },
   5: {
     normal: {
-      soulStone: { first: [350,380,400,440,460,500,550,700],   repeat: [160,180,200,220,240,260,280,300] },
+      soulStone: { first: [350,380,400,440,460,500,550,700],   repeat: [96,108,120,132,144,156,168,180] },
       fragment:  { first: [6,6,8,8,8,10,10,12],                repeat: [5,5,6,6,6,7,7,8] },
       awakenStone: { first: [2,2,2,3,3,3,4,5],                repeat: 0.15 },
     },
     elite: {
-      soulStone: { first: [530,570,600,660,690,750,830,1050],  repeat: [240,270,300,330,360,400,420,450] },
+      soulStone: { first: [530,570,600,660,690,750,830,1050],  repeat: [144,162,180,198,216,240,252,270] },
       fragment:  { first: [10,10,12,12,14,14,15,18],            repeat: [8,8,9,9,10,10,12,14] },
       awakenStone: { first: [3,3,4,4,5,5,6,8],                repeat: 0.25 },
     },
@@ -202,19 +202,80 @@ const CHAPTER_MILESTONES = {
   ],
 }
 
-// ===== 通天塔奖励配置 =====
-const TOWER_REWARDS = {
-  soulStonePerFloor: 5,
-  soulStoneClearBonus: 200,
-  fragmentPerFloor: 1,
-  fragmentClearBonus: 20,
-  awakenStonePerBoss: 1,
+// ===== 通天塔结算配置（原 settleConfig.js，统一至此） =====
+const TOWER_SETTLE = {
+  fragment: {
+    perFloor:    1,
+    bossBonus:   3,
+    eliteBonus:  1,
+    clearBonus:  20,
+    failRatio:   0.6,
+  },
+  cultExp: {
+    perFloor:    3,
+    clearBonus:  500,
+    failRatio:   0.6,
+  },
+  soulStone: {
+    combatRatio: 0.3,
+    floorBonus:  2,
+    clearBonus:  200,
+  },
+  distribute: {
+    mode: 'team',
+    evenSplit: true,
+  },
 }
 
-// ===== 派遣奖励配置 =====
-const IDLE_REWARDS = {
-  soulStonePerHour: 8,
-  awakenStonePerDay: 1,
+// ===== 周回碎片档位（原 stages.js，统一至此） =====
+const CHAPTER_REP_FRAG = {
+  1: { normal: { min: 1, max: 2, pool: 'chapter' }, elite: { min: 1, max: 3, pool: 'chapter' } },
+  2: { normal: { min: 2, max: 3, pool: 'chapter' }, elite: { min: 2, max: 4, pool: 'chapter' } },
+  3: { normal: { min: 2, max: 4, pool: 'chapter' }, elite: { min: 3, max: 5, pool: 'chapter' } },
+  4: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 6, pool: 'chapter' } },
+  5: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 7, pool: 'chapter' } },
+}
+
+// ===== 肉鸽灵石结算系数 =====
+const ROGUE_SETTLE = {
+  combatExpRatio: 0.3,
+  floorBonus:     2,
+  clearBonus:     200,
+}
+
+// ===== 派遣 / 挂机产出配置 =====
+const IDLE_CFG = {
+  maxSlots:        3,
+  fragIntervalMs:  3 * 3600 * 1000,
+  maxAccumulateMs: 24 * 3600 * 1000,
+  soulStonePerHour: 15,
+  petLvExpFactor:  0.02,
+}
+
+// ===== 经济框架：按章节定义日收入目标与来源占比 =====
+// 所有子系统数值以此为锚：关卡周回~50%、签到+日任~30%、派遣~20%
+const ECONOMY_FRAMEWORK = {
+  dailyTarget: {
+    1: { soulStone: 400,  fragment: 8,  awakenStonePerWeek: 0 },
+    2: { soulStone: 700,  fragment: 14, awakenStonePerWeek: 0 },
+    3: { soulStone: 1100, fragment: 20, awakenStonePerWeek: 2 },
+    4: { soulStone: 1600, fragment: 28, awakenStonePerWeek: 4 },
+    5: { soulStone: 2200, fragment: 36, awakenStonePerWeek: 8 },
+  },
+  sourceRatio: {
+    stageRepeat: 0.50,
+    loginAndTask: 0.30,
+    idle: 0.20,
+  },
+  dailyTaskScale: { 1: 1.0, 2: 1.8, 3: 2.8, 4: 4.0, 5: 5.5 },
+}
+
+/**
+ * 获取玩家当前章节对应的每日任务奖励缩放系数
+ * @param {number} chapter 1-5
+ */
+function getDailyTaskScale(chapter) {
+  return ECONOMY_FRAMEWORK.dailyTaskScale[chapter] || 1.0
 }
 
 // ===== 工具函数：获取关卡奖励配置 =====
@@ -258,6 +319,14 @@ function getStarRewardConfig(chapter, order) {
   return chStars[order - 1] || null
 }
 
+// ===== IAA 广告位预留配置（当前不实现，仅定义接口） =====
+const AD_REWARDS = {
+  staminaRecovery: { enabled: false, reward: { stamina: 30 }, adUnitId: '' },
+  settleDouble:    { enabled: false, multiplier: 2,           adUnitId: '' },
+  dailyTaskBonus:  { enabled: false, reward: { soulStone: 50 }, adUnitId: '' },
+  revive:          { enabled: false, reward: { fullHp: true }, adUnitId: '' },
+}
+
 module.exports = {
   CURRENCY,
   RARITY_VISUAL,
@@ -266,8 +335,13 @@ module.exports = {
   STAGE_REWARDS,
   STAR_REWARDS,
   CHAPTER_MILESTONES,
-  TOWER_REWARDS,
-  IDLE_REWARDS,
+  TOWER_SETTLE,
+  CHAPTER_REP_FRAG,
+  ROGUE_SETTLE,
+  IDLE_CFG,
+  AD_REWARDS,
+  ECONOMY_FRAMEWORK,
+  getDailyTaskScale,
   getStageRewardConfig,
   getStarRewardConfig,
 }

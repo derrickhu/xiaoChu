@@ -62,7 +62,7 @@ function drawRunBuffDetailDialog(g) {
   const { ctx, R, TH, W, H, S } = V
   const log = g.runBuffLog
   if (!log || log.length === 0) { g.showRunBuffDetail = false; return }
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'
   ctx.fillRect(0, 0, W, H)
   const padX = 16*S, padY = 14*S
   const tipW = W * 0.88
@@ -92,8 +92,8 @@ function drawRunBuffDetailDialog(g) {
   const tipH = Math.min(contentH, H * 0.7)
   const tipX = (W - tipW) / 2
   const tipY = (H - tipH) / 2
-  R.drawDialogPanel(tipX, tipY, tipW, tipH)
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  R.drawInfoPanel(tipX, tipY, tipW, tipH)
+  ctx.fillStyle = '#6B5014'; ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('全局增益一览', W*0.5, tipY + padY + 12*S)
   let ly = tipY + padY + titleH + 4*S
   ctx.textAlign = 'left'
@@ -104,15 +104,15 @@ function drawRunBuffDetailDialog(g) {
                    it.buff === 'bonusCombo' || it.buff === 'stunDurBonus' || it.buff === 'extraRevive' || it.buff === 'regenPerTurn' ? `+${it.val}` :
                    `${it.val > 0 ? '+' : ''}${it.val}%`
     const countTxt = it.count > 1 ? ` (x${it.count})` : ''
-    ctx.fillStyle = '#ddd'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#4a3820'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
     ctx.fillText(`· ${name}`, tipX + padX, ly + 12*S)
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#8B6914'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'right'
     ctx.fillText(`${valTxt}${countTxt}`, tipX + tipW - padX, ly + 12*S)
     ctx.textAlign = 'left'
     ly += lineH
   }
-  ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText('点击任意位置关闭', W*0.5, tipY + tipH - 8*S)
 }
 
@@ -638,23 +638,15 @@ function drawPetPoolEntryPopup(g) {
   if (!pet) { g._petPoolEntryPopup = null; return }
 
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H)
 
   const pw = W * 0.72, ph = 140 * S
   const px = (W - pw) / 2, py = H * 0.35
-  ctx.fillStyle = 'rgba(245,238,220,0.98)'
-  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
-  ctx.strokeStyle = 'rgba(180,140,50,0.9)'
-  ctx.lineWidth = 2 * S
-  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+  R.drawInfoPanel(px, py, pw, ph)
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  // 标题：深金棕，加描边提升可读性
+  ctx.fillStyle = '#6B5014'
   ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)'
-  ctx.lineWidth = 2 * S
-  ctx.strokeText('灵宠入池！', px + pw / 2, py + 24 * S)
-  ctx.fillStyle = '#8b6914'
   ctx.fillText('灵宠入池！', px + pw / 2, py + 24 * S)
 
   const attrColor = ATTR_COLOR[pet.attr]
@@ -666,7 +658,6 @@ function drawPetPoolEntryPopup(g) {
   ctx.font = `${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('★1 Lv.5 + 2碎片 加入灵宠池', px + pw / 2, py + 74 * S)
 
-  // 首只入池解锁提示
   if (g.storage.petPoolCount === 1) {
     ctx.fillStyle = '#5c3d00'
     ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
@@ -675,7 +666,7 @@ function drawPetPoolEntryPopup(g) {
 
   const blink = 0.65 + 0.35 * Math.sin(Date.now() * 0.005)
   ctx.globalAlpha = blink
-  ctx.fillStyle = '#5a4a30'
+  ctx.fillStyle = '#9B8B80'
   ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击继续', px + pw / 2, py + ph - 14 * S)
   ctx.globalAlpha = 1
@@ -697,10 +688,7 @@ function drawFragmentPopup(g) {
 
   const pw = W * 0.7, ph = 120 * S
   const px = (W - pw) / 2, py = H * 0.38
-  ctx.fillStyle = 'rgba(248,242,230,0.97)'
-  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
-  ctx.strokeStyle = 'rgba(180,140,60,0.6)'; ctx.lineWidth = 1.5 * S
-  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
+  R.drawInfoPanel(px, py, pw, ph)
 
   const cx = px + pw / 2
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
@@ -713,13 +701,13 @@ function drawFragmentPopup(g) {
   ctx.fillText('获得碎片', cx, py + 42 * S)
 
   const attrColor = ATTR_COLOR[pet.attr]
-  ctx.fillStyle = attrColor ? attrColor.main : '#fff'
+  ctx.fillStyle = attrColor ? attrColor.main : '#6B5014'
   ctx.font = `${12*S}px "PingFang SC",sans-serif`
   ctx.fillText(`${pet.name} ×${info.count}`, cx, py + 66 * S)
 
   const blink = 0.4 + 0.4 * Math.sin(Date.now() * 0.005)
   ctx.globalAlpha = blink
-  ctx.fillStyle = '#aaa'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击继续', cx, py + ph - 14 * S)
   ctx.globalAlpha = 1
 

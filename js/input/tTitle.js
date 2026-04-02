@@ -5,10 +5,14 @@ const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const runMgr = require('../engine/runManager')
 const { getBrowsableStages } = require('../data/stages')
+const { tDailyReward } = require('../views/dailyRewardView')
 
 const SWIPE_THRESHOLD = 40
 
 function tTitle(g, type, x, y) {
+  // ⓪ 每日奖励弹窗
+  if (g._showDailyReward) { tDailyReward(g, x, y, type); return }
+
   // ① 侧边栏复访弹窗
   if (g.showSidebarPanel) {
     if (type !== 'end') return
@@ -193,7 +197,7 @@ function tTitle(g, type, x, y) {
     g.showTitleStartDialog = true; return
   }
 
-  // ⑥ 左下角模式切换浮钮
+  // ⑥ 左侧模式切换浮钮（通天塔 / 灵兽秘境）
   if (g._modeSwitchRect && g._hitRect(x,y,...g._modeSwitchRect)) {
     g.titleMode = g.titleMode === 'tower' ? 'stage' : 'tower'; return
   }
@@ -201,6 +205,13 @@ function tTitle(g, type, x, y) {
   // ⑥b 右下角侧边栏复访入口（抖音专属）
   if (g._sidebarBtnRect && g._hitRect(x, y, ...g._sidebarBtnRect)) {
     g.showSidebarPanel = true; return
+  }
+
+  // ⑥b 每日奖励按钮
+  if (g._dailyRewardBtnRect && g._hitRect(x, y, ...g._dailyRewardBtnRect)) {
+    g._showDailyReward = true
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
   }
 
   // ⑦ 底部 7 标签导航

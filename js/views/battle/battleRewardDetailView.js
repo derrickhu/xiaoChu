@@ -42,31 +42,10 @@ function _drawItemMenu(g) {
   const menuX = (W - menuW) / 2
   const menuY = (H - menuH) / 2
 
-  // 手绘面板底板（不依赖图片）
-  ctx.save()
-  // 外层阴影
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 16*S; ctx.shadowOffsetY = 4*S
-  // 底板
-  ctx.fillStyle = '#1a1410'
-  R.rr(menuX, menuY, menuW, menuH, 10*S); ctx.fill()
-  ctx.shadowColor = 'transparent'
-  // 内层渐变
-  const grad = ctx.createLinearGradient(menuX, menuY, menuX, menuY + menuH)
-  grad.addColorStop(0, 'rgba(60,45,30,0.95)')
-  grad.addColorStop(0.5, 'rgba(35,25,15,0.95)')
-  grad.addColorStop(1, 'rgba(45,35,20,0.95)')
-  ctx.fillStyle = grad
-  R.rr(menuX + 2*S, menuY + 2*S, menuW - 4*S, menuH - 4*S, 9*S); ctx.fill()
-  // 金色描边
-  ctx.strokeStyle = '#c8a84e'; ctx.lineWidth = 2*S
-  R.rr(menuX, menuY, menuW, menuH, 10*S); ctx.stroke()
-  // 内描边
-  ctx.strokeStyle = 'rgba(200,168,78,0.25)'; ctx.lineWidth = 1*S
-  R.rr(menuX + 4*S, menuY + 4*S, menuW - 8*S, menuH - 8*S, 8*S); ctx.stroke()
-  ctx.restore()
+  R.drawInfoPanel(menuX, menuY, menuW, menuH)
 
   // 标题
-  ctx.fillStyle = '#ffd700'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  ctx.fillStyle = '#6B5014'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   ctx.fillText('灵宝匣', W * 0.5, menuY + padY + 16*S)
 
@@ -91,9 +70,9 @@ function _drawItemMenu(g) {
     // 卡片背景
     ctx.save()
     ctx.globalAlpha = isDisabled ? 0.4 : 1.0
-    ctx.fillStyle = 'rgba(40,30,20,0.85)'
+    ctx.fillStyle = 'rgba(255,252,240,0.9)'
     R.rr(menuX + padX, iy, menuW - padX*2, itemH, 8*S); ctx.fill()
-    ctx.strokeStyle = isDisabled ? 'rgba(100,100,100,0.4)' : it.color
+    ctx.strokeStyle = isDisabled ? 'rgba(175,135,48,0.2)' : 'rgba(175,135,48,0.5)'
     ctx.lineWidth = 1.5*S
     R.rr(menuX + padX, iy, menuW - padX*2, itemH, 8*S); ctx.stroke()
 
@@ -124,28 +103,28 @@ function _drawItemMenu(g) {
 
     // 名称
     const textX = iconX + iconSz + 10*S
-    ctx.fillStyle = it.color; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
     ctx.fillText(it.name, textX, iy + itemH * 0.38)
 
     // 描述
-    ctx.fillStyle = '#bbb'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#6B5B50'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText(it.desc, textX, iy + itemH * 0.62)
 
     // 状态标签
     ctx.textAlign = 'right'
     if (isUsed) {
-      ctx.fillStyle = '#888'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
       ctx.fillText('已使用', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
     } else if (isObtained) {
       if (isHealFull) {
-        ctx.fillStyle = '#888'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#9B8B80'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
         ctx.fillText('气血已满', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
       } else {
-        ctx.fillStyle = '#44ff88'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#27864A'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
         ctx.fillText('点击使用', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
       }
     } else {
-      ctx.fillStyle = '#e8c870'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = '#8B6914'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
       ctx.fillText('分享获取', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
     }
 

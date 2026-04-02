@@ -19,7 +19,7 @@ const { resetPrepBagScroll } = require('../views/prepareView')
 const tutorial = require('./tutorial')
 const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
-const { SETTLE_CFG } = require('../data/settleConfig')
+const { TOWER_SETTLE } = require('../data/economyConfig')
 const { initBoard } = require('./battle')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
@@ -215,10 +215,10 @@ function restoreBattleHpMax(g) {
 
 /**
  * 经验结算（可独立于 endRun 调用，如重新开局/放弃存档时）
- * 修炼经验 + 灵石，数值从 SETTLE_CFG 读取
+ * 修炼经验 + 灵石，数值从 TOWER_SETTLE 读取
  */
 function settleExp(g) {
-  const cfg = SETTLE_CFG
+  const cfg = TOWER_SETTLE
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   const layerExp = finalFloor * cfg.cultExp.perFloor
   const clearBonus = g.cleared ? cfg.cultExp.clearBonus : 0
@@ -252,7 +252,7 @@ function settleExp(g) {
  */
 function settleAll(g) {
   settleExp(g)
-  const cfg = SETTLE_CFG
+  const cfg = TOWER_SETTLE
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
 
   // ── 碎片计算 ──
@@ -316,6 +316,7 @@ function settleAll(g) {
       final: fragTotal,
       details: fragDetails,
     },
+    newWeapons: (g.weaponBag || []).map(w => ({ id: w.id, name: w.name })),
   }
 }
 
@@ -323,8 +324,10 @@ function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
-  // 胜/败才算完成一局
   g.storage._d.totalRuns++; g.storage._save()
+  if (g.storage.addDailyTaskProgress) {
+    g.storage.addDailyTaskProgress('battle_3', 1)
+  }
   g.storage.clearRunState()
   if (g.storage.userAuthorized && !g._isGM) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
@@ -467,14 +470,8 @@ function onDefeat(g, W, H) {
 }
 
 function doAdRevive(g, W, H) {
-  // 分享复活：转发给好友后获得满血复活
-  P.shareAppMessage({
-    title: `我在消消塔第${g.floor}层倒下了，快来助我一臂之力！`,
-    imageUrl: 'assets/share/share_revive.jpg',
-  })
-  // 分享回调：分享成功后触发复活
-  // 注意：微信不保证分享成功回调的可靠性，为保证用户体验，
-  // 调用 shareAppMessage 后即视为分享成功，给予复活奖励
+  const { doShare } = require('../share')
+  doShare(g, 'towerDefeat', { floor: g.floor })
   adReviveCallback(g, W, H)
 }
 
@@ -492,10 +489,8 @@ function adReviveCallback(g, W, H) {
 // 分享获取道具（标记为已获取，不立即使用）
 function obtainItemReset(g) {
   if (g.itemResetObtained || g.itemResetUsed) return false
-  P.shareAppMessage({
-    title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
-    imageUrl: 'assets/share/share_default.jpg',
-  })
+  const { doShare } = require('../share')
+  doShare(g, 'towerItem', { floor: g.floor })
   g.itemResetObtained = true
   MusicMgr.playReward()
   return true
@@ -503,10 +498,8 @@ function obtainItemReset(g) {
 
 function obtainItemHeal(g) {
   if (g.itemHealObtained || g.itemHealUsed) return false
-  P.shareAppMessage({
-    title: `我正在挑战消消塔第${g.floor}层，一起来修仙！`,
-    imageUrl: 'assets/share/share_default.jpg',
-  })
+  const { doShare } = require('../share')
+  doShare(g, 'towerItem', { floor: g.floor })
   g.itemHealObtained = true
   MusicMgr.playReward()
   return true

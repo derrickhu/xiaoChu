@@ -56,37 +56,20 @@ const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 
 const POOL_MAX_LV = 40
 const POOL_ADV_MAX_LV = 60
-// 灵宠品质(R/SR/SSR)升级经验倍率
 const POOL_RARITY_EXP_MUL = { R: 1.0, SR: 1.3, SSR: 1.6 }
 const POOL_EXP_BASE = 20
 const POOL_EXP_LINEAR = 8
 const POOL_EXP_POW_EXP = 1.4
 const POOL_EXP_POW_COEFF = 0.5
-// 升星碎片消耗（★4/★5 额外需要觉醒石，见 POOL_STAR_AWAKEN_COST）
 const POOL_STAR_FRAG_COST = { 2: 5, 3: 15, 4: 30, 5: 50 }
-// 升星等级门槛
 const POOL_STAR_LV_REQ = { 2: 10, 3: 20, 4: 35, 5: 45 }
-// 各星级 ATK 倍率
 const POOL_STAR_ATK_MUL = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 }
-// ★4/★5 升星所需觉醒石数量
 const POOL_STAR_AWAKEN_COST = { 4: 3, 5: 8 }
-// 各星级解锁的等级上限（覆盖 POOL_MAX_LV）
 const POOL_STAR_LV_CAP = { 1: 40, 2: 40, 3: 40, 4: 50, 5: 60 }
 const POOL_FRAGMENT_TO_EXP = 40
 const POOL_ENTRY_LEVEL = 5
 const POOL_ENTRY_FRAGMENTS = 2
 const POOL_R_LV_BONUS_RATE = 0.8
-const POOL_ROGUE_EXP_RATIO = 0.3
-const POOL_ROGUE_FLOOR_BONUS = 2
-const POOL_ROGUE_CLEAR_BONUS = 200
-
-// ===== 灵宠派遣 / 挂机 (IDLE) =====
-
-const IDLE_MAX_SLOTS = 3
-const IDLE_FRAG_INTERVAL = 4 * 3600 * 1000
-const IDLE_MAX_ACCUMULATE = 24 * 3600 * 1000
-const IDLE_PET_EXP_PER_HOUR = 8
-const IDLE_PET_LV_EXP_FACTOR = 0.02
 
 // ===== 连击里程碑 (COMBO) =====
 // 阈值: 显示特殊文字的连击数
@@ -143,6 +126,26 @@ const TITLE_LOGO = {
   heightPt: 70,
   gapBelowStatusPt: 15,
   gapBelowLogoPt: 15,
+}
+
+/** 首页大厅：通天塔插画缩放、每日签到 / 右上角模式切换尺寸（与 titleView 同步） */
+const TITLE_HOME = {
+  /** 通天塔/切换图主插画高度占「顶栏底～petRowY」场景区的比例 */
+  towerImgHeightSceneFrac: 0.72,
+  /** 主插画最大宽度占屏宽比例 */
+  towerImgMaxScreenWidthFrac: 0.82,
+  /** 每日签到：总宽度、红包图标边长、标签字号（×S） */
+  dailySignBtnWidthPt: 62,
+  dailySignIconPt: 52,
+  dailySignLabelPt: 11,
+  /** 签到按钮顶边 = safeTop + 此项×S */
+  dailySignTopBelowSafePt: 38,
+  /** 模式切换（通天塔/秘境）：图案区高度、标签字号、相对 icon 加宽（×S） */
+  modeSwitchIconPt: 30,
+  modeSwitchLabelPt: 9,
+  modeSwitchBtnExtraWPt: 6,
+  /** 模式切换条左边距（×S），贴左与顶栏内容错开 */
+  modeSwitchLeftMarginPt: 8,
 }
 
 /** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
@@ -207,15 +210,6 @@ module.exports = {
   POOL_ENTRY_FRAGMENTS,
   POOL_R_LV_BONUS_RATE,
   POOL_T3_LV_BONUS_RATE: POOL_R_LV_BONUS_RATE,
-  POOL_ROGUE_EXP_RATIO,
-  POOL_ROGUE_FLOOR_BONUS,
-  POOL_ROGUE_CLEAR_BONUS,
-  // IDLE
-  IDLE_MAX_SLOTS,
-  IDLE_FRAG_INTERVAL,
-  IDLE_MAX_ACCUMULATE,
-  IDLE_PET_EXP_PER_HOUR,
-  IDLE_PET_LV_EXP_FACTOR,
   // COMBO
   COMBO_MILESTONES,
   COMBO_MILESTONE_INTERVAL,
@@ -224,6 +218,7 @@ module.exports = {
   // 秘境选关卡片布局
   STAGE_CARD,
   TITLE_LOGO,
+  TITLE_HOME,
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   NEWBIE_PET_IDS,

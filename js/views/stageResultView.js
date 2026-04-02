@@ -18,6 +18,7 @@ const MusicMgr = require('../runtime/music')
 const _rects = {
   backBtnRect: null,
   nextBtnRect: null,
+  shareBtnRect: null,
 }
 
 let _animTimer = 0
@@ -1074,6 +1075,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
   }
   contentH += 24 * S
   contentH += pad + 48 * S
+  if (result.victory && result.isFirstClear) contentH += 44 * S
   return contentH
 }
 
@@ -1204,12 +1206,13 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 10 * S
   }
 
-  // === 本关灵石 / 修炼经验（总额） ===
+  // === 本关灵石 / 修炼经验（不含章节里程碑；里程碑单列） ===
   if (result.soulStone > 0) {
     const ssDelay = 15 + rowIdx * 6
     const ssAlpha = Math.min(1, Math.max(0, (at - ssDelay) / 12))
     c.save(); c.globalAlpha *= ssAlpha
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${result.soulStone}`, '#5577AA', '#3366AA')
+    const ssLabel = hasMilestones ? '本关灵石' : '灵石'
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, '#5577AA', '#3366AA')
     c.restore()
     cy += 32 * S
     rowIdx++
@@ -1270,23 +1273,41 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     c.save()
     c.globalAlpha *= summaryAlpha
     const sumParts = []
-    // 关卡结算灵石在 result.soulStone；章节里程碑另行列出但已实际入账，汇总须并入避免与「里程碑 +xxx」不一致
-    let totalSS = result.soulStone || 0
+    const stageSS = result.soulStone || 0
     const totalExp = result.cultExp || 0
-    let totalFrags = 0
-    if (result.rewards) result.rewards.forEach(r => { if (r.type === 'fragment') totalFrags += r.count })
+    let dropFrags = 0
+    const starAwaken = result.starBonusAwakenStone || 0
+    if (result.rewards) result.rewards.forEach(r => { if (r.type === 'fragment') dropFrags += r.count })
+    let mileSS = 0, mileFrags = 0, mileAwaken = 0
     if (result.milestoneRewards && result.milestoneRewards.length) {
       for (const ms of result.milestoneRewards) {
-        totalSS += ms.soulStone || 0
-        totalFrags += ms.fragment || 0
+        mileSS += ms.soulStone || 0
+        mileFrags += ms.fragment || 0
+        mileAwaken += ms.awakenStone || 0
       }
     }
-    if (totalSS > 0) sumParts.push(`灵石 +${totalSS}`)
-    if (totalFrags > 0) sumParts.push(`碎片 +${totalFrags}`)
+    const totalSS = stageSS + mileSS
+    const totalFrags = dropFrags + mileFrags
+    const totalAwaken = starAwaken + mileAwaken
+    if (totalSS > 0) {
+      if (mileSS > 0) sumParts.push(`灵石 +${totalSS}（本关+${stageSS} 里程碑+${mileSS}）`)
+      else sumParts.push(`灵石 +${totalSS}`)
+    }
+    if (totalFrags > 0) {
+      if (mileFrags > 0) sumParts.push(`碎片 +${totalFrags}（掉落+${dropFrags} 里程碑+${mileFrags}）`)
+      else sumParts.push(`碎片 +${totalFrags}`)
+    }
+    if (totalAwaken > 0) {
+      if (mileAwaken > 0 && starAwaken > 0) {
+        sumParts.push(`觉醒石 +${totalAwaken}（星级+${starAwaken} 里程碑+${mileAwaken}）`)
+      } else {
+        sumParts.push(`觉醒石 +${totalAwaken}`)
+      }
+    }
     if (totalExp > 0) sumParts.push(`经验 +${totalExp}`)
     if (sumParts.length > 0) {
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillStyle = '#A09070'; c.font = `${9*S}px "PingFang SC",sans-serif`
+      c.fillStyle = '#A09070'; c.font = `${8.5*S}px "PingFang SC",sans-serif`
       c.fillText(`本次共获得：${sumParts.join('、')}`, W / 2, cy + 6 * S)
     }
     c.restore()
@@ -1307,6 +1328,16 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   const rightLabel = hasNext ? '下一关' : '再次挑战'
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, 'confirm')
   _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY - scroll, btnW, btnH]
+
+  // 首通分享按钮
+  if (result.victory && result.isFirstClear) {
+    const shareBtnW = innerW * 0.5, shareBtnH = 28 * S
+    const shareBtnX = (W - shareBtnW) / 2, shareBtnY = btnY + btnH + 10 * S
+    R.drawDialogBtn(shareBtnX, shareBtnY, shareBtnW, shareBtnH, '📤 分享炫耀', 'gold')
+    _rects.shareBtnRect = [shareBtnX, shareBtnY - scroll, shareBtnW, shareBtnH]
+  } else {
+    _rects.shareBtnRect = null
+  }
 
   c.restore()
 
@@ -1929,6 +1960,14 @@ function tStageResult(g, x, y, type) {
   }
 
   const _firstClearGuide = _getFirstClearGuide(result)
+
+  if (_rects.shareBtnRect && g._hitRect(x, y, ..._rects.shareBtnRect)) {
+    const { doShare } = require('../share')
+    const stage = getStageById(result.stageId)
+    doShare(g, 'stageFirstClear', { stageName: stage ? stage.name : '', rating: result.rating || '' })
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
 
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     if (_firstClearGuide) {

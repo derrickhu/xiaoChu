@@ -8,7 +8,7 @@ const P = require('../platform')
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
 const { drawPanel } = require('./uiComponents')
 const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, getEliteLockReason } = require('../data/stages')
-const { STAGE_CARD: SC, TITLE_LOGO } = require('../data/constants')
+const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
 
@@ -86,9 +86,9 @@ function drawSceneArea(g) {
   const sceneH = L.petRowY - L.topBarBottom
 
   if (towerImg && towerImg.width > 0) {
-    const targetH = sceneH * 0.88
+    const targetH = sceneH * TITLE_HOME.towerImgHeightSceneFrac
     const ratioW = towerImg.width / towerImg.height
-    const imgW = Math.min(targetH * ratioW, W * 0.92)
+    const imgW = Math.min(targetH * ratioW, W * TITLE_HOME.towerImgMaxScreenWidthFrac)
     const imgH = imgW / ratioW
     const imgX = (W - imgW) / 2
     const imgY = L.petRowY - imgH + 14 * S
@@ -784,36 +784,54 @@ function drawTitleStartDialog(g) {
   ctx.restore()
 }
 
-// ===== 右上角模式切换浮钮 =====
+/** 模式切换垂直位置：与秘境「普通/精英」Tab 行居中对齐（两处模式共用同一高度带） */
+function _modeSwitchBtnY(L, S, btnH) {
+  const tabY = L.topBarBottom + SC.marginV * S
+  const tabH = 24 * S
+  return tabY + tabH / 2 - btnH / 2
+}
+
+/** 签到入口几何（drawDailyRewardBtn 使用） */
+function _dailySignBtnGeometry(safeTop, S) {
+  const padTop = 2 * S
+  const iconSz = TITLE_HOME.dailySignIconPt * S
+  const labelGap = 4 * S
+  const labelH = TITLE_HOME.dailySignLabelPt * S
+  const btnH = padTop + iconSz + labelGap + labelH + 4 * S
+  const top = safeTop + TITLE_HOME.dailySignTopBelowSafePt * S
+  return { top, btnH, bottom: top + btnH, padTop, iconSz, labelGap, labelH }
+}
+
+// ===== 左侧模式切换浮钮（与中央难度 Tab 同行对齐，贴左屏） =====
 function drawModeSwitchBtn(g) {
-  const { ctx, R, W, S, safeTop } = V
+  const { ctx, R, W, S } = V
+  const L = getLayout()
   const mode = g.titleMode || 'tower'
   const targetMode = MODE_CFG[mode].switchKey
   const targetCfg = MODE_CFG[targetMode]
 
-  const iconSize = 38 * S
-  const labelSize = 10 * S
-  const vGap = 3 * S
-  const btnW = iconSize + 8 * S
-  const btnH = iconSize + vGap + labelSize + 6 * S
+  const iconSize = TITLE_HOME.modeSwitchIconPt * S
+  const labelSize = TITLE_HOME.modeSwitchLabelPt * S
+  const vGap = 2 * S
+  const btnW = iconSize + TITLE_HOME.modeSwitchBtnExtraWPt * S
+  const btnH = iconSize + vGap + labelSize + 5 * S
 
-  // 右上角，宝箱按钮下方
-  const btnX = W - btnW
-  const btnY = safeTop + 106 * S
+  const btnX = TITLE_HOME.modeSwitchLeftMarginPt * S
+  const btnY = _modeSwitchBtnY(L, S, btnH)
   const icx = btnX + btnW / 2
-  const icy = btnY + 4 * S + iconSize / 2
+  const icy = btnY + 3 * S + iconSize / 2
 
   ctx.save()
 
-  // 半透明胶囊背景（左侧半圆，右侧贴屏幕边缘）
+  // 半透明胶囊背景（左侧贴屏，右侧圆角）
   const bgR = btnW / 2
   ctx.beginPath()
-  ctx.moveTo(btnX + btnW, btnY)
-  ctx.lineTo(btnX + bgR, btnY)
-  ctx.quadraticCurveTo(btnX, btnY, btnX, btnY + bgR)
-  ctx.lineTo(btnX, btnY + btnH - bgR)
-  ctx.quadraticCurveTo(btnX, btnY + btnH, btnX + bgR, btnY + btnH)
-  ctx.lineTo(btnX + btnW, btnY + btnH)
+  ctx.moveTo(btnX, btnY)
+  ctx.lineTo(btnX + btnW - bgR, btnY)
+  ctx.quadraticCurveTo(btnX + btnW, btnY, btnX + btnW, btnY + bgR)
+  ctx.lineTo(btnX + btnW, btnY + btnH - bgR)
+  ctx.quadraticCurveTo(btnX + btnW, btnY + btnH, btnX + btnW - bgR, btnY + btnH)
+  ctx.lineTo(btnX, btnY + btnH)
   ctx.closePath()
   ctx.fillStyle = 'rgba(255,245,220,0.82)'; ctx.fill()
   ctx.strokeStyle = 'rgba(200,165,60,0.7)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
@@ -821,7 +839,7 @@ function drawModeSwitchBtn(g) {
   // 切换图标
   const btnImg = R.getImg('assets/ui/btn_mode_switch.png')
   if (btnImg && btnImg.width > 0) {
-    const drawSz = iconSize * 0.7
+    const drawSz = iconSize * 0.62
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.3)'
     ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1.5 * S
@@ -1101,6 +1119,50 @@ function drawMorePanel(g) {
   ctx.restore()
 }
 
+// ===== 每日奖励入口按钮 =====
+function drawDailyRewardBtn(g) {
+  const { ctx: c, R, W, S, safeTop } = V
+  const hasBadge = g.storage.hasDailyRewardEntryBadge
+  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
+  const geo = _dailySignBtnGeometry(safeTop, S)
+  const padTop = geo.padTop
+  const iconSz = geo.iconSz
+  const labelGap = geo.labelGap
+  const btnH = geo.btnH
+  const labelHPx = geo.labelH != null ? geo.labelH : TITLE_HOME.dailySignLabelPt * S
+  const bx = W - btnW - 8 * S
+  const by = geo.top
+
+  c.save()
+  const iconImg = R.getImg('assets/ui/daily_sign_icon.png')
+  const iconX = bx + (btnW - iconSz) / 2
+  const iconY = by + padTop
+  if (iconImg && iconImg.width > 0) {
+    c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
+  } else {
+    c.fillStyle = hasBadge ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.1)'
+    R.rr(bx, by, btnW, iconSz + padTop * 2, 8 * S); c.fill()
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.font = `${22*S}px sans-serif`
+    c.fillStyle = '#FFD700'
+    c.fillText('📅', bx + btnW / 2, iconY + iconSz / 2)
+  }
+  const labelY = iconY + iconSz + labelGap + labelHPx * 0.5
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.font = `bold ${labelHPx}px "PingFang SC",sans-serif`
+  c.lineWidth = 2.5 * S
+  c.strokeStyle = 'rgba(45,25,10,0.82)'
+  c.fillStyle = hasBadge ? '#FFECB0' : 'rgba(210,200,190,0.95)'
+  c.strokeText('每日签到', bx + btnW / 2, labelY)
+  c.fillText('每日签到', bx + btnW / 2, labelY)
+
+  if (hasBadge) {
+    c.fillStyle = '#FF4444'; c.beginPath(); c.arc(bx + btnW - 1 * S, by + 5 * S, 5 * S, 0, Math.PI * 2); c.fill()
+  }
+  c.restore()
+  g._dailyRewardBtnRect = [bx, by, btnW, btnH]
+}
+
 // ===== 主入口 =====
 function rTitle(g) {
   drawSceneArea(g)
@@ -1111,9 +1173,14 @@ function rTitle(g) {
   drawBottomBar(g)
   drawAvatarWidget(g)
   drawStaminaBar(g)
+  drawDailyRewardBtn(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)
+  if (g._showDailyReward) {
+    const { rDailyReward } = require('./dailyRewardView')
+    rDailyReward(g)
+  }
 }
 
 module.exports = { rTitle, getLayout, BAR_ITEMS, drawBottomBar }

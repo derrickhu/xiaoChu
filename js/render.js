@@ -635,19 +635,14 @@ class Render {
     c.restore()
   }
 
-  // ===== 弹窗面板（图片资源版） =====
+  // ===== 弹窗面板（统一暖色风格，优先 info_panel_bg 图片） =====
   drawDialogPanel(x, y, w, h) {
     const {ctx:c, S} = this
-    const img = this.getImg('assets/ui/dialog_bg.png')
+    const img = this.getImg('assets/ui/info_panel_bg.png')
     if (img && img.width) {
       c.drawImage(img, x, y, w, h)
     } else {
-      // fallback: 深色半透明面板 + 金色边框
-      const rad = 14*S
-      c.fillStyle = 'rgba(20,20,40,0.95)'
-      this.rr(x, y, w, h, rad); c.fill()
-      c.strokeStyle = '#c9a84c66'; c.lineWidth = 2*S
-      this.rr(x, y, w, h, rad); c.stroke()
+      this.drawInfoPanel(x, y, w, h)
     }
   }
 

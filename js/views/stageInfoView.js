@@ -9,8 +9,9 @@ const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin, getStageChapterOrderLabel } = require('../data/stages')
+const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin, getStageChapterOrderLabel, CHAPTER_RECOMMENDED } = require('../data/stages')
 const { STAR_REWARDS } = require('../data/economyConfig')
+const { getRewardPreview } = require('../engine/rewardPreview')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
 
@@ -35,6 +36,13 @@ function _getFramePetMap(R) {
     }
   }
   return _framePetMap
+}
+
+function _calcAvgPetStar(g) {
+  const pool = g.storage && g.storage._d && g.storage._d.petPool
+  if (!pool || !pool.length) return 1
+  const total = pool.reduce((sum, p) => sum + (p.star || 1), 0)
+  return total / pool.length
 }
 
 // ===== 渲染 =====
@@ -167,6 +175,21 @@ function rStageInfo(g) {
   c.fillText(subText, W / 2, cy + subH / 2)
   cy += subH + 6 * S
 
+  // 建议战力提示
+  const rec = CHAPTER_RECOMMENDED[stage.chapter]
+  if (rec) {
+    const cult = g.storage.cultivation
+    const cultLv = cult ? cult.level : 1
+    const avgStar = _calcAvgPetStar(g)
+    const underpowered = cultLv < rec.cultLevel || avgStar < rec.petStar
+    c.font = `${9*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    const recText = `建议：修炼 Lv.${rec.cultLevel}  宠物 ${rec.petStar}★`
+    c.fillStyle = underpowered ? '#FF8C00' : 'rgba(200,180,120,0.6)'
+    c.fillText(recText, W / 2, cy + 5 * S)
+    cy += 16 * S
+  }
+
   // 历史最佳评价（醒目星级徽章）
   if (bestRating) {
     const stars = bestRating === 'S' ? '★★★' : bestRating === 'A' ? '★★☆' : '★☆☆'
@@ -195,12 +218,14 @@ function rStageInfo(g) {
   const indent = cardX + cardPad
   const enemySize = 56 * S
 
-  // 先预估卡片高度：星级目标区 + 奖励区 + 敌方阵容区
+  // 先预估卡片高度：星级目标区 + 奖励区 + 敌方阵容区（使用 preview 保持一致）
+  const estPreview = getRewardPreview(g, stage)
   let estH = cardPad + 18 * S + 14 * 3 * S + 4 * S + 8 * S + 18 * S
-  if (isFirstClear && stage.rewards.firstClear) {
+  if (estPreview.isFirstClear && estPreview.firstClear.length > 0) {
     estH += 16 * S
-    for (const r of stage.rewards.firstClear) {
+    for (const r of estPreview.firstClear) {
       if (r.type === 'pet') estH += 22 * S + 4 * S
+      else if (r.type === 'fragment' && r.wasPet) estH += 18 * S + 4 * S
       else estH += 13 * S
     }
     estH += 2 * S
@@ -263,18 +288,19 @@ function rStageInfo(g) {
   drawSeparator(c, indent, iy, cardX + cardW - cardPad, null, 0.25, 0.15, 0.85)
   iy += 8 * S
 
-  // ── 通关奖励 ──
+  // ── 通关奖励（使用 rewardPreview 保持与结算一致） ──
+  const preview = getRewardPreview(g, stage)
+
   c.fillStyle = '#D4A843'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'
   c.fillText('通关奖励', indent, iy)
   iy += 18 * S
 
-  c.font = `${10*S}px "PingFang SC",sans-serif`
-  if (isFirstClear && stage.rewards.firstClear) {
+  if (preview.isFirstClear && preview.firstClear.length > 0) {
     c.fillStyle = '#ffd700'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
     c.fillText('✦ 首通奖励', indent + 6 * S, iy); iy += 16 * S
 
-    for (const r of stage.rewards.firstClear) {
+    for (const r of preview.firstClear) {
       if (r.type === 'pet') {
         const rewardPet = getPetById(r.petId)
         if (rewardPet) {
@@ -300,8 +326,36 @@ function rStageInfo(g) {
           iy += petIconSz + 4 * S
         }
       } else if (r.type === 'fragment') {
+        const fragPet = getPetById(r.petId)
+        const fragName = fragPet ? fragPet.name + '碎片' : '碎片'
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  灵宠碎片 ×${r.count}`, indent + 12 * S, iy)
+        // 如果是宠物已拥有转化为碎片，显示带图标的碎片名
+        if (r.wasPet && fragPet) {
+          const fragIconSz = 18 * S
+          const avatarPath = getPetAvatarPath({ ...fragPet, star: 1 })
+          const fragImg = R.getImg(avatarPath)
+          if (fragImg && fragImg.width > 0) {
+            c.save()
+            R.rr(indent + 12 * S, iy, fragIconSz, fragIconSz, 3 * S); c.clip()
+            const fw = fragImg.width, fh = fragImg.height
+            const fScale = Math.max(fragIconSz / fw, fragIconSz / fh)
+            c.drawImage(fragImg, indent + 12 * S + (fragIconSz - fw * fScale) / 2, iy + (fragIconSz - fh * fScale) / 2, fw * fScale, fh * fScale)
+            c.restore()
+            c.strokeStyle = 'rgba(200,170,80,0.5)'; c.lineWidth = 1 * S
+            R.rr(indent + 12 * S, iy, fragIconSz, fragIconSz, 3 * S); c.stroke()
+          }
+          c.fillStyle = '#ffd700'; c.font = `${10*S}px "PingFang SC",sans-serif`
+          c.textBaseline = 'middle'
+          c.fillText(`${fragName} ×${r.count}`, indent + 12 * S + fragIconSz + 6 * S, iy + fragIconSz / 2)
+          c.textBaseline = 'top'
+          iy += fragIconSz + 4 * S
+        } else {
+          c.fillText(`  ${fragName} ×${r.count}`, indent + 12 * S, iy)
+          iy += 13 * S
+        }
+      } else if (r.type === 'weapon') {
+        c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`  法宝奖励`, indent + 12 * S, iy)
         iy += 13 * S
       } else if (r.type === 'exp') {
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
@@ -315,9 +369,11 @@ function rStageInfo(g) {
     }
     iy += 2 * S
   }
+
+  // 周回奖励（显示评价倍率范围）
+  const rp = preview.repeat
   c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  const rep = stage.rewards.repeatClear
-  c.fillText(`碎片 ×${rep.fragments.min}~${rep.fragments.max}  |  修炼经验 +${rep.exp}  |  灵石 +${rep.soulStone}`, indent + 6 * S, iy)
+  c.fillText(`碎片 ×${rp.fragments.min}~${rp.fragments.max}  |  经验 +${rp.exp.base}~${rp.exp.max}  |  灵石 +${rp.soulStone.base}~${rp.soulStone.max}`, indent + 6 * S, iy)
   iy += 16 * S
 
   // 分隔线
