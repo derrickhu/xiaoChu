@@ -566,6 +566,14 @@ function tStageInfo(g, x, y, type) {
       g.setScene('stageTeam')
       return
     }
+    const wCol = g.storage.weaponCollection || []
+    if (wCol.length > 0 && !g.storage.equippedWeaponId) {
+      g._stageTeamSelected = savedTeam.slice()
+      g._stageTeamFilter = 'all'
+      P.showGameToast('请先装备一件法宝后再开始战斗')
+      g.setScene('stageTeam')
+      return
+    }
     if (g.storage.currentStamina < stage.staminaCost) {
       P.showGameToast('体力不足')
       return

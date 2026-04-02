@@ -7,10 +7,10 @@
  */
 const V = require('./env')
 const P = require('../platform')
-const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
+const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getStageAttr, getEffectiveStageTeamMin } = require('../data/stages')
+const { getStageById, getEffectiveStageTeamMin } = require('../data/stages')
 const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 
@@ -23,10 +23,15 @@ const FILTERS = [
   { key: 'earth', label: '土' },
 ]
 
+/** 编队不足时槽位/卡片引导描边的闪烁周期（与 needPickWeapon 一致） */
+const TEAM_GUIDE_PULSE_PERIOD = 420
+
 const _rects = {
   slotRects: [],
   weaponSlotRect: null,
   weaponCardRects: [],
+  weaponPreviewEquipRect: null,
+  weaponPreviewBackRect: null,
   filterRects: [],
   petCardRects: [],
   startBtnRect: null,
@@ -73,9 +78,8 @@ function rStageTeam(g) {
   const stage = getStageById(g._selectedStageId)
   if (!stage) return
   const selected = g._stageTeamSelected || []
-  const stageAttr = getStageAttr(g._selectedStageId)
-  const counterAttr = { metal: 'fire', wood: 'metal', water: 'fire', fire: 'water', earth: 'wood' }
-  const recAttr = counterAttr[stageAttr]
+  const minTeam = getEffectiveStageTeamMin(g.storage, stage)
+  const teamNeedMore = selected.length < minTeam
   const framePetMap = _getFramePetMap(R)
 
   const topY = safeTop + 4 * S
@@ -124,6 +128,8 @@ function rStageTeam(g) {
   const wpnSlotX = slotStartX
   const eqId = g.storage.equippedWeaponId
   const eqWeapon = eqId ? getWeaponById(eqId) : null
+  const weaponCollCount = (g.storage.weaponCollection || []).length
+  const needPickWeapon = weaponCollCount > 0 && !eqId
   {
     const sx = wpnSlotX
     c.fillStyle = eqWeapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
@@ -150,6 +156,21 @@ function rStageTeam(g) {
       c.fillText('法宝', sx + slotSize / 2, slotY + slotSize / 2 + 10*S)
     }
     R.drawWeaponFrame(sx, slotY, slotSize)
+    if (needPickWeapon) {
+      const pulse = 0.45 + 0.35 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
+      c.strokeStyle = `rgba(232,197,71,${pulse})`
+      c.lineWidth = 2.5 * S
+      c.strokeRect(sx - 2 * S, slotY - 2 * S, slotSize + 4 * S, slotSize + 4 * S)
+      c.fillStyle = '#ff4444'
+      c.beginPath()
+      c.arc(sx + slotSize - 5 * S, slotY + 5 * S, 5 * S, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = '#fff'
+      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.fillText('!', sx + slotSize - 5 * S, slotY + 5 * S)
+    }
     _rects.weaponSlotRect = [sx, slotY, slotSize, slotSize]
   }
 
@@ -220,22 +241,45 @@ function rStageTeam(g) {
       c.fillStyle = '#666'; c.font = `${20*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText('+', sx + slotSize / 2, slotY + slotSize / 2)
+      // 编队未满且无需先选法宝：引导点击空槽或下方卡片
+      if (teamNeedMore && !needPickWeapon && i === selected.length) {
+        const pulse = 0.45 + 0.35 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
+        c.strokeStyle = `rgba(232,197,71,${pulse})`
+        c.lineWidth = 2.5 * S
+        c.strokeRect(sx - 2 * S, slotY - 2 * S, slotSize + 4 * S, slotSize + 4 * S)
+      }
     }
   }
   cy += 64 * S
 
-  // ── 克制推荐（右侧一行）──
-  c.textBaseline = 'top'
-  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
-  if (recAttr) {
-    c.textAlign = 'right'
-    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    const recText = `推荐${ATTR_NAME[recAttr]}属性克制`
-    c.strokeText(recText, W - px, cy)
-    c.fillStyle = ATTR_COLOR[recAttr] ? ATTR_COLOR[recAttr].lt || ATTR_COLOR[recAttr].main : '#fff'
-    c.fillText(recText, W - px, cy)
+  if (needPickWeapon) {
+    c.textAlign = 'center'
+    c.textBaseline = 'top'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
+    const hint = `您拥有${weaponCollCount}件法宝，请先点击左侧槽位选择上阵`
+    c.strokeText(hint, W / 2, cy)
+    c.fillStyle = '#E8C547'
+    c.fillText(hint, W / 2, cy)
+    cy += 16 * S
+  } else if (teamNeedMore) {
+    c.textAlign = 'center'
+    c.textBaseline = 'top'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
+    const needN = minTeam - selected.length
+    const hint =
+      needN <= 1
+        ? '请先编入灵宠：点上方「+」空槽，或点击下方灵宠卡片'
+        : `还需编入 ${needN} 只灵宠｜点上方「+」或点击下方卡片加入编队`
+    c.strokeText(hint, W / 2, cy)
+    c.fillStyle = '#E8C547'
+    c.fillText(hint, W / 2, cy)
+    cy += 16 * S
   }
-  cy += 28 * S
+
+  // 与上方提示之间留白（不再展示「推荐某属性克制」，避免引导单属性编队）
+  cy += 12 * S
 
   // ── 属性筛选标签 ──
   _rects.filterRects = []
@@ -258,9 +302,14 @@ function rStageTeam(g) {
   }
   cy += 28 * S
 
-  // ── 底部按钮栏（先画，再裁切列表区域） ──
-  const btnBarH = 72 * S
+  const canGo = selected.length >= minTeam
+  // 编队不足时在底部多留一行点击提示，避免与灰按钮挤在一起
+  const BTN_BAR_H_NORMAL = 72
+  const BTN_BAR_H_WITH_FOOT_HINT = 82
+  const btnBarH = (!canGo ? BTN_BAR_H_WITH_FOOT_HINT : BTN_BAR_H_NORMAL) * S
   const btnBarY = H - btnBarH
+
+  // ── 底部按钮栏（先画，再裁切列表区域） ──
   const btnBarGrad = c.createLinearGradient(0, btnBarY, 0, H)
   btnBarGrad.addColorStop(0, 'rgba(20,14,8,0.6)')
   btnBarGrad.addColorStop(0.4, 'rgba(20,14,8,0.75)')
@@ -270,8 +319,6 @@ function rStageTeam(g) {
   c.strokeStyle = 'rgba(200,168,80,0.3)'; c.lineWidth = 1 * S
   c.beginPath(); c.moveTo(0, btnBarY); c.lineTo(W, btnBarY); c.stroke()
 
-  const minTeam = getEffectiveStageTeamMin(g.storage, stage)
-  const canGo = selected.length >= minTeam
   const goBtnW = W * 0.6, goBtnH = 44 * S
   const goBtnX = (W - goBtnW) / 2, goBtnY = btnBarY + 20 * S
   // 消耗提示（按钮上方，图标+数值，带描边增强可读性）
@@ -318,6 +365,25 @@ function rStageTeam(g) {
     c.fillText('开始战斗', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
   } else {
     drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '编队不足', true, 13)
+    // 底部栏：说明「此按钮暂不可点」，引导去上方/列表点击（缓解只看灰按钮的困惑）
+    c.save()
+    const footPulse = 0.65 + 0.35 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
+    c.globalAlpha = footPulse
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.font = `bold ${8.5*S}px "PingFang SC",sans-serif`
+    const footY = Math.min(goBtnY + goBtnH + 9 * S, btnBarY + btnBarH - 4 * S)
+    let footHint = ''
+    if (needPickWeapon) {
+      footHint = '↑ 请先点击左侧法宝槽'
+    } else {
+      footHint = '↑ 人数未满：点上方「+」或下方卡片编入'
+    }
+    c.strokeStyle = 'rgba(0,0,0,0.75)'; c.lineWidth = 2.2 * S
+    c.strokeText(footHint, W / 2, footY)
+    c.fillStyle = '#F5E0A8'
+    c.fillText(footHint, W / 2, footY)
+    c.restore()
   }
   _rects.startBtnRect = canGo ? [goBtnX, goBtnY, goBtnW, goBtnH] : null
 
@@ -339,6 +405,7 @@ function rStageTeam(g) {
   const cw = (W - 20 * S - gap * (cols - 1)) / cols
   const ch = cw * 1.45
   let curY = listTop + gap + _scrollY
+  let pulseFirstPickCard = teamNeedMore && !needPickWeapon
 
   for (let i = 0; i < sorted.length; i++) {
     const col = i % cols
@@ -415,16 +482,6 @@ function rStageTeam(g) {
       c.fillText('已上阵', cx + cw / 2, cardY + 9.5*S)
     }
 
-    // 克制标签
-    if (recAttr && pp.attr === recAttr && !isSelected) {
-      c.fillStyle = 'rgba(0,0,0,0.55)'
-      R.rr(cx + cw - 24*S, cardY + 18*S, 22*S, 13*S, 4*S); c.fill()
-      c.fillStyle = ATTR_COLOR[recAttr] ? ATTR_COLOR[recAttr].main : '#8f8'
-      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('克制', cx + cw - 13*S, cardY + 24.5*S)
-    }
-
     // 名称
     const nameY = avatarY + avatarSize + 5 * S
     c.textAlign = 'center'; c.textBaseline = 'top'
@@ -457,6 +514,15 @@ function rStageTeam(g) {
     c.strokeText(`ATK:${atk}`, cx + cw / 2, atkY)
     c.fillStyle = '#FF6B6B'
     c.fillText(`ATK:${atk}`, cx + cw / 2, atkY)
+
+    if (pulseFirstPickCard && !isSelected) {
+      const pulse = 0.45 + 0.35 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
+      c.strokeStyle = `rgba(232,197,71,${pulse})`
+      c.lineWidth = 2.5 * S
+      R.rr(cx - 2 * S, cardY - 2 * S, cw + 4 * S, ch + 4 * S, 10 * S)
+      c.stroke()
+      pulseFirstPickCard = false
+    }
   }
 
   // 滚动限制
@@ -475,14 +541,41 @@ function rStageTeam(g) {
   }
 }
 
+// ===== 法宝说明：按宽度折行（中文） =====
+function _wrapWeaponDescLines(c, text, maxW, fontPx) {
+  c.font = `${fontPx}px "PingFang SC",sans-serif`
+  const lines = []
+  let line = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    const test = line + ch
+    if (c.measureText(test).width > maxW && line.length > 0) {
+      lines.push(line)
+      line = ch
+    } else {
+      line = test
+    }
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
 // ===== 法宝选择浮层 =====
 function _drawWeaponPicker(g, c, R, S, W, H) {
   c.fillStyle = 'rgba(0,0,0,0.6)'
   c.fillRect(0, 0, W, H)
 
-  const pw = W * 0.88, ph = H * 0.55
-  const px = (W - pw) / 2, py = H * 0.2
+  const previewId = g._weaponPickerPreviewId
+  const detailH = previewId ? 118 * S : 0
+  const pw = W * 0.88
+  const ph = H * 0.5 + detailH
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2
   const pad = 14 * S
+
+  _rects.weaponCardRects = []
+  _rects.weaponPreviewEquipRect = null
+  _rects.weaponPreviewBackRect = null
 
   c.fillStyle = 'rgba(30,22,14,0.95)'
   R.rr(px, py, pw, ph, 12*S); c.fill()
@@ -491,7 +584,11 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
 
   c.fillStyle = '#F5E6C8'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('选择法宝', W / 2, py + 22*S)
+  c.fillText('选择法宝', W / 2, py + 20*S)
+
+  c.fillStyle = '#a89868'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.fillText('点击法宝查看完整效果，下方确认后再装备', W / 2, py + 34*S)
 
   const collection = g.storage.weaponCollection || []
   const eqId = g.storage.equippedWeaponId
@@ -500,9 +597,9 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
   const innerW = pw - pad * 2
   const iconSz = Math.floor((innerW - iconGap * (cols - 1)) / cols)
   const textH = 28 * S
-  let wy = py + 44 * S
+  let wy = py + 46 * S
 
-  _rects.weaponCardRects = []
+  const gridBottom = py + ph - pad - detailH - 6 * S
 
   // "卸下" 按钮
   if (eqId) {
@@ -532,11 +629,16 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
     const row = Math.floor(i / cols)
     const wx = px + pad + col * (iconSz + iconGap)
     const cardY = wy + row * (iconSz + textH + iconGap)
+    const cardBottom = cardY + iconSz + textH
+    if (cardY > gridBottom) break
+    if (cardBottom > gridBottom) continue
+
     const wpn = getWeaponById(collection[i])
     if (!wpn) continue
 
     const isEquipped = wpn.id === eqId
-    c.fillStyle = isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
+    const isPreview = wpn.id === previewId
+    c.fillStyle = isPreview ? 'rgba(200,180,100,0.25)' : isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
     c.fillRect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
 
     const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
@@ -571,14 +673,74 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
     const wName = wpn.name.length > 4 ? wpn.name.slice(0, 4) + '…' : wpn.name
     c.fillText(wName, wx + iconSz / 2, cardY + iconSz + 3*S)
 
-    c.fillStyle = '#999'; c.font = `${7*S}px "PingFang SC",sans-serif`
-    const wDesc = wpn.desc.length > 6 ? wpn.desc.slice(0, 6) + '…' : wpn.desc
-    c.fillText(wDesc, wx + iconSz / 2, cardY + iconSz + 14*S)
+    c.fillStyle = '#8a7a58'; c.font = `${7*S}px "PingFang SC",sans-serif`
+    c.fillText('点选看说明', wx + iconSz / 2, cardY + iconSz + 14*S)
 
     _rects.weaponCardRects.push({ weaponId: wpn.id, rect: [wx, cardY, iconSz, iconSz + textH] })
   }
 
-  // 关闭区域（面板外点击关闭）
+  // ── 底部：当前选中法宝的完整说明 + 装备 / 返回 ──
+  if (previewId) {
+    const pwpn = getWeaponById(previewId)
+    const dTop = py + ph - detailH - pad + 4 * S
+    c.strokeStyle = 'rgba(200,168,80,0.35)'; c.lineWidth = 1 * S
+    c.beginPath(); c.moveTo(px + pad, dTop); c.lineTo(px + pw - pad, dTop); c.stroke()
+
+    if (pwpn) {
+      c.fillStyle = '#F5E6C8'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.fillText(`法宝·${pwpn.name}`, px + pad, dTop + 6 * S)
+
+      const descFont = 10 * S
+      const descMaxW = pw - pad * 2
+      const descLines = _wrapWeaponDescLines(c, pwpn.desc || '', descMaxW, descFont)
+      c.fillStyle = '#c9c2b0'; c.font = `${descFont}px "PingFang SC",sans-serif`
+      let ly = dTop + 24 * S
+      const maxLines = 3
+      for (let li = 0; li < Math.min(descLines.length, maxLines); li++) {
+        c.fillText(descLines[li], px + pad, ly)
+        ly += descFont + 3 * S
+      }
+      if (descLines.length > maxLines) {
+        c.fillStyle = '#888'; c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.fillText('…', px + pad, ly)
+      }
+
+      const btnH = 30 * S
+      const btnY = py + ph - pad - btnH - 4 * S
+      const btnGap = 10 * S
+      const btnW = (pw - pad * 2 - btnGap) / 2
+      const bx1 = px + pad
+      const bx2 = bx1 + btnW + btnGap
+
+      c.fillStyle = 'rgba(60,55,48,0.9)'
+      R.rr(bx1, btnY, btnW, btnH, 6*S); c.fill()
+      c.strokeStyle = 'rgba(180,160,120,0.5)'; c.lineWidth = 1*S
+      R.rr(bx1, btnY, btnW, btnH, 6*S); c.stroke()
+      c.fillStyle = '#ccc'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillText('返回', bx1 + btnW / 2, btnY + btnH / 2)
+      _rects.weaponPreviewBackRect = [bx1, btnY, btnW, btnH]
+
+      const already = pwpn.id === eqId
+      if (already) {
+        c.fillStyle = 'rgba(80,75,70,0.85)'
+        R.rr(bx2, btnY, btnW, btnH, 6*S); c.fill()
+        c.fillStyle = '#888'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        c.fillText('已装备', bx2 + btnW / 2, btnY + btnH / 2)
+        _rects.weaponPreviewEquipRect = [bx2, btnY, btnW, btnH]
+      } else {
+        c.fillStyle = 'rgba(100,140,80,0.45)'
+        R.rr(bx2, btnY, btnW, btnH, 6*S); c.fill()
+        c.strokeStyle = 'rgba(160,220,120,0.5)'; c.lineWidth = 1*S
+        R.rr(bx2, btnY, btnW, btnH, 6*S); c.stroke()
+        c.fillStyle = '#d4ffc4'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        c.fillText('装备此法宝', bx2 + btnW / 2, btnY + btnH / 2)
+        _rects.weaponPreviewEquipRect = [bx2, btnY, btnW, btnH]
+      }
+    }
+  }
+
   _rects.weaponPickerRect = [px, py, pw, ph]
 }
 
@@ -611,23 +773,38 @@ function tStageTeam(g, x, y, type) {
   // 法宝选择浮层交互
   if (g._showWeaponPicker) {
     if (_scrolling) return
-    // 卸下按钮
-    if (_rects.unequipBtnRect && g._hitRect(x, y, ..._rects.unequipBtnRect)) {
-      g.storage.unequipWeapon()
-      g._showWeaponPicker = false
-      return
-    }
-    // 法宝卡片
-    for (const item of _rects.weaponCardRects) {
-      if (g._hitRect(x, y, ...item.rect)) {
-        g.storage.equipWeapon(item.weaponId)
+    const prevId = g._weaponPickerPreviewId
+    if (prevId) {
+      if (_rects.weaponPreviewBackRect && g._hitRect(x, y, ..._rects.weaponPreviewBackRect)) {
+        g._weaponPickerPreviewId = null
+        return
+      }
+      if (_rects.weaponPreviewEquipRect && g._hitRect(x, y, ..._rects.weaponPreviewEquipRect)) {
+        if (g.storage.equippedWeaponId === prevId) {
+          g._weaponPickerPreviewId = null
+          return
+        }
+        g.storage.equipWeapon(prevId)
+        g._weaponPickerPreviewId = null
         g._showWeaponPicker = false
         return
       }
     }
-    // 点击面板外关闭
+    if (_rects.unequipBtnRect && g._hitRect(x, y, ..._rects.unequipBtnRect)) {
+      g.storage.unequipWeapon()
+      g._weaponPickerPreviewId = null
+      g._showWeaponPicker = false
+      return
+    }
+    for (const item of _rects.weaponCardRects) {
+      if (g._hitRect(x, y, ...item.rect)) {
+        g._weaponPickerPreviewId = item.weaponId
+        return
+      }
+    }
     if (_rects.weaponPickerRect && !g._hitRect(x, y, ..._rects.weaponPickerRect)) {
       g._showWeaponPicker = false
+      g._weaponPickerPreviewId = null
     }
     return
   }
@@ -651,6 +828,11 @@ function tStageTeam(g, x, y, type) {
 
   // 开始战斗
   if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
+    const wCol = g.storage.weaponCollection || []
+    if (wCol.length > 0 && !g.storage.equippedWeaponId) {
+      P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再开始战斗')
+      return
+    }
     // 保存编队
     g.storage.saveStageteam(selected)
     // 检查体力
@@ -676,6 +858,7 @@ function tStageTeam(g, x, y, type) {
 
   // 法宝槽点击（打开法宝选择浮层）
   if (_rects.weaponSlotRect && g._hitRect(x, y, ..._rects.weaponSlotRect)) {
+    g._weaponPickerPreviewId = null
     g._showWeaponPicker = true
     return
   }
@@ -696,7 +879,7 @@ function tStageTeam(g, x, y, type) {
     }
   }
 
-  // 宠物卡片（选入/取消；同属性最多一只，点选同属性其他宠会替换该槽位）
+  // 宠物卡片（选入/取消；允许多只同属性同时上阵，仅同一只灵宠不能重复）
   for (const item of _rects.petCardRects) {
     if (g._hitRect(x, y, ...item.rect)) {
       const idx = selected.indexOf(item.petId)
@@ -704,19 +887,7 @@ function tStageTeam(g, x, y, type) {
         selected.splice(idx, 1)
         return
       }
-      const pet = getPetById(item.petId)
-      if (!pet || pet.attr == null || pet.attr === '') {
-        if (selected.length < stage.teamSize.max) selected.push(item.petId)
-        else P.showGameToast('编队已满')
-        return
-      }
-      const dupIdx = selected.findIndex(pid => {
-        const p = getPetById(pid)
-        return p && p.attr === pet.attr
-      })
-      if (dupIdx >= 0) {
-        selected[dupIdx] = item.petId
-      } else if (selected.length < stage.teamSize.max) {
+      if (selected.length < stage.teamSize.max) {
         selected.push(item.petId)
       } else {
         P.showGameToast('编队已满')

@@ -213,6 +213,7 @@ class Main {
       'assets/ui/name_bg.png',
       'assets/ui/btn_back.png',
     ]
+    R.setKeepPaths(this._criticalImages)
     R.preloadImages(this._criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
     }).then(() => {
@@ -360,9 +361,25 @@ class Main {
     if (old === name) return
     this._dirty = true
     this.scene = name
-    // 返回首页时清理非关键图片缓存，防止内存无限增长
-    if (name === 'title' && this._criticalImages) {
-      R.clearDynamicCache(this._criticalImages)
+    if (name === 'stageTeam') {
+      this._showWeaponPicker = false
+      this._weaponPickerPreviewId = null
+    }
+
+    // --- 场景切换时资源清理 ---
+    // 离开战斗场景：清理粒子、悬挂定时器
+    if (old === 'battle') {
+      Particles.clear()
+      if (this._petLongPressTimer) {
+        clearTimeout(this._petLongPressTimer)
+        this._petLongPressTimer = null
+      }
+    }
+    // 返回首页时做一次全量清理（仅保留白名单）
+    if (name === 'title') {
+      R.clearDynamicCache()
+      Particles.clearTexCache()
+      MusicMgr.destroyBossBgm()
     }
     this.events.emit('scene:change', name, old)
   }

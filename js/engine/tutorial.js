@@ -12,9 +12,10 @@ const P = require('../platform')
  */
 const V = require('../views/env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { PETS, petHasSkill, generateStarterPets } = require('../data/pets')
+const { PETS, getPetById, petHasSkill } = require('../data/pets')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
-const { generateStarterWeapon } = require('../data/weapons')
+const { NEWBIE_PET_IDS } = require('../data/constants')
 
 // 教学专用固定5只宠物（每属性取第一只基础宠物，保证五行齐全）
 function _makeTutorialPets() {
@@ -66,10 +67,11 @@ const STEPS = [
     // 拖[4,5]金珠沿L形长路径到[2,3]：经过5格，沿途连续交换
     // 最终Row2: f,m,m,m,e,e → 3连金消除
     guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
+    goalText: '沿路径拖动 → 三颗金珠连线 → 金灵宠出击！',
     enemy: { name:'训练木偶', attr:'wood', hp:1, maxHp:1, atk:0, def:0, skills:[], avatar:'enemies/mon_w_1', _tutorial:true },
     msg: [
-      { text:'按住灵珠沿路径拖动，沿途灵珠会依次交换！', timing:'start' },
-      { text:'灵珠归位，三连消除！这就是转珠！', timing:'afterElim' },
+      { text:'按住发光的金珠，沿路径慢慢拖动', timing:'start' },
+      { text:'三颗同色珠消除 = 灵宠攻击！记住这个核心玩法！', timing:'afterElim' },
     ],
   },
   {
@@ -89,9 +91,10 @@ const STEPS = [
         // 拖[2][3]金上到[1][3]，w被推到[2][3]，row1变 e m m m s e → 3连金
         // row3的www保持 → Combo×2
         guide: { fromR:2, fromC:3, toR:1, toC:3, path:[[2,3],[1,3]] },
+        goalText: '金珠上移 → 金珠+木珠同时消除 = Combo×2！',
         msg: [
-          { text:'一次消除多组灵珠可触发连击Combo！', timing:'start' },
-          { text:'Combo越多伤害越高，试试吧！', timing:'afterElim' },
+          { text:'把金珠向上拖一格，一次凑出两组三连！', timing:'start' },
+          { text:'两组同时消除 = Combo连击！伤害翻倍！', timing:'afterElim' },
         ],
       },
       {
@@ -105,9 +108,10 @@ const STEPS = [
         ],
         // 拖[3][2]心上到[2][2]，f被推到[3][2]，row2变 s h h h s w → 3连心
         guide: { fromR:3, fromC:2, toR:2, toC:2, path:[[3,2],[2,2]] },
+        goalText: '心珠上移 → 三颗心珠连线 → 回复生命值！',
         msg: [
-          { text:'受伤了！消除粉色心珠可以回血', timing:'start' },
-          { text:'心珠是你的生命线，记得及时回血！', timing:'afterElim' },
+          { text:'受伤了！把粉色心珠向上拖一格回血', timing:'start' },
+          { text:'心珠消除 = 回血！危急时刻的生命线！', timing:'afterElim' },
         ],
       },
     ],
@@ -144,9 +148,10 @@ const STEPS = [
           ['f','w','s','e','e','s'],
         ],
         guide: { fromR:2, fromC:3, toR:1, toC:3, path:[[2,3],[1,3]] },
+        goalText: '金克木 → 伤害×2.5！优先用克制属性攻击！',
         msg: [
-          { text:'对手是木属性！金克木，伤害x2.5！', timing:'start' },
-          { text:'克制属性造成超高伤害！', timing:'afterElim' },
+          { text:'把金珠向上拖，用金属性攻击木属性敌人！', timing:'start' },
+          { text:'金克木，超高伤害！记住五行相克关系！', timing:'afterElim' },
         ],
       },
       {
@@ -160,9 +165,10 @@ const STEPS = [
         ],
         // 拖[2][3]土上到[1][3]，w被推到[2][3]，row1变 f e e e m f → 3连土
         guide: { fromR:2, fromC:3, toR:1, toC:3, path:[[2,3],[1,3]] },
+        goalText: '土被木克 → 伤害仅×0.5！要避开不利属性！',
         msg: [
-          { text:'这次试试用土珠攻击木属性敌人', timing:'start' },
-          { text:'木克土，伤害只有一半！要避开被克属性！', timing:'afterElim' },
+          { text:'把土珠向上拖，看看被克属性的效果', timing:'start' },
+          { text:'伤害减半！战斗中要避开被克的属性！', timing:'afterElim' },
         ],
       },
     ],
@@ -208,7 +214,7 @@ const STEPS = [
       },
     ],
     msg: [
-      { text:'宠物技能就绪时，从头像向上滑动释放！', timing:'skillReady' },
+      { text:'灵宠技能已就绪！按住头像向上滑动释放大招！', timing:'skillReady' },
     ],
     _tutorPetAttr: 'earth',  // 指定教学使用土宠物技能
   },
@@ -478,6 +484,12 @@ function finish(g) {
   _phase = 'done'
   // 标记教学已完成
   try { P.setStorageSync('tutorialDone', true) } catch(e) {}
+
+  // 与秘境 1-1 首通一致：将新手 3 宠加入持久化灵宠池
+  if (g.storage.petPoolCount === 0) {
+    NEWBIE_PET_IDS.forEach(id => g.storage.addToPetPool(id, 'tutorial'))
+  }
+
   // 重新正式开始（从第1层）
   const runMgr = require('./runManager')
   g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
@@ -485,9 +497,22 @@ function finish(g) {
   g.heroBuffs = []; g.enemyBuffs = []
   g.enemy = null
   g.bState = 'none'
-  // 正式开局：随机4只宠物（从本局宠物池），赠送一件基础法宝
-  g.pets = generateStarterPets(g.sessionPetPool)
-  g.weapon = generateStarterWeapon()
+
+  // 从灵宠池构建局内宠物（与 startRun 一致），而非临时随机
+  g.pets = NEWBIE_PET_IDS.map(id => {
+    const poolPet = g.storage.getPoolPet(id)
+    const basePet = getPetById(id)
+    if (!basePet || !poolPet) return null
+    return {
+      ...basePet,
+      star: poolPet.star,
+      atk: getPoolPetAtk(poolPet),
+      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? 0 : 0,
+      _poolId: id,
+    }
+  }).filter(Boolean)
+
+  g.weapon = null
   g.weaponBag = []
   g.petBag = []
   // 标记：第1层显示说明文字
@@ -524,7 +549,7 @@ function onEnemyTurnEnd(g) {
   }
 }
 
-// 检查是否允许拖动指定珠子（教学锁定）
+// 检查是否允许拖动指定珠子（教学锁定起点）
 function canDrag(g, r, c) {
   if (!_active) return true
   if (_phase !== 'play') return false
@@ -532,6 +557,41 @@ function canDrag(g, r, c) {
   if (!rd || !rd.guide) return true
   if (_guideDone) return true
   return r === rd.guide.fromR && c === rd.guide.fromC
+}
+
+// 检查拖动过程中是否允许交换到目标格（教学锁定路径，严格按顺序只能走下一步）
+function canSwapTo(g, r, c) {
+  if (!_active) return true
+  const rd = _getCurRound()
+  if (!rd || !rd.guide || !rd.guide.path) return true
+  if (_guideDone) return true
+  const path = rd.guide.path
+  const curIdx = path.findIndex(([pr, pc]) => pr === g.dragR && pc === g.dragC)
+  if (curIdx === -1) return false
+  if (curIdx + 1 >= path.length) return false
+  const [nr, nc] = path[curIdx + 1]
+  return r === nr && c === nc
+}
+
+// 教学引导是否正在锁定拖珠路径（用于视觉位置钳制）
+function isGuideActive() {
+  if (!_active) return false
+  if (_guideDone) return false
+  const rd = _getCurRound()
+  return !!(rd && rd.guide && rd.guide.path)
+}
+
+// 拖珠松手时检查：未走完路径则重置棋盘，返回 true 表示已拦截（禁止消除）
+function onDragEnd(g) {
+  if (!_active || _guideDone) return false
+  const rd = _getCurRound()
+  if (!rd || !rd.guide || !rd.guide.path) return false
+  const path = rd.guide.path
+  const last = path[path.length - 1]
+  if (g.dragR === last[0] && g.dragC === last[1]) return false
+  _setupRoundBoard(g)
+  P.showGameToast('请沿发光路径拖到终点再松手哦')
+  return true
 }
 
 // 教学中敌人攻击行为
@@ -597,6 +657,7 @@ function getGuideData() {
     totalRounds: _getTotalRounds(),
     title: step.title,
     guide: rd ? rd.guide : null,
+    goalText: (rd && rd.goalText) || step.goalText || null,
     msgs: rd ? rd.msg : (step.msg || []),
     phase: _phase,
     introTimer: _introTimer,
@@ -610,14 +671,6 @@ function getGuideData() {
     storyPage: _storyPage,
     storyAlpha: _storyAlpha,
   }
-}
-
-// 跳过整个教学
-function skip(g) {
-  if (!_active) return
-  _active = false
-  _summaryShown = false
-  finish(g)
 }
 
 // 检查是否需要教学
@@ -706,7 +759,7 @@ module.exports = {
   STEPS,
   isActive, getStep, getPhase, isSummary, needsTutorial,
   start, finish, update, onStoryCardTap, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
-  onElim, onEnemyTurnEnd, canDrag, shouldEnemyAttack, getGuideData, skip,
+  onElim, onEnemyTurnEnd, canDrag, canSwapTo, isGuideActive, onDragEnd, shouldEnemyAttack, getGuideData,
   startStageTutorial, finishStageTutorial,
   _forceDeactivate,
 }

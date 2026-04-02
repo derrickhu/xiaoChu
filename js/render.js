@@ -28,6 +28,9 @@ class Render {
   constructor(ctx, W, H, S, safeTop) {
     this.ctx = ctx; this.W = W; this.H = H; this.S = S; this.safeTop = safeTop
     this._imgCache = {}
+    this._imgAccess = {}   // path → 最后访问帧号，用于 LRU 淘汰
+    this._imgFrame = 0     // 全局帧计数器（每次 getImg 时递增）
+    this._IMG_CACHE_MAX = 120 // 缓存上限，超出后淘汰最久未用的
     this._gradCache = {}
     this._gradCacheSize = 0
     // 背景星点
@@ -68,23 +71,58 @@ class Render {
   }
 
   getImg(path) {
-    if (this._imgCache[path]) return this._imgCache[path]
+    this._imgFrame++
+    if (this._imgCache[path]) {
+      this._imgAccess[path] = this._imgFrame
+      return this._imgCache[path]
+    }
     const img = P.createImage()
     img.onload = () => { if (this._onImageLoad) this._onImageLoad() }
     img.src = path
     this._imgCache[path] = img
+    this._imgAccess[path] = this._imgFrame
+    // 超阈值时执行 LRU 淘汰
+    if (Object.keys(this._imgCache).length > this._IMG_CACHE_MAX) {
+      this._evictLRU()
+    }
     return img
+  }
+
+  /** LRU 淘汰：删除最久未访问的 25% 缓存条目（跳过 _keepPaths 白名单） */
+  _evictLRU() {
+    const entries = Object.keys(this._imgAccess).map(k => [k, this._imgAccess[k]])
+    entries.sort((a, b) => a[1] - b[1])
+    const evictCount = Math.ceil(entries.length * 0.25)
+    const keepSet = this._keepPaths || new Set()
+    let removed = 0
+    for (let i = 0; i < entries.length && removed < evictCount; i++) {
+      const path = entries[i][0]
+      if (keepSet.has(path)) continue
+      delete this._imgCache[path]
+      delete this._imgAccess[path]
+      removed++
+    }
+  }
+
+  /**
+   * 设置常驻白名单（LRU 不淘汰、clearDynamicCache 不删）
+   * @param {string[]} paths
+   */
+  setKeepPaths(paths) {
+    this._keepPaths = new Set(paths)
   }
 
   /**
    * 清理非关键图片缓存（场景切换时调用，避免内存无限增长）
-   * @param {string[]} keepPaths - 预加载的关键路径，保留不删
+   * @param {string[]} [keepPaths] - 额外保留的路径，与 _keepPaths 合并
    */
   clearDynamicCache(keepPaths) {
-    const keepSet = new Set(keepPaths)
+    const keepSet = new Set(this._keepPaths || [])
+    if (keepPaths) keepPaths.forEach(p => keepSet.add(p))
     for (const path in this._imgCache) {
       if (!keepSet.has(path)) {
         delete this._imgCache[path]
+        delete this._imgAccess[path]
       }
     }
   }
@@ -218,13 +256,12 @@ class Render {
     // 底部余烬
     c.fillStyle = this.cachedLinearGrad('eventBgBot',0,H*0.78,0,H,[[0,'rgba(139,32,32,0)'],[0.6,'rgba(139,32,32,0.12)'],[1,'rgba(212,160,64,0.2)']]); c.fillRect(0,H*0.78,W,H*0.22)
 
-    // 四角暗红光晕
-    const corners = [[0,0],[W,0],[0,H],[W,H]]
-    corners.forEach(([cx,cy]) => {
-      const g = c.createRadialGradient(cx, cy, 0, cx, cy, W*0.5)
-      g.addColorStop(0, 'rgba(139,32,32,0.15)')
-      g.addColorStop(1, 'rgba(139,32,32,0)')
-      c.fillStyle = g; c.fillRect(0,0,W,H)
+    // 四角暗红光晕（缓存渐变避免每帧重建）
+    const corners = [[0,0,'TL'],[W,0,'TR'],[0,H,'BL'],[W,H,'BR']]
+    corners.forEach(([cx,cy,tag]) => {
+      c.fillStyle = this.cachedRadialGrad(`evtCorner${tag}`, cx, cy, 0, cx, cy, W*0.5,
+        [[0, 'rgba(139,32,32,0.15)'], [1, 'rgba(139,32,32,0)']])
+      c.fillRect(0,0,W,H)
     })
 
     // 上升余烬粒子
@@ -288,20 +325,16 @@ class Render {
       c.fillStyle = 'rgba(0,0,0,0.15)'; c.fillRect(0, areaTop, W, areaH)
       // 底部渐变过渡（让图片底边自然融入技能栏）
       const fadeH = areaH * 0.2
-      const fadeG = c.createLinearGradient(0, areaBottom - fadeH, 0, areaBottom)
-      fadeG.addColorStop(0, 'transparent')
-      fadeG.addColorStop(1, 'rgba(0,0,0,0.5)')
-      c.fillStyle = fadeG
+      c.fillStyle = this.cachedLinearGrad('enemyFade', 0, areaBottom - fadeH, 0, areaBottom,
+        [[0, 'transparent'], [1, 'rgba(0,0,0,0.5)']])
       c.fillRect(0, areaBottom - fadeH, W, fadeH)
       c.restore()
     } else {
       // 降级：渐变背景
       c.save()
-      const bg = c.createLinearGradient(0, areaTop, 0, areaBottom)
-      bg.addColorStop(0, theme.top)
-      bg.addColorStop(0.5, theme.mid)
-      bg.addColorStop(1, theme.bot)
-      c.fillStyle = bg
+      const bgKey = `enemyBg_${themeBg || 'def'}`
+      c.fillStyle = this.cachedLinearGrad(bgKey, 0, areaTop, 0, areaBottom,
+        [[0, theme.top], [0.5, theme.mid], [1, theme.bot]])
       c.fillRect(0, areaTop, W, areaH)
       c.restore()
     }
@@ -367,9 +400,9 @@ class Render {
       c.restore()
     } else {
       // 降级渐变球体
-      const g = c.createRadialGradient(x-r*0.25,y-r*0.3,r*0.1,x,y,r)
-      g.addColorStop(0,a.lt); g.addColorStop(0.7,a.main); g.addColorStop(1,a.dk)
-      c.fillStyle = g; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
+      c.fillStyle = this.cachedRadialGrad(`bead_${attr}`, x-r*0.25, y-r*0.3, r*0.1, x, y, r,
+        [[0,a.lt], [0.7,a.main], [1,a.dk]])
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
       c.fillStyle='rgba(255,255,255,0.35)'
       c.beginPath(); c.ellipse(x-r*0.15,y-r*0.25,r*0.45,r*0.3,0,0,Math.PI*2); c.fill()
     }
@@ -405,9 +438,9 @@ class Render {
       c.drawImage(img, x - dw/2, y - dh/2, dw, dh)
       c.restore()
     } else {
-      const g = c.createRadialGradient(x,y-r*0.3,r*0.1,x,y,r)
-      g.addColorStop(0,a.lt); g.addColorStop(1,a.dk)
-      c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
+      c.fillStyle = this.cachedRadialGrad(`enemy_${attr}`, x, y-r*0.3, r*0.1, x, y, r,
+        [[0,a.lt], [0.7,a.main], [1,a.dk]])
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
     }
     if (!hideLabel) {
       // 名字
@@ -428,11 +461,11 @@ class Render {
     // 凹槽背景
     c.save()
     c.fillStyle='rgba(0,0,0,0.5)'; this.rr(x,y,w,h,h/2); c.fill()
-    // 内阴影
+    // 内阴影（使用缓存渐变）
     c.save(); c.globalAlpha=0.3
-    const ig=c.createLinearGradient(x,y,x,y+h*0.4)
-    ig.addColorStop(0,'rgba(0,0,0,0.4)'); ig.addColorStop(1,'rgba(0,0,0,0)')
-    c.fillStyle=ig; this.rr(x,y,w,h*0.4,h/2); c.fill()
+    c.fillStyle = this.cachedLinearGrad('hpInnerShadow', x, y, x, y+h*0.4,
+      [[0,'rgba(0,0,0,0.4)'], [1,'rgba(0,0,0,0)']])
+    this.rr(x,y,w,h*0.4,h/2); c.fill()
     c.restore()
 
     // 掉血灰色残影（在当前血量之前绘制）+ 伤害数字
@@ -463,9 +496,8 @@ class Render {
       const greenAlpha = gt <= 25 ? 1 : Math.max(0, 1 - (gt - 25) / 30)
       // 亮绿增量条（fromPct → pct）— 使用高亮绿色确保与血条颜色有明显区分
       c.save(); c.globalAlpha = greenAlpha
-      const gg = c.createLinearGradient(x, y, x, y+h)
-      gg.addColorStop(0, '#80ff80'); gg.addColorStop(0.5, '#40ff60'); gg.addColorStop(1, '#20cc40')
-      c.fillStyle = gg
+      c.fillStyle = this.cachedLinearGrad('hpGainGreen', x, y, x, y+h,
+        [[0, '#80ff80'], [0.5, '#40ff60'], [1, '#20cc40']])
       this.rr(x, y, w*pct, h, h/2); c.fill()
       // 绿色高光
       c.globalAlpha = greenAlpha * 0.5
@@ -489,8 +521,8 @@ class Render {
     if (pct > 0) {
       // 低血量(<=20%)时强制使用深红色
       const barColor = isLowHp ? '#8b0000' : (color || (pct>0.5?TH.success:pct>0.2?TH.hard:TH.danger))
-      const fg=c.createLinearGradient(x,y,x,y+h)
-      fg.addColorStop(0,this._lighten(barColor,0.15)); fg.addColorStop(0.5,barColor); fg.addColorStop(1,this._darken(barColor))
+      const fg = this.cachedLinearGrad(`hpBar_${barColor}`, x, y, x, y+h,
+        [[0,this._lighten(barColor,0.15)], [0.5,barColor], [1,this._darken(barColor)]])
       // 加血动画中：血条只画到旧血量(fromPct)，增量部分露出下面的亮绿色
       const drawPct = gainActive ? hpGain.fromPct : pct
       if (drawPct > 0) {
@@ -532,9 +564,9 @@ class Render {
       const shieldStartX = x + w * pct
       const shieldW = w * shieldPct
       if (shieldW > 0) {
-        const sg = c.createLinearGradient(shieldStartX, y, shieldStartX, y+h)
-        sg.addColorStop(0, '#7ddfff'); sg.addColorStop(0.5, '#40b8e0'); sg.addColorStop(1, '#2891b5')
-        c.fillStyle = sg; this.rr(shieldStartX, y, shieldW, h, h/2); c.fill()
+        c.fillStyle = this.cachedLinearGrad('hpShield', shieldStartX, y, shieldStartX, y+h,
+          [[0, '#7ddfff'], [0.5, '#40b8e0'], [1, '#2891b5']])
+        this.rr(shieldStartX, y, shieldW, h, h/2); c.fill()
         // 护盾高光
         c.save(); c.globalAlpha = 0.4
         c.fillStyle = '#fff'; this.rr(shieldStartX+1*S, y+1, shieldW-2*S, h*0.35, h/4); c.fill()

@@ -151,6 +151,9 @@ const STAGE_FORMATION_MIN_PETS = 3
 /** 局内「攻略」按钮顶边距 = safeTop + 此项×S，避开微信小游戏/小程序右上角胶囊菜单 */
 const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 
+/** 新手教学赠送宠物 ID：金/木/水 3 只，秘境 1-1 和通天塔教学共用 */
+const NEWBIE_PET_IDS = ['m1', 'w1', 's1']
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -223,4 +226,5 @@ module.exports = {
   TITLE_LOGO,
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
+  NEWBIE_PET_IDS,
 }

@@ -17,11 +17,9 @@ const { getWeaponById } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
+const { NEWBIE_PET_IDS } = require('../data/constants')
 
 const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
-
-// 新手教学临时宠物：金/木/水 3 只，让玩家直观体验"不同颜色珠子 → 不同宠物攻击"
-const NEWBIE_TEMP_PET_IDS = ['m1', 'w1', 's1']
 
 /**
  * 开始固定关卡战斗
@@ -134,10 +132,10 @@ function startStageNewbie(g, stageId) {
   g._stageWaveIdx = 0
   g._stageTotalTurns = 0
   g._stageSettlePending = false
-  g._stageTeam = NEWBIE_TEMP_PET_IDS.slice()
+  g._stageTeam = NEWBIE_PET_IDS.slice()
 
   // 构建临时宠物（不来自灵宠池，仅本局使用）
-  g.pets = NEWBIE_TEMP_PET_IDS.map(id => {
+  g.pets = NEWBIE_PET_IDS.map(id => {
     const basePet = getPetById(id)
     if (!basePet) return null
     return { ...basePet, star: 1, atk: basePet.atk || 10, currentCd: 0, _temp: true }
@@ -193,7 +191,7 @@ function startStageNewbie(g, stageId) {
   g.bState = 'playerTurn'
 
   // 设置新手宠物介绍卡（战前全屏遮罩，点击翻页后触发简化教学）
-  g._newbiePetIntro = { petIds: NEWBIE_TEMP_PET_IDS.slice(), alpha: 0, page: 0, timer: 0 }
+  g._newbiePetIntro = { petIds: NEWBIE_PET_IDS.slice(), alpha: 0, page: 0, timer: 0 }
   g._pendingStageTutorial = true
 
   g.setScene('battle')
@@ -266,7 +264,7 @@ function settleStage(g) {
 
   // 新手教学关（1-1）：把所有临时宠物都送入灵宠池
   if (g._isNewbieStage && isFirstClear) {
-    NEWBIE_TEMP_PET_IDS.forEach(petId => {
+    NEWBIE_PET_IDS.forEach(petId => {
       if (!rewards.find(r => r.type === 'pet' && r.petId === petId)) {
         const added = g.storage.addToPetPool(petId, 'stage')
         if (added) rewards.push({ type: 'pet', petId })

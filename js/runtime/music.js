@@ -79,9 +79,18 @@ class MusicManager {
     if (this._bossBgm) this._bossBgm.stop()
   }
 
+  /** 彻底销毁 Boss BGM 实例，释放原生音频资源 */
+  destroyBossBgm() {
+    if (this._bossBgm) {
+      this._bossBgm.stop()
+      this._bossBgm.destroy()
+      this._bossBgm = null
+    }
+  }
+
   /** boss战结束后恢复通用BGM */
   resumeNormalBgm() {
-    this.stopBossBgm()
+    this.destroyBossBgm()
     this.playBgm()
   }
 

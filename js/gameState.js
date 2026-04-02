@@ -171,6 +171,7 @@ function initState(g) {
   g._stageTeamSelected = []     // 编队页已选宠物
   g._stageTeamFilter = 'all'    // 编队属性筛选
   g._showWeaponPicker = false   // 编队页法宝选择浮层
+  g._weaponPickerPreviewId = null // 浮层内：当前查看说明的法宝 id（点「装备」再上阵）
   g._stageTeamScroll = 0        // 编队列表滚动
   g._stageTotalTurns = 0        // 关卡总回合数（跨波次累计）
   g._stageSettlePending = false  // 防止重复结算
@@ -252,7 +253,7 @@ function _createDomainProxies(g) {
 
   _createDomainProxy(g, 'stage', [
     'battleMode', '_stageId', '_stageWaves', '_stageWaveIdx',
-    '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll', '_showWeaponPicker',
+    '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll', '_showWeaponPicker', '_weaponPickerPreviewId',
     '_stageTotalTurns', '_stageResult', '_waveTransTimer',
     '_stageSelectScroll', '_selectedStageId',
     '_stageInfoEnemyDetail', '_stageInfoPetDetail', '_stageTeamPetDetail',

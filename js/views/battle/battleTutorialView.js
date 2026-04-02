@@ -1,5 +1,5 @@
 /**
- * 教学引导覆盖层：跳过按钮、故事卡、步骤引导、总结页
+ * 教学引导覆盖层：故事卡、步骤引导、总结页
  */
 const V = require('../env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../../data/tower')
@@ -14,29 +14,22 @@ function drawTutorialOverlay(g) {
   const data = tutorial.getGuideData()
   if (!data) return
 
-  // ---- 跳过按钮（非总结页时显示，放在战斗背景右下角） ----
-  if (!data.isSummary) {
-    const skipW = 76*S, skipH = 34*S, skipR = 8*S
-    // 放在棋盘上方区域的右下角（紧贴棋盘上边）
-    const boardTop = g.boardY || H * 0.55
-    const skipX = W - skipW - 10*S, skipY = boardTop - skipH - 8*S
+  // ---- 路径遮罩：所有有引导路径的步骤/回合，非路径格子盖深色蒙版 ----
+  if (data.guide && data.guide.path && !data.guideDone && g.boardX != null) {
+    const cs = g.cellSize, bx = g.boardX, by = g.boardY
+    const { COLS, ROWS } = V
+    const pathSet = new Set(data.guide.path.map(([pr, pc]) => `${pr},${pc}`))
     ctx.save()
-    // 半透明渐变背景
-    const skipGrd = ctx.createLinearGradient(skipX, skipY, skipX + skipW, skipY + skipH)
-    skipGrd.addColorStop(0, 'rgba(60,50,40,0.85)')
-    skipGrd.addColorStop(1, 'rgba(40,30,25,0.9)')
-    ctx.fillStyle = skipGrd
-    R.rr(skipX, skipY, skipW, skipH, skipR); ctx.fill()
-    // 金色边框
-    ctx.strokeStyle = 'rgba(255,200,80,0.6)'; ctx.lineWidth = 1.5*S
-    R.rr(skipX, skipY, skipW, skipH, skipR); ctx.stroke()
-    // 跳过文字 + 箭头图标
-    ctx.fillStyle = '#ffd080'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('跳过 ▶', skipX + skipW/2, skipY + skipH/2)
+    ctx.globalAlpha = 1
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!pathSet.has(`${r},${c}`)) {
+          ctx.fillStyle = 'rgba(0,0,0,0.6)'
+          ctx.fillRect(bx + c * cs, by + r * cs, cs, cs)
+        }
+      }
+    }
     ctx.restore()
-    // 存储按钮位置供触摸检测
-    g._tutorialSkipRect = [skipX, skipY, skipW, skipH]
   }
 
   // ---- 总结页 ----
@@ -223,56 +216,61 @@ function drawTutorialOverlay(g) {
     ctx.fillText(`教学 ${data.step + 1}/4`, lblX + lblW/2, lblY + lblH/2)
     ctx.restore()
 
-    // 引导箭头动画（仅未完成引导时显示）
-    if (data.guide && !data.guideDone && g.bState === 'playerTurn' && !g.dragging) {
+    // 引导路径 + 动画（未完成引导时始终显示路径，拖动中也保留）
+    if (data.guide && !data.guideDone && g.bState === 'playerTurn') {
       const guide = data.guide
-      const fromX = bx + guide.fromC * cs + cs/2
-      const fromY = by + guide.fromR * cs + cs/2
       const path = guide.path
       const t = data.arrowTimer
+      const isDragging = !!g.dragging
 
-      // === 起始珠：强脉冲外发光+粗亮边框 ===
-      const pulse = 0.6 + 0.4 * Math.sin(t * 0.12)
-      const startCX = bx + guide.fromC * cs + cs/2
-      const startCY = by + guide.fromR * cs + cs/2
-      ctx.save()
-      // 外发光（大范围扩散光晕）
-      ctx.globalCompositeOperation = 'lighter'
-      ctx.globalAlpha = pulse * 0.5
-      const startGlow = ctx.createRadialGradient(startCX, startCY, cs*0.2, startCX, startCY, cs*0.75)
-      startGlow.addColorStop(0, '#ffee55')
-      startGlow.addColorStop(0.5, '#ffd700aa')
-      startGlow.addColorStop(1, 'transparent')
-      ctx.fillStyle = startGlow
-      ctx.beginPath(); ctx.arc(startCX, startCY, cs*0.75, 0, Math.PI*2); ctx.fill()
-      ctx.globalCompositeOperation = 'source-over'
-      // 粗亮金色边框
-      ctx.globalAlpha = 0.7 + pulse * 0.3
-      ctx.strokeStyle = '#ffcc00'
-      ctx.lineWidth = 3.5*S
-      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 10*S
-      ctx.strokeRect(bx + guide.fromC * cs + 1, by + guide.fromR * cs + 1, cs - 2, cs - 2)
-      ctx.shadowBlur = 0
-      // "起点"文字标记
-      ctx.globalAlpha = 0.85
-      ctx.fillStyle = '#fff'
-      ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-      ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 3*S
-      ctx.fillText('按住', startCX, by + guide.fromR * cs - 2*S)
-      ctx.shadowBlur = 0
-      ctx.restore()
+      // 计算拖动进度（当前珠子在路径中的位置索引）
+      let dragIdx = 0
+      if (isDragging) {
+        dragIdx = path.findIndex(([pr, pc]) => pr === g.dragR && pc === g.dragC)
+        if (dragIdx === -1) dragIdx = 0
+      }
 
-      // === 路径格子：醒目高亮+序号+依次闪烁波浪 ===
-      if (path.length > 2) {
+      // === 起始珠高亮（仅未拖动时） ===
+      if (!isDragging) {
+        const pulse = 0.6 + 0.4 * Math.sin(t * 0.12)
+        const startCX = bx + guide.fromC * cs + cs/2
+        const startCY = by + guide.fromR * cs + cs/2
         ctx.save()
-        for (let pi = 1; pi < path.length; pi++) {
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = pulse * 0.5
+        const startGlow = ctx.createRadialGradient(startCX, startCY, cs*0.2, startCX, startCY, cs*0.75)
+        startGlow.addColorStop(0, '#ffee55')
+        startGlow.addColorStop(0.5, '#ffd700aa')
+        startGlow.addColorStop(1, 'transparent')
+        ctx.fillStyle = startGlow
+        ctx.beginPath(); ctx.arc(startCX, startCY, cs*0.75, 0, Math.PI*2); ctx.fill()
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.globalAlpha = 0.7 + pulse * 0.3
+        ctx.strokeStyle = '#ffcc00'
+        ctx.lineWidth = 3.5*S
+        ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 10*S
+        ctx.strokeRect(bx + guide.fromC * cs + 1, by + guide.fromR * cs + 1, cs - 2, cs - 2)
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 0.85
+        ctx.fillStyle = '#fff'
+        ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+        ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 3*S
+        ctx.fillText('按住', startCX, by + guide.fromR * cs - 2*S)
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
+
+      // === 路径格子高亮（拖动时只显示尚未到达的格子） ===
+      const startIdx = isDragging ? dragIdx + 1 : 1
+      if (path.length > startIdx) {
+        ctx.save()
+        for (let pi = startIdx; pi < path.length; pi++) {
           const [pr, pc] = path[pi]
           const cellCX = bx + pc * cs + cs/2, cellCY = by + pr * cs + cs/2
           const cellX = bx + pc * cs, cellY = by + pr * cs
           const wavePhase = (t * 0.1 + pi * 1.2) % (Math.PI * 2)
           const waveAlpha = 0.25 + 0.2 * Math.sin(wavePhase)
-          // 圆形发光底色（cyan-白渐变）
           ctx.globalCompositeOperation = 'lighter'
           ctx.globalAlpha = waveAlpha * 0.6
           const cellGlow = ctx.createRadialGradient(cellCX, cellCY, 0, cellCX, cellCY, cs*0.5)
@@ -282,84 +280,65 @@ function drawTutorialOverlay(g) {
           ctx.fillStyle = cellGlow
           ctx.beginPath(); ctx.arc(cellCX, cellCY, cs*0.5, 0, Math.PI*2); ctx.fill()
           ctx.globalCompositeOperation = 'source-over'
-          // 亮色边框
           ctx.globalAlpha = waveAlpha + 0.15
           ctx.strokeStyle = '#44ddff'
           ctx.lineWidth = 2*S
           ctx.strokeRect(cellX + 2, cellY + 2, cs - 4, cs - 4)
-          // 序号标记（大号+描边）
+          // 序号（拖动时显示剩余步数，未拖动时显示路径序号）
+          const label = isDragging ? `${pi - dragIdx}` : `${pi}`
           ctx.globalAlpha = 0.8 + 0.2 * Math.sin(wavePhase)
           ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
           ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5*S
-          ctx.strokeText(`${pi}`, cellCX, cellCY)
+          ctx.strokeText(label, cellCX, cellCY)
           ctx.fillStyle = '#fff'
-          ctx.fillText(`${pi}`, cellCX, cellCY)
+          ctx.fillText(label, cellCX, cellCY)
         }
         ctx.restore()
       }
 
-      // === 手指拖拽动画 ===
-      const animDur = Math.max(150, path.length * 35)
-      const progress = (t % animDur) / animDur
-      let fingerCX, fingerCY
-      if (path.length >= 2) {
-        const totalSegs = path.length - 1
-        const segFloat = progress * totalSegs
-        const segIdx = Math.min(Math.floor(segFloat), totalSegs - 1)
-        const segProg = segFloat - segIdx
-        const [r1, c1] = path[segIdx]
-        const [r2, c2] = path[Math.min(segIdx + 1, path.length - 1)]
-        fingerCX = bx + (c1 + (c2 - c1) * segProg) * cs + cs/2
-        fingerCY = by + (r1 + (r2 - r1) * segProg) * cs + cs/2
-      } else {
-        fingerCX = fromX; fingerCY = fromY
-      }
-
-      // === 路径线：发光粗线+亮色虚线+流光效果 ===
+      // === 路径线（拖动时从当前位置到终点，未拖动时全路径） ===
+      const lineStartIdx = isDragging ? Math.max(0, dragIdx) : 0
       ctx.save()
       ctx.lineJoin = 'round'; ctx.lineCap = 'round'
-      // 底层发光粗线（带shadow）
       ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8*S
-      ctx.strokeStyle = 'rgba(255,200,0,0.4)'
+      ctx.strokeStyle = isDragging ? 'rgba(255,200,0,0.3)' : 'rgba(255,200,0,0.4)'
       ctx.lineWidth = 6*S
       ctx.beginPath()
-      for (let i = 0; i < path.length; i++) {
+      for (let i = lineStartIdx; i < path.length; i++) {
         const px = bx + path[i][1] * cs + cs/2
         const py = by + path[i][0] * cs + cs/2
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        if (i === lineStartIdx) ctx.moveTo(px, py); else ctx.lineTo(px, py)
       }
       ctx.stroke()
       ctx.shadowBlur = 0
-      // 中层亮线
-      ctx.strokeStyle = 'rgba(255,230,100,0.65)'
+      ctx.strokeStyle = isDragging ? 'rgba(255,230,100,0.45)' : 'rgba(255,230,100,0.65)'
       ctx.lineWidth = 3*S
       ctx.beginPath()
-      for (let i = 0; i < path.length; i++) {
+      for (let i = lineStartIdx; i < path.length; i++) {
         const px = bx + path[i][1] * cs + cs/2
         const py = by + path[i][0] * cs + cs/2
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        if (i === lineStartIdx) ctx.moveTo(px, py); else ctx.lineTo(px, py)
       }
       ctx.stroke()
-      // 上层白色虚线（流动感）
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'
       ctx.lineWidth = 1.5*S
       ctx.setLineDash([5*S, 5*S])
       ctx.lineDashOffset = -t * 0.8
       ctx.beginPath()
-      for (let i = 0; i < path.length; i++) {
+      for (let i = lineStartIdx; i < path.length; i++) {
         const px = bx + path[i][1] * cs + cs/2
         const py = by + path[i][0] * cs + cs/2
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        if (i === lineStartIdx) ctx.moveTo(px, py); else ctx.lineTo(px, py)
       }
       ctx.stroke()
       ctx.setLineDash([]); ctx.lineDashOffset = 0
-      // === 终点标记：双圈脉冲+十字准星 ===
+
+      // === 终点标记 ===
       const lastP = path[path.length - 1]
       const endX = bx + lastP[1] * cs + cs/2
       const endY = by + lastP[0] * cs + cs/2
       const endPulse = 0.5 + 0.5 * Math.sin(t * 0.15)
-      // 外圈发光
       ctx.globalCompositeOperation = 'lighter'
       ctx.globalAlpha = endPulse * 0.4
       const endGlow = ctx.createRadialGradient(endX, endY, cs*0.1, endX, endY, cs*0.6)
@@ -369,51 +348,82 @@ function drawTutorialOverlay(g) {
       ctx.fillStyle = endGlow
       ctx.beginPath(); ctx.arc(endX, endY, cs*0.6, 0, Math.PI*2); ctx.fill()
       ctx.globalCompositeOperation = 'source-over'
-      // 内圈
       ctx.globalAlpha = 0.6 + endPulse * 0.4
       ctx.strokeStyle = '#ff6644'; ctx.lineWidth = 2.5*S
       ctx.shadowColor = '#ff4422'; ctx.shadowBlur = 6*S
       ctx.beginPath(); ctx.arc(endX, endY, cs * 0.35, 0, Math.PI * 2); ctx.stroke()
       ctx.shadowBlur = 0
-      // 外圈
       ctx.globalAlpha = 0.3 + endPulse * 0.3
       ctx.strokeStyle = '#ff8866'; ctx.lineWidth = 1.5*S
       ctx.beginPath(); ctx.arc(endX, endY, cs * 0.48, 0, Math.PI * 2); ctx.stroke()
       ctx.restore()
 
-      // === 手指图标（更大、更亮、带拖尾光效） ===
-      ctx.save()
-      const fingerAlpha = progress < 0.08 ? progress / 0.08 : (progress > 0.88 ? (1 - progress) / 0.12 : 1)
-      ctx.globalAlpha = fingerAlpha * 0.92
-      // 拖尾光效（手指移动方向的淡化尾迹）
-      if (progress > 0.05 && progress < 0.9) {
-        ctx.globalCompositeOperation = 'lighter'
-        ctx.globalAlpha = fingerAlpha * 0.25
-        const trailGrd = ctx.createRadialGradient(fingerCX, fingerCY, 2*S, fingerCX, fingerCY, 22*S)
-        trailGrd.addColorStop(0, '#ffd700')
-        trailGrd.addColorStop(0.5, '#ffd70044')
-        trailGrd.addColorStop(1, 'transparent')
-        ctx.fillStyle = trailGrd
-        ctx.beginPath(); ctx.arc(fingerCX, fingerCY, 22*S, 0, Math.PI*2); ctx.fill()
-        ctx.globalCompositeOperation = 'source-over'
+      // === 手指动画（仅未拖动时） ===
+      if (!isDragging) {
+        const fromX = bx + guide.fromC * cs + cs/2
+        const fromY = by + guide.fromR * cs + cs/2
+        const animDur = Math.max(150, path.length * 35)
+        const progress = (t % animDur) / animDur
+        let fingerCX, fingerCY
+        if (path.length >= 2) {
+          const totalSegs = path.length - 1
+          const segFloat = progress * totalSegs
+          const segIdx = Math.min(Math.floor(segFloat), totalSegs - 1)
+          const segProg = segFloat - segIdx
+          const [r1, c1] = path[segIdx]
+          const [r2, c2] = path[Math.min(segIdx + 1, path.length - 1)]
+          fingerCX = bx + (c1 + (c2 - c1) * segProg) * cs + cs/2
+          fingerCY = by + (r1 + (r2 - r1) * segProg) * cs + cs/2
+        } else {
+          fingerCX = fromX; fingerCY = fromY
+        }
+        ctx.save()
+        const fingerAlpha = progress < 0.08 ? progress / 0.08 : (progress > 0.88 ? (1 - progress) / 0.12 : 1)
+        ctx.globalAlpha = fingerAlpha * 0.92
+        if (progress > 0.05 && progress < 0.9) {
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = fingerAlpha * 0.25
+          const trailGrd = ctx.createRadialGradient(fingerCX, fingerCY, 2*S, fingerCX, fingerCY, 22*S)
+          trailGrd.addColorStop(0, '#ffd700')
+          trailGrd.addColorStop(0.5, '#ffd70044')
+          trailGrd.addColorStop(1, 'transparent')
+          ctx.fillStyle = trailGrd
+          ctx.beginPath(); ctx.arc(fingerCX, fingerCY, 22*S, 0, Math.PI*2); ctx.fill()
+          ctx.globalCompositeOperation = 'source-over'
+        }
+        ctx.globalAlpha = fingerAlpha * 0.92
+        ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12*S
+        ctx.fillStyle = 'rgba(255,215,0,0.35)'
+        ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 6*S, 20*S, 0, Math.PI*2); ctx.fill()
+        ctx.shadowBlur = 0
+        ctx.fillStyle = '#ffffffee'
+        ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 10*S, 10*S, 0, Math.PI*2); ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(fingerCX, fingerCY - 4*S)
+        ctx.lineTo(fingerCX - 7*S, fingerCY + 10*S)
+        ctx.lineTo(fingerCX + 7*S, fingerCY + 10*S)
+        ctx.closePath(); ctx.fill()
+        ctx.fillStyle = '#ffd700'
+        ctx.beginPath(); ctx.arc(fingerCX, fingerCY - 1*S, 3*S, 0, Math.PI*2); ctx.fill()
+        ctx.restore()
       }
-      ctx.globalAlpha = fingerAlpha * 0.92
-      // 大外圈光环
-      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12*S
-      ctx.fillStyle = 'rgba(255,215,0,0.35)'
-      ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 6*S, 20*S, 0, Math.PI*2); ctx.fill()
-      ctx.shadowBlur = 0
-      // 手指主体（更大的圆+三角形）
-      ctx.fillStyle = '#ffffffee'
-      ctx.beginPath(); ctx.arc(fingerCX, fingerCY + 10*S, 10*S, 0, Math.PI*2); ctx.fill()
-      ctx.beginPath()
-      ctx.moveTo(fingerCX, fingerCY - 4*S)
-      ctx.lineTo(fingerCX - 7*S, fingerCY + 10*S)
-      ctx.lineTo(fingerCX + 7*S, fingerCY + 10*S)
-      ctx.closePath(); ctx.fill()
-      // 指尖高光
-      ctx.fillStyle = '#ffd700'
-      ctx.beginPath(); ctx.arc(fingerCX, fingerCY - 1*S, 3*S, 0, Math.PI*2); ctx.fill()
+    }
+
+    // === 目标说明文字（拖动前后始终显示） ===
+    if (data.goalText && !data.guideDone && g.bState === 'playerTurn') {
+      ctx.save()
+      const goalW = W * 0.88, goalH = 28*S
+      const goalX = (W - goalW) / 2, goalY = by - 56*S
+      const goalGrd = ctx.createLinearGradient(goalX, goalY, goalX + goalW, goalY)
+      goalGrd.addColorStop(0, 'rgba(20,60,100,0.85)')
+      goalGrd.addColorStop(1, 'rgba(20,40,80,0.85)')
+      ctx.fillStyle = goalGrd
+      R.rr(goalX, goalY, goalW, goalH, 6*S); ctx.fill()
+      ctx.strokeStyle = 'rgba(100,200,255,0.5)'; ctx.lineWidth = 1*S
+      R.rr(goalX, goalY, goalW, goalH, 6*S); ctx.stroke()
+      ctx.fillStyle = '#88ddff'; ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(data.goalText, W*0.5, goalY + goalH/2)
       ctx.restore()
     }
 

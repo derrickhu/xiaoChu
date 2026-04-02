@@ -229,7 +229,12 @@ function clear() {
   while (_active.length > 0) _release(_active.pop())
 }
 
+/** 清理纹理缓存（场景切换时调用，释放离屏 Canvas 内存） */
+function clearTexCache() {
+  for (const key in _texCache) delete _texCache[key]
+}
+
 /** 当前活跃粒子数 */
 function count() { return _active.length }
 
-module.exports = { burst, ring, update, draw, clear, count, getGlowTexture, getStarTexture }
+module.exports = { burst, ring, update, draw, clear, clearTexCache, count, getGlowTexture, getStarTexture }

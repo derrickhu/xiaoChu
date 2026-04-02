@@ -12,6 +12,45 @@ const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
 const { HELP_PAGE_COUNT } = require('../views/battleView')
 
+// 棋盘拖珠处理（教学和普通模式共用）
+function _handleBoardDrag(g, type, x, y) {
+  const { S, COLS, ROWS } = V
+  if (g.bState !== 'playerTurn') return
+  if (g._petSkillWave || g._skillFlash) return
+  const cs = g.cellSize, bx = g.boardX, by = g.boardY
+  if (type === 'start') {
+    const c = Math.floor((x - bx) / cs), r = Math.floor((y - by) / cs)
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c] && !g.board[r][c].sealed && tutorial.canDrag(g, r, c)) {
+      g.dragging = true; g.dragR = r; g.dragC = c
+      g.dragStartX = x; g.dragStartY = y; g.dragCurX = x; g.dragCurY = y
+      const cell = g.board[r][c]
+      g.dragAttr = typeof cell === 'string' ? cell : cell.attr
+      g.dragTimer = 0
+      MusicMgr.playPickUp()
+    }
+  } else if (type === 'move' && g.dragging) {
+    g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))
+    g.dragCurY = Math.max(by, Math.min(by + ROWS * cs, y))
+    const c = Math.floor((x - bx) / cs), r = Math.floor((y - by) / cs)
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed) && tutorial.canSwapTo(g, r, c)) {
+      const or = g.dragR, oc = g.dragC
+      const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
+      g.swapAnim = { r1: or, c1: oc, r2: r, c2: c, t: 0, dur: 6 }
+      g.dragR = r; g.dragC = c
+      MusicMgr.playSwap()
+    }
+    if (tutorial.isGuideActive()) {
+      g.dragCurX = bx + g.dragC * cs + cs / 2
+      g.dragCurY = by + g.dragR * cs + cs / 2
+    }
+  } else if (type === 'end' && g.dragging) {
+    g.dragging = false; g.dragAttr = null; g.dragTimer = 0
+    if (tutorial.onDragEnd(g)) return
+    MusicMgr.playDragEnd()
+    g._checkAndElim()
+  }
+}
+
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
   // === 新手宠物介绍卡拦截（2 页翻页） ===
@@ -36,11 +75,6 @@ function tBattle(g, type, x, y) {
   }
   // === 教学系统拦截 ===
   if (tutorial.isActive()) {
-    if (!tutorial.isSummary() && type === 'end' && g._tutorialSkipRect && g._hitRect(x, y, ...g._tutorialSkipRect)) {
-      g._tutorialSkipRect = null
-      tutorial.skip(g)
-      return
-    }
     if (tutorial.isSummary()) {
       if (type === 'end') tutorial.onSummaryTap(g)
       return
@@ -65,6 +99,11 @@ function tBattle(g, type, x, y) {
       }
       return
     }
+  }
+  // === 教学引导 play 阶段：只允许路径拖珠，屏蔽所有其他交互 ===
+  if (tutorial.isActive() && tutorial.isGuideActive()) {
+    _handleBoardDrag(g, type, x, y)
+    return
   }
   // === 珠子攻击提示拦截 ===
   if (g._showOrbAttackTip) {
@@ -337,36 +376,8 @@ function tBattle(g, type, x, y) {
       g._petLongPressIndex = -1; g._petLongPressTriggered = false
     }
   }
-  // 转珠
-  if (g.bState !== 'playerTurn') return
-  if (g._petSkillWave || g._skillFlash) return
-  const cs = g.cellSize, bx = g.boardX, by = g.boardY
-  if (type === 'start') {
-    const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && g.board[r][c] && !g.board[r][c].sealed && tutorial.canDrag(g, r, c)) {
-      g.dragging = true; g.dragR = r; g.dragC = c
-      g.dragStartX = x; g.dragStartY = y; g.dragCurX = x; g.dragCurY = y
-      const cell = g.board[r][c]
-      g.dragAttr = typeof cell === 'string' ? cell : cell.attr
-      g.dragTimer = 0
-      MusicMgr.playPickUp()
-    }
-  } else if (type === 'move' && g.dragging) {
-    g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))
-    g.dragCurY = Math.max(by, Math.min(by + ROWS * cs, y))
-    const c = Math.floor((x-bx)/cs), r = Math.floor((y-by)/cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed)) {
-      const or = g.dragR, oc = g.dragC
-      const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
-      g.swapAnim = { r1:or, c1:oc, r2:r, c2:c, t:0, dur:6 }
-      g.dragR = r; g.dragC = c
-      MusicMgr.playSwap()
-    }
-  } else if (type === 'end' && g.dragging) {
-    g.dragging = false; g.dragAttr = null; g.dragTimer = 0
-    MusicMgr.playDragEnd()
-    g._checkAndElim()
-  }
+  // 转珠（统一调用）
+  _handleBoardDrag(g, type, x, y)
 }
 
 module.exports = tBattle
