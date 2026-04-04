@@ -1054,7 +1054,6 @@ function tPetPool(g, x, y, type) {
         case 2: g._dexScrollY = 0; g.setScene('dex'); return
         case 3: g.setScene('title'); return
         case 4:
-          if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
           g._openRanking(); return
         case 5: g.setScene('stats'); return
         case 6: g.showMorePanel = true; g.setScene('title'); return

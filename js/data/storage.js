@@ -18,7 +18,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 13
+const CURRENT_VERSION = 14
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -99,6 +99,8 @@ function defaultPersist() {
     // 邀请追踪
     inviteCount: 0,
     invitedBy: null,
+    // 广告观看记录（每日频控）
+    adWatchLog: {},            // { [slotId]: { date: 'YYYY-MM-DD', count: N } }
     // 回归 / 删档
     lastActiveDate: '',
     dataVersion: 0,
@@ -209,6 +211,10 @@ const migrations = {
       }
     }
     if (!d.petPool) d.petPool = pool
+  },
+  // v13→v14：广告观看频控字段
+  13: (d) => {
+    if (!d.adWatchLog) d.adWatchLog = {}
   },
 }
 
@@ -1550,6 +1556,7 @@ class Storage {
     // Phase 5 字段补全
     if (!this._d.fragmentBank) this._d.fragmentBank = {}
     if (!this._d.chestRewards) this._d.chestRewards = { claimed: {} }
+    if (!this._d.adWatchLog) this._d.adWatchLog = {}
   }
 
   _save() {

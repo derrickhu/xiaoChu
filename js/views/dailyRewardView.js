@@ -6,8 +6,9 @@ const V = require('./env')
 const { drawPanel, drawDivider } = require('./uiComponents')
 const { LOGIN_REWARDS, DAILY_TASKS, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
 const MusicMgr = require('../runtime/music')
+const AdManager = require('../adManager')
 
-const _rects = { closeBtnRect: null, signBtnRect: null, taskBtnRects: [], allBonusBtnRect: null }
+const _rects = { closeBtnRect: null, signBtnRect: null, signAdRect: null, taskBtnRects: [], allBonusBtnRect: null, allBonusAdRect: null }
 
 function _rewardText(r) {
   const parts = []
@@ -146,12 +147,27 @@ function rDailyReward(g) {
     const btnW = 120 * S, btnH = 32 * S, btnX = (W - btnW) / 2
     R.drawDialogBtn(btnX, cy, btnW, btnH, '签到领取', 'confirm')
     _rects.signBtnRect = [btnX, cy, btnW, btnH]
+    _rects.signAdRect = null
     cy += btnH + 10 * S
   } else {
     c.fillStyle = '#4CAF50'; c.font = `${11*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText('✓ 今日已签到', W / 2, cy + 10 * S)
     _rects.signBtnRect = null
+    if (!g._dailySignDoubled && AdManager.canShow('signDouble')) {
+      const adW = 72 * S, adH = 22 * S
+      const adX = W / 2 + 60 * S, adY = cy + 10 * S - adH / 2
+      c.fillStyle = 'rgba(80,160,80,0.15)'
+      _rr(c, adX, adY, adW, adH, adH / 2); c.fill()
+      c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1 * S
+      _rr(c, adX, adY, adW, adH, adH / 2); c.stroke()
+      c.fillStyle = '#408040'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'
+      c.fillText('▶ 翻倍', adX + adW / 2, adY + adH / 2)
+      _rects.signAdRect = [adX, adY, adW, adH]
+    } else {
+      _rects.signAdRect = null
+    }
     cy += 26 * S
   }
 
@@ -219,6 +235,7 @@ function rDailyReward(g) {
   const allDone = DAILY_TASKS.every(t => prog.claimed[t.id])
   const allClaimed = prog.allClaimed
 
+  _rects.allBonusAdRect = null
   if (allDone && !allClaimed) {
     const abW = pw * 0.7, abH = 30 * S, abX = (W - abW) / 2
     R.drawDialogBtn(abX, cy, abW, abH, `全部完成：${_rewardText(getScaledDailyAllBonus(_ch))}`, 'confirm')
@@ -228,6 +245,18 @@ function rDailyReward(g) {
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText('✓ 今日任务全部完成', W / 2, cy + 12 * S)
     _rects.allBonusBtnRect = null
+    if (!g._dailyTaskDoubled && AdManager.canShow('dailyTaskBonus')) {
+      const adW = 72 * S, adH = 22 * S
+      const adX = W / 2 + 80 * S, adY = cy + 12 * S - adH / 2
+      c.fillStyle = 'rgba(80,160,80,0.15)'
+      _rr(c, adX, adY, adW, adH, adH / 2); c.fill()
+      c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1 * S
+      _rr(c, adX, adY, adW, adH, adH / 2); c.stroke()
+      c.fillStyle = '#408040'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'
+      c.fillText('▶ 翻倍', adX + adW / 2, adY + adH / 2)
+      _rects.allBonusAdRect = [adX, adY, adW, adH]
+    }
   } else {
     c.fillStyle = 'rgba(140,120,80,0.06)'
     const hintW = pw * 0.7, hintH = 28 * S, hintX = (W - hintW) / 2
@@ -261,6 +290,31 @@ function tDailyReward(g, x, y, type) {
     return true
   }
 
+  if (_rects.signAdRect && g._hitRect(x, y, ..._rects.signAdRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    AdManager.showRewardedVideo('signDouble', {
+      onRewarded: () => {
+        const sign = g.storage.loginSign
+        const rd = LOGIN_REWARDS[(sign.day || 1) - 1]
+        if (rd && rd.rewards) {
+          const r = rd.rewards
+          if (r.soulStone) g.storage.addSoulStone(r.soulStone)
+          if (r.awakenStone) g.storage.addAwakenStone(r.awakenStone)
+          if (r.stamina) {
+            g.storage._recoverStamina()
+            g.storage._d.stamina.current = Math.min(g.storage.maxStamina, g.storage._d.stamina.current + r.stamina)
+            g.storage._save()
+          }
+          if (r.fragment) g.storage.addRandomFragments(r.fragment)
+        }
+        g._dailySignDoubled = true
+        g._toast && g._toast('签到奖励已翻倍！')
+        g._dirty = true
+      },
+    })
+    return true
+  }
+
   const _tch = g.storage.currentChapter
   for (const tb of _rects.taskBtnRects) {
     if (g._hitRect(x, y, ...tb.rect)) {
@@ -280,6 +334,21 @@ function tDailyReward(g, x, y, type) {
       MusicMgr.playReward && MusicMgr.playReward()
       g._toast && g._toast(`全部完成额外奖励：${_rewardText(getScaledDailyAllBonus(_tch))}`)
     }
+    return true
+  }
+
+  if (_rects.allBonusAdRect && g._hitRect(x, y, ..._rects.allBonusAdRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    AdManager.showRewardedVideo('dailyTaskBonus', {
+      onRewarded: () => {
+        const bonus = getScaledDailyAllBonus(_tch)
+        if (bonus.soulStone) g.storage.addSoulStone(bonus.soulStone)
+        if (bonus.fragment) g.storage.addRandomFragments(bonus.fragment)
+        g._dailyTaskDoubled = true
+        g._toast && g._toast('全勤奖励已翻倍！')
+        g._dirty = true
+      },
+    })
     return true
   }
 

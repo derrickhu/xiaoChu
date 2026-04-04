@@ -471,9 +471,22 @@ function onDefeat(g, W, H) {
 }
 
 function doAdRevive(g, W, H) {
-  const { doShare } = require('../share')
-  doShare(g, 'towerDefeat', { floor: g.floor })
-  adReviveCallback(g, W, H)
+  const AdManager = require('../adManager')
+  if (AdManager.canShow('revive')) {
+    AdManager.showRewardedVideo('revive', {
+      onRewarded: () => { adReviveCallback(g, W, H) },
+      onSkipped: () => { /* 中途关闭不发奖 */ },
+      onError: () => {
+        const { doShare } = require('../share')
+        doShare(g, 'towerDefeat', { floor: g.floor })
+        adReviveCallback(g, W, H)
+      },
+    })
+  } else {
+    const { doShare } = require('../share')
+    doShare(g, 'towerDefeat', { floor: g.floor })
+    adReviveCallback(g, W, H)
+  }
 }
 
 function adReviveCallback(g, W, H) {

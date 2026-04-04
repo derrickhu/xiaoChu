@@ -13,7 +13,6 @@ const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getEffectiveStageTeamMin } = require('../data/stages')
 const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
-const { drawConfirmDialog, handleConfirmDialogTouch } = require('./uiComponents')
 
 const FILTERS = [
   { key: 'all', label: '全部' },
@@ -41,7 +40,8 @@ function _hasUnpickedPetsInPool(g, selectedIds) {
 function _startStageBattle(g, selected, stage) {
   g.storage.saveStageteam(selected)
   if (g.storage.currentStamina < stage.staminaCost) {
-    P.showGameToast('体力不足')
+    const AdManager = require('../adManager')
+    if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足')
     return
   }
   if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
@@ -594,8 +594,6 @@ function rStageTeam(g) {
     _drawWeaponPicker(g, c, R, S, W, H)
   }
 
-  // ── 确认弹窗（游戏风格，覆盖最顶层） ──
-  drawConfirmDialog(g)
 }
 
 // ===== 法宝说明：按宽度折行（中文） =====
@@ -803,9 +801,6 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
 
 // ===== 触摸 =====
 function tStageTeam(g, x, y, type) {
-  // 确认弹窗处于最顶层，优先拦截所有触摸
-  if (handleConfirmDialogTouch(g, x, y, type)) return
-
   if (type === 'start') {
     _touchStartY = y; _touchLastY = y; _touchStartX = x; _scrolling = false
     _holdStartTime = Date.now()

@@ -1,5 +1,13 @@
 console.log('灵宠消消塔开始初始化...')
 
+// 全局错误监听
+;(function () {
+  if (typeof wx === 'undefined') return
+  if (typeof wx.onError === 'function') {
+    wx.onError(function (msg) { console.error('[Global]', msg) })
+  }
+})()
+
 // 平台检测（game.js 在 require 之前执行，需内联检测）
 const P = (typeof tt !== 'undefined') ? tt : wx
 GameGlobal.__platform = P

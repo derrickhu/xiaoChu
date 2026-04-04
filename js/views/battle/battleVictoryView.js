@@ -866,15 +866,17 @@ function drawAdReviveOverlay(g) {
   ctx.textAlign = 'center'
   ctx.fillStyle = TH.danger; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
   ctx.fillText('修士陨落', W*0.5, panelY + 40*S)
+  const AdManager = require('../../adManager')
+  const adAvail = AdManager.canShow('revive')
   ctx.fillStyle = '#6B5014'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  ctx.fillText('分享给好友，获得满血复活！', W*0.5, panelY + 72*S)
+  ctx.fillText(adAvail ? '观看广告，获得满血复活！' : '分享给好友，获得满血复活！', W*0.5, panelY + 72*S)
   ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`当前第 ${g.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-  ctx.fillText('每轮仅有一次分享复活机会', W*0.5, panelY + 116*S)
+  ctx.fillText('每轮仅有一次复活机会', W*0.5, panelY + 116*S)
   const btnW = panelW * 0.7, btnH = 44*S
   const btnX = (W - btnW) / 2, btnY = panelY + 140*S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '📤 分享复活', 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, adAvail ? '▶ 观看广告复活' : '📤 分享复活', 'confirm')
   g._adReviveBtnRect = [btnX, btnY, btnW, btnH]
   const skipW = panelW * 0.5, skipH = 36*S
   const skipX = (W - skipW) / 2, skipY = panelY + 196*S

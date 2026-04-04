@@ -641,7 +641,8 @@ function tStageInfo(g, x, y, type) {
       return
     }
     if (g.storage.currentStamina < stage.staminaCost) {
-      P.showGameToast('体力不足')
+      const AdManager = require('../adManager')
+      if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足')
       return
     }
     if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {

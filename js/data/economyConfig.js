@@ -259,12 +259,19 @@ function getStarRewardConfig(chapter, order) {
   return chStars[order - 1] || null
 }
 
-// ===== IAA 广告位预留配置 =====
+// ===== IAA 广告位配置 =====
+const _AD_UNIT_A = 'adunit-00751e252c34ac8f'
+const _AD_UNIT_B = 'adunit-6e618cadef132ef4'
+const _AD_UNIT_C = 'adunit-cb64624cd4adedae'
+
 const AD_REWARDS = {
-  staminaRecovery: { enabled: false, reward: { stamina: 30 }, adUnitId: '' },
-  settleDouble:    { enabled: false, multiplier: 2,           adUnitId: '' },
-  dailyTaskBonus:  { enabled: false, reward: { soulStone: 50 }, adUnitId: '' },
-  revive:          { enabled: false, reward: { fullHp: true }, adUnitId: '' },
+  revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1  },
+  staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: 30 } },
+  signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
+  dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
+  settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
+  dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
+  dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },
 }
 
 module.exports = {

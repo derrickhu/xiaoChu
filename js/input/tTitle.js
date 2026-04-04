@@ -241,7 +241,6 @@ function tTitle(g, type, x, y) {
       }
       case 3: g.titleMode = 'stage'; g.setScene('title'); return
       case 4:
-        if (!g.storage.userAuthorized && g.storage._userInfoBtn) return
         g._openRanking(); return
       case 5: g.setScene('stats'); return
       case 6: g.showMorePanel = true; return
@@ -278,11 +277,14 @@ function _handleStageStart(g) {
     return
   }
 
-  // 体力检查
+  // 体力检查（使用 Canvas 确认框，避免 wx.showModal 触发基础库 updateTextView 错误）
   if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
-    const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
-    const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
-    P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+    const AdManager = require('../adManager')
+    if (!AdManager.openStaminaRecoveryConfirm(g)) {
+      const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
+      const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
+      P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+    }
     return
   }
 

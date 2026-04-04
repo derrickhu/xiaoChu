@@ -14,11 +14,13 @@ const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
+const AdManager = require('../adManager')
 
 const _rects = {
   backBtnRect: null,
   nextBtnRect: null,
   shareBtnRect: null,
+  adDoubleBtnRect: null,
 }
 
 let _animTimer = 0
@@ -1074,6 +1076,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
     contentH += 26 * S
   }
   contentH += 24 * S
+  if (result.victory && !result.adDoubled && AdManager.canShow('settleDouble')) contentH += 44 * S
   contentH += pad + 48 * S
   if (result.victory && result.isFirstClear) contentH += 44 * S
   return contentH
@@ -1313,6 +1316,29 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     c.restore()
   }
   cy += 24 * S
+
+  // === 看广告奖励翻倍按钮 ===
+  if (result.victory && !result.adDoubled && AdManager.canShow('settleDouble')) {
+    const adBtnW = innerW * 0.7, adBtnH = 36 * S
+    const adBtnX = (W - adBtnW) / 2, adBtnY = cy
+    c.fillStyle = 'rgba(80,160,80,0.12)'
+    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.fill()
+    c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1.5 * S
+    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.stroke()
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#408040'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.fillText('▶ 看广告 灵石/碎片翻倍', W / 2, adBtnY + adBtnH / 2)
+    _rects.adDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
+    cy += 44 * S
+  } else if (result.adDoubled) {
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#60A060'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText('✓ 奖励已翻倍', W / 2, cy + 10 * S)
+    _rects.adDoubleBtnRect = null
+    cy += 28 * S
+  } else {
+    _rects.adDoubleBtnRect = null
+  }
 
   // === 底部按钮 ===
   const btnH = 38 * S
@@ -1960,6 +1986,22 @@ function tStageResult(g, x, y, type) {
   }
 
   const _firstClearGuide = _getFirstClearGuide(result)
+
+  // 看广告翻倍
+  if (_rects.adDoubleBtnRect && g._hitRect(x, y, ..._rects.adDoubleBtnRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    AdManager.showRewardedVideo('settleDouble', {
+      onRewarded: () => {
+        const r = g._stageResult
+        if (!r || r.adDoubled) return
+        r.adDoubled = true
+        const bonusSS = r.soulStone || 0
+        if (bonusSS > 0) g.storage.addSoulStone(bonusSS)
+        g._dirty = true
+      },
+    })
+    return
+  }
 
   if (_rects.shareBtnRect && g._hitRect(x, y, ..._rects.shareBtnRect)) {
     const { doShare } = require('../share')

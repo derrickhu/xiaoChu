@@ -168,11 +168,21 @@ function tDex(g, type, x, y) {
           return
         }
       }
-      // IAA 获取提示占位（暂不实现功能）
       if (g._dexAdHintBtnRect) {
         const [bx, by, bw, bh] = g._dexAdHintBtnRect
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-          // 预留广告接口
+          const AdManager = require('../adManager')
+          const P = require('../platform')
+          if (AdManager.canShow('dexAcquireHint')) {
+            const winInfo = P.getWindowInfo()
+            AdManager.showCustomAd('dexAcquireHint', {
+              left: 10,
+              top: winInfo.windowHeight - 120,
+              width: winInfo.windowWidth - 20,
+            })
+          } else {
+            P.showGameToast('暂无获取途径信息')
+          }
           return
         }
       }
@@ -263,7 +273,21 @@ function tDex(g, type, x, y) {
       for (const mr of g._dexMilestoneRects) {
         if (x >= mr.x && x <= mr.x + mr.w && y >= mr.y && y <= mr.y + mr.h) {
           if (mr.type === 'ad_double') {
-            // IAA 翻倍 — 预留
+            const AdManager = require('../adManager')
+            if (AdManager.canShow('dexMilestone')) {
+              AdManager.showRewardedVideo('dexMilestone', {
+                onRewarded: () => {
+                  const { ALL_MILESTONES } = require('../data/dexConfig')
+                  const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
+                  if (m && m.reward) {
+                    if (m.reward.soulStone) g.storage.addSoulStone(m.reward.soulStone)
+                    if (m.reward.awakenStone) g.storage.addAwakenStone(m.reward.awakenStone)
+                  }
+                  g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
+                  g._dirty = true
+                },
+              })
+            }
             return
           }
           const result = g.storage.claimDexMilestone(mr.id)

@@ -33,6 +33,7 @@ const tutorial = require('./engine/tutorial')
 const { initState } = require('./gameState')
 const introView = require('./views/introView')
 const guideOverlay = require('./views/guideOverlay')
+const { drawConfirmDialog, handleConfirmDialogTouch } = require('./views/uiComponents')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -40,6 +41,7 @@ const share = require('./share')
 const TweenMgr = require('./engine/tween')
 const Particles = require('./engine/particles')
 const stageMgr = require('./engine/stageManager')
+const AdManager = require('./adManager')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
 const canvas = GameGlobal.__mainCanvas || P.createCanvas()
@@ -61,6 +63,7 @@ ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P)
 class Main {
   constructor() {
     this.storage = new Storage()
+    AdManager.init(this.storage)
     this.scene = 'loading'
     this.af = 0
 
@@ -420,7 +423,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this.showSidebarPanel && !this.showMorePanel) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this.showSidebarPanel && !this.showMorePanel) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -491,6 +494,7 @@ class Main {
       dialogs.drawFragmentPopup(this)
     }
     guideOverlay.draw(this)
+    if (this._confirmDialog) drawConfirmDialog(this)
     ctx.restore()
   }
 
@@ -500,6 +504,7 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    if (handleConfirmDialogTouch(this, x, y, type)) return
     // 指引覆盖层拦截（restrictToHighlight 模式下高亮区域点击可穿透到底层按钮）
     if (guideMgr.isActive()) {
       if (guideOverlay.onTouch(this, type, x, y)) return
@@ -553,6 +558,24 @@ class Main {
       this.storage.requestDouyinUserInfo((ok, info) => {
         if (ok) console.log('[Ranking] 抖音授权成功:', info.nickName)
       })
+    }
+    // 微信端未授权时，通过 getUserInfo 静默获取（不再依赖 createUserInfoButton）
+    if (!P.isDouyin && !this.storage.userAuthorized) {
+      try {
+        const base = typeof wx !== 'undefined' ? wx : null
+        if (base && typeof base.getUserInfo === 'function') {
+          base.getUserInfo({
+            withCredentials: false,
+            success: (res) => {
+              if (res.userInfo && res.userInfo.nickName && res.userInfo.nickName !== '微信用户') {
+                this.storage._saveUserInfo({ nickName: res.userInfo.nickName, avatarUrl: res.userInfo.avatarUrl })
+                console.log('[Ranking] getUserInfo 成功:', res.userInfo.nickName)
+              }
+            },
+            fail: () => {},
+          })
+        }
+      } catch(e) {}
     }
     this.rankTab = 'all'
     this.rankScrollY = 0

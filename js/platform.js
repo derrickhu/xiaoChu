@@ -107,6 +107,16 @@ const platform = {
   // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
   cloud: isWeChat ? base.cloud : _mockCloud,
 
+  // ========== 广告能力 ==========
+
+  createRewardedVideoAd: isWeChat && typeof base.createRewardedVideoAd === 'function'
+    ? (opts) => base.createRewardedVideoAd(opts)
+    : () => null,
+
+  createCustomAd: isWeChat && typeof base.createCustomAd === 'function'
+    ? (opts) => base.createCustomAd(opts)
+    : () => null,
+
   /**
    * 统一游戏内 Toast 提醒（简洁半透明遮罩 + 白字）
    * 所有场景的短提示统一使用此方法，保持风格一致
