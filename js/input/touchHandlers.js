@@ -82,7 +82,63 @@ function tAdventure(g, type, x, y) {
 }
 
 function tGameover(g, type, x, y) {
+  const screens = require('../views/screens')
+  const goScroll = screens._goScroll
+
+  const canScroll = goScroll && goScroll.viewport && goScroll.max > 0
+  if (canScroll) {
+    if (type === 'start') {
+      if (g._hitRect(x, y, ...goScroll.viewport)) {
+        goScroll.active = true; goScroll.startY = y; goScroll.lastY = y; goScroll.moved = false
+      } else {
+        goScroll.active = false
+      }
+      return
+    }
+    if (type === 'move' && goScroll.active) {
+      const dy = y - goScroll.lastY
+      goScroll.lastY = y
+      if (Math.abs(y - goScroll.startY) > 6 * V.S) goScroll.moved = true
+      goScroll.set(goScroll.get() - dy)
+      return
+    }
+    if (type === 'end') {
+      if (goScroll.active && goScroll.moved) {
+        goScroll.active = false; goScroll.moved = false; return
+      }
+      goScroll.active = false; goScroll.moved = false
+    }
+  } else if (type !== 'end') {
+    return
+  }
+
   if (type !== 'end') return
+
+  if (g._goAdDoubleBtnRect && g._hitRect(x,y,...g._goAdDoubleBtnRect)) {
+    const AdManager = require('../adManager')
+    AdManager.showRewardedVideo('settleDouble', {
+      onRewarded: function () {
+        if (g._goAdDoubled) return
+        g._goAdDoubled = true
+        const sr = g._lastRunSettleRewards
+        const bonusSS = sr ? sr.soulStone.final : (g._lastRunSoulStone || 0)
+        const bonusFrag = sr ? sr.fragments.final : 0
+        if (bonusSS > 0) g.storage.addSoulStone(bonusSS)
+        if (bonusFrag > 0 && sr && sr.fragments.details) {
+          sr.fragments.details.forEach(function (fd) { g.storage.addFragmentSmart(fd.petId, fd.count) })
+        }
+        g._dirty = true
+      },
+    })
+    return
+  }
+
+  if (g._goShareBtnRect && g._hitRect(x,y,...g._goShareBtnRect)) {
+    const { doShare } = require('../share')
+    doShare(g, 'towerClear', { floor: g.floor })
+    return
+  }
+
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
   if (g._goHomeBtnRect && g._hitRect(x,y,...g._goHomeBtnRect)) { g._handleBackToTitle(); return }
   if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.setScene('title'); return }

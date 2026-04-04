@@ -246,11 +246,17 @@ function rTitle(g) {
 }
 
 // ===== Gameover =====
+let _goScrollY = 0
+let _goScrollMax = 0
+let _goScrollViewport = null
+let _goScrollActive = false
+let _goScrollStartY = 0
+let _goScrollLastY = 0
+let _goScrollMoved = false
+
 function rGameover(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 
-  // 全屏水墨风背景
   const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
   if (poolBg && poolBg.width > 0) {
     R._drawCoverImg(poolBg, 0, 0, W, H)
@@ -258,7 +264,10 @@ function rGameover(g) {
     R.drawHomeBg(0)
   }
 
-  if (g._goAnimTimer == null) g._goAnimTimer = 0
+  if (g._goAnimTimer == null) {
+    g._goAnimTimer = 0
+    _goScrollY = 0; _goScrollMax = 0; _goScrollViewport = null
+  }
   g._goAnimTimer++
   const at = g._goAnimTimer
   const fadeIn = Math.min(1, at / 20)
@@ -269,15 +278,10 @@ function rGameover(g) {
     _drawTowerDefeat(g, ctx, R, W, H, S, safeTop, at, fadeIn)
   }
 
-  // 浅色奖励面板
   const panelTop = g.cleared ? safeTop + 168 * S : safeTop + 148 * S
-  _drawTowerRewardPanel(g, ctx, R, W, H, S, panelTop, fadeIn)
-
-  // 圆形返回按钮
-  _drawGoBackBtn(ctx, R, S, safeTop, g)
+  _drawTowerRewardPanel(g, ctx, R, W, H, S, panelTop, at, fadeIn)
 }
 
-// ===== 描边文字工具 =====
 function _goStrokeText(c, text, x, y, strokeColor, strokeWidth) {
   c.save()
   c.strokeStyle = strokeColor; c.lineWidth = strokeWidth; c.lineJoin = 'round'
@@ -286,33 +290,13 @@ function _goStrokeText(c, text, x, y, strokeColor, strokeWidth) {
   c.fillText(text, x, y)
 }
 
-// ===== 圆形返回按钮 =====
-function _drawGoBackBtn(ctx, R, S, safeTop, g) {
-  const btnSz = 36 * S
-  const bx = 12 * S, by = safeTop + 8 * S
-  ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'
-  ctx.beginPath()
-  ctx.arc(bx + btnSz / 2, by + btnSz / 2, btnSz / 2, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  const ax = bx + btnSz / 2 + 3 * S, ay = by + btnSz / 2
-  ctx.beginPath()
-  ctx.moveTo(ax, ay - 8 * S); ctx.lineTo(ax - 8 * S, ay); ctx.lineTo(ax, ay + 8 * S)
-  ctx.stroke()
-  ctx.restore()
-  g._backBtnRect = [bx, by, btnSz, btnSz]
-}
-
-// ===== 通关全屏（复用公共庆祝背景）=====
 function _drawTowerVictory(g, c, R, W, H, S, safeTop, at, fadeIn) {
   drawCelebrationBackdrop(c, W, H, S, safeTop + 80 * S, at, fadeIn)
 
   c.save()
   c.globalAlpha = fadeIn
-
-  // 标题
   c.textAlign = 'center'; c.textBaseline = 'middle'
+
   c.save()
   const titleGlow = 0.4 + 0.2 * Math.sin(at * 0.06)
   c.shadowColor = `rgba(255,200,0,${titleGlow})`; c.shadowBlur = 20 * S
@@ -320,16 +304,13 @@ function _drawTowerVictory(g, c, R, W, H, S, safeTop, at, fadeIn) {
   _goStrokeText(c, '✦ 登顶通天塔 ✦', W * 0.5, safeTop + 46 * S, 'rgba(100,60,0,0.6)', 4 * S)
   c.restore()
 
-  // 装饰线
   const divW = W * 0.26
   c.strokeStyle = 'rgba(180,140,40,0.5)'; c.lineWidth = 1.5 * S
   c.beginPath(); c.moveTo(W * 0.5 - divW, safeTop + 62 * S); c.lineTo(W * 0.5 + divW, safeTop + 62 * S); c.stroke()
 
-  // 副标题
   c.fillStyle = '#5A4020'; c.font = `${13*S}px "PingFang SC",sans-serif`
   _goStrokeText(c, '修士已突破重重试炼，功德圆满！', W * 0.5, safeTop + 80 * S, 'rgba(255,240,200,0.6)', 3 * S)
 
-  // 统计卡片
   const statW = W * 0.72, statH = 44 * S
   const statX = (W - statW) / 2, statY = safeTop + 100 * S
   const statBg = c.createLinearGradient(statX, statY, statX, statY + statH)
@@ -361,11 +342,9 @@ function _drawTowerVictory(g, c, R, W, H, S, safeTop, at, fadeIn) {
   c.restore()
 }
 
-// ===== 失败全屏 =====
 function _drawTowerDefeat(g, c, R, W, H, S, safeTop, at, fadeIn) {
   c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, 0, W, H)
 
-  // 暗红光晕
   c.save()
   c.globalAlpha = fadeIn
   const glow = c.createRadialGradient(W * 0.5, safeTop + 60 * S, 0, W * 0.5, safeTop + 60 * S, W * 0.4)
@@ -378,23 +357,19 @@ function _drawTowerDefeat(g, c, R, W, H, S, safeTop, at, fadeIn) {
   c.globalAlpha = fadeIn
   c.textAlign = 'center'; c.textBaseline = 'middle'
 
-  // 标题
   c.fillStyle = '#E06060'; c.font = `bold ${24*S}px "PingFang SC",sans-serif`
   _goStrokeText(c, '挑战结束', W * 0.5, safeTop + 46 * S, 'rgba(60,0,0,0.5)', 4 * S)
 
-  // 装饰线
   const divW = W * 0.18
   c.strokeStyle = 'rgba(180,60,70,0.35)'; c.lineWidth = 1 * S
   c.beginPath(); c.moveTo(W * 0.5 - divW, safeTop + 62 * S); c.lineTo(W * 0.5 + divW, safeTop + 62 * S); c.stroke()
 
-  // 层数
   c.fillStyle = '#5A4020'; c.font = `bold ${18*S}px "PingFang SC",sans-serif`
   _goStrokeText(c, `本次到达：第 ${g.floor} 层`, W * 0.5, safeTop + 86 * S, 'rgba(255,240,200,0.5)', 3 * S)
 
   c.fillStyle = 'rgba(100,70,50,0.7)'; c.font = `${12*S}px "PingFang SC",sans-serif`
   _goStrokeText(c, `历史最高：第 ${g.storage.bestFloor} 层`, W * 0.5, safeTop + 108 * S, 'rgba(255,240,220,0.4)', 2.5 * S)
 
-  // 鼓励语
   c.fillStyle = 'rgba(100,70,50,0.7)'; c.font = `${12*S}px "PingFang SC",sans-serif`
   _goStrokeText(c, '修炼不止，再战可期', W * 0.5, safeTop + 132 * S, 'rgba(255,240,220,0.4)', 2.5 * S)
 
@@ -402,14 +377,61 @@ function _drawTowerDefeat(g, c, R, W, H, S, safeTop, at, fadeIn) {
   c.restore()
 }
 
-// ===== 浅色奖励面板 =====
-function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
+function _goComputeContentH(g, S) {
+  const AdManager = require('../adManager')
+  const sr = g._lastRunSettleRewards
+  const cultFinal = sr ? sr.cultExp.final : (g._lastRunExp || 0)
+  const soulStoneFinal = sr ? sr.soulStone.final : (g._lastRunSoulStone || 0)
+  const fragFinal = sr ? sr.fragments.final : 0
+  const fragDetails = sr ? sr.fragments.details : []
+  const pad = 14 * S
+
+  let h = pad * 0.5
+  h += 20 * S + 24 * S
+  if (g.weapon) h += 22 * S
+  h += 20 * S + 8 * S + 12 * S
+
+  if (cultFinal > 0) {
+    h += 28 * S
+    const d = g._lastRunExpDetail
+    if (d) { h += 18 * S; if (!d.isCleared) h += 16 * S }
+    const levelUps = sr ? sr.cultExp.levelUps : (g._lastRunLevelUps || 0)
+    if (levelUps > 0) h += 20 * S
+    h += 24 * S
+  }
+  if (soulStoneFinal > 0) h += 32 * S
+  if (fragFinal > 0) {
+    h += 28 * S
+    if (fragDetails.length > 0) h += fragDetails.length * 24 * S + 4 * S
+  }
+  const _srNewWpns = sr && sr.newWeapons && sr.newWeapons.length > 0
+  if (_srNewWpns) h += 48 * S
+
+  h += 24 * S
+  if (!g._goAdDoubled && AdManager.canShow('settleDouble')) h += 44 * S
+  h += pad + 48 * S
+
+  let hasQuickBtns = false
+  if (cultFinal > 0) {
+    const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
+    if (hasCultUpgradeAvailable(g.storage)) hasQuickBtns = true
+  }
+  if (soulStoneFinal > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
+  if (hasQuickBtns) h += 42 * S
+  h += 44 * S
+  return h
+}
+
+function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
   const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
   const { getPetById } = require('../data/pets')
+  const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
+  const AdManager = require('../adManager')
   const pw = W * 0.88
   const px = (W - pw) / 2
-  const pad = 16 * S
+  const pad = 14 * S
   const innerW = pw - pad * 2
+  const panelRad = 14 * S
 
   const sr = g._lastRunSettleRewards
   const cultFinal = sr ? sr.cultExp.final : (g._lastRunExp || 0)
@@ -417,51 +439,42 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   const fragFinal = sr ? sr.fragments.final : 0
   const fragDetails = sr ? sr.fragments.details : []
 
-  // 计算面板内容高度
-  let contentH = pad * 0.5
-  contentH += 20 * S // "上场灵兽" 标题
-  contentH += 24 * S // 宠物名
-  if (g.weapon) contentH += 22 * S
-  contentH += 20 * S // 灵兽背包+法宝背包
-  contentH += 8 * S  // 间距
-  contentH += 12 * S // 分隔线
-
-  if (cultFinal > 0) {
-    contentH += 28 * S
-    const d = g._lastRunExpDetail
-    if (d) {
-      contentH += 18 * S
-      if (!d.isCleared) contentH += 16 * S
-    }
-    const levelUps = sr ? sr.cultExp.levelUps : (g._lastRunLevelUps || 0)
-    if (levelUps > 0) contentH += 20 * S
-    contentH += 24 * S
+  const contentH = _goComputeContentH(g, S)
+  const marginBottom = 10 * S
+  const screenBottom = H - marginBottom
+  let viewportH = contentH
+  let scrollMax = 0
+  if (panelTop + contentH > screenBottom) {
+    const avail = Math.max(0, screenBottom - panelTop)
+    viewportH = Math.min(contentH, Math.max(100 * S, avail))
+    scrollMax = Math.max(0, contentH - viewportH)
   }
-  if (soulStoneFinal > 0) contentH += 28 * S
-  if (fragFinal > 0) {
-    contentH += 28 * S
-    if (fragDetails.length > 0) contentH += 22 * S
-  }
-  const _srNewWpns = sr && sr.newWeapons && sr.newWeapons.length > 0
-  if (_srNewWpns) contentH += 48 * S
+  if (_goScrollY > scrollMax) _goScrollY = scrollMax
+  if (_goScrollY < 0) _goScrollY = 0
+  const scroll = _goScrollY
+  _goScrollMax = scrollMax
+  _goScrollViewport = scrollMax > 0 ? [px, panelTop, pw, viewportH] : null
 
-  contentH += pad + 46 * S
-  let hasQuickBtns = false
-  if (cultFinal > 0) {
-    const { hasCultUpgradeAvailable } = require('../logic/cultivationLogic')
-    if (hasCultUpgradeAvailable(g.storage)) hasQuickBtns = true
-  }
-  if (soulStoneFinal > 0 && g.storage.petPoolCount > 0) hasQuickBtns = true
-  if (hasQuickBtns) contentH += 42 * S
-
-  const ph = contentH
   c.save()
   c.globalAlpha = fadeIn
-  R.drawInfoPanel(px, panelTop, pw, ph)
+  R.drawInfoPanel(px, panelTop, pw, viewportH)
 
-  let cy = panelTop + pad * 0.8
+  c.save()
+  R.rr(px, panelTop, pw, viewportH, panelRad)
+  c.clip()
+  c.translate(0, -scroll)
+
+  let cy = panelTop + pad * 0.6
+  let rowIdx = 0
+
+  function _rowAlpha(idx) {
+    const delay = 12 + idx * 5
+    return Math.min(1, Math.max(0, (at - delay) / 12))
+  }
 
   // === 上场灵兽 ===
+  const teamAlpha = _rowAlpha(rowIdx++)
+  c.save(); c.globalAlpha *= teamAlpha
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillStyle = '#8B7355'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
   c.fillText('上场灵兽', W * 0.5, cy + 6 * S)
@@ -474,7 +487,6 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     const petNameY = cy + 6 * S
     c.fillStyle = ac ? ac.main : '#666'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
     c.fillText(p.name, petNameX, petNameY)
-    // 品质色下划线
     const nameW2 = c.measureText(p.name).width
     c.strokeStyle = rv.borderColor; c.lineWidth = 1.5 * S
     c.beginPath()
@@ -494,8 +506,8 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   c.fillStyle = '#A09070'; c.font = `${10*S}px "PingFang SC",sans-serif`; c.textAlign = 'center'
   c.fillText(`灵兽背包：${g.petBag.length}只  法宝背包：${g.weaponBag.length}件`, W * 0.5, cy + 6 * S)
   cy += 20 * S
+  c.restore()
 
-  // 分隔线
   cy += 4 * S
   c.strokeStyle = 'rgba(180,160,120,0.3)'; c.lineWidth = 1 * S
   c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
@@ -503,7 +515,10 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   // === 修炼经验 ===
   if (cultFinal > 0) {
+    const expAlpha = _rowAlpha(rowIdx++)
+    c.save(); c.globalAlpha *= expAlpha
     drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${cultFinal}`, '#8B7355', '#B8860B')
+    c.restore()
     cy += 28 * S
 
     const d = g._lastRunExpDetail
@@ -530,11 +545,12 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
       const prev = sr ? sr.cultExp.prevLevel : (g._lastRunPrevLevel || 0)
       c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'
+      c.save(); c.shadowColor = 'rgba(200,150,0,0.4)'; c.shadowBlur = 6 * S
       c.fillText(`升级！Lv.${prev} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W * 0.5, cy + 6 * S)
+      c.restore()
       cy += 20 * S
     }
 
-    // 经验条
     const barX = px + pad, barW = innerW, barH = 7 * S
     c.fillStyle = 'rgba(0,0,0,0.06)'
     R.rr(barX, cy, barW, barH, barH / 2); c.fill()
@@ -563,64 +579,138 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   // === 灵石 ===
   if (soulStoneFinal > 0) {
+    const ssAlpha = _rowAlpha(rowIdx++)
+    c.save(); c.globalAlpha *= ssAlpha
     drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${soulStoneFinal}`, '#5577AA', '#3366AA')
-    cy += 28 * S
+    c.restore()
+    cy += 32 * S
   }
 
-  // === 碎片奖励 ===
+  // === 碎片奖励（带宠物头像和进度） ===
   if (fragFinal > 0) {
+    const fragAlpha = _rowAlpha(rowIdx++)
+    c.save(); c.globalAlpha *= fragAlpha
     drawRewardRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵兽碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
+    c.restore()
     cy += 28 * S
 
     if (fragDetails.length > 0) {
-      // 碎片明细：每只宠物用品质色显示
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      const fragY = cy + 6 * S
-      const fragParts = fragDetails.map(fd => {
+      for (const fd of fragDetails) {
+        const fdAlpha = _rowAlpha(rowIdx++)
+        c.save(); c.globalAlpha *= fdAlpha
         const pet = getPetById(fd.petId)
         const rv = RARITY_VISUAL[getPetRarity(fd.petId)] || RARITY_VISUAL.R
-        return { text: `${pet ? pet.name : fd.petId} +${fd.count}`, color: rv.borderColor }
-      })
-      // 计算总宽度以居中绘制
-      c.font = `${9*S}px "PingFang SC",sans-serif`
-      const sep = '  '
-      const sepW = c.measureText(sep).width
-      const totalFragW = fragParts.reduce((sum, p, i) => sum + c.measureText(p.text).width + (i > 0 ? sepW : 0), 0)
-      let fragDrawX = W * 0.5 - totalFragW / 2
-      fragParts.forEach((fp, i) => {
-        if (i > 0) fragDrawX += sepW
-        c.textAlign = 'left'
-        c.fillStyle = fp.color; c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-        c.fillText(fp.text, fragDrawX, fragY)
-        fragDrawX += c.measureText(fp.text).width
-      })
-      c.textBaseline = 'alphabetic'
-      cy += 22 * S
+        const ac = pet ? (ATTR_COLOR[pet.attr] || ATTR_COLOR.metal) : ATTR_COLOR.metal
+        const iconSz = 20 * S
+        const iconX = px + pad + 4 * S
+        const iconCY = cy + 2 * S
+
+        const avatarPath = pet ? require('../data/pets').getPetAvatarPath({ ...pet, star: 1 }) : null
+        const img = avatarPath ? R.getImg(avatarPath) : null
+        if (img && img.width > 0) {
+          c.save()
+          R.rr(iconX, iconCY, iconSz, iconSz, 4 * S); c.clip()
+          const aw = img.width, ah = img.height
+          const sc = Math.max(iconSz / aw, iconSz / ah)
+          const dw = aw * sc, dh = ah * sc
+          c.drawImage(img, iconX + (iconSz - dw) / 2, iconCY + (iconSz - dh) / 2, dw, dh)
+          c.restore()
+          c.strokeStyle = ac.main; c.lineWidth = 1.2 * S
+          R.rr(iconX, iconCY, iconSz, iconSz, 4 * S); c.stroke()
+        }
+
+        c.textAlign = 'left'; c.textBaseline = 'middle'
+        c.fillStyle = rv.borderColor; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`${pet ? pet.name : fd.petId}碎片`, iconX + iconSz + 6 * S, iconCY + iconSz / 2 - 2 * S)
+
+        c.fillStyle = ac.main; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        c.textAlign = 'right'
+        c.fillText(`×${fd.count}`, px + pw - pad, iconCY + iconSz / 2 - 2 * S)
+
+        const poolPet = g.storage.getPoolPet(fd.petId)
+        if (poolPet && POOL_STAR_FRAG_COST) {
+          const nextStar = poolPet.star + 1
+          const cost = POOL_STAR_FRAG_COST[nextStar]
+          if (cost) {
+            const current = poolPet.fragments || 0
+            c.textAlign = 'left'
+            c.fillStyle = current >= cost ? ac.main : '#A09070'
+            c.font = `${8*S}px "PingFang SC",sans-serif`
+            const progressText = current >= cost ? `碎片足够升${nextStar}★！` : `升${nextStar}★ 进度 ${current}/${cost}`
+            c.fillText(progressText, iconX + iconSz + 6 * S, iconCY + iconSz / 2 + 9 * S)
+          }
+        }
+
+        c.restore()
+        cy += 24 * S
+      }
+      cy += 4 * S
     }
   }
 
   // === 本局新获法宝 ===
   const newWpns = sr && sr.newWeapons && sr.newWeapons.length > 0 ? sr.newWeapons : null
   if (newWpns) {
+    const wpnAlpha = _rowAlpha(rowIdx++)
+    c.save(); c.globalAlpha *= wpnAlpha
     drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_weapon', '本局新获法宝', `${newWpns.length}件`, '#B8860B', '#B8860B')
     cy += 28 * S
     c.textAlign = 'center'; c.fillStyle = '#B8860B'; c.font = `${9*S}px "PingFang SC",sans-serif`
     c.fillText(newWpns.map(w => w.name).join('、'), W * 0.5, cy + 4 * S)
+    c.restore()
     cy += 20 * S
   }
 
-  // === 底部按钮（双按钮：返回首页 + 再次挑战）===
+  // === 汇总行 ===
+  const sumAlpha = _rowAlpha(rowIdx++)
+  if (sumAlpha > 0) {
+    c.save(); c.globalAlpha *= sumAlpha
+    const sumParts = []
+    if (soulStoneFinal > 0) sumParts.push(`灵石 +${soulStoneFinal}`)
+    if (fragFinal > 0) sumParts.push(`碎片 +${fragFinal}`)
+    if (cultFinal > 0) sumParts.push(`经验 +${cultFinal}`)
+    if (sumParts.length > 0) {
+      c.textAlign = 'center'; c.textBaseline = 'middle'
+      c.fillStyle = '#A09070'; c.font = `${8.5*S}px "PingFang SC",sans-serif`
+      c.fillText(`本次共获得：${sumParts.join('、')}`, W / 2, cy + 6 * S)
+    }
+    c.restore()
+  }
+  cy += 24 * S
+
+  // === 看广告奖励翻倍 ===
+  g._goAdDoubleBtnRect = null
+  if (!g._goAdDoubled && AdManager.canShow('settleDouble')) {
+    const adBtnW = innerW * 0.7, adBtnH = 36 * S
+    const adBtnX = (W - adBtnW) / 2, adBtnY = cy
+    c.fillStyle = 'rgba(80,160,80,0.12)'
+    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.fill()
+    c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1.5 * S
+    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.stroke()
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#408040'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.fillText('▶ 看广告 灵石/碎片翻倍', W / 2, adBtnY + adBtnH / 2)
+    g._goAdDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
+    cy += 44 * S
+  } else if (g._goAdDoubled) {
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#60A060'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText('✓ 奖励已翻倍', W / 2, cy + 10 * S)
+    cy += 28 * S
+  }
+
+  // === 底部按钮 ===
   cy += 6 * S
   const btnH = 38 * S
   const btnGap = 12 * S
   const btnW2 = (innerW - btnGap) / 2
   const btnLeftX = px + pad, btnRightX = btnLeftX + btnW2 + btnGap
 
-  R.drawDialogBtn(btnLeftX, cy, btnW2, btnH, '返回首页', 'cancel')
-  g._goHomeBtnRect = [btnLeftX, cy, btnW2, btnH]
+  R.drawDialogBtn(btnLeftX, cy, btnW2, btnH, '返回', 'cancel')
+  g._goHomeBtnRect = [btnLeftX, cy - scroll, btnW2, btnH]
 
   R.drawDialogBtn(btnRightX, cy, btnW2, btnH, g.cleared ? '再次挑战' : '重新挑战', 'confirm')
-  g._goBtnRect = [btnRightX, cy, btnW2, btnH]
+  g._goBtnRect = [btnRightX, cy - scroll, btnW2, btnH]
   cy += btnH + 8 * S
 
   // 快捷按钮行
@@ -641,10 +731,36 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
     let qx = quickBtns.length > 1 ? px + pad : (W - qBtnW) / 2
     for (const qb of quickBtns) {
       R.drawDialogBtn(qx, cy, qBtnW, qBtnH, qb.label, 'cancel')
-      if (qb.key === 'cult') g._cultBtnRect = [qx, cy, qBtnW, qBtnH]
-      if (qb.key === 'pet') g._petPoolBtnRect = [qx, cy, qBtnW, qBtnH]
+      if (qb.key === 'cult') g._cultBtnRect = [qx, cy - scroll, qBtnW, qBtnH]
+      if (qb.key === 'pet') g._petPoolBtnRect = [qx, cy - scroll, qBtnW, qBtnH]
       qx += qBtnW + qGap
     }
+    cy += qBtnH + 8 * S
+  }
+
+  // 分享炫耀
+  g._goShareBtnRect = null
+  if (g.cleared) {
+    const shareBtnW = innerW * 0.5, shareBtnH = 28 * S
+    const shareBtnX = (W - shareBtnW) / 2, shareBtnY = cy
+    R.drawDialogBtn(shareBtnX, shareBtnY, shareBtnW, shareBtnH, '📤 分享炫耀', 'gold')
+    g._goShareBtnRect = [shareBtnX, shareBtnY - scroll, shareBtnW, shareBtnH]
+  }
+
+  c.restore()
+
+  // 滚动条
+  if (scrollMax > 0) {
+    const trackX = px + pw - 5 * S
+    const trackY = panelTop + 8 * S
+    const trackH = viewportH - 16 * S
+    const thumbH = Math.max(22 * S, (viewportH / contentH) * trackH)
+    const thumbTravel = Math.max(0, trackH - thumbH)
+    const thumbY = trackY + (scrollMax > 0 ? (scroll / scrollMax) * thumbTravel : 0)
+    c.fillStyle = 'rgba(90,70,50,0.2)'
+    R.rr(trackX - 2 * S, trackY, 4 * S, trackH, 2 * S); c.fill()
+    c.fillStyle = 'rgba(170,130,70,0.55)'
+    R.rr(trackX - 2 * S, thumbY, 4 * S, thumbH, 2 * S); c.fill()
   }
 
   c.restore()
@@ -2459,9 +2575,20 @@ function _wrapTextDex(text, maxW, fontSize) {
 
 const { hitTestRankingTab } = require('./rankingTabHit')
 
+const _goScroll = {
+  get viewport() { return _goScrollViewport },
+  get max() { return _goScrollMax },
+  get() { return _goScrollY },
+  set(v) {
+    _goScrollY = Math.max(0, Math.min(_goScrollMax, v))
+  },
+  active: false, startY: 0, lastY: 0, moved: false,
+}
+
 module.exports = {
   rLoading, rTitle, rGameover, rRanking, rStats,
   rReward, rShop, rRest, rAdventure,
   drawBackBtn, drawNewRunConfirm, rDex,
   hitTestRankingTab,
+  _goScroll,
 }
