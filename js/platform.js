@@ -7,6 +7,12 @@ const isDouyin = typeof tt !== 'undefined'
 const isWeChat = !isDouyin && typeof wx !== 'undefined'
 const base = isDouyin ? tt : wx
 
+let _isOHOS = false
+try {
+  const _sys = base && base.getSystemInfoSync ? base.getSystemInfoSync() : null
+  if (_sys && _sys.platform === 'ohos') _isOHOS = true
+} catch(_e) {}
+
 const _noop = () => {}
 const _noopAsync = async () => ({ result: { code: -1, msg: 'not available' } })
 
@@ -48,6 +54,7 @@ const platform = {
   name: isDouyin ? 'douyin' : 'wechat',
   isDouyin,
   isWeChat,
+  isOHOS: _isOHOS,
 
   // ========== 第一层：直接透传（wx/tt 完全一致） ==========
   createCanvas:           (...a) => base.createCanvas(...a),
@@ -109,11 +116,11 @@ const platform = {
 
   // ========== 广告能力 ==========
 
-  createRewardedVideoAd: isWeChat && typeof base.createRewardedVideoAd === 'function'
+  createRewardedVideoAd: base && typeof base.createRewardedVideoAd === 'function'
     ? (opts) => base.createRewardedVideoAd(opts)
     : () => null,
 
-  createCustomAd: isWeChat && typeof base.createCustomAd === 'function'
+  createCustomAd: base && typeof base.createCustomAd === 'function'
     ? (opts) => base.createCustomAd(opts)
     : () => null,
 

@@ -182,7 +182,7 @@ function drawAdReviveOverlay(g) {
   const btnH = L.primaryHeightPt * S
   const btnX = (W - btnW) / 2
   const btnY = panelY + L.groupTopPt * S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, adAvail ? '▶ 观看广告复活' : '📤 分享复活', 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, adAvail ? '▶ 观看广告复活' : '📤 分享复活', adAvail ? 'adReward' : 'confirm')
   g._adReviveBtnRect = [btnX, btnY, btnW, btnH]
   const skipW = btnW
   const skipH = L.skipHeightPt * S

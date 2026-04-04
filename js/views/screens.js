@@ -683,13 +683,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
   if (!g._goAdDoubled && AdManager.canShow('settleDouble')) {
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
     const adBtnX = (W - adBtnW) / 2, adBtnY = cy
-    c.fillStyle = 'rgba(80,160,80,0.12)'
-    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.fill()
-    c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1.5 * S
-    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.stroke()
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillStyle = '#408040'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.fillText('▶ 看广告 灵石/碎片翻倍', W / 2, adBtnY + adBtnH / 2)
+    R.drawDialogBtn(adBtnX, adBtnY, adBtnW, adBtnH, '▶ 看广告 灵石/碎片翻倍', 'adReward')
     g._goAdDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
     cy += 44 * S
   } else if (g._goAdDoubled) {
@@ -2201,15 +2195,10 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
 
       // IAA 翻倍按钮占位（已达成且为货币奖励类）
       if (reached && !isClaimed && m.reward) {
-        const adW = 36 * S, adH = 18 * S
+        const adW = 40 * S, adH = 20 * S
         const adX = btnX - adW - 4 * S
         const adY = my + (cardH - adH) / 2
-        ctx.fillStyle = 'rgba(80,160,80,0.2)'
-        ctx.beginPath(); R.rr(adX, adY, adW, adH, 3 * S); ctx.fill()
-        ctx.strokeStyle = 'rgba(80,160,80,0.4)'; ctx.lineWidth = 1 * S
-        ctx.beginPath(); R.rr(adX, adY, adW, adH, 3 * S); ctx.stroke()
-        ctx.fillStyle = '#60a060'; ctx.font = `${7 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText('翻倍', adX + adW / 2, adY + adH * 0.68)
+        R.drawDialogBtn(adX, adY, adW, adH, '翻倍', 'adReward')
         if (my + cardH > contentTop && my < contentBottom) {
           g._dexMilestoneRects.push({ id: `ad_${m.id}`, type: 'ad_double', milestoneId: m.id, x: adX, y: adY, w: adW, h: adH })
         }
@@ -2400,14 +2389,9 @@ function _drawDexPetDetail(g) {
     ctx.textBaseline = 'alphabetic'
     g._dexDetailBtnRect = [btnBtnX, curY, btnW, btnH]
   } else {
-    // 未发现：IAA占位
-    ctx.fillStyle = 'rgba(80,160,80,0.15)'
-    ctx.beginPath(); R.rr(btnBtnX, curY, btnW, btnH, 8 * S); ctx.fill()
-    ctx.strokeStyle = 'rgba(80,160,80,0.3)'; ctx.lineWidth = 1 * S
-    ctx.beginPath(); R.rr(btnBtnX, curY, btnW, btnH, 8 * S); ctx.stroke()
-    ctx.fillStyle = '#60a060'; ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('查看获取途径', W * 0.5, curY + btnH * 0.5)
+    // 未发现：激励/模板广告入口
+    g._dexDetailBtnRect = null
+    R.drawDialogBtn(btnBtnX, curY, btnW, btnH, '查看获取途径', 'adReward')
     ctx.textBaseline = 'alphabetic'
     g._dexAdHintBtnRect = [btnBtnX, curY, btnW, btnH]
   }

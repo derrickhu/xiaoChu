@@ -203,7 +203,7 @@ function startNextElimAnim(g) {
   }
   // ★ Combo里程碑：仅保留视觉特效提示，不再给予隐藏的buff/护盾/回血
   // 粒子数量根据 tier 递增
-  const pCount = (tier >= 4 ? 40 : tier >= 3 ? 32 : tier >= 2 ? 24 : tier >= 1 ? 18 : 10) + (isTierBreak ? 20 : 0)
+  const pCount = (tier >= 4 ? 24 : tier >= 3 ? 18 : tier >= 2 ? 14 : tier >= 1 ? 10 : 6) + (isTierBreak ? 10 : 0)
   const pCx = W * 0.5, pCy = g.boardY + (ROWS * g.cellSize) * 0.32
   const pColors = tier >= 4 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
     : tier >= 3 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
@@ -227,19 +227,6 @@ function startNextElimAnim(g) {
   if (isTierBreak) {
     const ringCount = tier >= 4 ? 24 : tier >= 3 ? 21 : tier >= 2 ? 18 : 12
     const ringColors = tier >= 4 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : tier >= 3 ? ['#fff','#9d4dff','#ffd700'] : tier >= 2 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#4d88ff','#ffd700']
-    for (let i = 0; i < ringCount; i++) {
-      const angle = (i / ringCount) * Math.PI * 2
-      const spd = (4 + Math.random() * 2) * S
-      g._comboParticles.push({
-        x: pCx, y: pCy,
-        vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
-        size: (3 + Math.random() * 2) * S,
-        color: ringColors[Math.floor(Math.random() * ringColors.length)],
-        life: 25 + Math.floor(Math.random() * 10),
-        t: 0, gravity: 0.05 * S, type: 'circle'
-      })
-    }
-    // 粒子引擎增强：里程碑环形纹理粒子爆发
     Particles.ring({
       x: pCx, y: pCy,
       count: ringCount, speed: (5 + g.combo * 0.3) * S,
@@ -383,9 +370,25 @@ function processDropAnim(g) {
   }
 }
 
+// 预分配 marked/visited 数组，避免连锁阶段反复 GC
+let _fmsMarked = null, _fmsVisited = null, _fmsRows = 0, _fmsCols = 0
+function _ensureFmsArrays(rows, cols) {
+  if (_fmsRows === rows && _fmsCols === cols && _fmsMarked) return
+  _fmsRows = rows; _fmsCols = cols
+  _fmsMarked = Array.from({length: rows}, () => new Array(cols))
+  _fmsVisited = Array.from({length: rows}, () => new Array(cols))
+}
+function _clearFmsArray(arr, rows, cols) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) arr[r][c] = false
+  }
+}
+
 function findMatchesSeparate(g) {
   const { ROWS, COLS } = V
-  const marked = Array.from({length:ROWS}, () => Array(COLS).fill(false))
+  _ensureFmsArrays(ROWS, COLS)
+  const marked = _fmsMarked
+  _clearFmsArray(marked, ROWS, COLS)
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c <= COLS-3; c++) {
       const a = cellAttr(g,r,c)
@@ -408,7 +411,8 @@ function findMatchesSeparate(g) {
       }
     }
   }
-  const visited = Array.from({length:ROWS}, () => Array(COLS).fill(false))
+  const visited = _fmsVisited
+  _clearFmsArray(visited, ROWS, COLS)
   const groups = []
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {

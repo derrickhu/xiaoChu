@@ -64,7 +64,7 @@ ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P)
 class Main {
   constructor() {
     this.storage = new Storage()
-    AdManager.init(this.storage)
+    AdManager.init(this.storage, this)
     this.scene = 'loading'
     this.af = 0
 

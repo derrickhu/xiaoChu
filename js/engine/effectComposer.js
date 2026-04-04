@@ -60,27 +60,53 @@ function endGlow(mainCtx, W, H, intensity) {
   mainCtx.restore()
 }
 
-/**
- * 一次性在指定位置绘制辉光光斑（不需要 begin/end）
- * @param {CanvasRenderingContext2D} ctx - 主画布上下文
- * @param {number} x - 中心 X
- * @param {number} y - 中心 Y
- * @param {number} radius - 半径
- * @param {string} color - 颜色
- * @param {number} [alpha=0.4] - 透明度
- */
-function drawGlowSpot(ctx, x, y, radius, color, alpha) {
-  ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
-  ctx.globalAlpha = alpha != null ? alpha : 0.4
-  const g = ctx.createRadialGradient(x, y, 0, x, y, radius)
+// ===== 光斑离屏纹理缓存 =====
+const _spotTexCache = {}
+const _SPOT_TEX_SIZE = 64
+
+function _getSpotTex(color) {
+  if (_spotTexCache[color]) return _spotTexCache[color]
+  if (!P.createOffscreenCanvas) return null
+  const sz = _SPOT_TEX_SIZE
+  const canvas = P.createOffscreenCanvas({ type: '2d', width: sz, height: sz })
+  const c = canvas.getContext('2d')
+  const r = sz / 2
+  const g = c.createRadialGradient(r, r, 0, r, r, r)
   g.addColorStop(0, '#ffffffcc')
   g.addColorStop(0.3, color + 'aa')
   g.addColorStop(0.7, color + '44')
   g.addColorStop(1, 'transparent')
-  ctx.fillStyle = g
-  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill()
+  c.fillStyle = g
+  c.beginPath(); c.arc(r, r, r, 0, Math.PI * 2); c.fill()
+  _spotTexCache[color] = canvas
+  return canvas
+}
+
+/**
+ * 绘制辉光光斑（使用离屏缓存纹理，避免每帧 createRadialGradient）
+ */
+function drawGlowSpot(ctx, x, y, radius, color, alpha) {
+  const tex = _getSpotTex(color)
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = alpha != null ? alpha : 0.4
+  if (tex) {
+    const d = radius * 2
+    ctx.drawImage(tex, x - radius, y - radius, d, d)
+  } else {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, radius)
+    g.addColorStop(0, '#ffffffcc')
+    g.addColorStop(0.3, color + 'aa')
+    g.addColorStop(0.7, color + '44')
+    g.addColorStop(1, 'transparent')
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill()
+  }
   ctx.restore()
 }
 
-module.exports = { beginGlow, endGlow, drawGlowSpot }
+function clearSpotTexCache() {
+  for (const key in _spotTexCache) delete _spotTexCache[key]
+}
+
+module.exports = { beginGlow, endGlow, drawGlowSpot, clearSpotTexCache }

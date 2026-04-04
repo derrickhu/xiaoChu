@@ -20,6 +20,18 @@ function _rewardText(r) {
   return parts.join(' ')
 }
 
+/** 周签到单格内多行奖励（顺序固定，避免 if/else 互相吞掉） */
+function _loginCellRewardLines(rewards) {
+  if (!rewards) return []
+  const lines = []
+  if (rewards.petChoice) lines.push({ text: 'SR宠', key: 'pet' })
+  if (rewards.soulStone) lines.push({ text: rewards.soulStone + '灵', key: 'ss' })
+  if (rewards.fragment) lines.push({ text: rewards.fragment + '碎', key: 'frag' })
+  if (rewards.awakenStone) lines.push({ text: rewards.awakenStone + '觉', key: 'awake' })
+  if (rewards.stamina) lines.push({ text: rewards.stamina + '体', key: 'stam' })
+  return lines
+}
+
 function _rr(c, x, y, w, h, r) {
   c.beginPath()
   c.moveTo(x + r, y); c.lineTo(x + w - r, y)
@@ -81,8 +93,11 @@ function rDailyReward(g) {
 
   const cellGap = 5 * S
   const cellW = (innerW - cellGap * 6) / 7
-  const cellH = 56 * S
+  const cellH = 72 * S
   const canSign = g.storage.canSignToday
+  const _loginLineColor = {
+    pet: '#9B59B6', ss: '#B8860B', frag: '#7B5EA7', awake: '#9B59B6', stam: '#3498DB',
+  }
 
   for (let i = 0; i < 7; i++) {
     const cx = innerL + i * (cellW + cellGap)
@@ -113,24 +128,27 @@ function rDailyReward(g) {
 
     const rd = LOGIN_REWARDS[i]
     if (rd) {
-      c.font = `${7*S}px "PingFang SC",sans-serif`
-      if (rd.rewards.petChoice) {
-        c.fillStyle = dayDone ? '#aaa' : '#9B59B6'
-        c.fillText('SR宠', cx + cellW / 2, cy + 26 * S)
-      } else if (rd.rewards.soulStone) {
-        c.fillStyle = dayDone ? '#aaa' : '#B8860B'
-        c.fillText(`${rd.rewards.soulStone}灵`, cx + cellW / 2, cy + 26 * S)
-      } else if (rd.rewards.fragment) {
-        c.fillStyle = dayDone ? '#aaa' : '#7B5EA7'
-        c.fillText(`${rd.rewards.fragment}碎`, cx + cellW / 2, cy + 26 * S)
-      }
-      if (rd.rewards.awakenStone) {
-        c.fillStyle = dayDone ? '#aaa' : '#9B59B6'
-        c.fillText(`${rd.rewards.awakenStone}觉`, cx + cellW / 2, cy + 38 * S)
-      }
-      if (rd.rewards.stamina) {
-        c.fillStyle = dayDone ? '#aaa' : '#3498DB'
-        c.fillText(`${rd.rewards.stamina}体`, cx + cellW / 2, cy + 38 * S)
+      const lines = _loginCellRewardLines(rd.rewards)
+      const n = lines.length
+      if (n > 0) {
+        const fz = (n > 4 ? 6.5 : 7) * S
+        let lineStep = n > 4 ? 8.5 * S : 10 * S
+        const bottomY = cy + cellH - 8 * S
+        const topMin = cy + 17 * S
+        let y0 = bottomY - (n - 1) * lineStep
+        if (n > 1 && y0 < topMin) {
+          lineStep = Math.max(7 * S, (bottomY - topMin) / (n - 1))
+          y0 = topMin
+        } else if (n === 1) {
+          y0 = Math.max(topMin, (topMin + bottomY) / 2)
+        }
+        c.font = `${fz}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        for (let li = 0; li < n; li++) {
+          const row = lines[li]
+          c.fillStyle = dayDone ? '#aaa' : (_loginLineColor[row.key] || '#5a4020')
+          c.fillText(row.text, cx + cellW / 2, y0 + li * lineStep)
+        }
       }
     }
 
@@ -155,15 +173,9 @@ function rDailyReward(g) {
     c.fillText('✓ 今日已签到', W / 2, cy + 10 * S)
     _rects.signBtnRect = null
     if (!g._dailySignDoubled && AdManager.canShow('signDouble')) {
-      const adW = 72 * S, adH = 22 * S
+      const adW = 72 * S, adH = 24 * S
       const adX = W / 2 + 60 * S, adY = cy + 10 * S - adH / 2
-      c.fillStyle = 'rgba(80,160,80,0.15)'
-      _rr(c, adX, adY, adW, adH, adH / 2); c.fill()
-      c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1 * S
-      _rr(c, adX, adY, adW, adH, adH / 2); c.stroke()
-      c.fillStyle = '#408040'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'
-      c.fillText('▶ 翻倍', adX + adW / 2, adY + adH / 2)
+      R.drawDialogBtn(adX, adY, adW, adH, '▶ 翻倍', 'adReward')
       _rects.signAdRect = [adX, adY, adW, adH]
     } else {
       _rects.signAdRect = null
@@ -246,15 +258,9 @@ function rDailyReward(g) {
     c.fillText('✓ 今日任务全部完成', W / 2, cy + 12 * S)
     _rects.allBonusBtnRect = null
     if (!g._dailyTaskDoubled && AdManager.canShow('dailyTaskBonus')) {
-      const adW = 72 * S, adH = 22 * S
+      const adW = 72 * S, adH = 24 * S
       const adX = W / 2 + 80 * S, adY = cy + 12 * S - adH / 2
-      c.fillStyle = 'rgba(80,160,80,0.15)'
-      _rr(c, adX, adY, adW, adH, adH / 2); c.fill()
-      c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1 * S
-      _rr(c, adX, adY, adW, adH, adH / 2); c.stroke()
-      c.fillStyle = '#408040'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'
-      c.fillText('▶ 翻倍', adX + adW / 2, adY + adH / 2)
+      R.drawDialogBtn(adX, adY, adW, adH, '▶ 翻倍', 'adReward')
       _rects.allBonusAdRect = [adX, adY, adW, adH]
     }
   } else {
@@ -293,6 +299,7 @@ function tDailyReward(g, x, y, type) {
   if (_rects.signAdRect && g._hitRect(x, y, ..._rects.signAdRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('signDouble', {
+      fallbackToShare: true,
       onRewarded: () => {
         const sign = g.storage.loginSign
         const rd = LOGIN_REWARDS[(sign.day || 1) - 1]
@@ -340,6 +347,7 @@ function tDailyReward(g, x, y, type) {
   if (_rects.allBonusAdRect && g._hitRect(x, y, ..._rects.allBonusAdRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('dailyTaskBonus', {
+      fallbackToShare: true,
       onRewarded: () => {
         const bonus = getScaledDailyAllBonus(_tch)
         if (bonus.soulStone) g.storage.addSoulStone(bonus.soulStone)

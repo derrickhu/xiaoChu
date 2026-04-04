@@ -4,6 +4,8 @@
 const V = require('../env')
 const { COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL } = require('../../data/tower')
 const { COMBO_MILESTONES, getComboTier, isComboMilestone } = require('../../data/constants')
+const Particles = require('../../engine/particles')
+const FXComposer = require('../../engine/effectComposer')
 
 function drawComboBgEffects(cs) {
   const { ctx, S, W, comboCx, comboCy, baseSz, comboAlpha, isSuper, isMega, glowColor, ca } = cs
@@ -20,12 +22,7 @@ function drawComboBgEffects(cs) {
 
   if (cs.combo >= 3) {
     const burstR = baseSz * (isSuper ? 2.2 : 1.5) * (ca.timer < 10 ? (2.0 - ca.timer / 10) : 1.0)
-    const burstGrd = ctx.createRadialGradient(comboCx, comboCy, 0, comboCx, comboCy, burstR)
-    burstGrd.addColorStop(0, glowColor + (isSuper ? '66' : '44'))
-    burstGrd.addColorStop(0.5, glowColor + '18')
-    burstGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = burstGrd
-    ctx.fillRect(comboCx - burstR, comboCy - burstR, burstR*2, burstR*2)
+    FXComposer.drawGlowSpot(ctx, comboCx, comboCy, burstR, glowColor, isSuper ? 0.4 : 0.25)
   }
 
   if (isSuper && ca.timer < 20) {
@@ -245,57 +242,60 @@ function drawComboVFX(g) {
 
   if (g._comboParticles.length > 0) {
     ctx.save()
-    g._comboParticles.forEach(p => {
+    for (let pi = 0; pi < g._comboParticles.length; pi++) {
+      const p = g._comboParticles[pi]
+      if (p._dead) continue
       const lifeP = p.t / p.life
       const alpha = lifeP < 0.3 ? 1 : 1 - (lifeP - 0.3) / 0.7
       const sz = p.size * (lifeP < 0.2 ? 0.5 + lifeP / 0.2 * 0.5 : 1 - (lifeP - 0.2) * 0.4)
+      if (alpha <= 0.01 || sz <= 0.1) continue
       ctx.globalAlpha = alpha * 0.9
-      ctx.fillStyle = p.color
       if (p.type === 'star') {
-        ctx.save()
-        ctx.translate(p.x, p.y)
-        ctx.rotate(p.t * 0.15)
-        ctx.beginPath()
-        for (let i = 0; i < 10; i++) {
-          const a = (i * Math.PI) / 5 - Math.PI / 2
-          const r = i % 2 === 0 ? sz * 1.2 : sz * 0.5
-          i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
+        ctx.fillStyle = p.color
+        const tex = Particles.getStarTexture(p.color, Math.ceil(sz * 1.2))
+        if (tex) {
+          ctx.save()
+          ctx.translate(p.x, p.y)
+          ctx.rotate(p.t * 0.15)
+          const tw = tex.width || sz * 2.4
+          ctx.drawImage(tex, -tw / 2, -tw / 2)
+          ctx.restore()
+        } else {
+          ctx.save()
+          ctx.translate(p.x, p.y); ctx.rotate(p.t * 0.15)
+          ctx.beginPath()
+          for (let i = 0; i < 10; i++) {
+            const a = (i * Math.PI) / 5 - Math.PI / 2
+            const r = i % 2 === 0 ? sz * 1.2 : sz * 0.5
+            i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
+          }
+          ctx.closePath(); ctx.fill()
+          ctx.restore()
         }
-        ctx.closePath(); ctx.fill()
-        ctx.restore()
       } else {
-        ctx.shadowColor = p.color; ctx.shadowBlur = sz * 2
-        ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, Math.PI * 2); ctx.fill()
-        ctx.shadowBlur = 0
+        const tex = Particles.getGlowTexture(p.color, Math.ceil(sz))
+        if (tex) {
+          const tw = tex.width || sz * 2
+          ctx.drawImage(tex, p.x - tw / 2, p.y - tw / 2)
+        } else {
+          ctx.fillStyle = p.color
+          ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, Math.PI * 2); ctx.fill()
+        }
       }
-    })
+    }
     ctx.restore()
   }
 
   if (g._comboFlash > 0 && g.combo >= 2) {
-    ctx.save()
     const flashAlpha = (g._comboFlash / 8) * (g.combo >= 12 ? 0.4 : g.combo >= 8 ? 0.3 : 0.2)
     const flashCy = g.boardY + (ROWS * g.cellSize) * 0.32
     const flashR = (g.combo >= 12 ? 120 : g.combo >= 8 ? 90 : g.combo >= 5 ? 70 : 50) * S
-    const flashGrd = ctx.createRadialGradient(W*0.5, flashCy, 0, W*0.5, flashCy, flashR)
-    flashGrd.addColorStop(0, `rgba(255,255,255,${flashAlpha})`)
-    flashGrd.addColorStop(0.5, `rgba(255,255,240,${flashAlpha * 0.5})`)
-    flashGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = flashGrd
-    ctx.fillRect(W*0.5 - flashR, flashCy - flashR, flashR * 2, flashR * 2)
-    ctx.restore()
+    FXComposer.drawGlowSpot(ctx, W*0.5, flashCy, flashR, '#fffff0', flashAlpha)
   }
 
   if (g._blockFlash > 0) {
-    ctx.save()
     const bfAlpha = (g._blockFlash / 12) * 0.35
-    const bfGrd = ctx.createRadialGradient(W*0.5, H*0.5, 0, W*0.5, H*0.5, 200*S)
-    bfGrd.addColorStop(0, `rgba(64,232,255,${bfAlpha})`)
-    bfGrd.addColorStop(0.4, `rgba(125,223,255,${bfAlpha * 0.5})`)
-    bfGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = bfGrd
-    ctx.fillRect(0, 0, W, H)
-    ctx.restore()
+    FXComposer.drawGlowSpot(ctx, W*0.5, H*0.5, 200*S, '#7DE8FF', bfAlpha)
     g._blockFlash--
   }
 
@@ -307,10 +307,7 @@ function drawComboVFX(g) {
     ctx.fillRect(0, 0, W, H)
     if (g._heroHurtFlash > 6) {
       const vigR = Math.min(W, H) * 0.7
-      const vigGrd = ctx.createRadialGradient(W*0.5, H*0.5, vigR*0.5, W*0.5, H*0.5, vigR)
-      vigGrd.addColorStop(0, 'transparent')
-      vigGrd.addColorStop(1, `rgba(180,0,0,${hfP * 0.3})`)
-      ctx.fillStyle = vigGrd
+      ctx.fillStyle = `rgba(180,0,0,${hfP * 0.15})`
       ctx.fillRect(0, 0, W, H)
     }
     ctx.restore()
@@ -328,17 +325,9 @@ function drawComboVFX(g) {
   }
 
   if (g._counterFlash && g._counterFlash.timer > 0) {
-    ctx.save()
     const cfAlpha = (g._counterFlash.timer / 10) * 0.35
     const cfColor = g._counterFlash.color || '#ffd700'
-    const cfGrd = ctx.createRadialGradient(W*0.5, g._getEnemyCenterY(), 0, W*0.5, g._getEnemyCenterY(), W*0.5)
-    cfGrd.addColorStop(0, cfColor)
-    cfGrd.addColorStop(0.4, cfColor + '88')
-    cfGrd.addColorStop(1, 'transparent')
-    ctx.globalAlpha = cfAlpha
-    ctx.fillStyle = cfGrd
-    ctx.fillRect(0, 0, W, H)
-    ctx.restore()
+    FXComposer.drawGlowSpot(ctx, W*0.5, g._getEnemyCenterY(), W*0.5, cfColor, cfAlpha)
   }
 }
 

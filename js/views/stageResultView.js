@@ -1259,13 +1259,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   if (result.victory && !result.adDoubled && AdManager.canShow('settleDouble')) {
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
     const adBtnX = (W - adBtnW) / 2, adBtnY = cy
-    c.fillStyle = 'rgba(80,160,80,0.12)'
-    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.fill()
-    c.strokeStyle = 'rgba(80,160,80,0.4)'; c.lineWidth = 1.5 * S
-    R.rr(adBtnX, adBtnY, adBtnW, adBtnH, 8 * S); c.stroke()
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillStyle = '#408040'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.fillText('▶ 看广告 灵石/碎片翻倍', W / 2, adBtnY + adBtnH / 2)
+    R.drawDialogBtn(adBtnX, adBtnY, adBtnW, adBtnH, '▶ 看广告 灵石/碎片翻倍', 'adReward')
     _rects.adDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
     cy += 44 * S
   } else if (result.adDoubled) {
@@ -1929,6 +1923,7 @@ function tStageResult(g, x, y, type) {
   if (_rects.adDoubleBtnRect && g._hitRect(x, y, ..._rects.adDoubleBtnRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('settleDouble', {
+      fallbackToShare: true,
       onRewarded: () => {
         const r = g._stageResult
         if (!r || r.adDoubled) return

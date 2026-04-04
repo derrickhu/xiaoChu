@@ -219,6 +219,16 @@ function drawBoard(g) {
   ctx.strokeStyle = 'rgba(80,80,120,0.5)'; ctx.lineWidth = 1.5*S
   R.rr(bx-3*S, by-3*S, boardW+6*S, boardH+6*S, 6*S); ctx.stroke()
 
+  // 消除格 Set 化：O(1) 查表替代 O(N) 线性扫描
+  let _elimSet = null
+  if (g.elimAnimCells) {
+    _elimSet = new Set()
+    for (let i = 0; i < g.elimAnimCells.length; i++) {
+      const ec = g.elimAnimCells[i]
+      _elimSet.add(ec.r * COLS + ec.c)
+    }
+  }
+
   const tileDark = R.getImg('assets/backgrounds/board_bg_dark1.jpg')
   const tileLight = R.getImg('assets/backgrounds/board_bg_light1.jpg')
 
@@ -235,8 +245,9 @@ function drawBoard(g) {
       }
       const cell = g.board[r] && g.board[r][c]
       if (!cell) continue
-      if (g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c)) {
-        const ep = g.elimAnimTimer / 16  // 0→1 消除进度（16帧）
+      const _isElimCell = _elimSet && _elimSet.has(r * COLS + c)
+      if (_isElimCell) {
+        const ep = g.elimAnimTimer / 16
         const elimColor = (ATTR_COLOR[g.elimAnimCells[0].attr] && ATTR_COLOR[g.elimAnimCells[0].attr].main) || '#ffffff'
         // 阶段1（0-0.3）：高亮放大脉冲
         // 阶段2（0.3-0.7）：缩小 + 属性色发光
@@ -256,32 +267,13 @@ function drawBoard(g) {
           beadScale = 0.6 * (1 - p3)
         }
         ctx.globalAlpha = beadAlpha
-        // 属性色光晕（全程）
-        ctx.save()
-        ctx.globalCompositeOperation = 'lighter'
         const glowIntensity = ep < 0.3 ? ep / 0.3 * 0.7 : (1 - ep) * 0.8
-        ctx.globalAlpha = glowIntensity
         const glowR2 = cs * (0.5 + ep * 0.3)
-        const grd = ctx.createRadialGradient(x+cs*0.5, y+cs*0.5, 0, x+cs*0.5, y+cs*0.5, glowR2)
-        grd.addColorStop(0, '#fff')
-        grd.addColorStop(0.4, elimColor + 'aa')
-        grd.addColorStop(1, 'transparent')
-        ctx.fillStyle = grd
-        ctx.beginPath(); ctx.arc(x+cs*0.5, y+cs*0.5, glowR2, 0, Math.PI*2); ctx.fill()
-        ctx.restore()
-        // 4+消除额外强光
+        FXComposer.drawGlowSpot(ctx, x+cs*0.5, y+cs*0.5, glowR2, elimColor, glowIntensity)
         if (g.elimAnimCells.length >= 4) {
-          ctx.save()
-          ctx.globalCompositeOperation = 'lighter'
-          ctx.globalAlpha = glowIntensity * (g.elimAnimCells.length >= 5 ? 0.6 : 0.35)
           const bigGlowR = cs * (0.7 + ep * 0.4)
-          const grd2 = ctx.createRadialGradient(x+cs*0.5, y+cs*0.5, 0, x+cs*0.5, y+cs*0.5, bigGlowR)
-          grd2.addColorStop(0, '#fff')
-          grd2.addColorStop(0.3, elimColor)
-          grd2.addColorStop(1, 'transparent')
-          ctx.fillStyle = grd2
-          ctx.beginPath(); ctx.arc(x+cs*0.5, y+cs*0.5, bigGlowR, 0, Math.PI*2); ctx.fill()
-          ctx.restore()
+          FXComposer.drawGlowSpot(ctx, x+cs*0.5, y+cs*0.5, bigGlowR, elimColor,
+            glowIntensity * (g.elimAnimCells.length >= 5 ? 0.6 : 0.35))
         }
         // 缩放珠子（消除进行中始终开启save，确保配对）
         ctx.save()
@@ -308,26 +300,17 @@ function drawBoard(g) {
       R.drawBead(drawX+cs*0.5, drawY+cs*0.5, beadR, attr, g.af)
       // 有效珠子：攻击属性剑标记 / 心珠+标记（仅标记有效珠，不暗化无效珠）
       const _isEffective = attr === 'heart' || teamAttrs.has(attr)
-      if (_isEffective && !(g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c))) {
+      if (_isEffective && !_isElimCell) {
         _drawOrbIndicator(ctx, drawX, drawY, cs, beadR, attr, g.af, S)
       }
       // 新手引导：高亮可消除的宠物属性珠组
       if (_nbHighlight && _nbHighlight.has(r * COLS + c)) {
         const _nbc = ATTR_COLOR[attr]
         const _nbPulse = 0.25 + 0.2 * Math.sin(g.af * 0.1 + r * 0.5 + c * 0.7)
-        ctx.save()
-        ctx.globalCompositeOperation = 'lighter'
-        ctx.globalAlpha = _nbPulse
-        const _nbGrd = ctx.createRadialGradient(drawX+cs*0.5, drawY+cs*0.5, 0, drawX+cs*0.5, drawY+cs*0.5, beadR * 1.2)
-        _nbGrd.addColorStop(0, '#fff')
-        _nbGrd.addColorStop(0.5, (_nbc && _nbc.main) || '#ffd700')
-        _nbGrd.addColorStop(1, 'transparent')
-        ctx.fillStyle = _nbGrd
-        ctx.beginPath(); ctx.arc(drawX+cs*0.5, drawY+cs*0.5, beadR * 1.2, 0, Math.PI*2); ctx.fill()
-        ctx.restore()
+        FXComposer.drawGlowSpot(ctx, drawX+cs*0.5, drawY+cs*0.5, beadR * 1.2,
+          (_nbc && _nbc.main) || '#ffd700', _nbPulse)
       }
-      // 关闭消除缩放
-      if (g.elimAnimCells && g.elimAnimCells.some(ec => ec.r === r && ec.c === c)) {
+      if (_isElimCell) {
         ctx.restore()
       }
       // 变珠升级特效（三阶段：聚能→爆变→余韵）
@@ -466,12 +449,7 @@ function drawBoard(g) {
     ctx.translate(g.dragCurX, g.dragCurY)
     ctx.scale(dragScale, dragScale)
     ctx.translate(-g.dragCurX, -g.dragCurY)
-    // 拖拽发光光晕
-    const dragGlow = ctx.createRadialGradient(g.dragCurX, g.dragCurY, beadR*0.5, g.dragCurX, g.dragCurY, beadR*1.6)
-    dragGlow.addColorStop(0, dragColor + '44')
-    dragGlow.addColorStop(1, 'transparent')
-    ctx.fillStyle = dragGlow
-    ctx.beginPath(); ctx.arc(g.dragCurX, g.dragCurY, beadR*1.6, 0, Math.PI*2); ctx.fill()
+    FXComposer.drawGlowSpot(ctx, g.dragCurX, g.dragCurY, beadR*1.6, dragColor, 0.25)
     R.drawBead(g.dragCurX, g.dragCurY, beadR, g.dragAttr, g.af)
     ctx.restore()
   } else {

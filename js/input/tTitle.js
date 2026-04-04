@@ -17,6 +17,7 @@ function _checkTowerDailyLimit(g) {
   if (adLeft > 0) {
     const AdManager = require('../adManager')
     AdManager.showRewardedVideo('towerExtraRun', {
+      fallbackToShare: true,
       onRewarded: function () {
         g.storage.recordTowerAdRun()
         g.setScene('towerTeam')

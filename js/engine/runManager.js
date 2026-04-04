@@ -475,6 +475,7 @@ function doAdRevive(g, W, H) {
   const AdManager = require('../adManager')
   if (AdManager.canShow('revive')) {
     AdManager.showRewardedVideo('revive', {
+      fallbackToShare: true,
       onRewarded: () => { adReviveCallback(g, W, H) },
       onSkipped: () => { /* 中途关闭不发奖 */ },
       onError: () => {

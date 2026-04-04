@@ -27,6 +27,7 @@ const TH = {
 class Render {
   constructor(ctx, W, H, S, safeTop) {
     this.ctx = ctx; this.W = W; this.H = H; this.S = S; this.safeTop = safeTop
+    this._P = P
     this._imgCache = {}
     this._imgAccess = {}   // path → 最后访问帧号，用于 LRU 淘汰
     this._imgFrame = 0     // 全局帧计数器（每次 getImg 时递增）
@@ -125,6 +126,8 @@ class Render {
         delete this._imgAccess[path]
       }
     }
+    this._beadTexCache = null
+    this._beadTexSrcVer = null
   }
 
   /**
@@ -346,31 +349,48 @@ class Render {
     }
   }
 
-  // ===== 灵珠 =====
+  // ===== 灵珠（离屏缓存圆形纹理，避免每帧 clip） =====
   drawBead(x,y,r,attr,frame) {
     const {ctx:c,S} = this
     const a = A[attr]
     if (!a) return
     const img = this.getImg(`assets/orbs/orb_${attr}.png`)
     if (img && img.width > 0) {
-      // 圆形裁剪：只显示球体，隐藏背景色
-      c.save()
-      c.imageSmoothingEnabled = true
-      c.imageSmoothingQuality = 'high'
-      c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.clip()
-      // 1:1绘制，珠子图案刚好填满圆形裁剪区域
       const sz = r * 2
-      c.drawImage(img, x - sz/2, y - sz/2, sz, sz)
-      c.restore()
+      const texKey = `bead_${attr}_${Math.round(sz)}`
+      let tex = this._beadTexCache && this._beadTexCache[texKey]
+      if (!tex && this._P && this._P.createOffscreenCanvas) {
+        if (!this._beadTexCache) this._beadTexCache = {}
+        if (!this._beadTexSrcVer) this._beadTexSrcVer = {}
+        const texSz = Math.round(sz)
+        const oc = this._P.createOffscreenCanvas({ type: '2d', width: texSz, height: texSz })
+        const octx = oc.getContext('2d')
+        octx.imageSmoothingEnabled = true
+        octx.imageSmoothingQuality = 'medium'
+        const hr = texSz / 2
+        octx.beginPath(); octx.arc(hr, hr, hr, 0, Math.PI*2); octx.clip()
+        octx.drawImage(img, 0, 0, texSz, texSz)
+        this._beadTexCache[texKey] = oc
+        this._beadTexSrcVer[texKey] = img.width
+        tex = oc
+      }
+      if (tex) {
+        c.drawImage(tex, x - r, y - r, sz, sz)
+      } else {
+        c.save()
+        c.imageSmoothingEnabled = true
+        c.imageSmoothingQuality = 'medium'
+        c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.clip()
+        c.drawImage(img, x - sz/2, y - sz/2, sz, sz)
+        c.restore()
+      }
     } else {
-      // 降级渐变球体
       c.fillStyle = this.cachedRadialGrad(`bead_${attr}`, x-r*0.25, y-r*0.3, r*0.1, x, y, r,
         [[0,a.lt], [0.7,a.main], [1,a.dk]])
       c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill()
       c.fillStyle='rgba(255,255,255,0.35)'
       c.beginPath(); c.ellipse(x-r*0.15,y-r*0.25,r*0.45,r*0.3,0,0,Math.PI*2); c.fill()
     }
-    // 外发光
     if (frame !== undefined) {
       c.save(); c.globalAlpha = 0.15 + 0.08*Math.sin((frame||0)*0.06)
       c.strokeStyle = a.main; c.lineWidth = 2*S
@@ -665,14 +685,25 @@ class Render {
   // ===== 弹窗按钮（图片资源版） =====
   drawDialogBtn(x, y, w, h, text, type) {
     const {ctx:c, S} = this
-    // type: 'confirm' | 'cancel'
-    const imgPath = type === 'confirm' ? 'assets/ui/btn_confirm.png' : 'assets/ui/btn_cancel.png'
+    // type: 'confirm' | 'cancel' | 'adReward'（看广告等激励） | 'gold'（分享等）
+    let imgPath = 'assets/ui/btn_confirm.png'
+    let textFill = '#4A2020'
+    if (type === 'cancel') {
+      imgPath = 'assets/ui/btn_cancel.png'
+      textFill = '#1E2A3A'
+    } else if (type === 'adReward') {
+      imgPath = 'assets/ui/btn_reward_confirm.png'
+      textFill = '#4A2020'
+    } else if (type === 'gold') {
+      imgPath = 'assets/ui/btn_confirm.png'
+      textFill = '#4A2020'
+    }
     const img = this.getImg(imgPath)
     if (img && img.width) {
       c.drawImage(img, x, y, w, h)
       // 叠加文字 — 右偏10%避开左侧装饰图案
       c.save()
-      c.fillStyle = type === 'confirm' ? '#4A2020' : '#1E2A3A'
+      c.fillStyle = textFill
       c.font = `bold ${Math.min(13*S, h*0.38)}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.shadowColor = 'rgba(255,255,255,0.3)'; c.shadowBlur = 1*S
@@ -681,7 +712,7 @@ class Render {
       c.restore()
     } else {
       // fallback: 使用原有drawBtn
-      const clr = type === 'confirm' ? '#e07a5f' : '#5b9bd5'
+      const clr = type === 'cancel' ? '#5b9bd5' : '#e07a5f'
       this.drawBtn(x, y, w, h, text, clr)
     }
   }

@@ -434,7 +434,8 @@ function drawDivider(c, S, x1, x2, y) {
  * 游戏风格确认弹窗（双按钮：取消 + 确认）
  * 用于替代系统 showModal，保持游戏 UI 一致性。
  *
- * 调用方在 g 上设置 g._confirmDialog = { title, content, confirmText, cancelText, onConfirm, onCancel, timer:0 }
+ * 调用方在 g 上设置 g._confirmDialog = { title, content, confirmText, cancelText, confirmBtnType?, onConfirm, onCancel, timer:0 }
+ * confirmBtnType: 'adReward' 时使用 assets/ui/btn_reward_confirm.png（看广告），缺省为普通确认按钮
  * 每帧调 drawConfirmDialog(g) 绘制；触摸用 handleConfirmDialogTouch(g,x,y) 处理点击。
  * 弹窗结束后自动置 g._confirmDialog = null。
  *
@@ -498,7 +499,7 @@ function drawConfirmDialog(g) {
 
   c.restore() // 缩放 restore
 
-  // 双按钮（面板底部，不受缩放影响以保持点击精度）
+  // 双按钮（面板底部，不受缩放影响以保持点击精度）— btn_cancel / btn_confirm 或看广告 btn_reward_confirm
   var btnGap = 14 * S
   var btnW = (panelW - 52 * S - btnGap) / 2
   var btnH = 38 * S
@@ -506,34 +507,9 @@ function drawConfirmDialog(g) {
   var btnLeftX = px + 26 * S
   var btnRightX = btnLeftX + btnW + btnGap
 
-  // 取消按钮（浅灰底 + 金边）
-  _rr(c, btnLeftX, btnY, btnW, btnH, btnH / 2)
-  c.fillStyle = 'rgba(220,210,190,0.95)'; c.fill()
-  c.strokeStyle = 'rgba(175,135,48,0.5)'; c.lineWidth = 1.5 * S
-  _rr(c, btnLeftX, btnY, btnW, btnH, btnH / 2); c.stroke()
-  c.fillStyle = '#6B5B40'
-  c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(d.cancelText || '取消', btnLeftX + btnW / 2, btnY + btnH / 2)
-
-  // 确认按钮（金色渐变底）
-  var cfmGrd = c.createLinearGradient(btnRightX, btnY, btnRightX, btnY + btnH)
-  cfmGrd.addColorStop(0, '#B8451A'); cfmGrd.addColorStop(0.5, '#9C3512'); cfmGrd.addColorStop(1, '#7A2A0E')
-  _rr(c, btnRightX, btnY, btnW, btnH, btnH / 2)
-  c.fillStyle = cfmGrd; c.fill()
-  c.strokeStyle = '#D4A843'; c.lineWidth = 1.5 * S
-  _rr(c, btnRightX, btnY, btnW, btnH, btnH / 2); c.stroke()
-  // 高光
-  c.save(); c.globalAlpha = 0.18
-  var hl = c.createLinearGradient(btnRightX, btnY, btnRightX, btnY + btnH * 0.4)
-  hl.addColorStop(0, '#fff'); hl.addColorStop(1, 'rgba(255,255,255,0)')
-  c.fillStyle = hl
-  _rr(c, btnRightX + 2*S, btnY + 2*S, btnW - 4*S, btnH * 0.4, btnH / 2); c.fill()
-  c.restore()
-  c.fillStyle = '#FFE8B8'
-  c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(d.confirmText || '确认', btnRightX + btnW / 2, btnY + btnH / 2)
+  R.drawDialogBtn(btnLeftX, btnY, btnW, btnH, d.cancelText || '取消', 'cancel')
+  const confirmKind = d.confirmBtnType === 'adReward' ? 'adReward' : 'confirm'
+  R.drawDialogBtn(btnRightX, btnY, btnW, btnH, d.confirmText || '确认', confirmKind)
 
   // 缓存按钮区域供触摸使用
   d._cancelRect = [btnLeftX, btnY, btnW, btnH]

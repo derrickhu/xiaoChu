@@ -117,6 +117,7 @@ function tGameover(g, type, x, y) {
   if (g._goAdDoubleBtnRect && g._hitRect(x,y,...g._goAdDoubleBtnRect)) {
     const AdManager = require('../adManager')
     AdManager.showRewardedVideo('settleDouble', {
+      fallbackToShare: true,
       onRewarded: function () {
         if (g._goAdDoubled) return
         g._goAdDoubled = true
@@ -341,6 +342,7 @@ function tDex(g, type, x, y) {
             const AdManager = require('../adManager')
             if (AdManager.canShow('dexMilestone')) {
               AdManager.showRewardedVideo('dexMilestone', {
+                fallbackToShare: true,
                 onRewarded: () => {
                   const { ALL_MILESTONES } = require('../data/dexConfig')
                   const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)

@@ -36,15 +36,15 @@ function updateAnimations(g) {
       if (g._petReadyFlash[k] > 0) g._petReadyFlash[k]--
     }
   }
-  // 粒子更新（原地标记，延迟压缩）
-  for (let i = 0; i < g._comboParticles.length; i++) {
+  // 粒子更新（倒序遍历，即时清理死亡粒子）
+  for (let i = g._comboParticles.length - 1; i >= 0; i--) {
     const p = g._comboParticles[i]
-    if (p._dead) continue
+    if (p._dead) { g._comboParticles.splice(i, 1); continue }
     p.t++
     p.x += p.vx; p.y += p.vy
     p.vy += p.gravity
     p.vx *= 0.98
-    if (p.t >= p.life) p._dead = true
+    if (p.t >= p.life) { g._comboParticles.splice(i, 1) }
   }
   const AC_D = _animCfg.dmgFloat
   for (let i = 0; i < g.dmgFloats.length; i++) {
@@ -125,9 +125,7 @@ function updateAnimations(g) {
   _updateBeadConvertAnim(g)
   // Combo弹出动画
   _updateComboAnim(g, S)
-  // 每60帧压缩一次，清理 _dead 元素
   if (_compactFrame % 60 === 0) {
-    g._comboParticles = g._comboParticles.filter(x => !x._dead)
     g.dmgFloats = g.dmgFloats.filter(x => !x._dead)
     g.skillEffects = g.skillEffects.filter(x => !x._dead)
     g.elimFloats = g.elimFloats.filter(x => !x._dead)

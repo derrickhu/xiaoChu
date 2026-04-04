@@ -1,14 +1,19 @@
 /**
  * 广告管理器 — 灵宠消消塔
  * 统一管理激励视频 / 原生模板广告的生命周期、频控、降级
+ * 鸿蒙(ohos)广告填充率低 → 自动降级为分享领奖
  */
 const P = require('./platform')
 const { AD_REWARDS } = require('./data/economyConfig')
 
 let _storage = null
+let _gameRef = null
 const _rvInstances = {}
 const _customInstances = {}
 let _inited = false
+
+const _adReady = {}
+let _adShowFailed = false
 
 function _today() {
   return new Date().toISOString().slice(0, 10)
@@ -47,13 +52,20 @@ function _createRV(adUnitId) {
     console.log('[Ad] 开发者工具环境，模拟激励视频实例:', adUnitId.slice(-6))
     const mock = _createDevToolsMock(adUnitId)
     _rvInstances[adUnitId] = mock
+    _adReady[adUnitId] = true
     return mock
   }
   try {
     const ad = P.createRewardedVideoAd({ adUnitId })
     if (!ad) return null
-    ad.onLoad(() => { console.log('[Ad] 激励视频加载成功:', adUnitId.slice(-6)) })
-    ad.onError((err) => { console.warn('[Ad] 激励视频错误:', adUnitId.slice(-6), err) })
+    ad.onLoad(() => {
+      _adReady[adUnitId] = true
+      console.log('[Ad] 激励视频加载成功:', adUnitId.slice(-6))
+    })
+    ad.onError((err) => {
+      _adReady[adUnitId] = false
+      console.warn('[Ad] 激励视频错误:', adUnitId.slice(-6), err)
+    })
     _rvInstances[adUnitId] = ad
     return ad
   } catch(e) {
@@ -82,21 +94,34 @@ function _createDevToolsMock(adUnitId) {
   }
 }
 
+function _doShareFallback(slotId, callbacks) {
+  const { doShare } = require('./share')
+  console.log('[Ad] 广告不可用，降级为分享:', slotId)
+  P.showGameToast('分享成功即可领取奖励')
+  doShare(_gameRef, 'passive', {})
+  _incLog(slotId)
+  if (callbacks.onRewarded) callbacks.onRewarded()
+}
+
 const AdManager = {
   /**
    * 游戏启动时调用，仅保存 storage 引用。
    * 广告实例采用懒加载：首次 show 时才 createRewardedVideoAd，
    * 避免启动阶段原生视图树未就绪导致 insertTextView/updateTextView 报错。
    */
-  init(storage) {
+  init(storage, gameRef) {
     if (_inited) return
     _inited = true
     _storage = storage
+    _gameRef = gameRef || null
     console.log('[Ad] AdManager 初始化完成（懒加载模式）')
+    if (P.isOHOS) console.log('[Ad] 检测到鸿蒙平台，广告降级策略已启用')
   },
 
+  setGameRef(g) { _gameRef = g },
+
   /**
-   * 检查指定广告位是否可以展示
+   * 检查指定广告位是否可以展示（含分享降级场景）
    */
   canShow(slotId) {
     const cfg = AD_REWARDS[slotId]
@@ -108,6 +133,21 @@ const AdManager = {
     return true
   },
 
+  /**
+   * 广告是否真正就绪（已加载且未出错）
+   * UI 层可用此方法决定显示"看广告"还是"分享"按钮文案
+   */
+  isAdReady(slotId) {
+    const cfg = AD_REWARDS[slotId]
+    if (!cfg || !cfg.adUnitId) return false
+    if (_isDevTools) return true
+    if (_adShowFailed && P.isOHOS) return false
+    return !!_adReady[cfg.adUnitId]
+  },
+
+  /** 曾有广告展示失败记录（鸿蒙降级参考） */
+  hasAdShowFailed() { return _adShowFailed },
+
   getTodayCount(slotId) {
     return _getLog(slotId).count
   },
@@ -118,25 +158,18 @@ const AdManager = {
   },
 
   /**
-   * 展示激励视频广告
-   * @param {string} slotId - AD_REWARDS 中的 key
-   * @param {object} callbacks
-   *   onRewarded()  — 完整观看
-   *   onSkipped()   — 中途关闭
-   *   onError(err)  — 加载/播放失败
-   *   fallbackToShare — 失败时是否降级到分享
-   */
-  /**
    * 体力不足时弹出 Canvas 内确认框（勿用 wx.showModal，部分基础库会报 updateTextView:fail）
    * @returns {boolean} 是否已弹出可看广告恢复的对话框
    */
   openStaminaRecoveryConfirm(g) {
     if (!this.canShow('staminaRecovery')) return false
+    const adReady = this.isAdReady('staminaRecovery')
     g._confirmDialog = {
       title: '体力不足',
-      content: '观看广告可恢复30点体力',
-      confirmText: '看广告',
+      content: adReady ? '观看广告可恢复30点体力' : '分享小游戏可恢复30点体力',
+      confirmText: adReady ? '看广告' : '去分享',
       cancelText: '取消',
+      confirmBtnType: 'adReward',
       timer: 0,
       onConfirm: () => {
         this.showRewardedVideo('staminaRecovery', {
@@ -147,6 +180,7 @@ const AdManager = {
             P.showGameToast('体力恢复+30')
             g._dirty = true
           },
+          fallbackToShare: true,
         })
       },
       onCancel: () => {},
@@ -155,6 +189,15 @@ const AdManager = {
     return true
   },
 
+  /**
+   * 展示激励视频广告
+   * @param {string} slotId - AD_REWARDS 中的 key
+   * @param {object} callbacks
+   *   onRewarded()  — 完整观看 / 分享降级后
+   *   onSkipped()   — 中途关闭
+   *   onError(err)  — 加载/播放失败且无降级
+   *   fallbackToShare — 失败时是否降级到分享（鸿蒙默认 true）
+   */
   showRewardedVideo(slotId, callbacks = {}) {
     const cfg = AD_REWARDS[slotId]
     if (!cfg || !cfg.enabled || !cfg.adUnitId) {
@@ -167,10 +210,24 @@ const AdManager = {
       if (callbacks.onSkipped) callbacks.onSkipped()
       return
     }
+
+    const shouldFallback = callbacks.fallbackToShare !== undefined
+      ? callbacks.fallbackToShare
+      : P.isOHOS
+
+    if (P.isOHOS && _adShowFailed) {
+      _doShareFallback(slotId, callbacks)
+      return
+    }
+
     const ad = _createRV(cfg.adUnitId)
     if (!ad) {
-      console.warn('[Ad] 激励视频实例不可用，平台不支持')
-      if (callbacks.onError) callbacks.onError({ errMsg: 'platform_not_supported' })
+      console.warn('[Ad] 激励视频实例不可用')
+      if (shouldFallback) {
+        _doShareFallback(slotId, callbacks)
+      } else {
+        if (callbacks.onError) callbacks.onError({ errMsg: 'platform_not_supported' })
+      }
       return
     }
 
@@ -189,9 +246,15 @@ const AdManager = {
     ad.show().catch(() => {
       ad.load().then(() => ad.show()).catch((err) => {
         ad.offClose(_onClose)
+        _adShowFailed = true
+        _adReady[cfg.adUnitId] = false
         console.warn('[Ad] 激励视频展示失败:', err)
-        P.showGameToast('广告加载失败，请稍后再试')
-        if (callbacks.onError) callbacks.onError(err)
+        if (shouldFallback) {
+          _doShareFallback(slotId, callbacks)
+        } else {
+          P.showGameToast('广告加载失败，请稍后再试')
+          if (callbacks.onError) callbacks.onError(err)
+        }
       })
     })
   },
