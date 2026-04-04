@@ -1,5 +1,5 @@
 // 云函数：排行榜（提交分数 + 查询排行）
-// 支持3种排行：速通榜(all)、图鉴榜(dex)、连击榜(combo)
+// 支持4种排行：秘境榜(stage)、通天塔(all)、图鉴榜(dex)、连击榜(combo)
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
@@ -13,7 +13,7 @@ exports.main = async (event, context) => {
   // ===== 提交/更新分数（通关时调用）=====
   if (action === 'submit') {
     const t0 = Date.now()
-    const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = event
+    const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo, masteredCount, collectedCount } = event
     if (!floor || floor <= 0) return { code: -1, msg: '无效层数' }
 
     const baseRecord = {
@@ -66,8 +66,7 @@ exports.main = async (event, context) => {
         await db.collection('rankAll').add({ data: baseRecord })
       }
 
-      // 同时更新图鉴榜和连击榜
-      await _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo)
+      await _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo, masteredCount, collectedCount)
 
       console.log('[submit] 完成, 总耗时', Date.now() - t0, 'ms')
       return { code: 0, msg: '提交成功', ms: Date.now() - t0 }
@@ -79,12 +78,52 @@ exports.main = async (event, context) => {
 
   // ===== 单独提交图鉴/连击（非通关时）=====
   if (action === 'submitDexCombo') {
-    const { nickName, avatarUrl, petDexCount, maxCombo } = event
+    const { nickName, avatarUrl, petDexCount, maxCombo, masteredCount, collectedCount } = event
     try {
-      await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo)
+      await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo, masteredCount, collectedCount)
       return { code: 0, msg: '提交成功' }
     } catch (e) {
       return { code: -1, msg: e.message }
+    }
+  }
+
+  // ===== 提交秘境排行 =====
+  if (action === 'submitStage') {
+    const { nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter } = event
+    try {
+      await _updateStageRank(openid, nickName || '修士', avatarUrl || '', totalStars || 0, clearCount || 0, eliteClearCount || 0, farthestChapter || 0)
+      return { code: 0, msg: '提交成功' }
+    } catch (e) {
+      return { code: -1, msg: e.message }
+    }
+  }
+
+  // ===== 查询秘境榜 =====
+  if (action === 'getStage') {
+    try {
+      const res = await db.collection('rankStage')
+        .orderBy('totalStars', 'desc')
+        .orderBy('eliteClearCount', 'desc')
+        .limit(100)
+        .get()
+      const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+        if ((b.totalStars || 0) !== (a.totalStars || 0)) return (b.totalStars || 0) - (a.totalStars || 0)
+        if ((b.eliteClearCount || 0) !== (a.eliteClearCount || 0)) return (b.eliteClearCount || 0) - (a.eliteClearCount || 0)
+        return 0
+      })
+      const list = deduped.slice(0, 50)
+      let myRank = -1
+      const myRes = await db.collection('rankStage').where(_.or([
+        { uid: openid }, { _openid: openid }
+      ])).get()
+      if (myRes.data.length > 0) {
+        const my = myRes.data.sort((a, b) => (b.totalStars || 0) - (a.totalStars || 0))[0]
+        const betterCount = await db.collection('rankStage').where({ totalStars: _.gt(my.totalStars || 0) }).count()
+        myRank = betterCount.total + 1
+      }
+      return { code: 0, list, myRank }
+    } catch (e) {
+      return { code: -1, msg: e.message, list: [] }
     }
   }
 
@@ -94,7 +133,7 @@ exports.main = async (event, context) => {
     const debug = { openid }
     try {
       // 1. 提交分数（如果有）
-      const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo } = event
+      const { nickName, avatarUrl, floor, pets, weapon, totalTurns, petDexCount, maxCombo, masteredCount, collectedCount } = event
       if (floor && floor > 0) {
         const baseRecord = {
           uid: openid,
@@ -132,8 +171,7 @@ exports.main = async (event, context) => {
         }
         debug.submitMs = Date.now() - t0
 
-        // 同时更新图鉴榜和连击榜（并行）
-        await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo)
+        await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo, masteredCount, collectedCount)
         debug.dexComboMs = Date.now() - t0
       }
 
@@ -280,14 +318,18 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ===== 查询图鉴榜 =====
+  // ===== 查询图鉴榜（精通优先；单字段 orderBy 避免缺复合索引时整段失败） =====
   if (action === 'getDex') {
     try {
       const res = await db.collection('rankDex')
-        .orderBy('petDexCount', 'desc')
+        .orderBy('masteredCount', 'desc')
         .limit(100)
         .get()
       const deduped = _deduplicateByOpenid(res.data, (a, b) => {
+        const am = a.masteredCount || 0, bm = b.masteredCount || 0
+        if (bm !== am) return bm - am
+        const ac = a.collectedCount || 0, bc = b.collectedCount || 0
+        if (bc !== ac) return bc - ac
         if ((b.petDexCount || 0) !== (a.petDexCount || 0)) return (b.petDexCount || 0) - (a.petDexCount || 0)
         const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0
         const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0
@@ -301,9 +343,16 @@ exports.main = async (event, context) => {
         { _openid: openid }
       ])).get()
       if (myRes.data.length > 0) {
-        const myCount = myRes.data.sort((a, b) => (b.petDexCount || 0) - (a.petDexCount || 0))[0].petDexCount
-        const betterCount = await db.collection('rankDex').where({ petDexCount: _.gt(myCount) }).count()
-        myRank = betterCount.total + 1
+        const my = myRes.data.sort((a, b) => {
+          const am = a.masteredCount || 0, bm = b.masteredCount || 0
+          if (bm !== am) return bm - am
+          const ac = a.collectedCount || 0, bc = b.collectedCount || 0
+          if (bc !== ac) return bc - ac
+          return (b.petDexCount || 0) - (a.petDexCount || 0)
+        })[0]
+        const myM = my.masteredCount || 0
+        const betterM = await db.collection('rankDex').where({ masteredCount: _.gt(myM) }).count()
+        myRank = betterM.total + 1
       }
       return { code: 0, list, myRank }
     } catch (e) {
@@ -391,9 +440,40 @@ function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
   return newFloor > oldFloor
 }
 
+// 更新秘境排行（带去重逻辑）
+async function _updateStageRank(openid, nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter) {
+  if (totalStars <= 0 && clearCount <= 0) return
+  const record = {
+    uid: openid, nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter,
+    timestamp: db.serverDate(),
+  }
+  const exist = await db.collection('rankStage').where(_.or([
+    { _openid: openid }, { uid: openid }
+  ])).get()
+  if (exist.data.length > 1) {
+    const sorted = exist.data.sort((a, b) => (b.totalStars || 0) - (a.totalStars || 0))
+    for (let i = 1; i < sorted.length; i++) {
+      await db.collection('rankStage').doc(sorted[i]._id).remove()
+    }
+    if (totalStars >= (sorted[0].totalStars || 0)) {
+      await db.collection('rankStage').doc(sorted[0]._id).update({ data: record })
+    } else {
+      await db.collection('rankStage').doc(sorted[0]._id).update({ data: { nickName, avatarUrl } })
+    }
+  } else if (exist.data.length === 1) {
+    if (totalStars >= (exist.data[0].totalStars || 0)) {
+      await db.collection('rankStage').doc(exist.data[0]._id).update({ data: record })
+    } else {
+      await db.collection('rankStage').doc(exist.data[0]._id).update({ data: { nickName, avatarUrl } })
+    }
+  } else {
+    await db.collection('rankStage').add({ data: record })
+  }
+}
+
 // 更新图鉴榜和连击榜（带去重逻辑）
-async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo) {
-  // 图鉴榜
+async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo, masteredCount, collectedCount) {
+  // 图鉴榜（精通优先排序）
   if (petDexCount > 0) {
     const dexExist = await db.collection('rankDex').where(_.or([
       { _openid: openid },
@@ -401,21 +481,29 @@ async function _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxComb
     ])).get()
     const dexRecord = {
       uid: openid, nickName, avatarUrl, petDexCount,
+      masteredCount: masteredCount || 0,
+      collectedCount: collectedCount || 0,
       timestamp: db.serverDate(),
     }
+    const _isBetterDex = (newR, oldR) => {
+      const nm = newR.masteredCount || 0, om = oldR.masteredCount || 0
+      if (nm !== om) return nm > om
+      const nc = newR.collectedCount || 0, oc = oldR.collectedCount || 0
+      if (nc !== oc) return nc > oc
+      return (newR.petDexCount || 0) >= (oldR.petDexCount || 0)
+    }
     if (dexExist.data.length > 1) {
-      // 去重
-      const sorted = dexExist.data.sort((a, b) => (b.petDexCount || 0) - (a.petDexCount || 0))
+      const sorted = dexExist.data.sort((a, b) => (b.masteredCount || b.petDexCount || 0) - (a.masteredCount || a.petDexCount || 0))
       for (let i = 1; i < sorted.length; i++) {
         await db.collection('rankDex').doc(sorted[i]._id).remove()
       }
-      if (petDexCount >= (sorted[0].petDexCount || 0)) {
+      if (_isBetterDex(dexRecord, sorted[0])) {
         await db.collection('rankDex').doc(sorted[0]._id).update({ data: dexRecord })
       } else {
         await db.collection('rankDex').doc(sorted[0]._id).update({ data: { nickName, avatarUrl } })
       }
     } else if (dexExist.data.length === 1) {
-      if (petDexCount >= (dexExist.data[0].petDexCount || 0)) {
+      if (_isBetterDex(dexRecord, dexExist.data[0])) {
         await db.collection('rankDex').doc(dexExist.data[0]._id).update({ data: dexRecord })
       } else {
         await db.collection('rankDex').doc(dexExist.data[0]._id).update({

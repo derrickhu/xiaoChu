@@ -398,6 +398,10 @@ function settleStage(g) {
     milestoneRewards,
   }
 
+  if (g.storage.userAuthorized && !g._isGM) {
+    g.storage.submitStageRanking()
+  }
+
   g.setScene('stageResult')
 }
 

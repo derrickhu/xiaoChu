@@ -1,6 +1,6 @@
 /**
  * 全局数值常量集中管理 — 灵宠消消塔
- * 各域名前缀: STAMINA_*, CLOUD_*, RANK_*, TOWER_*, CULT_*, POOL_*, IDLE_*
+ * 各域名前缀: STAMINA_*, CLOUD_*, RANK_*, TOWER_*, CULT_*, POOL_*, DEX_*, IDLE_*
  */
 
 // ===== 体力系统 (STAMINA) =====
@@ -163,6 +163,27 @@ const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 /** 新手教学赠送宠物 ID：金/木/水 3 只，秘境 1-1 和通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1']
 
+// ===== 灵兽图鉴页 (DEX) =====
+// 须与 screens.rDex 中 drawPageTitle、bottomBar.drawPageTitle(bgH=48×S) 一致，避免统计行与 name_bg 重叠
+const DEX_LAYOUT = {
+  titleCenterBelowSafePt: 40,
+  nameBgHalfHPt: 24,
+  gapTitleToDividerPt: 6,
+  gapDividerToSummaryPt: 12,
+  gapSummaryToTabPt: 12,
+  tabHPt: 26,
+  contentGapBelowTabPt: 6,
+}
+
+/** @param {number} safeTop @param {number} S */
+function getDexContentTop(safeTop, S) {
+  const titleBottom = safeTop + (DEX_LAYOUT.titleCenterBelowSafePt + DEX_LAYOUT.nameBgHalfHPt) * S
+  const sdivY = titleBottom + DEX_LAYOUT.gapTitleToDividerPt * S
+  const summaryY = sdivY + DEX_LAYOUT.gapDividerToSummaryPt * S
+  const tabY = summaryY + DEX_LAYOUT.gapSummaryToTabPt * S
+  return tabY + DEX_LAYOUT.tabHPt * S + DEX_LAYOUT.contentGapBelowTabPt * S
+}
+
 module.exports = {
   // STAMINA
   STAMINA_RECOVER_INTERVAL_MS,
@@ -229,4 +250,6 @@ module.exports = {
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   NEWBIE_PET_IDS,
+  DEX_LAYOUT,
+  getDexContentTop,
 }

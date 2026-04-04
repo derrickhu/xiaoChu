@@ -577,11 +577,11 @@ class Main {
         }
       } catch(e) {}
     }
-    this.rankTab = 'all'
+    this.rankTab = 'stage'
     this.rankScrollY = 0
     this.setScene('ranking')
-    const needSubmit = this.storage.userAuthorized && this.storage.bestFloor > 0
-    await this.storage.fetchRankingCombined('all', needSubmit)
+    const needSubmit = this.storage.userAuthorized
+    await this.storage.fetchRankingCombined('stage', needSubmit)
     console.log('[Ranking] 排行榜加载完成, 总耗时', Date.now() - t0, 'ms')
   }
 

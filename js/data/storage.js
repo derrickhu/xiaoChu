@@ -247,16 +247,28 @@ class Storage {
       this.userAuthorized = true
     }
     this._ranking = new RankingService({
-      getContext: () => ({
-        userAuthorized: this.userAuthorized,
-        userInfo: this.userInfo,
-        petDexCount: (this._d.petPool || []).length,
-        maxCombo: this._d.stats.maxCombo || 0,
-        bestFloor: this.bestFloor,
-        bestFloorPets: this.stats.bestFloorPets || [],
-        bestFloorWeapon: this.stats.bestFloorWeapon,
-        bestTotalTurns: this.stats.bestTotalTurns || 0,
-      }),
+      getContext: () => {
+        const { getDexProgress } = require('./dexConfig')
+        const pool = this._d.petPool || []
+        const dexProg = getDexProgress(pool)
+        return {
+          userAuthorized: this.userAuthorized,
+          userInfo: this.userInfo,
+          petDexCount: pool.length,
+          masteredCount: dexProg.mastered.length,
+          collectedCount: dexProg.collected.length,
+          maxCombo: this._d.stats.maxCombo || 0,
+          avgCombo: this._d.stats.totalBattles > 0 ? Math.round(this._d.stats.totalCombos / this._d.stats.totalBattles * 10) / 10 : 0,
+          bestFloor: this.bestFloor,
+          bestFloorPets: this.stats.bestFloorPets || [],
+          bestFloorWeapon: this.stats.bestFloorWeapon,
+          bestTotalTurns: this.stats.bestTotalTurns || 0,
+          stageTotalStars: this.getStageTotalStars(),
+          stageClearCount: this.getStageClearCount(),
+          stageEliteClearCount: this.getStageEliteClearCount(),
+          farthestChapter: this.getFarthestChapter(),
+        }
+      },
       markDirty: () => { if (this._eventBus) this._eventBus.emit('ranking:dirty') },
     })
     this._initCloud()
@@ -935,6 +947,47 @@ class Storage {
     return total
   }
 
+  // ===== 秘境排行统计 =====
+
+  getStageTotalStars() {
+    const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
+    const rec = this._d.stageClearRecord || {}
+    let total = 0
+    for (const id of Object.keys(rec)) {
+      if (rec[id].cleared) total += RATING_TO_STARS[rec[id].bestRating] || 0
+    }
+    return total
+  }
+
+  getStageClearCount() {
+    const rec = this._d.stageClearRecord || {}
+    let count = 0
+    for (const id of Object.keys(rec)) {
+      if (rec[id].cleared && !id.endsWith('_elite')) count++
+    }
+    return count
+  }
+
+  getStageEliteClearCount() {
+    const rec = this._d.stageClearRecord || {}
+    let count = 0
+    for (const id of Object.keys(rec)) {
+      if (rec[id].cleared && id.endsWith('_elite')) count++
+    }
+    return count
+  }
+
+  getFarthestChapter() {
+    const rec = this._d.stageClearRecord || {}
+    let max = 0
+    for (const id of Object.keys(rec)) {
+      if (!rec[id].cleared) continue
+      const m = id.match(/^stage_(\d+)_/)
+      if (m) max = Math.max(max, parseInt(m[1], 10))
+    }
+    return max
+  }
+
   // ===== 每日挑战次数 =====
 
   _refreshDailyChallenges() {
@@ -1457,6 +1510,10 @@ class Storage {
   set rankDexList(v) { this._ranking.rankDexList = v }
   get rankComboList() { return this._ranking.rankComboList }
   set rankComboList(v) { this._ranking.rankComboList = v }
+  get rankStageList() { return this._ranking.rankStageList }
+  set rankStageList(v) { this._ranking.rankStageList = v }
+  get rankStageMyRank() { return this._ranking.rankStageMyRank }
+  set rankStageMyRank(v) { this._ranking.rankStageMyRank = v }
   get rankAllMyRank() { return this._ranking.rankAllMyRank }
   set rankAllMyRank(v) { this._ranking.rankAllMyRank = v }
   get rankDexMyRank() { return this._ranking.rankDexMyRank }
@@ -1477,6 +1534,9 @@ class Storage {
   }
   submitDexAndCombo() {
     return this._ranking.submitDexAndCombo()
+  }
+  submitStageRanking() {
+    return this._ranking.submitStageRanking()
   }
   fetchRanking(tab, force) {
     return this._ranking.fetchRanking(tab, force)

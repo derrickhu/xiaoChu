@@ -146,8 +146,8 @@ function initState(g) {
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
 
-  // ===== 排行榜 =====
-  g.rankTab = 'all'
+  // ===== 排行榜（与 screens._RANK_TABS key 一致：stage/tower/dex/combo）=====
+  g.rankTab = 'stage'
   g.rankScrollY = 0
 
   // ===== Phase 2：灵宠池 =====

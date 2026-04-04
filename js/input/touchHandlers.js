@@ -3,6 +3,8 @@
  * 所有函数接收 g (Main实例) 以读写状态
  */
 const V = require('../views/env')
+const { getDexContentTop } = require('../data/constants')
+const { hitTestRankingTab } = require('../views/rankingTabHit')
 const MusicMgr = require('../runtime/music')
 
 const tTitle = require('./tTitle')
@@ -100,6 +102,9 @@ function tGameover(g, type, x, y) {
 function tRanking(g, type, x, y) {
   const { S, H } = V
   const safeTop = V.safeTop
+  if (g.rankTab === 'all' || !['stage', 'tower', 'dex', 'combo'].includes(g.rankTab)) {
+    g.rankTab = 'tower'
+  }
   if (type === 'start') {
     g._rankTouchStartY = y
     g._rankScrollStart = g.rankScrollY || 0
@@ -107,8 +112,9 @@ function tRanking(g, type, x, y) {
   }
   if (type === 'move') {
     const dy = y - (g._rankTouchStartY || y)
-    const tab = g.rankTab || 'all'
-    const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
+    let tab = g.rankTab || 'stage'
+    if (tab === 'all') tab = 'tower'
+    const listMap = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     const list = g.storage[listMap[tab]] || []
     const rowH = 64*S
     const maxScroll = 0
@@ -117,18 +123,20 @@ function tRanking(g, type, x, y) {
     return
   }
   if (type !== 'end') return
-  const dy = Math.abs(y - (g._rankTouchStartY || y))
-  if (dy > 10*S) return
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.setScene('title'); return }
   if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) { g.storage.fetchRanking(g.rankTab, true); return }
-  if (g._rankTabRects) {
-    for (const key of ['all', 'dex', 'combo']) {
-      const rect = g._rankTabRects[key]
-      if (rect && g._hitRect(x, y, ...rect)) {
-        g.rankTab = key; g.rankScrollY = 0; g.storage.fetchRanking(key); return
-      }
+  const tabHit = hitTestRankingTab(x, y)
+  if (tabHit) {
+    if (g.rankTab !== tabHit) {
+      g.rankTab = tabHit
+      g.rankScrollY = 0
+      g._dirty = true
+      g.storage.fetchRanking(tabHit)
     }
+    return
   }
+  const dy = Math.abs(y - (g._rankTouchStartY || y))
+  if (dy > 10*S) return
 }
 
 function tStats(g, type, x, y) {
@@ -208,7 +216,7 @@ function tDex(g, type, x, y) {
     const { getLayout: getDexLayout } = require('../views/bottomBar')
     const L = getDexLayout()
     const { safeTop } = V
-    const tabBottom = safeTop + 72 * V.S + 26 * V.S + 6 * V.S
+    const tabBottom = getDexContentTop(safeTop, V.S)
     const contentH = L.bottomBarY - tabBottom
 
     if (g._dexTab === 'milestone') {
@@ -244,7 +252,7 @@ function tDex(g, type, x, y) {
       }
       if (item.key === 'dex') return
       if (item.key === 'cultivation') { g.setScene('cultivation'); return }
-      if (item.key === 'rank') { g.setScene('ranking'); return }
+      if (item.key === 'rank') { g._openRanking(); return }
       if (item.key === 'stats') { g.setScene('stats'); return }
       if (item.key === 'idle') { g.setScene('idle'); return }
     }

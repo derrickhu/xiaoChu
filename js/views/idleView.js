@@ -405,7 +405,7 @@ function _handleBottomBar(g, x, y, L) {
     g.setScene('petPool'); return
   }
   if (key === 'dex') { g.setScene('dex'); return }
-  if (key === 'rank') { g.setScene('ranking'); return }
+  if (key === 'rank') { g._openRanking(); return }
   if (key === 'stats') { g.setScene('stats'); return }
   if (key === 'more') { g.showMorePanel = true; g.setScene('title'); return }
 }

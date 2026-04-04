@@ -522,7 +522,7 @@ function tCultivation(g, x, y, type) {
             return
           }
           if (item.key === 'dex') { g.setScene('dex'); return }
-          if (item.key === 'rank') { g.setScene('ranking'); return }
+          if (item.key === 'rank') { g._openRanking(); return }
           if (item.key === 'stats') { g.setScene('stats'); return }
           if (item.key === 'more') { g.setScene('title'); return }
           return

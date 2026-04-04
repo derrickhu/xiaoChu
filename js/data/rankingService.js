@@ -18,9 +18,11 @@ class RankingService {
     this._getContext = getContext
     this._markDirty = markDirty || (() => {})
 
+    this.rankStageList = []
     this.rankAllList = []
     this.rankDexList = []
     this.rankComboList = []
+    this.rankStageMyRank = -1
     this.rankAllMyRank = -1
     this.rankDexMyRank = -1
     this.rankComboMyRank = -1
@@ -28,6 +30,8 @@ class RankingService {
     this.rankLoadingMsg = ''
     this.rankLastFetch = 0
     this.rankLastFetchTab = ''
+    this._rankFetchSeq = 0
+    this._rankInflight = 0
   }
 
   get rankLoading() { return this._rankLoading }
@@ -44,10 +48,11 @@ class RankingService {
       return r.result
     }
     const { action, ...rest } = data
-    if (action === 'submit' || action === 'submitDexCombo') {
+    if (action === 'submit' || action === 'submitDexCombo' || action === 'submitStage') {
       return api.submitRanking({ action, ...rest })
     }
     if (action === 'getAll') return api.getRankingList('all')
+    if (action === 'getStage') return api.getRankingList('stage')
     if (action === 'getDex') return api.getRankingList('dex')
     if (action === 'getCombo') return api.getRankingList('combo')
     if (action === 'submitAndGetAll') {
@@ -75,6 +80,8 @@ class RankingService {
         weapon: weapon ? { name: weapon.name } : null,
         totalTurns: totalTurns || 0,
         petDexCount: ctx.petDexCount,
+        masteredCount: ctx.masteredCount,
+        collectedCount: ctx.collectedCount,
         maxCombo: ctx.maxCombo,
       })
       console.log('[Ranking] 提交分数完成, 耗时', Date.now() - t0, 'ms, 结果:', JSON.stringify(result).slice(0, 200))
@@ -89,17 +96,41 @@ class RankingService {
     if (!cloudSync.isReady() || !ctx.userAuthorized) return
     const t0 = Date.now()
     try {
-      console.log('[Ranking] 提交图鉴/连击: dex=', ctx.petDexCount, 'combo=', ctx.maxCombo)
+      console.log('[Ranking] 提交图鉴/连击: dex=', ctx.petDexCount, 'mastered=', ctx.masteredCount, 'combo=', ctx.maxCombo)
       await this._callRanking({
         action: 'submitDexCombo',
         nickName: ctx.userInfo.nickName,
         avatarUrl: ctx.userInfo.avatarUrl,
         petDexCount: ctx.petDexCount,
+        masteredCount: ctx.masteredCount,
+        collectedCount: ctx.collectedCount,
         maxCombo: ctx.maxCombo,
       })
       console.log('[Ranking] 提交图鉴/连击完成, 耗时', Date.now() - t0, 'ms')
     } catch(e) {
       console.warn('[Ranking] 提交图鉴/连击失败, 耗时', Date.now() - t0, 'ms:', e)
+    }
+  }
+
+  async submitStageRanking() {
+    const ctx = this._getContext()
+    if (!cloudSync.isReady() || !ctx.userAuthorized) return
+    if (ctx.stageTotalStars <= 0 && ctx.stageClearCount <= 0) return
+    const t0 = Date.now()
+    try {
+      console.log('[Ranking] 提交秘境: stars=', ctx.stageTotalStars, 'clear=', ctx.stageClearCount, 'elite=', ctx.stageEliteClearCount)
+      await this._callRanking({
+        action: 'submitStage',
+        nickName: ctx.userInfo.nickName,
+        avatarUrl: ctx.userInfo.avatarUrl,
+        totalStars: ctx.stageTotalStars,
+        clearCount: ctx.stageClearCount,
+        eliteClearCount: ctx.stageEliteClearCount,
+        farthestChapter: ctx.farthestChapter,
+      })
+      console.log('[Ranking] 提交秘境完成, 耗时', Date.now() - t0, 'ms')
+    } catch(e) {
+      console.warn('[Ranking] 提交秘境失败, 耗时', Date.now() - t0, 'ms:', e)
     }
   }
 
@@ -117,22 +148,27 @@ class RankingService {
       }
     }
     const now = Date.now()
-    const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
-    const listKey = listMap[tab] || 'rankAllList'
+    const listMap = { stage: 'rankStageList', tower: 'rankAllList', all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
+    const listKey = listMap[tab] || 'rankStageList'
     if (!force && now - this.rankLastFetch < RANK_CACHE_TTL_MS && this.rankLastFetchTab === tab && this[listKey].length > 0) {
       console.log('[Ranking] 命中缓存, 跳过拉取:', tab)
       return
     }
-    if (this.rankLoading) return
+    const seq = ++this._rankFetchSeq
+    this._rankInflight++
     this.rankLoading = true
     this.rankLoadingMsg = '拉取排行中...'
     const t0 = Date.now()
     try {
-      const actionMap = { all: 'getAll', dex: 'getDex', combo: 'getCombo' }
-      const action = actionMap[tab] || 'getAll'
+      const actionMap = { stage: 'getStage', tower: 'getAll', all: 'getAll', dex: 'getDex', combo: 'getCombo' }
+      const action = actionMap[tab] || 'getStage'
       console.log('[Ranking] 开始拉取:', action)
       const result = await this._callRanking({ action })
       const elapsed = Date.now() - t0
+      if (seq !== this._rankFetchSeq) {
+        console.log('[Ranking] 忽略过期的拉取结果:', tab, 'seq=', seq)
+        return
+      }
       console.log('[Ranking] 拉取完成, 耗时', elapsed, 'ms, 结果:', JSON.stringify(result).slice(0, 800))
       if (result && result.debug) {
         console.log('[Ranking] DEBUG:', JSON.stringify(result.debug))
@@ -149,9 +185,13 @@ class RankingService {
       }
     } catch(e) {
       console.error('[Ranking] 拉取失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
+    } finally {
+      this._rankInflight = Math.max(0, this._rankInflight - 1)
+      if (this._rankInflight === 0) {
+        this.rankLoading = false
+        this.rankLoadingMsg = ''
+      }
     }
-    this.rankLoading = false
-    this.rankLoadingMsg = ''
   }
 
   async fetchRankingCombined(tab, needSubmit) {
@@ -168,35 +208,52 @@ class RankingService {
     this.rankLoadingMsg = needSubmit ? '提交并加载中...' : '加载排行中...'
     const t0 = Date.now()
     try {
-      const data = { action: 'submitAndGetAll' }
-      if (needSubmit) {
+      if (tab === 'stage') {
         const ctx = this._getContext()
-        if (ctx.userAuthorized) {
-          data.nickName = ctx.userInfo.nickName
-          data.avatarUrl = ctx.userInfo.avatarUrl
-          data.floor = ctx.bestFloor
-          data.pets = (ctx.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr }))
-          data.weapon = ctx.bestFloorWeapon ? { name: ctx.bestFloorWeapon.name } : null
-          data.totalTurns = ctx.bestTotalTurns || 0
-          data.petDexCount = ctx.petDexCount
-          data.maxCombo = ctx.maxCombo
+        if (needSubmit && ctx.userAuthorized && (ctx.stageTotalStars > 0 || ctx.stageClearCount > 0)) {
+          await this._callRanking({
+            action: 'submitStage',
+            nickName: ctx.userInfo.nickName,
+            avatarUrl: ctx.userInfo.avatarUrl,
+            totalStars: ctx.stageTotalStars,
+            clearCount: ctx.stageClearCount,
+            eliteClearCount: ctx.stageEliteClearCount,
+            farthestChapter: ctx.farthestChapter,
+          })
         }
-      }
-      console.log('[Ranking] 一体化调用, needSubmit=', needSubmit)
-      const result = await this._callRanking(data)
-      const elapsed = Date.now() - t0
-      console.log('[Ranking] 一体化完成, 耗时', elapsed, 'ms')
-      if (result && result.debug) {
-        console.log('[Ranking] DEBUG:', JSON.stringify(result.debug))
-      }
-      if (result && result.code === 0) {
-        this.rankAllList = result.list || []
-        this.rankAllMyRank = result.myRank || -1
-        this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = 'all'
-        console.log('[Ranking] 获取到', this.rankAllList.length, '条记录, myRank=', this.rankAllMyRank)
+        const result = await this._callRanking({ action: 'getStage' })
+        if (result && result.code === 0) {
+          this.rankStageList = result.list || []
+          this.rankStageMyRank = result.myRank || -1
+          this.rankLastFetch = Date.now()
+          this.rankLastFetchTab = 'stage'
+          console.log('[Ranking] 秘境榜获取到', this.rankStageList.length, '条记录')
+        }
       } else {
-        console.warn('[Ranking] 返回错误:', result)
+        const data = { action: 'submitAndGetAll' }
+        if (needSubmit) {
+          const ctx = this._getContext()
+          if (ctx.userAuthorized) {
+            data.nickName = ctx.userInfo.nickName
+            data.avatarUrl = ctx.userInfo.avatarUrl
+            data.floor = ctx.bestFloor
+            data.pets = (ctx.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr }))
+            data.weapon = ctx.bestFloorWeapon ? { name: ctx.bestFloorWeapon.name } : null
+            data.totalTurns = ctx.bestTotalTurns || 0
+            data.petDexCount = ctx.petDexCount
+            data.masteredCount = ctx.masteredCount
+            data.collectedCount = ctx.collectedCount
+            data.maxCombo = ctx.maxCombo
+          }
+        }
+        const result = await this._callRanking(data)
+        if (result && result.code === 0) {
+          this.rankAllList = result.list || []
+          this.rankAllMyRank = result.myRank || -1
+          this.rankLastFetch = Date.now()
+          this.rankLastFetchTab = 'tower'
+          console.log('[Ranking] 通天塔获取到', this.rankAllList.length, '条记录')
+        }
       }
     } catch(e) {
       console.error('[Ranking] 一体化调用失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
@@ -208,15 +265,15 @@ class RankingService {
   async preheatRanking() {
     try {
       const t0 = Date.now()
-      console.log('[Ranking] 预热: 后台静默拉取排行榜...')
-      const result = await this._callRanking({ action: 'getAll' })
+      console.log('[Ranking] 预热: 后台静默拉取秘境榜...')
+      const result = await this._callRanking({ action: 'getStage' })
       const elapsed = Date.now() - t0
       if (result && result.code === 0) {
-        this.rankAllList = result.list || []
-        this.rankAllMyRank = result.myRank || -1
+        this.rankStageList = result.list || []
+        this.rankStageMyRank = result.myRank || -1
         this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = 'all'
-        console.log('[Ranking] 预热完成, 耗时', elapsed, 'ms, 记录数:', this.rankAllList.length)
+        this.rankLastFetchTab = 'stage'
+        console.log('[Ranking] 预热完成, 耗时', elapsed, 'ms, 记录数:', this.rankStageList.length)
       }
     } catch(e) {
       console.warn('[Ranking] 预热失败(不影响使用):', e.message || e)

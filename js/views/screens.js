@@ -13,6 +13,8 @@ const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR
   ELEM_MILESTONES, TOTAL_MILESTONES, RARITY_MILESTONES,
   hasUnclaimedMilestones } = require('../data/dexConfig')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { CHAPTERS } = require('../data/stages')
+const { DEX_LAYOUT, getDexContentTop } = require('../data/constants')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -683,22 +685,29 @@ function _drawGoExpRow(c, R, S, x, cy, innerW, iconName, label, value, labelColo
 }
 
 // ===== Ranking =====
+const _RANK_TABS = [
+  { key: 'stage', label: '秘境榜' },
+  { key: 'tower', label: '通天塔' },
+  { key: 'dex',   label: '图鉴榜' },
+  { key: 'combo', label: '连击榜' },
+]
+const _RANK_LIST_MAP = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
+const _RANK_MY_MAP   = { stage: 'rankStageMyRank', tower: 'rankAllMyRank', dex: 'rankDexMyRank', combo: 'rankComboMyRank' }
+
 function rRanking(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
-  // 轻暖色遮罩，取代原先深黑遮罩
   ctx.fillStyle = 'rgba(240,228,200,0.18)'; ctx.fillRect(0, 0, W, H)
 
   const padX = 12*S
-  const tab = g.rankTab || 'all'
+  let tab = g.rankTab || 'stage'
+  if (tab === 'all' || !_RANK_LIST_MAP[tab]) { tab = 'tower'; g.rankTab = 'tower' }
 
-  // ── 标题区 ──
   drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '排行榜')
 
-  // 刷新按钮（标题右侧，不重叠，放在 name_bg 右边）
+  // 刷新按钮
   const rfW = 40*S, rfH = 22*S
-  const rfX = W - rfW - 14*S
-  const rfY = safeTop + 29 * S
+  const rfX = W - rfW - 14*S, rfY = safeTop + 29 * S
   ctx.save()
   ctx.fillStyle = g.storage.rankLoading ? 'rgba(200,158,60,0.3)' : 'rgba(200,158,60,0.85)'
   R.rr(rfX, rfY, rfW, rfH, rfH*0.5); ctx.fill()
@@ -710,18 +719,13 @@ function rRanking(g) {
   ctx.restore()
   g._rankRefreshRect = [rfX, rfY, rfW, rfH]
 
-  // ── Tab 切换栏 ──
+  // ── Tab 切换栏（4个） ──
   const tabY = safeTop + 70*S, tabH = 30*S
-  const tabs = [
-    { key: 'all', label: '速通榜' },
-    { key: 'dex', label: '图鉴榜' },
-    { key: 'combo', label: '连击榜' },
-  ]
-  const tabGap = 6*S
-  const totalTabW = W - padX*2 - tabGap*(tabs.length-1)
-  const singleTabW = totalTabW / tabs.length
+  const tabGap = 5*S
+  const totalTabW = W - padX*2 - tabGap*(_RANK_TABS.length-1)
+  const singleTabW = totalTabW / _RANK_TABS.length
   g._rankTabRects = {}
-  tabs.forEach((t, i) => {
+  _RANK_TABS.forEach((t, i) => {
     const tx = padX + i * (singleTabW + tabGap)
     const isActive = tab === t.key
     if (isActive) {
@@ -735,7 +739,7 @@ function rRanking(g) {
     ctx.strokeStyle = isActive ? 'rgba(200,140,30,0.5)' : 'rgba(200,158,60,0.3)'
     ctx.lineWidth = 1*S; R.rr(tx, tabY, singleTabW, tabH, tabH*0.5); ctx.stroke()
     ctx.fillStyle = isActive ? '#2a1a00' : '#6B5B40'
-    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
     ctx.fillText(t.label, tx + singleTabW*0.5, tabY + tabH*0.66)
     g._rankTabRects[t.key] = [tx, tabY, singleTabW, tabH]
   })
@@ -746,13 +750,10 @@ function rRanking(g) {
   const listBottom = H - myBarH - 16*S
   const rowH = 64*S
 
-  // 根据Tab选择数据
-  const listMap = { all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
-  const rankMap = { all: 'rankAllMyRank', dex: 'rankDexMyRank', combo: 'rankComboMyRank' }
-  const list = g.storage[listMap[tab]] || []
-  const myRank = g.storage[rankMap[tab]] || -1
+  const list = g.storage[_RANK_LIST_MAP[tab]] || []
+  const myRank = g.storage[_RANK_MY_MAP[tab]] || -1
 
-  // 列表面板背景（暖米黄）
+  // 列表面板背景
   const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
   lpbg.addColorStop(0, 'rgba(252,246,228,0.96)'); lpbg.addColorStop(1, 'rgba(244,234,208,0.96)')
   ctx.fillStyle = lpbg; R.rr(padX, listTop, W - padX*2, listBottom - listTop, 10*S); ctx.fill()
@@ -769,9 +770,8 @@ function rRanking(g) {
   ctx.textAlign = 'left'; ctx.fillText('排名', padX + 10*S, listTop + 17*S)
   ctx.fillText('玩家', padX + 52*S, listTop + 17*S)
   ctx.textAlign = 'right'
-  if (tab === 'dex') ctx.fillText('图鉴数', W - padX - 10*S, listTop + 17*S)
-  else if (tab === 'combo') ctx.fillText('最高连击', W - padX - 10*S, listTop + 17*S)
-  else ctx.fillText('成绩', W - padX - 10*S, listTop + 17*S)
+  const headerLabels = { stage: '总星数', tower: '成绩', dex: '精通数', combo: '最高连击' }
+  ctx.fillText(headerLabels[tab] || '成绩', W - padX - 10*S, listTop + 17*S)
 
   const contentTop = listTop + headerH + 2*S
   ctx.save()
@@ -779,8 +779,7 @@ function rRanking(g) {
 
   if (g.storage.rankLoading && list.length === 0) {
     ctx.fillStyle = '#8B7060'; ctx.font = `${14*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-    const msg = g.storage.rankLoadingMsg || '加载中...'
-    ctx.fillText(msg, W*0.5, contentTop + 60*S)
+    ctx.fillText(g.storage.rankLoadingMsg || '加载中...', W*0.5, contentTop + 60*S)
     const dots = '.'.repeat(Math.floor(Date.now() / 400) % 4)
     ctx.fillStyle = '#b0a090'; ctx.font = `${12*S}px "PingFang SC",sans-serif`
     ctx.fillText(dots, W*0.5, contentTop + 85*S)
@@ -793,7 +792,6 @@ function rRanking(g) {
       const ry = contentTop + i * rowH + (g.rankScrollY || 0)
       if (ry + rowH < contentTop || ry > listBottom) continue
 
-      // 行背景（前三名特殊高亮）
       if (i < 3) {
         const rowGradColors = [
           ['rgba(255,215,0,0.18)', 'rgba(255,215,0,0.06)'],
@@ -808,51 +806,46 @@ function rRanking(g) {
       }
       ctx.fillRect(padX + 2*S, ry + 1*S, W - padX*2 - 4*S, rowH - 3*S)
 
-      // 排名序号（奖牌）
       _drawRankMedal(ctx, R, TH, S, padX, ry, rowH, i)
 
-      // 头像
       const avatarX = padX + 40*S, avatarY = ry + (rowH - 34*S)/2, avatarSz = 34*S
       _drawAvatar(ctx, R, TH, S, item.avatarUrl, avatarX, avatarY, avatarSz, i)
 
-      // 昵称 + 副信息
       const textX = avatarX + avatarSz + 8*S
       ctx.textAlign = 'left'
       ctx.fillStyle = i < 3 ? '#7A4800' : '#3a1a00'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
       ctx.fillText((item.nickName || '修士').substring(0, 8), textX, ry + 26*S)
 
-      // 副信息行（根据Tab不同）
       ctx.fillStyle = '#8B7060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      if (tab === 'all') {
+      const valRight = W - padX - 12*S
+
+      if (tab === 'stage') {
+        const chName = item.farthestChapter ? (CHAPTERS.find(c => c.id === item.farthestChapter) || {}).name || '' : ''
+        ctx.fillText(`通关 ${item.clearCount || 0}/96 · 精英 ${item.eliteClearCount || 0}/96`, textX, ry + 44*S)
+        ctx.textAlign = 'right'
+        ctx.fillStyle = i < 3 ? '#ffd700' : '#e88520'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
+        ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
+        ctx.fillText(`${item.totalStars || 0}`, valRight - 10*S, ry + 28*S)
+        ctx.restore()
+        ctx.fillStyle = '#8B7060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText('★', valRight, ry + 28*S)
+      } else if (tab === 'tower') {
         const petNames = (item.pets || []).map(p => p.name || '?').join(' ')
         const wpnName = item.weapon ? `⚔${item.weapon.name}` : ''
         const subText = `${petNames} ${wpnName}`
-        const maxSubW = W - padX - 12*S - 30*S - textX
-        const subW = ctx.measureText(subText).width
-        if (subW > maxSubW && maxSubW > 0) {
+        const maxSubW = valRight - 30*S - textX
+        // 须用同一布尔控制 save/restore：缩小字体后再 measureText 会变短，若第二次才判断会漏 restore，破坏外层列表 clip，导致返回键被裁掉
+        const shrinkSub = maxSubW > 0 && ctx.measureText(subText).width > maxSubW
+        if (shrinkSub) {
           ctx.save()
-          const subScale = maxSubW / subW
-          ctx.font = `${Math.max(7, Math.floor(9 * subScale))*S}px "PingFang SC",sans-serif`
+          ctx.font = `${Math.max(7, Math.floor(9 * maxSubW / ctx.measureText(subText).width))*S}px "PingFang SC",sans-serif`
         }
         ctx.fillText(subText, textX, ry + 44*S)
-        if (subW > maxSubW && maxSubW > 0) ctx.restore()
-      } else if (tab === 'dex') {
-        ctx.fillText(`已收集 ${item.petDexCount || 0}/100`, textX, ry + 44*S)
-      } else if (tab === 'combo') {
-        ctx.fillText(`最高连击记录`, textX, ry + 44*S)
-      }
-
-      // 右侧数值（根据Tab不同）
-      ctx.textAlign = 'right'
-      if (tab === 'all') {
+        if (shrinkSub) ctx.restore()
+        ctx.textAlign = 'right'
         const turns = item.totalTurns || 0
-        const valRight = W - padX - 12*S
-        ctx.fillStyle = i < 3 ? '#ffd700' : TH.accent; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
-        ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
         const floorY = turns > 0 ? ry + 22*S : ry + 28*S
-        ctx.restore()
-        ctx.save()
-        ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
+        ctx.save(); ctx.textBaseline = 'middle'
         ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
         const layerW = ctx.measureText('层').width
         ctx.fillText('层', valRight, floorY)
@@ -865,27 +858,31 @@ function rRanking(g) {
           ctx.fillText(`${turns}回合`, valRight, ry + 42*S)
         }
       } else if (tab === 'dex') {
-        const dexCount = item.petDexCount || 0
+        const mc = item.masteredCount || 0, cc = item.collectedCount || 0, dc = item.petDexCount || 0
+        ctx.fillText(`收录 ${cc} · 发现 ${dc}`, textX, ry + 44*S)
+        ctx.textAlign = 'right'
+        ctx.fillStyle = '#8B7060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        const unitW = ctx.measureText('精通').width + 2*S
+        ctx.fillText('精通', valRight, ry + 30*S)
         ctx.fillStyle = i < 3 ? '#ffd700' : '#4dcc4d'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
         ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
-        ctx.fillText(`${dexCount}`, W - padX - 12*S, ry + 30*S)
+        ctx.fillText(`${mc}`, valRight - unitW, ry + 30*S)
         ctx.restore()
-        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-        ctx.fillText('/100', W - padX - 12*S, ry + 44*S)
       } else if (tab === 'combo') {
         const combo = item.maxCombo || 0
+        ctx.fillText('最高连击记录', textX, ry + 44*S)
+        ctx.textAlign = 'right'
         ctx.fillStyle = i < 3 ? '#ffd700' : '#ff6b6b'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
         ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
-        ctx.fillText(`${combo}`, W - padX - 12*S, ry + 30*S)
+        ctx.fillText(`${combo}`, valRight - 18*S, ry + 30*S)
         ctx.restore()
-        ctx.fillStyle = TH.dim; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-        ctx.fillText('连击', W - padX - 12*S, ry + 44*S)
+        ctx.fillStyle = '#8B7060'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
+        ctx.fillText('连击', valRight, ry + 30*S)
       }
     }
   }
   ctx.restore()
 
-  // ── 底部我的排名栏 ──
   const myBarY = listBottom + 6*S
   _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab)
 
@@ -994,7 +991,15 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
 
   // 右侧我的数值
   ctx.textAlign = 'right'
-  if (tab === 'all') {
+  if (tab === 'stage') {
+    const stars = g.storage.getStageTotalStars()
+    ctx.fillStyle = '#b86800'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`${stars}`, W - padX - 24*S, myBarY + 24*S)
+    ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText('★', W - padX - 12*S, myBarY + 24*S)
+    ctx.fillStyle = '#7A5020'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`通关${g.storage.getStageClearCount()} 精英${g.storage.getStageEliteClearCount()}`, W - padX - 12*S, myBarY + 42*S)
+  } else if (tab === 'tower') {
     const bestTurns = g.storage.stats.bestTotalTurns || 0
     ctx.fillStyle = '#8B6914'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
     ctx.fillText(`${g.storage.bestFloor}`, W - padX - 30*S, myBarY + 24*S)
@@ -1005,11 +1010,14 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
       ctx.fillText(`${bestTurns}回合`, W - padX - 14*S, myBarY + 42*S)
     }
   } else if (tab === 'dex') {
-    const dexCount = (g.storage.petPool || []).length
+    const { getDexProgress } = require('../data/dexConfig')
+    const prog = getDexProgress(g.storage.petPool)
     ctx.fillStyle = '#2d8c2d'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${dexCount}`, W - padX - 38*S, myBarY + 34*S)
+    ctx.fillText(`${prog.mastered.length}`, W - padX - 32*S, myBarY + 24*S)
     ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText('/100', W - padX - 14*S, myBarY + 34*S)
+    ctx.fillText('精通', W - padX - 12*S, myBarY + 24*S)
+    ctx.fillStyle = '#7A5020'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.fillText(`收录${prog.collected.length} 发现${prog.discovered.length}`, W - padX - 12*S, myBarY + 42*S)
   } else if (tab === 'combo') {
     const mc = g.storage.stats.maxCombo || 0
     ctx.fillStyle = '#c0392b'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`
@@ -1846,10 +1854,10 @@ function drawNewRunConfirm(g) {
 const _DEX_TAB_KEYS = ['all', ...DEX_ATTRS, 'milestone']
 const _DEX_TAB_LABELS = { all:'全部', metal:'金', wood:'木', water:'水', fire:'火', earth:'土', milestone:'里程碑' }
 const _TIER_COLORS = {
-  mastered:   { bg: 'rgba(212,175,55,0.18)', border: '#C8A832', nameColor: '#C89510' },
-  collected:  { bg: 'rgba(255,255,255,0.10)', border: 'rgba(200,180,140,0.5)', nameColor: '#e8d8c0' },
-  discovered: { bg: 'rgba(180,160,120,0.08)', border: 'rgba(160,140,100,0.3)', nameColor: 'rgba(200,180,140,0.7)' },
-  unknown:    { bg: 'rgba(0,0,0,0.25)', border: 'rgba(100,90,70,0.2)', nameColor: 'rgba(255,255,255,0.15)' },
+  mastered:   { bg: 'rgba(212,175,55,0.26)', border: '#C8A832', nameColor: '#4a3206' },
+  collected:  { bg: 'rgba(255,252,248,0.9)', border: 'rgba(120,95,60,0.45)', nameColor: '#3a2f24' },
+  discovered: { bg: 'rgba(255,248,235,0.88)', border: 'rgba(110,85,55,0.38)', nameColor: '#5c4330' },
+  unknown:    { bg: 'rgba(32,28,22,0.42)', border: 'rgba(90,75,55,0.45)', nameColor: 'rgba(255,255,255,0.55)' },
 }
 
 function rDex(g) {
@@ -1864,20 +1872,22 @@ function rDex(g) {
     g._dexIntroAlpha = 0
   }
 
-  // 标题
-  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '灵兽图鉴')
-  const sdivW = W * 0.22, sdivY = safeTop + 48 * S
+  // 标题（统计/Tab 纵坐标由 DEX_LAYOUT 推导语义，与 drawPageTitle 底边错开）
+  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + DEX_LAYOUT.titleCenterBelowSafePt * S, '灵兽图鉴')
+  const titleBottom = safeTop + (DEX_LAYOUT.titleCenterBelowSafePt + DEX_LAYOUT.nameBgHalfHPt) * S
+  const sdivW = W * 0.22
+  const sdivY = titleBottom + DEX_LAYOUT.gapTitleToDividerPt * S
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'; ctx.lineWidth = 1 * S
   ctx.beginPath(); ctx.moveTo(W * 0.5 - sdivW, sdivY); ctx.lineTo(W * 0.5 + sdivW, sdivY); ctx.stroke()
 
   // 三层进度摘要
   const progress = getDexProgress(g.storage.petPool)
-  const summaryY = safeTop + 60 * S
+  const summaryY = sdivY + DEX_LAYOUT.gapDividerToSummaryPt * S
   ctx.font = `${10 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   const labels = [
-    { text: `发现 ${progress.discovered.length}`, color: '#b0a080' },
-    { text: `收录 ${progress.collected.length}`, color: '#d4a840' },
-    { text: `精通 ${progress.mastered.length}`, color: '#C89510' },
+    { text: `发现 ${progress.discovered.length}`, color: '#4d4236' },
+    { text: `收录 ${progress.collected.length}`, color: '#7a5200' },
+    { text: `精通 ${progress.mastered.length}`, color: '#6a4200' },
   ]
   const segW = W * 0.25
   const segStart = W * 0.5 - segW * 1.5
@@ -1885,12 +1895,12 @@ function rDex(g) {
     ctx.fillStyle = l.color
     ctx.fillText(l.text, segStart + segW * i + segW * 0.5, summaryY)
   })
-  ctx.fillStyle = TH.dim
+  ctx.fillStyle = '#6d6054'
   ctx.fillText(`/ ${TOTAL_PET_COUNT}`, segStart + segW * 3 - 4 * S, summaryY)
 
   // Tab 栏
-  const tabY = safeTop + 72 * S
-  const tabH = 26 * S
+  const tabY = summaryY + DEX_LAYOUT.gapSummaryToTabPt * S
+  const tabH = DEX_LAYOUT.tabHPt * S
   const tabCount = _DEX_TAB_KEYS.length
   const tabPad = 6 * S
   const tabTotalW = W - tabPad * 2
@@ -1906,7 +1916,7 @@ function rDex(g) {
       ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1 * S
       ctx.beginPath(); R.rr(tx + 1, tabY, tabItemW - 2, tabH, 4 * S); ctx.stroke()
     }
-    ctx.fillStyle = active ? '#C89510' : TH.sub
+    ctx.fillStyle = active ? '#7a5200' : '#4a3d32'
     ctx.font = `${active ? 'bold ' : ''}${10 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'
     ctx.fillText(_DEX_TAB_LABELS[key], tx + tabItemW / 2, tabY + tabH * 0.65)
@@ -1919,8 +1929,8 @@ function rDex(g) {
     }
   }
 
-  // 内容区域
-  const contentTop = tabY + tabH + 6 * S
+  // 内容区域（与 touchHandlers tDex 中 getDexContentTop 一致）
+  const contentTop = getDexContentTop(safeTop, S)
   const contentBottom = _getDexLayout().bottomBarY - 4 * S
 
   if (g._dexTab === 'milestone') {
@@ -2012,7 +2022,7 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
             ctx.fillStyle = 'rgba(0,0,0,0.35)'
             ctx.beginPath(); R.rr(cx + imgPad, cy + imgPad, imgSz, imgSz, 3 * S); ctx.fill()
             // 星级标记
-            ctx.fillStyle = '#b0a080'; ctx.font = `${7 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+            ctx.fillStyle = '#4a3828'; ctx.font = `bold ${7 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
             ctx.fillText(`★${displayStar}`, cx + cellW / 2, cy + imgSz - 1 * S)
           }
 
@@ -2081,7 +2091,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
   ]
 
   for (const sec of sections) {
-    ctx.fillStyle = '#C89510'; ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillStyle = '#5a3a08'; ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
     ctx.fillText(sec.title, padX, y + 12 * S)
     y += 18 * S
 
@@ -2091,26 +2101,27 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
       const reached = isMilestoneReached(m, pool)
       const mx = padX, my = y
 
-      // 卡片背景
+      // 卡片背景（浅色实底 + 描边，避免装饰底图冲淡文字）
       if (isClaimed) {
-        ctx.fillStyle = 'rgba(212,175,55,0.08)'
+        ctx.fillStyle = 'rgba(246,242,234,0.96)'
       } else if (reached) {
-        ctx.fillStyle = 'rgba(212,175,55,0.18)'
+        ctx.fillStyle = 'rgba(255,250,232,0.98)'
       } else {
-        ctx.fillStyle = 'rgba(0,0,0,0.15)'
+        ctx.fillStyle = 'rgba(252,249,242,0.96)'
       }
       ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.fill()
 
       if (reached && !isClaimed) {
-        ctx.strokeStyle = '#C8A832'; ctx.lineWidth = 1.5 * S
+        ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 1.5 * S
         ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.stroke()
       } else {
-        ctx.strokeStyle = 'rgba(160,140,100,0.2)'; ctx.lineWidth = 1 * S
+        ctx.strokeStyle = isClaimed ? 'rgba(100,85,70,0.28)' : 'rgba(90,72,52,0.35)'
+        ctx.lineWidth = 1 * S
         ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.stroke()
       }
 
       // 描述
-      ctx.fillStyle = isClaimed ? 'rgba(160,140,100,0.5)' : '#e8d8c0'
+      ctx.fillStyle = isClaimed ? '#6b5e52' : '#2a221c'
       ctx.font = `${10 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
       ctx.fillText(m.desc, mx + 8 * S, my + 16 * S)
 
@@ -2129,8 +2140,8 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
         if (m.reward.awakenStone) parts.push(`${m.reward.awakenStone}觉醒石`)
         rewardText = parts.join(' + ')
       }
-      ctx.fillStyle = isClaimed ? 'rgba(160,140,100,0.4)' : '#c06020'
-      ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+      ctx.fillStyle = isClaimed ? '#8a7464' : '#a0280a'
+      ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
       ctx.fillText(rewardText, mx + 8 * S, my + 32 * S)
 
       // 右侧：状态
@@ -2138,7 +2149,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
       const btnX = mx + cardW - btnW - 8 * S
       const btnY = my + (cardH - btnH2) / 2
       if (isClaimed) {
-        ctx.fillStyle = 'rgba(100,90,70,0.3)'; ctx.font = `${9 * S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#5c5046'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText('已领取', btnX + btnW / 2, btnY + btnH2 * 0.65)
       } else if (reached) {
@@ -2152,7 +2163,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
           g._dexMilestoneRects.push({ id: m.id, x: btnX, y: btnY, w: btnW, h: btnH2 })
         }
       } else {
-        ctx.fillStyle = 'rgba(160,140,100,0.3)'; ctx.font = `${9 * S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = '#5a4530'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText('未达成', btnX + btnW / 2, btnY + btnH2 * 0.65)
       }
@@ -2531,8 +2542,11 @@ function _wrapTextDex(text, maxW, fontSize) {
   return result.length > 0 ? result : ['']
 }
 
+const { hitTestRankingTab } = require('./rankingTabHit')
+
 module.exports = {
   rLoading, rTitle, rGameover, rRanking, rStats,
   rReward, rShop, rRest, rAdventure,
   drawBackBtn, drawNewRunConfirm, rDex,
+  hitTestRankingTab,
 }
