@@ -135,6 +135,14 @@ const TITLE_HOME = {
   towerImgHeightSceneFrac: 0.92,
   /** 主插画最大宽度占屏宽比例 */
   towerImgMaxScreenWidthFrac: 0.94,
+  /**
+   * 通天塔主插画上移（×S），从原先「底边 = petRowY + 14S」再向上平移，避免压住开始按钮上方的「今日次数」文案
+   */
+  towerImgLiftPt: 22,
+  /**
+   * 通天塔首页：「今日次数」+ 开始/继续按钮 + 下方进度说明整体下移（×S），与塔图、底栏之间留出空隙
+   */
+  towerStartClusterDownPt: 22,
   /** 每日签到：总宽度、红包图标边长、标签字号（×S） */
   dailySignBtnWidthPt: 62,
   dailySignIconPt: 52,

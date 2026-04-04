@@ -59,35 +59,35 @@ const MAX_FLOOR = TOWER_MAX_FLOOR
 // 每项: { name, hpUp } — hpUp 为该层通关后增加的血量上限
 const REALM_TABLE = [
   /*  1 */ { name:'凡人',       hpUp:0  },
-  /*  2 */ { name:'感气期',     hpUp:8  },
-  /*  3 */ { name:'引气入体',   hpUp:8  },
-  /*  4 */ { name:'凝气初成',   hpUp:8  },
-  /*  5 */ { name:'炼气一层',   hpUp:11 },
-  /*  6 */ { name:'炼气二层',   hpUp:10 },
-  /*  7 */ { name:'炼气三层',   hpUp:10 },
-  /*  8 */ { name:'炼气四层',   hpUp:10 },
-  /*  9 */ { name:'炼气五层',   hpUp:10 },
-  /* 10 */ { name:'筑基初期',   hpUp:15 },
-  /* 11 */ { name:'筑基中期',   hpUp:13 },
-  /* 12 */ { name:'筑基后期',   hpUp:13 },
-  /* 13 */ { name:'筑基圆满',   hpUp:13 },
-  /* 14 */ { name:'开光初期',   hpUp:13 },
-  /* 15 */ { name:'开光圆满',   hpUp:18 },
-  /* 16 */ { name:'融合初期',   hpUp:15 },
-  /* 17 */ { name:'融合后期',   hpUp:15 },
-  /* 18 */ { name:'融合圆满',   hpUp:15 },
-  /* 19 */ { name:'心动初期',   hpUp:15 },
-  /* 20 */ { name:'心动圆满',   hpUp:20 },
-  /* 21 */ { name:'金丹初期',   hpUp:18 },
-  /* 22 */ { name:'金丹中期',   hpUp:18 },
-  /* 23 */ { name:'金丹后期',   hpUp:18 },
-  /* 24 */ { name:'金丹圆满',   hpUp:18 },
-  /* 25 */ { name:'元婴初期',   hpUp:23 },
-  /* 26 */ { name:'元婴中期',   hpUp:20 },
-  /* 27 */ { name:'元婴后期',   hpUp:20 },
-  /* 28 */ { name:'元婴圆满',   hpUp:20 },
-  /* 29 */ { name:'化神初期',   hpUp:20 },
-  /* 30 */ { name:'化神圆满',   hpUp:25 },
+  /*  2 */ { name:'感气期',     hpUp:7  },
+  /*  3 */ { name:'引气入体',   hpUp:7  },
+  /*  4 */ { name:'凝气初成',   hpUp:7  },
+  /*  5 */ { name:'炼气一层',   hpUp:9  },
+  /*  6 */ { name:'炼气二层',   hpUp:8  },
+  /*  7 */ { name:'炼气三层',   hpUp:8  },
+  /*  8 */ { name:'炼气四层',   hpUp:8  },
+  /*  9 */ { name:'炼气五层',   hpUp:8  },
+  /* 10 */ { name:'筑基初期',   hpUp:12 },
+  /* 11 */ { name:'筑基中期',   hpUp:10 },
+  /* 12 */ { name:'筑基后期',   hpUp:10 },
+  /* 13 */ { name:'筑基圆满',   hpUp:10 },
+  /* 14 */ { name:'开光初期',   hpUp:10 },
+  /* 15 */ { name:'开光圆满',   hpUp:14 },
+  /* 16 */ { name:'融合初期',   hpUp:11 },
+  /* 17 */ { name:'融合后期',   hpUp:11 },
+  /* 18 */ { name:'融合圆满',   hpUp:11 },
+  /* 19 */ { name:'心动初期',   hpUp:11 },
+  /* 20 */ { name:'心动圆满',   hpUp:15 },
+  /* 21 */ { name:'金丹初期',   hpUp:13 },
+  /* 22 */ { name:'金丹中期',   hpUp:13 },
+  /* 23 */ { name:'金丹后期',   hpUp:13 },
+  /* 24 */ { name:'金丹圆满',   hpUp:13 },
+  /* 25 */ { name:'元婴初期',   hpUp:17 },
+  /* 26 */ { name:'元婴中期',   hpUp:15 },
+  /* 27 */ { name:'元婴后期',   hpUp:15 },
+  /* 28 */ { name:'元婴圆满',   hpUp:15 },
+  /* 29 */ { name:'化神初期',   hpUp:15 },
+  /* 30 */ { name:'化神圆满',   hpUp:18 },
 ]
 
 // 获取指定层的境界信息
@@ -99,12 +99,12 @@ function getRealmInfo(floor) {
 // ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
 // 调优：ATK全面上调，确保每回合对英雄造成可感知的威胁（8%~15%血量）
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:200,  hpMax:360,   atkMin:8,   atkMax:14  },
-  { minFloor:6,   maxFloor:10,  hpMin:380,  hpMax:650,   atkMin:14,  atkMax:22  },
-  { minFloor:11,  maxFloor:15,  hpMin:680,  hpMax:1100,  atkMin:20,  atkMax:32  },
-  { minFloor:16,  maxFloor:20,  hpMin:1100, hpMax:1700,  atkMin:30,  atkMax:46  },
-  { minFloor:21,  maxFloor:25,  hpMin:1600, hpMax:2400,  atkMin:40,  atkMax:58  },
-  { minFloor:26,  maxFloor:30,  hpMin:2200, hpMax:3000,  atkMin:50,  atkMax:68  },
+  { minFloor:1,   maxFloor:5,   hpMin:280,  hpMax:480,   atkMin:10,  atkMax:18  },
+  { minFloor:6,   maxFloor:10,  hpMin:520,  hpMax:880,   atkMin:18,  atkMax:30  },
+  { minFloor:11,  maxFloor:15,  hpMin:920,  hpMax:1500,  atkMin:28,  atkMax:44  },
+  { minFloor:16,  maxFloor:20,  hpMin:1500, hpMax:2300,  atkMin:42,  atkMax:62  },
+  { minFloor:21,  maxFloor:25,  hpMin:2200, hpMax:3300,  atkMin:55,  atkMax:78  },
+  { minFloor:26,  maxFloor:30,  hpMin:3000, hpMax:4200,  atkMin:68,  atkMax:92  },
 ]
 
 // 普通怪物名池（按属性）
@@ -257,7 +257,7 @@ const SHOP_HP_COST_PCT = TOWER_SHOP_HP_COST_PCT
 
 // ===== 休息之地选项 =====
 const REST_OPTIONS = [
-  { id:'rest1', name:'休息回血', desc:'回复50%最大血量', effect:'healPct', pct:50 },
+  { id:'rest1', name:'休息回血', desc:'回复35%最大血量', effect:'healPct', pct:35 },
   { id:'rest2', name:'修炼增强', desc:'获得临时小BUFF（攻击+5%）', effect:'allAtkUp', pct:5 },
 ]
 
@@ -428,9 +428,9 @@ function generateElite(floor) {
   const base = generateMonster(floor)
   const attr = base.attr
 
-  // 精英 = 普通×(2.2~2.8)血 ×(1.6~2.0)攻
-  const hpMul = 2.2 + Math.random() * 0.6
-  const atkMul = 1.6 + Math.random() * 0.4
+  // 精英 = 普通×(2.8~3.5)血 ×(1.8~2.3)攻
+  const hpMul = 2.8 + Math.random() * 0.7
+  const atkMul = 1.8 + Math.random() * 0.5
   base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp
   base.atk   = Math.round(base.atk * atkMul)
@@ -464,7 +464,7 @@ function generateBoss(floor) {
 
   // BOSS倍率随层数递增（30层制：10层=1档，20层=2档，30层=3档）
   const bossLevel = Math.round(floor / 10)  // 1~3
-  const hpMul  = Math.min(2.5 + (bossLevel - 1) * 0.5, 4)
+  const hpMul  = Math.min(3.0 + (bossLevel - 1) * 0.6, 5)
   const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.15, 2)
   const defMul = Math.min(1.2 + (bossLevel - 1) * 0.15, 1.6)
 
@@ -501,22 +501,22 @@ function generateFloorEvent(floor) {
   if (floor % 10 === 0) {
     return { type: EVENT_TYPE.BOSS, data: generateBoss(floor) }
   }
-  // 第5层强制精英（保证前期获得法宝的机会）
-  if (floor === 5) {
+  // 强制精英层：第5/12/18/24层，在BOSS层之间增加挑战节点
+  if (floor === 5 || floor === 12 || floor === 18 || floor === 24) {
     return { type: EVENT_TYPE.ELITE, data: generateElite(floor) }
   }
 
   // 权重随机事件
   const weights = { ...BASE_EVENT_WEIGHTS }
 
-  // 前2层：只出普通战斗（30层制更快进入完整体验）
-  if (floor <= 2) {
+  // 第1层：只出普通战斗
+  if (floor <= 1) {
     weights.elite = 0
     weights.adventure = 0
     weights.shop = 0
     weights.rest = 0
   } else if (floor <= 4) {
-    // 3-4层：开放奇遇和休息
+    // 2-4层：开放奇遇和休息
     weights.elite = 0
     weights.shop = 0
     weights.adventure = 8
@@ -528,8 +528,9 @@ function generateFloorEvent(floor) {
     weights.adventure += Math.floor(floor / 6) * 2
     weights.shop += Math.floor(floor / 8) * 2
     weights.rest += Math.floor(floor / 8) * 2
-    if (floor >= 15) weights.battle -= 10
+    if (floor >= 15) weights.battle -= 15
     if (floor >= 22) weights.battle -= 10
+    if (floor >= 15) weights.elite += 5
   }
 
   const total = Object.values(weights).reduce((a, b) => a + b, 0)

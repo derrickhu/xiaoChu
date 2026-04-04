@@ -165,6 +165,13 @@ function _genMilestones() {
 }
 const CHAPTER_MILESTONES = _genMilestones()
 
+// ===== 通天塔每日挑战限制 =====
+const TOWER_DAILY = {
+  freeRuns: 3,
+  adExtraRuns: 2,
+  adUnitId: _AD_UNIT_A,
+}
+
 // ===== 通天塔结算配置 =====
 const TOWER_SETTLE = {
   fragment: {
@@ -180,9 +187,10 @@ const TOWER_SETTLE = {
     failRatio:   0.6,
   },
   soulStone: {
-    combatRatio: 0.3,
-    floorBonus:  2,
-    clearBonus:  200,
+    combatRatio: 0.15,
+    floorBase:   1,
+    floorGrowth: 0.3,
+    clearBonus:  120,
   },
   distribute: {
     mode: 'team',
@@ -272,6 +280,7 @@ const AD_REWARDS = {
   settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
   dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
   dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },
+  towerExtraRun:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 2 },
 }
 
 module.exports = {
@@ -282,6 +291,7 @@ module.exports = {
   STAGE_REWARDS,
   STAR_REWARDS,
   CHAPTER_MILESTONES,
+  TOWER_DAILY,
   TOWER_SETTLE,
   CHAPTER_REP_FRAG,
   ROGUE_SETTLE,

@@ -91,7 +91,7 @@ function drawSceneArea(g) {
     const imgW = Math.min(targetH * ratioW, W * TITLE_HOME.towerImgMaxScreenWidthFrac)
     const imgH = imgW / ratioW
     const imgX = (W - imgW) / 2
-    const imgY = L.petRowY - imgH + 14 * S
+    const imgY = L.petRowY - imgH + 14 * S - TITLE_HOME.towerImgLiftPt * S
     ctx.drawImage(towerImg, imgX, imgY, imgW, imgH)
   } else {
     ctx.save()
@@ -538,10 +538,11 @@ function drawStartBtn(g) {
   ctx.save()
 
   if (mode === 'tower') {
+    const clusterDy = TITLE_HOME.towerStartClusterDownPt * S
     const btnW = W * 0.60
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
-    const btnY = L.startBtnY
+    const btnY = L.startBtnY + clusterDy
 
     // 使用 btn_start.png 资源，fallback 到渐变色
     const btnImg = R.getImg('assets/ui/btn_start.png')
@@ -565,6 +566,24 @@ function drawStartBtn(g) {
 
     g._startBtnRect = [btnX, btnY, btnW, btnH]
 
+    // 每日剩余次数
+    const { TOWER_DAILY } = require('../data/economyConfig')
+    const usedRuns = g.storage.getTowerDailyRuns()
+    const usedAdRuns = g.storage.getTowerDailyAdRuns()
+    const freeLeft = Math.max(0, TOWER_DAILY.freeRuns - usedRuns)
+    const adLeft = Math.max(0, TOWER_DAILY.adExtraRuns - usedAdRuns)
+    const canRun = g.storage.canStartTowerRun()
+
+    const dailyText = freeLeft > 0
+      ? `今日 ${usedRuns}/${TOWER_DAILY.freeRuns}`
+      : adLeft > 0
+        ? `免费次数已用完 · 看广告+1次(${adLeft})`
+        : '今日次数已用完 · 明日刷新'
+    ctx.fillStyle = canRun ? 'rgba(80,50,20,0.7)' : 'rgba(180,60,40,0.8)'
+    ctx.font = `${10*S}px "PingFang SC",sans-serif`
+    ctx.textBaseline = 'middle'
+    ctx.fillText(dailyText, W / 2, btnY - 10 * S)
+
     // 进度文字
     let progressText = ''
     if (hasSave) {
@@ -577,7 +596,7 @@ function drawStartBtn(g) {
     ctx.fillStyle = 'rgba(80,50,20,0.7)'
     ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textBaseline = 'middle'
-    ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2)
+    ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2 + clusterDy)
   } else {
     // 灵兽秘境模式 — 内嵌选关
     const entry = _getDisplayStage(g)

@@ -18,7 +18,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 14
+const CURRENT_VERSION = 15
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -74,6 +74,7 @@ function defaultPersist() {
     },
     // Phase 5：碎片银行
     fragmentBank: {},          // { petId: count } 未入池宠物的碎片
+    towerDaily: { date: '', runs: 0, adRuns: 0 },  // 通天塔每日挑战次数
     guideFlags: {},            // { guideId: true } 新手指引已完成标记
     weaponCollection: [],      // 已获得法宝ID: ['w1','w5',...]
     equippedWeaponId: null,    // 当前装备的法宝ID
@@ -215,6 +216,10 @@ const migrations = {
   // v13→v14：广告观看频控字段
   13: (d) => {
     if (!d.adWatchLog) d.adWatchLog = {}
+  },
+  // v14→v15：通天塔每日挑战次数
+  14: (d) => {
+    if (!d.towerDaily) d.towerDaily = { date: '', runs: 0, adRuns: 0 }
   },
 }
 
@@ -1016,6 +1021,50 @@ class Storage {
     this._save()
   }
 
+  // ===== 通天塔每日次数 =====
+
+  _refreshTowerDaily() {
+    const today = new Date().toISOString().slice(0, 10)
+    if (!this._d.towerDaily || this._d.towerDaily.date !== today) {
+      this._d.towerDaily = { date: today, runs: 0, adRuns: 0 }
+    }
+  }
+
+  getTowerDailyRuns() {
+    this._refreshTowerDaily()
+    return this._d.towerDaily.runs
+  }
+
+  getTowerDailyAdRuns() {
+    this._refreshTowerDaily()
+    return this._d.towerDaily.adRuns
+  }
+
+  canStartTowerRun() {
+    const { TOWER_DAILY } = require('./economyConfig')
+    this._refreshTowerDaily()
+    const td = this._d.towerDaily
+    return (td.runs < TOWER_DAILY.freeRuns) || (td.adRuns < TOWER_DAILY.adExtraRuns)
+  }
+
+  canStartTowerRunFree() {
+    const { TOWER_DAILY } = require('./economyConfig')
+    this._refreshTowerDaily()
+    return this._d.towerDaily.runs < TOWER_DAILY.freeRuns
+  }
+
+  recordTowerRun() {
+    this._refreshTowerDaily()
+    this._d.towerDaily.runs++
+    this._save()
+  }
+
+  recordTowerAdRun() {
+    this._refreshTowerDaily()
+    this._d.towerDaily.adRuns++
+    this._save()
+  }
+
   // ===== 持久化编队 =====
 
   get savedStageTeam() {
@@ -1617,6 +1666,7 @@ class Storage {
     if (!this._d.fragmentBank) this._d.fragmentBank = {}
     if (!this._d.chestRewards) this._d.chestRewards = { claimed: {} }
     if (!this._d.adWatchLog) this._d.adWatchLog = {}
+    if (!this._d.towerDaily) this._d.towerDaily = { date: '', runs: 0, adRuns: 0 }
   }
 
   _save() {

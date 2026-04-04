@@ -572,7 +572,229 @@ function handleConfirmDialogTouch(g, x, y, type) {
   return true
 }
 
+/**
+ * 庆祝背景特效：暗角 + 16 道旋转射线 + 中心光晕 + 金粉/闪点粒子
+ * 用于胜利结算等全屏庆祝页面
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} W  画布宽
+ * @param {number} H  画布高
+ * @param {number} S  缩放倍率
+ * @param {number} centerY  射线中心 Y
+ * @param {number} at       帧计数器
+ * @param {number} fadeIn   淡入 alpha (0~1)
+ */
+function drawCelebrationBackdrop(c, W, H, S, centerY, at, fadeIn) {
+  c.save()
+  c.globalAlpha = fadeIn
+  var vig = c.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.12, W * 0.5, H * 0.45, Math.max(W, H) * 0.72)
+  vig.addColorStop(0, 'rgba(55,38,22,0)')
+  vig.addColorStop(1, 'rgba(18,12,8,0.62)')
+  c.fillStyle = vig
+  c.fillRect(0, 0, W, H)
+  c.fillStyle = 'rgba(90,55,28,0.14)'
+  c.fillRect(0, 0, W, H)
+  c.restore()
+
+  c.save()
+  c.globalAlpha = fadeIn * (0.14 + 0.07 * Math.sin(at * 0.034))
+  c.translate(W * 0.5, centerY)
+  c.rotate(at * 0.0023)
+  var nRays = 16
+  for (var i = 0; i < nRays; i++) {
+    c.rotate((Math.PI * 2) / nRays)
+    c.beginPath(); c.moveTo(0, 0)
+    c.lineTo(-24 * S, -H * 0.55); c.lineTo(24 * S, -H * 0.55)
+    c.closePath()
+    var rg = c.createLinearGradient(0, 0, 0, -H * 0.52)
+    rg.addColorStop(0, 'rgba(255,235,160,0.95)')
+    rg.addColorStop(0.35, 'rgba(255,200,80,0.35)')
+    rg.addColorStop(1, 'rgba(255,180,40,0)')
+    c.fillStyle = rg
+    c.fill()
+  }
+  c.restore()
+
+  c.save()
+  c.globalAlpha = fadeIn * 0.88
+  var glow = c.createRadialGradient(W * 0.5, centerY, 0, W * 0.5, centerY, W * 0.68)
+  glow.addColorStop(0, 'rgba(255,220,120,0.38)')
+  glow.addColorStop(0.42, 'rgba(255,170,70,0.14)')
+  glow.addColorStop(1, 'rgba(255,200,80,0)')
+  c.fillStyle = glow
+  c.fillRect(0, 0, W, H)
+  c.restore()
+
+  c.save()
+  c.globalAlpha = fadeIn * 0.5
+  var t = at * 0.018
+  for (var j = 0; j < 26; j++) {
+    var sx = ((Math.sin(j * 12.9898 + t * 1.1) * 0.5 + 0.5) * 0.92 + 0.04) * W
+    var sy = ((Math.cos(j * 7.1234 + t * 0.75) * 0.5 + 0.5) * 0.78 + 0.06) * H
+    var pr = (2.5 + (j % 6)) * S * (0.85 + 0.15 * Math.sin(at * 0.048 + j * 0.7))
+    var ga = 0.12 + 0.14 * Math.sin(at * 0.07 + j)
+    c.beginPath(); c.arc(sx, sy, pr, 0, Math.PI * 2)
+    c.fillStyle = 'rgba(255,230,180,' + ga + ')'
+    c.fill()
+  }
+  c.globalAlpha = fadeIn * 0.65
+  for (var k = 0; k < 36; k++) {
+    var px = (k * 113 + at * 1.7 + Math.sin(k) * 40) % (W - 4 * S)
+    var py = (k * 67 + at * 1.1) % (H * 0.92)
+    var tw = (1 + (k % 3)) * S
+    c.fillStyle = 'rgba(255,255,255,' + (0.18 + 0.22 * Math.sin(at * 0.11 + k)) + ')'
+    c.fillRect(px, py, tw, tw)
+  }
+  c.restore()
+}
+
+/**
+ * 奖励/收益行：左侧图标 + 标签 + 右侧数值
+ * 通天塔结算和过层胜利共用
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {object} R  资源管理器
+ * @param {number} S  缩放倍率
+ * @param {number} x  行左边 X
+ * @param {number} cy 行顶部 Y
+ * @param {number} innerW  行总宽
+ * @param {string} iconName  图标资源名（assets/ui/ 下，不含路径前缀和扩展名）
+ * @param {string} label  标签文字
+ * @param {string} value  右侧数值文字
+ * @param {string} labelColor
+ * @param {string} valueColor
+ */
+function drawRewardRow(c, R, S, x, cy, innerW, iconName, label, value, labelColor, valueColor) {
+  var iconSz = 22 * S
+  var iconImg = R.getImg('assets/ui/' + iconName + '.png')
+  if (iconImg && iconImg.width > 0) {
+    c.drawImage(iconImg, x, cy, iconSz, iconSz)
+  }
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.fillStyle = labelColor; c.font = 'bold ' + (11 * S) + 'px "PingFang SC",sans-serif'
+  c.fillText(label, x + iconSz + 6 * S, cy + iconSz / 2)
+  c.fillStyle = valueColor; c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'
+  c.textAlign = 'right'
+  c.fillText(value, x + innerW, cy + iconSz / 2)
+}
+
+// Buff→图标映射（模块级常量，供 drawBuffCard 使用）
+var BUFF_ICON_IMGS = {
+  allAtkPct:'buff_icon_atk', allDmgPct:'buff_icon_atk', counterDmgPct:'buff_icon_atk', skillDmgPct:'buff_icon_atk',
+  healNow:'buff_icon_heal', postBattleHeal:'buff_icon_heal', regenPerTurn:'buff_icon_heal',
+  dmgReducePct:'buff_icon_def', nextDmgReduce:'buff_icon_def', grantShield:'buff_icon_def', immuneOnce:'buff_icon_def',
+  comboDmgPct:'buff_icon_elim', elim3DmgPct:'buff_icon_elim', elim4DmgPct:'buff_icon_elim', elim5DmgPct:'buff_icon_elim', bonusCombo:'buff_icon_elim',
+  extraTimeSec:'buff_icon_time', skillCdReducePct:'buff_icon_time', resetAllCd:'buff_icon_time',
+  hpMaxPct:'buff_icon_hp',
+  enemyAtkReducePct:'buff_icon_weaken', enemyHpReducePct:'buff_icon_weaken', eliteAtkReducePct:'buff_icon_weaken',
+  eliteHpReducePct:'buff_icon_weaken', bossAtkReducePct:'buff_icon_weaken', bossHpReducePct:'buff_icon_weaken',
+  nextStunEnemy:'buff_icon_weaken', stunDurBonus:'buff_icon_weaken',
+  extraRevive:'buff_icon_special', skipNextBattle:'buff_icon_special', nextFirstTurnDouble:'buff_icon_special', heartBoostPct:'buff_icon_special',
+}
+var BUFF_TYPE_NAMES = {
+  buff_icon_atk: '攻击加成', buff_icon_heal: '治疗加成', buff_icon_def: '防御加成',
+  buff_icon_elim: '消除加成', buff_icon_time: '时间加成', buff_icon_hp: '血量加成',
+  buff_icon_weaken: '削弱加成', buff_icon_special: '特殊加成',
+}
+
+/**
+ * Buff 奖励卡片绘制（卷轴/降级背景 + 图标 + 类型标签 + 名称 + 全队永久生效）
+ * 通天塔结算页内嵌奖励 和 独立 rReward 场景共用
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {object} R        资源管理器
+ * @param {number} S        缩放倍率
+ * @param {number} x        卡片左 X（逻辑区域，不含卷轴延伸）
+ * @param {number} y        卡片顶 Y
+ * @param {number} w        卡片宽
+ * @param {number} h        卡片高
+ * @param {object} rw       奖励对象 { label, data:{buff,...}, isSpeed? }
+ * @param {boolean} isSelected 是否选中态
+ */
+function drawBuffCard(c, R, S, x, y, w, h, rw, isSelected) {
+  var buffData = rw.data || {}
+  var buffKey = buffData.buff || ''
+  var isSpeedBuff = rw.isSpeed === true
+
+  var bgColor = isSelected ? 'rgba(75,50,20,0.93)' : 'rgba(65,45,18,0.88)'
+  var borderColor = isSelected ? '#E8C060' : 'rgba(180,150,90,0.4)'
+
+  var rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
+  var _useScrollBg = rewardCardBg && rewardCardBg.width > 0
+
+  var scrollPadX = 6 * S, scrollPadY = 4 * S
+  var scrollX = x - scrollPadX, scrollY = y - scrollPadY
+  var scrollW = w + scrollPadX * 2, scrollH = h + scrollPadY * 2
+
+  if (_useScrollBg) {
+    c.save()
+    c.shadowColor = 'rgba(40,25,10,0.45)'; c.shadowBlur = 12 * S; c.shadowOffsetY = 4 * S
+    c.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
+    c.restore()
+    if (isSelected) {
+      c.save()
+      c.shadowColor = borderColor; c.shadowBlur = 16 * S; c.globalAlpha = 0.6
+      c.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
+      c.restore()
+    }
+  } else {
+    c.save()
+    c.shadowColor = 'rgba(40,25,10,0.5)'; c.shadowBlur = 14 * S; c.shadowOffsetY = 5 * S
+    c.fillStyle = bgColor
+    R.rr(x, y, w, h, 10 * S); c.fill()
+    c.restore()
+    c.save()
+    c.shadowColor = isSelected ? 'rgba(230,200,100,0.6)' : 'rgba(180,150,80,0.2)'
+    c.shadowBlur = isSelected ? 18 * S : 8 * S
+    c.strokeStyle = isSelected ? 'rgba(230,200,100,0.7)' : 'rgba(180,150,90,0.35)'
+    c.lineWidth = isSelected ? 2.5 * S : 1.5 * S
+    R.rr(x, y, w, h, 10 * S); c.stroke()
+    c.restore()
+    if (isSelected) {
+      c.strokeStyle = borderColor; c.lineWidth = 2.5 * S
+      R.rr(x, y, w, h, 10 * S); c.stroke()
+    }
+  }
+
+  var _darkText = _useScrollBg
+  var _txtMain  = _darkText ? '#2A1A10' : '#FFF2D0'
+  var _txtDim   = _darkText ? '#4A3A2E' : 'rgba(220,205,170,0.75)'
+  var _txtGold  = _darkText ? '#7A590A' : '#FFD870'
+  var _txtStroke = _darkText ? 'rgba(255,248,232,0.7)' : 'rgba(30,20,5,0.6)'
+
+  var _contentPadL = _useScrollBg ? 38 * S : 12 * S
+
+  var typeTag = '', tagColor = _txtDim
+  if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = _txtGold }
+  else { typeTag = '加成'; tagColor = _txtDim }
+
+  var iconSz = Math.min(48 * S, h - 10 * S)
+  var iconX = x + _contentPadL + 2 * S, iconY = y + (h - iconSz) / 2
+  var iconName = BUFF_ICON_IMGS[buffKey]
+  var iconImg = iconName ? R.getImg('assets/ui/battle/' + iconName + '.png') : null
+  if (iconImg && iconImg.width > 0) {
+    c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
+  }
+  if (!isSpeedBuff && iconName && BUFF_TYPE_NAMES[iconName]) {
+    typeTag = BUFF_TYPE_NAMES[iconName]
+  }
+
+  var textX = iconX + iconSz + 10 * S
+  c.fillStyle = tagColor; c.font = 'bold ' + (12 * S) + 'px "PingFang SC",sans-serif'; c.textAlign = 'left'
+  if (_txtStroke) { c.strokeStyle = _txtStroke; c.lineWidth = 1.2 * S; c.strokeText(typeTag, textX, y + h * 0.38) }
+  c.fillText(typeTag, textX, y + h * 0.38)
+
+  c.fillStyle = _txtMain; c.font = 'bold ' + (15 * S) + 'px "PingFang SC",sans-serif'; c.textAlign = 'left'
+  if (_txtStroke) { c.strokeStyle = _txtStroke; c.lineWidth = 1.5 * S; c.strokeText(rw.label, textX, y + h * 0.62) }
+  c.fillText(rw.label, textX, y + h * 0.62)
+
+  c.fillStyle = _txtDim; c.font = (10 * S) + 'px "PingFang SC",sans-serif'; c.textAlign = 'left'
+  if (_txtStroke) { c.strokeStyle = _txtStroke; c.lineWidth = 1.2 * S; c.strokeText('全队永久生效', textX, y + h * 0.84) }
+  c.fillText('全队永久生效', textX, y + h * 0.84)
+}
+
 module.exports = {
   drawPanel, drawRibbonIcon, wrapText, drawDialog, drawTipRow, drawDivider,
   drawConfirmDialog, handleConfirmDialogTouch,
+  drawCelebrationBackdrop, drawRewardRow, drawBuffCard,
 }

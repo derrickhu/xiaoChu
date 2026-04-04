@@ -6,7 +6,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_BY, COUNTER_MAP } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
-const { drawPanel, drawRibbonIcon } = require('./uiComponents')
+const { drawPanel } = require('./uiComponents')
 const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
@@ -1027,22 +1027,6 @@ function _drawEventBattle(g, ev, startY) {
   curY = _drawBattlePetBag(g, e, curY, lyt)
   curY += 8*S
 
-  if (g._tutorialJustDone && g.floor === 1) {
-    const hintW = W * 0.88, hintX = (W - hintW) / 2
-    const hintY = curY
-    ctx.fillStyle = 'rgba(45,30,18,0.88)'
-    R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.fill()
-    ctx.strokeStyle = 'rgba(180,150,90,0.3)'; ctx.lineWidth = 1
-    R.rr(hintX, hintY, hintW, 56*S, 8*S); ctx.stroke()
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#E8C060'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    ctx.fillText('💡 冒险开始', W*0.5, hintY + 14*S)
-    ctx.fillStyle = 'rgba(220,205,170,0.85)'; ctx.font = `${9.5*S}px "PingFang SC",sans-serif`
-    ctx.fillText('正式冒险初始携带4只灵兽和1件基础法宝', W*0.5, hintY + 30*S)
-    ctx.fillText('击败怪物可获得新灵兽或法宝，通关30层即为胜利！', W*0.5, hintY + 44*S)
-    curY += 64*S
-  }
-
   const goBtnW = W*0.6, goBtnH = goBtnW / 4
   const goBtnX = (W - goBtnW)/2, goBtnY = H - goBtnH - 28*S
   const btnStartImg = R.getImg('assets/ui/btn_start.png')
@@ -1755,111 +1739,6 @@ function _drawWeaponDetailPopup(g) {
   g._eventWpnDetailCloseRect = [0, 0, W, H]
 }
 
-// ===== 通天塔玩法介绍覆盖层（教学结束后首次进入正式关卡）=====
-const _ROGUE_INTRO_CARDS = [
-  {
-    icon: '塔',
-    heading: '踏入通天塔！',
-    lines: [
-      '通天塔共30层，每层随机生成。',
-      '敌人种类、属性皆不固定——',
-      '每一次探索都是全新的挑战！',
-    ],
-    note: '☆ 尽量消更多同色灵珠，触发Combo爆发伤害',
-  },
-  {
-    icon: '宠',
-    heading: '局内灵宠 · 随机相遇',
-    lines: [
-      '塔内可获得随机灵宠助你战斗，',
-      '但它们只在本次探索中有效，',
-      '每局结束后将回归虚空……',
-    ],
-    note: '✦ 三星满级的灵宠有机会永久留下，成为你的专属灵宠！',
-  },
-]
-
-function drawRogueIntro(g) {
-  const intro = g._rogueIntro
-  if (!intro) return
-  const { ctx, W, H, S, R } = V
-
-  // 淡入
-  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.05)
-  g._dirty = true
-
-  const card = _ROGUE_INTRO_CARDS[intro.page]
-  if (!card) { g._rogueIntro = null; return }
-
-  ctx.save()
-  // 半透明全屏遮罩
-  ctx.globalAlpha = intro.alpha * 0.72
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, W, H)
-  ctx.globalAlpha = intro.alpha
-
-  // 面板尺寸
-  const pw = W * 0.86, ph = 310 * S
-  const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
-  const ribbonH = 44 * S
-
-  const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH })
-  drawRibbonIcon(ctx, S, px, ribbonCY, card.icon)
-
-  // 标题（深棕色）
-  ctx.fillStyle = '#3a1a00'
-  ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
-
-  // 正文（深棕灰）
-  const lineH = 30 * S
-  const textStartY = py + ribbonH + 28 * S
-  ctx.fillStyle = '#4a3820'
-  ctx.font = `${13 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ;(card.lines || []).forEach((line, i) => {
-    ctx.fillText(line, W / 2, textStartY + i * lineH)
-  })
-
-  // 钩子备注
-  if (card.note) {
-    const noteY = textStartY + (card.lines || []).length * lineH + 14 * S
-    ctx.fillStyle = '#b06010'
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText(card.note, W / 2, noteY)
-  }
-
-  // 进度点
-  const total = _ROGUE_INTRO_CARDS.length
-  const dotR = 4 * S, dotGap = 14 * S
-  const dotsX = W / 2 - (total * dotGap) / 2 + dotGap / 2
-  const dotsY = py + ph - 38 * S
-  ctx.textBaseline = 'alphabetic'
-  for (let i = 0; i < total; i++) {
-    ctx.beginPath()
-    ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-    ctx.fillStyle = i === intro.page ? '#c07820' : 'rgba(160,120,40,0.3)'
-    ctx.fill()
-  }
-
-  // 点击继续提示
-  const af = g.af || 0
-  const pulse = 0.5 + 0.4 * Math.sin(af * 0.1)
-  ctx.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
-  ctx.fillStyle = '#8a6030'
-  ctx.font = `${10 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  const isLast = intro.page >= total - 1
-  ctx.fillText(isLast ? '点击开始冒险！' : '点击继续', W / 2, py + ph - 16 * S)
-
-  ctx.restore()
-}
-
 function _riRR(ctx, x, y, w, h, r) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -2117,4 +1996,4 @@ function _drawIntroHint(ctx, S, W, alpha, y, text) {
   ctx.restore()
 }
 
-module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup, drawRogueIntro, drawNewbiePetIntro }
+module.exports = { rEvent, drawEventPetDetail, drawPetObtainedPopup, drawNewbiePetIntro }

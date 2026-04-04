@@ -7,7 +7,32 @@ const runMgr = require('../engine/runManager')
 const { getBrowsableStages } = require('../data/stages')
 const { tDailyReward } = require('../views/dailyRewardView')
 
+const { TOWER_DAILY } = require('../data/economyConfig')
+
 const SWIPE_THRESHOLD = 40
+
+function _checkTowerDailyLimit(g) {
+  if (g.storage.canStartTowerRunFree()) return true
+  const adLeft = Math.max(0, TOWER_DAILY.adExtraRuns - g.storage.getTowerDailyAdRuns())
+  if (adLeft > 0) {
+    const AdManager = require('../adManager')
+    AdManager.showRewardedVideo('towerExtraRun', {
+      onRewarded: function () {
+        g.storage.recordTowerAdRun()
+        g.setScene('towerTeam')
+      },
+      onSkipped: function () {
+        P.showGameToast('需完整观看广告')
+      },
+      onError: function () {
+        P.showGameToast('广告加载失败，请稍后重试')
+      },
+    })
+    return false
+  }
+  P.showGameToast('今日挑战次数已用完，明日刷新')
+  return false
+}
 
 function tTitle(g, type, x, y) {
   // ⓪ 每日奖励弹窗
@@ -110,6 +135,7 @@ function tTitle(g, type, x, y) {
       }
       if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
         g.showTitleStartDialog = false
+        if (!_checkTowerDailyLimit(g)) return
         const saved = g.storage.loadRunState()
         if (saved) {
           g.floor = saved.floor; g.cleared = false
@@ -119,14 +145,16 @@ function tTitle(g, type, x, y) {
           g._runKillExp = saved._runKillExp || 0
           runMgr.settleExp(g)
         }
-        g.storage.clearRunState(); g._startRun(); return
+        g.storage.clearRunState(); g.setScene('towerTeam'); return
       }
     } else {
       if (g._dialogCancelRect && g._hitRect(x, y, ...g._dialogCancelRect)) {
         g.showTitleStartDialog = false; return
       }
       if (g._dialogStartRect && g._hitRect(x, y, ...g._dialogStartRect)) {
-        g.showTitleStartDialog = false; g._startRun(); return
+        g.showTitleStartDialog = false
+        if (!_checkTowerDailyLimit(g)) return
+        g.setScene('towerTeam'); return
       }
     }
     g.showTitleStartDialog = false; return

@@ -84,6 +84,7 @@ function tAdventure(g, type, x, y) {
 function tGameover(g, type, x, y) {
   if (type !== 'end') return
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
+  if (g._goHomeBtnRect && g._hitRect(x,y,...g._goHomeBtnRect)) { g._handleBackToTitle(); return }
   if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.setScene('title'); return }
   if (g._cultBtnRect && g._hitRect(x,y,...g._cultBtnRect)) {
     const cultView = require('../views/cultivationView')

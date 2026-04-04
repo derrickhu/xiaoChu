@@ -16,11 +16,10 @@ const { generateStarterWeapon, getWeaponById } = require('../data/weapons')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
-const tutorial = require('./tutorial')
 const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
 const { TOWER_SETTLE } = require('../data/economyConfig')
-const { initBoard } = require('./battle')
+const { initBoard, addKillExp } = require('./battle')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
 
@@ -65,6 +64,10 @@ function startRun(g, petIds) {
   g.floor = 0
   g.cleared = false
   g._isGM = isCurrentUserGM()
+  g._towerFloorResult = null
+  g._towerFloorSettlePending = false
+  g._towerClearSettlePending = false
+  g._towerRunRecorded = false
   g.itemResetObtained = false
   g.itemResetUsed = false
   g.itemHealObtained = false
@@ -101,13 +104,7 @@ function startRun(g, petIds) {
   g.adReviveUsed = false
   g.turnCount = 0; g.combo = 0; g.runTotalTurns = 0
   for (const k of EXP_FIELDS) g[k] = 0
-  g._floorStartExp = 0; g._floorExpSummary = null; g._expFloats = []
-
-  if (tutorial.needsTutorial()) {
-    tutorial.start(g)
-    if (g.events) g.events.emit('run:start')
-    return
-  }
+  g._floorStartExp = 0; g._floorStartCombatExp = 0; g._floorExpSummary = null; g._expFloats = []
 
   // 应用修炼加成
   {
@@ -141,14 +138,11 @@ function nextFloor(g) {
   g.heroBuffs = []
   g.enemyBuffs = []
   g.heroShield = 0
+  // 上一层的过层/通关结算防重入标记必须清除，否则下一层战斗胜利后无法再次进入 towerVictory
+  g._towerFloorSettlePending = false
+  g._towerClearSettlePending = false
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
-  const wasTutorialJustDone = g._tutorialJustDone && g.floor === 0
-  g._tutorialJustDone = wasTutorialJustDone
   g.floor++
-  // 教学结束后首次进入正式关卡，展示通天塔玩法介绍
-  if (wasTutorialJustDone && g.floor === 1) {
-    g._rogueIntro = { page: 0, alpha: 0 }
-  }
   // 通关检测：超过最大层数即为通关
   if (g.floor > MAX_FLOOR) {
     g.cleared = true
@@ -176,7 +170,7 @@ function nextFloor(g) {
   // 攻击隐性加成：每过5层自动获得攻击加成（保证输出跟得上怪物膨胀）
   if (g.floor > 1 && g.floor % 5 === 1) {
     const tier = Math.floor((g.floor - 1) / 5)  // 1~5
-    const atkBonus = 10 + tier * 2               // 12/14/16/18/20%
+    const atkBonus = 6 + tier * 2                // 8/10/12/14/16%
     g.runBuffs.allAtkPct += atkBonus
   }
   // 法宝perFloorBuff
@@ -201,6 +195,7 @@ function nextFloor(g) {
     g._floorExpSummary = null
   }
   g._floorStartExp = g.runExp || 0
+  g._floorStartCombatExp = (g._runElimExp || 0) + (g._runComboExp || 0) + (g._runKillExp || 0)
   g._expFloats = []
   g.setScene('event')
 }
@@ -230,9 +225,10 @@ function settleExp(g) {
 
   const combatDetail = { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 }
   const rawCombat = combatDetail.elimExp + combatDetail.comboExp + combatDetail.killExp
-  const petBase = Math.floor(rawCombat * cfg.soulStone.combatRatio)
-  const petFloor = finalFloor * cfg.soulStone.floorBonus
-  const petClear = g.cleared ? cfg.soulStone.clearBonus : 0
+  const ssCfg = cfg.soulStone
+  const petBase = Math.floor(rawCombat * ssCfg.combatRatio)
+  const petFloor = Math.floor(finalFloor * ssCfg.floorBase + ssCfg.floorGrowth * finalFloor * (finalFloor + 1) / 2)
+  const petClear = g.cleared ? ssCfg.clearBonus : 0
   const soulStone = petBase + petFloor + petClear
   if (soulStone > 0) g.storage.addSoulStone(soulStone)
 
@@ -325,7 +321,12 @@ function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
-  g.storage._d.totalRuns++; g.storage._save()
+  g.storage._d.totalRuns++
+  if (!g._towerRunRecorded) {
+    g.storage.recordTowerRun()
+    g._towerRunRecorded = true
+  }
+  g.storage._save()
   if (g.storage.addDailyTaskProgress) {
     g.storage.addDailyTaskProgress('battle_3', 1)
   }
@@ -545,6 +546,7 @@ function useItemHeal(g) {
 function gmSkipBattle(g) {
   if (!g._isGM || !g.enemy || g.bState !== 'playerTurn') return false
   g.enemy.hp = 0
+  addKillExp(g)
   g.lastTurnCount = g.turnCount
   g.lastSpeedKill = false
   g.runTotalTurns = (g.runTotalTurns || 0) + g.turnCount

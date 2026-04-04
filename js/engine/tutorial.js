@@ -516,8 +516,6 @@ function finish(g) {
   g.weapon = null
   g.weaponBag = []
   g.petBag = []
-  // 标记：第1层显示说明文字
-  g._tutorialJustDone = true
   runMgr.nextFloor(g)
 }
 
@@ -674,13 +672,6 @@ function getGuideData() {
   }
 }
 
-// 检查是否需要教学
-function needsTutorial() {
-  try {
-    return !P.getStorageSync('tutorialDone')
-  } catch(e) { return true }
-}
-
 /**
  * 秘境简化版教学：仅 1 步拖珠消除，文案关联宠物攻击
  * 不替换宠物和敌人（由 startStageNewbie 已设好），教完直接切自由操作
@@ -758,7 +749,7 @@ function _forceDeactivate() {
 
 module.exports = {
   STEPS,
-  isActive, getStep, getPhase, isSummary, needsTutorial,
+  isActive, getStep, getPhase, isSummary,
   start, finish, update, onStoryCardTap, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
   onElim, onEnemyTurnEnd, canDrag, canSwapTo, isGuideActive, onDragEnd, shouldEnemyAttack, getGuideData,
   startStageTutorial, finishStageTutorial,

@@ -3,7 +3,6 @@
  */
 const V = require('../views/env')
 const MusicMgr = require('../runtime/music')
-const { MAX_FLOOR } = require('../data/tower')
 const { petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
 const guideMgr = require('../engine/guideManager')
@@ -192,44 +191,8 @@ function tBattle(g, type, x, y) {
       && g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'adReviveOffer') {
     g._showBattleHelp = true; g._battleHelpPage = 0; g._dirty = true; return
   }
-  // 胜利/失败
-  if (g.bState === 'victory' && type === 'end') {
-    // 秘境模式由 _handleStageVictory 自动结算，不需要触摸处理
-    if (g.battleMode === 'stage') return
-    if (g.floor >= MAX_FLOOR && g._clearConfirmRect && g._hitRect(x,y,...g._clearConfirmRect)) {
-      if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
-      g.cleared = true
-      g._clearPanelTimer = null; g._clearParticles = null
-      g._goAnimTimer = null
-      g._endRun()
-      return
-    }
-    if (g.floor >= MAX_FLOOR) return
-    if (g._petObtainedPopup) {
-      g._petObtainedPopup = null
-      g._nextFloor()
-      return
-    }
-    if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
-      g._star3Celebration = null
-      if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
-      if (g._fragmentObtainedPopup) return
-      g._nextFloor()
-      return
-    }
-    if (g._star3Celebration) return
-    if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._nextFloor(); return }
-    if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._nextFloor(); return }
-    if (g._victoryTapReady && g.rewards && g.rewards.length > 0) {
-      g.selectedReward = -1
-      g._victoryAnimTimer = null
-      g.setScene('reward')
-      MusicMgr.playReward()
-      guideMgr.trigger(g, 'reward_first')
-      return
-    }
-    return
-  }
+  // 胜利：秘境/通天塔均由 drawVictoryOverlay 自动等死亡动画后切场景，无需触摸
+  if (g.bState === 'victory') return
   // 波间过渡
   if (g.bState === 'waveTransition' && type === 'end') {
     g._waveTransTimer = 0

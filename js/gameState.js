@@ -68,6 +68,7 @@ function initState(g) {
   g._expIndicatorY = 0
   g._floorStartExp = 0        // 本层开始时的 runExp 快照
   g._floorExpSummary = null    // 过层经验汇总 { amount, timer }
+  g._floorStartCombatExp = 0  // 每层开始时的战斗经验基准（用于计算本层灵石）
 
   // ===== Roguelike Run 状态 =====
   g.floor = 0
@@ -86,6 +87,11 @@ function initState(g) {
   g.adventureData = null
   g.selectedReward = -1
   g.rewardPetSlot = -1
+
+  // ===== 通天塔编队 =====
+  g._towerTeamSelected = null
+  g._towerTeamFilter = 'all'
+  g._towerRunRecorded = false
 
   // ===== 战前编辑 =====
   g.prepareTab = 'pets'
@@ -119,7 +125,6 @@ function initState(g) {
   g._loadReady = false
   g._loadPct = 0
   g._pendingGuide = null
-  g._rogueIntro = null
   g._newbiePetIntro = null     // 新手宠物战前介绍卡 { petId, alpha, page, timer }
   g._newbiePetCelebrate = null // 新手首通宠物庆祝阶段 { petId, alpha, timer }
   g._newbieTeamOverview = null // 新手队伍总览卡 { pets, alpha, timer }
@@ -161,6 +166,13 @@ function initState(g) {
   g._petPoolLevelUpAnim = null  // 升级动画 { petId, fromLv, toLv }
   g._lastRunSoulStone = 0       // 上一局获得的灵石
   g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
+  g._goHomeBtnRect = null       // gameover 页面"返回首页"按钮区域
+
+  // ===== 通天塔过层结算 =====
+  g._towerFloorResult = null    // 过层结算数据（供 towerVictoryView 渲染）
+  g._towerFloorSettlePending = false  // 防止重复过层结算
+  g._towerClearSettlePending = false  // 防止重复通关结算
+  g._towerVictoryBtnRect = null // 过层结算页「选择奖励」按钮区域
 
   // ===== Phase 3：固定关卡 =====
   g.battleMode = 'roguelike'    // 'roguelike' | 'stage'

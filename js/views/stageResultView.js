@@ -15,6 +15,7 @@ const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stage
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
+const { drawCelebrationBackdrop } = require('./uiComponents')
 
 const _rects = {
   backBtnRect: null,
@@ -109,70 +110,7 @@ function _strokeText(c, text, x, y, strokeColor, strokeWidth) {
   c.fillText(text, x, y)
 }
 
-/** 关卡通关页：暗角 + 强放射光 + 金粉粒子（参考高满足感获得页） */
-function _drawCelebrationBackdrop(c, W, H, S, centerY, at, fadeIn) {
-  c.save()
-  c.globalAlpha = fadeIn
-  const vig = c.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.12, W * 0.5, H * 0.45, Math.max(W, H) * 0.72)
-  vig.addColorStop(0, 'rgba(55,38,22,0)')
-  vig.addColorStop(1, 'rgba(18,12,8,0.62)')
-  c.fillStyle = vig
-  c.fillRect(0, 0, W, H)
-  c.fillStyle = 'rgba(90,55,28,0.14)'
-  c.fillRect(0, 0, W, H)
-  c.restore()
-
-  c.save()
-  c.globalAlpha = fadeIn * (0.14 + 0.07 * Math.sin(at * 0.034))
-  c.translate(W * 0.5, centerY)
-  c.rotate(at * 0.0023)
-  const nRays = 16
-  for (let i = 0; i < nRays; i++) {
-    c.rotate((Math.PI * 2) / nRays)
-    c.beginPath(); c.moveTo(0, 0)
-    c.lineTo(-24 * S, -H * 0.55); c.lineTo(24 * S, -H * 0.55)
-    c.closePath()
-    const rg = c.createLinearGradient(0, 0, 0, -H * 0.52)
-    rg.addColorStop(0, 'rgba(255,235,160,0.95)')
-    rg.addColorStop(0.35, 'rgba(255,200,80,0.35)')
-    rg.addColorStop(1, 'rgba(255,180,40,0)')
-    c.fillStyle = rg
-    c.fill()
-  }
-  c.restore()
-
-  c.save()
-  c.globalAlpha = fadeIn * 0.88
-  const glow = c.createRadialGradient(W * 0.5, centerY, 0, W * 0.5, centerY, W * 0.68)
-  glow.addColorStop(0, 'rgba(255,220,120,0.38)')
-  glow.addColorStop(0.42, 'rgba(255,170,70,0.14)')
-  glow.addColorStop(1, 'rgba(255,200,80,0)')
-  c.fillStyle = glow
-  c.fillRect(0, 0, W, H)
-  c.restore()
-
-  c.save()
-  c.globalAlpha = fadeIn * 0.5
-  const t = at * 0.018
-  for (let i = 0; i < 26; i++) {
-    const sx = ((Math.sin(i * 12.9898 + t * 1.1) * 0.5 + 0.5) * 0.92 + 0.04) * W
-    const sy = ((Math.cos(i * 7.1234 + t * 0.75) * 0.5 + 0.5) * 0.78 + 0.06) * H
-    const r = (2.5 + (i % 6)) * S * (0.85 + 0.15 * Math.sin(at * 0.048 + i * 0.7))
-    const ga = 0.12 + 0.14 * Math.sin(at * 0.07 + i)
-    c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2)
-    c.fillStyle = `rgba(255,230,180,${ga})`
-    c.fill()
-  }
-  c.globalAlpha = fadeIn * 0.65
-  for (let i = 0; i < 36; i++) {
-    const sx = (i * 113 + at * 1.7 + Math.sin(i) * 40) % (W - 4 * S)
-    const sy = (i * 67 + at * 1.1) % (H * 0.92)
-    const tw = (1 + (i % 3)) * S
-    c.fillStyle = `rgba(255,255,255,${0.18 + 0.22 * Math.sin(at * 0.11 + i)})`
-    c.fillRect(sx, sy, tw, tw)
-  }
-  c.restore()
-}
+// drawCelebrationBackdrop 已抽取到 uiComponents.js → drawCelebrationBackdrop
 
 function _drawPedestalCloud(c, R, S, cx, avatarBottomY, width) {
   const cy = avatarBottomY - 4 * S
@@ -437,7 +375,7 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
 // ===== 胜利全屏 =====
 function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   const spotlightCenterY = safeTop + 115 * S
-  _drawCelebrationBackdrop(c, W, H, S, spotlightCenterY, at, fadeIn)
+  drawCelebrationBackdrop(c, W, H, S, spotlightCenterY, at, fadeIn)
 
   c.fillStyle = 'rgba(255,240,200,0.06)'
   c.fillRect(0, 0, W, H)
@@ -1656,7 +1594,7 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
   }
 
   const centerY = H * 0.38
-  _drawCelebrationBackdrop(c, W, H, S, centerY, cel.timer, cel.alpha)
+  drawCelebrationBackdrop(c, W, H, S, centerY, cel.timer, cel.alpha)
 
   c.save()
   c.globalAlpha = cel.alpha

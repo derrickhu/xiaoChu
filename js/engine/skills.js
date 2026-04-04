@@ -11,6 +11,7 @@ const {
 const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
 const DF = require('./dmgFloat')
+const { addKillExp } = require('./battle')
 
 // 辅助：tryMergePet 后处理满星入池/碎片（图鉴由 petPool 状态自动派生，不再手动写入）
 function _mergePetAndDex(g, allPets, newPet) {
@@ -340,7 +341,7 @@ function triggerPetSkill(g, pet, idx) {
           const heal = Math.round(g.heroMaxHp * sk.teamHealPct / 100)
           g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
         }
-        if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'instantDmgDot':
@@ -351,7 +352,7 @@ function triggerPetSkill(g, pet, idx) {
         DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||40) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
-        if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'multiHit':
@@ -368,7 +369,7 @@ function triggerPetSkill(g, pet, idx) {
         g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         g.shakeT = 10; g.shakeI = 6
-        if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'hpMaxUp': {
@@ -494,7 +495,7 @@ function triggerPetSkill(g, pet, idx) {
         })
         g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
         g._playHeroAttack(sk.name, pet.attr, 'burst')
-        if (g.enemy.hp <= 0) { g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; MusicMgr.playVictory(); g.bState = 'victory'; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     }

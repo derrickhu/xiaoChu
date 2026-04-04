@@ -8,7 +8,7 @@ const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getStar3O
 const { RARITY_VISUAL } = require('../data/economyConfig')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
-const { drawPanel, drawRibbonIcon } = require('./uiComponents')
+const { drawPanel, drawRibbonIcon, drawCelebrationBackdrop, drawRewardRow, drawBuffCard } = require('./uiComponents')
 const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR_LABEL, TOTAL_PET_COUNT,
   ELEM_MILESTONES, TOTAL_MILESTONES, RARITY_MILESTONES,
   hasUnclaimedMilestones } = require('../data/dexConfig')
@@ -304,32 +304,9 @@ function _drawGoBackBtn(ctx, R, S, safeTop, g) {
   g._backBtnRect = [bx, by, btnSz, btnSz]
 }
 
-// ===== 通关全屏 =====
+// ===== 通关全屏（复用公共庆祝背景）=====
 function _drawTowerVictory(g, c, R, W, H, S, safeTop, at, fadeIn) {
-  c.fillStyle = 'rgba(255,240,200,0.1)'; c.fillRect(0, 0, W, H)
-
-  // 旋转金色光芒
-  c.save()
-  c.globalAlpha = fadeIn * (0.06 + 0.03 * Math.sin(at * 0.04))
-  c.translate(W * 0.5, safeTop + 80 * S)
-  c.rotate(at * 0.003)
-  for (let i = 0; i < 12; i++) {
-    c.rotate(Math.PI / 6)
-    c.beginPath(); c.moveTo(0, 0)
-    c.lineTo(-16 * S, -H * 0.35); c.lineTo(16 * S, -H * 0.35)
-    c.closePath(); c.fillStyle = '#ffd700'; c.fill()
-  }
-  c.restore()
-
-  // 金色径向光晕
-  c.save()
-  c.globalAlpha = fadeIn * 0.7
-  const glow = c.createRadialGradient(W * 0.5, safeTop + 80 * S, 0, W * 0.5, safeTop + 80 * S, W * 0.5)
-  glow.addColorStop(0, 'rgba(255,215,0,0.25)')
-  glow.addColorStop(0.5, 'rgba(255,200,0,0.08)')
-  glow.addColorStop(1, 'rgba(255,215,0,0)')
-  c.fillStyle = glow; c.fillRect(0, 0, W, H)
-  c.restore()
+  drawCelebrationBackdrop(c, W, H, S, safeTop + 80 * S, at, fadeIn)
 
   c.save()
   c.globalAlpha = fadeIn
@@ -526,7 +503,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   // === 修炼经验 ===
   if (cultFinal > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${cultFinal}`, '#8B7355', '#B8860B')
+    drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${cultFinal}`, '#8B7355', '#B8860B')
     cy += 28 * S
 
     const d = g._lastRunExpDetail
@@ -586,13 +563,13 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
 
   // === 灵石 ===
   if (soulStoneFinal > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${soulStoneFinal}`, '#5577AA', '#3366AA')
+    drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${soulStoneFinal}`, '#5577AA', '#3366AA')
     cy += 28 * S
   }
 
   // === 碎片奖励 ===
   if (fragFinal > 0) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵兽碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
+    drawRewardRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵兽碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
     cy += 28 * S
 
     if (fragDetails.length > 0) {
@@ -625,21 +602,25 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   // === 本局新获法宝 ===
   const newWpns = sr && sr.newWeapons && sr.newWeapons.length > 0 ? sr.newWeapons : null
   if (newWpns) {
-    _drawGoExpRow(c, R, S, px + pad, cy, innerW, 'icon_weapon', '本局新获法宝', `${newWpns.length}件`, '#B8860B', '#B8860B')
+    drawRewardRow(c, R, S, px + pad, cy, innerW, 'icon_weapon', '本局新获法宝', `${newWpns.length}件`, '#B8860B', '#B8860B')
     cy += 28 * S
     c.textAlign = 'center'; c.fillStyle = '#B8860B'; c.font = `${9*S}px "PingFang SC",sans-serif`
     c.fillText(newWpns.map(w => w.name).join('、'), W * 0.5, cy + 4 * S)
     cy += 20 * S
   }
 
-  // === 底部按钮 ===
+  // === 底部按钮（双按钮：返回首页 + 再次挑战）===
   cy += 6 * S
   const btnH = 38 * S
-  const btnW = innerW * 0.6
-  const btnX = (W - btnW) / 2
+  const btnGap = 12 * S
+  const btnW2 = (innerW - btnGap) / 2
+  const btnLeftX = px + pad, btnRightX = btnLeftX + btnW2 + btnGap
 
-  R.drawDialogBtn(btnX, cy, btnW, btnH, g.cleared ? '再次挑战' : '重新挑战', 'confirm')
-  g._goBtnRect = [btnX, cy, btnW, btnH]
+  R.drawDialogBtn(btnLeftX, cy, btnW2, btnH, '返回首页', 'cancel')
+  g._goHomeBtnRect = [btnLeftX, cy, btnW2, btnH]
+
+  R.drawDialogBtn(btnRightX, cy, btnW2, btnH, g.cleared ? '再次挑战' : '重新挑战', 'confirm')
+  g._goBtnRect = [btnRightX, cy, btnW2, btnH]
   cy += btnH + 8 * S
 
   // 快捷按钮行
@@ -669,20 +650,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, fadeIn) {
   c.restore()
 }
 
-// ===== 经验行（图标+文字+数值） =====
-function _drawGoExpRow(c, R, S, x, cy, innerW, iconName, label, value, labelColor, valueColor) {
-  const iconSz = 22 * S
-  const iconImg = R.getImg(`assets/ui/${iconName}.png`)
-  if (iconImg && iconImg.width > 0) {
-    c.drawImage(iconImg, x, cy, iconSz, iconSz)
-  }
-  c.textAlign = 'left'; c.textBaseline = 'middle'
-  c.fillStyle = labelColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.fillText(label, x + iconSz + 6 * S, cy + iconSz / 2)
-  c.fillStyle = valueColor; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'
-  c.fillText(value, x + innerW, cy + iconSz / 2)
-}
+// drawRewardRow 已抽取到 uiComponents.js
 
 // ===== Ranking =====
 const _RANK_TABS = [
@@ -1255,66 +1223,66 @@ function rReward(g) {
     const cy = startY + i*(cardH+gap)
     const selected = g.selectedReward === i
     const isSpeedBuff = rw.isSpeed === true
+    const _isPetOrWpn = rw.type === REWARD_TYPES.NEW_PET || rw.type === REWARD_TYPES.NEW_WEAPON
 
-    // 卡片背景：深琥珀金，厚重暖调
-    let bgColor = selected ? 'rgba(75,50,20,0.93)' : 'rgba(65,45,18,0.88)'
-    let borderColor = selected ? '#E8C060' : 'rgba(180,150,90,0.4)'
-    if (rw.type === REWARD_TYPES.NEW_PET) {
-      const ac = ATTR_COLOR[rw.data.attr]
-      if (selected && ac) borderColor = ac.main
-    }
+    // Buff 卡片由 drawBuffCard 自行绘制背景，仅对灵兽/法宝卡绘制通用背景
+    let _useScrollBg = false
+    if (_isPetOrWpn) {
+      let bgColor = selected ? 'rgba(75,50,20,0.93)' : 'rgba(65,45,18,0.88)'
+      let borderColor = selected ? '#E8C060' : 'rgba(180,150,90,0.4)'
+      if (rw.type === REWARD_TYPES.NEW_PET) {
+        const ac = ATTR_COLOR[rw.data.attr]
+        if (selected && ac) borderColor = ac.main
+      }
 
-    const rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
-    const _useScrollBg = rewardCardBg && rewardCardBg.width > 0
+      const rewardCardBg = R.getImg('assets/ui/reward_card_bg.png')
+      _useScrollBg = rewardCardBg && rewardCardBg.width > 0
 
-    // 卷轴绘制区域比内容区左右各多延伸，让木轴完整显示
-    const scrollPadX = 6 * S
-    const scrollPadY = 4 * S
-    const scrollX = cardX - scrollPadX
-    const scrollY = cy - scrollPadY
-    const scrollW = cardW + scrollPadX * 2
-    const scrollH = cardH + scrollPadY * 2
+      const scrollPadX = 6 * S
+      const scrollPadY = 4 * S
+      const scrollX = cardX - scrollPadX
+      const scrollY = cy - scrollPadY
+      const scrollW = cardW + scrollPadX * 2
+      const scrollH = cardH + scrollPadY * 2
 
-    if (_useScrollBg) {
-      // 卷轴模式：投影打在卷轴形状上，不画矩形底色
-      ctx.save()
-      ctx.shadowColor = 'rgba(40,25,10,0.45)'
-      ctx.shadowBlur = 12 * S
-      ctx.shadowOffsetY = 4 * S
-      ctx.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
-      ctx.restore()
-      // 选中态：卷轴外围发光
-      if (selected) {
+      if (_useScrollBg) {
         ctx.save()
-        ctx.shadowColor = borderColor
-        ctx.shadowBlur = 16 * S
-        ctx.globalAlpha = 0.6
+        ctx.shadowColor = 'rgba(40,25,10,0.45)'
+        ctx.shadowBlur = 12 * S
+        ctx.shadowOffsetY = 4 * S
         ctx.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
         ctx.restore()
-      }
-    } else {
-      // 无卷轴图降级：矩形底色 + 投影
-      ctx.save()
-      ctx.shadowColor = 'rgba(40,25,10,0.5)'
-      ctx.shadowBlur = 14 * S
-      ctx.shadowOffsetY = 5 * S
-      ctx.fillStyle = bgColor
-      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
-      ctx.restore()
-      ctx.save()
-      ctx.shadowColor = selected ? 'rgba(230,200,100,0.6)' : 'rgba(180,150,80,0.2)'
-      ctx.shadowBlur = selected ? 18 * S : 8 * S
-      ctx.strokeStyle = selected ? 'rgba(230,200,100,0.7)' : 'rgba(180,150,90,0.35)'
-      ctx.lineWidth = selected ? 2.5 * S : 1.5 * S
-      R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
-      ctx.restore()
-      if (selected) {
-        ctx.strokeStyle = borderColor; ctx.lineWidth = 2.5*S
+        if (selected) {
+          ctx.save()
+          ctx.shadowColor = borderColor
+          ctx.shadowBlur = 16 * S
+          ctx.globalAlpha = 0.6
+          ctx.drawImage(rewardCardBg, scrollX, scrollY, scrollW, scrollH)
+          ctx.restore()
+        }
+      } else {
+        ctx.save()
+        ctx.shadowColor = 'rgba(40,25,10,0.5)'
+        ctx.shadowBlur = 14 * S
+        ctx.shadowOffsetY = 5 * S
+        ctx.fillStyle = bgColor
+        R.rr(cardX, cy, cardW, cardH, 10*S); ctx.fill()
+        ctx.restore()
+        ctx.save()
+        ctx.shadowColor = selected ? 'rgba(230,200,100,0.6)' : 'rgba(180,150,80,0.2)'
+        ctx.shadowBlur = selected ? 18 * S : 8 * S
+        ctx.strokeStyle = selected ? 'rgba(230,200,100,0.7)' : 'rgba(180,150,90,0.35)'
+        ctx.lineWidth = selected ? 2.5 * S : 1.5 * S
         R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
+        ctx.restore()
+        if (selected) {
+          ctx.strokeStyle = borderColor; ctx.lineWidth = 2.5*S
+          R.rr(cardX, cy, cardW, cardH, 10*S); ctx.stroke()
+        }
       }
     }
 
-    // 卷轴亮底 vs 降级深底的文字配色切换
+    // 卷轴亮底 vs 降级深底的文字配色切换（灵兽/法宝卡片内容使用）
     const _darkText = _useScrollBg
     const _txtMain   = _darkText ? '#2A1A10' : '#FFF2D0'
     const _txtSub    = _darkText ? '#3F3025' : 'rgba(235,225,200,0.9)'
@@ -1324,7 +1292,6 @@ function rReward(g) {
     const _txtOrange = _darkText ? '#A85C00' : '#F0C050'
     const _txtStroke = _darkText ? 'rgba(255,248,232,0.7)' : 'rgba(30,20,5,0.6)'
 
-    // 卷轴模式下头像右移，避开左侧木轴
     const _contentPadL = _useScrollBg ? 38*S : 12*S
 
     if (rw.type === REWARD_TYPES.NEW_PET && rw.data) {
@@ -1533,59 +1500,7 @@ function rReward(g) {
       }
 
     } else {
-      // ====== 普通Buff卡片：图标 + 文字 ======
-      const buffData = rw.data || {}
-      const buffKey = buffData.buff || ''
-      // 根据图标分类显示不同加成类型名称
-      const BUFF_TYPE_NAMES = {
-        buff_icon_atk: '攻击加成', buff_icon_heal: '治疗加成', buff_icon_def: '防御加成',
-        buff_icon_elim: '消除加成', buff_icon_time: '时间加成', buff_icon_hp: '血量加成',
-        buff_icon_weaken: '削弱加成', buff_icon_special: '特殊加成',
-      }
-      let typeTag = '', tagColor = _txtDim
-      if (isSpeedBuff) { typeTag = '⚡速通'; tagColor = _txtGold }
-      else { typeTag = '加成'; tagColor = _txtDim }
-
-      // buff图标（左侧，放大）
-      const iconSz = Math.min(48*S, cardH - 10*S)
-      const iconX = cardX + _contentPadL + 2*S, iconY = cy + (cardH - iconSz) / 2
-      const BUFF_ICON_IMGS = {
-        allAtkPct:'buff_icon_atk', allDmgPct:'buff_icon_atk', counterDmgPct:'buff_icon_atk', skillDmgPct:'buff_icon_atk',
-        healNow:'buff_icon_heal', postBattleHeal:'buff_icon_heal', regenPerTurn:'buff_icon_heal',
-        dmgReducePct:'buff_icon_def', nextDmgReduce:'buff_icon_def', grantShield:'buff_icon_def', immuneOnce:'buff_icon_def',
-        comboDmgPct:'buff_icon_elim', elim3DmgPct:'buff_icon_elim', elim4DmgPct:'buff_icon_elim', elim5DmgPct:'buff_icon_elim', bonusCombo:'buff_icon_elim',
-        extraTimeSec:'buff_icon_time', skillCdReducePct:'buff_icon_time', resetAllCd:'buff_icon_time',
-        hpMaxPct:'buff_icon_hp',
-        enemyAtkReducePct:'buff_icon_weaken', enemyHpReducePct:'buff_icon_weaken', eliteAtkReducePct:'buff_icon_weaken',
-        eliteHpReducePct:'buff_icon_weaken', bossAtkReducePct:'buff_icon_weaken', bossHpReducePct:'buff_icon_weaken',
-        nextStunEnemy:'buff_icon_weaken', stunDurBonus:'buff_icon_weaken',
-        extraRevive:'buff_icon_special', skipNextBattle:'buff_icon_special', nextFirstTurnDouble:'buff_icon_special', heartBoostPct:'buff_icon_special',
-      }
-      const iconName = BUFF_ICON_IMGS[buffKey]
-      const iconImg = iconName ? R.getImg(`assets/ui/battle/${iconName}.png`) : null
-      if (iconImg && iconImg.width > 0) {
-        ctx.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
-      }
-      // 根据图标类型覆盖加成名称
-      if (!isSpeedBuff && iconName && BUFF_TYPE_NAMES[iconName]) {
-        typeTag = BUFF_TYPE_NAMES[iconName]
-      }
-
-      // 类型标签（图标右上方）
-      const textX = iconX + iconSz + 10*S
-      ctx.fillStyle = tagColor; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText(typeTag, textX, cy + cardH*0.38) }
-      ctx.fillText(typeTag, textX, cy + cardH*0.38)
-
-      // 名称（居中偏右）
-      ctx.fillStyle = _txtMain; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.5 * S; ctx.strokeText(rw.label, textX, cy + cardH*0.62) }
-      ctx.fillText(rw.label, textX, cy + cardH*0.62)
-
-      // 底部提示
-      ctx.fillStyle = _txtDim; ctx.font = `${10*S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-      if (_txtStroke) { ctx.strokeStyle = _txtStroke; ctx.lineWidth = 1.2 * S; ctx.strokeText('全队永久生效', textX, cy + cardH*0.84) }
-      ctx.fillText('全队永久生效', textX, cy + cardH*0.84)
+      drawBuffCard(ctx, R, S, cardX, cy, cardW, cardH, rw, selected)
     }
     g._rewardRects.push([cardX, cy, cardW, cardH])
   })

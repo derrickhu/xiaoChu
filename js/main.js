@@ -6,8 +6,7 @@
 const P = require('./platform')
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
-const { generateRewards, MAX_FLOOR } = require('./data/tower')
-const { getMaxedPetIds } = require('./data/pets')
+// tower 数据由各子模块自行引入
 const MusicMgr = require('./runtime/music')
 const TinyEmitter = require('./libs/tinyemitter')
 const ViewEnv = require('./views/env')
@@ -18,6 +17,8 @@ const petDetailView = require('./views/petDetailView')
 const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
+const towerVictoryView = require('./views/towerVictoryView')
+const towerTeamView = require('./views/towerTeamView')
 const idleView = require('./views/idleView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
@@ -279,19 +280,7 @@ class Main {
         stageMgr.advanceWave(this)
       }
     }
-    // victory 状态下懒生成奖励（仅肉鸽模式）
-    if (this.bState === 'victory' && !this.rewards && !tutorial.isActive() && this.floor < MAX_FLOOR && this.battleMode !== 'stage') {
-      const ownedWpnIds = new Set()
-      if (this.weapon) ownedWpnIds.add(this.weapon.id)
-      if (this.weaponBag) this.weaponBag.forEach(w => ownedWpnIds.add(w.id))
-      const ownedPetIds = new Set()
-      if (this.pets) this.pets.forEach(p => { if (p) ownedPetIds.add(p.id) })
-      if (this.petBag) this.petBag.forEach(p => { if (p) ownedPetIds.add(p.id) })
-      const maxedPetIds = getMaxedPetIds(this)
-      this.rewards = generateRewards(this.floor, this.curEvent ? this.curEvent.type : 'battle', this.lastSpeedKill, ownedWpnIds, this.sessionPetPool, ownedPetIds, maxedPetIds)
-      this.selectedReward = -1
-      this._rewardDetailShow = null
-    }
+    // 奖励生成已移至 battleVictoryView._handleTowerFloorVictory 中提前完成
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
       if (this._loadReady && elapsed > 500) {
@@ -456,6 +445,8 @@ class Main {
       case 'stageInfo': stageInfoView.rStageInfo(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
       case 'stageResult': stageResultView.rStageResult(this); break
+      case 'towerVictory': towerVictoryView.rTowerVictory(this); break
+      case 'towerTeam': towerTeamView.rTowerTeam(this); break
       case 'idle': idleView.rIdle(this); break
     }
     // 粒子系统绘制
@@ -474,9 +465,6 @@ class Main {
     }
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
-    }
-    if (this._rogueIntro) {
-      eventView.drawRogueIntro(this)
     }
     if (this._newbiePetIntro) {
       eventView.drawNewbiePetIntro(this)
@@ -529,6 +517,8 @@ class Main {
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
       case 'stageResult': stageResultView.tStageResult(this,x,y,type); break
+      case 'towerVictory': towerVictoryView.tTowerVictory(this,x,y,type); break
+      case 'towerTeam': towerTeamView.tTowerTeam(this,x,y,type); break
       case 'idle': idleView.tIdle(this,type,x,y); break
     }
   }

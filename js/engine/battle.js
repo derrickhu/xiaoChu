@@ -1283,6 +1283,7 @@ function _safeBattle(fn) {
 }
 
 module.exports = {
+  addKillExp: _addKillExp,
   initBoard, fillBoard, cellAttr,
   checkAndElim: _safeBattle(checkAndElim),
   startNextElimAnim: _safeBattle(startNextElimAnim),

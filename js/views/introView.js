@@ -264,7 +264,7 @@ function _finish(g) {
   g.storage.markGuideShown('intro_done')
   const MusicMgr = require('../runtime/music')
   MusicMgr.playBgm()
-  // 进入首页并触发新手秘境指引（Roguelike 教学延迟到首次点塔时自然触发）
+  // 进入首页并触发新手秘境指引（通天塔不再单独套教学局）
   g._pendingGuide = 'newbie_stage_start'
   g.setScene('title')
 }
