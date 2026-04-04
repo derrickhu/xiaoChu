@@ -167,11 +167,8 @@ function nextFloor(g) {
       timer: 0
     }
   }
-  // 攻击隐性加成：每过5层自动获得攻击加成（保证输出跟得上怪物膨胀）
   if (g.floor > 1 && g.floor % 5 === 1) {
-    const tier = Math.floor((g.floor - 1) / 5)  // 1~5
-    const atkBonus = 6 + tier * 2                // 8/10/12/14/16%
-    g.runBuffs.allAtkPct += atkBonus
+    g.runBuffs.allAtkPct += calcFloorAtkBonus(g.floor)
   }
   // 法宝perFloorBuff
   if (g.weapon && g.weapon.type === 'perFloorBuff' && g.floor > 1 && (g.floor - 1) % g.weapon.per === 0) {
@@ -557,6 +554,17 @@ function gmSkipBattle(g) {
   return true
 }
 
+/**
+ * 每过5层的隐性攻击加成百分比（保证输出跟得上怪物膨胀）
+ * @param {number} floor - 当前到达层数
+ * @returns {number} 攻击加成百分比（0 表示本层无加成）
+ */
+function calcFloorAtkBonus(floor) {
+  if (floor <= 1 || floor % 5 !== 1) return 0
+  const tier = Math.floor((floor - 1) / 5)
+  return 6 + tier * 2
+}
+
 function _safeRun(fn) {
   return function (g) {
     try {
@@ -588,4 +596,5 @@ module.exports = {
   adReviveCallback: _safeRun(adReviveCallback),
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
   gmSkipBattle: _safeRun(gmSkipBattle),
+  calcFloorAtkBonus,
 }

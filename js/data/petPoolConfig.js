@@ -85,15 +85,9 @@ function getPoolPetMaxLv(poolPet) {
 const ENTRY_LEVEL = POOL_ENTRY_LEVEL
 const ENTRY_FRAGMENTS = POOL_ENTRY_FRAGMENTS
 
-// ===== 肉鸽局结算灵石 =====
+// ===== 肉鸽局结算灵石 @deprecated 未实际调用，保留备用 =====
 
-/**
- * 肉鸽结算灵石公式
- * 独立于修炼经验，按消除/连击/击杀/层数计算
- * @param {object} expDetail - { elimExp, comboExp, killExp }
- * @param {number} floor - 最终到达层数
- * @param {boolean} cleared - 是否通关
- */
+/** @deprecated 通天塔结算已改用 TOWER_SETTLE，此函数未被调用 */
 function calcRoguelikeSoulStone(expDetail, floor, cleared) {
   const rawExp = (expDetail.elimExp || 0) + (expDetail.comboExp || 0) + (expDetail.killExp || 0)
   const baseFromCombat = Math.floor(rawExp * ROGUE_SETTLE.combatExpRatio)

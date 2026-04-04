@@ -493,9 +493,8 @@ class Main {
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
     if (handleConfirmDialogTouch(this, x, y, type)) return
-    // 指引覆盖层拦截（restrictToHighlight 模式下高亮区域点击可穿透到底层按钮）
     if (guideMgr.isActive()) {
-      if (guideOverlay.onTouch(this, type, x, y)) return
+      if (guideOverlay.onTouch(this, type)) return
     }
     switch(this.scene) {
       case 'intro': introView.onTouch(this, type, x, y); break

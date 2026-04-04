@@ -24,8 +24,8 @@ const RANK_CACHE_TTL_MS = 30000
 // ===== 塔层 / 肉鸽 (TOWER) =====
 
 const TOWER_MAX_FLOOR = 30
-const TOWER_COUNTER_MUL = 2.5
-const TOWER_COUNTERED_MUL = 0.5
+const TOWER_COUNTER_MUL = 2.0
+const TOWER_COUNTERED_MUL = 0.6
 const TOWER_RECENT_LIMIT = 3
 const TOWER_BASE_EVENT_WEIGHTS = {
   battle:    70,
@@ -61,15 +61,15 @@ const POOL_EXP_BASE = 20
 const POOL_EXP_LINEAR = 8
 const POOL_EXP_POW_EXP = 1.4
 const POOL_EXP_POW_COEFF = 0.5
-const POOL_STAR_FRAG_COST = { 2: 5, 3: 15, 4: 30, 5: 50 }
-const POOL_STAR_LV_REQ = { 2: 10, 3: 20, 4: 35, 5: 45 }
+const POOL_STAR_FRAG_COST = { 2: 8, 3: 25, 4: 40, 5: 60 }
+const POOL_STAR_LV_REQ = { 2: 10, 3: 25, 4: 38, 5: 48 }
 const POOL_STAR_ATK_MUL = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 }
 const POOL_STAR_AWAKEN_COST = { 4: 3, 5: 8 }
-const POOL_STAR_SS_COST = { 2: 200, 3: 800, 4: 2500, 5: 6000 }
+const POOL_STAR_SS_COST = { 2: 0, 3: 0, 4: 0, 5: 0 }
 const POOL_STAR_LV_CAP = { 1: 40, 2: 40, 3: 40, 4: 50, 5: 60 }
 const POOL_FRAGMENT_TO_EXP = 40
-const POOL_ENTRY_LEVEL = 5
-const POOL_ENTRY_FRAGMENTS = 2
+const POOL_ENTRY_LEVEL = 1
+const POOL_ENTRY_FRAGMENTS = 0
 const POOL_R_LV_BONUS_RATE = 0.8
 
 // ===== 连击里程碑 (COMBO) =====

@@ -602,7 +602,6 @@ class Storage {
    */
   upgradePoolPetStar(petId) {
     const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST } = require('./petPoolConfig')
-    const { POOL_STAR_SS_COST } = require('./constants')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry) return { ok: false, reason: 'not_found' }
     const nextStar = entry.star + 1
@@ -612,16 +611,11 @@ class Storage {
     if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }
     const fragCost = POOL_STAR_FRAG_COST[nextStar]
     if (entry.fragments < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
-    const ssCost = POOL_STAR_SS_COST[nextStar] || 0
-    if (ssCost > 0 && (this._d.soulStone || 0) < ssCost) {
-      return { ok: false, reason: 'soul_stone_low', required: ssCost }
-    }
     const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
     if (awakenCost > 0 && (this._d.awakenStone || 0) < awakenCost) {
       return { ok: false, reason: 'awaken_stone_low', required: awakenCost }
     }
     entry.fragments -= fragCost
-    if (ssCost > 0) this._d.soulStone -= ssCost
     if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
     this._save()

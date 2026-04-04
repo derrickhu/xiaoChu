@@ -51,24 +51,25 @@ const STAGES_PER_CHAPTER = 8
 // ===== 经济框架：按章节定义日收入目标与来源占比 =====
 const ECONOMY_FRAMEWORK = {
   dailyTarget: {
-    1:  { soulStone: 400,  fragment: 8,  awakenStonePerWeek: 0 },
-    2:  { soulStone: 470,  fragment: 10, awakenStonePerWeek: 0 },
-    3:  { soulStone: 560,  fragment: 12, awakenStonePerWeek: 0 },
-    4:  { soulStone: 660,  fragment: 15, awakenStonePerWeek: 2 },
-    5:  { soulStone: 780,  fragment: 18, awakenStonePerWeek: 3 },
-    6:  { soulStone: 920,  fragment: 22, awakenStonePerWeek: 4 },
-    7:  { soulStone: 1080, fragment: 26, awakenStonePerWeek: 6 },
-    8:  { soulStone: 1280, fragment: 30, awakenStonePerWeek: 8 },
-    9:  { soulStone: 1510, fragment: 35, awakenStonePerWeek: 10 },
-    10: { soulStone: 1780, fragment: 40, awakenStonePerWeek: 12 },
-    11: { soulStone: 2100, fragment: 46, awakenStonePerWeek: 15 },
-    12: { soulStone: 2480, fragment: 52, awakenStonePerWeek: 18 },
+    1:  { soulStone: 300,  fragment: 6,  awakenStonePerWeek: 0 },
+    2:  { soulStone: 350,  fragment: 8,  awakenStonePerWeek: 0 },
+    3:  { soulStone: 420,  fragment: 10, awakenStonePerWeek: 0 },
+    4:  { soulStone: 520,  fragment: 12, awakenStonePerWeek: 2 },
+    5:  { soulStone: 620,  fragment: 15, awakenStonePerWeek: 3 },
+    6:  { soulStone: 740,  fragment: 18, awakenStonePerWeek: 4 },
+    7:  { soulStone: 880,  fragment: 22, awakenStonePerWeek: 6 },
+    8:  { soulStone: 1050, fragment: 26, awakenStonePerWeek: 8 },
+    9:  { soulStone: 1250, fragment: 30, awakenStonePerWeek: 10 },
+    10: { soulStone: 1480, fragment: 34, awakenStonePerWeek: 12 },
+    11: { soulStone: 1750, fragment: 40, awakenStonePerWeek: 15 },
+    12: { soulStone: 2080, fragment: 46, awakenStonePerWeek: 18 },
   },
   sourceRatio: {
-    stageRepeat: 0.50,
-    dailyTask: 0.20,
-    idle: 0.10,
-    towerRogue: 0.20,
+    stageRepeat: 0.35,
+    tower:       0.30,
+    dailyTask:   0.15,
+    idle:        0.10,
+    signIn:      0.10,
   },
   dailyTaskScale: {
     1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0, 6: 2.4,
@@ -96,7 +97,7 @@ function _genStageRewards() {
     const est = _DAILY_STAGE_EST[ch]
     const avgR = dt.soulStone * ECONOMY_FRAMEWORK.sourceRatio.stageRepeat / est
     const repeatSS = _DIST_W.map(w => Math.round(avgR * w))
-    const firstSS = repeatSS.map(r => Math.round(r * 3.5))
+    const firstSS = repeatSS.map(r => Math.round(r * 2.5))
 
     const avgFrag = Math.max(1, dt.fragment * 0.5 / est)
     const repeatFrag = _DIST_W.map(w => Math.max(1, Math.round(avgFrag * w)))
@@ -175,10 +176,10 @@ const TOWER_DAILY = {
 // ===== 通天塔结算配置 =====
 const TOWER_SETTLE = {
   fragment: {
-    perFloor:    1,
-    bossBonus:   3,
-    eliteBonus:  1,
-    clearBonus:  20,
+    perFloor:    0.3,
+    bossBonus:   1,
+    eliteBonus:  0.5,
+    clearBonus:  8,
     failRatio:   0.6,
   },
   cultExp: {
@@ -187,10 +188,10 @@ const TOWER_SETTLE = {
     failRatio:   0.6,
   },
   soulStone: {
-    combatRatio: 0.15,
-    floorBase:   1,
-    floorGrowth: 0.3,
-    clearBonus:  120,
+    combatRatio: 0.04,
+    floorBase:   0.2,
+    floorGrowth: 0.06,
+    clearBonus:  30,
   },
   distribute: {
     mode: 'team',
@@ -213,7 +214,14 @@ function _genRepFrag() {
 }
 const CHAPTER_REP_FRAG = _genRepFrag()
 
-// ===== 肉鸽灵石结算系数 =====
+// ===== 秘境关卡结算配置 =====
+const STAGE_SETTLE = {
+  ratingMul: { S: 1.5, A: 1.2, B: 1.0 },
+  defeatExpRatio: 0.6,
+  defeatSSRatio: 0.5,
+}
+
+// ===== 肉鸽灵石结算系数 @deprecated 未实际调用，保留备用 =====
 const ROGUE_SETTLE = {
   combatExpRatio: 0.3,
   floorBonus:     2,
@@ -274,13 +282,59 @@ const _AD_UNIT_C = 'adunit-cb64624cd4adedae'
 
 const AD_REWARDS = {
   revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1  },
-  staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: 30 } },
+  staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: 40 } },
   signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
   dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
   settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
   dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
   dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },
   towerExtraRun:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 2 },
+}
+
+/**
+ * 开发/GM 调试用：输出指定章节的预期日收入，对比 dailyTarget 检查偏差
+ * @param {number} chapter 1-12
+ */
+function auditDailyIncome(chapter) {
+  const dt = ECONOMY_FRAMEWORK.dailyTarget[chapter]
+  const sr = ECONOMY_FRAMEWORK.sourceRatio
+  if (!dt) return null
+  const est = _DAILY_STAGE_EST[chapter] || 15
+  const chRewards = STAGE_REWARDS[chapter]
+  const repeatSS = chRewards ? chRewards.normal.soulStone.repeat : []
+  const avgRepeatSS = repeatSS.length > 0 ? repeatSS.reduce((a, b) => a + b, 0) / repeatSS.length : 0
+
+  const stageIncome = Math.round(avgRepeatSS * est)
+  const towerSS = TOWER_SETTLE.soulStone
+  const avgFloor = 15
+  const towerPerRun = Math.floor(avgFloor * towerSS.floorBase + towerSS.floorGrowth * avgFloor * (avgFloor + 1) / 2) + Math.floor(200 * towerSS.combatRatio)
+  const towerRuns = TOWER_DAILY.freeRuns + TOWER_DAILY.adExtraRuns
+  const towerIncome = towerPerRun * towerRuns
+
+  const scale = ECONOMY_FRAMEWORK.dailyTaskScale[chapter] || 1
+  const taskIncome = Math.round(80 * scale)
+
+  const idleHours = 16
+  const idleIncome = Math.floor(idleHours * IDLE_CFG.soulStonePerHour * (1 + 5 * IDLE_CFG.petLvExpFactor))
+
+  const signIncome = Math.round(dt.soulStone * sr.signIn)
+
+  const totalIncome = stageIncome + towerIncome + taskIncome + idleIncome + signIncome
+  const report = {
+    chapter,
+    dailyTarget: dt.soulStone,
+    sources: {
+      stage: { ss: stageIncome, ratio: sr.stageRepeat, target: Math.round(dt.soulStone * sr.stageRepeat) },
+      tower: { ss: towerIncome, ratio: sr.tower, target: Math.round(dt.soulStone * sr.tower) },
+      task:  { ss: taskIncome,  ratio: sr.dailyTask, target: Math.round(dt.soulStone * sr.dailyTask) },
+      idle:  { ss: idleIncome,  ratio: sr.idle, target: Math.round(dt.soulStone * sr.idle) },
+      sign:  { ss: signIncome,  ratio: sr.signIn, target: Math.round(dt.soulStone * sr.signIn) },
+    },
+    totalIncome,
+    deviation: ((totalIncome / dt.soulStone - 1) * 100).toFixed(1) + '%',
+  }
+  console.log('[EconomyAudit] Ch' + chapter + ':', JSON.stringify(report, null, 2))
+  return report
 }
 
 module.exports = {
@@ -293,6 +347,7 @@ module.exports = {
   CHAPTER_MILESTONES,
   TOWER_DAILY,
   TOWER_SETTLE,
+  STAGE_SETTLE,
   CHAPTER_REP_FRAG,
   ROGUE_SETTLE,
   IDLE_CFG,
@@ -301,4 +356,5 @@ module.exports = {
   getDailyTaskScale,
   getStageRewardConfig,
   getStarRewardConfig,
+  auditDailyIncome,
 }

@@ -1,6 +1,6 @@
 /**
  * 统一指引 UI 覆盖层
- * 半透明遮罩 + 高亮镂空 + 气泡文字 + 点击继续
+ * 气泡文字 + 可选高亮描边 + 点击继续（无全屏遮罩）
  */
 const V = require('./env')
 const guide = require('../engine/guideManager')
@@ -31,38 +31,15 @@ function draw(g) {
   c.save()
   c.globalAlpha = alpha
 
-  // 半透明黑色遮罩（加深保证文字可见）
-  c.fillStyle = 'rgba(0,0,0,0.82)'
-
   if (hl) {
-    // 镂空高亮区域
     const pad = 6 * S
     const hx = hl.x - pad, hy = hl.y - pad
     const hw = hl.w + pad * 2, hh = hl.h + pad * 2
-
-    c.beginPath()
-    c.rect(0, 0, W, H)
-    // 内部镂空（反向路径）
     const hr = 8 * S
-    c.moveTo(hx + hr, hy)
-    c.lineTo(hx + hw - hr, hy)
-    c.quadraticCurveTo(hx + hw, hy, hx + hw, hy + hr)
-    c.lineTo(hx + hw, hy + hh - hr)
-    c.quadraticCurveTo(hx + hw, hy + hh, hx + hw - hr, hy + hh)
-    c.lineTo(hx + hr, hy + hh)
-    c.quadraticCurveTo(hx, hy + hh, hx, hy + hh - hr)
-    c.lineTo(hx, hy + hr)
-    c.quadraticCurveTo(hx, hy, hx + hr, hy)
-    c.closePath()
-    c.fill('evenodd')
-
-    // 高亮边框
-    c.strokeStyle = 'rgba(255,215,0,0.8)'
+    c.strokeStyle = 'rgba(255,215,0,0.85)'
     c.lineWidth = 2 * S
     V.R.rr(hx, hy, hw, hh, hr)
     c.stroke()
-  } else {
-    c.fillRect(0, 0, W, H)
   }
 
   // 气泡文字
@@ -130,24 +107,9 @@ function _drawBubble(c, W, H, S, info) {
   }
 }
 
-function onTouch(g, type, x, y) {
+function onTouch(g, type) {
   if (!guide.isActive()) return false
   if (type !== 'start' && type !== 'end') return false
-
-  const info = guide.getCurrent()
-  const hl = info ? _resolveHighlight(g, info) : null
-
-  // 操作限制模式：只有点击高亮区域才推进，同时放行底层按钮
-  if (info && info.restrictToHighlight && hl) {
-    const S = V.S
-    const pad = 6 * S
-    if (x >= hl.x - pad && x <= hl.x + hl.w + pad &&
-        y >= hl.y - pad && y <= hl.y + hl.h + pad) {
-      if (type === 'start') { guide.advance(g); g._dirty = true }
-      return false  // 放行底层按钮处理（start + end 均穿透）
-    }
-    return true  // 屏蔽非高亮区域（start + end 均拦截）
-  }
 
   if (type === 'start') { guide.advance(g); g._dirty = true }
   return true

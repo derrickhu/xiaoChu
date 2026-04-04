@@ -8,6 +8,7 @@ const V = require('../env')
 const { getRealmInfo, MAX_FLOOR, generateRewards } = require('../../data/tower')
 const { getMaxedPetIds } = require('../../data/pets')
 const { TOWER_SETTLE } = require('../../data/economyConfig')
+const { calcFloorAtkBonus } = require('../../engine/runManager')
 const MusicMgr = require('../../runtime/music')
 
 /** 广告/分享复活弹窗内按钮布局（相对 panelTop，单位 ×S；缩小并上移避免超出面板底图） */
@@ -46,11 +47,7 @@ function _handleTowerFloorVictory(g) {
   const nextRealmName = nextRealm ? nextRealm.name : curRealmName
   const hpUp = nextRealm ? nextRealm.hpUp : 0
   const curAtkPct = g.runBuffs ? g.runBuffs.allAtkPct : 0
-  let atkBonus = 0
-  if (nextFL > 1 && nextFL % 5 === 1) {
-    const tier = Math.floor((nextFL - 1) / 5)
-    atkBonus = 6 + tier * 2
-  }
+  const atkBonus = calcFloorAtkBonus(nextFL)
 
   let weaponBuff = null
   if (g.weapon && g.weapon.type === 'perFloorBuff' && nextFL > 1 && (nextFL - 1) % g.weapon.per === 0) {

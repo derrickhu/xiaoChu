@@ -4,15 +4,15 @@
  */
 
 // ===== 新手 7 日签到奖励（严格递增，体力/碎片比重增大） =====
-// 7天灵石合计 ~415，日均 ~60；第二轮起衰减 0.6
+// 7天灵石合计 ~288，日均 ~41；第二轮起衰减 0.6
 const LOGIN_REWARDS = [
-  { day: 1, rewards: { soulStone: 30,  stamina: 20 } },
-  { day: 2, rewards: { soulStone: 40,  fragment: 3 } },
-  { day: 3, rewards: { soulStone: 50,  stamina: 30 } },
-  { day: 4, rewards: { soulStone: 55,  fragment: 5 } },
-  { day: 5, rewards: { soulStone: 65,  stamina: 40 } },
-  { day: 6, rewards: { soulStone: 75,  fragment: 8, awakenStone: 1 } },
-  { day: 7, rewards: { soulStone: 100, stamina: 50, fragment: 10, awakenStone: 2, petChoice: true } },
+  { day: 1, rewards: { soulStone: 20,  stamina: 20 } },
+  { day: 2, rewards: { soulStone: 28,  fragment: 3 } },
+  { day: 3, rewards: { soulStone: 35,  stamina: 30 } },
+  { day: 4, rewards: { soulStone: 38,  fragment: 5 } },
+  { day: 5, rewards: { soulStone: 45,  stamina: 40 } },
+  { day: 6, rewards: { soulStone: 52,  fragment: 8, awakenStone: 1 } },
+  { day: 7, rewards: { soulStone: 70,  stamina: 50, fragment: 10, awakenStone: 2, petChoice: true } },
 ]
 
 const LOGIN_WEEKLY_RATIO = 0.6

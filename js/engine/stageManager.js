@@ -12,7 +12,7 @@ const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../dat
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
-const { STAR_REWARDS, CHAPTER_MILESTONES } = require('../data/economyConfig')
+const { STAR_REWARDS, CHAPTER_MILESTONES, STAGE_SETTLE } = require('../data/economyConfig')
 const { getWeaponById } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
@@ -252,7 +252,7 @@ function settleStage(g) {
   g._stageTotalTurns += g.turnCount
   const isFirstClear = !g.storage.isStageCleared(g._stageId)
   const rating = calculateRating(g._stageTotalTurns, stage.rating)
-  const ratingMul = { S: 2.0, A: 1.5, B: 1.0 }[rating]
+  const ratingMul = STAGE_SETTLE.ratingMul[rating] || 1.0
   const starCount = RATING_TO_STARS[rating] || 1
 
   // ---- 基础奖励（首通 + 周回） ----
@@ -414,15 +414,13 @@ function settleStageDefeat(g) {
 
   g._stageTotalTurns += g.turnCount
 
-  // 修炼经验（保底 60%）
   const baseExp = stage.rewards.repeatClear.exp || 0
-  const rawTotal = Math.floor(((g.runExp || 0) + baseExp) * 0.6)
+  const rawTotal = Math.floor(((g.runExp || 0) + baseExp) * STAGE_SETTLE.defeatExpRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
 
-  // 灵石（50%）
   const baseSoulStone = stage.rewards.repeatClear.soulStone || 0
-  const soulStone = Math.floor(baseSoulStone * 0.5)
+  const soulStone = Math.floor(baseSoulStone * STAGE_SETTLE.defeatSSRatio)
   if (soulStone > 0) g.storage.addSoulStone(soulStone)
 
   g._stageResult = {

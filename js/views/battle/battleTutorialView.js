@@ -14,24 +14,6 @@ function drawTutorialOverlay(g) {
   const data = tutorial.getGuideData()
   if (!data) return
 
-  // ---- 路径遮罩：所有有引导路径的步骤/回合，非路径格子盖深色蒙版 ----
-  if (data.guide && data.guide.path && !data.guideDone && g.boardX != null) {
-    const cs = g.cellSize, bx = g.boardX, by = g.boardY
-    const { COLS, ROWS } = V
-    const pathSet = new Set(data.guide.path.map(([pr, pc]) => `${pr},${pc}`))
-    ctx.save()
-    ctx.globalAlpha = 1
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (!pathSet.has(`${r},${c}`)) {
-          ctx.fillStyle = 'rgba(0,0,0,0.6)'
-          ctx.fillRect(bx + c * cs, by + r * cs, cs, cs)
-        }
-      }
-    }
-    ctx.restore()
-  }
-
   // ---- 总结页 ----
   if (data.isSummary) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H)
