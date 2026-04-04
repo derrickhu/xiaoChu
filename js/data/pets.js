@@ -421,6 +421,7 @@ function getStar5Override(petId) {
 
 // ===== 星级系统常量（★1初始 → ★2觉知 → ★3通灵 → ★4觉醒 → ★5超越） =====
 const MAX_STAR = 5          // 最高星级
+const DEX_COLLECT_STAR = 3  // 图鉴「收录」层级所需星级
 const STAR_ATK_MUL = 1.3    // 每升1星ATK倍率（局内肉鸽用，局外灵宠池用 POOL_STAR_ATK_MUL）
 const STAR_SKILL_MUL = 1.25 // 每升1星技能数值倍率
 
@@ -755,6 +756,7 @@ module.exports = {
   getPetAvatarPath,
   getPetLore,
   getMaxedPetIds,
+  DEX_COLLECT_STAR,
   // deprecated: 向后兼容别名，后续版本移除
   PET_TIER: PET_RARITY,
   TIER_WEIGHTS: RARITY_WEIGHTS,

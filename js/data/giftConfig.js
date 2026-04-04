@@ -18,21 +18,21 @@ const LOGIN_REWARDS = [
 const LOGIN_WEEKLY_RATIO = 0.6
 
 // ===== 每日任务（基础值为 Ch1 奖励，高章节通过 getDailyTaskScale 缩放） =====
-// Ch1 五条任务+全完成合计 ~62灵石（占日收入30%中的任务部分）
+// Ch1 五条任务+全完成合计 ~80 灵石（dailyTarget 400 × dailyTask 0.20 = 80）
 const DAILY_TASKS = [
-  { id: 'battle_1',    name: '秘境战斗1场',  condition: { type: 'stageBattle', count: 1 }, reward: { soulStone: 15 } },
-  { id: 'battle_3',    name: '战斗3场',      condition: { type: 'anyBattle', count: 3 },   reward: { fragment: 3, soulStone: 5 } },
-  { id: 'idle_collect', name: '收取派遣',     condition: { type: 'idleCollect', count: 1 }, reward: { soulStone: 10 } },
-  { id: 'pet_feed',    name: '宠物升级1次',  condition: { type: 'petFeed', count: 1 },     reward: { soulStone: 8 } },
-  { id: 'share_1',     name: '分享游戏1次',  condition: { type: 'share', count: 1 },       reward: { soulStone: 12 } },
+  { id: 'battle_1',    name: '秘境战斗1场',  condition: { type: 'stageBattle', count: 1 }, reward: { soulStone: 20 } },
+  { id: 'battle_3',    name: '战斗3场',      condition: { type: 'anyBattle', count: 3 },   reward: { fragment: 3, soulStone: 8 } },
+  { id: 'idle_collect', name: '收取派遣',     condition: { type: 'idleCollect', count: 1 }, reward: { soulStone: 13 } },
+  { id: 'pet_feed',    name: '宠物升级1次',  condition: { type: 'petFeed', count: 1 },     reward: { soulStone: 10 } },
+  { id: 'share_1',     name: '分享游戏1次',  condition: { type: 'share', count: 1 },       reward: { soulStone: 15 } },
 ]
 
-const DAILY_ALL_COMPLETE_BONUS = { soulStone: 12, stamina: 20 }
+const DAILY_ALL_COMPLETE_BONUS = { soulStone: 14, stamina: 20 }
 
 /**
  * 获取按章节缩放后的每日任务奖励
  * @param {object} task  DAILY_TASKS 中的一条
- * @param {number} chapter 玩家当前章节 1-5
+ * @param {number} chapter 玩家当前章节 1-12
  */
 function getScaledDailyTaskReward(task, chapter) {
   const { getDailyTaskScale } = require('./economyConfig')
@@ -42,12 +42,15 @@ function getScaledDailyTaskReward(task, chapter) {
   if (task.reward.fragment) r.fragment = Math.max(1, Math.round(task.reward.fragment * scale))
   if (task.reward.awakenStone) r.awakenStone = Math.max(1, Math.round(task.reward.awakenStone * scale))
   if (task.reward.stamina) r.stamina = Math.round(task.reward.stamina * scale)
+  if (chapter >= 6 && task.reward.soulStone >= 15) {
+    r.awakenStone = (r.awakenStone || 0) + Math.max(1, Math.floor((chapter - 5) * 0.5))
+  }
   return r
 }
 
 /**
  * 获取按章节缩放后的全完成奖励
- * @param {number} chapter 玩家当前章节 1-5
+ * @param {number} chapter 玩家当前章节 1-12
  */
 function getScaledDailyAllBonus(chapter) {
   const { getDailyTaskScale } = require('./economyConfig')
@@ -56,6 +59,9 @@ function getScaledDailyAllBonus(chapter) {
   if (DAILY_ALL_COMPLETE_BONUS.soulStone) r.soulStone = Math.round(DAILY_ALL_COMPLETE_BONUS.soulStone * scale)
   if (DAILY_ALL_COMPLETE_BONUS.stamina) r.stamina = Math.round(DAILY_ALL_COMPLETE_BONUS.stamina * scale)
   if (DAILY_ALL_COMPLETE_BONUS.fragment) r.fragment = Math.max(1, Math.round(DAILY_ALL_COMPLETE_BONUS.fragment * scale))
+  if (chapter >= 6) {
+    r.awakenStone = Math.max(1, Math.floor((chapter - 4) * 0.5))
+  }
   return r
 }
 

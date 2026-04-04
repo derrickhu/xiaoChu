@@ -316,35 +316,59 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.restore()
   }
 
-  // ── 左右切换箭头（门两侧半透明胶囊）──
+  // ── 左右切换（门两侧：暖金渐变胶囊 + 矢量尖角，不用 ◀▶ 字符避免移动端叠层感）──
   const list = _ensureBrowsableList(g)
   const arrowCY = portalCy
-  const arrowW = 24 * S, arrowH = 40 * S, arrowR = 8 * S
+  const navW = TITLE_HOME.stageNavBtnWidthPt * S
+  const navH = TITLE_HOME.stageNavBtnHeightPt * S
+  const navR = TITLE_HOME.stageNavBtnRadiusPt * S
+  const chevTip = TITLE_HOME.stageNavChevronPt * S
 
-  function _drawArrowBtn(ax, ay, symbol) {
+  /** @param {number} dir -1 左  1 右 */
+  function _drawStageNavBtn(ax, ay, dir) {
     ctx.save()
-    ctx.fillStyle = 'rgba(60, 45, 25, 0.35)'
-    R.rr(ax, ay, arrowW, arrowH, arrowR); ctx.fill()
-    ctx.strokeStyle = 'rgba(200, 170, 80, 0.4)'; ctx.lineWidth = 1 * S
-    R.rr(ax, ay, arrowW, arrowH, arrowR); ctx.stroke()
-    ctx.font = `bold ${16 * S}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = 'rgba(255, 245, 210, 0.85)'
-    ctx.fillText(symbol, ax + arrowW / 2, ay + arrowH / 2)
+    const cx = ax + navW / 2
+    const cy = ay + navH / 2
+    const bg = ctx.createLinearGradient(ax, ay, ax, ay + navH)
+    bg.addColorStop(0, 'rgba(158, 120, 72, 0.58)')
+    bg.addColorStop(0.5, 'rgba(92, 68, 40, 0.52)')
+    bg.addColorStop(1, 'rgba(72, 50, 28, 0.56)')
+    ctx.fillStyle = bg
+    R.rr(ax, ay, navW, navH, navR)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(240, 210, 140, 0.42)'
+    ctx.lineWidth = 1 * S
+    R.rr(ax, ay, navW, navH, navR)
+    ctx.stroke()
+
+    ctx.beginPath()
+    if (dir < 0) {
+      ctx.moveTo(cx + chevTip * 0.15, cy - chevTip * 0.92)
+      ctx.lineTo(cx - chevTip * 0.82, cy)
+      ctx.lineTo(cx + chevTip * 0.15, cy + chevTip * 0.92)
+    } else {
+      ctx.moveTo(cx - chevTip * 0.15, cy - chevTip * 0.92)
+      ctx.lineTo(cx + chevTip * 0.82, cy)
+      ctx.lineTo(cx - chevTip * 0.15, cy + chevTip * 0.92)
+    }
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(255, 248, 235, 0.96)'
+    ctx.fill()
     ctx.restore()
   }
 
   if (g._selectedStageIdx > 0) {
-    const lx = Math.max(2 * S, gateX - arrowW - 4 * S)
-    const ly = arrowCY - arrowH / 2
-    _drawArrowBtn(lx, ly, '◀')
-    g._stageArrowLeftRect = [lx, ly, arrowW, arrowH]
+    const lx = Math.max(2 * S, gateX - navW - 4 * S)
+    const ly = arrowCY - navH / 2
+    _drawStageNavBtn(lx, ly, -1)
+    g._stageArrowLeftRect = [lx, ly, navW, navH]
   } else { g._stageArrowLeftRect = null }
 
   if (g._selectedStageIdx < list.length - 1) {
-    const rx = Math.min(W - arrowW - 2 * S, gateX + gateW + 4 * S)
-    const ry = arrowCY - arrowH / 2
-    _drawArrowBtn(rx, ry, '▶')
-    g._stageArrowRightRect = [rx, ry, arrowW, arrowH]
+    const rx = Math.min(W - navW - 2 * S, gateX + gateW + 4 * S)
+    const ry = arrowCY - navH / 2
+    _drawStageNavBtn(rx, ry, 1)
+    g._stageArrowRightRect = [rx, ry, navW, navH]
   } else { g._stageArrowRightRect = null }
 
   g._stageGateRect = [gateX, gateY, gateW, gateH + gateStarGap + starH]

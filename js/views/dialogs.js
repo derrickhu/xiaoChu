@@ -581,29 +581,25 @@ function drawStar3Celebration(g) {
     ctx.globalAlpha = titleAlpha
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
 
-    // "图鉴解锁！"
     const titleY = cy - portraitSize / 2 - 36 * S
     ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3 * S
-    ctx.strokeText('✦ 图鉴解锁 ✦', cx, titleY)
+    ctx.strokeText('✦ 满星觉醒 ✦', cx, titleY)
     ctx.fillStyle = '#ffd700'
     ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12 * S
-    ctx.fillText('✦ 图鉴解锁 ✦', cx, titleY)
+    ctx.fillText('✦ 满星觉醒 ✦', cx, titleY)
     ctx.shadowBlur = 0
 
-    // 宠物名称
     const nameY = cy + portraitSize / 2 + 50 * S
     const attrName = ATTR_NAME[pet.attr] || ''
     ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
     ctx.fillStyle = mainColor
     ctx.fillText(`${attrName}·${pet.name}`, cx, nameY)
 
-    // 满星形态
     ctx.font = `${11 * S}px "PingFang SC",sans-serif`
     ctx.fillStyle = '#ccc'
     ctx.fillText('达到满星，解锁终极形态！', cx, nameY + 20 * S)
 
-    // ★3技能强化说明
     const s3 = getStar3Override(pet.id)
     if (s3 && s3.desc) {
       ctx.font = `${10 * S}px "PingFang SC",sans-serif`

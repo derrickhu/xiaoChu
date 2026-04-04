@@ -65,6 +65,7 @@ const POOL_STAR_FRAG_COST = { 2: 5, 3: 15, 4: 30, 5: 50 }
 const POOL_STAR_LV_REQ = { 2: 10, 3: 20, 4: 35, 5: 45 }
 const POOL_STAR_ATK_MUL = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 }
 const POOL_STAR_AWAKEN_COST = { 4: 3, 5: 8 }
+const POOL_STAR_SS_COST = { 2: 200, 3: 800, 4: 2500, 5: 6000 }
 const POOL_STAR_LV_CAP = { 1: 40, 2: 40, 3: 40, 4: 50, 5: 60 }
 const POOL_FRAGMENT_TO_EXP = 40
 const POOL_ENTRY_LEVEL = 5
@@ -130,10 +131,10 @@ const TITLE_LOGO = {
 
 /** 首页大厅：通天塔插画缩放、每日签到 / 右上角模式切换尺寸（与 titleView 同步） */
 const TITLE_HOME = {
-  /** 通天塔/切换图主插画高度占「顶栏底～petRowY」场景区的比例 */
-  towerImgHeightSceneFrac: 0.72,
+  /** 通天塔/切换图主插画高度占「顶栏底～petRowY」场景区的比例（略放大以贴近旧版视觉占比） */
+  towerImgHeightSceneFrac: 0.92,
   /** 主插画最大宽度占屏宽比例 */
-  towerImgMaxScreenWidthFrac: 0.82,
+  towerImgMaxScreenWidthFrac: 0.94,
   /** 每日签到：总宽度、红包图标边长、标签字号（×S） */
   dailySignBtnWidthPt: 62,
   dailySignIconPt: 52,
@@ -146,6 +147,11 @@ const TITLE_HOME = {
   modeSwitchBtnExtraWPt: 6,
   /** 模式切换条左边距（×S），贴左与顶栏内容错开 */
   modeSwitchLeftMarginPt: 8,
+  /** 秘境门两侧关卡切换钮：宽、高、圆角、箭头尖高度（×S），纯路径绘制避免字体假两层 */
+  stageNavBtnWidthPt: 26,
+  stageNavBtnHeightPt: 42,
+  stageNavBtnRadiusPt: 10,
+  stageNavChevronPt: 9,
 }
 
 /** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
@@ -204,6 +210,7 @@ module.exports = {
   POOL_STAR_LV_REQ,
   POOL_STAR_ATK_MUL,
   POOL_STAR_AWAKEN_COST,
+  POOL_STAR_SS_COST,
   POOL_STAR_LV_CAP,
   POOL_FRAGMENT_TO_EXP,
   POOL_ENTRY_LEVEL,

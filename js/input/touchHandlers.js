@@ -152,44 +152,70 @@ function tDex(g, type, x, y) {
     return
   }
 
+  // 详情弹窗拦截
   if (g._dexDetailPetId) {
     if (type === 'end') {
-      if (g._dexBattleBtnRect) {
-        const [bx, by, bw, bh] = g._dexBattleBtnRect
+      // 「查看详情」→ 跳转灵宠池详情页
+      if (g._dexDetailBtnRect) {
+        const [bx, by, bw, bh] = g._dexDetailBtnRect
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
           const petId = g._dexDetailPetId
           g._dexDetailPetId = null
-          g._dexBattleBtnRect = null
-          const pool = g.storage.petPool.slice(0, 5).map(p => p.id)
-          if (!pool.includes(petId)) pool.unshift(petId)
-          g._startRun(pool.slice(0, 5))
+          g._dexDetailBtnRect = null
+          g._petPoolDetail = petId
+          g._petPoolFilter = 'all'; g._petPoolScroll = 0
+          g.setScene('petPool')
+          return
+        }
+      }
+      // IAA 获取提示占位（暂不实现功能）
+      if (g._dexAdHintBtnRect) {
+        const [bx, by, bw, bh] = g._dexAdHintBtnRect
+        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+          // 预留广告接口
           return
         }
       }
       g._dexDetailPetId = null
-      g._dexBattleBtnRect = null
+      g._dexDetailBtnRect = null
+      g._dexAdHintBtnRect = null
     }
     return
   }
+
   if (type === 'start') {
     g._dexTouchStartY = y
-    g._dexScrollStart = g._dexScrollY || 0
+    if (g._dexTab === 'milestone') {
+      g._dexMilestoneScrollStart = g._dexMilestoneScrollY || 0
+    } else {
+      g._dexScrollStart = g._dexScrollY || 0
+    }
     return
   }
+
   if (type === 'move') {
-    const dy = y - (g._dexTouchStartY || y)
-    const { drawBottomBar: _, getLayout: getDexLayout } = require('../views/bottomBar')
+    const delta = y - (g._dexTouchStartY || y)
+    const { getLayout: getDexLayout } = require('../views/bottomBar')
     const L = getDexLayout()
     const { safeTop } = V
-    const contentTop = safeTop + 74 * V.S + 36 * V.S + 6 * V.S
-    const contentH = L.bottomBarY - contentTop
-    const maxScroll = 0
-    const minScroll = -Math.max(0, (g._dexTotalH || 0) - contentH)
-    g._dexScrollY = Math.max(minScroll, Math.min(maxScroll, g._dexScrollStart + dy))
+    const tabBottom = safeTop + 72 * V.S + 26 * V.S + 6 * V.S
+    const contentH = L.bottomBarY - tabBottom
+
+    if (g._dexTab === 'milestone') {
+      const maxS = 0
+      const minS = -Math.max(0, (g._dexMilestoneTotalH || 0) - contentH)
+      g._dexMilestoneScrollY = Math.max(minS, Math.min(maxS, (g._dexMilestoneScrollStart || 0) + delta))
+    } else {
+      const maxS = 0
+      const minS = -Math.max(0, (g._dexTotalH || 0) - contentH)
+      g._dexScrollY = Math.max(minS, Math.min(maxS, (g._dexScrollStart || 0) + delta))
+    }
     return
   }
+
   if (type !== 'end') return
-  // 底部导航栏处理
+
+  // 底部导航栏
   const { getLayout: getDexLayout2, BAR_ITEMS } = require('../views/bottomBar')
   const L2 = getDexLayout2()
   if (y >= L2.bottomBarY) {
@@ -206,7 +232,7 @@ function tDex(g, type, x, y) {
         }
         return
       }
-      if (item.key === 'dex') return  // 已在图鉴
+      if (item.key === 'dex') return
       if (item.key === 'cultivation') { g.setScene('cultivation'); return }
       if (item.key === 'rank') { g.setScene('ranking'); return }
       if (item.key === 'stats') { g.setScene('stats'); return }
@@ -214,13 +240,51 @@ function tDex(g, type, x, y) {
     }
     return
   }
-  const dy = Math.abs(y - (g._dexTouchStartY || y))
-  if (dy > 10 * V.S) return
+
+  // Tab 栏点击
+  if (g._dexTabRects) {
+    for (const tab of g._dexTabRects) {
+      if (x >= tab.x && x <= tab.x + tab.w && y >= tab.y && y <= tab.y + tab.h) {
+        if (g._dexTab !== tab.key) {
+          g._dexTab = tab.key
+          g._dexScrollY = 0
+          g._dexMilestoneScrollY = 0
+          g._dirty = true
+        }
+        return
+      }
+    }
+  }
+
+  // 里程碑领取
+  if (g._dexTab === 'milestone' && g._dexMilestoneRects) {
+    const dragDy = Math.abs(y - (g._dexTouchStartY || y))
+    if (dragDy <= 10 * V.S) {
+      for (const mr of g._dexMilestoneRects) {
+        if (x >= mr.x && x <= mr.x + mr.w && y >= mr.y && y <= mr.y + mr.h) {
+          if (mr.type === 'ad_double') {
+            // IAA 翻倍 — 预留
+            return
+          }
+          const result = g.storage.claimDexMilestone(mr.id)
+          if (result.success) {
+            g._dexMilestoneClaimPopup = { milestone: mr.id, reward: result.reward, buff: result.buff, timer: 0 }
+            g._dirty = true
+          }
+          return
+        }
+      }
+    }
+    return
+  }
+
+  // 宠物卡片点击
+  const dragDy = Math.abs(y - (g._dexTouchStartY || y))
+  if (dragDy > 10 * V.S) return
   if (g._dexCellRects) {
     for (const cell of g._dexCellRects) {
       if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
         g._dexDetailPetId = cell.id
-        g.storage.markDexSeen(cell.id)
         return
       }
     }

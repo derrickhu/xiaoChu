@@ -73,6 +73,7 @@ function startRun(g, petIds) {
 
   // 从灵宠池构建战斗宠物（带自己的宠物冲塔）
   const teamIds = petIds || g.storage.petPool.slice(0, 5).map(p => p.id)
+  const dexBuffs = g.storage.getDexBuffs()
   g.pets = teamIds.map(id => {
     const poolPet = g.storage.getPoolPet(id)
     const basePet = getPetById(id)
@@ -80,7 +81,7 @@ function startRun(g, petIds) {
     return {
       ...basePet,
       star: poolPet.star,
-      atk: getPoolPetAtk(poolPet),
+      atk: getPoolPetAtk(poolPet, dexBuffs),
       currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * 0.4) - 1) : 0,
       _poolId: id,
     }

@@ -12,28 +12,21 @@ const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMerg
 const { randomWeapon } = require('../data/weapons')
 const DF = require('./dmgFloat')
 
-// 辅助：tryMergePet 后检查是否升到满星，记录图鉴 + 灵宠池入池/碎片
-// 爬塔模式下仅解锁图鉴，不自动入永久池/给碎片（改为结算时统一发碎片）
+// 辅助：tryMergePet 后处理满星入池/碎片（图鉴由 petPool 状态自动派生，不再手动写入）
 function _mergePetAndDex(g, allPets, newPet) {
   if (g.battleMode === 'roguelike') return { merged: false, target: null }
   const result = tryMergePet(allPets, newPet)
   if (result.merged && result.target && (result.target.star || 1) >= MAX_STAR) {
-    const alreadyInDex = (g.storage.petDex || []).includes(result.target.id)
-    g.storage.addPetDex(result.target.id)
-
-    // 爬塔模式：局内升星仅局内有效，不入永久池、不给碎片
+    const alreadyInPool = !!g.storage.getPoolPet(result.target.id)
     if (g.battleMode === 'stage') {
-      if (!alreadyInDex) {
+      if (!alreadyInPool) {
         const added = g.storage.addToPetPool(result.target.id, 'stage')
         if (added) {
           g._pendingPoolEntry = { petId: result.target.id }
         }
       } else {
-        const inPool = g.storage.petPool.find(p => p.id === result.target.id)
-        if (inPool) {
-          g.storage.addFragments(result.target.id, 5)
-          g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
-        }
+        g.storage.addFragments(result.target.id, 5)
+        g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
       }
     }
   }
@@ -688,7 +681,7 @@ function applyShopPetByAttr(g, attr) {
   }
 }
 
-// 商店：选择目标宠物升星
+// 商店：选择目标宠物升星（局内★1→★3，图鉴由池状态自动派生）
 function applyShopStarUp(g, petIdx) {
   const p = g.pets[petIdx]
   if (!p) return false
@@ -696,7 +689,6 @@ function applyShopStarUp(g, petIdx) {
   p.star = (p.star || 1) + 1
   g._lastRewardInfo = { type: 'starUp', petId: p.id }
   if (p.star >= MAX_STAR) {
-    g.storage.addPetDex(p.id)
     g._star3Celebration = {
       pet: p,
       timer: 0,

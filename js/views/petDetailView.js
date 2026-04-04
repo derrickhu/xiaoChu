@@ -260,16 +260,6 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(fragFrame, frameX, frameY, frameSz, frameSz)
   }
 
-  // 品质色边框发光
-  c.save()
-  c.strokeStyle = rv.borderColor
-  c.lineWidth = 2.5 * S
-  c.shadowColor = rv.glowColor
-  c.shadowBlur = 10 * S
-  R.rr(avatarX - 3 * S, avatarY - 3 * S, avatarSize + 6 * S, avatarSize + 6 * S, 12 * S)
-  c.stroke()
-  c.restore()
-
   // 名称区域
   let cy = avatarY + avatarSize * 1.11 + 10 * S
   const orbPath = `assets/orbs/orb_${basePet.attr || 'metal'}.png`
@@ -587,16 +577,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(frameImg, frameX, frameY, frameSz, frameSz)
   }
 
-  // 品质色边框发光
-  c.save()
-  c.strokeStyle = rv.borderColor
-  c.lineWidth = 2.5 * S
-  c.shadowColor = rv.glowColor
-  c.shadowBlur = 10 * S
-  R.rr(avatarX - 3 * S, avatarY - 3 * S, avatarSize + 6 * S, avatarSize + 6 * S, 12 * S)
-  c.stroke()
-  c.restore()
-
   // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
   let cy = avatarY + avatarSize * 1.11 + 10 * S
 
@@ -745,6 +725,9 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const indent = cardX + borderL
   const rightEdge = cardX + cardW - borderR
   const contentW = rightEdge - indent
+  // pet_card_bg 右下装饰花纹比 borderR 更吃内侧，按钮需再收一档以免压住金边
+  const actionRight = rightEdge - Math.max(14 * S, Math.round(cardW * 0.045))
+  const actionContentW = actionRight - indent
 
   // 内容可用高度
   const innerTop = cardTop + borderT
@@ -1003,13 +986,20 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const sBtnW = 72 * S
     _drawBtn(c, R, S, indent, cy, sBtnW, btnH, '升星', canStarUp, '#FFD700', fBtn)
     if (isCurrentPet) _rects.starUpBtnRect = [indent, cy, sBtnW, btnH]
-    cy += btnH + gap
 
     if (poolPet.fragments > 0) {
-      const dBtnW = 110 * S
-      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtn)
-      if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
+      const dLabel = `分解1碎→${FRAGMENT_TO_EXP}灵石`
+      const dBtnH = 22 * S
+      const dFs = 10 * S
+      c.font = `${dFs}px "PingFang SC",sans-serif`
+      const dAvail = Math.max(48 * S, actionContentW - sBtnW - 8 * S)
+      const dBtnW = Math.min(c.measureText(dLabel).width + 12 * S, dAvail)
+      const dX = actionRight - dBtnW
+      const dY = cy + (btnH - dBtnH) / 2
+      _drawDecomposeMiniBtn(c, R, S, dX, dY, dBtnW, dBtnH, dLabel, dFs)
+      if (isCurrentPet) _rects.decomposeBtnRect = [dX, dY, dBtnW, dBtnH]
     }
+    cy += btnH + gap
   } else {
     c.fillStyle = '#5A4530'
     c.font = `bold ${fTitle}px "PingFang SC",sans-serif`
@@ -1030,12 +1020,18 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillStyle = 'rgba(90,70,40,0.75)'
     c.font = `${fBody}px "PingFang SC",sans-serif`
     c.fillText(`剩余碎片：${poolPet.fragments}`, indent, cy)
-    cy += fBody + gapL
     if (poolPet.fragments > 0) {
-      const dBtnW = 110 * S
-      _drawBtn(c, R, S, indent, cy, dBtnW, btnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtn)
-      if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, btnH]
+      const dLabel = `分解1碎→${FRAGMENT_TO_EXP}灵石`
+      const dBtnH = 22 * S
+      const dFs = 10 * S
+      c.font = `${dFs}px "PingFang SC",sans-serif`
+      const dBtnW = Math.min(c.measureText(dLabel).width + 12 * S, actionContentW)
+      const dX = actionRight - dBtnW
+      const dY = cy + (fBody - dBtnH) / 2
+      _drawDecomposeMiniBtn(c, R, S, dX, dY, dBtnW, dBtnH, dLabel, dFs)
+      if (isCurrentPet) _rects.decomposeBtnRect = [dX, dY, dBtnW, dBtnH]
     }
+    cy += fBody + gapL
   }
 
   // 碎片提示文字放在卡片下方（避免与卡片装饰边框重叠）
@@ -1047,6 +1043,20 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.textAlign = 'left'; c.textBaseline = 'top'
     c.fillText('碎片用于升星，多余碎片可分解为灵石。分解不可逆，请谨慎操作', tipX, tipY)
   }
+}
+
+/** 碎片分解：小号、弱对比，避免与「升星」抢视觉 */
+function _drawDecomposeMiniBtn(c, R, S, x, y, w, h, text, fontSize) {
+  const r = 4 * S
+  const fs = fontSize || (10 * S)
+  c.fillStyle = 'rgba(90,69,48,0.10)'
+  R.rr(x, y, w, h, r); c.fill()
+  c.strokeStyle = 'rgba(110,95,75,0.28)'; c.lineWidth = 1 * S
+  R.rr(x, y, w, h, r); c.stroke()
+  c.font = `${fs}px "PingFang SC",sans-serif`
+  c.fillStyle = 'rgba(100,88,72,0.82)'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(text, x + w / 2, y + h / 2)
 }
 
 // ===== 按钮 =====

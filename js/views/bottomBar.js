@@ -216,11 +216,14 @@ function drawBottomBar(g) {
       g._bottomBarRects.push(_nRect)
       if (_KEY_TO_NAV[item.key]) g._namedRects[_KEY_TO_NAV[item.key]] = { x: _nRect[0], y: _nRect[1], w: _nRect[2], h: _nRect[3] }
 
-      // 图鉴红点：图标右上角
+      // 图鉴红点：有新入池宠物未查看 或 有可领取里程碑
       if (item.key === 'dex') {
-        const dex = g.storage.petDex || []
+        const pool = g.storage.petPool || []
         const seen = g.storage.petDexSeen || []
-        if (dex.length > seen.length) {
+        const hasUnseen = pool.some(p => !seen.includes(p.id))
+        const { hasUnclaimedMilestones } = require('../data/dexConfig')
+        const hasMilestone = hasUnclaimedMilestones(pool, g.storage.dexMilestonesClaimed)
+        if (hasUnseen || hasMilestone) {
           ctx.globalAlpha = 1
           ctx.beginPath()
           ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)

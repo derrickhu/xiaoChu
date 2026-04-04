@@ -6,7 +6,7 @@ function getShareData(storage) {
   const st = storage.stats
   const floor = storage.bestFloor
   const isCleared = floor >= 30
-  const d = { isCleared, turns: st.bestTotalTurns, dex: (storage.petDex || []).length, floor }
+  const d = { isCleared, turns: st.bestTotalTurns, dex: (storage.petPool || []).length, floor }
   return {
     title: cfg.titleFn(d),
     imageUrl: isCleared ? cfg.imageUrlCleared : cfg.imageUrl,
@@ -16,7 +16,7 @@ function getShareData(storage) {
 function shareStats(storage) {
   const cfg = SHARE_SCENES.stats
   const st = storage.stats
-  const d = { floor: storage.bestFloor, dex: (storage.petDex || []).length, combo: st.maxCombo }
+  const d = { floor: storage.bestFloor, dex: (storage.petPool || []).length, combo: st.maxCombo }
   const titleFn = cfg.titles[Math.floor(Math.random() * cfg.titles.length)]
   P.shareAppMessage({ title: titleFn(d), imageUrl: cfg.imageUrl })
 }

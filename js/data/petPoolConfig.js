@@ -52,16 +52,22 @@ const FRAGMENT_TO_EXP = POOL_FRAGMENT_TO_EXP
 
 /**
  * 灵宠池中宠物的攻击力（仅用于固定关卡）
- * @param {object} poolPet - 灵宠池中的宠物记录 { id, level, star, ... }
+ * @param {object} poolPet - 灵宠池中的宠物记录 { id, level, star, attr, ... }
+ * @param {object} [dexBuffs] - 图鉴里程碑加成 { all: {atkPct}, metal: {atkPct}, ... }
  */
-function getPoolPetAtk(poolPet) {
+function getPoolPetAtk(poolPet, dexBuffs) {
   const basePet = getPetById(poolPet.id)
   if (!basePet) return 0
   const baseAtk = basePet.atk
   const rarity = getPetRarity(poolPet.id)
   const lvBonus = rarity === 'R' ? Math.floor(poolPet.level * POOL_R_LV_BONUS_RATE) : poolPet.level
   const starMul = POOL_STAR_ATK_MUL[poolPet.star] || 1.0
-  return Math.floor((baseAtk + lvBonus) * starMul)
+  const rawAtk = Math.floor((baseAtk + lvBonus) * starMul)
+  if (!dexBuffs) return rawAtk
+  const attr = poolPet.attr || (basePet && basePet.attr)
+  const atkPct = (dexBuffs.all && dexBuffs.all.atkPct || 0) + (attr && dexBuffs[attr] && dexBuffs[attr].atkPct || 0)
+  if (atkPct <= 0) return rawAtk
+  return Math.floor(rawAtk * (1 + atkPct / 100))
 }
 
 /**

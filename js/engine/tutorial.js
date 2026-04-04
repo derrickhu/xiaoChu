@@ -499,6 +499,7 @@ function finish(g) {
   g.bState = 'none'
 
   // 从灵宠池构建局内宠物（与 startRun 一致），而非临时随机
+  const dexBuffs = g.storage.getDexBuffs()
   g.pets = NEWBIE_PET_IDS.map(id => {
     const poolPet = g.storage.getPoolPet(id)
     const basePet = getPetById(id)
@@ -506,7 +507,7 @@ function finish(g) {
     return {
       ...basePet,
       star: poolPet.star,
-      atk: getPoolPetAtk(poolPet),
+      atk: getPoolPetAtk(poolPet, dexBuffs),
       currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? 0 : 0,
       _poolId: id,
     }

@@ -1,17 +1,15 @@
 /**
  * 经济系统配置 — 灵宠消消塔
  * 集中管理所有经济数值：货币定义、品质视觉、章节奖励、通天塔奖励、派遣奖励
- * 适配 5章 × 8关 普通/精英双难度 = 80关
+ * 适配 12章 × 8关 普通/精英双难度 = 192关
  */
 
-// ===== 货币定义 =====
 const CURRENCY = {
   soulStone:   { name: '灵石',   icon: 'icon_soul_stone',   desc: '宠物升级的通用货币' },
   awakenStone: { name: '觉醒石', icon: 'icon_awaken_stone', desc: '★4/★5突破的稀缺材料' },
   fragment:    { name: '碎片',   icon: 'icon_fragment',     desc: '宠物升星的专属材料' },
 }
 
-// ===== 品质视觉配置（R/SR/SSR，预留 UR 扩展） =====
 const RARITY_VISUAL = {
   R: {
     label: 'R', name: '稀有',
@@ -40,7 +38,6 @@ const RARITY_VISUAL = {
   },
 }
 
-// ===== 星级视觉配置 =====
 const STAR_VISUAL = {
   1: { color: '#888888', name: '初始',  effect: 'none' },
   2: { color: '#ffd700', name: '觉知',  effect: 'none' },
@@ -49,160 +46,126 @@ const STAR_VISUAL = {
   5: { color: '#ff4d9a', name: '超越',  effect: 'rainbow' },
 }
 
-// ===== 每章关卡数 =====
 const STAGES_PER_CHAPTER = 8
 
-// ===== 各章节秘境奖励配置（索引 0-7 对应本章第 1-8 关） =====
-// 普通难度和精英难度分别配置
-const STAGE_REWARDS = {
-  1: {
-    normal: {
-      soulStone: { first: [40,50,60,80,100,120,150,200],   repeat: [10,12,12,15,15,17,20,24] },
-      fragment:  { first: [0,0,2,2,2,3,3,4],                repeat: [1,1,1,1,2,2,2,3] },
-      awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
-    },
-    elite: {
-      soulStone: { first: [60,80,100,120,150,180,200,300],  repeat: [15,17,20,22,24,27,30,40] },
-      fragment:  { first: [3,3,3,4,4,4,5,5],                repeat: [2,2,2,2,3,3,3,4] },
-      awakenStone: { first: [0,0,0,0,0,0,0,0],             repeat: 0 },
-    },
+// ===== 经济框架：按章节定义日收入目标与来源占比 =====
+const ECONOMY_FRAMEWORK = {
+  dailyTarget: {
+    1:  { soulStone: 400,  fragment: 8,  awakenStonePerWeek: 0 },
+    2:  { soulStone: 470,  fragment: 10, awakenStonePerWeek: 0 },
+    3:  { soulStone: 560,  fragment: 12, awakenStonePerWeek: 0 },
+    4:  { soulStone: 660,  fragment: 15, awakenStonePerWeek: 2 },
+    5:  { soulStone: 780,  fragment: 18, awakenStonePerWeek: 3 },
+    6:  { soulStone: 920,  fragment: 22, awakenStonePerWeek: 4 },
+    7:  { soulStone: 1080, fragment: 26, awakenStonePerWeek: 6 },
+    8:  { soulStone: 1280, fragment: 30, awakenStonePerWeek: 8 },
+    9:  { soulStone: 1510, fragment: 35, awakenStonePerWeek: 10 },
+    10: { soulStone: 1780, fragment: 40, awakenStonePerWeek: 12 },
+    11: { soulStone: 2100, fragment: 46, awakenStonePerWeek: 15 },
+    12: { soulStone: 2480, fragment: 52, awakenStonePerWeek: 18 },
   },
-  2: {
-    normal: {
-      soulStone: { first: [80,100,120,150,150,180,200,250],  repeat: [24,27,30,33,36,42,48,60] },
-      fragment:  { first: [2,2,3,3,3,4,4,5],                 repeat: [2,2,2,3,3,3,3,4] },
-      awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
-    },
-    elite: {
-      soulStone: { first: [120,150,180,220,220,270,300,380], repeat: [36,42,48,51,54,60,72,90] },
-      fragment:  { first: [4,4,5,5,5,6,6,8],                 repeat: [3,3,3,4,4,4,5,6] },
-      awakenStone: { first: [0,0,0,0,0,0,0,0],              repeat: 0 },
-    },
+  sourceRatio: {
+    stageRepeat: 0.50,
+    dailyTask: 0.20,
+    idle: 0.10,
+    towerRogue: 0.20,
   },
-  3: {
-    normal: {
-      soulStone: { first: [150,180,200,220,250,280,300,350],  repeat: [48,54,60,66,72,78,84,90] },
-      fragment:  { first: [3,3,4,4,5,5,6,8],                  repeat: [3,3,3,4,4,4,5,5] },
-      awakenStone: { first: [0,0,1,1,1,1,1,2],               repeat: 0.10 },
-    },
-    elite: {
-      soulStone: { first: [220,270,300,330,380,420,450,530],  repeat: [72,78,90,96,108,120,126,138] },
-      fragment:  { first: [5,6,6,7,7,8,8,10],                 repeat: [4,5,5,5,6,6,6,8] },
-      awakenStone: { first: [1,1,1,1,2,2,2,3],               repeat: 0.15 },
-    },
-  },
-  4: {
-    normal: {
-      soulStone: { first: [250,280,300,330,350,380,400,500],  repeat: [72,78,84,90,96,102,114,120] },
-      fragment:  { first: [5,5,6,6,8,8,8,10],                 repeat: [4,4,4,5,5,5,6,6] },
-      awakenStone: { first: [1,1,1,2,2,2,2,3],               repeat: 0.12 },
-    },
-    elite: {
-      soulStone: { first: [380,420,450,500,530,570,600,750],  repeat: [108,120,126,138,144,156,168,180] },
-      fragment:  { first: [8,8,9,9,10,10,12,15],              repeat: [6,6,7,7,8,8,9,10] },
-      awakenStone: { first: [2,2,2,3,3,3,4,5],               repeat: 0.20 },
-    },
-  },
-  5: {
-    normal: {
-      soulStone: { first: [350,380,400,440,460,500,550,700],   repeat: [96,108,120,132,144,156,168,180] },
-      fragment:  { first: [6,6,8,8,8,10,10,12],                repeat: [5,5,6,6,6,7,7,8] },
-      awakenStone: { first: [2,2,2,3,3,3,4,5],                repeat: 0.15 },
-    },
-    elite: {
-      soulStone: { first: [530,570,600,660,690,750,830,1050],  repeat: [144,162,180,198,216,240,252,270] },
-      fragment:  { first: [10,10,12,12,14,14,15,18],            repeat: [8,8,9,9,10,10,12,14] },
-      awakenStone: { first: [3,3,4,4,5,5,6,8],                repeat: 0.25 },
-    },
+  dailyTaskScale: {
+    1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0, 6: 2.4,
+    7: 2.8, 8: 3.3, 9: 3.9, 10: 4.6, 11: 5.4, 12: 6.4,
   },
 }
 
-// ===== 关卡星级奖励（2★/3★首次达成增量奖励，普通和精英共用同一套配置） =====
-// 索引 0-7 对应本章第 1-8 关
-const STAR_REWARDS = {
-  1: [
-    { star2: { soulStone: 15, fragment: 0 },  star3: { soulStone: 25, fragment: 1 } },
-    { star2: { soulStone: 15, fragment: 0 },  star3: { soulStone: 25, fragment: 1 } },
-    { star2: { soulStone: 20, fragment: 1 },  star3: { soulStone: 30, fragment: 2 } },
-    { star2: { soulStone: 20, fragment: 1 },  star3: { soulStone: 30, fragment: 2 } },
-    { star2: { soulStone: 25, fragment: 1 },  star3: { soulStone: 40, fragment: 2 } },
-    { star2: { soulStone: 25, fragment: 1 },  star3: { soulStone: 40, fragment: 2 } },
-    { star2: { soulStone: 30, fragment: 2 },  star3: { soulStone: 50, fragment: 3 } },
-    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
-  ],
-  2: [
-    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
-    { star2: { soulStone: 40, fragment: 2 },  star3: { soulStone: 60, fragment: 3 } },
-    { star2: { soulStone: 50, fragment: 2 },  star3: { soulStone: 70, fragment: 3 } },
-    { star2: { soulStone: 50, fragment: 2 },  star3: { soulStone: 70, fragment: 4 } },
-    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 80, fragment: 4 } },
-    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 80, fragment: 4 } },
-    { star2: { soulStone: 70, fragment: 3 },  star3: { soulStone: 100, fragment: 4 } },
-    { star2: { soulStone: 80, fragment: 3 },  star3: { soulStone: 120, fragment: 5 } },
-  ],
-  3: [
-    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 100, fragment: 4, awakenStone: 1 } },
-    { star2: { soulStone: 60, fragment: 3 },  star3: { soulStone: 100, fragment: 4, awakenStone: 1 } },
-    { star2: { soulStone: 70, fragment: 3 },  star3: { soulStone: 120, fragment: 5, awakenStone: 1 } },
-    { star2: { soulStone: 70, fragment: 4 },  star3: { soulStone: 120, fragment: 5, awakenStone: 1 } },
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 140, fragment: 5, awakenStone: 1 } },
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 140, fragment: 5, awakenStone: 2 } },
-    { star2: { soulStone: 100, fragment: 4 }, star3: { soulStone: 160, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 110, fragment: 5 }, star3: { soulStone: 180, fragment: 6, awakenStone: 2 } },
-  ],
-  4: [
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 130, fragment: 5, awakenStone: 2 } },
-    { star2: { soulStone: 80, fragment: 4 },  star3: { soulStone: 130, fragment: 5, awakenStone: 2 } },
-    { star2: { soulStone: 90, fragment: 4 },  star3: { soulStone: 150, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 90, fragment: 5 },  star3: { soulStone: 150, fragment: 6, awakenStone: 2 } },
-    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 170, fragment: 6, awakenStone: 3 } },
-    { star2: { soulStone: 100, fragment: 5 }, star3: { soulStone: 170, fragment: 7, awakenStone: 3 } },
-    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 200, fragment: 7, awakenStone: 3 } },
-    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 220, fragment: 8, awakenStone: 3 } },
-  ],
-  5: [
-    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 180, fragment: 7, awakenStone: 3 } },
-    { star2: { soulStone: 120, fragment: 5 }, star3: { soulStone: 180, fragment: 7, awakenStone: 3 } },
-    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 200, fragment: 8, awakenStone: 3 } },
-    { star2: { soulStone: 140, fragment: 6 }, star3: { soulStone: 200, fragment: 8, awakenStone: 4 } },
-    { star2: { soulStone: 160, fragment: 6 }, star3: { soulStone: 230, fragment: 8, awakenStone: 4 } },
-    { star2: { soulStone: 160, fragment: 7 }, star3: { soulStone: 230, fragment: 9, awakenStone: 4 } },
-    { star2: { soulStone: 200, fragment: 7 }, star3: { soulStone: 280, fragment: 9, awakenStone: 5 } },
-    { star2: { soulStone: 220, fragment: 8 }, star3: { soulStone: 320, fragment: 10, awakenStone: 5 } },
-  ],
+// ===== 派遣 / 挂机产出配置 =====
+const IDLE_CFG = {
+  maxSlots:        3,
+  fragIntervalMs:  3 * 3600 * 1000,
+  maxAccumulateMs: 24 * 3600 * 1000,
+  soulStonePerHour: 0.6,
+  petLvExpFactor:  0.02,
 }
 
-// ===== 章节星级里程碑（8★ / 16★ / 24★，对应 8 关 × 3 星 = 24 满星） =====
-// 普通和精英各自独立的里程碑
-const CHAPTER_MILESTONES = {
-  1: [
-    { stars: 8,  rewards: { soulStone: 200 } },
-    { stars: 16, rewards: { soulStone: 400, fragment: 3 } },
-    { stars: 24, rewards: { soulStone: 600, fragment: 5 } },
-  ],
-  2: [
-    { stars: 8,  rewards: { soulStone: 400 } },
-    { stars: 16, rewards: { soulStone: 600, fragment: 5 } },
-    { stars: 24, rewards: { soulStone: 800, fragment: 8 } },
-  ],
-  3: [
-    { stars: 8,  rewards: { soulStone: 600, awakenStone: 1 } },
-    { stars: 16, rewards: { soulStone: 800, fragment: 5, awakenStone: 2 } },
-    { stars: 24, rewards: { soulStone: 1200, fragment: 10, awakenStone: 3 } },
-  ],
-  4: [
-    { stars: 8,  rewards: { soulStone: 800, awakenStone: 2 } },
-    { stars: 16, rewards: { soulStone: 1000, fragment: 8, awakenStone: 3 } },
-    { stars: 24, rewards: { soulStone: 1500, fragment: 12, awakenStone: 5 } },
-  ],
-  5: [
-    { stars: 8,  rewards: { soulStone: 1000, awakenStone: 3 } },
-    { stars: 16, rewards: { soulStone: 1200, fragment: 10, awakenStone: 4 } },
-    { stars: 24, rewards: { soulStone: 2000, fragment: 15, awakenStone: 8 } },
-  ],
-}
+// ===== 关卡奖励：基于 dailyTarget 公式生成 12 章 =====
+const _DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
+const _DIST_W = [0.7, 0.8, 0.85, 0.95, 1.0, 1.1, 1.25, 1.4]
 
-// ===== 通天塔结算配置（原 settleConfig.js，统一至此） =====
+function _genStageRewards() {
+  const R = {}
+  for (let ch = 1; ch <= 12; ch++) {
+    const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
+    const est = _DAILY_STAGE_EST[ch]
+    const avgR = dt.soulStone * ECONOMY_FRAMEWORK.sourceRatio.stageRepeat / est
+    const repeatSS = _DIST_W.map(w => Math.round(avgR * w))
+    const firstSS = repeatSS.map(r => Math.round(r * 3.5))
+
+    const avgFrag = Math.max(1, dt.fragment * 0.5 / est)
+    const repeatFrag = _DIST_W.map(w => Math.max(1, Math.round(avgFrag * w)))
+    const firstFrag = repeatFrag.map(r => Math.round(r * 2.5))
+
+    let awRepeat = 0
+    let awFirst = Array(8).fill(0)
+    if (dt.awakenStonePerWeek > 0) {
+      awRepeat = Math.round((dt.awakenStonePerWeek / (est * 7)) * 100) / 100
+      awRepeat = Math.max(0.05, awRepeat)
+      awFirst = _DIST_W.map((w, i) => i < 3 && ch < 8 ? 0 : Math.max(1, Math.round(dt.awakenStonePerWeek / 6 * w)))
+    }
+
+    R[ch] = {
+      normal: {
+        soulStone: { first: firstSS, repeat: repeatSS },
+        fragment: { first: firstFrag, repeat: repeatFrag },
+        awakenStone: { first: awFirst, repeat: awRepeat },
+      },
+      elite: {
+        soulStone: { first: firstSS.map(v => Math.round(v * 1.5)), repeat: repeatSS.map(v => Math.round(v * 1.5)) },
+        fragment: { first: firstFrag.map(v => Math.round(v * 1.4)), repeat: repeatFrag.map(v => Math.round(v * 1.3)) },
+        awakenStone: { first: awFirst.map(v => Math.round(v * 1.5)), repeat: Math.round(awRepeat * 1.5 * 100) / 100 },
+      },
+    }
+  }
+  return R
+}
+const STAGE_REWARDS = _genStageRewards()
+
+// ===== 关卡星级奖励：基于 dailyTarget 公式生成 12 章 =====
+function _genStarRewards() {
+  const R = {}
+  for (let ch = 1; ch <= 12; ch++) {
+    const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
+    const base2 = Math.round(dt.soulStone * 0.04)
+    const base3 = Math.round(dt.soulStone * 0.08)
+    const fBase = Math.max(0, Math.round(dt.fragment * 0.08))
+    R[ch] = _DIST_W.map((w, i) => {
+      const s2 = { soulStone: Math.round(base2 * w), fragment: Math.max(0, Math.round(fBase * w)) }
+      const s3 = { soulStone: Math.round(base3 * w), fragment: Math.max(1, Math.round(fBase * 1.5 * w)) }
+      if (ch >= 4 && i >= 4) {
+        s3.awakenStone = Math.max(1, Math.round(dt.awakenStonePerWeek / 12 * w))
+      }
+      return { star2: s2, star3: s3 }
+    })
+  }
+  return R
+}
+const STAR_REWARDS = _genStarRewards()
+
+// ===== 章节星级里程碑（8★ / 16★ / 24★） =====
+function _genMilestones() {
+  const R = {}
+  for (let ch = 1; ch <= 12; ch++) {
+    const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
+    const baseSS = Math.round(dt.soulStone * 0.5)
+    const aw = dt.awakenStonePerWeek
+    R[ch] = [
+      { stars: 8,  rewards: { soulStone: baseSS, ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.2)) } : {}) } },
+      { stars: 16, rewards: { soulStone: Math.round(baseSS * 1.5), fragment: Math.round(dt.fragment * 0.3), ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.3)) } : {}) } },
+      { stars: 24, rewards: { soulStone: baseSS * 2, fragment: Math.round(dt.fragment * 0.5), ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.5)) } : {}) } },
+    ]
+  }
+  return R
+}
+const CHAPTER_MILESTONES = _genMilestones()
+
+// ===== 通天塔结算配置 =====
 const TOWER_SETTLE = {
   fragment: {
     perFloor:    1,
@@ -227,14 +190,20 @@ const TOWER_SETTLE = {
   },
 }
 
-// ===== 周回碎片档位（原 stages.js，统一至此） =====
-const CHAPTER_REP_FRAG = {
-  1: { normal: { min: 1, max: 2, pool: 'chapter' }, elite: { min: 1, max: 3, pool: 'chapter' } },
-  2: { normal: { min: 2, max: 3, pool: 'chapter' }, elite: { min: 2, max: 4, pool: 'chapter' } },
-  3: { normal: { min: 2, max: 4, pool: 'chapter' }, elite: { min: 3, max: 5, pool: 'chapter' } },
-  4: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 6, pool: 'chapter' } },
-  5: { normal: { min: 3, max: 5, pool: 'chapter' }, elite: { min: 4, max: 7, pool: 'chapter' } },
+// ===== 周回碎片档位：基于 dailyTarget 公式生成 12 章 =====
+function _genRepFrag() {
+  const R = {}
+  for (let ch = 1; ch <= 12; ch++) {
+    const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
+    const base = Math.max(1, Math.round(dt.fragment / 10))
+    R[ch] = {
+      normal: { min: base, max: base + Math.max(1, Math.round(base * 0.5)), pool: 'chapter' },
+      elite:  { min: base + 1, max: base + Math.max(2, Math.round(base * 0.8)), pool: 'chapter' },
+    }
+  }
+  return R
 }
+const CHAPTER_REP_FRAG = _genRepFrag()
 
 // ===== 肉鸽灵石结算系数 =====
 const ROGUE_SETTLE = {
@@ -243,46 +212,17 @@ const ROGUE_SETTLE = {
   clearBonus:     200,
 }
 
-// ===== 派遣 / 挂机产出配置 =====
-const IDLE_CFG = {
-  maxSlots:        3,
-  fragIntervalMs:  3 * 3600 * 1000,
-  maxAccumulateMs: 24 * 3600 * 1000,
-  soulStonePerHour: 15,
-  petLvExpFactor:  0.02,
-}
-
-// ===== 经济框架：按章节定义日收入目标与来源占比 =====
-// 所有子系统数值以此为锚：关卡周回~50%、签到+日任~30%、派遣~20%
-const ECONOMY_FRAMEWORK = {
-  dailyTarget: {
-    1: { soulStone: 400,  fragment: 8,  awakenStonePerWeek: 0 },
-    2: { soulStone: 700,  fragment: 14, awakenStonePerWeek: 0 },
-    3: { soulStone: 1100, fragment: 20, awakenStonePerWeek: 2 },
-    4: { soulStone: 1600, fragment: 28, awakenStonePerWeek: 4 },
-    5: { soulStone: 2200, fragment: 36, awakenStonePerWeek: 8 },
-  },
-  sourceRatio: {
-    stageRepeat: 0.50,
-    loginAndTask: 0.30,
-    idle: 0.20,
-  },
-  dailyTaskScale: { 1: 1.0, 2: 1.8, 3: 2.8, 4: 4.0, 5: 5.5 },
-}
-
 /**
  * 获取玩家当前章节对应的每日任务奖励缩放系数
- * @param {number} chapter 1-5
+ * @param {number} chapter 1-12
  */
 function getDailyTaskScale(chapter) {
   return ECONOMY_FRAMEWORK.dailyTaskScale[chapter] || 1.0
 }
 
-// ===== 工具函数：获取关卡奖励配置 =====
-
 /**
  * 获取指定章节/关序/难度的奖励配置
- * @param {number} chapter 章节号 1-5
+ * @param {number} chapter 章节号 1-12
  * @param {number} order 关卡序号 1-8 (0-indexed internally)
  * @param {string} difficulty 'normal' | 'elite'
  */
@@ -310,7 +250,7 @@ function getStageRewardConfig(chapter, order, difficulty) {
 
 /**
  * 获取指定章节/关序的星级奖励配置
- * @param {number} chapter 章节号 1-5
+ * @param {number} chapter 章节号 1-12
  * @param {number} order 关卡序号 1-8 (0-indexed internally)
  */
 function getStarRewardConfig(chapter, order) {
@@ -319,7 +259,7 @@ function getStarRewardConfig(chapter, order) {
   return chStars[order - 1] || null
 }
 
-// ===== IAA 广告位预留配置（当前不实现，仅定义接口） =====
+// ===== IAA 广告位预留配置 =====
 const AD_REWARDS = {
   staminaRecovery: { enabled: false, reward: { stamina: 30 }, adUnitId: '' },
   settleDouble:    { enabled: false, multiplier: 2,           adUnitId: '' },

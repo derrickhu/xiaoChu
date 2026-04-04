@@ -18,7 +18,7 @@ const {
 const LOCAL_KEY = 'wxtower_v1'
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 12
+const CURRENT_VERSION = 13
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -38,8 +38,9 @@ function defaultPersist() {
       sfxOn: true,
       bgmVolume: 50,  // 背景音乐音量 0~100，默认50
     },
-    petDex: [],  // 图鉴：历史收集到3星的宠物ID列表
+    petDex: [],  // 图鉴：历史收集到3星的宠物ID列表（兼容旧版）
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
+    dexMilestonesClaimed: [],  // 图鉴里程碑：已领取的里程碑ID列表
     cultivation: {
       level: 1,              // 人物等级（从1级起始）
       exp: 0,                // 当前等级已积累经验
@@ -188,6 +189,27 @@ const migrations = {
     if (!d.weaponCollection) d.weaponCollection = []
     if (d.equippedWeaponId === undefined) d.equippedWeaponId = null
   },
+  // v12→v13：图鉴系统重设计 — 里程碑字段 + 旧petDex数据迁移入池
+  12: (d) => {
+    if (!d.dexMilestonesClaimed) d.dexMilestonesClaimed = []
+    const pool = d.petPool || []
+    const poolIds = new Set(pool.map(p => p.id))
+    const oldDex = d.petDex || []
+    for (const petId of oldDex) {
+      if (!poolIds.has(petId)) {
+        const { getPetById } = require('./pets')
+        const pet = getPetById(petId)
+        if (pet) {
+          pool.push({
+            id: petId, attr: pet.attr, star: 3,
+            level: 10, fragments: 0,
+            source: 'dex_migrate', obtainedAt: Date.now(),
+          })
+        }
+      }
+    }
+    if (!d.petPool) d.petPool = pool
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -222,7 +244,7 @@ class Storage {
       getContext: () => ({
         userAuthorized: this.userAuthorized,
         userInfo: this.userInfo,
-        petDexCount: (this._d.petDex || []).length,
+        petDexCount: (this._d.petPool || []).length,
         maxCombo: this._d.stats.maxCombo || 0,
         bestFloor: this.bestFloor,
         bestFloorPets: this.stats.bestFloorPets || [],
@@ -282,7 +304,7 @@ class Storage {
     return this._d.settings.bgmVolume
   }
 
-  // 图鉴：记录收集到3星的宠物
+  // 图鉴：记录收集到3星的宠物（兼容旧版，新版由 petPool 派生）
   get petDex()    { return this._d.petDex || [] }
   addPetDex(petId) {
     if (!this._d.petDex) this._d.petDex = []
@@ -300,6 +322,30 @@ class Storage {
       this._d.petDexSeen.push(petId)
       this._save()
     }
+  }
+
+  // ===== 图鉴里程碑系统 =====
+  get dexMilestonesClaimed() { return this._d.dexMilestonesClaimed || [] }
+
+  claimDexMilestone(milestoneId) {
+    const { ALL_MILESTONES, isMilestoneReached } = require('./dexConfig')
+    const m = ALL_MILESTONES.find(ms => ms.id === milestoneId)
+    if (!m) return { success: false, message: '里程碑不存在' }
+    if (!this._d.dexMilestonesClaimed) this._d.dexMilestonesClaimed = []
+    if (this._d.dexMilestonesClaimed.includes(milestoneId)) return { success: false, message: '已领取' }
+    if (!isMilestoneReached(m, this._d.petPool || [])) return { success: false, message: '未达成' }
+    this._d.dexMilestonesClaimed.push(milestoneId)
+    if (m.reward) {
+      if (m.reward.soulStone) this._d.soulStone = (this._d.soulStone || 0) + m.reward.soulStone
+      if (m.reward.awakenStone) this._d.awakenStone = (this._d.awakenStone || 0) + m.reward.awakenStone
+    }
+    this._save()
+    return { success: true, reward: m.reward || null, buff: m.buff || null }
+  }
+
+  getDexBuffs() {
+    const { getDexBuffs } = require('./dexConfig')
+    return getDexBuffs(this._d.dexMilestonesClaimed || [])
   }
 
   // ===== 修炼系统 =====
@@ -533,6 +579,7 @@ class Storage {
    */
   upgradePoolPetStar(petId) {
     const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST } = require('./petPoolConfig')
+    const { POOL_STAR_SS_COST } = require('./constants')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry) return { ok: false, reason: 'not_found' }
     const nextStar = entry.star + 1
@@ -542,12 +589,16 @@ class Storage {
     if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }
     const fragCost = POOL_STAR_FRAG_COST[nextStar]
     if (entry.fragments < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
-    // ★4/★5 升星额外需要觉醒石
+    const ssCost = POOL_STAR_SS_COST[nextStar] || 0
+    if (ssCost > 0 && (this._d.soulStone || 0) < ssCost) {
+      return { ok: false, reason: 'soul_stone_low', required: ssCost }
+    }
     const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
     if (awakenCost > 0 && (this._d.awakenStone || 0) < awakenCost) {
       return { ok: false, reason: 'awaken_stone_low', required: awakenCost }
     }
     entry.fragments -= fragCost
+    if (ssCost > 0) this._d.soulStone -= ssCost
     if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
     this._save()
@@ -572,7 +623,8 @@ class Storage {
   }
 
   get maxStamina() {
-    return this._d.stamina.max
+    const cultLv = (this._d.cultivation && this._d.cultivation.level) || 1
+    return STAMINA_INITIAL + cultLv
   }
 
   consumeStamina(amount) {
@@ -594,18 +646,19 @@ class Storage {
 
   _recoverStamina() {
     let s = this._d.stamina
-    // 修复被错误覆盖为字符串/数字的 stamina（宝箱奖励曾错误写成 stamina = stamina + amount）
     if (!s || typeof s !== 'object' || typeof s.current !== 'number') {
       this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
       s = this._d.stamina
       this._save()
     }
+    const dynMax = this.maxStamina
+    s.max = dynMax
     if (!s.lastRecoverTime) { s.lastRecoverTime = Date.now(); return }
     const now = Date.now()
     const elapsed = now - s.lastRecoverTime
     const recovered = Math.floor(elapsed / STAMINA_RECOVER_INTERVAL_MS)
     if (recovered > 0) {
-      s.current = Math.min(s.max, s.current + recovered)
+      s.current = Math.min(dynMax, s.current + recovered)
       s.lastRecoverTime += recovered * STAMINA_RECOVER_INTERVAL_MS
     }
   }
@@ -802,7 +855,7 @@ class Storage {
         if (m) { const ch = parseInt(m[1], 10); if (ch > maxCh) maxCh = ch }
       }
     }
-    return Math.min(maxCh, 5)
+    return Math.min(maxCh, 12)
   }
 
   get stageClearRecord() {

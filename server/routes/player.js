@@ -73,10 +73,14 @@ function _mergePlayerData(cloud, local) {
       result.stats.bestTotalTurns = cloud.stats?.bestTotalTurns || local.stats?.bestTotalTurns || 0
     }
   }
-  // 图鉴取并集
+  // 图鉴取并集（兼容旧版）
   const cloudDex = new Set(cloud.petDex || [])
   const localDex = new Set(local.petDex || [])
   result.petDex = [...new Set([...cloudDex, ...localDex])]
+  // 图鉴里程碑取并集
+  const cloudMs = new Set(cloud.dexMilestonesClaimed || [])
+  const localMs = new Set(local.dexMilestonesClaimed || [])
+  result.dexMilestonesClaimed = [...new Set([...cloudMs, ...localMs])]
   // 不覆盖 _id 和平台标识
   delete result._id
   return result

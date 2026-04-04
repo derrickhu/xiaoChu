@@ -47,6 +47,7 @@ function startStage(g, stageId, teamPetIds) {
   g._stageTeam = teamPetIds.slice()
 
   // 从灵宠池构建战斗用宠物数组
+  const dexBuffs = g.storage.getDexBuffs()
   g.pets = teamPetIds.map(id => {
     const poolPet = g.storage.getPoolPet(id)
     const basePet = getPetById(id)
@@ -54,7 +55,7 @@ function startStage(g, stageId, teamPetIds) {
     return {
       ...basePet,
       star: poolPet.star,
-      atk: getPoolPetAtk(poolPet),
+      atk: getPoolPetAtk(poolPet, dexBuffs),
       currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * 0.4) - 1) : 0,
       _poolId: id,
     }
