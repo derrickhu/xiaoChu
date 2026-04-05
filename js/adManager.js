@@ -44,21 +44,8 @@ function _incLog(slotId) {
   _storage._save()
 }
 
-let _isDevTools = false
-try {
-  const sysInfo = (typeof wx !== 'undefined' && wx.getSystemInfoSync) ? wx.getSystemInfoSync() : null
-  if (sysInfo && sysInfo.platform === 'devtools') _isDevTools = true
-} catch(e) {}
-
 function _createRV(adUnitId) {
   if (_rvInstances[adUnitId]) return _rvInstances[adUnitId]
-  if (_isDevTools) {
-    console.log('[Ad] 开发者工具环境，模拟激励视频实例:', adUnitId.slice(-6))
-    const mock = _createDevToolsMock(adUnitId)
-    _rvInstances[adUnitId] = mock
-    _adReady[adUnitId] = true
-    return mock
-  }
   try {
     const ad = P.createRewardedVideoAd({ adUnitId })
     if (!ad) return null
@@ -75,26 +62,6 @@ function _createRV(adUnitId) {
   } catch(e) {
     console.warn('[Ad] createRewardedVideoAd 异常:', e)
     return null
-  }
-}
-
-function _createDevToolsMock(adUnitId) {
-  let _closeCb = null
-  return {
-    onLoad() {},
-    onError() {},
-    onClose(cb) { _closeCb = cb },
-    offClose() { _closeCb = null },
-    show() {
-      console.log('[Ad][DevTools] 模拟展示激励视频:', adUnitId.slice(-6))
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (_closeCb) { _closeCb({ isEnded: true }); _closeCb = null }
-          resolve()
-        }, 500)
-      })
-    },
-    load() { return Promise.resolve() },
   }
 }
 
@@ -162,7 +129,6 @@ const AdManager = {
   isAdReady(slotId) {
     const cfg = AD_REWARDS[slotId]
     if (!cfg || !cfg.adUnitId) return false
-    if (_isDevTools) return true
     if (_adShowFailed && P.isOHOS) return false
     return !!_adReady[cfg.adUnitId]
   },

@@ -417,7 +417,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0

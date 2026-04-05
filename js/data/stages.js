@@ -142,7 +142,8 @@ function _genStageSpecs() {
       const repExpBase = Math.round(expBase * 0.68)
       const bsBase = Math.round(15 + globalOrd * 2.2)
 
-      const sRating = Math.max(5, Math.round(4 + ch * 0.6 + i * 0.2))
+      const ratingBonus = ch <= 2 ? 2 : ch <= 3 ? 1 : 0
+      const sRating = Math.max(5, Math.round(4 + ch * 0.6 + i * 0.2)) + ratingBonus
       const aRating = sRating + 3
 
       const pet = _PET_POOL[petIdx % _PET_POOL.length]
@@ -175,7 +176,6 @@ function _genStageSpecs() {
 
       if (ch === 1 && i === 0) {
         spec.teamSize = { min: 1, max: 5 }
-        spec.staminaCost = 0
       }
 
       chSpecs.push(spec)
@@ -215,13 +215,31 @@ function buildAllStages() {
       if (enemyData.newbieOverride) normalEnemy.newbieOverride = { ...enemyData.newbieOverride }
       if (enemyData.isBoss) normalEnemy.isBoss = true
 
+      let normalWaves = [{ enemies: [normalEnemy] }]
+      if (ord === 8 && i >= 2) {
+        const minionId = CHAPTER_ENEMY_IDS[ch][Math.max(0, i - 3)]
+        const minionData = getEnemyById(minionId)
+        if (minionData) {
+          const minion = {
+            name: minionData.name,
+            attr: minionData.attr,
+            hp: Math.round(minionData.hp * 0.6),
+            atk: minionData.atk,
+            def: minionData.def,
+            skills: [...minionData.skills],
+            avatar: minionData.avatar,
+          }
+          normalWaves = [{ enemies: [minion] }, { enemies: [normalEnemy] }]
+        }
+      }
+
       stages.push({
         id: `stage_${ch}_${ord}`,
         name: s.name,
         chapter: ch,
         order: ord,
         difficulty: 'normal',
-        waves: [{ enemies: [normalEnemy] }],
+        waves: normalWaves,
         teamSize: s.teamSize || { min: 3, max: 5 },
         rating: s.rating,
         staminaCost: s.staminaCost !== undefined ? s.staminaCost : CHAPTER_STAMINA[ch].normal,
@@ -242,13 +260,31 @@ function buildAllStages() {
       }
       if (enemyData.isBoss) eliteEnemy.isBoss = true
 
+      let eliteWaves = [{ enemies: [eliteEnemy] }]
+      if (ord === 8 && i >= 2) {
+        const eMinionId = CHAPTER_ENEMY_IDS[ch][Math.max(0, i - 3)]
+        const eMinionData = getEnemyById(eMinionId)
+        if (eMinionData) {
+          const eMinion = {
+            name: '狂暴·' + eMinionData.name,
+            attr: eMinionData.attr,
+            hp: Math.round(eMinionData.hp * mult.hp * 0.6),
+            atk: Math.round(eMinionData.atk * mult.atk),
+            def: Math.round(eMinionData.def * mult.def),
+            skills: [...eMinionData.skills],
+            avatar: eMinionData.avatar,
+          }
+          eliteWaves = [{ enemies: [eMinion] }, { enemies: [eliteEnemy] }]
+        }
+      }
+
       stages.push({
         id: `stage_${ch}_${ord}_elite`,
         name: '精英·' + s.name,
         chapter: ch,
         order: ord,
         difficulty: 'elite',
-        waves: [{ enemies: [eliteEnemy] }],
+        waves: eliteWaves,
         teamSize: { min: 3, max: 5 },
         rating: s.eRating,
         staminaCost: CHAPTER_STAMINA[ch].elite,

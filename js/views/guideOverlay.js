@@ -42,8 +42,8 @@ function draw(g) {
     c.stroke()
   }
 
-  // 气泡文字
-  _drawBubble(c, W, H, S, info)
+  const bubbleGeom = { bottom: null }
+  _drawBubble(c, W, H, S, info, hl, bubbleGeom)
 
   // 手指指向高亮区（派遣空位等）
   if (hl && info.showFinger) {
@@ -61,7 +61,7 @@ function draw(g) {
     c.restore()
   }
 
-  // "点击继续" / "知道了"
+  // "点击继续" / "知道了"：有底部高亮时夹在气泡与高亮之间，避免与底栏/大按钮叠字
   const isLast = info.stepIdx === info.totalSteps - 1
   const btnText = isLast ? '知道了' : '点击继续'
   const breathAlpha = 0.5 + 0.5 * Math.sin(g.af * 0.08)
@@ -69,12 +69,18 @@ function draw(g) {
   c.fillStyle = 'rgba(255,230,180,0.9)'
   c.font = `${13 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
-  c.fillText(btnText, W / 2, H - 80 * S)
+  let tapY = H - 80 * S
+  if (hl && info.position === 'bottom' && bubbleGeom.bottom != null && hl.y > bubbleGeom.bottom + 20 * S) {
+    tapY = (bubbleGeom.bottom + hl.y) * 0.5
+    tapY = Math.max(bubbleGeom.bottom + 14 * S, Math.min(tapY, hl.y - 10 * S))
+  }
+  c.fillText(btnText, W / 2, tapY)
 
   c.restore()
 }
 
-function _drawBubble(c, W, H, S, info) {
+/** @param {object|null} hl 高亮矩形 { x,y,w,h } @param {{ bottom: number|null }} geom 输出气泡底边 Y */
+function _drawBubble(c, W, H, S, info, hl, geom) {
   const text = info.text
   const fontSize = 15 * S
   c.font = `bold ${fontSize}px "PingFang SC","Microsoft YaHei",sans-serif`
@@ -90,11 +96,26 @@ function _drawBubble(c, W, H, S, info) {
   if (info.position === 'top') {
     bubbleY = V.safeTop + 60 * S
   } else if (info.position === 'bottom') {
-    bubbleY = H - bubbleH - 100 * S
+    if (hl && typeof hl.y === 'number' && typeof hl.h === 'number') {
+      const gap = 16 * S
+      const minY = V.safeTop + 52 * S
+      const yAboveBtn = hl.y - bubbleH - gap
+      if (yAboveBtn >= minY) {
+        bubbleY = yAboveBtn
+      } else if (minY + bubbleH <= hl.y - gap) {
+        bubbleY = minY
+      } else {
+        bubbleY = yAboveBtn
+      }
+    } else {
+      bubbleY = H - bubbleH - 100 * S
+    }
   } else {
     bubbleY = (H - bubbleH) / 2
   }
   const bubbleX = (W - bubbleW) / 2
+
+  if (geom) geom.bottom = bubbleY + bubbleH
 
   drawPanel(c, S, bubbleX, bubbleY, bubbleW, bubbleH, { radius: 14 * S })
 

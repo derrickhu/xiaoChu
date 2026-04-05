@@ -24,7 +24,7 @@ const RANK_CACHE_TTL_MS = 30000
 // ===== 塔层 / 肉鸽 (TOWER) =====
 
 const TOWER_MAX_FLOOR = 30
-const TOWER_COUNTER_MUL = 2.0
+const TOWER_COUNTER_MUL = 1.6
 const TOWER_COUNTERED_MUL = 0.6
 const TOWER_RECENT_LIMIT = 3
 const TOWER_BASE_EVENT_WEIGHTS = {

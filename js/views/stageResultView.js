@@ -63,9 +63,17 @@ function rStageResult(g) {
       && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2' || result.stageId === 'stage_1_3')) {
     result._celebrateTriggered = true
     const petRewards = result.rewards ? result.rewards.filter(r => r.type === 'pet') : []
-    if (petRewards.length > 0) {
+    let celebrateIds = petRewards.map(r => r.petId).filter(Boolean)
+    // 首通灵宠已在池时会变成碎片，rewards 里可能没有 type:pet —— 仍从关卡配置取展示用宠，保证庆祝/总览/首页引导链不断
+    if (celebrateIds.length === 0) {
+      const st = getStageById(result.stageId)
+      if (st && st.rewards && st.rewards.firstClear) {
+        celebrateIds = st.rewards.firstClear.filter(r => r.type === 'pet' && r.petId).map(r => r.petId)
+      }
+    }
+    if (celebrateIds.length > 0) {
       g._newbiePetCelebrate = {
-        petIds: petRewards.map(r => r.petId),
+        petIds: celebrateIds,
         currentIdx: 0,
         alpha: 0, timer: 0,
       }

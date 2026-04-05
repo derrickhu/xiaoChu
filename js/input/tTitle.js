@@ -8,6 +8,7 @@ const { getBrowsableStages } = require('../data/stages')
 const { tDailyReward } = require('../views/dailyRewardView')
 
 const { TOWER_DAILY } = require('../data/economyConfig')
+const { STAGE_FORMATION_MIN_PETS } = require('../data/constants')
 
 const SWIPE_THRESHOLD = 40
 
@@ -222,9 +223,11 @@ function tTitle(g, type, x, y) {
       _handleStageStart(g)
       return
     }
-    // 通天塔：灵宠池 >= 5
-    if (g.storage.petPoolCount < 5) {
-      P.showGameToast(`灵宠池需 ${5 - g.storage.petPoolCount} 只才能挑战通天塔`)
+    // 通天塔：灵宠池达到编队下限即可（与秘境上阵最少只数一致；≥5 只解锁的是灵兽秘境入口，不是通天塔）
+    const minPool = STAGE_FORMATION_MIN_PETS
+    const cur = g.storage.petPoolCount
+    if (cur < minPool) {
+      P.showGameToast(`挑战通天塔需灵宠池至少 ${minPool} 只（当前 ${cur} 只）`)
       return
     }
     g.showNewRunConfirm = false
@@ -273,7 +276,10 @@ function tTitle(g, type, x, y) {
         if (g.storage.petPoolCount >= 1) { g._dexScrollY = 0; g.setScene('dex') }
         return
       }
-      case 3: g.titleMode = 'stage'; g.setScene('title'); return
+      case 3:
+        // 与左侧「通天塔/灵兽秘境」浮钮相同：切换大厅模式
+        g.titleMode = (g.titleMode || 'tower') === 'tower' ? 'stage' : 'tower'
+        return
       case 4:
         g._openRanking(); return
       case 5: g.setScene('stats'); return
@@ -293,10 +299,21 @@ function _handleStageStart(g) {
 
   const stage = entry.stage
 
-  // 新手（零宠物）：直接进入 1-1 战斗
+  // 新手（零宠物）：直接进入 1-1 战斗（体力与关卡配置一致）
   if (g.storage.petPoolCount === 0) {
+    if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
+      const AdManager = require('../adManager')
+      if (!AdManager.openStaminaRecoveryConfirm(g)) {
+        const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
+        const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
+        P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+      }
+      return
+    }
     const stageMgr = require('../engine/stageManager')
-    stageMgr.startStageNewbie(g, stage.id)
+    if (!stageMgr.startStageNewbie(g, stage.id)) {
+      P.showGameToast('开始关卡失败')
+    }
     return
   }
 

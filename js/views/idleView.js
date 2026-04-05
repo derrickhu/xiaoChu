@@ -395,7 +395,7 @@ function _handleBottomBar(g, x, y, L) {
   const idx = Math.floor(x / slotW)
   if (idx < 0 || idx >= BAR_ITEMS.length) return
   const key = BAR_ITEMS[idx].key
-  if (key === 'battle') { g.setScene('title'); return }
+  if (key === 'battle' || key === 'stage') { g.setScene('title'); return }
   if (key === 'cultivation') {
     const cv = require('./cultivationView')
     cv.resetScroll(); g.setScene('cultivation'); cv.checkRealmBreak(g); return

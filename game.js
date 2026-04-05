@@ -53,21 +53,40 @@ const _dpr = _winInfo.pixelRatio || 2
 _canvas.width = _winInfo.windowWidth * _dpr
 _canvas.height = _winInfo.windowHeight * _dpr
 const _W = _canvas.width, _H = _canvas.height
+
+var _subPkgNames = [
+  'pets', 'enemies', 'stage_enemies', 'stage_avatars', 'backgrounds', 'ui', 'hero',
+  'share', 'equipment', 'battle', 'orbs', 'intro',
+  'audio', 'audio_bgm'
+]
+var SUBPKG_ENTRY = {
+  pets: './assets/pets/game.js',
+  enemies: './assets/enemies/game.js',
+  stage_enemies: './assets/stage_enemies/game.js',
+  stage_avatars: './assets/stage_avatars/game.js',
+  backgrounds: './assets/backgrounds/game.js',
+  ui: './assets/ui/game.js',
+  hero: './assets/hero/game.js',
+  share: './assets/share/game.js',
+  equipment: './assets/equipment/game.js',
+  battle: './assets/battle/game.js',
+  orbs: './assets/orbs/game.js',
+  intro: './assets/intro/game.js',
+  audio: './audio/game.js',
+  audio_bgm: './audio_bgm/game.js'
+}
+var _subPkgDone = 0
+var _totalPkgs = _subPkgNames.length
+
 // 先画纯色兜底
 const _bg = _ctx.createLinearGradient(0, 0, 0, _H)
 _bg.addColorStop(0, '#0b0b15')
 _bg.addColorStop(1, '#1a1035')
 _ctx.fillStyle = _bg
 _ctx.fillRect(0, 0, _W, _H)
-// 加载主包内的 loading 背景图（不依赖分包）
+// loading 图（src 在 _drawBg / _drawProgress 定义之后再赋值，避免同步 onload 报错）
 let _splashReady = false
 const _splashImg = P.createImage()
-_splashImg.src = 'loading_bg.jpg'
-_splashImg.onload = function () {
-  _splashReady = true
-  _drawBg()
-  _drawProgress(_loadedCount / _totalPkgs)
-}
 
 // 绘制背景（背景图就绪时铺满 canvas，否则用渐变兜底）
 function _drawBg() {
@@ -150,43 +169,66 @@ function _roundRect(x, y, w, h, r) {
   _ctx.closePath()
 }
 
-// 分包加载
-var _subPkgNames = [
-  'pets', 'enemies', 'stage_enemies', 'stage_avatars', 'backgrounds', 'ui', 'hero',
-  'share', 'equipment', 'battle', 'orbs', 'intro',
-  'audio', 'audio_bgm'
-]
-var _loadedCount = 0
-var _totalPkgs = _subPkgNames.length
-
-function _onPkgDone(name, ok) {
-  console.log('[SubPkg] ' + name + (ok ? ' 加载成功' : ' 加载失败'))
-  _loadedCount++
-  _drawBg()
-  _drawProgress(_loadedCount / _totalPkgs)
-  if (_loadedCount >= _totalPkgs) {
-    console.log('[SubPkg] 全部 ' + _totalPkgs + ' 个分包加载完成，启动游戏')
-    try {
-      require('./js/main')
-      console.log('游戏初始化成功')
-    } catch (e) {
-      console.error('游戏初始化失败:', e)
-      var ctx = _canvas.getContext('2d')
-      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, _canvas.width, _canvas.height)
-      ctx.fillStyle = '#f00'; ctx.font = '16px sans-serif'
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top'
-      ctx.fillText('游戏初始化失败', 20, 20)
-      ctx.fillText(e.message, 20, 50)
-      ctx.fillText(e.stack ? e.stack.substring(0, 200) : '', 20, 80)
-      P.showModal({ title: '初始化失败', content: e.message, showCancel: false })
-    }
+// 分包加载：loadSubpackage 成功后 require 各包入口 game.js，减轻「分包尚未加载」报错；串行加载。
+function _requireSubpkgEntry(name) {
+  var rel = SUBPKG_ENTRY[name]
+  if (!rel) return
+  try {
+    require(rel)
+  } catch (e) {
+    console.warn('[SubPkg] 分包入口 require 异常: ' + name, e)
   }
 }
 
-_subPkgNames.forEach(function (name) {
+function _startGameFromMain() {
+  console.log('[SubPkg] 全部 ' + _totalPkgs + ' 个分包已处理，启动游戏')
+  try {
+    require('./js/main')
+    console.log('游戏初始化成功')
+  } catch (e) {
+    console.error('游戏初始化失败:', e)
+    var ctx = _canvas.getContext('2d')
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, _canvas.width, _canvas.height)
+    ctx.fillStyle = '#f00'; ctx.font = '16px sans-serif'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.fillText('游戏初始化失败', 20, 20)
+    ctx.fillText(e.message, 20, 50)
+    ctx.fillText(e.stack ? e.stack.substring(0, 200) : '', 20, 80)
+    P.showModal({ title: '初始化失败', content: e.message, showCancel: false })
+  }
+}
+
+function _loadNextSubpackage() {
+  if (_subPkgDone >= _subPkgNames.length) {
+    _startGameFromMain()
+    return
+  }
+  var name = _subPkgNames[_subPkgDone]
   P.loadSubpackage({
     name: name,
-    success: function () { _onPkgDone(name, true) },
-    fail: function () { _onPkgDone(name, false) }
+    success: function () {
+      _requireSubpkgEntry(name)
+      console.log('[SubPkg] ' + name + ' 加载成功')
+      _subPkgDone++
+      _drawBg()
+      _drawProgress(_subPkgDone / _totalPkgs)
+      _loadNextSubpackage()
+    },
+    fail: function () {
+      console.warn('[SubPkg] ' + name + ' 加载失败')
+      _subPkgDone++
+      _drawBg()
+      _drawProgress(_subPkgDone / _totalPkgs)
+      _loadNextSubpackage()
+    }
   })
-})
+}
+
+_splashImg.onload = function () {
+  _splashReady = true
+  _drawBg()
+  _drawProgress(_subPkgDone / _totalPkgs)
+}
+_splashImg.src = 'loading_bg.jpg'
+
+_loadNextSubpackage()

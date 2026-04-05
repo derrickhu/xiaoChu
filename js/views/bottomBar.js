@@ -5,12 +5,22 @@
 const V = require('./env')
 const { TITLE_LOGO } = require('../data/constants')
 
-// 底部 7 标签定义（index=3 为中心凸起按钮）
+/** 首页底栏中心钮：文案显示当前所在大厅模式（与 titleView MODE_CFG.name 一致） */
+const TITLE_CENTER_LABEL = {
+  tower: '通天塔',
+  stage: '灵兽秘境',
+}
+
+/** 底栏中心图标：秘境态沿用原 nav 战斗图标；通天塔态用主页主视觉（与 titleView tower 插画一致） */
+const TITLE_CENTER_ICON_STAGE = 'assets/ui/nav_battle.png'
+const TITLE_CENTER_ICON_TOWER = 'assets/ui/tower_rogue.png'
+
+// 底部 7 标签定义（index=3 为中心凸起按钮 = 大厅模式切换，与左侧浮钮同逻辑）
 const BAR_ITEMS = [
   { key: 'cultivation', label: '修炼', icon: '☯', img: 'assets/ui/nav_hero.png' },
   { key: 'pets',   label: '灵宠',  icon: '🐾', img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
-  { key: 'stage', label: '秘境',  icon: '🏯',  center: true },
+  { key: 'stage', label: '通天塔', icon: '⇆', center: true },
   { key: 'rank',   label: '排行',  icon: '🏆', img: 'assets/ui/nav_rank.png' },
   { key: 'stats',  label: '统计',  icon: '📊', img: 'assets/ui/nav_stats.png' },
   { key: 'more',   label: '更多',  icon: '⚙',  img: 'assets/ui/nav_more.png' },
@@ -109,7 +119,7 @@ function drawBottomBar(g) {
         ? !hasPet
         : !!item.locked
     const isCenter = !!item.center
-    const isActive = item.key === activeKey
+    const isActive = isCenter ? (g.scene === 'title') : (item.key === activeKey)
 
     if (isCenter) {
       // 中心圆形按钮：缩小到与其他图标视觉间距一致
@@ -136,10 +146,22 @@ function drawBottomBar(g) {
       ctx.beginPath(); ctx.arc(cx, circleCY, circleR, 0, Math.PI * 2)
       ctx.strokeStyle = 'rgba(255,230,100,0.6)'; ctx.lineWidth = 2 * S; ctx.stroke()
 
-      const battleImg = R.getImg('assets/ui/nav_battle.png')
-      if (battleImg && battleImg.width > 0) {
-        const s = circleR * 1.0
-        ctx.drawImage(battleImg, cx - s, circleCY - s, s * 2, s * 2)
+      const tm = g.titleMode || 'tower'
+      const centerLabel = TITLE_CENTER_LABEL[tm] || item.label
+      const iconPath = tm === 'tower' ? TITLE_CENTER_ICON_TOWER : TITLE_CENTER_ICON_STAGE
+      const modeIcon = R.getImg(iconPath)
+      const diam = circleR * 2
+      if (modeIcon && modeIcon.width > 0) {
+        if (tm === 'tower') {
+          const iw = modeIcon.width
+          const ih = modeIcon.height
+          const scale = Math.max(diam / iw, diam / ih)
+          const dw = iw * scale
+          const dh = ih * scale
+          ctx.drawImage(modeIcon, cx - dw / 2, circleCY - dh / 2, dw, dh)
+        } else {
+          ctx.drawImage(modeIcon, cx - circleR, circleCY - circleR, diam, diam)
+        }
       } else {
         ctx.font = `${circleR * 0.9}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
@@ -152,9 +174,9 @@ function drawBottomBar(g) {
       ctx.font = `bold ${cLabelSize}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
       ctx.strokeStyle = 'rgba(80,40,0,0.7)'; ctx.lineWidth = 2.5 * S
-      ctx.strokeText(item.label, cx, cLabelY)
+      ctx.strokeText(centerLabel, cx, cLabelY)
       ctx.fillStyle = isActive ? '#fff799' : '#ffe566'
-      ctx.fillText(item.label, cx, cLabelY)
+      ctx.fillText(centerLabel, cx, cLabelY)
 
       const _cRect = [i * slotW, L.bottomBarY, slotW, L.bottomBarH]
       g._bottomBarRects.push(_cRect)

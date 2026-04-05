@@ -118,13 +118,15 @@ function startStage(g, stageId, teamPetIds) {
 
 /**
  * 新手零宠物时专用：跳过编队，自动分配临时宠物，直接进入战斗
- * 不扣体力、不记每日次数（1-1 体力已是 0）
+ * 体力与挑战次数与正式关卡一致（扣费成功后才记次数）
  */
 function startStageNewbie(g, stageId) {
   const stage = getStageById(stageId)
   if (!stage) return false
 
-  if (stage.staminaCost > 0) g.storage.consumeStamina(stage.staminaCost)
+  if (stage.staminaCost > 0 && !g.storage.consumeStamina(stage.staminaCost)) {
+    return false
+  }
   g.storage.recordStageChallenge(stageId)
 
   g.battleMode = 'stage'

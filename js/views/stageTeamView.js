@@ -7,10 +7,10 @@
  */
 const V = require('./env')
 const P = require('../platform')
-const { ATTR_COLOR } = require('../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getStageById, getEffectiveStageTeamMin } = require('../data/stages')
+const { getStageById, getEffectiveStageTeamMin, getEnemyPortraitPath } = require('../data/stages')
 const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 
@@ -131,6 +131,102 @@ function rStageTeam(g) {
   c.fillText('编队', W / 2, cy + 18 * S)
   c.restore()
   cy += 40 * S
+
+  // ── 怪物信息面板（参考通天塔战前页：头像+名称+属性+弱点/抵抗） ──
+  {
+    const allEnemies = []
+    for (const w of (stage.waves || [])) {
+      for (const e of (w.enemies || [])) if (e) allEnemies.push(e)
+    }
+    if (allEnemies.length > 0) {
+      const cardPad = 10 * S
+      const cardH = allEnemies.length > 1 ? 72 * S : 64 * S
+      const cardX = 8 * S, cardW = W - 16 * S
+      c.fillStyle = 'rgba(30,22,14,0.75)'
+      R.rr(cardX, cy, cardW, cardH, 10 * S); c.fill()
+      c.strokeStyle = 'rgba(200,168,80,0.25)'; c.lineWidth = 1 * S
+      R.rr(cardX, cy, cardW, cardH, 10 * S); c.stroke()
+
+      if (stage.difficulty === 'elite') {
+        c.fillStyle = 'rgba(180,50,50,0.2)'; R.rr(cardX, cy, cardW, cardH, 10 * S); c.fill()
+      }
+
+      const perEnemyH = (cardH - cardPad) / allEnemies.length
+      for (let ei = 0; ei < allEnemies.length; ei++) {
+        const e = allEnemies[ei]
+        const ey = cy + cardPad / 2 + ei * perEnemyH
+        const ac = ATTR_COLOR[e.attr]
+
+        const avatarSz = Math.min(perEnemyH - 4 * S, 46 * S)
+        const avatarX = cardX + cardPad
+        const avatarY = ey + (perEnemyH - avatarSz) / 2
+        c.fillStyle = ac ? ac.bg : '#1a1a2e'
+        R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.fill()
+        const ePath = e.avatar ? `assets/${e.avatar}.png` : null
+        const eImg = ePath ? R.getImg(ePath) : null
+        if (eImg && eImg.width > 0) {
+          c.save()
+          R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.clip()
+          const aw = eImg.width, ah = eImg.height
+          const sc = Math.max(avatarSz / aw, avatarSz / ah)
+          c.drawImage(eImg, avatarX + (avatarSz - aw * sc) / 2, avatarY + (avatarSz - ah * sc) / 2, aw * sc, ah * sc)
+          c.restore()
+        }
+        c.strokeStyle = ac ? ac.main : '#666'; c.lineWidth = 1.5 * S
+        R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.stroke()
+
+        const infoX = avatarX + avatarSz + 10 * S
+        let infoY = avatarY + avatarSz * 0.32
+        c.textAlign = 'left'; c.textBaseline = 'middle'
+        c.fillStyle = '#FFF2D0'; c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+        const eName = e.isBoss ? (e.name) : e.name
+        c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2 * S
+        c.strokeText(eName, infoX, infoY)
+        c.fillText(eName, infoX, infoY)
+
+        c.fillStyle = ac ? ac.main : '#ccc'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+        const attrLabel = (ATTR_NAME[e.attr] || '') + '属性'
+        c.strokeText(attrLabel, infoX + c.measureText(eName).width + 8 * S, infoY)
+        c.fillText(attrLabel, infoX + c.measureText(eName).width + 8 * S, infoY)
+
+        infoY = avatarY + avatarSz * 0.72
+        const orbR = 7 * S
+        let bx = infoX
+        const weakAttr = COUNTER_BY[e.attr]
+        if (weakAttr) {
+          c.fillStyle = 'rgba(220,200,160,0.85)'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+          c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
+          c.strokeText('弱点:', bx, infoY)
+          c.fillText('弱点:', bx, infoY)
+          bx += c.measureText('弱点:').width + 4 * S
+          R.drawBead(bx + orbR, infoY, orbR, weakAttr, 0)
+          bx += orbR * 2 + 12 * S
+        }
+        const resistAttr = COUNTER_MAP[e.attr]
+        if (resistAttr) {
+          c.fillStyle = 'rgba(190,175,145,0.7)'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+          c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
+          c.strokeText('抵抗:', bx, infoY)
+          c.fillText('抵抗:', bx, infoY)
+          bx += c.measureText('抵抗:').width + 4 * S
+          R.drawBead(bx + orbR, infoY, orbR, resistAttr, 0)
+        }
+
+        if (e.isBoss) {
+          const bossTagW = 36 * S, bossTagH = 14 * S
+          const btx = cardX + cardW - cardPad - bossTagW
+          const bty = avatarY + (avatarSz - bossTagH) / 2
+          c.fillStyle = 'rgba(180,50,50,0.7)'
+          R.rr(btx, bty, bossTagW, bossTagH, 4 * S); c.fill()
+          c.fillStyle = '#FFD700'; c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+          c.textAlign = 'center'; c.textBaseline = 'middle'
+          c.fillText('BOSS', btx + bossTagW / 2, bty + bossTagH / 2)
+          c.textAlign = 'left'
+        }
+      }
+      cy += cardH + 6 * S
+    }
+  }
 
   // ── 编队槽位（上方面板） ──
   c.fillStyle = 'rgba(40,30,20,0.7)'

@@ -441,9 +441,9 @@ function enterPetAtkShow(g) {
   const dmgMap = g._pendingDmgMap || {}
   // combo伤害倍率递减
   let comboMul
-  if (g.combo <= 8) comboMul = 1 + (g.combo - 1) * 0.35
-  else if (g.combo <= 12) comboMul = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
-  else comboMul = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
+  if (g.combo <= 6) comboMul = 1 + (g.combo - 1) * 0.20
+  else if (g.combo <= 10) comboMul = 2.0 + (g.combo - 6) * 0.15
+  else comboMul = 2.6 + (g.combo - 10) * 0.08
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   const { critRate, critDmg } = calcCrit(g)
   const isCrit = critRate > 0 && (critRate >= 100 || Math.random() * 100 < critRate)
@@ -573,9 +573,9 @@ function applyFinalDamage(g, dmgMap, heal) {
   const { S, W, H } = V
   // combo伤害倍率递减
   let comboMul
-  if (g.combo <= 8) comboMul = 1 + (g.combo - 1) * 0.35
-  else if (g.combo <= 12) comboMul = 1 + 7 * 0.35 + (g.combo - 8) * 0.20
-  else comboMul = 1 + 7 * 0.35 + 4 * 0.20 + (g.combo - 12) * 0.10
+  if (g.combo <= 6) comboMul = 1 + (g.combo - 1) * 0.20
+  else if (g.combo <= 10) comboMul = 2.0 + (g.combo - 6) * 0.15
+  else comboMul = 2.6 + (g.combo - 10) * 0.08
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   let isCrit, critMul
   if (g._pendingCrit != null) {
@@ -1231,7 +1231,9 @@ function enterBattle(g, enemyData) {
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除上次奖励
   g.combo = 0; g.turnCount = 0; g._lowHpBurstShown = false
   // ===== 怪物技能倒计时：计算距下次释放还需几回合 =====
-  g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0) ? 3 : -1  // 首次在第3回合触发，初始倒计时3
+  g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0)
+    ? (g.enemy.isBoss ? 1 : 3)  // Boss 第1回合末即释放技能；普通怪第3回合
+    : -1
   // 预选首次释放的技能（用于UI预警）
   g._nextEnemySkill = (g.enemy.skills && g.enemy.skills.length > 0)
     ? g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
