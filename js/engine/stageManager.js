@@ -12,7 +12,7 @@ const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../dat
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
-const { STAR_REWARDS, CHAPTER_MILESTONES, STAGE_SETTLE } = require('../data/economyConfig')
+const { STAR_REWARDS, CHAPTER_CLEAR_REWARDS, STAGE_SETTLE, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { getWeaponById } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
@@ -357,25 +357,26 @@ function settleStage(g) {
   // 记录通关（更新 bestRating 等）
   g.storage.recordStageClear(g._stageId, rating, isFirstClear)
 
-  // ---- 章节星级里程碑检查 ----
-  const milestoneRewards = []
-  const milestoneCfg = CHAPTER_MILESTONES[stage.chapter]
-  if (milestoneCfg && newStars.length > 0) {
-    const totalStars = g.storage.getChapterTotalStars(stage.chapter)
-    const claimed = g.storage.getChapterMilestones(stage.chapter)
-    milestoneCfg.forEach((ms, idx) => {
-      if (!claimed[idx] && totalStars >= ms.stars) {
-        const mr = ms.rewards
-        if (mr.soulStone) g.storage.addSoulStone(mr.soulStone)
-        if (mr.awakenStone) g.storage.addAwakenStone(mr.awakenStone)
-        if (mr.fragment) {
+  // ---- 章节通关宝箱检查 ----
+  let chapterClearReward = null
+  if (isFirstClear) {
+    const { getChapterStages } = require('../data/stages')
+    const chStages = getChapterStages(stage.chapter, 'normal')
+    const allCleared = chStages.length >= STAGES_PER_CHAPTER &&
+      chStages.every(s => g.storage.isStageCleared(s.id))
+    if (allCleared && !g.storage.isChapterClearClaimed(stage.chapter)) {
+      const cr = CHAPTER_CLEAR_REWARDS[stage.chapter]
+      if (cr) {
+        if (cr.soulStone) g.storage.addSoulStone(cr.soulStone)
+        if (cr.awakenStone) g.storage.addAwakenStone(cr.awakenStone)
+        if (cr.fragment) {
           const target = pickFragmentTarget(g, 'all')
-          if (target) g.storage.addFragments(target, mr.fragment)
+          if (target) g.storage.addFragments(target, cr.fragment)
         }
-        g.storage.claimChapterMilestone(stage.chapter, idx)
-        milestoneRewards.push({ milestoneStars: ms.stars, ...mr })
+        g.storage.claimChapterClear(stage.chapter)
+        chapterClearReward = { ...cr }
       }
-    })
+    }
   }
 
   g._stageResult = {
@@ -395,7 +396,7 @@ function settleStage(g) {
     starBonusSoulStone: starSoulStone,
     starBonusAwakenStone: starAwakenStone,
     starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
-    milestoneRewards,
+    chapterClearReward,
   }
 
   if (g.storage.userAuthorized && !g._isGM) {

@@ -35,6 +35,7 @@ const { initState } = require('./gameState')
 const introView = require('./views/introView')
 const guideOverlay = require('./views/guideOverlay')
 const { drawConfirmDialog, handleConfirmDialogTouch } = require('./views/uiComponents')
+const { drawAdRewardPopup, handleAdRewardPopupTouch } = require('./views/adRewardPopup')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -412,7 +413,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this.showSidebarPanel && !this.showMorePanel) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -483,6 +484,7 @@ class Main {
     }
     guideOverlay.draw(this)
     if (this._confirmDialog) drawConfirmDialog(this)
+    if (this._adRewardPopup) drawAdRewardPopup(this)
     ctx.restore()
   }
 
@@ -492,6 +494,7 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    if (handleAdRewardPopupTouch(this, x, y, type)) return
     if (handleConfirmDialogTouch(this, x, y, type)) return
     if (guideMgr.isActive()) {
       if (guideOverlay.onTouch(this, type)) return

@@ -9,7 +9,7 @@ const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 
 const CHAPTER_STAMINA = {
-  1:  { normal: 8,  elite: 12 },
+  1:  { normal: 10, elite: 15 },
   2:  { normal: 12, elite: 18 },
   3:  { normal: 16, elite: 24 },
   4:  { normal: 18, elite: 27 },

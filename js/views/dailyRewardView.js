@@ -7,6 +7,7 @@ const { drawPanel, drawDivider } = require('./uiComponents')
 const { LOGIN_REWARDS, DAILY_TASKS, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
+const { linesFromRewards } = require('./adRewardPopup')
 
 const _rects = { closeBtnRect: null, signBtnRect: null, signAdRect: null, taskBtnRects: [], allBonusBtnRect: null, allBonusAdRect: null }
 
@@ -88,21 +89,37 @@ function rDailyReward(g) {
   c.fillStyle = '#5a3000'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'middle'
   const sign = g.storage.loginSign
-  c.fillText(`签到 · 第 ${sign.day || 0}/7 天${sign.isNewbie ? '' : '（周常）'}`, innerL, cy + 6 * S)
+  const sd = sign.day || 0
+  const canSign = g.storage.canSignToday
+  // sign.day===7 表示刚领完第7格；次日可再签时应用「新一周」，否则 i===sign.day 永远不成立（i 只有0..6）且七格全显示✓
+  const awaitingNewCycle = sd === 7 && canSign
+  const signTitle = awaitingNewCycle
+    ? `签到 · 新一周 · 第 1/7 天${sign.isNewbie ? '' : '（周常）'}`
+    : `签到 · 第 ${sd}/7 天${sign.isNewbie ? '' : '（周常）'}`
+  c.fillText(signTitle, innerL, cy + 6 * S)
   cy += 20 * S
 
   const cellGap = 5 * S
   const cellW = (innerW - cellGap * 6) / 7
   const cellH = 72 * S
-  const canSign = g.storage.canSignToday
   const _loginLineColor = {
     pet: '#9B59B6', ss: '#B8860B', frag: '#7B5EA7', awake: '#9B59B6', stam: '#3498DB',
   }
 
   for (let i = 0; i < 7; i++) {
     const cx = innerL + i * (cellW + cellGap)
-    const dayDone = i < sign.day
-    const isToday = i === sign.day && canSign
+    let dayDone
+    let isToday
+    if (awaitingNewCycle) {
+      dayDone = false
+      isToday = (i === 0 && canSign)
+    } else if (sd === 7 && !canSign) {
+      dayDone = true
+      isToday = false
+    } else {
+      dayDone = (i < sd)
+      isToday = (i === sd && canSign)
+    }
 
     if (dayDone) {
       c.fillStyle = 'rgba(76,175,80,0.15)'
@@ -292,6 +309,8 @@ function tDailyReward(g, x, y, type) {
     if (result) {
       MusicMgr.playReward && MusicMgr.playReward()
       g._toast && g._toast(`签到第${result.day}天：${_rewardText(result.rewards)}`)
+      if (typeof g.markDirty === 'function') g.markDirty()
+      else g._dirty = true
     }
     return true
   }
@@ -307,16 +326,26 @@ function tDailyReward(g, x, y, type) {
           const r = rd.rewards
           if (r.soulStone) g.storage.addSoulStone(r.soulStone)
           if (r.awakenStone) g.storage.addAwakenStone(r.awakenStone)
-          if (r.stamina) {
-            g.storage._recoverStamina()
-            g.storage._d.stamina.current = Math.min(g.storage.maxStamina, g.storage._d.stamina.current + r.stamina)
-            g.storage._save()
-          }
+          if (r.stamina) g.storage.addBonusStamina(r.stamina)
           if (r.fragment) g.storage.addRandomFragments(r.fragment)
         }
         g._dailySignDoubled = true
-        g._toast && g._toast('签到奖励已翻倍！')
         g._dirty = true
+      },
+      rewardPopup: () => {
+        const sign = g.storage.loginSign
+        const rd = LOGIN_REWARDS[(sign.day || 1) - 1]
+        const r = rd && rd.rewards
+        if (!r) return null
+        // 与 onRewarded 发放内容一致（不含 petChoice，广告不重复发自选宠）
+        const lines = linesFromRewards({
+          soulStone: r.soulStone,
+          awakenStone: r.awakenStone,
+          stamina: r.stamina,
+          fragment: r.fragment,
+        })
+        if (!lines.length) return null
+        return { title: '签到奖励翻倍', subtitle: '以下为额外领取的一份', lines }
       },
     })
     return true
@@ -353,8 +382,13 @@ function tDailyReward(g, x, y, type) {
         if (bonus.soulStone) g.storage.addSoulStone(bonus.soulStone)
         if (bonus.fragment) g.storage.addRandomFragments(bonus.fragment)
         g._dailyTaskDoubled = true
-        g._toast && g._toast('全勤奖励已翻倍！')
         g._dirty = true
+      },
+      rewardPopup: () => {
+        const bonus = getScaledDailyAllBonus(_tch)
+        const lines = linesFromRewards(bonus)
+        if (!lines.length) return null
+        return { title: '全勤奖励翻倍', subtitle: '以下为额外领取的一份', lines }
       },
     })
     return true

@@ -474,6 +474,11 @@ function doAdRevive(g, W, H) {
     AdManager.showRewardedVideo('revive', {
       fallbackToShare: true,
       onRewarded: () => { adReviveCallback(g, W, H) },
+      rewardPopup: {
+        title: '复活成功',
+        subtitle: '生命回满，负面状态已清除',
+        lines: [{ label: '当前状态', amount: '已恢复战斗' }],
+      },
       onSkipped: () => { /* 中途关闭不发奖 */ },
       onError: () => {
         const { doShare } = require('../share')

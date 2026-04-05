@@ -997,7 +997,7 @@ function _drawNewDropsRow(c, R, S, x, cy, innerW, items, g, at, rowDelay) {
 function _computeVictoryRewardContentHeight(result, S, pad) {
   const dropRewards = _victoryDropRewardsForDisplay(result)
   const hasRewards = dropRewards.length > 0
-  const hasMilestones = result.milestoneRewards && result.milestoneRewards.length > 0
+  const hasChapterClear = !!result.chapterClearReward
   let contentH = pad * 0.5
   if (hasRewards) {
     contentH += 24 * S
@@ -1006,7 +1006,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
     }
     contentH += 10 * S
   }
-  if (hasMilestones) contentH += 10 * S + result.milestoneRewards.length * 28 * S
+  if (hasChapterClear) contentH += 10 * S + 28 * S
   if (result.soulStone > 0) contentH += 32 * S
   if (result.cultExp > 0) {
     contentH += 28 * S
@@ -1030,7 +1030,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   const dropRewards = _victoryDropRewardsForDisplay(result)
   const hasRewards = dropRewards.length > 0
-  const hasMilestones = result.milestoneRewards && result.milestoneRewards.length > 0
+  const hasChapterClear = !!result.chapterClearReward
 
   const contentH = _computeVictoryRewardContentHeight(result, S, pad)
   const marginBottom = 10 * S
@@ -1117,42 +1117,40 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 8 * S
   }
 
-  // === 章节里程碑 ===
-  if (hasMilestones) {
-    for (const ms of result.milestoneRewards) {
-      const msDelay = 15 + rowIdx * 6
-      const msAlpha = Math.min(1, Math.max(0, (at - msDelay) / 12))
-      c.save()
-      c.globalAlpha *= msAlpha
+  // === 章节通关宝箱 ===
+  if (hasChapterClear) {
+    const cr = result.chapterClearReward
+    const msDelay = 15 + rowIdx * 6
+    const msAlpha = Math.min(1, Math.max(0, (at - msDelay) / 12))
+    c.save()
+    c.globalAlpha *= msAlpha
 
-      // 紫色高亮背景
-      const msH = 22 * S
-      c.fillStyle = 'rgba(140,60,220,0.08)'
-      R.rr(px + pad, cy, innerW, msH, 5 * S); c.fill()
+    const msH = 22 * S
+    c.fillStyle = 'rgba(200,160,40,0.10)'
+    R.rr(px + pad, cy, innerW, msH, 5 * S); c.fill()
 
-      c.textAlign = 'left'; c.textBaseline = 'middle'
-      c.fillStyle = '#B44DFF'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.fillText(`🏆 里程碑 ${ms.milestoneStars}★ 达成！`, px + pad + 6 * S, cy + msH / 2)
-      c.textAlign = 'right'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      const mParts = []
-      if (ms.soulStone) mParts.push(`灵石+${ms.soulStone}`)
-      if (ms.fragment) mParts.push(`碎片+${ms.fragment}`)
-      if (ms.awakenStone) mParts.push(`觉醒石+${ms.awakenStone}`)
-      c.fillStyle = '#9060D0'
-      c.fillText(mParts.join(' '), px + pw - pad - 6 * S, cy + msH / 2)
-      c.restore()
-      cy += 28 * S
-      rowIdx++
-    }
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.fillText('章节通关宝箱！', px + pad + 6 * S, cy + msH / 2)
+    c.textAlign = 'right'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    const mParts = []
+    if (cr.soulStone) mParts.push(`灵石+${cr.soulStone}`)
+    if (cr.fragment) mParts.push(`碎片+${cr.fragment}`)
+    if (cr.awakenStone) mParts.push(`觉醒石+${cr.awakenStone}`)
+    c.fillStyle = '#B8860B'
+    c.fillText(mParts.join(' '), px + pw - pad - 6 * S, cy + msH / 2)
+    c.restore()
+    cy += 28 * S
+    rowIdx++
     cy += 10 * S
   }
 
-  // === 本关灵石 / 修炼经验（不含章节里程碑；里程碑单列） ===
+  // === 本关灵石 / 修炼经验 ===
   if (result.soulStone > 0) {
     const ssDelay = 15 + rowIdx * 6
     const ssAlpha = Math.min(1, Math.max(0, (at - ssDelay) / 12))
     c.save(); c.globalAlpha *= ssAlpha
-    const ssLabel = hasMilestones ? '本关灵石' : '灵石'
+    const ssLabel = hasChapterClear ? '本关灵石' : '灵石'
     _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, '#5577AA', '#3366AA')
     c.restore()
     cy += 32 * S
@@ -1219,28 +1217,27 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     let dropFrags = 0
     const starAwaken = result.starBonusAwakenStone || 0
     if (result.rewards) result.rewards.forEach(r => { if (r.type === 'fragment') dropFrags += r.count })
-    let mileSS = 0, mileFrags = 0, mileAwaken = 0
-    if (result.milestoneRewards && result.milestoneRewards.length) {
-      for (const ms of result.milestoneRewards) {
-        mileSS += ms.soulStone || 0
-        mileFrags += ms.fragment || 0
-        mileAwaken += ms.awakenStone || 0
-      }
+    let boxSS = 0, boxFrags = 0, boxAwaken = 0
+    if (result.chapterClearReward) {
+      const cr = result.chapterClearReward
+      boxSS = cr.soulStone || 0
+      boxFrags = cr.fragment || 0
+      boxAwaken = cr.awakenStone || 0
     }
-    const totalSS = stageSS + mileSS
-    const totalFrags = dropFrags + mileFrags
-    const totalAwaken = starAwaken + mileAwaken
+    const totalSS = stageSS + boxSS
+    const totalFrags = dropFrags + boxFrags
+    const totalAwaken = starAwaken + boxAwaken
     if (totalSS > 0) {
-      if (mileSS > 0) sumParts.push(`灵石 +${totalSS}（本关+${stageSS} 里程碑+${mileSS}）`)
+      if (boxSS > 0) sumParts.push(`灵石 +${totalSS}（本关+${stageSS} 宝箱+${boxSS}）`)
       else sumParts.push(`灵石 +${totalSS}`)
     }
     if (totalFrags > 0) {
-      if (mileFrags > 0) sumParts.push(`碎片 +${totalFrags}（掉落+${dropFrags} 里程碑+${mileFrags}）`)
+      if (boxFrags > 0) sumParts.push(`碎片 +${totalFrags}（掉落+${dropFrags} 宝箱+${boxFrags}）`)
       else sumParts.push(`碎片 +${totalFrags}`)
     }
     if (totalAwaken > 0) {
-      if (mileAwaken > 0 && starAwaken > 0) {
-        sumParts.push(`觉醒石 +${totalAwaken}（星级+${starAwaken} 里程碑+${mileAwaken}）`)
+      if (boxAwaken > 0 && starAwaken > 0) {
+        sumParts.push(`觉醒石 +${totalAwaken}（星级+${starAwaken} 宝箱+${boxAwaken}）`)
       } else {
         sumParts.push(`觉醒石 +${totalAwaken}`)
       }
@@ -1925,12 +1922,26 @@ function tStageResult(g, x, y, type) {
     AdManager.showRewardedVideo('settleDouble', {
       fallbackToShare: true,
       onRewarded: () => {
+        g._stageSettleAdJustGranted = false
         const r = g._stageResult
         if (!r || r.adDoubled) return
         r.adDoubled = true
         const bonusSS = r.soulStone || 0
         if (bonusSS > 0) g.storage.addSoulStone(bonusSS)
+        g._stageSettleAdJustGranted = bonusSS > 0
         g._dirty = true
+      },
+      rewardPopup: () => {
+        if (!g._stageSettleAdJustGranted) return null
+        g._stageSettleAdJustGranted = false
+        const r = g._stageResult
+        const ss = r && r.soulStone ? r.soulStone : 0
+        if (ss <= 0) return null
+        return {
+          title: '灵石翻倍',
+          subtitle: '关卡结算额外奖励',
+          lines: [{ icon: 'icon_soul_stone', label: '灵石', amount: '+' + ss }],
+        }
       },
     })
     return

@@ -119,6 +119,7 @@ function tGameover(g, type, x, y) {
     AdManager.showRewardedVideo('settleDouble', {
       fallbackToShare: true,
       onRewarded: function () {
+        g._goSettleAdJustGranted = false
         if (g._goAdDoubled) return
         g._goAdDoubled = true
         const sr = g._lastRunSettleRewards
@@ -128,7 +129,22 @@ function tGameover(g, type, x, y) {
         if (bonusFrag > 0 && sr && sr.fragments.details) {
           sr.fragments.details.forEach(function (fd) { g.storage.addFragmentSmart(fd.petId, fd.count) })
         }
+        g._goSettleAdJustGranted = bonusSS > 0 || (bonusFrag > 0 && sr && sr.fragments.details && sr.fragments.details.length)
         g._dirty = true
+      },
+      rewardPopup: function () {
+        if (!g._goSettleAdJustGranted) return null
+        g._goSettleAdJustGranted = false
+        const sr = g._lastRunSettleRewards
+        const bonusSS = sr ? sr.soulStone.final : (g._lastRunSoulStone || 0)
+        const lines = []
+        if (bonusSS > 0) lines.push({ icon: 'icon_soul_stone', label: '灵石', amount: '+' + bonusSS })
+        if (sr && sr.fragments && sr.fragments.details && sr.fragments.details.length) {
+          const { linesFromFragmentDetails } = require('../views/adRewardPopup')
+          lines.push.apply(lines, linesFromFragmentDetails(sr.fragments.details))
+        }
+        if (!lines.length) return null
+        return { title: '通关奖励翻倍', subtitle: '观看广告额外获得', lines }
       },
     })
     return
@@ -352,6 +368,14 @@ function tDex(g, type, x, y) {
                   }
                   g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
                   g._dirty = true
+                },
+                rewardPopup: () => {
+                  const { ALL_MILESTONES } = require('../data/dexConfig')
+                  const { linesFromRewards } = require('../views/adRewardPopup')
+                  const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
+                  const lines = linesFromRewards(m && m.reward)
+                  if (!lines.length) return null
+                  return { title: '图鉴里程碑双倍', subtitle: '广告额外领取一份', lines }
                 },
               })
             }

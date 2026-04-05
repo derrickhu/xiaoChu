@@ -5,7 +5,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { CHAPTERS, getChapterStages, isChapterUnlocked, isStageUnlocked, getStageAttr, getStageById, getEnemyPortraitPath } = require('../data/stages')
-const { CHAPTER_MILESTONES } = require('../data/economyConfig')
+const { CHAPTER_CLEAR_REWARDS, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { drawSeparator } = require('./uiUtils')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
@@ -150,18 +150,16 @@ function rStageSelect(g) {
     c.restore()
     curY += 24 * S
 
-    // 里程碑进度条（仅已解锁章节）
+    // 通关进度（仅已解锁章节）
     if (unlocked) {
-      const milestoneCfg = CHAPTER_MILESTONES[chapter.id] || []
-      const claimed = g.storage.getChapterMilestones(chapter.id)
+      const clearedCount = stages.filter(s => g.storage.isStageCleared(s.id)).length
+      const total = STAGES_PER_CHAPTER
       const barX = 16 * S, barW = W - 32 * S, barH = 6 * S
       const barY = curY + 2 * S
 
-      // 进度条底
       c.fillStyle = 'rgba(0,0,0,0.25)'
       R.rr(barX, barY, barW, barH, barH / 2); c.fill()
-      // 进度条填充
-      const pct = maxStars > 0 ? Math.min(1, totalStars / maxStars) : 0
+      const pct = total > 0 ? Math.min(1, clearedCount / total) : 0
       if (pct > 0) {
         const fillW = Math.max(barH, barW * pct)
         const barGrd = c.createLinearGradient(barX, barY, barX + fillW, barY)
@@ -170,42 +168,22 @@ function rStageSelect(g) {
         R.rr(barX, barY, fillW, barH, barH / 2); c.fill()
       }
 
-      // 里程碑节点
-      const nodeCY = barY + barH / 2
-      for (let mi = 0; mi < milestoneCfg.length; mi++) {
-        const ms = milestoneCfg[mi]
-        const msPct = maxStars > 0 ? ms.stars / maxStars : 0
-        const nodeX = barX + barW * msPct
-        const nodeR = 6 * S
-        const reached = totalStars >= ms.stars
-        const isClaimed = claimed[mi]
-
-        c.save()
-        c.beginPath(); c.arc(nodeX, nodeCY, nodeR, 0, Math.PI * 2)
-        if (isClaimed) {
-          c.fillStyle = '#90EE90'; c.fill()
-          c.strokeStyle = '#4a8a4a'; c.lineWidth = 1.5 * S; c.stroke()
-          c.fillStyle = '#fff'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText('✓', nodeX, nodeCY)
-        } else if (reached) {
-          // 可领取：脉冲高亮
-          const pulseA = 0.7 + 0.3 * Math.sin((g.af || 0) * 0.08)
-          c.fillStyle = `rgba(255,215,0,${pulseA})`; c.fill()
-          c.strokeStyle = '#c8a84e'; c.lineWidth = 1.5 * S; c.stroke()
-          c.fillStyle = '#fff'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText('!', nodeX, nodeCY)
-        } else {
-          c.fillStyle = 'rgba(60,50,40,0.7)'; c.fill()
-          c.strokeStyle = 'rgba(120,100,80,0.4)'; c.lineWidth = 1 * S; c.stroke()
-          c.fillStyle = '#887766'; c.font = `${7*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText(`${ms.stars}`, nodeX, nodeCY)
-        }
-        c.restore()
+      c.save()
+      c.textAlign = 'right'; c.textBaseline = 'middle'
+      c.font = `${9*S}px "PingFang SC",sans-serif`
+      const isClaimed = g.storage.isChapterClearClaimed(chapter.id)
+      if (clearedCount >= total && isClaimed) {
+        c.fillStyle = '#90EE90'
+        c.fillText(`✓ 已通关 ${clearedCount}/${total}`, barX + barW, barY + barH + 10 * S)
+      } else if (clearedCount >= total) {
+        c.fillStyle = '#FFD700'
+        c.fillText(`通关 ${clearedCount}/${total}`, barX + barW, barY + barH + 10 * S)
+      } else {
+        c.fillStyle = '#C8B890'
+        c.fillText(`${clearedCount}/${total} 已通关`, barX + barW, barY + barH + 10 * S)
       }
-      curY += barH + 12 * S
+      c.restore()
+      curY += barH + 18 * S
     } else {
       curY += 4 * S
     }

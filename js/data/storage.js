@@ -17,6 +17,14 @@ const {
 
 const LOCAL_KEY = 'wxtower_v1'
 
+/** 本地日历 YYYY-MM-DD（签到/每日任务等，避免 UTC 与玩家所在地跨日不一致） */
+function localDateKey(d = new Date()) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // 当前存档版本号，每次结构变更时递增
 const CURRENT_VERSION = 15
 
@@ -641,7 +649,8 @@ class Storage {
 
   get maxStamina() {
     const cultLv = (this._d.cultivation && this._d.cultivation.level) || 1
-    return STAMINA_INITIAL + cultLv
+    // 基础上限 = STAMINA_INITIAL；修炼 Lv1 不额外加，从 Lv2 起每级 +1
+    return STAMINA_INITIAL + Math.max(0, cultLv - 1)
   }
 
   consumeStamina(amount) {
@@ -670,29 +679,44 @@ class Storage {
     }
     const dynMax = this.maxStamina
     s.max = dynMax
+    const cultLv = (this._d.cultivation && this._d.cultivation.level) || 1
+    const legacyNaturalCap = STAMINA_INITIAL + cultLv
+    if (s.current === legacyNaturalCap && legacyNaturalCap === dynMax + 1) {
+      s.current = dynMax
+    }
     if (!s.lastRecoverTime) { s.lastRecoverTime = Date.now(); return }
     const now = Date.now()
     const elapsed = now - s.lastRecoverTime
     const recovered = Math.floor(elapsed / STAMINA_RECOVER_INTERVAL_MS)
     if (recovered > 0) {
-      s.current = Math.min(dynMax, s.current + recovered)
+      // 仅在本体低于自然上限时累计时间恢复；签到/任务等奖励可使 current > dynMax，不得被 min 扣回
+      if (s.current < dynMax) {
+        s.current = Math.min(dynMax, s.current + recovered)
+      }
       s.lastRecoverTime += recovered * STAMINA_RECOVER_INTERVAL_MS
     }
+  }
+
+  /** 签到、任务、广告等奖励体力：可超过 cultivation 决定的体力上限 */
+  addBonusStamina(amount) {
+    const n = Math.floor(Number(amount) || 0)
+    if (n <= 0) return
+    this._recoverStamina()
+    this._d.stamina.current += n
+    this._save()
   }
 
   // ===== 侧边栏复访奖励（抖音必接） =====
 
   get sidebarRewardClaimedToday() {
-    const today = new Date().toISOString().slice(0, 10)
-    return this._d.sidebarRewardDate === today
+    return this._d.sidebarRewardDate === localDateKey()
   }
 
   claimSidebarReward() {
     if (this.sidebarRewardClaimedToday) return false
     this._recoverStamina()
-    const s = this._d.stamina
-    s.current = Math.min(s.max, s.current + STAMINA_SIDEBAR_REWARD)
-    this._d.sidebarRewardDate = new Date().toISOString().slice(0, 10)
+    this._d.stamina.current += STAMINA_SIDEBAR_REWARD
+    this._d.sidebarRewardDate = localDateKey()
     this._save()
     return true
   }
@@ -707,7 +731,7 @@ class Storage {
 
   get canSignToday() {
     this._ensureLoginSign()
-    return this._d.loginSign.lastDate !== new Date().toISOString().slice(0, 10)
+    return this._d.loginSign.lastDate !== localDateKey()
   }
 
   claimLoginReward() {
@@ -716,7 +740,7 @@ class Storage {
     const sign = this._d.loginSign
     sign.day = (sign.day % 7) + 1
     if (sign.day === 1 && sign.lastDate) sign.isNewbie = false
-    sign.lastDate = new Date().toISOString().slice(0, 10)
+    sign.lastDate = localDateKey()
     const { LOGIN_REWARDS, LOGIN_WEEKLY_RATIO } = require('./giftConfig')
     const base = LOGIN_REWARDS[sign.day - 1]
     if (!base) { this._save(); return null }
@@ -724,7 +748,7 @@ class Storage {
     const r = base.rewards
     if (r.soulStone) this.addSoulStone(Math.floor(r.soulStone * ratio))
     if (r.awakenStone) this.addAwakenStone(Math.floor(r.awakenStone * ratio))
-    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + Math.floor(r.stamina * ratio)) }
+    if (r.stamina) this.addBonusStamina(Math.floor(r.stamina * ratio))
     if (r.fragment) this.addRandomFragments(Math.floor(r.fragment * ratio))
     this._save()
     return { day: sign.day, rewards: r, isNewbie: sign.isNewbie, ratio }
@@ -733,7 +757,7 @@ class Storage {
   // ===== 每日任务 =====
 
   _ensureDailyTask() {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateKey()
     if (!this._d.dailyTaskProgress || this._d.dailyTaskProgress.date !== today) {
       this._d.dailyTaskProgress = { date: today, tasks: {}, claimed: {}, allClaimed: false }
     }
@@ -776,7 +800,7 @@ class Storage {
     if (r.soulStone) this.addSoulStone(r.soulStone)
     if (r.fragment) this.addRandomFragments(r.fragment)
     if (r.awakenStone) this.addAwakenStone(r.awakenStone)
-    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + r.stamina) }
+    if (r.stamina) this.addBonusStamina(r.stamina)
     this._save()
     return true
   }
@@ -792,7 +816,7 @@ class Storage {
     const r = getScaledDailyAllBonus(this.currentChapter)
     if (r.soulStone) this.addSoulStone(r.soulStone)
     if (r.fragment) this.addRandomFragments(r.fragment)
-    if (r.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + r.stamina) }
+    if (r.stamina) this.addBonusStamina(r.stamina)
     this._save()
     return true
   }
@@ -800,7 +824,7 @@ class Storage {
   // ===== 分享追踪 =====
 
   _ensureShareTracking() {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateKey()
     if (!this._d.shareTracking || this._d.shareTracking.date !== today) {
       this._d.shareTracking = { date: today, rewardCount: this._d.shareTracking ? 0 : 0, firstEverDone: (this._d.shareTracking && this._d.shareTracking.firstEverDone) || false }
     }
@@ -815,7 +839,7 @@ class Storage {
     let rewarded = false
     if (st.rewardCount < SHARE_DAILY_MAX) {
       st.rewardCount++
-      if (SHARE_PER_REWARD.stamina) { this._recoverStamina(); this._d.stamina.current = Math.min(this._d.stamina.max, this._d.stamina.current + SHARE_PER_REWARD.stamina) }
+      if (SHARE_PER_REWARD.stamina) this.addBonusStamina(SHARE_PER_REWARD.stamina)
       rewarded = true
     }
     if (!st.firstEverDone) {
@@ -832,7 +856,7 @@ class Storage {
   checkComeback() {
     const now = Date.now()
     const last = this._d.lastActiveDate
-    this._d.lastActiveDate = new Date().toISOString().slice(0, 10)
+    this._d.lastActiveDate = localDateKey()
     if (!last) { this._save(); return false }
     const lastTs = new Date(last + 'T00:00:00').getTime()
     const { COMEBACK_THRESHOLD_MS, COMEBACK_REWARD } = require('./giftConfig')
@@ -844,7 +868,7 @@ class Storage {
   }
 
   updateActiveDate() {
-    this._d.lastActiveDate = new Date().toISOString().slice(0, 10)
+    this._d.lastActiveDate = localDateKey()
     this._save()
   }
 
@@ -920,17 +944,16 @@ class Storage {
     this._save()
   }
 
-  // ===== 章节星级里程碑 =====
+  // ===== 章节通关宝箱 =====
 
-  getChapterMilestones(chapterId) {
-    const m = this._d.chapterStarMilestones || (this._d.chapterStarMilestones = {})
-    return m[chapterId] || [false, false, false]
+  isChapterClearClaimed(chapterId) {
+    const m = this._d.chapterClearClaimed || {}
+    return !!m[chapterId]
   }
 
-  claimChapterMilestone(chapterId, milestoneIndex) {
-    const m = this._d.chapterStarMilestones || (this._d.chapterStarMilestones = {})
-    if (!m[chapterId]) m[chapterId] = [false, false, false]
-    m[chapterId][milestoneIndex] = true
+  claimChapterClear(chapterId) {
+    if (!this._d.chapterClearClaimed) this._d.chapterClearClaimed = {}
+    this._d.chapterClearClaimed[chapterId] = true
     this._save()
   }
 
@@ -990,7 +1013,7 @@ class Storage {
   // ===== 每日挑战次数 =====
 
   _refreshDailyChallenges() {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateKey()
     if (!this._d.dailyChallenges || this._d.dailyChallenges.date !== today) {
       this._d.dailyChallenges = { date: today, counts: {} }
     }
@@ -1018,7 +1041,7 @@ class Storage {
   // ===== 通天塔每日次数 =====
 
   _refreshTowerDaily() {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateKey()
     if (!this._d.towerDaily || this._d.towerDaily.date !== today) {
       this._d.towerDaily = { date: today, runs: 0, adRuns: 0 }
     }

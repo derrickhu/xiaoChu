@@ -16,7 +16,11 @@ const _adReady = {}
 let _adShowFailed = false
 
 function _today() {
-  return new Date().toISOString().slice(0, 10)
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function _getLog(slotId) {
@@ -94,6 +98,23 @@ function _createDevToolsMock(adUnitId) {
   }
 }
 
+function _maybeRewardPopup(callbacks) {
+  let pop = callbacks.rewardPopup
+  if (typeof pop === 'function') {
+    try {
+      pop = pop()
+    } catch (e) {
+      console.warn('[Ad] rewardPopup', e)
+      pop = null
+    }
+  }
+  if (!pop || !pop.lines || !Array.isArray(pop.lines) || pop.lines.length === 0) return
+  const g = _gameRef
+  if (!g) return
+  const { showAdRewardPopup } = require('./views/adRewardPopup')
+  showAdRewardPopup(g, pop)
+}
+
 function _doShareFallback(slotId, callbacks) {
   const { doShare } = require('./share')
   console.log('[Ad] 广告不可用，降级为分享:', slotId)
@@ -101,6 +122,7 @@ function _doShareFallback(slotId, callbacks) {
   doShare(_gameRef, 'passive', {})
   _incLog(slotId)
   if (callbacks.onRewarded) callbacks.onRewarded()
+  _maybeRewardPopup(callbacks)
 }
 
 const AdManager = {
@@ -174,13 +196,15 @@ const AdManager = {
       onConfirm: () => {
         this.showRewardedVideo('staminaRecovery', {
           onRewarded: () => {
-            g.storage._recoverStamina()
-            g.storage._d.stamina.current = Math.min(g.storage.maxStamina, g.storage._d.stamina.current + 30)
-            g.storage._save()
-            P.showGameToast('体力恢复+30')
+            g.storage.addBonusStamina(30)
             g._dirty = true
           },
           fallbackToShare: true,
+          rewardPopup: {
+            title: '体力已恢复',
+            subtitle: '观看广告 / 分享奖励',
+            lines: [{ icon: 'icon_stamina', label: '体力', amount: '+30' }],
+          },
         })
       },
       onCancel: () => {},
@@ -197,6 +221,7 @@ const AdManager = {
    *   onSkipped()   — 中途关闭
    *   onError(err)  — 加载/播放失败且无降级
    *   fallbackToShare — 失败时是否降级到分享（鸿蒙默认 true）
+   *   rewardPopup — 发放后展示奖励弹窗：{ title, subtitle?, lines } 或 () => 同结构（可无 lines 则跳过）
    */
   showRewardedVideo(slotId, callbacks = {}) {
     const cfg = AD_REWARDS[slotId]
@@ -237,6 +262,7 @@ const AdManager = {
       if (ended) {
         _incLog(slotId)
         if (callbacks.onRewarded) callbacks.onRewarded()
+        _maybeRewardPopup(callbacks)
       } else {
         if (callbacks.onSkipped) callbacks.onSkipped()
       }

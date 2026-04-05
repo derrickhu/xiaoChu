@@ -22,6 +22,11 @@ function _checkTowerDailyLimit(g) {
         g.storage.recordTowerAdRun()
         g.setScene('towerTeam')
       },
+      rewardPopup: {
+        title: '挑战次数已补充',
+        subtitle: '今日额外通天塔次数 +1',
+        lines: [{ icon: 'nav_battle', label: '通天塔', amount: '+1 次' }],
+      },
       onSkipped: function () {
         P.showGameToast('需完整观看广告')
       },

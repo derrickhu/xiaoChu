@@ -97,11 +97,11 @@ function _genStageRewards() {
     const est = _DAILY_STAGE_EST[ch]
     const avgR = dt.soulStone * ECONOMY_FRAMEWORK.sourceRatio.stageRepeat / est
     const repeatSS = _DIST_W.map(w => Math.round(avgR * w))
-    const firstSS = repeatSS.map(r => Math.round(r * 2.5))
+    const firstSS = repeatSS.map(r => Math.round(r * 1.5))
 
     const avgFrag = Math.max(1, dt.fragment * 0.5 / est)
     const repeatFrag = _DIST_W.map(w => Math.max(1, Math.round(avgFrag * w)))
-    const firstFrag = repeatFrag.map(r => Math.round(r * 2.5))
+    const firstFrag = repeatFrag.map(r => Math.round(r * 1.5))
 
     let awRepeat = 0
     let awFirst = Array(8).fill(0)
@@ -133,8 +133,8 @@ function _genStarRewards() {
   const R = {}
   for (let ch = 1; ch <= 12; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
-    const base2 = Math.round(dt.soulStone * 0.04)
-    const base3 = Math.round(dt.soulStone * 0.08)
+    const base2 = Math.round(dt.soulStone * 0.01)
+    const base3 = Math.round(dt.soulStone * 0.02)
     const fBase = Math.max(0, Math.round(dt.fragment * 0.08))
     R[ch] = _DIST_W.map((w, i) => {
       const s2 = { soulStone: Math.round(base2 * w), fragment: Math.max(0, Math.round(fBase * w)) }
@@ -149,22 +149,21 @@ function _genStarRewards() {
 }
 const STAR_REWARDS = _genStarRewards()
 
-// ===== 章节星级里程碑（8★ / 16★ / 24★） =====
-function _genMilestones() {
-  const R = {}
-  for (let ch = 1; ch <= 12; ch++) {
-    const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
-    const baseSS = Math.round(dt.soulStone * 0.5)
-    const aw = dt.awakenStonePerWeek
-    R[ch] = [
-      { stars: 8,  rewards: { soulStone: baseSS, ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.2)) } : {}) } },
-      { stars: 16, rewards: { soulStone: Math.round(baseSS * 1.5), fragment: Math.round(dt.fragment * 0.3), ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.3)) } : {}) } },
-      { stars: 24, rewards: { soulStone: baseSS * 2, fragment: Math.round(dt.fragment * 0.5), ...(aw > 0 ? { awakenStone: Math.max(1, Math.round(aw * 0.5)) } : {}) } },
-    ]
-  }
-  return R
+// ===== 章节通关宝箱：通关整章（8/8 关首通）时一次性发放 =====
+const CHAPTER_CLEAR_REWARDS = {
+  1:  { soulStone: 50,  fragment: 3 },
+  2:  { soulStone: 60,  fragment: 4 },
+  3:  { soulStone: 80,  fragment: 5 },
+  4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },
+  5:  { soulStone: 120, fragment: 8,  awakenStone: 1 },
+  6:  { soulStone: 150, fragment: 10, awakenStone: 2 },
+  7:  { soulStone: 180, fragment: 12, awakenStone: 3 },
+  8:  { soulStone: 220, fragment: 14, awakenStone: 4 },
+  9:  { soulStone: 260, fragment: 16, awakenStone: 5 },
+  10: { soulStone: 300, fragment: 18, awakenStone: 6 },
+  11: { soulStone: 350, fragment: 22, awakenStone: 8 },
+  12: { soulStone: 400, fragment: 26, awakenStone: 10 },
 }
-const CHAPTER_MILESTONES = _genMilestones()
 
 // ===== 通天塔每日挑战限制 =====
 const TOWER_DAILY = {
@@ -344,7 +343,7 @@ module.exports = {
   STAGES_PER_CHAPTER,
   STAGE_REWARDS,
   STAR_REWARDS,
-  CHAPTER_MILESTONES,
+  CHAPTER_CLEAR_REWARDS,
   TOWER_DAILY,
   TOWER_SETTLE,
   STAGE_SETTLE,
