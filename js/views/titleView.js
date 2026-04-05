@@ -497,11 +497,14 @@ function drawAvatarWidget(g) {
   const stText = `${stamina}/${maxSt}`
   const stPillW = _drawPill(rightX + ssPillW + pillGap, stText, 'assets/ui/icon_stamina.png')
 
-  // ── 经验条（灵石/体力下方）──
+  const awakenStone = g.storage.awakenStone || 0
+  const asPillW = _drawPill(rightX + ssPillW + pillGap + stPillW + pillGap, String(awakenStone), 'assets/ui/icon_awaken_stone.png')
+
+  // ── 经验条（灵石/体力/觉醒石下方）──
   const expBarY = pillCY + pillH / 2 + 4 * S
   const expBarH = 7 * S
   const expBarX = rightX
-  const expBarW = ssPillW + pillGap + stPillW
+  const expBarW = ssPillW + pillGap + stPillW + pillGap + asPillW
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)'
   R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()
