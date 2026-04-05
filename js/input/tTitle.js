@@ -317,8 +317,8 @@ function _handleStageStart(g) {
     return
   }
 
-  // 新手引导中（1-2/1-3 首次）：自动全员出战，跳过编队页
-  const isNewbieAuto = g.storage.petPoolCount >= 1 && g.storage.petPoolCount < 5
+  // 新手引导中（1-2/1-3 首次）：自动全员出战，跳过编队页（不依赖 pet 数量：1-1 后可能已五行齐）
+  const isNewbieAuto = !g.storage.isGuideShown('newbie_team_ready')
     && !g.storage.isStageCleared(stage.id)
     && (stage.id === 'stage_1_2' || stage.id === 'stage_1_3')
   if (isNewbieAuto) {

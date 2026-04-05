@@ -52,7 +52,7 @@ function _handleBoardDrag(g, type, x, y) {
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
-  // === 新手宠物介绍卡拦截（2 页翻页） ===
+  // === 新手宠物介绍卡拦截（两页后进入棋盘教学） ===
   if (g._newbiePetIntro) {
     if (type === 'end') {
       if ((g._newbiePetIntro.page || 0) < 1) {
@@ -153,7 +153,7 @@ function tBattle(g, type, x, y) {
     if (type !== 'end') return
     if (g._exitSaveRect && g._hitRect(x,y,...g._exitSaveRect)) {
       if (g.battleMode === 'stage') {
-        MusicMgr.stopBossBgm()
+        MusicMgr.resumeNormalBgm()
         g.showExitDialog = false
         g.bState = 'none'
         g.setScene('title')
@@ -163,11 +163,12 @@ function tBattle(g, type, x, y) {
       return
     }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
-      MusicMgr.stopBossBgm()
       g.showExitDialog = false
       if (g.battleMode === 'stage' && g._stageId && g._stageTeam) {
+        MusicMgr.resumeNormalBgm()
         stageMgr.startStage(g, g._stageId, g._stageTeam)
       } else {
+        MusicMgr.stopBossBgm()
         runMgr.settleExp(g)
         g.storage.clearRunState(); g._startRun()
       }

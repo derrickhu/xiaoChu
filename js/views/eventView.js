@@ -1753,7 +1753,7 @@ function _riRR(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-// ===== 新手宠物战前介绍卡（2 页图示教学，支持多宠物） =====
+// ===== 新手宠物战前介绍卡（两页图示教学，支持多宠物横排） =====
 const _ATTR_LABEL = { metal: '金', wood: '木', earth: '土', water: '水', fire: '火' }
 const _ATTR_COLOR_NAME = { metal: '金色', wood: '绿色', earth: '棕色', water: '蓝色', fire: '红色' }
 
@@ -1790,7 +1790,7 @@ function drawNewbiePetIntro(g) {
   ctx.restore()
 }
 
-// 第 1 页：3 宠物横排展示（头像 + 名字 + 对应属性灵珠色标）
+// 第 1 页：多宠物横排（头像 + 名字 + 对应属性灵珠色标）
 function _drawPetIntroPage1(ctx, R, W, H, S, pets, intro) {
   const pw = W * 0.90, ph = 360 * S
   const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
@@ -1799,9 +1799,15 @@ function _drawPetIntroPage1(ctx, R, W, H, S, pets, intro) {
   _drawIntroPanel(ctx, R, px, py, pw, ph, rad, S, '你的战斗伙伴')
 
   const ribbonH = 44 * S
-  const cardW = 72 * S
-  const gap = 12 * S
-  const totalW = pets.length * cardW + (pets.length - 1) * gap
+  let cardW = 72 * S
+  let gap = 12 * S
+  const pn = pets.length
+  let totalW = pn * cardW + (pn > 0 ? (pn - 1) * gap : 0)
+  if (pn > 0 && totalW > W * 0.88) {
+    gap = Math.max(6 * S, gap * 0.65)
+    cardW = (W * 0.88 - (pn - 1) * gap) / pn
+    totalW = pn * cardW + (pn - 1) * gap
+  }
   const startX = (W - totalW) / 2
   const avatarTopY = py + ribbonH + 16 * S
 

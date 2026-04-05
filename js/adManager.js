@@ -151,11 +151,13 @@ const AdManager = {
    */
   openStaminaRecoveryConfirm(g) {
     if (!this.canShow('staminaRecovery')) return false
-    const adReady = this.isAdReady('staminaRecovery')
+    // 勿用 isAdReady：激励视频懒加载，弹窗弹出时常尚未 onLoad，会误显示「分享」；
+    // 实际确认后优先走 showRewardedVideo。仅鸿蒙在广告已判定失败后以分享为主路径。
+    const sharePrimary = P.isOHOS && _adShowFailed
     g._confirmDialog = {
       title: '体力不足',
-      content: adReady ? '观看广告可恢复30点体力' : '分享小游戏可恢复30点体力',
-      confirmText: adReady ? '看广告' : '去分享',
+      content: sharePrimary ? '分享小游戏可恢复30点体力' : '观看广告可恢复30点体力',
+      confirmText: sharePrimary ? '去分享' : '看广告',
       cancelText: '取消',
       confirmBtnType: 'adReward',
       timer: 0,

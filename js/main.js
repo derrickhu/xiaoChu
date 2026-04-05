@@ -133,8 +133,7 @@ class Main {
           this._pendingGuide = 'newbie_continue_1_2'
         }
         // 1-2 已通、1-3 未通 → 引导继续 1-3
-        else if (this.storage.isStageCleared('stage_1_2') && !this.storage.isStageCleared('stage_1_3')
-            && this.storage.petPoolCount < 5) {
+        else if (this.storage.isStageCleared('stage_1_2') && !this.storage.isStageCleared('stage_1_3')) {
           this._stageIdxInitialized = false
           this._pendingGuide = 'newbie_continue_1_3'
         }
@@ -146,7 +145,7 @@ class Main {
     })
 
     this.events.on('petPool:add', ({ petId, count }) => {
-      // 新手引导流程中（1-1 送 3 宠），petPool_unlock / stage_unlock 由专用引导替代
+      // 新手引导流程中（1-1 入池多只灵宠），petPool_unlock / stage_unlock 由专用引导替代
       const inNewbieFlow = !this.storage.isGuideShown('newbie_team_ready')
         && (this._isNewbieStage || this.storage.isGuideShown('newbie_stage_continue')
             || this.storage.isStageCleared('stage_1_1'))
@@ -295,6 +294,17 @@ class Main {
     }
     if (this.scene === 'intro') {
       introView.update(this)
+    }
+    // 大版本清档补偿通知弹窗（仅在 title 场景触发一次）
+    if (this.scene === 'title' && this.storage._d._pendingWipeNotice && !this._wipeNoticeShown) {
+      this._wipeNoticeShown = true
+      P.showModal({
+        title: '版本重制通知',
+        content: '灵宠消消塔已进行大版本重制，为保证最佳体验，您的游戏数据已重置。\n\n作为补偿，已为您发放：\n· 灵石 ×2000\n· 觉醒石 ×5\n· 碎片 ×40\n· 体力全满\n\n感谢您的支持与理解！',
+        showCancel: false,
+        confirmText: '我知道了',
+        success: () => { this.storage.clearWipeNotice() },
+      })
     }
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {

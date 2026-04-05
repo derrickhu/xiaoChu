@@ -168,8 +168,8 @@ const STAGE_FORMATION_MIN_PETS = 3
 /** 局内「攻略」按钮顶边距 = safeTop + 此项×S，避开微信小游戏/小程序右上角胶囊菜单 */
 const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 
-/** 新手教学赠送宠物 ID：金/木/水 3 只，秘境 1-1 和通天塔教学共用 */
-const NEWBIE_PET_IDS = ['m1', 'w1', 's1']
+/** 新手教学赠送宠物 ID：金/木/水/土 4 只；秘境 1-1 首通另奖 f1，一同凑齐五行。与通天塔教学共用 */
+const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
 
 // ===== 灵兽图鉴页 (DEX) =====
 // 须与 screens.rDex 中 drawPageTitle、bottomBar.drawPageTitle(bgH=48×S) 一致，避免统计行与 name_bg 重叠

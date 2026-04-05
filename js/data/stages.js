@@ -8,6 +8,8 @@ const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 
+const BOSS_STAT_FLOOR = { hp: 1.3, atk: 1.15, def: 1.1 }
+
 const CHAPTER_STAMINA = {
   1:  { normal: 10, elite: 15 },
   2:  { normal: 12, elite: 18 },
@@ -176,6 +178,16 @@ function _genStageSpecs() {
 
       if (ch === 1 && i === 0) {
         spec.teamSize = { min: 1, max: 5 }
+        // 1-1：首通奖 f1（火）；与新手并入池的金木水土四只凑齐五行，不在此关再奖 m1
+        spec.pet = 'f1'
+      }
+      if (ch === 1 && i === 1) {
+        // 1-2：原 e1 与新手 e1 重复会变碎片，改为 m2
+        spec.pet = 'm2'
+      }
+      if (ch === 1 && i === 2) {
+        // 1-3：原 s1 与新手 s1 重复会变碎片，改为 w2
+        spec.pet = 'w2'
       }
 
       chSpecs.push(spec)
@@ -203,12 +215,30 @@ function buildAllStages() {
       else if (ord === 1) prevStage = `stage_${ch - 1}_8`
       else prevStage = `stage_${ch}_${ord - 1}`
 
+      // Boss 保底：扫描同章前 7 关最强敌人，确保 Boss 数值有足够优势
+      let bossHp = enemyData.hp, bossAtk = enemyData.atk, bossDef = enemyData.def
+      if (ord === 8 && enemyData.isBoss) {
+        const ids = CHAPTER_ENEMY_IDS[ch]
+        let maxPrevHp = 0, maxPrevAtk = 0, maxPrevDef = 0
+        for (let j = 0; j < 7; j++) {
+          const prev = getEnemyById(ids[j])
+          if (prev) {
+            if (prev.hp > maxPrevHp) maxPrevHp = prev.hp
+            if (prev.atk > maxPrevAtk) maxPrevAtk = prev.atk
+            if (prev.def > maxPrevDef) maxPrevDef = prev.def
+          }
+        }
+        bossHp = Math.max(enemyData.hp, Math.round(maxPrevHp * BOSS_STAT_FLOOR.hp))
+        bossAtk = Math.max(enemyData.atk, Math.round(maxPrevAtk * BOSS_STAT_FLOOR.atk))
+        bossDef = Math.max(enemyData.def, Math.round(maxPrevDef * BOSS_STAT_FLOOR.def))
+      }
+
       const normalEnemy = {
         name: enemyData.name,
         attr: enemyData.attr,
-        hp: enemyData.hp,
-        atk: enemyData.atk,
-        def: enemyData.def,
+        hp: bossHp,
+        atk: bossAtk,
+        def: bossDef,
         skills: [...enemyData.skills],
         avatar: enemyData.avatar,
       }
@@ -252,9 +282,9 @@ function buildAllStages() {
       const eliteEnemy = {
         name: '狂暴·' + enemyData.name,
         attr: enemyData.attr,
-        hp: Math.round(enemyData.hp * mult.hp),
-        atk: Math.round(enemyData.atk * mult.atk),
-        def: Math.round(enemyData.def * mult.def),
+        hp: Math.round(bossHp * mult.hp),
+        atk: Math.round(bossAtk * mult.atk),
+        def: Math.round(bossDef * mult.def),
         skills: [...enemyData.skills, ...(s.eSkills || [])],
         avatar: enemyData.avatar,
       }

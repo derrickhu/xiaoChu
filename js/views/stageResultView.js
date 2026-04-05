@@ -86,7 +86,7 @@ function rStageResult(g) {
     return
   }
 
-  // 新手队伍总览卡（3 宠 + 对应属性珠，点击后切正常结算）
+  // 新手队伍总览卡（本关新入队灵宠 + 属性珠示意，点击后切正常结算）
   if (g._newbieTeamOverview) {
     _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop)
     return
@@ -1701,7 +1701,7 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
   c.restore()
 }
 
-// ===== 新手队伍总览卡（3 宠物 + 对应属性珠色标） =====
+// ===== 新手队伍总览卡（多只宠物横排 + 属性珠色标） =====
 function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
   const overview = g._newbieTeamOverview
   if (!overview) return
@@ -1739,11 +1739,16 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
   c.font = `${13 * S}px "PingFang SC",sans-serif`
   c.fillText('消除对应颜色灵珠，灵宠就会攻击', W / 2, titleY + 30 * S)
 
-  // 三只宠物横向排列
   const pets = (overview.pets || []).map(id => getPetById(id)).filter(Boolean)
-  const cardW = 80 * S
-  const gap = 16 * S
-  const totalCardsW = pets.length * cardW + (pets.length - 1) * gap
+  let cardW = 80 * S
+  let gap = 16 * S
+  const n = pets.length
+  let totalCardsW = n * cardW + (n > 0 ? (n - 1) * gap : 0)
+  if (n > 0 && totalCardsW > W * 0.9) {
+    gap = Math.max(8 * S, gap * 0.7)
+    cardW = (W * 0.9 - (n - 1) * gap) / n
+    totalCardsW = n * cardW + (n - 1) * gap
+  }
   const startX = (W - totalCardsW) / 2
   const cardTopY = titleY + 64 * S
 

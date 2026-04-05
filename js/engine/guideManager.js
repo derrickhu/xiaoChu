@@ -90,20 +90,20 @@ const GUIDE_DEFS = {
   },
   newbie_stage_continue: {
     steps: [
-      { text: '恭喜通关！你获得了 3 只灵宠伙伴！\n它们已正式加入你的队伍', position: 'center' },
+      { text: '恭喜首通！新的灵宠伙伴已加入你的队伍\n五行阵容也已初具雏形', position: 'center' },
       { text: '点击「灵宠」查看你的队伍\n在这里可以培养和强化灵宠', position: 'bottom', highlightId: 'nav_pet' },
     ],
   },
   // 从灵宠池/派遣返回主页后触发（1-1 完成 → 引导到 1-2）
   newbie_continue_1_2: {
     steps: [
-      { text: '继续挑战下一关！\n击败焰狮，获得火属性灵宠！', position: 'bottom' },
+      { text: '继续挑战下一关！\n战胜敌人，收集更多灵宠与资源', position: 'bottom' },
     ],
   },
   // 1-2 完成 → 引导到 1-3
   newbie_continue_1_3: {
     steps: [
-      { text: '最后一关！击败碧潮鲸\n集齐五行灵宠，完成新手修炼！', position: 'bottom' },
+      { text: '最后一关试炼！击败碧潮鲸\n巩固技巧，完成本章挑战', position: 'bottom' },
     ],
   },
   // 旧版兼容保留
@@ -114,7 +114,7 @@ const GUIDE_DEFS = {
   },
   newbie_team_ready: {
     steps: [
-      { text: '五行灵宠集齐！你的队伍已初具规模！', position: 'center' },
+      { text: '灵山三章试炼完成！你的队伍已初具规模', position: 'center' },
       { text: '点击「修炼」消耗经验强化属性\n战斗会更加轻松', position: 'bottom', highlightId: 'nav_cult' },
     ],
   },

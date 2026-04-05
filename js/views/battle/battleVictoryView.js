@@ -20,12 +20,18 @@ const AD_REVIVE_BTN_LAYOUT = {
   gapPt: 8,
 }
 
-// ===== 秘境胜利：等待死亡动画后自动结算 =====
+// ===== 秘境胜利：等待死亡动画后 —— 末波结算，非末波切 waveTransition =====
 function _handleStageVictory(g) {
   if (g._stageSettlePending) return
   if (g._enemyDeathAnim) return
   g._stageSettlePending = true
   const stageMgr = require('../../engine/stageManager')
+  if (!stageMgr.isLastWave(g)) {
+    g.bState = 'waveTransition'
+    g._waveTransTimer = 60
+    g._stageSettlePending = false
+    return
+  }
   stageMgr.settleStage(g)
   if (g.storage && g.storage.addDailyTaskProgress) {
     g.storage.addDailyTaskProgress('battle_1', 1)

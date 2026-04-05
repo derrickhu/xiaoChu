@@ -434,16 +434,19 @@ function findMatchesSeparate(g) {
   return groups
 }
 
+/** Combo 伤害倍率（递减分段），战斗结算与 UI 预估共用 */
+function getComboMul(combo) {
+  if (combo <= 6) return 1 + (combo - 1) * 0.20
+  if (combo <= 10) return 2.0 + (combo - 6) * 0.15
+  return 2.6 + (combo - 10) * 0.08
+}
+
 // ===== 宠物头像攻击数值展示 =====
 function enterPetAtkShow(g) {
   const { S, W } = V
   g._stateTimer = 0
   const dmgMap = g._pendingDmgMap || {}
-  // combo伤害倍率递减
-  let comboMul
-  if (g.combo <= 6) comboMul = 1 + (g.combo - 1) * 0.20
-  else if (g.combo <= 10) comboMul = 2.0 + (g.combo - 6) * 0.15
-  else comboMul = 2.6 + (g.combo - 10) * 0.08
+  const comboMul = getComboMul(g.combo)
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   const { critRate, critDmg } = calcCrit(g)
   const isCrit = critRate > 0 && (critRate >= 100 || Math.random() * 100 < critRate)
@@ -571,11 +574,7 @@ function calcCrit(g) {
 
 function applyFinalDamage(g, dmgMap, heal) {
   const { S, W, H } = V
-  // combo伤害倍率递减
-  let comboMul
-  if (g.combo <= 6) comboMul = 1 + (g.combo - 1) * 0.20
-  else if (g.combo <= 10) comboMul = 2.0 + (g.combo - 6) * 0.15
-  else comboMul = 2.6 + (g.combo - 10) * 0.08
+  const comboMul = getComboMul(g.combo)
   const comboBonusMul = 1 + g.runBuffs.comboDmgPct / 100
   let isCrit, critMul
   if (g._pendingCrit != null) {
@@ -1289,6 +1288,7 @@ function _safeBattle(fn) {
 }
 
 module.exports = {
+  getComboMul,
   addKillExp: _addKillExp,
   initBoard, fillBoard, cellAttr,
   checkAndElim: _safeBattle(checkAndElim),

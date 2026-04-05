@@ -62,17 +62,38 @@ class MusicManager {
 
   playBossBgm() {
     if (!this.bgmEnabled) return
-    // 停止通用BGM
     if (this._bgm) this._bgm.stop()
-    // 创建或复用boss BGM实例
     if (!this._bossBgm) {
-      this._bossBgm = P.createInnerAudioContext()
-      this._bossBgm.src = 'audio_bgm/boss_bgm.mp3'
-      this._bossBgm.loop = true
+      const ctx = P.createInnerAudioContext()
+      this._bossBgm = ctx
+      ctx.src = 'audio_bgm/boss_bgm.mp3'
+      ctx.loop = true
+      ctx.volume = Math.min(1, this._bgmVolume * 1.2)
+      ctx.playbackRate = 1.0
+      ctx.onCanplay(() => {
+        if (!this._bossBgm || !this.bgmEnabled) return
+        try {
+          this._bossBgm.playbackRate = 1.0
+          this._bossBgm.play()
+        } catch (_) {}
+      })
+      ctx.onError((e) => console.warn('[Music] boss_bgm', e))
+    } else {
       this._bossBgm.volume = Math.min(1, this._bgmVolume * 1.2)
-      this._bossBgm.playbackRate = 1.0
+      try {
+        this._bossBgm.stop()
+      } catch (_) {}
     }
-    this._bossBgm.play()
+    try {
+      this._bossBgm.play()
+    } catch (_) {}
+    setTimeout(() => {
+      if (this._bossBgm && this.bgmEnabled) {
+        try {
+          this._bossBgm.play()
+        } catch (_) {}
+      }
+    }, 100)
   }
 
   stopBossBgm() {

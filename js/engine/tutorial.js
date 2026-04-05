@@ -485,7 +485,7 @@ function finish(g) {
   // 标记教学已完成
   try { P.setStorageSync('tutorialDone', true) } catch(e) {}
 
-  // 与秘境 1-1 首通一致：将新手 3 宠加入持久化灵宠池
+  // 与秘境 1-1 首通一致：将新手教学宠加入持久化灵宠池
   if (g.storage.petPoolCount === 0) {
     NEWBIE_PET_IDS.forEach(id => g.storage.addToPetPool(id, 'tutorial'))
   }

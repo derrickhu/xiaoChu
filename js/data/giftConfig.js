@@ -77,15 +77,15 @@ const INVITE_MAX_COUNT = 10
 const COMEBACK_THRESHOLD_MS = 48 * 3600 * 1000
 const COMEBACK_REWARD = { staminaFull: true, soulStone: 300 }
 
-// ===== 一测删档补偿 =====
-const BETA1_COMPENSATION = {
-  soulStone: 500,
-  fragment: 20,
-  awakenStone: 3,
+// ===== 大版本清档补偿 =====
+const WIPE_COMPENSATION = {
+  soulStone: 2000,
+  fragment: 40,
+  awakenStone: 5,
   staminaFull: true,
 }
 
-const DATA_VERSION = 2
+const DATA_VERSION = 3
 
 module.exports = {
   LOGIN_REWARDS,
@@ -101,6 +101,6 @@ module.exports = {
   INVITE_MAX_COUNT,
   COMEBACK_THRESHOLD_MS,
   COMEBACK_REWARD,
-  BETA1_COMPENSATION,
+  WIPE_COMPENSATION,
   DATA_VERSION,
 }

@@ -81,6 +81,11 @@ async function _syncFromCloud() {
       if (res && res.data) cloudData = res.data
     }
     if (cloudData) {
+      if ((cloudData.dataVersion || 0) < (_dataRef.dataVersion || 0)) {
+        console.log('[CloudSync] 云端 dataVersion 较低，跳过合并，推送本地数据')
+        _syncToCloud()
+        return
+      }
       const cloudTime = cloudData._updateTime || cloudData.updatedAt || 0
       const localTime = _dataRef._updateTime || 0
       if (cloudTime > localTime) {

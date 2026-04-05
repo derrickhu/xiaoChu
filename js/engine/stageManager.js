@@ -18,8 +18,42 @@ const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 const { NEWBIE_PET_IDS } = require('../data/constants')
+const V = require('../views/env')
 
 const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
+
+/** 秘境本关是否存在 Boss 波（如守关关第一波小怪、第二波才是真 Boss） */
+function _stageHasBossWave(g) {
+  if (g.battleMode !== 'stage' || !g._stageWaves || !g._stageWaves.length) return false
+  return g._stageWaves.some(w => w.enemies && w.enemies[0] && w.enemies[0].isBoss)
+}
+
+/** 秘境本关是否正在/应使用 Boss BGM（含小怪先锋波） */
+function _stageShouldUseBossBgm(g) {
+  return !!(g.enemy && g.enemy.isBoss) || _stageHasBossWave(g)
+}
+
+/** 秘境 loadWave 不走 battle.enterBattle，需单独触发 Boss BGM 与入场演出 */
+function _applyStageBossEncounter(g) {
+  if (!g.enemy) return
+  const realBoss = !!g.enemy.isBoss
+  const bossBgm = _stageShouldUseBossBgm(g)
+  if (!bossBgm) return
+  // 守关第一波为小怪时也切换 Boss BGM；震屏与 ⚠ 提示仅在实际 Boss 上场时播放
+  if (realBoss) {
+    MusicMgr.playBoss()
+    g.shakeT = 20
+    g.shakeI = 6
+    g._bossEntrance = 30
+    g._comboFlash = 15
+    if (!g.skillEffects) g.skillEffects = []
+    g.skillEffects.push({
+      x: V.W * 0.5, y: V.H * 0.35,
+      text: '⚠ BOSS ⚠', color: '#ff4040', t: 0, alpha: 1, scale: 3.0, _initScale: 3.0, big: true,
+    })
+  }
+  MusicMgr.playBossBgm()
+}
 
 /**
  * 开始固定关卡战斗
@@ -183,7 +217,7 @@ function startStageNewbie(g, stageId) {
 
   loadWave(g, 0)
 
-  // 新手模式弱化敌人：确保 3 只临时宠物可在 4-5 回合内通关
+  // 新手模式弱化敌人：确保临时队伍可在数回合内通关
   if (g.enemy) {
     g.enemy.hp = 80; g.enemy.maxHp = 80
     g.enemy.atk = 4; g.enemy.def = 0
@@ -222,12 +256,14 @@ function loadWave(g, waveIdx) {
     buffs: [],
   }
   g._stageWaveIdx = waveIdx
+  _applyStageBossEncounter(g)
 }
 
 /**
  * 波间推进：累加回合数、加载下一波
  */
 function advanceWave(g) {
+  g._stageSettlePending = false
   g._stageTotalTurns += g.turnCount
   const nextIdx = g._stageWaveIdx + 1
   loadWave(g, nextIdx)
@@ -251,6 +287,13 @@ function settleStage(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
 
+  if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
+
+  // 将本局实际出战阵容写入持久化，进入下一关时 stageInfo / 编队页可延续
+  if (!g._isNewbieStage && g._stageTeam && g._stageTeam.length > 0) {
+    g.storage.saveStageteam(g._stageTeam)
+  }
+
   g._stageTotalTurns += g.turnCount
   const isFirstClear = !g.storage.isStageCleared(g._stageId)
   const rating = calculateRating(g._stageTotalTurns, stage.rating)
@@ -259,19 +302,16 @@ function settleStage(g) {
 
   // ---- 基础奖励（首通 + 周回） ----
   const rewards = []
+  // 新手 1-1：先入池教学宠物，再发首通配置奖励（展示顺序：伙伴 → 首通灵宠 f1 等）
+  if (g._isNewbieStage && isFirstClear) {
+    NEWBIE_PET_IDS.forEach(petId => {
+      const added = g.storage.addToPetPool(petId, 'stage')
+      if (added) rewards.push({ type: 'pet', petId })
+    })
+  }
   if (isFirstClear && stage.rewards.firstClear) {
     stage.rewards.firstClear.forEach(r => {
       rewards.push(resolveReward(g, r))
-    })
-  }
-
-  // 新手教学关（1-1）：把所有临时宠物都送入灵宠池
-  if (g._isNewbieStage && isFirstClear) {
-    NEWBIE_PET_IDS.forEach(petId => {
-      if (!rewards.find(r => r.type === 'pet' && r.petId === petId)) {
-        const added = g.storage.addToPetPool(petId, 'stage')
-        if (added) rewards.push({ type: 'pet', petId })
-      }
     })
   }
 
@@ -414,6 +454,8 @@ function settleStage(g) {
 function settleStageDefeat(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
+
+  if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
   g._stageTotalTurns += g.turnCount
 

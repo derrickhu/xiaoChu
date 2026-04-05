@@ -1,5 +1,4 @@
 const P = require('../platform')
-const { getPetById } = require('./pets')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
 const RankingService = require('./rankingService')
@@ -1088,51 +1087,38 @@ class Storage {
     return this._d.savedStageTeam || []
   }
 
-  /** 每种属性最多保留一只（先出现的顺位优先），用于编队限制与读档规范化 */
-  _dedupeStageTeamByAttr(teamIds) {
+  /** 保存编队：保留顺序，可多属性重复；过滤不在池中的 ID、同一只灵宠不重复入队 */
+  saveStageteam(teamIds) {
+    const poolIds = new Set((this._d.petPool || []).map(p => p.id))
+    const seen = new Set()
     const out = []
-    const seenAttr = new Set()
     for (const id of teamIds || []) {
-      const pet = getPetById(id)
-      if (!pet) continue
-      const a = pet.attr
-      if (a == null || a === '') {
-        out.push(id)
-        continue
-      }
-      if (seenAttr.has(a)) continue
-      seenAttr.add(a)
+      if (!id || !poolIds.has(id) || seen.has(id)) continue
+      seen.add(id)
       out.push(id)
     }
-    return out
-  }
-
-  /** 保存编队，同时过滤掉已不在灵宠池中的宠物 */
-  saveStageteam(teamIds) {
-    const pool = this._d.petPool || []
-    const poolIds = new Set(pool.map(p => p.id))
-    const inPool = (teamIds || []).filter(id => poolIds.has(id))
-    this._d.savedStageTeam = this._dedupeStageTeamByAttr(inPool)
+    this._d.savedStageTeam = out
     this._save()
   }
 
-  /** 获取有效的已保存编队（排除已不在池中的） */
+  /** 获取有效的已保存编队（排除已不在池中的、非法重复 ID） */
   getValidSavedTeam() {
     const saved = this._d.savedStageTeam || []
     if (saved.length === 0) return []
-    const pool = this._d.petPool || []
-    const poolIds = new Set(pool.map(p => p.id))
-    const inPool = saved.filter(id => poolIds.has(id))
-    const deduped = this._dedupeStageTeamByAttr(inPool)
-    const dirty =
-      deduped.length !== inPool.length ||
-      deduped.some((id, i) => id !== inPool[i]) ||
-      inPool.length !== saved.length
-    if (dirty) {
-      this._d.savedStageTeam = deduped
+    const poolIds = new Set((this._d.petPool || []).map(p => p.id))
+    const seen = new Set()
+    const out = []
+    for (const id of saved) {
+      if (!poolIds.has(id) || seen.has(id)) continue
+      seen.add(id)
+      out.push(id)
+    }
+    const same = out.length === saved.length && out.every((id, i) => id === saved[i])
+    if (!same) {
+      this._d.savedStageTeam = out
       this._save()
     }
-    return deduped
+    return out
   }
 
   // ===== 灵宠派遣（挂机）系统 =====
@@ -1640,19 +1626,32 @@ class Storage {
   }
 
   _checkDataVersion() {
-    const { DATA_VERSION, BETA1_COMPENSATION } = require('./giftConfig')
+    const { DATA_VERSION, WIPE_COMPENSATION } = require('./giftConfig')
     if ((this._d.dataVersion || 0) < DATA_VERSION) {
       const playerId = this._d.playerId || null
       this._d = defaultPersist()
       if (playerId) this._d.playerId = playerId
       this._d.dataVersion = DATA_VERSION
-      if (BETA1_COMPENSATION.staminaFull) this._d.stamina.current = this._d.stamina.max
-      if (BETA1_COMPENSATION.soulStone) this._d.soulStone = BETA1_COMPENSATION.soulStone
-      if (BETA1_COMPENSATION.awakenStone) this._d.awakenStone = BETA1_COMPENSATION.awakenStone
-      this._d._beta1Compensated = true
+      if (WIPE_COMPENSATION.staminaFull) this._d.stamina.current = this._d.stamina.max
+      if (WIPE_COMPENSATION.soulStone) this._d.soulStone = WIPE_COMPENSATION.soulStone
+      if (WIPE_COMPENSATION.awakenStone) this._d.awakenStone = WIPE_COMPENSATION.awakenStone
+      if (WIPE_COMPENSATION.fragment) {
+        const targets = ['m1', 'w1', 's1', 'e1', 'f1']
+        const each = Math.floor(WIPE_COMPENSATION.fragment / targets.length)
+        targets.forEach(id => { this._d.fragmentBank[id] = each })
+      }
+      this._d._pendingWipeNotice = true
+      this._d._updateTime = Date.now()
       this._save()
-      console.log('[Storage] 二测删档完成，已发放补偿')
+      P.removeStorageSync('introDone')
+      P.removeStorageSync('tutorialDone')
+      console.log('[Storage] 大版本清档完成，已发放补偿')
     }
+  }
+
+  clearWipeNotice() {
+    this._d._pendingWipeNotice = false
+    this._save()
   }
 
   // 补全持久化子字段（兼容任何版本的存档残缺）
