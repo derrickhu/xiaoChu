@@ -229,11 +229,7 @@ function rStageTeam(g) {
   }
 
   // ── 编队槽位（上方面板） ──
-  c.fillStyle = 'rgba(40,30,20,0.7)'
-  R.rr(8*S, cy, W - 16*S, 90*S, 10*S); c.fill()
-  c.strokeStyle = 'rgba(200,180,120,0.2)'; c.lineWidth = 1*S
-  R.rr(8*S, cy, W - 16*S, 90*S, 10*S); c.stroke()
-
+  const panelTop = cy
   const slotSize = 52 * S
   const slotGap = 8 * S
   const wpnGap = 12 * S
@@ -241,6 +237,12 @@ function rStageTeam(g) {
   const slotsW = slotSize + wpnGap + maxSlots * slotSize + (maxSlots - 1) * slotGap
   const slotStartX = (W - slotsW) / 2
   const slotY = cy + 8 * S
+  // 面板高度 = 槽位行 + 间距 + 筛选标签行 + 底边距
+  const panelH = 8 * S + slotSize + 14 * S + 22 * S + 8 * S
+  c.fillStyle = 'rgba(40,30,20,0.7)'
+  R.rr(8*S, panelTop, W - 16*S, panelH, 10*S); c.fill()
+  c.strokeStyle = 'rgba(200,180,120,0.2)'; c.lineWidth = 1*S
+  R.rr(8*S, panelTop, W - 16*S, panelH, 10*S); c.stroke()
   const slotFrameScale = 1.12
   const slotFrameSz = slotSize * slotFrameScale
   const slotFrameOf = (slotFrameSz - slotSize) / 2
@@ -377,38 +379,21 @@ function rStageTeam(g) {
       }
     }
   }
-  cy += 64 * S
+  // 槽位行底边 → 筛选标签之间的间距
+  cy = slotY + slotSize + 6 * S
 
+  // 提示文案（法宝 / 编队不足）画在面板外下方，不挤占面板空间
+  let _teamHint = null
   if (needPickWeapon) {
-    c.textAlign = 'center'
-    c.textBaseline = 'top'
-    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
-    const hint = `您拥有${weaponCollCount}件法宝，请先点击左侧槽位选择上阵`
-    c.strokeText(hint, W / 2, cy)
-    c.fillStyle = '#E8C547'
-    c.fillText(hint, W / 2, cy)
-    cy += 16 * S
+    _teamHint = `您拥有${weaponCollCount}件法宝，请先点击左侧槽位选择上阵`
   } else if (teamNeedMore) {
-    c.textAlign = 'center'
-    c.textBaseline = 'top'
-    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
     const needN = minTeam - selected.length
-    const hint =
-      needN <= 1
-        ? '请先编入灵宠：点上方「+」空槽，或点击下方灵宠卡片'
-        : `还需编入 ${needN} 只灵宠｜点上方「+」或点击下方卡片加入编队`
-    c.strokeText(hint, W / 2, cy)
-    c.fillStyle = '#E8C547'
-    c.fillText(hint, W / 2, cy)
-    cy += 16 * S
+    _teamHint = needN <= 1
+      ? '请先编入灵宠：点上方「+」空槽，或点击下方灵宠卡片'
+      : `还需编入 ${needN} 只灵宠｜点上方「+」或点击下方卡片加入编队`
   }
 
-  // 与上方提示之间留白（不再展示「推荐某属性克制」，避免引导单属性编队）
-  cy += 12 * S
-
-  // ── 属性筛选标签 ──
+  // ── 属性筛选标签（面板内底部） ──
   _rects.filterRects = []
   const tabW = (W - 20 * S) / FILTERS.length
   for (let i = 0; i < FILTERS.length; i++) {
@@ -428,6 +413,18 @@ function rStageTeam(g) {
     _rects.filterRects.push({ key: f.key, rect: [fx, cy, tabW - 2*S, 22*S] })
   }
   cy += 28 * S
+
+  // 提示文案（面板外，筛选标签与列表之间）
+  if (_teamHint) {
+    c.textAlign = 'center'
+    c.textBaseline = 'top'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
+    c.strokeText(_teamHint, W / 2, cy)
+    c.fillStyle = '#E8C547'
+    c.fillText(_teamHint, W / 2, cy)
+    cy += 16 * S
+  }
 
   const canGo = selected.length >= minTeam
   const maxSlotsBtn = stage.teamSize.max
