@@ -131,10 +131,21 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const marginV = SC.marginV * S
   const minTop = sceneTop + marginV
 
-  // 可用高度 = 顶栏下方到底栏上方
+  const condAboveBtn = (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
+  const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
+  const startBtnH = L.startBtnH
+  const progressUnderBtnGap = 10 * S
+  const progressTextAllowance = 16 * S
+  const aboveBottomBarPad = 10 * S
+
+  // 可用高度：底栏顶线以下要留给「星级条件条 + 开始按钮 + 已通关文案 + 间距」，避免最底行被裁切
   const bottomLimit = L.bottomBarY || (V.H - 72 * S)
-  const nonGateH = tabH + tabGap + titleBlockH + titleGateGap + gateStarGap + starH
-  const maxGateH = (bottomLimit - minTop) * 0.58
+  const belowGateFixed =
+    gateStarGap + starH + 4 * S + condPanelH + condAboveBtn + startBtnH +
+    progressUnderBtnGap + progressTextAllowance + aboveBottomBarPad
+  const aboveGateFixed = tabH + tabGap + titleBlockH + titleGateGap
+  const maxGateH = Math.max(96 * S, bottomLimit - minTop - aboveGateFixed - belowGateFixed)
+
   const gateWDesired = W * 0.72
   const gateHDesired = gateWDesired * gateAspect
 
@@ -154,8 +165,6 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const gateY = titleTopY + titleBlockH + titleGateGap
   const starBaseY = gateY + gateH + gateStarGap
 
-  const condAboveBtn = (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
-  const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
   const stageCondY = starBaseY + starH + 4 * S
   const stageBtnY = stageCondY + condPanelH + condAboveBtn
   g._stageOverrideBtnY = stageBtnY

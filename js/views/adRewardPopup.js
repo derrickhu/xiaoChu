@@ -118,40 +118,21 @@ function drawAdRewardPopup(g) {
     c.fillText(line.label || '', textX, midY)
 
     const amountStr = String(line.amount != null ? line.amount : '')
-    const glow = 0.7 + 0.3 * Math.sin((timer + i * 3) * 0.12)
-    c.fillStyle = 'rgba(180,140,30,' + (0.85 * glow) + ')'
-    c.font = 'bold ' + (14 * S) + 'px "PingFang SC",sans-serif'
     c.textAlign = 'right'
-    c.fillText(amountStr, rx + innerW + 2 * S, midY + 0.5 * S)
-    c.fillStyle = '#a67c00'
+    c.textBaseline = 'middle'
+    c.font = 'bold ' + (15 * S) + 'px "PingFang SC",sans-serif'
+    c.fillStyle = '#6b4810'
     c.fillText(amountStr, rx + innerW, midY)
   }
 
   c.restore()
 
-  const btnW = 152 * S
-  const btnH = 40 * S
+  const btnW = 176 * S
+  const btnH = 42 * S
   const btnX = (W - btnW) / 2
   const btnY = py + panelH - btnAreaH + 8 * S
-  const frame = g.af || 0
-  const pulse = 0.82 + 0.18 * Math.sin(frame * 0.09)
-  c.globalAlpha = alpha * pulse
-  var btnGrd = c.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
-  btnGrd.addColorStop(0, 'rgba(198,162,58,0.95)')
-  btnGrd.addColorStop(1, 'rgba(165,125,40,0.95)')
-  c.fillStyle = btnGrd
-  R.rr(btnX, btnY, btnW, btnH, btnH / 2)
-  c.fill()
-  c.strokeStyle = 'rgba(255,240,180,0.55)'
-  c.lineWidth = 1 * S
-  R.rr(btnX, btnY, btnW, btnH, btnH / 2)
-  c.stroke()
   c.globalAlpha = alpha
-  c.fillStyle = '#4a2800'
-  c.font = 'bold ' + (13 * S) + 'px "PingFang SC",sans-serif'
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText('知道了', W / 2, btnY + btnH / 2)
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '确认', 'confirm')
 
   p._btnRect = [btnX, btnY, btnW, btnH]
 

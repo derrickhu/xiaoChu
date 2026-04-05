@@ -401,6 +401,10 @@ class Main {
       R.clearDynamicCache()
       Particles.clearTexCache()
       MusicMgr.destroyBossBgm()
+      // 从局内（战斗结束/结算返回）回到首屏：秘境轮播重新对齐当前进度档，避免仍停在之前的索引（如 1-1）
+      if (old === 'battle' || old === 'stageResult') {
+        this._stageIdxInitialized = false
+      }
     }
     this.events.emit('scene:change', name, old)
   }
