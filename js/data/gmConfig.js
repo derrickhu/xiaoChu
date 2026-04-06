@@ -10,7 +10,7 @@ let _gmSet = null
 function _loadGmList() {
   if (_gmSet) return _gmSet
   try {
-    const cfg = require('../config/gmList.js')
+    const cfg = require('./gmList.js')
     _gmSet = new Set(cfg.gmOpenIds || [])
     console.log('[GM] 白名单加载成功, 共', _gmSet.size, '人')
   } catch (e) {
