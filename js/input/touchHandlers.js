@@ -213,15 +213,12 @@ function tRanking(g, type, x, y) {
   if (dy > 10*S) return
 }
 
-function tStats(g, type, x, y) {
-  if (type !== 'end') return
-  if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.setScene('title'); return }
-  if (g._statsShareBtnRect && g._hitRect(x, y, ...g._statsShareBtnRect)) { g._shareStats(); return }
-}
 
 function tDex(g, type, x, y) {
-  // 图鉴首次介绍卡拦截
-  if (g._dexIntroPage != null) {
+  const isWeaponMode = g._dexMode === 'weapon'
+
+  // 图鉴首次介绍卡拦截（仅灵宠模式）
+  if (!isWeaponMode && g._dexIntroPage != null) {
     if (type === 'end') {
       g._dexIntroPage++
       g._dexIntroAlpha = 0
@@ -234,10 +231,17 @@ function tDex(g, type, x, y) {
     return
   }
 
-  // 详情弹窗拦截
-  if (g._dexDetailPetId) {
+  // 法宝详情弹窗拦截
+  if (isWeaponMode && g._dexDetailWpnId) {
     if (type === 'end') {
-      // 「查看详情」→ 跳转灵宠池详情页
+      g._dexDetailWpnId = null
+    }
+    return
+  }
+
+  // 灵宠详情弹窗拦截
+  if (!isWeaponMode && g._dexDetailPetId) {
+    if (type === 'end') {
       if (g._dexDetailBtnRect) {
         const [bx, by, bw, bh] = g._dexDetailBtnRect
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
@@ -277,7 +281,7 @@ function tDex(g, type, x, y) {
 
   if (type === 'start') {
     g._dexTouchStartY = y
-    if (g._dexTab === 'milestone') {
+    if (!isWeaponMode && g._dexTab === 'milestone') {
       g._dexMilestoneScrollStart = g._dexMilestoneScrollY || 0
     } else {
       g._dexScrollStart = g._dexScrollY || 0
@@ -293,7 +297,7 @@ function tDex(g, type, x, y) {
     const tabBottom = getDexContentTop(safeTop, V.S)
     const contentH = L.bottomBarY - tabBottom
 
-    if (g._dexTab === 'milestone') {
+    if (!isWeaponMode && g._dexTab === 'milestone') {
       const maxS = 0
       const minS = -Math.max(0, (g._dexMilestoneTotalH || 0) - contentH)
       g._dexMilestoneScrollY = Math.max(minS, Math.min(maxS, (g._dexMilestoneScrollStart || 0) + delta))
@@ -325,22 +329,25 @@ function tDex(g, type, x, y) {
         return
       }
       if (item.key === 'dex') return
+      if (item.key === 'weapons') {
+        g._weaponPoolFilter = 'all'; g._weaponPoolScroll = 0; g._weaponPoolDetail = null
+        g.setScene('weaponPool'); return
+      }
       if (item.key === 'cultivation') { g.setScene('cultivation'); return }
       if (item.key === 'rank') { g._openRanking(); return }
-      if (item.key === 'stats') { g.setScene('stats'); return }
+      if (item.key === 'more') { g.showMorePanel = true; g.setScene('title'); return }
       if (item.key === 'idle') { g.setScene('idle'); return }
     }
     return
   }
 
-  // Tab 栏点击
-  if (g._dexTabRects) {
-    for (const tab of g._dexTabRects) {
-      if (x >= tab.x && x <= tab.x + tab.w && y >= tab.y && y <= tab.y + tab.h) {
-        if (g._dexTab !== tab.key) {
-          g._dexTab = tab.key
+  // 一级模式切换点击
+  if (g._dexModeRects) {
+    for (const mr of g._dexModeRects) {
+      if (x >= mr.x && x <= mr.x + mr.w && y >= mr.y && y <= mr.y + mr.h) {
+        if (g._dexMode !== mr.key) {
+          g._dexMode = mr.key
           g._dexScrollY = 0
-          g._dexMilestoneScrollY = 0
           g._dirty = true
         }
         return
@@ -348,59 +355,88 @@ function tDex(g, type, x, y) {
     }
   }
 
-  // 里程碑领取
-  if (g._dexTab === 'milestone' && g._dexMilestoneRects) {
+  if (isWeaponMode) {
+    // 法宝卡片点击
     const dragDy = Math.abs(y - (g._dexTouchStartY || y))
-    if (dragDy <= 10 * V.S) {
-      for (const mr of g._dexMilestoneRects) {
-        if (x >= mr.x && x <= mr.x + mr.w && y >= mr.y && y <= mr.y + mr.h) {
-          if (mr.type === 'ad_double') {
-            const AdManager = require('../adManager')
-            if (AdManager.canShow('dexMilestone')) {
-              AdManager.showRewardedVideo('dexMilestone', {
-                fallbackToShare: true,
-                onRewarded: () => {
-                  const { ALL_MILESTONES } = require('../data/dexConfig')
-                  const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
-                  if (m && m.reward) {
-                    if (m.reward.soulStone) g.storage.addSoulStone(m.reward.soulStone)
-                    if (m.reward.awakenStone) g.storage.addAwakenStone(m.reward.awakenStone)
-                  }
-                  g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
-                  g._dirty = true
-                },
-                rewardPopup: () => {
-                  const { ALL_MILESTONES } = require('../data/dexConfig')
-                  const { linesFromRewards } = require('../views/adRewardPopup')
-                  const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
-                  const lines = linesFromRewards(m && m.reward)
-                  if (!lines.length) return null
-                  return { title: '图鉴里程碑双倍', subtitle: '广告额外领取一份', lines }
-                },
-              })
-            }
-            return
-          }
-          const result = g.storage.claimDexMilestone(mr.id)
-          if (result.success) {
-            g._dexMilestoneClaimPopup = { milestone: mr.id, reward: result.reward, buff: result.buff, timer: 0 }
+    if (dragDy > 10 * V.S) return
+    if (g._dexWpnCellRects) {
+      for (const cell of g._dexWpnCellRects) {
+        if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+          g._dexDetailWpnId = cell.id
+          return
+        }
+      }
+    }
+  } else {
+    // 灵宠 Tab 栏点击
+    if (g._dexTabRects) {
+      for (const tab of g._dexTabRects) {
+        if (x >= tab.x && x <= tab.x + tab.w && y >= tab.y && y <= tab.y + tab.h) {
+          if (g._dexTab !== tab.key) {
+            g._dexTab = tab.key
+            g._dexScrollY = 0
+            g._dexMilestoneScrollY = 0
             g._dirty = true
           }
           return
         }
       }
     }
-    return
-  }
 
-  // 宠物卡片点击
-  const dragDy = Math.abs(y - (g._dexTouchStartY || y))
-  if (dragDy > 10 * V.S) return
-  if (g._dexCellRects) {
-    for (const cell of g._dexCellRects) {
-      if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
-        g._dexDetailPetId = cell.id
-        return
+    // 里程碑领取
+    if (g._dexTab === 'milestone' && g._dexMilestoneRects) {
+      const dragDy = Math.abs(y - (g._dexTouchStartY || y))
+      if (dragDy <= 10 * V.S) {
+        for (const mr of g._dexMilestoneRects) {
+          if (x >= mr.x && x <= mr.x + mr.w && y >= mr.y && y <= mr.y + mr.h) {
+            if (mr.type === 'ad_double') {
+              const AdManager = require('../adManager')
+              if (AdManager.canShow('dexMilestone')) {
+                AdManager.showRewardedVideo('dexMilestone', {
+                  fallbackToShare: true,
+                  onRewarded: () => {
+                    const { ALL_MILESTONES } = require('../data/dexConfig')
+                    const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
+                    if (m && m.reward) {
+                      if (m.reward.soulStone) g.storage.addSoulStone(m.reward.soulStone)
+                      if (m.reward.awakenStone) g.storage.addAwakenStone(m.reward.awakenStone)
+                    }
+                    g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
+                    g._dirty = true
+                  },
+                  rewardPopup: () => {
+                    const { ALL_MILESTONES } = require('../data/dexConfig')
+                    const { linesFromRewards } = require('../views/adRewardPopup')
+                    const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
+                    const lines = linesFromRewards(m && m.reward)
+                    if (!lines.length) return null
+                    return { title: '图鉴里程碑双倍', subtitle: '广告额外领取一份', lines }
+                  },
+                })
+              }
+              return
+            }
+            const result = g.storage.claimDexMilestone(mr.id)
+            if (result.success) {
+              g._dexMilestoneClaimPopup = { milestone: mr.id, reward: result.reward, buff: result.buff, timer: 0 }
+              g._dirty = true
+            }
+            return
+          }
+        }
+      }
+      return
+    }
+
+    // 宠物卡片点击
+    const dragDy = Math.abs(y - (g._dexTouchStartY || y))
+    if (dragDy > 10 * V.S) return
+    if (g._dexCellRects) {
+      for (const cell of g._dexCellRects) {
+        if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+          g._dexDetailPetId = cell.id
+          return
+        }
       }
     }
   }
@@ -409,5 +445,5 @@ function tDex(g, type, x, y) {
 module.exports = {
   tTitle, tPrepare, tEvent, tBattle,
   tReward, tShop, tRest, tAdventure, tGameover,
-  tRanking, tStats, tDex,
+  tRanking, tDex,
 }

@@ -168,6 +168,14 @@ function initState(g) {
   g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
   g._goHomeBtnRect = null       // gameover 页面"返回首页"按钮区域
 
+  // ===== 法宝背包 =====
+  g._weaponPoolFilter = 'all'     // 法宝池品质筛选 'all'|'R'|'SR'|'SSR'
+  g._weaponPoolScroll = 0         // 法宝池列表滚动
+  g._weaponPoolDetail = null      // 当前打开的法宝详情 weaponId
+  g._dexMode = 'pet'             // 图鉴模式 'pet'|'weapon'
+  g._dexWpnTab = 'all'           // 保留字段（已不再使用品质 Tab）
+  g._dexDetailWpnId = null       // 图鉴法宝详情弹窗当前法宝 id
+
   // ===== 通天塔过层结算 =====
   g._towerFloorResult = null    // 过层结算数据（供 towerVictoryView 渲染）
   g._towerFloorSettlePending = false  // 防止重复过层结算
@@ -276,6 +284,11 @@ function _createDomainProxies(g) {
     '_petPoolFilter', '_petPoolScroll', '_petPoolDetail',
     '_petDetailId', '_petDetailReturnScene', '_petPoolLevelUpAnim',
     '_lastRunSoulStone', '_petPoolBtnRect',
+  ])
+
+  _createDomainProxy(g, 'weaponPool', [
+    '_weaponPoolFilter', '_weaponPoolScroll', '_weaponPoolDetail',
+    '_dexMode', '_dexWpnTab', '_dexDetailWpnId',
   ])
 
   _createDomainProxy(g, 'buffs', [

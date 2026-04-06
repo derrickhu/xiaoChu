@@ -291,9 +291,15 @@ function tTitle(g, type, x, y) {
         // 与左侧「通天塔/灵兽秘境」浮钮相同：切换大厅模式
         g.titleMode = (g.titleMode || 'tower') === 'tower' ? 'stage' : 'tower'
         return
-      case 4:
+      case 4: {
+        g._weaponPoolFilter = 'all'
+        g._weaponPoolScroll = 0
+        g._weaponPoolDetail = null
+        g.setScene('weaponPool')
+        return
+      }
+      case 5:
         g._openRanking(); return
-      case 5: g.setScene('stats'); return
       case 6: g.showMorePanel = true; return
     }
   }

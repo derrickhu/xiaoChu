@@ -21,8 +21,8 @@ const BAR_ITEMS = [
   { key: 'pets',   label: '灵宠',  icon: '🐾', img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
   { key: 'stage', label: '通天塔', icon: '⇆', center: true },
+  { key: 'weapons', label: '法宝', icon: '🔮', img: 'assets/ui/nav_weapon.png' },
   { key: 'rank',   label: '排行',  icon: '🏆', img: 'assets/ui/nav_rank.png' },
-  { key: 'stats',  label: '统计',  icon: '📊', img: 'assets/ui/nav_stats.png' },
   { key: 'more',   label: '更多',  icon: '⚙',  img: 'assets/ui/nav_more.png' },
 ]
 
@@ -95,7 +95,7 @@ function drawBottomBar(g) {
   if (!g._namedRects) g._namedRects = {}
 
   // key → highlightId 映射（供引导系统使用）
-  const _KEY_TO_NAV = { cultivation: 'nav_cult', pets: 'nav_pet', dex: 'nav_dex', stage: 'nav_stage', rank: 'nav_rank' }
+  const _KEY_TO_NAV = { cultivation: 'nav_cult', pets: 'nav_pet', dex: 'nav_dex', stage: 'nav_stage', weapons: 'nav_weapon', rank: 'nav_rank' }
 
   // 判断当前选中的标签 key
   const activeKey = (() => {
@@ -103,8 +103,8 @@ function drawBottomBar(g) {
     if (g.scene === 'cultivation') return 'cultivation'
     if (g.scene === 'petPool') return 'pets'
     if (g.scene === 'dex') return 'dex'
+    if (g.scene === 'weaponPool') return 'weapons'
     if (g.scene === 'ranking') return 'rank'
-    if (g.scene === 'stats') return 'stats'
     return ''
   })()
 

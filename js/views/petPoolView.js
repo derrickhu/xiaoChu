@@ -1018,6 +1018,31 @@ function tPetPool(g, x, y, type) {
       g.setScene('title'); return
     }
 
+    const { BAR_ITEMS, getLayout: getBarLayout } = require('./bottomBar')
+    const Lbar = getBarLayout()
+    if (y >= Lbar.bottomBarY) {
+      const barRects = g._bottomBarRects || []
+      for (let i = 0; i < barRects.length; i++) {
+        if (!g._hitRect(x, y, ...barRects[i])) continue
+        const item = BAR_ITEMS[i]
+        if (!item) continue
+        if (item.key === 'cultivation') {
+          const cv = require('./cultivationView')
+          cv.resetScroll(); g.setScene('cultivation'); cv.checkRealmBreak(g); return
+        }
+        if (item.key === 'pets') return
+        if (item.key === 'dex') { g._dexScrollY = 0; g.setScene('dex'); return }
+        if (item.key === 'stage') { g.setScene('title'); return }
+        if (item.key === 'weapons') {
+          g._weaponPoolFilter = 'all'; g._weaponPoolScroll = 0; g._weaponPoolDetail = null
+          g.setScene('weaponPool'); return
+        }
+        if (item.key === 'rank') { g._openRanking(); return }
+        if (item.key === 'more') { g.showMorePanel = true; g.setScene('title'); return }
+      }
+      return
+    }
+
     // 属性筛选
     for (const f of _rects.filterRects) {
       if (g._hitRect(x, y, ...f.rect)) {
@@ -1035,28 +1060,6 @@ function tPetPool(g, x, y, type) {
         g.setScene('petDetail')
         MusicMgr.playClick && MusicMgr.playClick()
         return
-      }
-    }
-
-    // 底部导航
-    const barRects = g._bottomBarRects || []
-    for (let i = 0; i < barRects.length; i++) {
-      if (!g._hitRect(x, y, ...barRects[i])) continue
-      switch (i) {
-        case 0: {
-          const cv = require('./cultivationView')
-          cv.resetScroll()
-          g.setScene('cultivation')
-          cv.checkRealmBreak(g)
-          return
-        }
-        case 1: return // 已在灵宠池
-        case 2: g._dexScrollY = 0; g.setScene('dex'); return
-        case 3: g.setScene('title'); return
-        case 4:
-          g._openRanking(); return
-        case 5: g.setScene('stats'); return
-        case 6: g.showMorePanel = true; g.setScene('title'); return
       }
     }
   }

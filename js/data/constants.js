@@ -186,7 +186,9 @@ const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
 const DEX_LAYOUT = {
   titleCenterBelowSafePt: 40,
   nameBgHalfHPt: 24,
-  gapTitleToDividerPt: 6,
+  modeSwitchHPt: 22,
+  modeSwitchGapPt: 4,
+  gapTitleToDividerPt: 4,
   gapDividerToSummaryPt: 12,
   gapSummaryToTabPt: 12,
   tabHPt: 26,
@@ -196,7 +198,8 @@ const DEX_LAYOUT = {
 /** @param {number} safeTop @param {number} S */
 function getDexContentTop(safeTop, S) {
   const titleBottom = safeTop + (DEX_LAYOUT.titleCenterBelowSafePt + DEX_LAYOUT.nameBgHalfHPt) * S
-  const sdivY = titleBottom + DEX_LAYOUT.gapTitleToDividerPt * S
+  const modeBottom = titleBottom + DEX_LAYOUT.modeSwitchGapPt * S + DEX_LAYOUT.modeSwitchHPt * S
+  const sdivY = modeBottom + DEX_LAYOUT.gapTitleToDividerPt * S
   const summaryY = sdivY + DEX_LAYOUT.gapDividerToSummaryPt * S
   const tabY = summaryY + DEX_LAYOUT.gapSummaryToTabPt * S
   return tabY + DEX_LAYOUT.tabHPt * S + DEX_LAYOUT.contentGapBelowTabPt * S

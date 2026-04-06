@@ -14,6 +14,7 @@ const screens = require('./views/screens')
 const cultView = require('./views/cultivationView')
 const petPoolView = require('./views/petPoolView')
 const petDetailView = require('./views/petDetailView')
+const weaponPoolView = require('./views/weaponPoolView')
 const stageInfoView = require('./views/stageInfoView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
@@ -426,7 +427,7 @@ class Main {
   // ===== 渲染入口 =====
   render() {
     if (this.scene !== this._lastRenderedScene) { this._dirty = true; this._lastRenderedScene = this.scene }
-    const isStatic = (this.scene === 'title' || this.scene === 'stats' ||
+    const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
     if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive()) return
@@ -454,10 +455,11 @@ class Main {
       case 'adventure': screens.rAdventure(this); break
       case 'gameover': screens.rGameover(this); break
       case 'ranking': screens.rRanking(this); break
-      case 'stats': screens.rStats(this); break
+
       case 'dex': screens.rDex(this); break
       case 'cultivation': cultView.rCultivation(this); break
       case 'petPool': petPoolView.rPetPool(this); break
+      case 'weaponPool': weaponPoolView.rWeaponPool(this); break
       case 'petDetail': petDetailView.rPetDetail(this); break
       case 'stageInfo': stageInfoView.rStageInfo(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
@@ -527,10 +529,11 @@ class Main {
       case 'adventure': touchH.tAdventure(this,type,x,y); break
       case 'gameover': touchH.tGameover(this,type,x,y); break
       case 'ranking': touchH.tRanking(this,type,x,y); break
-      case 'stats': touchH.tStats(this,type,x,y); break
+
       case 'dex': touchH.tDex(this,type,x,y); break
       case 'cultivation': cultView.tCultivation(this,x,y,type); break
       case 'petPool': petPoolView.tPetPool(this,x,y,type); break
+      case 'weaponPool': weaponPoolView.tWeaponPool(this,x,y,type); break
       case 'petDetail': petDetailView.tPetDetail(this,x,y,type); break
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
@@ -549,7 +552,7 @@ class Main {
   _drawBattlePetDetailDialog() { dialogs.drawBattlePetDetailDialog(this) }
 
   _handleBackToTitle() {
-    if (this.scene === 'gameover' || this.scene === 'ranking' || this.scene === 'stats') {
+    if (this.scene === 'gameover' || this.scene === 'ranking' || this.scene === 'weaponPool') {
       this.setScene('title')
       this.showMorePanel = false
       this.showTitleStartDialog = false

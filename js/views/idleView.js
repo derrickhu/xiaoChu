@@ -405,8 +405,11 @@ function _handleBottomBar(g, x, y, L) {
     g.setScene('petPool'); return
   }
   if (key === 'dex') { g.setScene('dex'); return }
+  if (key === 'weapons') {
+    g._weaponPoolFilter = 'all'; g._weaponPoolScroll = 0; g._weaponPoolDetail = null
+    g.setScene('weaponPool'); return
+  }
   if (key === 'rank') { g._openRanking(); return }
-  if (key === 'stats') { g.setScene('stats'); return }
   if (key === 'more') { g.showMorePanel = true; g.setScene('title'); return }
 }
 
