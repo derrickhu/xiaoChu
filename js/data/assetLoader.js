@@ -8,7 +8,7 @@
  */
 
 const P = require('../platform')
-const cdnCfg = require('../../config/cdnConfig')
+const cdnCfg = require('../config/cdnConfig')
 
 const CLOUD_ENV = cdnCfg.cloudEnv
 const CLOUD_BUCKET = cdnCfg.cloudBucket

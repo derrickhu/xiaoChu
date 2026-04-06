@@ -17,7 +17,7 @@ const path = require('path')
 const crypto = require('crypto')
 
 const PROJECT_ROOT = path.resolve(__dirname, '..')
-const cdnCfg = require(path.join(PROJECT_ROOT, 'config', 'cdnConfig.js'))
+const cdnCfg = require(path.join(PROJECT_ROOT, 'js', 'config', 'cdnConfig.js'))
 
 const APPID = 'wx53b03390106eff65'
 const ENV_ID = cdnCfg.cloudEnv
