@@ -468,29 +468,20 @@ function getBrowsableStages(clearRecord, difficulty) {
   return result
 }
 
-/** 塔/通用怪关卡头像（与 stage_avatars 分包区分，避免预编译把 enemies/ 误代入 _avatar 路径） */
-function getTowerEnemyPortraitPath(avatar) {
-  if (!avatar || typeof avatar !== 'string') return null
-  const id = avatar.replace(/^enemies\//, '').replace(/\.png$/i, '')
-  if (!id || id.includes('/')) return null
-  return 'assets/enemies/' + id + '.png'
-}
-
-/** 秘境定制怪头像（stage_enemies 表） */
-function getStageEnemyPortraitPath(avatar) {
-  if (!avatar || typeof avatar !== 'string') return null
-  const slug = avatar.replace(/^stage_enemies\//, '')
-  if (!slug || slug === avatar || slug.includes('/')) return null
-  return 'assets/stage_avatars/' + slug + '_avatar.png'
-}
-
 /**
- * 关卡信息/选关等 UI 用：先分流再拼路径，减少微信开发者工具静态扫描误报 stage_avatars/enemies/...
+ * 统一怪物头像路径解析（目录重整后 enemies/ 下统一管理）
+ * enemies/tower/mon_m_1  → assets/enemies/tower/mon_m_1.png (全身像直接用)
+ * enemies/stage/blaze_lion → assets/enemies/avatar/blaze_lion_avatar.png (秘境怪用头像裁切版)
  */
 function getEnemyPortraitPath(avatar) {
   if (!avatar || typeof avatar !== 'string') return null
-  if (avatar.startsWith('enemies/')) return getTowerEnemyPortraitPath(avatar)
-  if (avatar.startsWith('stage_enemies/')) return getStageEnemyPortraitPath(avatar)
+  if (avatar.startsWith('enemies/stage/')) {
+    const slug = avatar.replace('enemies/stage/', '')
+    return 'assets/enemies/avatar/' + slug + '_avatar.png'
+  }
+  if (avatar.startsWith('enemies/')) {
+    return 'assets/' + avatar + '.png'
+  }
   return null
 }
 

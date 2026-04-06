@@ -43,3 +43,9 @@ tmp/
 tools/analysis/data/
 tools/analysis/output/
 tools/analysis/.env
+
+# CDN 上传脚本临时文件与密钥
+scripts/.cdn_manifest.json
+scripts/cdn_manifest_for_upload.json
+scripts/_tmp_manifest.json
+scripts/.cdn_secret

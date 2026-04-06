@@ -617,6 +617,8 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
           c.restore()
           c.strokeStyle = ac.main; c.lineWidth = 1.2 * S
           R.rr(iconX, iconCY, iconSz, iconSz, 4 * S); c.stroke()
+        } else if (img) {
+          R.drawImgOrShimmer(img, iconX, iconCY, iconSz, iconSz, { radius: 4 * S })
         }
 
         c.textAlign = 'left'; c.textBaseline = 'middle'
@@ -1257,10 +1259,7 @@ function rReward(g) {
         ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
         ctx.restore()
       } else {
-        ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${avSz*0.35}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText(ATTR_NAME[p.attr] || '', avX + avSz/2, avY + avSz/2)
-        ctx.textBaseline = 'alphabetic'
+        R.drawImgOrShimmer(petAvatar, avX, avY, avSz, avSz, { radius: 6 * S })
       }
 
       // 头像框
@@ -1388,11 +1387,7 @@ function rReward(g) {
         ctx.drawImage(wpnImg, avX+1, avY+1+(avSz-2-dh), dw, dh)
         ctx.restore()
       } else {
-        // 降级：绘制法宝文字符号
-        ctx.fillStyle = '#ffd700'; ctx.font = `bold ${avSz*0.4}px "PingFang SC",sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText('⚔', avX + avSz/2, avY + avSz/2)
-        ctx.textBaseline = 'alphabetic'
+        R.drawImgOrShimmer(wpnImg, avX, avY, avSz, avSz, { radius: 6 * S })
       }
 
       // 法宝框
@@ -1926,6 +1921,8 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
         const dw = iw * scale, dh = ih * scale
         ctx.drawImage(wpnImg, cx + (cellW - dw) / 2, cy + (iconH - dh) / 2, dw, dh)
         ctx.restore()
+      } else {
+        R.drawImgOrShimmer(wpnImg, cx + 2, cy + 2, cellW - 4, iconH - 4, { radius: 4 * S })
       }
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.15)'
@@ -1997,9 +1994,7 @@ function _drawDexWeaponDetail(g) {
 
   if (owned) {
     const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
-    if (wpnImg && wpnImg.width > 0) {
-      ctx.drawImage(wpnImg, iconX, iconY, iconSz, iconSz)
-    }
+    if (!R.drawImgOrShimmer(wpnImg, iconX, iconY, iconSz, iconSz, { radius: 8 * S })) {}
   } else {
     ctx.fillStyle = 'rgba(100,90,70,0.2)'
     R.rr(iconX, iconY, iconSz, iconSz, 8 * S); ctx.fill()
@@ -2102,6 +2097,8 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
             if (iR > 1) { dh = imgSz / iR } else { dw = imgSz * iR }
             ctx.drawImage(img, cx + imgPad + (imgSz - dw) / 2, cy + imgPad + (imgSz - dh) / 2, dw, dh)
             ctx.restore()
+          } else {
+            R.drawImgOrShimmer(img, cx + imgPad, cy + imgPad, imgSz, imgSz, { radius: 3 * S })
           }
 
           if (tier === 'discovered') {
@@ -2381,6 +2378,8 @@ function _drawDexPetDetail(g) {
       ctx.fillStyle = 'rgba(0,0,0,0.3)'
       ctx.beginPath(); R.rr(imgX, imgY, imgSize, imgSize, 8 * S); ctx.fill()
     }
+  } else {
+    R.drawImgOrShimmer(img, imgX, imgY, imgSize, imgSize, { radius: 8 * S })
   }
   curY = imgY + imgSize + gapH
 

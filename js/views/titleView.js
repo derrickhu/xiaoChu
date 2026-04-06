@@ -279,12 +279,13 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   if (bossImg && bossImg.width > 0) {
     if (!unlocked) ctx.globalAlpha = 0.4
     const sw = bossImg.width, sh = bossImg.height
-    // 对角线法：整个矩形图片内接于圆，四角不被裁切
     const diag = Math.sqrt(sw * sw + sh * sh)
     const sc = diag > 0 ? (2 * avatarClipR) / diag : 0
     const dw = sw * sc, dh = sh * sc
     ctx.drawImage(bossImg, portalCx - dw / 2 + swipeDx, portalCy - dh / 2, dw, dh)
     ctx.globalAlpha = 1
+  } else if (bossImg) {
+    R.drawImgOrShimmer(bossImg, portalCx - avatarClipR, portalCy - avatarClipR, avatarClipR * 2, avatarClipR * 2, { circle: true })
   } else {
     ctx.fillStyle = unlocked ? 'rgba(110,75,40,0.55)' : 'rgba(80,80,80,0.4)'
     ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`

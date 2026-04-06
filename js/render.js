@@ -6,6 +6,7 @@ const P = require('./platform')
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
 const Particles = require('./engine/particles')
 const FXComposer = require('./engine/effectComposer')
+const AssetLoader = require('./data/assetLoader')
 
 // 属性配色（含心珠，渲染用）
 const A = {}
@@ -77,16 +78,56 @@ class Render {
       this._imgAccess[path] = this._imgFrame
       return this._imgCache[path]
     }
+    const resolved = AssetLoader.resolveAsset(path)
     const img = P.createImage()
     img.onload = () => { if (this._onImageLoad) this._onImageLoad() }
-    img.src = path
+    if (resolved) {
+      img.src = resolved
+    } else {
+      // 本地和缓存都没有 → 不设 src（避免模拟器报错），等 CDN 下载完再加载
+      AssetLoader.downloadAndNotify(path, () => {
+        const cached = AssetLoader.resolveAsset(path)
+        if (cached) {
+          img.src = cached
+        }
+      })
+    }
     this._imgCache[path] = img
     this._imgAccess[path] = this._imgFrame
-    // 超阈值时执行 LRU 淘汰
     if (Object.keys(this._imgCache).length > this._IMG_CACHE_MAX) {
       this._evictLRU()
     }
     return img
+  }
+
+  /**
+   * 绘制图片，未加载完时显示呼吸闪烁占位
+   * @param {Image} img
+   * @param {number} x @param {number} y @param {number} w @param {number} h
+   * @param {object} [opts] - { radius, color, circle }
+   * @returns {boolean} 图片是否已绘制
+   */
+  drawImgOrShimmer(img, x, y, w, h, opts) {
+    if (img && img.width > 0) {
+      this.ctx.drawImage(img, x, y, w, h)
+      return true
+    }
+    const c = this.ctx
+    const t = Date.now() * 0.003
+    const alpha = 0.08 + 0.06 * Math.sin(t)
+    const r = (opts && opts.radius != null) ? opts.radius : 8 * this.S
+    c.save()
+    c.globalAlpha = alpha
+    c.fillStyle = (opts && opts.color) || '#ffffff'
+    if (opts && opts.circle) {
+      const cx = x + w / 2, cy = y + h / 2
+      c.beginPath(); c.arc(cx, cy, Math.min(w, h) / 2, 0, Math.PI * 2); c.fill()
+    } else {
+      this.rr(x, y, w, h, r); c.fill()
+    }
+    c.restore()
+    this._dirty = true
+    return false
   }
 
   /** LRU 淘汰：删除最久未访问的 25% 缓存条目（跳过 _keepPaths 白名单） */
@@ -195,8 +236,10 @@ class Render {
       this._drawCoverImg(img, 0, 0, W, H)
     } else if (cfg.grad) {
       c.fillStyle = this.cachedLinearGrad(cfg.gradKey,0,0,0,H,cfg.grad); c.fillRect(0,0,W,H)
+      if (img) this._dirty = true
     } else {
       this.drawBg(frame)
+      if (img) this._dirty = true
     }
   }
 
@@ -414,13 +457,14 @@ class Render {
     const img = avatar ? this.getImg(avatar) : null
     if (img && img.width > 0) {
       c.save(); c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip()
-      // 保持原图比例居中绘制
       const iR = img.width / img.height
       let dw, dh
       if (iR > 1) { dw = r*2; dh = r*2 / iR }
       else { dh = r*2; dw = r*2 * iR }
       c.drawImage(img, x - dw/2, y - dh/2, dw, dh)
       c.restore()
+    } else if (img) {
+      this.drawImgOrShimmer(img, x - r, y - r, r * 2, r * 2, { circle: true })
     } else {
       c.fillStyle = this.cachedRadialGrad(`enemy_${attr}`, x, y-r*0.3, r*0.1, x, y, r,
         [[0,a.lt], [0.7,a.main], [1,a.dk]])
@@ -936,11 +980,12 @@ class Render {
       let dw2 = imgSize, dh2 = imgSize
       if (iR2 > 1) { dh2 = imgSize / iR2 } else { dw2 = imgSize * iR2 }
       c.drawImage(img, x-dw2/2, y-dh2*0.45, dw2, dh2)
+    } else if (img) {
+      this.drawImgOrShimmer(img, x-imgSize/2, y-imgSize*0.45, imgSize, imgSize, { circle: true })
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.4)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)
       c.fillStyle = g; c.beginPath(); c.arc(x, y, size*0.38, 0, Math.PI*2); c.fill()
-      // 高光
       c.fillStyle = 'rgba(255,255,255,0.2)'
       c.beginPath(); c.ellipse(x-size*0.08, y-size*0.12, size*0.2, size*0.14, 0, 0, Math.PI*2); c.fill()
     }
@@ -1004,6 +1049,8 @@ class Render {
       let dw3 = imgSize, dh3 = imgSize
       if (iR3 > 1) { dh3 = imgSize / iR3 } else { dw3 = imgSize * iR3 }
       c.drawImage(img, x-dw3/2, y-dh3*0.5, dw3, dh3)
+    } else if (img) {
+      this.drawImgOrShimmer(img, x-imgSize/2, y-imgSize*0.5, imgSize, imgSize, { circle: true })
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.45)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)

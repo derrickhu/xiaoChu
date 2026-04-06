@@ -391,7 +391,7 @@ function generateMonster(floor) {
   const candidates = []
   for (let i = lo; i <= hi; i++) candidates.push(i)
   // 过滤掉最近出现过的（同属性同档位 = 同张图）
-  const fresh = candidates.filter(i => !_recentMonsters.includes(`enemies/mon_${monKey}_${i + 1}`))
+  const fresh = candidates.filter(i => !_recentMonsters.includes(`enemies/tower/mon_${monKey}_${i + 1}`))
   nameIdx = fresh.length > 0 ? _pick(fresh) : _pick(candidates)
   const name = names[nameIdx]
 
@@ -417,7 +417,7 @@ function generateMonster(floor) {
 
   // 怪物图片
   const monIdx = nameIdx + 1
-  const avatar = `enemies/mon_${monKey}_${monIdx}`
+  const avatar = `enemies/tower/mon_${monKey}_${monIdx}`
   _pushRecent(avatar)
 
   return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.35), skills, avatar }
@@ -452,9 +452,9 @@ function generateElite(floor) {
   const eliteKey = eliteAttrMap[attr] || 'm'
   const eliteNames = ELITE_NAMES[attr]
   const eliteIdx = eliteNames.indexOf(base.name) + 1 || _rand(1,3)
-  base.avatar = `enemies/elite_${eliteKey}_${eliteIdx}`
+  base.avatar = `enemies/tower/elite_${eliteKey}_${eliteIdx}`
   // 精英专属战斗背景（每属性3张随机选1张）
-  base.battleBg = `enemies/bg_elite_${eliteKey}_${_rand(1,3)}`
+  base.battleBg = `enemies/tower_bg/bg_elite_${eliteKey}_${_rand(1,3)}`
   return base
 }
 
@@ -484,8 +484,8 @@ function generateBoss(floor) {
   const chosen = pool[Math.floor(Math.random() * pool.length)]
   base.name = chosen.name
   const bossNum = chosen.bossNum
-  base.avatar = `enemies/boss_${bossNum}`
-  base.battleBg = `enemies/bg_boss_${bossNum}`
+  base.avatar = `enemies/tower/boss_${bossNum}`
+  base.battleBg = `enemies/tower_bg/bg_boss_${bossNum}`
 
   // BOSS专属技能组：优先按名字查找（30层变体），否则按bossNum
   base.skills = BOSS_SKILL_SETS[chosen.name]

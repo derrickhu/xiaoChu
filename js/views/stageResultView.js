@@ -246,6 +246,8 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S)
     c.strokeStyle = ac.main; c.lineWidth = 2.5 * S; c.stroke()
     c.restore()
+  } else {
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S })
   }
 
   const starN = Math.min(Math.max(starLv, 1), 5)
@@ -324,6 +326,8 @@ function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, av
     c.restore()
     c.strokeStyle = strokeAttr; c.lineWidth = 2.5 * S
     R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.stroke()
+  } else {
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S })
   }
 
   c.textAlign = 'center'
@@ -933,6 +937,8 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
       const dw = aw * sc, dh = ah * sc
       c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
       c.restore()
+    } else {
+      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 8 * S })
     }
     c.strokeStyle = strokeC; c.lineWidth = 2 * S
     R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
@@ -973,6 +979,8 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
       const dw = aw * sc, dh = ah * sc
       c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
       c.restore()
+    } else {
+      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 8 * S })
     }
     c.strokeStyle = strokeC; c.lineWidth = 2 * S
     R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
@@ -1364,6 +1372,8 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
       c.strokeStyle = attrColor; c.lineWidth = 2 * S
       R.rr(iconX, iconY, iconSz, iconSz, 7 * S); c.stroke()
       c.restore()
+    } else {
+      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 7 * S })
     }
   }
 
@@ -1422,6 +1432,8 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
       c.restore()
       c.strokeStyle = attrColor; c.lineWidth = 1.5 * S
       R.rr(iconX, iconY, iconSz, iconSz, 5 * S); c.stroke()
+    } else {
+      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 5 * S })
     }
   }
 
@@ -1493,6 +1505,8 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
     c.strokeStyle = strokeW; c.lineWidth = 2 * S
     R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.stroke()
     c.restore()
+  } else if (img) {
+    R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 6 * S })
   } else {
     c.save()
     c.fillStyle = 'rgba(120,100,60,0.2)'

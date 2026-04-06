@@ -68,7 +68,7 @@ const STEPS = [
     // 最终Row2: f,m,m,m,e,e → 3连金消除
     guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
     goalText: '沿路径拖动 → 三颗金珠连线 → 金灵宠出击！',
-    enemy: { name:'训练木偶', attr:'wood', hp:1, maxHp:1, atk:0, def:0, skills:[], avatar:'enemies/mon_w_1', _tutorial:true },
+    enemy: { name:'训练木偶', attr:'wood', hp:1, maxHp:1, atk:0, def:0, skills:[], avatar:'enemies/tower/mon_w_1', _tutorial:true },
     msg: [
       { text:'按住发光的金珠，沿路径慢慢拖动', timing:'start' },
       { text:'三颗同色珠消除 = 灵宠攻击！记住这个核心玩法！', timing:'afterElim' },
@@ -115,7 +115,7 @@ const STEPS = [
         ],
       },
     ],
-    enemy: { name:'训练木偶', attr:'earth', hp:200, maxHp:200, atk:30, def:0, skills:[], avatar:'enemies/mon_e_1', _tutorial:true, _tutorAtk:true },
+    enemy: { name:'训练木偶', attr:'earth', hp:200, maxHp:200, atk:30, def:0, skills:[], avatar:'enemies/tower/mon_e_1', _tutorial:true, _tutorAtk:true },
     storyCards: [
       {
         heading: '凶兽反扑！',
@@ -172,7 +172,7 @@ const STEPS = [
         ],
       },
     ],
-    enemy: { name:'木灵花妖', attr:'wood', hp:200, maxHp:200, atk:0, def:0, skills:[], avatar:'enemies/mon_w_1', _tutorial:true },
+    enemy: { name:'木灵花妖', attr:'wood', hp:200, maxHp:200, atk:0, def:0, skills:[], avatar:'enemies/tower/mon_w_1', _tutorial:true },
     storyCards: [
       {
         heading: '木灵花妖挡道！',
@@ -200,7 +200,7 @@ const STEPS = [
       ['m','f','e','w','e','s'],
     ],
     guide: null,
-    enemy: { name:'训练傀儡', attr:'earth', hp:80, maxHp:80, atk:5, def:0, skills:[], avatar:'enemies/mon_e_2', _tutorial:true },
+    enemy: { name:'训练傀儡', attr:'earth', hp:80, maxHp:80, atk:5, def:0, skills:[], avatar:'enemies/tower/mon_e_2', _tutorial:true },
     storyCards: [
       {
         heading: '灵宠蓄势待发！',

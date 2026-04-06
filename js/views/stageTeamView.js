@@ -171,6 +171,8 @@ function rStageTeam(g) {
           const sc = Math.max(avatarSz / aw, avatarSz / ah)
           c.drawImage(eImg, avatarX + (avatarSz - aw * sc) / 2, avatarY + (avatarSz - ah * sc) / 2, aw * sc, ah * sc)
           c.restore()
+        } else if (eImg) {
+          R.drawImgOrShimmer(eImg, avatarX, avatarY, avatarSz, avatarSz, { radius: 6 * S })
         }
         c.strokeStyle = ac ? ac.main : '#666'; c.lineWidth = 1.5 * S
         R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.stroke()
@@ -265,9 +267,7 @@ function rStageTeam(g) {
       if (wpnImg && wpnImg.width > 0) {
         c.drawImage(wpnImg, sx + 1, slotY + 1, slotSize - 2, slotSize - 2)
       } else {
-        c.fillStyle = '#ffd700'; c.font = `bold ${slotSize*0.38}px "PingFang SC",sans-serif`
-        c.textAlign = 'center'; c.textBaseline = 'middle'
-        c.fillText('⚔', sx + slotSize / 2, slotY + slotSize / 2)
+        R.drawImgOrShimmer(wpnImg, sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
       }
       c.restore()
     } else {
@@ -332,13 +332,7 @@ function rStageTeam(g) {
           c.drawImage(img, sx + 1, avDy, drawW, drawH)
           c.restore()
         } else {
-          c.fillStyle = pAttrColor ? pAttrColor.main : '#555'
-          c.globalAlpha = 0.3
-          R.rr(sx + 3*S, slotY + 6*S, slotSize - 6*S, slotSize - 20*S, 4*S); c.fill()
-          c.globalAlpha = 1
-          c.fillStyle = '#fff'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-          c.textAlign = 'center'; c.textBaseline = 'middle'
-          c.fillText(pet.name.slice(0, 1), sx + slotSize / 2, slotY + slotSize / 2 - 4*S)
+          R.drawImgOrShimmer(img, sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
         }
 
         // 头像框
@@ -611,10 +605,7 @@ function rStageTeam(g) {
       c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
       c.restore()
     } else {
-      c.fillStyle = pAttrColor ? pAttrColor.main : '#555'
-      c.globalAlpha = 0.3
-      R.rr(avatarX, avatarY, avatarSize, avatarSize, 6*S); c.fill()
-      c.globalAlpha = 1
+      R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
       c.fillStyle = '#fff'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText(pet.name.slice(0, 1), cx + cw / 2, avatarY + avatarSize / 2)
@@ -796,9 +787,7 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
       c.drawImage(wpnImg, wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
       c.restore()
     } else {
-      c.fillStyle = '#ffd700'; c.font = `bold ${iconSz*0.35}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('⚔', wx + iconSz / 2, cardY + iconSz / 2)
+      R.drawImgOrShimmer(wpnImg, wx + 1, cardY + 1, iconSz - 2, iconSz - 2, { radius: 4 * S })
     }
 
     R.drawWeaponFrame(wx, cardY, iconSz)

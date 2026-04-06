@@ -349,14 +349,7 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2 + offsetY, dw, dh)
     c.restore()
   } else {
-    c.fillStyle = attrColor ? attrColor.main : '#555'
-    c.globalAlpha = 0.3
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.fill()
-    c.globalAlpha = 1
-    c.fillStyle = '#fff'
-    c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
   }
 
   // 去掉宠物头像框，让宠物图片直接显示
@@ -475,6 +468,8 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
     const dw = aw * scale, dh = ah * scale
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
     c.restore()
+  } else {
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
   }
 
   c.globalAlpha = 1

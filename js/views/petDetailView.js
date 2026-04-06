@@ -288,6 +288,8 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
     const dw = aw * scale, dh = ah * scale
     c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
     c.restore()
+  } else {
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
   }
 
   // 碎片宠物头像框（灰色通用框）
@@ -595,11 +597,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.drawImage(img, avatarX - clipPad + (drawSz - dw) / 2, avatarY - clipPad + (drawSz - dh) / 2, dw, dh)
     c.restore()
   } else {
-    c.fillStyle = ac
-    c.globalAlpha = 0.2
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
-    c.fill()
-    c.globalAlpha = 1
+    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
     c.fillStyle = '#fff'
     c.font = `bold ${28*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'

@@ -1,5 +1,6 @@
 const P = require('../platform')
 const { COMBO_MILESTONES, getComboTier } = require('../data/constants')
+const AssetLoader = require('../data/assetLoader')
 /**
  * 灵宠消消塔 - 国风音效管理（增强版）
  * 音色风格：古筝、竹笛、钟磬、玉石、鼓点
@@ -32,28 +33,7 @@ class MusicManager {
 
   playBgm() {
     if (!this.bgmEnabled) return
-    // 销毁之前的 BGM 实例，确保重新创建时 playbackRate 生效
-    if (this._bgm) {
-      this._bgm.stop()
-      this._bgm.destroy()
-      this._bgm = null
-    }
-    this._bgm = P.createInnerAudioContext()
-    this._bgm.src = 'audio_bgm/bgm.mp3'
-    this._bgm.loop = true
-    this._bgm.volume = this._bgmVolume
-    this._bgm.playbackRate = 1.0
-    this._bgm.onCanplay(() => {
-      this._bgm.playbackRate = 1.0
-    })
-    this._bgm.onPlay(() => {
-      this._bgm.playbackRate = 1.0
-    })
-    this._bgm.play()
-    // 延迟再次设置，确保在播放后生效
-    setTimeout(() => {
-      if (this._bgm) this._bgm.playbackRate = 1.0
-    }, 50)
+    this._playBgmWithPath('audio_bgm/bgm.mp3', '_bgm', this._bgmVolume, 1.0)
   }
 
   stopBgm() {
@@ -63,37 +43,7 @@ class MusicManager {
   playBossBgm() {
     if (!this.bgmEnabled) return
     if (this._bgm) this._bgm.stop()
-    if (!this._bossBgm) {
-      const ctx = P.createInnerAudioContext()
-      this._bossBgm = ctx
-      ctx.src = 'audio_bgm/boss_bgm.mp3'
-      ctx.loop = true
-      ctx.volume = Math.min(1, this._bgmVolume * 1.2)
-      ctx.playbackRate = 1.0
-      ctx.onCanplay(() => {
-        if (!this._bossBgm || !this.bgmEnabled) return
-        try {
-          this._bossBgm.playbackRate = 1.0
-          this._bossBgm.play()
-        } catch (_) {}
-      })
-      ctx.onError((e) => console.warn('[Music] boss_bgm', e))
-    } else {
-      this._bossBgm.volume = Math.min(1, this._bgmVolume * 1.2)
-      try {
-        this._bossBgm.stop()
-      } catch (_) {}
-    }
-    try {
-      this._bossBgm.play()
-    } catch (_) {}
-    setTimeout(() => {
-      if (this._bossBgm && this.bgmEnabled) {
-        try {
-          this._bossBgm.play()
-        } catch (_) {}
-      }
-    }, 100)
+    this._playBgmWithPath('audio_bgm/boss_bgm.mp3', '_bossBgm', Math.min(1, this._bgmVolume * 1.2), 1.0)
   }
 
   stopBossBgm() {
@@ -467,6 +417,41 @@ class MusicManager {
   }
 
   // ============ 内部方法 ============
+
+  /**
+   * 通用 BGM 播放：先走 assetLoader 解析路径，本地没有就等 CDN 下载完再播
+   */
+  _playBgmWithPath(audioPath, instanceKey, volume, rate) {
+    if (this[instanceKey]) {
+      this[instanceKey].stop()
+      this[instanceKey].destroy()
+      this[instanceKey] = null
+    }
+    const resolved = AssetLoader.resolveAsset(audioPath)
+    if (resolved) {
+      this._createAndPlayBgm(resolved, instanceKey, volume, rate)
+    } else {
+      AssetLoader.downloadAndNotify(audioPath, (ok) => {
+        if (!ok || !this.bgmEnabled) return
+        const cached = AssetLoader.resolveAsset(audioPath)
+        if (cached) this._createAndPlayBgm(cached, instanceKey, volume, rate)
+      })
+    }
+  }
+
+  _createAndPlayBgm(src, instanceKey, volume, rate) {
+    const ctx = P.createInnerAudioContext()
+    this[instanceKey] = ctx
+    ctx.src = src
+    ctx.loop = true
+    ctx.volume = volume
+    ctx.playbackRate = rate
+    ctx.onCanplay(() => { ctx.playbackRate = rate })
+    ctx.onPlay(() => { ctx.playbackRate = rate })
+    ctx.onError((e) => console.warn('[Music] bgm error', e))
+    ctx.play()
+    setTimeout(() => { if (this[instanceKey]) this[instanceKey].playbackRate = rate }, 50)
+  }
 
   /**
    * 从实例池获取音频实例（避免连击时频繁创建/销毁导致音效丢失）

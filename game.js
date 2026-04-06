@@ -55,25 +55,14 @@ _canvas.height = _winInfo.windowHeight * _dpr
 const _W = _canvas.width, _H = _canvas.height
 
 var _subPkgNames = [
-  'pets', 'enemies', 'stage_enemies', 'stage_avatars', 'backgrounds', 'ui', 'hero',
-  'share', 'equipment', 'battle', 'orbs', 'intro',
-  'audio', 'audio_bgm'
+  'ui', 'hero', 'battle', 'orbs', 'audio'
 ]
 var SUBPKG_ENTRY = {
-  pets: './assets/pets/game.js',
-  enemies: './assets/enemies/game.js',
-  stage_enemies: './assets/stage_enemies/game.js',
-  stage_avatars: './assets/stage_avatars/game.js',
-  backgrounds: './assets/backgrounds/game.js',
   ui: './assets/ui/game.js',
   hero: './assets/hero/game.js',
-  share: './assets/share/game.js',
-  equipment: './assets/equipment/game.js',
   battle: './assets/battle/game.js',
   orbs: './assets/orbs/game.js',
-  intro: './assets/intro/game.js',
   audio: './audio/game.js',
-  audio_bgm: './audio_bgm/game.js'
 }
 var _totalPkgs = _subPkgNames.length
 /** 已完成下载的分包数（并行加载时乱序完成，仅用于进度条） */

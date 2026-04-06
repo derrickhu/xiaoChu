@@ -4,6 +4,7 @@
  * 无局外养成，死亡即重开，仅记录最高层数
  */
 const P = require('./platform')
+const AssetLoader = require('./data/assetLoader')
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
 // tower 数据由各子模块自行引入
@@ -253,6 +254,28 @@ class Main {
       console.log('[Preload] critical images ready')
       this._loadReady = true
     })
+    // 后台拉取 CDN 资源清单（不阻塞启动，拉完后按需下载即自动生效）
+    AssetLoader.fetchManifest((ok) => {
+      console.log('[CDN] manifest ' + (ok ? 'fetched' : 'using cached'))
+      this._preloadOwnedAssets()
+    })
+  }
+
+  _preloadOwnedAssets() {
+    const paths = []
+    const pool = this.storage.petPool || []
+    for (const p of pool) {
+      paths.push(`assets/pets/pet_${p.id}.png`)
+      if ((p.star || 1) >= 3) paths.push(`assets/pets/pet_${p.id}_s3.jpg`)
+    }
+    const weapons = this.storage.weaponCollection || []
+    for (const wid of weapons) {
+      paths.push(`assets/equipment/fabao_${wid}.png`)
+    }
+    if (paths.length > 0) {
+      console.log('[CDN] preloading ' + paths.length + ' owned assets')
+      AssetLoader.preloadPaths(paths)
+    }
   }
 
   // ===== Run管理（委托到 runManager）=====
@@ -419,7 +442,28 @@ class Main {
         this._stageIdxInitialized = false
       }
     }
+    if (name === 'battle') {
+      this._preloadBattleAssets()
+    }
     this.events.emit('scene:change', name, old)
+  }
+
+  _preloadBattleAssets() {
+    const paths = []
+    if (this.enemy && this.enemy.avatar) {
+      paths.push(`assets/${this.enemy.avatar}.png`)
+    }
+    if (this.pets) {
+      for (const p of this.pets) {
+        if (p && p.id) paths.push(`assets/pets/pet_${p.id}.png`)
+      }
+    }
+    if (this.enemy && this.enemy.customBg) {
+      paths.push(`assets/${this.enemy.customBg}.jpg`)
+    }
+    if (paths.length > 0) {
+      AssetLoader.preloadPaths(paths)
+    }
   }
 
   markDirty() { this._dirty = true }
