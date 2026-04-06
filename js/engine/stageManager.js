@@ -315,6 +315,12 @@ function settleStage(g) {
     })
   }
 
+  // 第一章前 3 关首通掉法宝时自动装备：1-1 后天机镜要出现在 1-2 战场左侧栏（跳过编队的新手流程）
+  if (isFirstClear && g.battleMode === 'stage' && stage.chapter === 1 && stage.order <= 3) {
+    const wNew = rewards.find(r => r.type === 'weapon' && r.weaponId && r.isNew)
+    if (wNew) g.storage.equipWeapon(wNew.weaponId)
+  }
+
   const fragRange = stage.rewards.repeatClear.fragments
   const fragCount = Math.ceil(_randomInt(fragRange.min, fragRange.max) * ratingMul)
   const fragTarget = pickFragmentTarget(g, fragRange.pool)

@@ -7,6 +7,7 @@ const {
   STAMINA_INITIAL,
   STAMINA_SIDEBAR_REWARD,
 } = require('./constants')
+const { DATA_VERSION } = require('./giftConfig')
 /**
  * 存储管理 — 灵宠消消塔
  * Roguelike：无局外养成，死亡即重开
@@ -109,10 +110,15 @@ function defaultPersist() {
     invitedBy: null,
     // 广告观看记录（每日频控）
     adWatchLog: {},            // { [slotId]: { date: 'YYYY-MM-DD', count: N } }
-    // 回归 / 删档
+    // 回归 / 删档（与 giftConfig.DATA_VERSION 对齐见 _load / resetAll 收尾赋值；此处 0 供「缺字段的旧存档」merge 后仍走 _checkDataVersion）
     lastActiveDate: '',
     dataVersion: 0,
   }
+}
+
+/** 全新本地档：已是当前大版本，避免首次落盘 dataVersion=0 导致二次启动误判删档弹窗 */
+function _freshPersistDataVersion(d) {
+  if (d && typeof d === 'object') d.dataVersion = DATA_VERSION
 }
 
 /**
@@ -1360,6 +1366,7 @@ class Storage {
   // 彻底重置
   async resetAll() {
     this._d = defaultPersist()
+    _freshPersistDataVersion(this._d)
     try { P.removeStorageSync(LOCAL_KEY) } catch(e) {}
     this._save()
     if (cloudSync.isReady()) {
@@ -1650,15 +1657,17 @@ class Storage {
         this._checkDataVersion()
       } else {
         this._d = defaultPersist()
+        _freshPersistDataVersion(this._d)
       }
     } catch(e) {
       console.warn('Storage load error:', e)
       this._d = defaultPersist()
+      _freshPersistDataVersion(this._d)
     }
   }
 
   _checkDataVersion() {
-    const { DATA_VERSION, WIPE_COMPENSATION } = require('./giftConfig')
+    const { WIPE_COMPENSATION } = require('./giftConfig')
     if ((this._d.dataVersion || 0) < DATA_VERSION) {
       const playerId = this._d.playerId || null
       this._d = defaultPersist()

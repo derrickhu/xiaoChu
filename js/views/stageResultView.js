@@ -71,16 +71,22 @@ function rStageResult(g) {
         celebrateIds = st.rewards.firstClear.filter(r => r.type === 'pet' && r.petId).map(r => r.petId)
       }
     }
-    if (celebrateIds.length > 0) {
+    const weaponCelebrateIds = (result.rewards || [])
+      .filter(r => r.type === 'weapon' && r.weaponId && r.isNew)
+      .map(r => r.weaponId)
+    const queue = []
+    celebrateIds.forEach(id => queue.push({ kind: 'pet', id }))
+    weaponCelebrateIds.forEach(id => queue.push({ kind: 'weapon', id }))
+    if (queue.length > 0) {
       g._newbiePetCelebrate = {
-        petIds: celebrateIds,
+        queue,
         currentIdx: 0,
         alpha: 0, timer: 0,
       }
     }
   }
 
-  // 新手宠物庆祝阶段（全屏覆盖，点击后切到队伍总览卡）
+  // 新手灵宠/法宝庆祝阶段（全屏覆盖，点击后切到队伍总览卡）
   if (g._newbiePetCelebrate) {
     _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop)
     return
@@ -1571,20 +1577,19 @@ function _drawExpRow(c, R, S, x, cy, innerW, iconName, label, value, labelColor,
   c.fillText(value, x + innerW, cy + iconSz / 2)
 }
 
-// ===== 新手宠物庆祝全屏（逐一展示每只奖励宠物） =====
+// ===== 新手庆祝全屏（灵宠 + 法宝同一队列逐页展示） =====
 function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
   const cel = g._newbiePetCelebrate
-  if (!cel || !cel.petIds || cel.petIds.length === 0) { g._newbiePetCelebrate = null; return }
+  const queue = cel && cel.queue
+  if (!cel || !queue || queue.length === 0) { g._newbiePetCelebrate = null; return }
   cel.timer++
   cel.alpha = Math.min(1, cel.timer / 20)
   g._dirty = true
 
   const idx = cel.currentIdx || 0
-  const petId = cel.petIds[idx]
-  const pet = getPetById(petId)
-  if (!pet) { g._newbiePetCelebrate = null; return }
+  const item = queue[idx]
+  if (!item) { g._newbiePetCelebrate = null; return }
 
-  // 背景
   const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
   if (poolBg && poolBg.width > 0) {
     R._drawCoverImg(poolBg, 0, 0, W, H)
@@ -1597,105 +1602,144 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
 
   c.save()
   c.globalAlpha = cel.alpha
-
   c.fillStyle = 'rgba(255,240,200,0.06)'
   c.fillRect(0, 0, W, H)
-
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillStyle = '#FFF5E0'
-  c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
-  _strokeText(c, '恭喜获得', W / 2, safeTop + 40 * S, 'rgba(55,35,18,0.5)', 3 * S)
 
-  // 计数指示器（第 x/n 只）
-  if (cel.petIds.length > 1) {
+  if (queue.length > 1) {
     c.fillStyle = 'rgba(200,170,80,0.85)'
     c.font = `${11 * S}px "PingFang SC",sans-serif`
-    c.fillText(`${idx + 1} / ${cel.petIds.length}`, W / 2, safeTop + 62 * S)
+    c.fillText(`${idx + 1} / ${queue.length}`, W / 2, safeTop + 62 * S)
   }
 
-  // 宠物头像（大尺寸弹入动画）
-  const bounceProgress = Math.min(1, cel.timer / 25)
-  const bounce = bounceProgress < 1
-    ? (1 + 0.2 * Math.sin(bounceProgress * Math.PI))
-    : (1 + 0.03 * Math.sin(cel.timer * 0.06))
-  const avatarSize = 130 * S * bounce
-  const avatarX = (W - avatarSize) / 2
-  const avatarY = centerY - avatarSize / 2 - 6 * S
+  if (item.kind === 'weapon') {
+    c.fillStyle = '#FFF5E0'
+    c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, '恭喜获得法宝', W / 2, safeTop + 40 * S, 'rgba(55,35,18,0.5)', 3 * S)
 
-  _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, avatarSize * 1.2)
+    const w = getWeaponById(item.id)
+    const bounceProgress = Math.min(1, cel.timer / 25)
+    const bounce = bounceProgress < 1
+      ? (1 + 0.2 * Math.sin(bounceProgress * Math.PI))
+      : (1 + 0.03 * Math.sin(cel.timer * 0.06))
+    const iconSz = 130 * S * bounce
+    const iconX = (W - iconSz) / 2
+    const iconY = centerY - iconSz / 2 - 6 * S
+    _drawPedestalCloud(c, R, S, W / 2, iconY + iconSz, iconSz * 1.2)
 
-  const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    const fabaoPath = `assets/equipment/fabao_${item.id}.png`
+    const wimg = R.getImg(fabaoPath)
+    if (wimg && wimg.width > 0) {
+      c.save()
+      R.rr(iconX, iconY, iconSz, iconSz, 16 * S); c.clip()
+      const aw = wimg.width; const ah = wimg.height
+      const sc = Math.max(iconSz / aw, iconSz / ah)
+      const dw = aw * sc; const dh = ah * sc
+      c.drawImage(wimg, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
+      c.restore()
+      c.save()
+      c.shadowColor = 'rgba(180,130,40,0.5)'; c.shadowBlur = 16 * S
+      R.rr(iconX, iconY, iconSz, iconSz, 16 * S)
+      c.strokeStyle = '#c9a227'
+      c.lineWidth = 3 * S
+      c.stroke()
+      c.restore()
+    }
 
-  const rkNewbie = getPetRarity(petId)
-  const spotRv = _spotlightRarityTag(rkNewbie, pet.attr)
-  _drawRarityDiamondBadge(c, S, avatarX + 10 * S, avatarY + 20 * S, spotRv.rv, spotRv.tag)
+    const nameY = iconY + iconSz + 30 * S
+    c.fillStyle = '#B8860B'
+    c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, w ? w.name : item.id, W / 2, nameY, 'rgba(0,0,0,0.3)', 3 * S)
 
-  c.save()
-  c.translate(avatarX + avatarSize - 8 * S, avatarY - 4 * S)
-  c.rotate(-0.2)
-  c.fillStyle = 'rgba(180,120,20,0.95)'
-  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
-  c.strokeStyle = 'rgba(255,240,200,0.75)'; c.lineWidth = 1 * S
-  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
-  c.fillStyle = '#FFF8E0'
-  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('New', 0, 0)
-  c.restore()
+    const msgY = nameY + 32 * S
+    c.fillStyle = 'rgba(90,70,40,0.9)'
+    c.font = `${13 * S}px "PingFang SC",sans-serif`
+    const desc = w && w.desc ? w.desc : '战斗中获得属性加成'
+    c.fillText(desc, W / 2, msgY)
+    c.fillStyle = 'rgba(120,90,50,0.85)'
+    c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, '已自动装备，下一场战斗即可生效', W / 2, msgY + 26 * S, 'rgba(0,0,0,0.2)', 2 * S)
+  } else {
+    const petId = item.id
+    const pet = getPetById(petId)
+    if (!pet) { g._newbiePetCelebrate = null; return }
 
-  const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
+    c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, '恭喜获得', W / 2, safeTop + 40 * S, 'rgba(55,35,18,0.5)', 3 * S)
+
+    const bounceProgress = Math.min(1, cel.timer / 25)
+    const bounce = bounceProgress < 1
+      ? (1 + 0.2 * Math.sin(bounceProgress * Math.PI))
+      : (1 + 0.03 * Math.sin(cel.timer * 0.06))
+    const avatarSize = 130 * S * bounce
+    const avatarX = (W - avatarSize) / 2
+    const avatarY = centerY - avatarSize / 2 - 6 * S
+
+    _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, avatarSize * 1.2)
+    const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+    const rkNewbie = getPetRarity(petId)
+    const spotRv = _spotlightRarityTag(rkNewbie, pet.attr)
+    _drawRarityDiamondBadge(c, S, avatarX + 10 * S, avatarY + 20 * S, spotRv.rv, spotRv.tag)
+
     c.save()
-    c.shadowColor = ac.main; c.shadowBlur = 20 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const sc = Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * sc, dh = ah * sc
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+    c.translate(avatarX + avatarSize - 8 * S, avatarY - 4 * S)
+    c.rotate(-0.2)
+    c.fillStyle = 'rgba(180,120,20,0.95)'
+    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
+    c.strokeStyle = 'rgba(255,240,200,0.75)'; c.lineWidth = 1 * S
+    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
+    c.fillStyle = '#FFF8E0'
+    c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('New', 0, 0)
     c.restore()
+
+    const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+    const img = R.getImg(avatarPath)
+    if (img && img.width > 0) {
+      c.save()
+      c.shadowColor = ac.main; c.shadowBlur = 20 * S
+      R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S); c.clip()
+      const aw = img.width; const ah = img.height
+      const sc = Math.max(avatarSize / aw, avatarSize / ah)
+      const dw = aw * sc; const dh = ah * sc
+      c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
+      c.restore()
+      c.save()
+      c.shadowColor = rgbaFromHex(ac.main, 0.5)
+      c.shadowBlur = 16 * S
+      R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
+      c.strokeStyle = ac.main
+      c.lineWidth = 3 * S
+      c.stroke()
+      c.restore()
+    }
+
+    const nameY = avatarY + avatarSize + 30 * S
+    c.fillStyle = ac.main
+    c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, pet.name, W / 2, nameY, 'rgba(0,0,0,0.3)', 3 * S)
+
+    const msgY = nameY + 32 * S
+    c.fillStyle = ac.lt || ac.main
+    c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
     c.save()
-    c.shadowColor = rgbaFromHex(ac.main, 0.5)
-    c.shadowBlur = 16 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
-    c.strokeStyle = ac.main
-    c.lineWidth = 3 * S
-    c.stroke()
+    c.shadowColor = rgbaFromHex(ac.main, 0.55)
+    c.shadowBlur = 6 * S
+    _strokeText(c, '正式加入你的队伍！', W / 2, msgY, 'rgba(0,0,0,0.35)', 3 * S)
     c.restore()
+
+    const _ATTR_DESC = { metal: '消除金色灵珠时发动攻击', wood: '消除绿色灵珠时发动攻击', water: '消除蓝色灵珠时发动攻击', fire: '消除红色灵珠时发动攻击', earth: '消除棕色灵珠时发动攻击' }
+    c.fillStyle = 'rgba(90,70,40,0.8)'
+    c.font = `${12 * S}px "PingFang SC",sans-serif`
+    c.fillText(_ATTR_DESC[pet.attr] || '战斗中为你冲锋陷阵', W / 2, msgY + 28 * S)
   }
 
-  // 宠物名称
-  const nameY = avatarY + avatarSize + 30 * S
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.save()
-  c.shadowColor = 'rgba(120,80,0,0.7)'; c.shadowBlur = 8 * S
-  c.fillStyle = ac.main
-  c.font = `bold ${20 * S}px "PingFang SC",sans-serif`
-  _strokeText(c, pet.name, W / 2, nameY, 'rgba(0,0,0,0.3)', 3 * S)
-  c.restore()
-
-  // 核心文案
-  const msgY = nameY + 32 * S
-  c.fillStyle = ac.lt || ac.main
-  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-  c.save()
-  c.shadowColor = rgbaFromHex(ac.main, 0.55)
-  c.shadowBlur = 6 * S
-  _strokeText(c, '正式加入你的队伍！', W / 2, msgY, 'rgba(0,0,0,0.35)', 3 * S)
-  c.restore()
-
-  // 副文案
-  const _ATTR_DESC = { metal: '消除金色灵珠时发动攻击', wood: '消除绿色灵珠时发动攻击', water: '消除蓝色灵珠时发动攻击', fire: '消除红色灵珠时发动攻击', earth: '消除棕色灵珠时发动攻击' }
-  c.fillStyle = 'rgba(90,70,40,0.8)'
-  c.font = `${12 * S}px "PingFang SC",sans-serif`
-  c.fillText(_ATTR_DESC[pet.attr] || '战斗中为你冲锋陷阵', W / 2, msgY + 28 * S)
-
-  // 底部点击提示
   const blinkAlpha = 0.35 + 0.3 * Math.sin(Date.now() * 0.004)
   c.globalAlpha = cel.alpha * blinkAlpha
   c.fillStyle = '#8B7355'
   c.font = `${11 * S}px "PingFang SC",sans-serif`
-  const tipText = idx < cel.petIds.length - 1 ? '点击查看下一只灵宠' : '点击屏幕继续'
+  const tipText = idx < queue.length - 1 ? '点击查看下一项奖励' : '点击屏幕继续'
   c.fillText(tipText, W / 2, H - safeTop - 40 * S)
 
   c.restore()
@@ -1737,7 +1781,40 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
   // 副标题
   c.fillStyle = 'rgba(90,70,40,0.8)'
   c.font = `${13 * S}px "PingFang SC",sans-serif`
-  c.fillText('消除对应颜色灵珠，灵宠就会攻击', W / 2, titleY + 30 * S)
+  c.fillText('消除对应颜色灵珠，灵宠就会攻击', W / 2, titleY + 28 * S)
+
+  const weaponIdsOv = overview.weapons || []
+  let yCursor = titleY + 50 * S
+  if (weaponIdsOv.length > 0) {
+    c.fillStyle = 'rgba(100,75,35,0.9)'
+    c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    c.fillText('法宝（已装备，编队中可更换）', W / 2, yCursor)
+    yCursor += 22 * S
+    const wGap = 20 * S
+    const wIcon = 48 * S
+    const wTotal = weaponIdsOv.length * wIcon + (weaponIdsOv.length - 1) * wGap
+    let wx = (W - wTotal) / 2
+    weaponIdsOv.forEach(wid => {
+      const w = getWeaponById(wid)
+      const fabaoPath = `assets/equipment/fabao_${wid}.png`
+      const wim = R.getImg(fabaoPath)
+      if (wim && wim.width > 0) {
+        c.save()
+        R.rr(wx, yCursor, wIcon, wIcon, 8 * S); c.clip()
+        const sc = Math.max(wIcon / wim.width, wIcon / wim.height)
+        const dw = wim.width * sc; const dh = wim.height * sc
+        c.drawImage(wim, wx + (wIcon - dw) / 2, yCursor + (wIcon - dh) / 2, dw, dh)
+        c.restore()
+        R.rr(wx, yCursor, wIcon, wIcon, 8 * S)
+        c.strokeStyle = '#c9a227'; c.lineWidth = 1.5 * S; c.stroke()
+      }
+      c.fillStyle = '#5a4020'
+      c.font = `${9 * S}px "PingFang SC",sans-serif`
+      c.fillText(w ? w.name : wid, wx + wIcon / 2, yCursor + wIcon + 12 * S)
+      wx += wIcon + wGap
+    })
+    yCursor += wIcon + 36 * S
+  }
 
   const pets = (overview.pets || []).map(id => getPetById(id)).filter(Boolean)
   let cardW = 80 * S
@@ -1750,7 +1827,7 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
     totalCardsW = n * cardW + (n - 1) * gap
   }
   const startX = (W - totalCardsW) / 2
-  const cardTopY = titleY + 64 * S
+  const cardTopY = yCursor + 8 * S
 
   const _ATTR_LABEL = { metal: '金', wood: '木', earth: '土', water: '水', fire: '火' }
 
@@ -1830,17 +1907,19 @@ function tStageResult(g, x, y, type) {
     if (type !== 'end') return
   }
 
-  // 新手宠物庆祝阶段：逐一展示，最后一只后切到团队概览卡
+  // 新手庆祝阶段：灵宠 + 法宝同一队列，最后一项后切到团队概览卡
   if (g._newbiePetCelebrate) {
     const cel = g._newbiePetCelebrate
     const idx = cel.currentIdx || 0
-    if (idx < cel.petIds.length - 1) {
+    const q = cel.queue || []
+    if (idx < q.length - 1) {
       cel.currentIdx = idx + 1
       cel.timer = 0; cel.alpha = 0
     } else {
-      const petIds = cel.petIds.slice()
+      const petIds = q.filter(x => x.kind === 'pet').map(x => x.id)
+      const weapons = q.filter(x => x.kind === 'weapon').map(x => x.id)
       g._newbiePetCelebrate = null
-      g._newbieTeamOverview = { pets: petIds, alpha: 0, timer: 0 }
+      g._newbieTeamOverview = { pets: petIds, weapons, alpha: 0, timer: 0 }
     }
     _animTimer = 0
     g._dirty = true
