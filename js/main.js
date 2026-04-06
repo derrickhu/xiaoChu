@@ -303,7 +303,8 @@ class Main {
         content: '灵宠消消塔已进行大版本重制，为保证最佳体验，您的游戏数据已重置。\n\n作为补偿，已为您发放：\n· 灵石 ×2000\n· 觉醒石 ×5\n· 碎片 ×40\n· 体力全满\n\n感谢您的支持与理解！',
         showCancel: false,
         confirmText: '我知道了',
-        success: () => { this.storage.clearWipeNotice() },
+        success: (res) => { if (res && res.confirm) this.storage.clearWipeNotice() },
+        complete: (res) => { if (res && res.confirm) this.storage.clearWipeNotice() },
       })
     }
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
@@ -385,6 +386,7 @@ class Main {
     guideOverlay.update()
     wxBtns.updateAuthBtn(this, dpr)
     wxBtns.updateFeedbackBtn(this, dpr)
+    wxBtns.updateGameClubBtn(this, dpr)
   }
 
   setScene(name) {

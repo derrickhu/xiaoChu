@@ -127,6 +127,10 @@ class RankingService {
         clearCount: ctx.stageClearCount,
         eliteClearCount: ctx.stageEliteClearCount,
         farthestChapter: ctx.farthestChapter,
+        farthestNormalChapter: ctx.farthestNormalChapter,
+        farthestNormalOrder: ctx.farthestNormalOrder,
+        farthestEliteChapter: ctx.farthestEliteChapter,
+        farthestEliteOrder: ctx.farthestEliteOrder,
       })
       console.log('[Ranking] 提交秘境完成, 耗时', Date.now() - t0, 'ms')
     } catch(e) {

@@ -51,4 +51,46 @@ function destroyFeedbackBtn(g) {
   }
 }
 
-module.exports = { updateAuthBtn, updateFeedbackBtn, destroyFeedbackBtn }
+let _gameClubBtnDelay = false
+/** 游戏圈按钮 — 仅在 title 场景且无弹窗/引导时显示，覆盖在 Canvas 占位区上 */
+function updateGameClubBtn(g, dpr) {
+  const shouldShow = g.scene === 'title'
+    && !g.showMorePanel && !g.showSidebarPanel && !g._showDailyReward
+    && !g._confirmDialog && !g._adRewardPopup
+    && P.isWeChat
+  if (!shouldShow) { destroyGameClubBtn(g); return }
+  const rect = g._gameClubBtnRect
+  if (!rect) { destroyGameClubBtn(g); return }
+  const css = { left: rect[0] / dpr, top: rect[1] / dpr, width: rect[2] / dpr, height: rect[3] / dpr }
+  if (!g._gameClubBtn) {
+    if (_gameClubBtnDelay) return
+    _gameClubBtnDelay = true
+    setTimeout(() => {
+      _gameClubBtnDelay = false
+      if (g.scene !== 'title' || g._gameClubBtn) return
+      const r = g._gameClubBtnRect
+      if (!r) return
+      try {
+        const c = { left: r[0] / dpr, top: r[1] / dpr, width: r[2] / dpr, height: r[3] / dpr }
+        const btn = P.createGameClubButton({
+          icon: 'light',
+          style: { left: c.left, top: c.top, width: c.width, height: c.height },
+        })
+        if (!btn) return
+        g._gameClubBtn = btn
+        btn.show()
+      } catch (e) { console.warn('[GameClub] createGameClubButton 失败:', e) }
+    }, 300)
+  } else {
+    try { Object.assign(g._gameClubBtn.style, css) } catch (e) {}
+  }
+}
+
+function destroyGameClubBtn(g) {
+  if (g._gameClubBtn) {
+    try { g._gameClubBtn.hide(); g._gameClubBtn.destroy() } catch (e) {}
+    g._gameClubBtn = null
+  }
+}
+
+module.exports = { updateAuthBtn, updateFeedbackBtn, destroyFeedbackBtn, updateGameClubBtn, destroyGameClubBtn }

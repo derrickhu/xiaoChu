@@ -89,9 +89,17 @@ exports.main = async (event, context) => {
 
   // ===== 提交秘境排行 =====
   if (action === 'submitStage') {
-    const { nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter } = event
+    const {
+      nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter,
+      farthestNormalChapter, farthestNormalOrder, farthestEliteChapter, farthestEliteOrder,
+    } = event
     try {
-      await _updateStageRank(openid, nickName || '修士', avatarUrl || '', totalStars || 0, clearCount || 0, eliteClearCount || 0, farthestChapter || 0)
+      await _updateStageRank(openid, nickName || '修士', avatarUrl || '', totalStars || 0, clearCount || 0, eliteClearCount || 0, farthestChapter || 0, {
+        farthestNormalChapter: farthestNormalChapter || 0,
+        farthestNormalOrder: farthestNormalOrder || 0,
+        farthestEliteChapter: farthestEliteChapter || 0,
+        farthestEliteOrder: farthestEliteOrder || 0,
+      })
       return { code: 0, msg: '提交成功' }
     } catch (e) {
       return { code: -1, msg: e.message }
@@ -441,10 +449,20 @@ function _isBetterScore(newFloor, newTurns, oldFloor, oldTurns) {
 }
 
 // 更新秘境排行（带去重逻辑）
-async function _updateStageRank(openid, nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter) {
+async function _updateStageRank(openid, nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter, coords) {
   if (totalStars <= 0 && clearCount <= 0) return
   const record = {
-    uid: openid, nickName, avatarUrl, totalStars, clearCount, eliteClearCount, farthestChapter,
+    uid: openid,
+    nickName,
+    avatarUrl,
+    totalStars,
+    clearCount,
+    eliteClearCount,
+    farthestChapter,
+    farthestNormalChapter: coords && coords.farthestNormalChapter,
+    farthestNormalOrder: coords && coords.farthestNormalOrder,
+    farthestEliteChapter: coords && coords.farthestEliteChapter,
+    farthestEliteOrder: coords && coords.farthestEliteOrder,
     timestamp: db.serverDate(),
   }
   const exist = await db.collection('rankStage').where(_.or([

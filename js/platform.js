@@ -124,6 +124,12 @@ const platform = {
     ? (opts) => base.createCustomAd(opts)
     : () => null,
 
+  // ========== 游戏圈 ==========
+
+  createGameClubButton: base && typeof base.createGameClubButton === 'function'
+    ? (opts) => base.createGameClubButton(opts)
+    : () => null,
+
   /**
    * 统一游戏内 Toast 提醒（简洁半透明遮罩 + 白字）
    * 所有场景的短提示统一使用此方法，保持风格一致

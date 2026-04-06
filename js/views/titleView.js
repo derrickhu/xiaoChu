@@ -1218,6 +1218,31 @@ function drawDailyRewardBtn(g) {
   g._dailyRewardBtnRect = [bx, by, btnW, btnH]
 }
 
+// ===== 游戏圈入口（原生按钮覆盖在 Canvas 上，这里只画占位背景和标签） =====
+function drawGameClubBtn(g) {
+  const { ctx: c, S, safeTop, W } = V
+  const geo = _dailySignBtnGeometry(safeTop, S)
+  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
+  const bx = W - btnW - 8 * S
+  const gcBtnH = 38 * S
+  const gap = 10 * S
+  const by = geo.bottom + gap
+
+  g._gameClubBtnRect = [bx, by, btnW, gcBtnH]
+
+  c.save()
+  const labelH = TITLE_HOME.dailySignLabelPt * S
+  const ly = by + gcBtnH - labelH * 0.5 - 2 * S
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.font = `bold ${labelH}px "PingFang SC",sans-serif`
+  c.lineWidth = 2.5 * S
+  c.strokeStyle = 'rgba(45,25,10,0.82)'
+  c.fillStyle = 'rgba(210,200,190,0.95)'
+  c.strokeText('游戏圈', bx + btnW / 2, ly)
+  c.fillText('游戏圈', bx + btnW / 2, ly)
+  c.restore()
+}
+
 // ===== 主入口 =====
 function rTitle(g) {
   drawSceneArea(g)
@@ -1229,6 +1254,7 @@ function rTitle(g) {
   drawAvatarWidget(g)
   drawStaminaBar(g)
   drawDailyRewardBtn(g)
+  drawGameClubBtn(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)

@@ -13,7 +13,7 @@ const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR
   ELEM_MILESTONES, TOTAL_MILESTONES, RARITY_MILESTONES,
   hasUnclaimedMilestones } = require('../data/dexConfig')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { CHAPTERS } = require('../data/stages')
+const { formatRankStageProgressSubtitle } = require('../data/stages')
 const { DEX_LAYOUT, getDexContentTop } = require('../data/constants')
 
 // ===== Loading =====
@@ -898,8 +898,7 @@ function rRanking(g) {
       const valRight = W - padX - 12*S
 
       if (tab === 'stage') {
-        const chName = item.farthestChapter ? (CHAPTERS.find(c => c.id === item.farthestChapter) || {}).name || '' : ''
-        ctx.fillText(`通关 ${item.clearCount || 0}/96 · 精英 ${item.eliteClearCount || 0}/96`, textX, ry + 44*S)
+        ctx.fillText(formatRankStageProgressSubtitle(item), textX, ry + 44*S)
         ctx.textAlign = 'right'
         ctx.fillStyle = i < 3 ? '#ffd700' : '#e88520'; ctx.font = `bold ${20*S}px "PingFang SC",sans-serif`
         ctx.save(); if (i < 3) { ctx.shadowColor = 'rgba(255,215,0,0.25)'; ctx.shadowBlur = 4*S }
@@ -1076,7 +1075,16 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
     ctx.fillStyle = '#8B7060'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.fillText('★', W - padX - 12*S, myBarY + 24*S)
     ctx.fillStyle = '#7A5020'; ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`通关${g.storage.getStageClearCount()} 精英${g.storage.getStageEliteClearCount()}`, W - padX - 12*S, myBarY + 42*S)
+    const myN = g.storage.getFarthestClearedStageCoords(false)
+    const myE = g.storage.getFarthestClearedStageCoords(true)
+    ctx.fillText(formatRankStageProgressSubtitle({
+      farthestNormalChapter: myN ? myN.chapter : 0,
+      farthestNormalOrder: myN ? myN.order : 0,
+      farthestEliteChapter: myE ? myE.chapter : 0,
+      farthestEliteOrder: myE ? myE.order : 0,
+      clearCount: g.storage.getStageClearCount(),
+      farthestChapter: g.storage.getFarthestChapter(),
+    }), W - padX - 12*S, myBarY + 42*S)
   } else if (tab === 'tower') {
     const bestTurns = g.storage.stats.bestTotalTurns || 0
     ctx.fillStyle = '#8B6914'; ctx.font = `bold ${22*S}px "PingFang SC",sans-serif`

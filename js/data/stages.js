@@ -525,6 +525,24 @@ function getStageChapterOrderLabel(stage) {
 }
 
 /**
+ * 秘境榜副文案：普通/精英最远至第几章第几关（不展示总关卡数）。
+ * @param {object} item rankStage 记录；新字段 farthestNormal* / farthestElite*；旧数据仅有 farthestChapter、clearCount
+ */
+function formatRankStageProgressSubtitle(item) {
+  const fmt = (ch, ord) => (ch > 0 && ord > 0 ? `第${ch}章 第${ord}关` : '—')
+  const nCh = item.farthestNormalChapter
+  const nOrd = item.farthestNormalOrder
+  const eCh = item.farthestEliteChapter
+  const eOrd = item.farthestEliteOrder
+  let normal = fmt(nCh, nOrd)
+  let elite = fmt(eCh, eOrd)
+  if (normal === '—' && (item.clearCount || 0) > 0 && item.farthestChapter) {
+    normal = `第${item.farthestChapter}章`
+  }
+  return `普通 ${normal} · 精英 ${elite}`
+}
+
+/**
  * 实际开战所需上阵人数：关卡下限、全局编队下限、灵宠池数量三者取合理交集。
  * 池子不足 3 只时，降为「至多能选几只就选几只」即可开战。
  */
@@ -559,5 +577,6 @@ module.exports = {
   getStageBossName,
   getStageRewardDifficulty,
   getStageChapterOrderLabel,
+  formatRankStageProgressSubtitle,
   getEffectiveStageTeamMin,
 }

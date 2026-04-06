@@ -263,6 +263,8 @@ class Storage {
         const { getDexProgress } = require('./dexConfig')
         const pool = this._d.petPool || []
         const dexProg = getDexProgress(pool)
+        const farN = this.getFarthestClearedStageCoords(false)
+        const farE = this.getFarthestClearedStageCoords(true)
         return {
           userAuthorized: this.userAuthorized,
           userInfo: this.userInfo,
@@ -279,6 +281,10 @@ class Storage {
           stageClearCount: this.getStageClearCount(),
           stageEliteClearCount: this.getStageEliteClearCount(),
           farthestChapter: this.getFarthestChapter(),
+          farthestNormalChapter: farN ? farN.chapter : 0,
+          farthestNormalOrder: farN ? farN.order : 0,
+          farthestEliteChapter: farE ? farE.chapter : 0,
+          farthestEliteOrder: farE ? farE.order : 0,
         }
       },
       markDirty: () => { if (this._eventBus) this._eventBus.emit('ranking:dirty') },
@@ -1007,6 +1013,32 @@ class Storage {
       if (m) max = Math.max(max, parseInt(m[1], 10))
     }
     return max
+  }
+
+  /**
+   * 已通关关卡中，按章节/关卡序号最远的一关（用于排行展示，不暴露总关卡数）
+   * @param {boolean} elite true=精英 stage_*_*_elite，false=普通 stage_*_*
+   * @returns {{ chapter: number, order: number } | null}
+   */
+  getFarthestClearedStageCoords(elite) {
+    const rec = this._d.stageClearRecord || {}
+    let bestCh = 0
+    let bestOrd = 0
+    const re = elite ? /^stage_(\d+)_(\d+)_elite$/ : /^stage_(\d+)_(\d+)$/
+    for (const id of Object.keys(rec)) {
+      if (!rec[id].cleared) continue
+      if (elite !== !!id.endsWith('_elite')) continue
+      const m = id.match(re)
+      if (!m) continue
+      const ch = parseInt(m[1], 10)
+      const ord = parseInt(m[2], 10)
+      if (ch > bestCh || (ch === bestCh && ord > bestOrd)) {
+        bestCh = ch
+        bestOrd = ord
+      }
+    }
+    if (bestCh === 0) return null
+    return { chapter: bestCh, order: bestOrd }
   }
 
   // ===== 每日挑战次数 =====

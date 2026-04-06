@@ -55,6 +55,8 @@ function _deepMerge(target, source) {
         target[key] = Math.max(tv || 0, sv || 0)
       } else if (key === 'totalBattles' || key === 'totalCombos' || key === 'totalRuns') {
         target[key] = Math.max(tv || 0, sv || 0)
+      } else if (key === '_pendingWipeNotice' && tv === false && sv === true) {
+        // 本机已点「我知道了」后本地为 false；云端若仍残留 true（上次未上传成功或时序问题），不要再次弹出
       } else {
         target[key] = sv
       }
