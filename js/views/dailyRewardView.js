@@ -57,7 +57,7 @@ function rDailyReward(g) {
   c.fillRect(0, 0, W, H)
 
   // 面板
-  const pw = W * 0.9, ph = H * 0.76
+  const pw = W * 0.9, ph = H * 0.82
   const px = (W - pw) / 2, py = (H - ph) / 2 - 6 * S
   const pad = 16 * S
   const ribbonH = 44 * S

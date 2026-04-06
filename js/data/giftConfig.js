@@ -18,10 +18,11 @@ const LOGIN_REWARDS = [
 const LOGIN_WEEKLY_RATIO = 0.6
 
 // ===== 每日任务（基础值为 Ch1 奖励，高章节通过 getDailyTaskScale 缩放） =====
-// Ch1 五条任务+全完成合计 ~80 灵石（dailyTarget 400 × dailyTask 0.20 = 80）
+// Ch1 六条任务灵石底数 20+8+13+10+15+14=80，+ 全完成额外 14 → 合计 ~94（auditDailyIncome.taskIncome 对齐）
 const DAILY_TASKS = [
   { id: 'battle_1',    name: '秘境战斗1场',  condition: { type: 'stageBattle', count: 1 }, reward: { soulStone: 20 } },
   { id: 'battle_3',    name: '战斗3场',      condition: { type: 'anyBattle', count: 3 },   reward: { fragment: 3, soulStone: 8 } },
+  { id: 'tower_1',     name: '挑战通天塔1次', condition: { type: 'towerRun', count: 1 },   reward: { soulStone: 14 } },
   { id: 'idle_collect', name: '收取派遣',     condition: { type: 'idleCollect', count: 1 }, reward: { soulStone: 13 } },
   { id: 'pet_feed',    name: '宠物升级1次',  condition: { type: 'petFeed', count: 1 },     reward: { soulStone: 10 } },
   { id: 'share_1',     name: '分享游戏1次',  condition: { type: 'share', count: 1 },       reward: { soulStone: 15 } },

@@ -311,7 +311,7 @@ function auditDailyIncome(chapter) {
   const towerIncome = towerPerRun * towerRuns
 
   const scale = ECONOMY_FRAMEWORK.dailyTaskScale[chapter] || 1
-  const taskIncome = Math.round(80 * scale)
+  const taskIncome = Math.round(94 * scale)
 
   const idleHours = 16
   const idleIncome = Math.floor(idleHours * IDLE_CFG.soulStonePerHour * (1 + 5 * IDLE_CFG.petLvExpFactor))

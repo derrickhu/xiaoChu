@@ -11,6 +11,14 @@ const { TOWER_SETTLE } = require('../../data/economyConfig')
 const { calcFloorAtkBonus } = require('../../engine/runManager')
 const MusicMgr = require('../../runtime/music')
 
+/** 通天塔至少胜一层则计「挑战通天塔1次」日任（每日进度封顶 1，避免多层刷显示） */
+function _bumpTowerDailyTaskOnce(g) {
+  if (!g.storage || !g.storage.addDailyTaskProgress) return
+  const prog = g.storage.dailyTaskProgress
+  if ((prog.tasks.tower_1 || 0) >= 1) return
+  g.storage.addDailyTaskProgress('tower_1', 1)
+}
+
 /** 广告/分享复活弹窗内按钮布局（相对 panelTop，单位 ×S；缩小并上移避免超出面板底图） */
 const AD_REVIVE_BTN_LAYOUT = {
   widthFrac: 0.58,
@@ -44,6 +52,7 @@ function _handleTowerFloorVictory(g) {
   if (g._towerFloorSettlePending) return
   if (g._enemyDeathAnim) return
   g._towerFloorSettlePending = true
+  _bumpTowerDailyTaskOnce(g)
 
   const floor = g.floor
   const nextFL = floor + 1
@@ -112,6 +121,7 @@ function _handleTowerClearVictory(g) {
   if (g._towerClearSettlePending) return
   if (g._enemyDeathAnim) return
   g._towerClearSettlePending = true
+  _bumpTowerDailyTaskOnce(g)
 
   if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm()
   g.cleared = true
