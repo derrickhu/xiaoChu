@@ -226,7 +226,7 @@ class Main {
       'assets/ui/nav_battle.png',
       'assets/ui/nav_dex.png',
       'assets/ui/nav_rank.png',
-      'assets/ui/nav_stats.png',
+      'assets/ui/nav_weapon.png',
       'assets/ui/nav_more.png',
       // 开场漫画
       'assets/intro/intro_1.jpg',
