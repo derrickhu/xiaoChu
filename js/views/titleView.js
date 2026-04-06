@@ -124,7 +124,7 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
 
   const tabH = 24 * S
   const tabGap = 4 * S
-  const titleBlockH = 30 * S
+  const titleBlockH = 48 * S
   const titleGateGap = 2 * S
   const gateStarGap = 6 * S
   const starH = 18 * S
@@ -222,30 +222,47 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.drawImage(gateImg, gateX, gateY, gateW, gateH)
   }
 
-  // ══════ 关卡标题（Tab 和门之间的独立区域）══════
+  // ══════ 关卡标题：纯色金/褐 + 描边 + 轻阴影（无渐变，减少刺眼感）══════
   {
     const stageLabel = `${stage.chapter}-${stage.order}`
-    const mainY = titleTopY + 10 * S
-    const subY = titleTopY + 24 * S
+    const mainY = titleTopY + 21 * S
+    const subY = titleTopY + 41 * S
+    const mainFontPx = 15 * S
+    const mainFill = isElite ? '#c09848' : '#d4bc68'
+    const subFill = isElite ? '#c8b078' : '#d4c898'
 
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
-    ctx.strokeStyle = 'rgba(255, 245, 215, 0.7)'; ctx.lineWidth = 3 * S; ctx.lineJoin = 'round'
+    ctx.font = `bold ${mainFontPx}px "PingFang SC",sans-serif`
+    ctx.strokeStyle = '#1a0a02'
+    ctx.lineWidth = 3.5 * S
+    ctx.lineJoin = 'round'
     ctx.strokeText(stageLabel, cx, mainY)
-    ctx.fillStyle = '#4a2205'
+    ctx.shadowColor = isElite ? 'rgba(200, 90, 50, 0.28)' : 'rgba(160, 100, 30, 0.32)'
+    ctx.shadowBlur = 5 * S
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 1 * S
+    ctx.fillStyle = mainFill
     ctx.fillText(stageLabel, cx, mainY)
     ctx.restore()
 
-    let nameFontPx = 10 * S
-    ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
-    const maxNameW = gateW * 0.6
-    while (ctx.measureText(stage.name).width > maxNameW && nameFontPx > 8 * S) {
-      nameFontPx -= S; ctx.font = `${nameFontPx}px "PingFang SC",sans-serif`
+    let nameFontPx = 13 * S
+    ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
+    const maxNameW = gateW * 0.72
+    while (ctx.measureText(stage.name).width > maxNameW && nameFontPx > 9 * S) {
+      nameFontPx -= S; ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
     }
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = 'rgba(80, 50, 15, 0.6)'
+    ctx.strokeStyle = '#120806'
+    ctx.lineWidth = 2.5 * S
+    ctx.lineJoin = 'round'
+    ctx.strokeText(stage.name, cx, subY)
+    ctx.shadowColor = isElite ? 'rgba(160, 50, 40, 0.22)' : 'rgba(80, 45, 20, 0.22)'
+    ctx.shadowBlur = 4 * S
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 1 * S
+    ctx.fillStyle = subFill
     ctx.fillText(stage.name, cx, subY)
     ctx.restore()
   }
