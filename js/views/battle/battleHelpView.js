@@ -3,7 +3,7 @@
  */
 const V = require('../env')
 const { ATTRS, ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, COUNTER_MUL } = require('../../data/tower')
-const { BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT } = require('../../data/constants')
+const { BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT, WEAPON_ACQUIRE_HINT_UNOWNED } = require('../../data/constants')
 const { getHelpPageData } = require('../../engine/strategyAdvisor')
 
 function buildHelpPages() {
@@ -318,9 +318,7 @@ function buildHelpPages() {
         ctx.fillStyle = '#a0a0a0'
         ctx.font = `${10 * S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
-        ctx.fillText('法宝通关秘境关卡首通获得', cx, y)
-        y += lineH * 0.7
-        ctx.fillText('通天塔中也可以获得法宝', cx, y)
+        ctx.fillText(WEAPON_ACQUIRE_HINT_UNOWNED, cx, y)
       },
     },
     {

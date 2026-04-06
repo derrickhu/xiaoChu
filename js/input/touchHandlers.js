@@ -248,9 +248,10 @@ function tDex(g, type, x, y) {
           const petId = g._dexDetailPetId
           g._dexDetailPetId = null
           g._dexDetailBtnRect = null
-          g._petPoolDetail = petId
-          g._petPoolFilter = 'all'; g._petPoolScroll = 0
-          g.setScene('petPool')
+          g._petDetailId = petId
+          g._petDetailUnowned = false
+          g._petDetailReturnScene = 'dex'
+          g.setScene('petDetail')
           return
         }
       }

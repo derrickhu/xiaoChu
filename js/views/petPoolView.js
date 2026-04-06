@@ -1,16 +1,16 @@
 /**
- * 灵宠池界面 — 卡片网格 + 属性筛选 + 详情面板（含升级/升星/分解）
+ * 灵宠池界面 — 卡片网格 + 属性筛选（详情见 petDetail 全屏页）
  * 渲染入口：rPetPool  触摸入口：tPetPool
  */
 const V = require('./env')
-const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
-const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill } = require('../data/pets')
-const { getPoolPetAtk, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { ATTR_COLOR } = require('../data/tower')
+const { getPetById, getPetRarity, getPetAvatarPath } = require('../data/pets')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
-const { drawSeparator, wrapTextDraw, getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
+const { getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
 
 // 属性筛选标签
 const FILTERS = [
@@ -27,17 +27,8 @@ const _rects = {
   filterRects: [],        // [{ key, rect: [x,y,w,h] }]
   cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
   backBtnRect: null,      // [x,y,w,h]
-  detailCloseRect: null,  // [x,y,w,h]
-  levelUpBtnRect: null,   // [x,y,w,h]
-  starUpBtnRect: null,    // [x,y,w,h]
-  decomposeBtnRect: null, // [x,y,w,h]
   idleBtnRect: null,      // [x,y,w,h]
 }
-
-// 长按升级相关状态
-let _longPressTimer = null
-let _longPressActive = false
-let _longPressPetId = null
 
 const _getFilteredPool = _getFilteredPoolUtil
 
@@ -272,11 +263,6 @@ function rPetPool(g) {
 
   // 底部导航（复用首页）
   drawBottomBar(g)
-
-  // === 详情面板 ===
-  if (g._petPoolDetail) {
-    _drawDetailPanel(g)
-  }
 }
 
 // ===== 宠物卡片 =====
@@ -542,393 +528,6 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.restore()
 }
 
-// ===== 详情面板（全自绘） =====
-function _drawDetailPanel(g) {
-  const { ctx: c, R, TH, W, H, S, safeTop } = V
-  const petId = g._petPoolDetail
-  const poolPet = g.storage.getPoolPet(petId)
-  if (!poolPet) { g._petPoolDetail = null; return }
-  const basePet = getPetById(petId)
-  if (!basePet) { g._petPoolDetail = null; return }
-
-  const rarity = getPetRarity(petId)
-  const atk = getPoolPetAtk(poolPet)
-  const attrColor = ATTR_COLOR[poolPet.attr]
-  const attrName = ATTR_NAME[poolPet.attr] || poolPet.attr
-  const expPool = g.storage.soulStone || 0
-  const nextLvExp = petExpToNextLevel(poolPet.level, rarity)
-  const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
-  const isMaxLv = poolPet.level >= maxLv
-
-  // 遮罩
-  c.fillStyle = 'rgba(0,0,0,0.7)'
-  c.fillRect(0, 0, W, H)
-
-  // 面板尺寸
-  const pw = W * 0.88, ph = H * 0.75
-  const px = (W - pw) / 2, py = (H - ph) / 2
-  const rad = 16 * S
-
-  // 面板阴影
-  c.save()
-  c.shadowColor = 'rgba(0,0,0,0.5)'
-  c.shadowBlur = 24 * S
-  c.shadowOffsetY = 4 * S
-
-  // 面板背景：暖色渐变
-  const bgGrad = c.createLinearGradient(px, py, px, py + ph)
-  bgGrad.addColorStop(0, '#3D2B15')
-  bgGrad.addColorStop(0.3, '#2A1E10')
-  bgGrad.addColorStop(1, '#1A120A')
-  c.fillStyle = bgGrad
-  R.rr(px, py, pw, ph, rad); c.fill()
-  c.restore()
-
-  // 外边框：金色
-  c.strokeStyle = '#C9A84C'
-  c.lineWidth = 2 * S
-  R.rr(px, py, pw, ph, rad); c.stroke()
-  // 内边框
-  c.strokeStyle = 'rgba(201,168,76,0.3)'
-  c.lineWidth = 1 * S
-  R.rr(px + 4*S, py + 4*S, pw - 8*S, ph - 8*S, rad - 2*S); c.stroke()
-
-  _rects.detailCloseRect = [0, 0, W, H]
-
-  const indent = px + 20 * S
-  const rightEdge = px + pw - 20 * S
-  const contentW = rightEdge - indent
-
-  // ── 顶部：头像 + 名称区域 ──
-  let cy = py + 18 * S
-  const avatarSize = 64 * S
-  const avatarX = indent
-  const avatarY = cy
-
-  // 头像背景
-  const ac = attrColor ? attrColor.main : '#666'
-  c.fillStyle = 'rgba(0,0,0,0.3)'
-  R.rr(avatarX - 2*S, avatarY - 2*S, avatarSize + 4*S, avatarSize + 4*S, 10*S); c.fill()
-  c.strokeStyle = ac; c.lineWidth = 2 * S
-  R.rr(avatarX - 2*S, avatarY - 2*S, avatarSize + 4*S, avatarSize + 4*S, 10*S); c.stroke()
-
-  // 头像
-  const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
-    c.save()
-    const isStar3Detail = (poolPet.star || 1) >= 3
-    const clipPad = isStar3Detail ? 6 * S : 0
-    R.rr(avatarX - clipPad, avatarY - clipPad, avatarSize + clipPad * 2, avatarSize + clipPad * 2, 8*S); c.clip()
-    const drawSz = avatarSize + clipPad * 2
-    c.drawImage(img, avatarX - clipPad, avatarY - clipPad, drawSz, drawSz)
-    c.restore()
-  } else {
-    c.fillStyle = ac
-    c.globalAlpha = 0.3
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 8*S); c.fill()
-    c.globalAlpha = 1
-    c.fillStyle = '#fff'
-    c.font = `bold ${22*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize/2, avatarY + avatarSize/2)
-  }
-
-  // 名称（头像右侧）
-  const infoX = avatarX + avatarSize + 14 * S
-  c.fillStyle = '#F5E6C8'
-  c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(basePet.name, infoX, cy)
-
-  // 属性标签
-  const tagY = cy + 20 * S
-  c.fillStyle = ac
-  c.globalAlpha = 0.25
-  R.rr(infoX, tagY, 52*S, 18*S, 4*S); c.fill()
-  c.globalAlpha = 1
-  c.strokeStyle = ac; c.lineWidth = 1*S
-  R.rr(infoX, tagY, 52*S, 18*S, 4*S); c.stroke()
-  c.fillStyle = ac
-  c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(`${attrName}属性`, infoX + 26*S, tagY + 9*S)
-
-  // 星级（头像下方，根据 STAR_VISUAL 着色）
-  const starY = tagY + 24 * S
-  const detailCurStar = poolPet.star || 1
-  const detailSv = STAR_VISUAL[detailCurStar] || STAR_VISUAL[1]
-  const detailMaxStar = 5
-  c.font = `${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.save()
-  if (detailCurStar >= 5) {
-    const hue = (Date.now() * 0.1) % 360
-    c.shadowColor = `hsl(${hue}, 100%, 60%)`
-    c.shadowBlur = 8 * S
-  } else if (detailCurStar >= 4) {
-    c.shadowColor = '#b44dff'
-    c.shadowBlur = 4 * S
-  }
-  let dStarX = infoX
-  for (let i = 0; i < detailMaxStar; i++) {
-    c.fillStyle = i < detailCurStar ? detailSv.color : 'rgba(120,120,120,0.6)'
-    c.fillText('★', dStarX, starY)
-    dStarX += c.measureText('★').width
-  }
-  c.restore()
-  // 星级名称
-  c.fillStyle = detailSv.color
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.fillText(detailSv.name, dStarX + 4 * S, starY + 3 * S)
-
-  cy = avatarY + avatarSize + 14 * S
-
-  // ── 分隔线 ──
-  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
-  cy += 10 * S
-
-  // ── 攻击力 ──
-  c.fillStyle = '#E8D5A8'
-  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(`攻击力`, indent, cy)
-  c.fillStyle = '#FF9944'
-  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'
-  c.fillText(`${atk}`, rightEdge, cy)
-  cy += 20 * S
-
-  const baseAtk = basePet.atk
-  const lvBonus = rarity === 'R' ? Math.floor(poolPet.level * 0.8) : poolPet.level
-  const starMul = POOL_STAR_ATK_MUL[poolPet.star] || 1.0
-  c.fillStyle = 'rgba(200,180,140,0.5)'
-  c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'
-  c.fillText(`基础${baseAtk} + 等级+${lvBonus} × 星级×${starMul}`, indent, cy)
-  cy += 16 * S
-
-  // ── 分隔线 ──
-  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
-  cy += 10 * S
-
-  // ── 等级 + 灵石 + 升级按钮 ──
-  c.fillStyle = '#E8D5A8'
-  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  if (isMaxLv) {
-    c.fillText(`Lv.${poolPet.level}`, indent, cy)
-    c.fillStyle = '#FFD700'
-    c.font = `${11*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'right'
-    c.fillText('满级', rightEdge, cy + 1*S)
-    _rects.levelUpBtnRect = null
-  } else {
-    c.fillText(`Lv.${poolPet.level}`, indent, cy)
-    // 经验条
-    const barX = indent + 60 * S, barW = contentW - 60*S - 80*S
-    const barY = cy + 2 * S, barH = 12 * S
-    const lvProgress = Math.min(1, expPool / Math.max(1, nextLvExp))
-    c.fillStyle = 'rgba(0,0,0,0.3)'
-    R.rr(barX, barY, barW, barH, barH/2); c.fill()
-    if (lvProgress > 0) {
-      const fillGrad = c.createLinearGradient(barX, barY, barX + barW * lvProgress, barY)
-      fillGrad.addColorStop(0, '#5CB8FF')
-      fillGrad.addColorStop(1, '#3A8ADF')
-      c.fillStyle = fillGrad
-      R.rr(barX, barY, barW * lvProgress, barH, barH/2); c.fill()
-    }
-    c.strokeStyle = 'rgba(100,180,255,0.4)'; c.lineWidth = 1*S
-    R.rr(barX, barY, barW, barH, barH/2); c.stroke()
-    // 升级按钮
-    const btnW = 72 * S, btnH = 24 * S
-    const btnX = rightEdge - btnW, btnY = cy - 2 * S
-    const canLvUp = expPool >= nextLvExp
-    _drawActionBtn(c, R, S, btnX, btnY, btnW, btnH, '升级', canLvUp, '#5CB8FF')
-    _rects.levelUpBtnRect = [btnX, btnY, btnW, btnH]
-  }
-  cy += 22 * S
-  c.fillStyle = 'rgba(200,180,140,0.5)'
-  c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(`灵石：${expPool}` + (isMaxLv ? '' : ` / 本次需${nextLvExp}`), indent, cy)
-  cy += 16 * S
-
-  // ── 分隔线 ──
-  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
-  cy += 10 * S
-
-  // ── 技能 ──
-  const fakePet = { ...basePet, star: poolPet.star }
-  const hasSkill = petHasSkill(fakePet)
-  c.fillStyle = '#E8D5A8'
-  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText('技能', indent, cy)
-  cy += 18 * S
-
-  if (hasSkill) {
-    const skillDesc = getPetSkillDesc(fakePet)
-    c.fillStyle = '#7ECF6A'
-    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText(basePet.skill.name, indent, cy)
-    cy += 16 * S
-    c.fillStyle = 'rgba(200,180,140,0.6)'
-    c.font = `${9*S}px "PingFang SC",sans-serif`
-    const words = skillDesc || ''
-    const lineCount = wrapTextDraw(c, words, indent, cy, contentW, 13 * S)
-    cy += Math.max(1, lineCount) * 13 * S + 4 * S
-  } else if (basePet.skill) {
-    const skillDesc = getPetSkillBaseDesc(basePet)
-    c.fillStyle = '#7ECF6A'
-    c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText(basePet.skill.name, indent, cy)
-    cy += 16 * S
-    c.fillStyle = 'rgba(200,180,140,0.6)'
-    c.font = `${9*S}px "PingFang SC",sans-serif`
-    const lc = wrapTextDraw(c, skillDesc || '', indent, cy, contentW, 13 * S)
-    cy += Math.max(1, lc) * 13 * S + 4 * S
-    if (basePet.skill.cd || basePet.cd) {
-      c.fillStyle = 'rgba(200,180,140,0.55)'
-      c.fillText(`冷却: ${basePet.cd || basePet.skill.cd} 回合`, indent, cy)
-      cy += 14 * S
-    }
-    c.fillStyle = 'rgba(220,160,80,0.95)'
-    c.font = `${9*S}px "PingFang SC",sans-serif`
-    c.fillText('（二星解锁）', indent, cy)
-    cy += 16 * S
-  } else {
-    c.fillStyle = 'rgba(200,180,140,0.4)'
-    c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText('此灵宠无主动技能', indent, cy)
-    cy += 16 * S
-  }
-
-  // ── 分隔线 ──
-  drawSeparator(c, indent, cy, rightEdge, null, 0.4)
-  cy += 10 * S
-
-  // ── 升星信息 ──
-  const nextStar = poolPet.star + 1
-  const maxStar = 5
-  _rects.starUpBtnRect = null
-  _rects.decomposeBtnRect = null
-
-  if (nextStar <= maxStar) {
-    const lvReq = POOL_STAR_LV_REQ[nextStar]
-    const fragCost = POOL_STAR_FRAG_COST[nextStar]
-    const lvOk = poolPet.level >= lvReq
-    const fragOk = poolPet.fragments >= fragCost
-
-    c.fillStyle = '#E8D5A8'
-    c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    let nextStarStr = ''
-    for (let i = 0; i < maxStar; i++) nextStarStr += i < nextStar ? '★' : '☆'
-    c.fillText(`升至 ${nextStarStr}`, indent, cy)
-    cy += 20 * S
-
-    c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'
-    c.fillStyle = lvOk ? '#7ECF6A' : '#E06060'
-    c.fillText(lvOk ? `等级已达到 Lv.${lvReq}` : `需要等级达到 Lv.${lvReq}（当前Lv.${poolPet.level}）`, indent, cy)
-    cy += 16 * S
-
-    c.fillStyle = fragOk ? '#7ECF6A' : '#E06060'
-    c.fillText(fragOk ? `碎片已足够 ${fragCost}片` : `需要碎片达到 ${fragCost}片（当前${poolPet.fragments}片）`, indent, cy)
-    cy += 20 * S
-
-    // 升星按钮
-    const canStarUp = lvOk && fragOk
-    const sBtnW = 90 * S, sBtnH = 30 * S
-    const sBtnX = indent
-    _drawActionBtn(c, R, S, sBtnX, cy, sBtnW, sBtnH, '升星', canStarUp, '#FFD700')
-    _rects.starUpBtnRect = [sBtnX, cy, sBtnW, sBtnH]
-    cy += sBtnH + 10 * S
-
-    if (poolPet.fragments > 0) {
-      const dBtnW = 130 * S
-      _drawActionBtn(c, R, S, indent, cy, dBtnW, sBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0')
-      _rects.decomposeBtnRect = [indent, cy, dBtnW, sBtnH]
-      cy += sBtnH + 6 * S
-      c.fillStyle = 'rgba(200,180,140,0.45)'
-      c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('碎片用于升星，多余碎片可分解为灵石', indent, cy)
-      cy += 12 * S
-      c.fillStyle = 'rgba(220,100,80,0.6)'
-      c.fillText('分解不可逆，请谨慎操作', indent, cy)
-    }
-  } else {
-    c.fillStyle = '#FFD700'
-    c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    let fullStarStr = ''
-    for (let i = 0; i < maxStar; i++) fullStarStr += '★'
-    c.fillText(`满星 ${fullStarStr}`, indent, cy)
-    cy += 20 * S
-    c.fillStyle = 'rgba(200,180,140,0.6)'
-    c.font = `${10*S}px "PingFang SC",sans-serif`
-    c.fillText(`剩余碎片：${poolPet.fragments}`, indent, cy)
-    cy += 20 * S
-    if (poolPet.fragments > 0) {
-      const dBtnW = 130 * S, dBtnH = 30 * S
-      _drawActionBtn(c, R, S, indent, cy, dBtnW, dBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0')
-      _rects.decomposeBtnRect = [indent, cy, dBtnW, dBtnH]
-      cy += dBtnH + 6 * S
-      c.fillStyle = 'rgba(200,180,140,0.45)'
-      c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('已满星，碎片可分解为灵石', indent, cy)
-      cy += 12 * S
-      c.fillStyle = 'rgba(220,100,80,0.6)'
-      c.fillText('分解不可逆，请谨慎操作', indent, cy)
-    }
-  }
-
-  // 关闭按钮（右上角 X）
-  const closeSize = 28 * S
-  const closeX = px + pw - closeSize - 8*S
-  const closeY = py + 8*S
-  c.fillStyle = 'rgba(0,0,0,0.3)'
-  c.beginPath(); c.arc(closeX + closeSize/2, closeY + closeSize/2, closeSize/2, 0, Math.PI*2); c.fill()
-  c.strokeStyle = 'rgba(200,180,140,0.6)'; c.lineWidth = 1.5*S
-  c.beginPath(); c.arc(closeX + closeSize/2, closeY + closeSize/2, closeSize/2, 0, Math.PI*2); c.stroke()
-  c.strokeStyle = '#E8D5A8'; c.lineWidth = 2*S
-  const cx0 = closeX + closeSize/2, cy0 = closeY + closeSize/2, cr = 7*S
-  c.beginPath(); c.moveTo(cx0 - cr, cy0 - cr); c.lineTo(cx0 + cr, cy0 + cr); c.stroke()
-  c.beginPath(); c.moveTo(cx0 + cr, cy0 - cr); c.lineTo(cx0 - cr, cy0 + cr); c.stroke()
-
-  // 底部关闭提示
-  c.fillStyle = 'rgba(200,180,140,0.3)'
-  c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'bottom'
-  c.fillText('点击空白处关闭', W / 2, py + ph - 10 * S)
-}
-
-// 绘制操作按钮
-function _drawActionBtn(c, R, S, x, y, w, h, text, enabled, color) {
-  const r = 6 * S
-  if (enabled) {
-    const grad = c.createLinearGradient(x, y, x, y + h)
-    grad.addColorStop(0, color + '30')
-    grad.addColorStop(1, color + '18')
-    c.fillStyle = grad
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = color; c.lineWidth = 1.5*S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = color
-  } else {
-    c.fillStyle = 'rgba(80,80,80,0.12)'
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = 'rgba(120,120,120,0.4)'; c.lineWidth = 1*S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#999'
-  }
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(text, x + w/2, y + h/2)
-}
 
 // ===== 触摸处理 =====
 // 滚动相关
@@ -937,47 +536,6 @@ let _scrolling = false
 
 function tPetPool(g, x, y, type) {
   const { S } = V
-
-  // 详情面板打开时优先处理
-  if (g._petPoolDetail) {
-    if (type === 'end') {
-      // 升级
-      if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
-        _doLevelUp(g)
-        _longPressActive = false
-        return
-      }
-      // 升星
-      if (_rects.starUpBtnRect && g._hitRect(x, y, ..._rects.starUpBtnRect)) {
-        _doStarUp(g)
-        return
-      }
-      // 分解
-      if (_rects.decomposeBtnRect && g._hitRect(x, y, ..._rects.decomposeBtnRect)) {
-        _doDecompose(g)
-        return
-      }
-      // 长按结束
-      _cancelLongPress()
-      // 点击面板外关闭
-      g._petPoolDetail = null
-      return
-    }
-    if (type === 'start') {
-      // 长按升级检测
-      if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
-        _longPressPetId = g._petPoolDetail
-        _longPressTimer = setTimeout(() => {
-          _longPressActive = true
-          _longPressLoop(g)
-        }, 400)
-      }
-    }
-    if (type === 'move') {
-      _cancelLongPress()
-    }
-    return
-  }
 
   // 滚动处理
   if (type === 'start') {
@@ -1057,68 +615,13 @@ function tPetPool(g, x, y, type) {
       if (g._hitRect(x, y, ...card.rect)) {
         g._petDetailId = card.petId
         g._petDetailUnowned = !!card.ghost
+        g._petDetailReturnScene = null
         g.setScene('petDetail')
         MusicMgr.playClick && MusicMgr.playClick()
         return
       }
     }
   }
-}
-
-function _doLevelUp(g) {
-  const petId = g._petPoolDetail
-  if (!petId) return
-  const poolPet = g.storage.getPoolPet(petId)
-  if (!poolPet) return
-  const rarity = getPetRarity(petId)
-  const needed = petExpToNextLevel(poolPet.level, rarity)
-  if ((g.storage.soulStone || 0) < needed) return
-  const ups = g.storage.investSoulStone(petId, needed)
-  if (ups > 0) {
-    MusicMgr.playLevelUp && MusicMgr.playLevelUp()
-  }
-}
-
-function _doStarUp(g) {
-  const petId = g._petPoolDetail
-  if (!petId) return
-  const result = g.storage.upgradePoolPetStar(petId)
-  if (result.ok) {
-    MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
-    g._pendingShareScene = { scene: 'petStarUp', data: { petName: (require('../data/pets').getPetById(petId) || {}).name || petId, star: result.newStar } }
-  }
-}
-
-function _doDecompose(g) {
-  const petId = g._petPoolDetail
-  if (!petId) return
-  const gained = g.storage.decomposeFragments(petId, 1)
-  if (gained > 0) {
-    MusicMgr.playReward && MusicMgr.playReward()
-  }
-}
-
-function _longPressLoop(g) {
-  if (!_longPressActive || !_longPressPetId) return
-  _doLevelUp(g)
-  // 如果还能继续升，继续循环
-  const poolPet = g.storage.getPoolPet(_longPressPetId)
-  const maxLv = poolPet && poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
-  if (poolPet && poolPet.level < maxLv) {
-    const rarity = getPetRarity(_longPressPetId)
-    const needed = petExpToNextLevel(poolPet.level, rarity)
-    if ((g.storage.soulStone || 0) >= needed) {
-      _longPressTimer = setTimeout(() => _longPressLoop(g), 120)
-      return
-    }
-  }
-  _longPressActive = false
-}
-
-function _cancelLongPress() {
-  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null }
-  _longPressActive = false
-  _longPressPetId = null
 }
 
 module.exports = { rPetPool, tPetPool }

@@ -14,7 +14,7 @@ const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR
   hasUnclaimedMilestones } = require('../data/dexConfig')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { formatRankStageProgressSubtitle } = require('../data/stages')
-const { DEX_LAYOUT, getDexContentTop } = require('../data/constants')
+const { DEX_LAYOUT, getDexContentTop, WEAPON_ACQUIRE_HINT_UNOWNED } = require('../data/constants')
 
 // ===== Loading =====
 function rLoading(g) {
@@ -1711,6 +1711,22 @@ const { WEAPONS, getWeaponById } = require('../data/weapons')
 
 const _DEX_TAB_KEYS = ['all', ...DEX_ATTRS, 'milestone']
 const _DEX_TAB_LABELS = { all:'全部', metal:'金', wood:'木', water:'水', fire:'火', earth:'土', milestone:'里程碑' }
+
+/** 灵兽图鉴子 Tab 红点：未查看详情（与格子红点一致）或可领里程碑 */
+function _dexPetTabShowDot(tabKey, pool, seenIds, claimedMilestoneIds) {
+  if (tabKey === 'milestone') {
+    return hasUnclaimedMilestones(pool, claimedMilestoneIds)
+  }
+  if (tabKey === 'all') {
+    if (hasUnclaimedMilestones(pool, claimedMilestoneIds)) return true
+    return DEX_ATTRS.some(a => _dexPetTabShowDot(a, pool, seenIds, claimedMilestoneIds))
+  }
+  if (DEX_ATTRS.includes(tabKey)) {
+    const list = PETS[tabKey] || []
+    return list.some(pet => pool.some(p => p.id === pet.id) && !seenIds.includes(pet.id))
+  }
+  return false
+}
 const _TIER_COLORS = {
   mastered:   { bg: 'rgba(212,175,55,0.26)', border: '#C8A832', nameColor: '#4a3206' },
   collected:  { bg: 'rgba(255,252,248,0.9)', border: 'rgba(120,95,60,0.45)', nameColor: '#3a2f24' },
@@ -1809,6 +1825,9 @@ function _drawDexPetMode(g, ctx, R, TH, W, S, sdivY) {
   const tabTotalW = W - tabPad * 2
   const tabItemW = tabTotalW / tabCount
   g._dexTabRects = []
+  const pool = g.storage.petPool || []
+  const seen = g.storage.petDexSeen || []
+  const claimed = g.storage.dexMilestonesClaimed
   for (let i = 0; i < tabCount; i++) {
     const key = _DEX_TAB_KEYS[i]
     const tx = tabPad + i * tabItemW
@@ -1824,7 +1843,7 @@ function _drawDexPetMode(g, ctx, R, TH, W, S, sdivY) {
     ctx.textAlign = 'center'
     ctx.fillText(_DEX_TAB_LABELS[key], tx + tabItemW / 2, tabY + tabH * 0.65)
     g._dexTabRects.push({ key, x: tx, y: tabY, w: tabItemW, h: tabH })
-    if (key === 'milestone' && hasUnclaimedMilestones(g.storage.petPool, g.storage.dexMilestonesClaimed)) {
+    if (_dexPetTabShowDot(key, pool, seen, claimed)) {
       const dr = 3.5 * S
       ctx.fillStyle = '#e04040'
       ctx.beginPath(); ctx.arc(tx + tabItemW - 6 * S, tabY + 6 * S, dr, 0, Math.PI * 2); ctx.fill()
@@ -1943,7 +1962,7 @@ function _drawDexWeaponDetail(g) {
   const pw = W * 0.78
   const innerPad = 14 * S
   const iconSz = 64 * S
-  const descText = owned ? wpn.desc : '通过关卡掉落或通天塔获取'
+  const descText = owned ? wpn.desc : WEAPON_ACQUIRE_HINT_UNOWNED
   ctx.font = `${11*S}px "PingFang SC",sans-serif`
   const maxW = pw - innerPad * 2
   let descLines = 1
@@ -2277,7 +2296,8 @@ function _drawDexPetDetail(g) {
   const displayStar = poolPet ? poolPet.star : 1
   const fakePet = { id: petId, star: displayStar, attr: petAttr, skill: pet.skill, atk: pet.atk, cd: pet.cd }
   const showSkill = tier === 'collected' || tier === 'mastered'
-  const showLore = tier === 'mastered'
+  // 轶事与旧版图鉴一致：只要已发现（入池）即可阅读，不限制「精通」层
+  const showLore = tier !== 'unknown'
   const showAtk = tier !== 'unknown'
 
   const lore = showLore ? getPetLore(petId) : ''
@@ -2301,7 +2321,7 @@ function _drawDexPetDetail(g) {
   // 计算面板高度
   let panelH = pad + imgSize + gapH + 18 * S + 14 * S + gapH
   if (showSkill) panelH += 16 * S + skillLines.length * 12 * S + gapH
-  if (showLore) panelH += gapH + loreLines.length * 13 * S + gapH
+  if (showLore && loreLines.length > 0) panelH += gapH + 16 * S + loreLines.length * 13 * S + gapH
   panelH += 36 * S + 18 * S + pad
 
   const maxPanelH = H - safeTop - 10 * S
@@ -2409,9 +2429,12 @@ function _drawDexPetDetail(g) {
     curY += gapH
   }
 
-  // 故事（精通层级）
+  // 轶事 / 小故事（已发现即可）
   if (showLore && loreLines.length > 0) {
-    ctx.fillStyle = '#5C4A3A'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
+    ctx.fillText('轶事', panelX + pad, curY + 11 * S)
+    curY += 16 * S
+    ctx.fillStyle = '#5C4A3A'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`
     loreLines.forEach(line => {
       ctx.fillText(line, panelX + pad, curY + 10 * S)
       curY += 13 * S

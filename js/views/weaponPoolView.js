@@ -3,6 +3,7 @@
  * 渲染入口：rWeaponPool  触摸入口：tWeaponPool
  */
 const V = require('./env')
+const { WEAPON_ACQUIRE_HINT_UNOWNED } = require('../data/constants')
 const { WEAPONS, getWeaponById } = require('../data/weapons')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 
@@ -189,7 +190,7 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   const insetB = Math.max(44 * S, Math.round(pw * 0.11))
   const innerPad = 12 * S
   const iconSz = 72 * S
-  const descText = owned ? wpn.desc : '通过关卡掉落或通天塔获取'
+  const descText = owned ? wpn.desc : WEAPON_ACQUIRE_HINT_UNOWNED
   c.font = `${12*S}px "PingFang SC",sans-serif`
   const maxDescW = pw - insetX * 2 - innerPad * 2
   const descLinesArr = _wrapLines(c, descText, maxDescW)

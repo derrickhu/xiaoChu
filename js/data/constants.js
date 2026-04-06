@@ -181,6 +181,9 @@ const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 /** 新手教学赠送宠物 ID：金/木/水/土 4 只；秘境 1-1 首通另奖 f1，一同凑齐五行。与通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
 
+/** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
+const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
+
 // ===== 灵兽图鉴页 (DEX) =====
 // 须与 screens.rDex 中 drawPageTitle、bottomBar.drawPageTitle(bgH=48×S) 一致，避免统计行与 name_bg 重叠
 const DEX_LAYOUT = {
@@ -271,6 +274,7 @@ module.exports = {
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   NEWBIE_PET_IDS,
+  WEAPON_ACQUIRE_HINT_UNOWNED,
   DEX_LAYOUT,
   getDexContentTop,
 }
