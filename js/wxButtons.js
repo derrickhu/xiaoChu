@@ -1,4 +1,5 @@
 const P = require('./platform')
+const { TITLE_HOME } = require('./data/constants')
 /**
  * 平台原生按钮管理 — 意见反馈按钮
  * 支持微信/抖音双端
@@ -52,8 +53,33 @@ function destroyFeedbackBtn(g) {
 }
 
 let _gameClubBtnDelay = false
+
+function _gameClubNativeStyle(rect, dpr) {
+  const c = {
+    left: Math.round(rect[0] / dpr),
+    top: Math.round(rect[1] / dpr),
+    width: Math.round(rect[2] / dpr),
+    height: Math.round(rect[3] / dpr),
+  }
+  return {
+    left: c.left,
+    top: c.top,
+    width: c.width,
+    height: c.height,
+    // 必须为透明底，否则原生层默认黑底；宽高度取整避免亚像素宽高被非均匀拉伸
+    backgroundColor: 'rgba(0,0,0,0)',
+    borderWidth: 0,
+    borderColor: 'rgba(0,0,0,0)',
+    borderRadius: Math.max(4, Math.round(c.width * 0.18)),
+  }
+}
+
 /** 游戏圈按钮 — 仅在 title 场景且无弹窗/引导时显示，覆盖在 Canvas 占位区上 */
 function updateGameClubBtn(g, dpr) {
+  if (TITLE_HOME.gameClubOpenlink) {
+    destroyGameClubBtn(g)
+    return
+  }
   const shouldShow = g.scene === 'title'
     && !g.showMorePanel && !g.showSidebarPanel && !g._showDailyReward
     && !g._confirmDialog && !g._adRewardPopup
@@ -61,7 +87,7 @@ function updateGameClubBtn(g, dpr) {
   if (!shouldShow) { destroyGameClubBtn(g); return }
   const rect = g._gameClubBtnRect
   if (!rect) { destroyGameClubBtn(g); return }
-  const css = { left: rect[0] / dpr, top: rect[1] / dpr, width: rect[2] / dpr, height: rect[3] / dpr }
+  const css = _gameClubNativeStyle(rect, dpr)
   if (!g._gameClubBtn) {
     if (_gameClubBtnDelay) return
     _gameClubBtnDelay = true
@@ -71,11 +97,23 @@ function updateGameClubBtn(g, dpr) {
       const r = g._gameClubBtnRect
       if (!r) return
       try {
-        const c = { left: r[0] / dpr, top: r[1] / dpr, width: r[2] / dpr, height: r[3] / dpr }
-        const btn = P.createGameClubButton({
-          icon: 'light',
-          style: { left: c.left, top: c.top, width: c.width, height: c.height },
-        })
+        const imageStyle = _gameClubNativeStyle(r, dpr)
+        // 官方仅预设四套 icon；type=image 可用自定义底图（仍会叠加小号官方角标，icon 必填，选 white 弱对比）
+        const img = TITLE_HOME.gameClubBtnImage
+        let btn = null
+        try {
+          btn = P.createGameClubButton({
+            type: 'image',
+            image: img,
+            icon: 'white',
+            style: imageStyle,
+          })
+        } catch (e1) {
+          console.warn('[GameClub] type=image 失败，回退 preset:', e1)
+        }
+        if (!btn) {
+          btn = P.createGameClubButton({ icon: 'light', style: imageStyle })
+        }
         if (!btn) return
         g._gameClubBtn = btn
         btn.show()

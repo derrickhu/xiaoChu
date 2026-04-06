@@ -149,6 +149,16 @@ const TITLE_HOME = {
   dailySignLabelPt: 11,
   /** 签到按钮顶边 = safeTop + 此项×S */
   dailySignTopBelowSafePt: 38,
+  /** 游戏圈入口与签到区块底边的间距（×S），图标宽与签到图标一致 */
+  gameClubGapBelowDailyPt: 10,
+  /** 微信 createGameClubButton type=image（1:1，内容等比装进方图） */
+  gameClubBtnImage: 'assets/ui/game_club_entry.png',
+  /**
+   * MP 后台 → 游戏能力地图 → 游戏圈 → 基础设置 / 帖子「游戏内跳转」中的 openlink。
+   * 填写后首页游戏圈改为 Canvas 点击 + wx.createPageManager 打开，无原生按钮按下灰底；
+   * 留空则仍用 createGameClubButton（会有点按高亮）。
+   */
+  gameClubOpenlink: '-SSEykJvFV3pORt5kTNpS2uRCE2Pk0t0-jfXJ_Rmeu4-PYB3x56w4rucmIjwdUnKt5TrJKXqLLC5SqbHDdrdsUMFZBJsDhi3iqVWOuJKB2Pr0tYGYTFYQndIlJ7WO-ZDTZbYpPAWCu9mOpD2i4vkuJnxTvbK6kZyOoJN-c1IVjQIMOTCZFywauSGPU0Qdrf_ymIrVjM4tEIKu1_hOH8e1T25ujcr2CeXUeR-SOEvqHOaiq6Z9lH8hUqqg5JQzEpuX3cGf0h39IfN-wDKxAf0M4mUC5XMktYzfjEyX4uyhz6vhgdxls7pS5Um-1AQJzHS_9h4qs2szApba_eovWdhXA',
   /** 模式切换（通天塔/秘境）：图案区高度、标签字号、相对 icon 加宽（×S） */
   modeSwitchIconPt: 30,
   modeSwitchLabelPt: 9,

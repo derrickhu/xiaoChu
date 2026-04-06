@@ -131,6 +131,29 @@ const platform = {
     : () => null,
 
   /**
+   * 打开游戏圈等内置页（基础库 ≥3.6.7），无原生按钮即可跳转
+   * @param {string} openlink MP 后台游戏圈提供的 openlink
+   * @returns {Promise<void>}
+   */
+  openGameClubPage(openlink) {
+    if (!isWeChat || !openlink) {
+      return Promise.reject(new Error('openGameClubPage: 非微信或未配置 openlink'))
+    }
+    if (typeof base.createPageManager !== 'function') {
+      return Promise.reject(new Error('openGameClubPage: 基础库不支持 createPageManager'))
+    }
+    const pageManager = base.createPageManager()
+    const ret = pageManager.load({ openlink })
+    if (!ret || typeof ret.then !== 'function') {
+      return Promise.reject(new Error('openGameClubPage: load 未返回 Promise'))
+    }
+    return ret.then((res) => {
+      try { pageManager.show() } catch (e) { /* ignore */ }
+      return res
+    })
+  },
+
+  /**
    * 统一游戏内 Toast 提醒（简洁半透明遮罩 + 白字）
    * 所有场景的短提示统一使用此方法，保持风格一致
    * @param {string} msg - 提示文字

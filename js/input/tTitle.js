@@ -8,7 +8,7 @@ const { getBrowsableStages } = require('../data/stages')
 const { tDailyReward } = require('../views/dailyRewardView')
 
 const { TOWER_DAILY } = require('../data/economyConfig')
-const { STAGE_FORMATION_MIN_PETS } = require('../data/constants')
+const { STAGE_FORMATION_MIN_PETS, TITLE_HOME } = require('../data/constants')
 
 const SWIPE_THRESHOLD = 40
 
@@ -247,6 +247,17 @@ function tTitle(g, type, x, y) {
   // ⑥b 每日奖励按钮
   if (g._dailyRewardBtnRect && g._hitRect(x, y, ...g._dailyRewardBtnRect)) {
     g._showDailyReward = true
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
+
+  // ⑥c 游戏圈（配置 openlink 时用 PageManager，纯 Canvas 点击、无原生按钮按下灰底）
+  if (P.isWeChat && TITLE_HOME.gameClubOpenlink && g._gameClubBtnRect
+    && g._hitRect(x, y, ...g._gameClubBtnRect)) {
+    P.openGameClubPage(TITLE_HOME.gameClubOpenlink).catch((e) => {
+      console.warn('[GameClub] PageManager', e)
+      P.showGameToast('无法打开游戏圈，请稍后重试')
+    })
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

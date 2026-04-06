@@ -1218,29 +1218,28 @@ function drawDailyRewardBtn(g) {
   g._dailyRewardBtnRect = [bx, by, btnW, btnH]
 }
 
-// ===== 游戏圈入口（原生按钮覆盖在 Canvas 上，这里只画占位背景和标签） =====
+// ===== 游戏圈入口（与签到同列：方形区 + 微信原生 GameClubButton type=image 盖在图标格上；文案做在贴图内） =====
 function drawGameClubBtn(g) {
-  const { ctx: c, S, safeTop, W } = V
+  const { W, S, safeTop } = V
   const geo = _dailySignBtnGeometry(safeTop, S)
   const btnW = TITLE_HOME.dailySignBtnWidthPt * S
   const bx = W - btnW - 8 * S
-  const gcBtnH = 38 * S
-  const gap = 10 * S
-  const by = geo.bottom + gap
+  const padTop = 2 * S
+  const iconSz = TITLE_HOME.dailySignIconPt * S
+  const gcTop = geo.bottom + TITLE_HOME.gameClubGapBelowDailyPt * S
+  const iconX = bx + (btnW - iconSz) / 2
+  const iconY = gcTop + padTop
+  g._gameClubBtnRect = [iconX, iconY, iconSz, iconSz]
 
-  g._gameClubBtnRect = [bx, by, btnW, gcBtnH]
-
-  c.save()
-  const labelH = TITLE_HOME.dailySignLabelPt * S
-  const ly = by + gcBtnH - labelH * 0.5 - 2 * S
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.font = `bold ${labelH}px "PingFang SC",sans-serif`
-  c.lineWidth = 2.5 * S
-  c.strokeStyle = 'rgba(45,25,10,0.82)'
-  c.fillStyle = 'rgba(210,200,190,0.95)'
-  c.strokeText('游戏圈', bx + btnW / 2, ly)
-  c.fillText('游戏圈', bx + btnW / 2, ly)
-  c.restore()
+  if (TITLE_HOME.gameClubOpenlink) {
+    const { ctx: c, R } = V
+    c.save()
+    const iconImg = R.getImg(TITLE_HOME.gameClubBtnImage)
+    if (iconImg && iconImg.width > 0) {
+      c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
+    }
+    c.restore()
+  }
 }
 
 // ===== 主入口 =====
