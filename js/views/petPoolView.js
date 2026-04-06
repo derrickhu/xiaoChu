@@ -336,21 +336,7 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   const avatarX = x + (w - avatarSize) / 2
   const avatarY = y + 8 * S
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
-  const img = R.getImg(avatarPath)
-
-  if (img && img.width > 0) {
-    c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const isStar3 = (poolPet.star || 1) >= 3
-    const scale = isStar3 ? Math.min(avatarSize / aw, avatarSize / ah) * 0.82 : Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * scale, dh = ah * scale
-    const offsetY = isStar3 ? 6 * S : 0
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2 + offsetY, dw, dh)
-    c.restore()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
-  }
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
 
   // 去掉宠物头像框，让宠物图片直接显示
 
@@ -459,18 +445,7 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   const avatarX = x + (w - avatarSize) / 2
   const avatarY = y + 8 * S
   const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
-    c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 6 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const scale = Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-    c.restore()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
-  }
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
 
   c.globalAlpha = 1
 

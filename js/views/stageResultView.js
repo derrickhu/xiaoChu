@@ -231,24 +231,7 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
 
   const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
   const avatarPath = getPetAvatarPath({ ...pet, star: starLv })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
-    c.save()
-    c.shadowColor = ac.main; c.shadowBlur = 18 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const sc = Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * sc, dh = ah * sc
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-    c.restore()
-    c.save()
-    c.shadowColor = ac.main; c.shadowBlur = 12 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S)
-    c.strokeStyle = ac.main; c.lineWidth = 2.5 * S; c.stroke()
-    c.restore()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S })
-  }
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S, shadow: ac.main, shadowBlur: 18, strokeStyle: ac.main, strokeWidth: 2.5 })
 
   const starN = Math.min(Math.max(starLv, 1), 5)
   const starFontPx = Math.min(24 * S, avatarSize * 0.34)
@@ -314,21 +297,7 @@ function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, av
   const strokeAttr = wAc ? wAc.main : rv.borderColor
 
   const iconPath = `assets/equipment/fabao_${wid}.png`
-  const img = R.getImg(iconPath)
-  if (img && img.width > 0) {
-    c.save()
-    c.shadowColor = strokeAttr; c.shadowBlur = 16 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const sc = Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * sc, dh = ah * sc
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-    c.restore()
-    c.strokeStyle = strokeAttr; c.lineWidth = 2.5 * S
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 14 * S); c.stroke()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S })
-  }
+  R.drawCoverImg(R.getImg(iconPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S, shadow: strokeAttr, shadowBlur: 16, strokeStyle: strokeAttr, strokeWidth: 2.5 })
 
   c.textAlign = 'center'
   c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
@@ -928,20 +897,7 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
     const rv = rarityVisualForAttr(rarityKey, pet.attr)
 
     const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-    const img = R.getImg(avatarPath)
-    if (img && img.width > 0) {
-      c.save()
-      R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.clip()
-      const aw = img.width, ah = img.height
-      const sc = Math.max(iconSz / aw, iconSz / ah)
-      const dw = aw * sc, dh = ah * sc
-      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-      c.restore()
-    } else {
-      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 8 * S })
-    }
-    c.strokeStyle = strokeC; c.lineWidth = 2 * S
-    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
+    R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 8 * S, strokeStyle: strokeC, strokeWidth: 2 })
 
     const badgeW = Math.max(rv.label.length * 6.5 * S + 4 * S, 22 * S)
     const badgeH = 11 * S
@@ -970,20 +926,7 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
     const strokeC = wAc ? wAc.main : rv.borderColor
 
     const iconPath = `assets/equipment/fabao_${reward.weaponId}.png`
-    const img = R.getImg(iconPath)
-    if (img && img.width > 0) {
-      c.save()
-      R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.clip()
-      const aw = img.width, ah = img.height
-      const sc = Math.max(iconSz / aw, iconSz / ah)
-      const dw = aw * sc, dh = ah * sc
-      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-      c.restore()
-    } else {
-      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 8 * S })
-    }
-    c.strokeStyle = strokeC; c.lineWidth = 2 * S
-    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
+    R.drawCoverImg(R.getImg(iconPath), iconX, iconY, iconSz, iconSz, { radius: 8 * S, strokeStyle: strokeC, strokeWidth: 2 })
 
     const badgeW = Math.max(rv.label.length * 6.5 * S + 4 * S, 22 * S)
     const badgeH = 11 * S
@@ -1357,24 +1300,7 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
 
   if (pet) {
     const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-    const img = R.getImg(avatarPath)
-    if (img && img.width > 0) {
-      c.save()
-      c.shadowColor = attrColor; c.shadowBlur = 8 * S
-      R.rr(iconX, iconY, iconSz, iconSz, 7 * S); c.clip()
-      const aw = img.width, ah = img.height
-      const scale = Math.max(iconSz / aw, iconSz / ah)
-      const dw = aw * scale, dh = ah * scale
-      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-      c.restore()
-      c.save()
-      c.shadowColor = attrColor; c.shadowBlur = 6 * S
-      c.strokeStyle = attrColor; c.lineWidth = 2 * S
-      R.rr(iconX, iconY, iconSz, iconSz, 7 * S); c.stroke()
-      c.restore()
-    } else {
-      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 7 * S })
-    }
+    R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 7 * S, shadow: attrColor, shadowBlur: 8, strokeStyle: attrColor, strokeWidth: 2 })
   }
 
   // 品质徽标（描边/底色跟属性）
@@ -1421,20 +1347,7 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
 
   if (pet) {
     const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-    const img = R.getImg(avatarPath)
-    if (img && img.width > 0) {
-      c.save()
-      R.rr(iconX, iconY, iconSz, iconSz, 5 * S); c.clip()
-      const aw = img.width, ah = img.height
-      const scale = Math.max(iconSz / aw, iconSz / ah)
-      const dw = aw * scale, dh = ah * scale
-      c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-      c.restore()
-      c.strokeStyle = attrColor; c.lineWidth = 1.5 * S
-      R.rr(iconX, iconY, iconSz, iconSz, 5 * S); c.stroke()
-    } else {
-      R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 5 * S })
-    }
+    R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 5 * S, strokeStyle: attrColor, strokeWidth: 1.5 })
   }
 
   // 名称 + 数量
@@ -1488,33 +1401,7 @@ function _drawWeaponRowEnhanced(c, R, S, x, cy, innerW, reward, at) {
   const iconX = x + 4 * S
   const iconY = cy + (hlH - iconSz) / 2
   const fabaoPath = `assets/equipment/fabao_${reward.weaponId}.png`
-  const img = R.getImg(fabaoPath)
-
-  const strokeW = wAc.main
-
-  if (img && img.width > 0) {
-    c.save()
-    c.shadowColor = strokeW; c.shadowBlur = 6 * S
-    R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.clip()
-    const aw = img.width, ah = img.height
-    const scale = Math.max(iconSz / aw, iconSz / ah)
-    const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-    c.restore()
-    c.save()
-    c.strokeStyle = strokeW; c.lineWidth = 2 * S
-    R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.stroke()
-    c.restore()
-  } else if (img) {
-    R.drawImgOrShimmer(img, iconX, iconY, iconSz, iconSz, { radius: 6 * S })
-  } else {
-    c.save()
-    c.fillStyle = 'rgba(120,100,60,0.2)'
-    R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.fill()
-    c.strokeStyle = strokeW; c.lineWidth = 2 * S
-    R.rr(iconX, iconY, iconSz, iconSz, 6 * S); c.stroke()
-    c.restore()
-  }
+  R.drawCoverImg(R.getImg(fabaoPath), iconX, iconY, iconSz, iconSz, { radius: 6 * S, shadow: wAc.main, shadowBlur: 6, strokeStyle: wAc.main, strokeWidth: 2 })
 
   if (reward.isNew) {
     const newPulse = 0.75 + 0.25 * Math.sin((at || 0) * 0.1)
@@ -1642,23 +1529,7 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     _drawPedestalCloud(c, R, S, W / 2, iconY + iconSz, iconSz * 1.2)
 
     const fabaoPath = `assets/equipment/fabao_${item.id}.png`
-    const wimg = R.getImg(fabaoPath)
-    if (wimg && wimg.width > 0) {
-      c.save()
-      R.rr(iconX, iconY, iconSz, iconSz, 16 * S); c.clip()
-      const aw = wimg.width; const ah = wimg.height
-      const sc = Math.max(iconSz / aw, iconSz / ah)
-      const dw = aw * sc; const dh = ah * sc
-      c.drawImage(wimg, iconX + (iconSz - dw) / 2, iconY + (iconSz - dh) / 2, dw, dh)
-      c.restore()
-      c.save()
-      c.shadowColor = 'rgba(180,130,40,0.5)'; c.shadowBlur = 16 * S
-      R.rr(iconX, iconY, iconSz, iconSz, 16 * S)
-      c.strokeStyle = '#c9a227'
-      c.lineWidth = 3 * S
-      c.stroke()
-      c.restore()
-    }
+    R.drawCoverImg(R.getImg(fabaoPath), iconX, iconY, iconSz, iconSz, { radius: 16 * S, shadow: 'rgba(180,130,40,0.5)', shadowBlur: 16, strokeStyle: '#c9a227', strokeWidth: 3 })
 
     const nameY = iconY + iconSz + 30 * S
     c.fillStyle = '#B8860B'
@@ -1709,25 +1580,7 @@ function _drawNewbiePetCelebration(g, c, R, W, H, S, safeTop) {
     c.restore()
 
     const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-    const img = R.getImg(avatarPath)
-    if (img && img.width > 0) {
-      c.save()
-      c.shadowColor = ac.main; c.shadowBlur = 20 * S
-      R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S); c.clip()
-      const aw = img.width; const ah = img.height
-      const sc = Math.max(avatarSize / aw, avatarSize / ah)
-      const dw = aw * sc; const dh = ah * sc
-      c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-      c.restore()
-      c.save()
-      c.shadowColor = rgbaFromHex(ac.main, 0.5)
-      c.shadowBlur = 16 * S
-      R.rr(avatarX, avatarY, avatarSize, avatarSize, 16 * S)
-      c.strokeStyle = ac.main
-      c.lineWidth = 3 * S
-      c.stroke()
-      c.restore()
-    }
+    R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 16 * S, shadow: ac.main, shadowBlur: 20, strokeStyle: ac.main, strokeWidth: 3 })
 
     const nameY = avatarY + avatarSize + 30 * S
     c.fillStyle = ac.main
@@ -1811,17 +1664,7 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
     weaponIdsOv.forEach(wid => {
       const w = getWeaponById(wid)
       const fabaoPath = `assets/equipment/fabao_${wid}.png`
-      const wim = R.getImg(fabaoPath)
-      if (wim && wim.width > 0) {
-        c.save()
-        R.rr(wx, yCursor, wIcon, wIcon, 8 * S); c.clip()
-        const sc = Math.max(wIcon / wim.width, wIcon / wim.height)
-        const dw = wim.width * sc; const dh = wim.height * sc
-        c.drawImage(wim, wx + (wIcon - dw) / 2, yCursor + (wIcon - dh) / 2, dw, dh)
-        c.restore()
-        R.rr(wx, yCursor, wIcon, wIcon, 8 * S)
-        c.strokeStyle = '#c9a227'; c.lineWidth = 1.5 * S; c.stroke()
-      }
+      R.drawCoverImg(R.getImg(fabaoPath), wx, yCursor, wIcon, wIcon, { radius: 8 * S, strokeStyle: '#c9a227', strokeWidth: 1.5 })
       c.fillStyle = '#5a4020'
       c.font = `${9 * S}px "PingFang SC",sans-serif`
       c.fillText(w ? w.name : wid, wx + wIcon / 2, yCursor + wIcon + 12 * S)
@@ -1859,22 +1702,8 @@ function _drawNewbieTeamOverview(g, c, R, W, H, S, safeTop) {
     const ax = cx - avatarSize / 2
     const ay = cy
     const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
-    const img = R.getImg(avatarPath)
     const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
-    if (img && img.width > 0) {
-      c.save()
-      R.rr(ax, ay, avatarSize, avatarSize, 10 * S); c.clip()
-      const aw = img.width, ah = img.height
-      const sc = Math.max(avatarSize / aw, avatarSize / ah)
-      const dw = aw * sc, dh = ah * sc
-      c.drawImage(img, ax + (avatarSize - dw) / 2, ay + (avatarSize - dh) / 2, dw, dh)
-      c.restore()
-      c.save()
-      c.shadowColor = ac.main; c.shadowBlur = 8 * S
-      R.rr(ax, ay, avatarSize, avatarSize, 10 * S)
-      c.strokeStyle = ac.main; c.lineWidth = 2 * S; c.stroke()
-      c.restore()
-    }
+    R.drawCoverImg(R.getImg(avatarPath), ax, ay, avatarSize, avatarSize, { radius: 10 * S, shadow: ac.main, shadowBlur: 8, strokeStyle: ac.main, strokeWidth: 2 })
 
     // 宠物名称
     c.fillStyle = ac.main

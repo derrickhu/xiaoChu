@@ -606,19 +606,8 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
         const iconCY = cy + 2 * S
 
         const avatarPath = pet ? require('../data/pets').getPetAvatarPath({ ...pet, star: 1 }) : null
-        const img = avatarPath ? R.getImg(avatarPath) : null
-        if (img && img.width > 0) {
-          c.save()
-          R.rr(iconX, iconCY, iconSz, iconSz, 4 * S); c.clip()
-          const aw = img.width, ah = img.height
-          const sc = Math.max(iconSz / aw, iconSz / ah)
-          const dw = aw * sc, dh = ah * sc
-          c.drawImage(img, iconX + (iconSz - dw) / 2, iconCY + (iconSz - dh) / 2, dw, dh)
-          c.restore()
-          c.strokeStyle = ac.main; c.lineWidth = 1.2 * S
-          R.rr(iconX, iconCY, iconSz, iconSz, 4 * S); c.stroke()
-        } else if (img) {
-          R.drawImgOrShimmer(img, iconX, iconCY, iconSz, iconSz, { radius: 4 * S })
+        if (avatarPath) {
+          R.drawCoverImg(R.getImg(avatarPath), iconX, iconCY, iconSz, iconSz, { radius: 4 * S, strokeStyle: ac.main, strokeWidth: 1.2 })
         }
 
         c.textAlign = 'left'; c.textBaseline = 'middle'
@@ -1249,18 +1238,7 @@ function rReward(g) {
       ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
-      // 头像图片
-      const petAvatar = R.getImg(getPetAvatarPath(p))
-      if (petAvatar && petAvatar.width > 0) {
-        ctx.save()
-        ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()
-        const aw = petAvatar.width, ah = petAvatar.height
-        const dw = avSz - 2, dh = dw * (ah/aw)
-        ctx.drawImage(petAvatar, avX+1, avY+1+(avSz-2-dh), dw, dh)
-        ctx.restore()
-      } else {
-        R.drawImgOrShimmer(petAvatar, avX, avY, avSz, avSz, { radius: 6 * S })
-      }
+      R.drawCoverImg(R.getImg(getPetAvatarPath(p)), avX, avY, avSz, avSz, { radius: 6 * S })
 
       // 头像框
       const petFrame = framePetMap[p.attr] || framePetMap.metal
@@ -1377,18 +1355,7 @@ function rReward(g) {
       ctx.fillStyle = '#f0e8d8'
       R.rr(avX, avY, avSz, avSz, 6*S); ctx.fill()
 
-      // 法宝图标（尝试加载图片）
-      const wpnImg = R.getImg(`assets/equipment/fabao_${w.id}.png`)
-      if (wpnImg && wpnImg.width > 0) {
-        ctx.save()
-        ctx.beginPath(); R.rr(avX+1, avY+1, avSz-2, avSz-2, 5*S); ctx.clip()
-        const aw = wpnImg.width, ah = wpnImg.height
-        const dw = avSz - 2, dh = dw * (ah/aw)
-        ctx.drawImage(wpnImg, avX+1, avY+1+(avSz-2-dh), dw, dh)
-        ctx.restore()
-      } else {
-        R.drawImgOrShimmer(wpnImg, avX, avY, avSz, avSz, { radius: 6 * S })
-      }
+      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${w.id}.png`), avX, avY, avSz, avSz, { radius: 6 * S })
 
       // 法宝框
       R.drawWeaponFrame(avX, avY, avSz)
@@ -1912,18 +1879,7 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
 
     const iconH = cellW
     if (owned) {
-      const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
-      if (wpnImg && wpnImg.width > 0) {
-        ctx.save()
-        ctx.beginPath(); ctx.rect(cx + 1, cy + 1, cellW - 2, iconH - 2); ctx.clip()
-        const iw = wpnImg.width, ih = wpnImg.height
-        const scale = Math.min((cellW - 4) / iw, (iconH - 4) / ih)
-        const dw = iw * scale, dh = ih * scale
-        ctx.drawImage(wpnImg, cx + (cellW - dw) / 2, cy + (iconH - dh) / 2, dw, dh)
-        ctx.restore()
-      } else {
-        R.drawImgOrShimmer(wpnImg, cx + 2, cy + 2, cellW - 4, iconH - 4, { radius: 4 * S })
-      }
+      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), cx + 2, cy + 2, cellW - 4, iconH - 4, { radius: 4 * S })
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.15)'
       ctx.font = `${cellW * 0.4}px "PingFang SC",sans-serif`
@@ -1993,8 +1949,7 @@ function _drawDexWeaponDetail(g) {
   const iconY = py + innerPad + 32 * S
 
   if (owned) {
-    const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
-    if (!R.drawImgOrShimmer(wpnImg, iconX, iconY, iconSz, iconSz, { radius: 8 * S })) {}
+    R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), iconX, iconY, iconSz, iconSz, { radius: 8 * S })
   } else {
     ctx.fillStyle = 'rgba(100,90,70,0.2)'
     R.rr(iconX, iconY, iconSz, iconSz, 8 * S); ctx.fill()
@@ -2088,18 +2043,7 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
           const displayStar = poolPet ? poolPet.star : 1
           const fakePet = { id: pet.id, star: displayStar }
           const avatarPath = getPetAvatarPath(fakePet)
-          const img = R.getImg(avatarPath)
-          if (img && img.width > 0) {
-            ctx.save()
-            ctx.beginPath(); R.rr(cx + imgPad, cy + imgPad, imgSz, imgSz, 3 * S); ctx.clip()
-            const iR = img.width / img.height
-            let dw = imgSz, dh = imgSz
-            if (iR > 1) { dh = imgSz / iR } else { dw = imgSz * iR }
-            ctx.drawImage(img, cx + imgPad + (imgSz - dw) / 2, cy + imgPad + (imgSz - dh) / 2, dw, dh)
-            ctx.restore()
-          } else {
-            R.drawImgOrShimmer(img, cx + imgPad, cy + imgPad, imgSz, imgSz, { radius: 3 * S })
-          }
+          R.drawCoverImg(R.getImg(avatarPath), cx + imgPad, cy + imgPad, imgSz, imgSz, { radius: 3 * S })
 
           if (tier === 'discovered') {
             // 半透明遮罩表示未完全收录
@@ -2361,25 +2305,13 @@ function _drawDexPetDetail(g) {
   ctx.fillStyle = rv.color || '#a08060'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
   ctx.fillText(rv.label || rarity, rarBadgeX + 15 * S, curY + tierBadgeH * 0.68)
 
-  // 头像
   const avatarPath = getPetAvatarPath(fakePet)
-  const img = R.getImg(avatarPath)
   const imgX = (W - imgSize) / 2
   const imgY = curY + tierBadgeH + 4 * S
-  if (img && img.width > 0) {
-    ctx.save()
-    ctx.beginPath(); R.rr(imgX, imgY, imgSize, imgSize, 8 * S); ctx.clip()
-    const iR = img.width / img.height
-    let dw = imgSize, dh = imgSize
-    if (iR > 1) { dh = imgSize / iR } else { dw = imgSize * iR }
-    ctx.drawImage(img, imgX + (imgSize - dw) / 2, imgY + (imgSize - dh) / 2, dw, dh)
-    ctx.restore()
-    if (tier === 'discovered') {
-      ctx.fillStyle = 'rgba(0,0,0,0.3)'
-      ctx.beginPath(); R.rr(imgX, imgY, imgSize, imgSize, 8 * S); ctx.fill()
-    }
-  } else {
-    R.drawImgOrShimmer(img, imgX, imgY, imgSize, imgSize, { radius: 8 * S })
+  R.drawCoverImg(R.getImg(avatarPath), imgX, imgY, imgSize, imgSize, { radius: 8 * S })
+  if (tier === 'discovered') {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'
+    ctx.beginPath(); R.rr(imgX, imgY, imgSize, imgSize, 8 * S); ctx.fill()
   }
   curY = imgY + imgSize + gapH
 

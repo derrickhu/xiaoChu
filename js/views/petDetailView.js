@@ -278,19 +278,7 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.restore()
 
   const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
-    c.save()
-    R.rr(avatarX, avatarY, avatarSize, avatarSize, 10 * S)
-    c.clip()
-    const aw = img.width, ah = img.height
-    const scale = Math.max(avatarSize / aw, avatarSize / ah)
-    const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-    c.restore()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
-  }
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
 
   // 碎片宠物头像框（灰色通用框）
   const fragFrame = R.getImg('assets/ui/frame_fragment.png')
@@ -581,28 +569,8 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   c.beginPath(); c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2); c.fill()
   c.restore()
 
-  // 头像
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
-  const img = R.getImg(avatarPath)
-  if (img && img.width > 0) {
-    c.save()
-    const isStar3 = (poolPet.star || 1) >= 3
-    const clipPad = isStar3 ? 6 * S : 0
-    R.rr(avatarX - clipPad, avatarY - clipPad, avatarSize + clipPad * 2, avatarSize + clipPad * 2, 10 * S)
-    c.clip()
-    const aw = img.width, ah = img.height
-    const drawSz = avatarSize + clipPad * 2
-    const scale = Math.max(drawSz / aw, drawSz / ah)
-    const dw = aw * scale, dh = ah * scale
-    c.drawImage(img, avatarX - clipPad + (drawSz - dw) / 2, avatarY - clipPad + (drawSz - dh) / 2, dw, dh)
-    c.restore()
-  } else {
-    R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
-    c.fillStyle = '#fff'
-    c.font = `bold ${28*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(basePet.name.slice(0, 2), avatarX + avatarSize / 2, avatarY + avatarSize / 2)
-  }
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
 
   // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
   let cy = avatarY + avatarSize * 1.06 + 6 * S

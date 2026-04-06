@@ -285,7 +285,7 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.drawImage(bossImg, portalCx - dw / 2 + swipeDx, portalCy - dh / 2, dw, dh)
     ctx.globalAlpha = 1
   } else if (bossImg) {
-    R.drawImgOrShimmer(bossImg, portalCx - avatarClipR, portalCy - avatarClipR, avatarClipR * 2, avatarClipR * 2, { circle: true })
+    R.drawCoverImg(bossImg, portalCx - avatarClipR, portalCy - avatarClipR, avatarClipR * 2, avatarClipR * 2, { circle: true })
   } else {
     ctx.fillStyle = unlocked ? 'rgba(110,75,40,0.55)' : 'rgba(80,80,80,0.4)'
     ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`

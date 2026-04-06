@@ -416,7 +416,7 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   const hideEnemy = g.bState === 'victory' && !g._enemyDeathAnim
   if (enemyImg && !(enemyImg.width > 0) && !hideEnemy) {
     const placeholderW = W * 0.4, placeholderH = eAreaH * 0.4
-    R.drawImgOrShimmer(enemyImg, (W - placeholderW) / 2, imgBottom - placeholderH, placeholderW, placeholderH, { radius: 12 * S })
+    R.drawCoverImg(enemyImg, (W - placeholderW) / 2, imgBottom - placeholderH, placeholderW, placeholderH, { radius: 12 * S })
   }
   if (enemyImg && enemyImg.width > 0 && !hideEnemy) {
     const maxImgH = eAreaH * 0.58

@@ -101,29 +101,50 @@ class Render {
   }
 
   /**
-   * 绘制图片，未加载完时显示呼吸闪烁占位
+   * cover-fit 绘制图片到裁剪区域，未加载完时显示呼吸闪烁占位
    * @param {Image} img
    * @param {number} x @param {number} y @param {number} w @param {number} h
-   * @param {object} [opts] - { radius, color, circle }
+   * @param {object} [opts] - { radius, circle, shadow, shadowBlur, strokeStyle, strokeWidth }
    * @returns {boolean} 图片是否已绘制
    */
-  drawImgOrShimmer(img, x, y, w, h, opts) {
+  drawCoverImg(img, x, y, w, h, opts) {
+    const c = this.ctx
+    const isCircle = opts && opts.circle
+    const r = (opts && opts.radius != null) ? opts.radius : 0
     if (img && img.width > 0) {
-      this.ctx.drawImage(img, x, y, w, h)
+      c.save()
+      if (opts && opts.shadow) { c.shadowColor = opts.shadow; c.shadowBlur = (opts.shadowBlur || 12) * this.S }
+      if (isCircle) {
+        c.beginPath(); c.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); c.clip()
+      } else if (r) {
+        this.rr(x, y, w, h, r); c.clip()
+      } else {
+        c.beginPath(); c.rect(x, y, w, h); c.clip()
+      }
+      const aw = img.width, ah = img.height
+      const sc = Math.max(w / aw, h / ah)
+      const dw = aw * sc, dh = ah * sc
+      c.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh)
+      c.restore()
+      if (opts && opts.strokeStyle) {
+        c.save()
+        if (opts.shadow) { c.shadowColor = opts.shadow; c.shadowBlur = (opts.shadowBlur || 12) * this.S }
+        c.strokeStyle = opts.strokeStyle; c.lineWidth = (opts.strokeWidth || 2) * this.S
+        if (isCircle) { c.beginPath(); c.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); c.stroke() }
+        else { this.rr(x, y, w, h, r); c.stroke() }
+        c.restore()
+      }
       return true
     }
-    const c = this.ctx
     const t = Date.now() * 0.003
     const alpha = 0.08 + 0.06 * Math.sin(t)
-    const r = (opts && opts.radius != null) ? opts.radius : 8 * this.S
     c.save()
     c.globalAlpha = alpha
-    c.fillStyle = (opts && opts.color) || '#ffffff'
-    if (opts && opts.circle) {
-      const cx = x + w / 2, cy = y + h / 2
-      c.beginPath(); c.arc(cx, cy, Math.min(w, h) / 2, 0, Math.PI * 2); c.fill()
+    c.fillStyle = '#ffffff'
+    if (isCircle) {
+      c.beginPath(); c.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); c.fill()
     } else {
-      this.rr(x, y, w, h, r); c.fill()
+      this.rr(x, y, w, h, r || 8 * this.S); c.fill()
     }
     c.restore()
     this._dirty = true
@@ -453,18 +474,9 @@ class Render {
     c.strokeStyle=a.main; c.lineWidth=3*S*pulse
     c.beginPath(); c.arc(x,y,r+4*S,0,Math.PI*2); c.stroke()
     c.restore()
-    // 图片或渐变
     const img = avatar ? this.getImg(avatar) : null
-    if (img && img.width > 0) {
-      c.save(); c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip()
-      const iR = img.width / img.height
-      let dw, dh
-      if (iR > 1) { dw = r*2; dh = r*2 / iR }
-      else { dh = r*2; dw = r*2 * iR }
-      c.drawImage(img, x - dw/2, y - dh/2, dw, dh)
-      c.restore()
-    } else if (img) {
-      this.drawImgOrShimmer(img, x - r, y - r, r * 2, r * 2, { circle: true })
+    if (img) {
+      this.drawCoverImg(img, x - r, y - r, r * 2, r * 2, { circle: true })
     } else {
       c.fillStyle = this.cachedRadialGrad(`enemy_${attr}`, x, y-r*0.3, r*0.1, x, y, r,
         [[0,a.lt], [0.7,a.main], [1,a.dk]])
@@ -972,16 +984,10 @@ class Render {
     c.beginPath(); c.ellipse(x, y+size*0.4, size*0.4, size*0.12, 0, 0, Math.PI*2); c.fill()
     c.restore()
 
-    // 怪物主体
     const img = avatar ? this.getImg(avatar) : null
     const imgSize = size * 0.8
-    if (img && img.width > 0) {
-      const iR2 = img.width / img.height
-      let dw2 = imgSize, dh2 = imgSize
-      if (iR2 > 1) { dh2 = imgSize / iR2 } else { dw2 = imgSize * iR2 }
-      c.drawImage(img, x-dw2/2, y-dh2*0.45, dw2, dh2)
-    } else if (img) {
-      this.drawImgOrShimmer(img, x-imgSize/2, y-imgSize*0.45, imgSize, imgSize, { circle: true })
+    if (img) {
+      this.drawCoverImg(img, x - imgSize / 2, y - imgSize * 0.45, imgSize, imgSize, { circle: true })
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.4)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)
@@ -1041,16 +1047,10 @@ class Render {
     c.beginPath(); c.ellipse(x, y+size*0.42, size*0.5, size*0.12, 0, 0, Math.PI*2); c.fill()
     c.restore()
 
-    // 怪物主体（大图）
     const img = avatar ? this.getImg(avatar) : null
     const imgSize = size * 0.9
-    if (img && img.width > 0) {
-      const iR3 = img.width / img.height
-      let dw3 = imgSize, dh3 = imgSize
-      if (iR3 > 1) { dh3 = imgSize / iR3 } else { dw3 = imgSize * iR3 }
-      c.drawImage(img, x-dw3/2, y-dh3*0.5, dw3, dh3)
-    } else if (img) {
-      this.drawImgOrShimmer(img, x-imgSize/2, y-imgSize*0.5, imgSize, imgSize, { circle: true })
+    if (img) {
+      this.drawCoverImg(img, x - imgSize / 2, y - imgSize * 0.5, imgSize, imgSize, { circle: true })
     } else {
       const g = c.createRadialGradient(x, y-size*0.1, size*0.05, x, y, size*0.45)
       g.addColorStop(0, a.lt); g.addColorStop(0.6, a.main); g.addColorStop(1, a.dk)

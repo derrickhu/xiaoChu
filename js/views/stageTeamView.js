@@ -163,19 +163,12 @@ function rStageTeam(g) {
         c.fillStyle = ac ? ac.bg : '#1a1a2e'
         R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.fill()
         const ePath = e.avatar ? `assets/${e.avatar}.png` : null
-        const eImg = ePath ? R.getImg(ePath) : null
-        if (eImg && eImg.width > 0) {
-          c.save()
-          R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.clip()
-          const aw = eImg.width, ah = eImg.height
-          const sc = Math.max(avatarSz / aw, avatarSz / ah)
-          c.drawImage(eImg, avatarX + (avatarSz - aw * sc) / 2, avatarY + (avatarSz - ah * sc) / 2, aw * sc, ah * sc)
-          c.restore()
-        } else if (eImg) {
-          R.drawImgOrShimmer(eImg, avatarX, avatarY, avatarSz, avatarSz, { radius: 6 * S })
+        if (ePath) {
+          R.drawCoverImg(R.getImg(ePath), avatarX, avatarY, avatarSz, avatarSz, { radius: 6 * S, strokeStyle: ac ? ac.main : '#666', strokeWidth: 1.5 })
+        } else {
+          c.strokeStyle = ac ? ac.main : '#666'; c.lineWidth = 1.5 * S
+          R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.stroke()
         }
-        c.strokeStyle = ac ? ac.main : '#666'; c.lineWidth = 1.5 * S
-        R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.stroke()
 
         const infoX = avatarX + avatarSz + 10 * S
         let infoY = avatarY + avatarSz * 0.32
@@ -261,15 +254,7 @@ function rStageTeam(g) {
     c.fillStyle = eqWeapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
     c.fillRect(sx + 1, slotY + 1, slotSize - 2, slotSize - 2)
     if (eqWeapon) {
-      const wpnImg = R.getImg(`assets/equipment/fabao_${eqWeapon.id}.png`)
-      c.save()
-      c.beginPath(); c.rect(sx + 1, slotY + 1, slotSize - 2, slotSize - 2); c.clip()
-      if (wpnImg && wpnImg.width > 0) {
-        c.drawImage(wpnImg, sx + 1, slotY + 1, slotSize - 2, slotSize - 2)
-      } else {
-        R.drawImgOrShimmer(wpnImg, sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
-      }
-      c.restore()
+      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${eqWeapon.id}.png`), sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
     } else {
       c.fillStyle = 'rgba(80,70,50,0.5)'
       R.rr(sx, slotY, slotSize, slotSize, 8*S); c.fill()
@@ -319,21 +304,8 @@ function rStageTeam(g) {
         c.fillStyle = pAttrColor ? pAttrColor.main : '#888'
         R.rr(sx, slotY, slotSize, 4*S, 4*S); c.fill()
 
-        // 头像
         const avatarPath = getPetAvatarPath({ ...pet, star: poolPet.star })
-        const img = R.getImg(avatarPath)
-        if (img && img.width > 0) {
-          const aw = img.width, ah = img.height
-          const drawW = slotSize - 2
-          const drawH = drawW * (ah / aw)
-          const avDy = slotY + (slotSize - 2) - drawH
-          c.save()
-          c.beginPath(); c.rect(sx + 1, slotY + 1, slotSize - 2, slotSize - 2); c.clip()
-          c.drawImage(img, sx + 1, avDy, drawW, drawH)
-          c.restore()
-        } else {
-          R.drawImgOrShimmer(img, sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
-        }
+        R.drawCoverImg(R.getImg(avatarPath), sx + 1, slotY + 1, slotSize - 2, slotSize - 2, { radius: 4 * S })
 
         // 头像框
         const petFrame = framePetMap[pet.attr] || framePetMap.metal
@@ -595,21 +567,7 @@ function rStageTeam(g) {
     const avatarX = cx + (cw - avatarSize) / 2
     const avatarY = cardY + 8 * S
     const avatarPath = getPetAvatarPath({ ...pet, star: pp.star })
-    const img = R.getImg(avatarPath)
-    if (img && img.width > 0) {
-      c.save()
-      R.rr(avatarX, avatarY, avatarSize, avatarSize, 6*S); c.clip()
-      const aw = img.width, ah = img.height
-      const scale = Math.max(avatarSize / aw, avatarSize / ah)
-      const dw = aw * scale, dh = ah * scale
-      c.drawImage(img, avatarX + (avatarSize - dw) / 2, avatarY + (avatarSize - dh) / 2, dw, dh)
-      c.restore()
-    } else {
-      R.drawImgOrShimmer(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
-      c.fillStyle = '#fff'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText(pet.name.slice(0, 1), cx + cw / 2, avatarY + avatarSize / 2)
-    }
+    R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
 
     // 已上阵：卡片顶部小标签（不遮挡内容）
     if (isSelected) {
@@ -780,15 +738,7 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
     c.fillStyle = isPreview ? 'rgba(200,180,100,0.25)' : isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
     c.fillRect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
 
-    const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
-    if (wpnImg && wpnImg.width > 0) {
-      c.save()
-      c.beginPath(); c.rect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2); c.clip()
-      c.drawImage(wpnImg, wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
-      c.restore()
-    } else {
-      R.drawImgOrShimmer(wpnImg, wx + 1, cardY + 1, iconSz - 2, iconSz - 2, { radius: 4 * S })
-    }
+    R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), wx + 1, cardY + 1, iconSz - 2, iconSz - 2, { radius: 4 * S })
 
     R.drawWeaponFrame(wx, cardY, iconSz)
 
