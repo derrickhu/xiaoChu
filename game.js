@@ -75,8 +75,9 @@ var SUBPKG_ENTRY = {
   audio: './audio/game.js',
   audio_bgm: './audio_bgm/game.js'
 }
-var _subPkgDone = 0
 var _totalPkgs = _subPkgNames.length
+/** 已完成下载的分包数（并行加载时乱序完成，仅用于进度条） */
+var _finishedSubPkgs = 0
 
 // 先画纯色兜底
 const _bg = _ctx.createLinearGradient(0, 0, 0, _H)
@@ -169,7 +170,7 @@ function _roundRect(x, y, w, h, r) {
   _ctx.closePath()
 }
 
-// 分包加载：loadSubpackage 成功后 require 各包入口 game.js，减轻「分包尚未加载」报错；串行加载。
+// 分包加载：并行 download 全部子包（总耗时≈最慢几个包之和，明显快于串行累加），再按固定顺序 require 占位入口。
 function _requireSubpkgEntry(name) {
   var rel = SUBPKG_ENTRY[name]
   if (!rel) return
@@ -198,37 +199,44 @@ function _startGameFromMain() {
   }
 }
 
-function _loadNextSubpackage() {
-  if (_subPkgDone >= _subPkgNames.length) {
-    _startGameFromMain()
-    return
-  }
-  var name = _subPkgNames[_subPkgDone]
-  P.loadSubpackage({
-    name: name,
-    success: function () {
-      _requireSubpkgEntry(name)
-      console.log('[SubPkg] ' + name + ' 加载成功')
-      _subPkgDone++
-      _drawBg()
-      _drawProgress(_subPkgDone / _totalPkgs)
-      _loadNextSubpackage()
-    },
-    fail: function () {
-      console.warn('[SubPkg] ' + name + ' 加载失败')
-      _subPkgDone++
-      _drawBg()
-      _drawProgress(_subPkgDone / _totalPkgs)
-      _loadNextSubpackage()
+function _loadAllSubpackagesParallel() {
+  var need = _totalPkgs
+  var started = false
+  function onOneDone() {
+    _finishedSubPkgs++
+    _drawBg()
+    _drawProgress(Math.min(_finishedSubPkgs, need) / need)
+    if (_finishedSubPkgs < need || started) return
+    started = true
+    for (var i = 0; i < _subPkgNames.length; i++) {
+      _requireSubpkgEntry(_subPkgNames[i])
     }
-  })
+    _startGameFromMain()
+  }
+  for (var j = 0; j < _subPkgNames.length; j++) {
+    ;(function (name) {
+      P.loadSubpackage({
+        name: name,
+        success: function () {
+          console.log('[SubPkg] ' + name + ' 加载成功')
+          onOneDone()
+        },
+        fail: function () {
+          console.warn('[SubPkg] ' + name + ' 加载失败')
+          onOneDone()
+        },
+      })
+    })(_subPkgNames[j])
+  }
 }
 
 _splashImg.onload = function () {
   _splashReady = true
   _drawBg()
-  _drawProgress(_subPkgDone / _totalPkgs)
+  _drawProgress(_finishedSubPkgs / _totalPkgs)
 }
 _splashImg.src = 'loading_bg.jpg'
 
-_loadNextSubpackage()
+_drawBg()
+_drawProgress(0)
+_loadAllSubpackagesParallel()
