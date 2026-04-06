@@ -520,14 +520,18 @@ function getStageChapterOrderLabel(stage) {
  * @param {object} item rankStage 记录；新字段 farthestNormal* / farthestElite*；旧数据仅有 farthestChapter、clearCount
  */
 function formatRankStageProgressSubtitle(item) {
-  const fmt = (ch, ord) => (ch > 0 && ord > 0 ? `第${ch}章 第${ord}关` : '—')
+  const fmt = (ch, ord) => {
+    if (ch > 0 && ord > 0) return `第${ch}章 第${ord}关`
+    if (ch > 0) return `第${ch}章`
+    return '--'
+  }
   const nCh = item.farthestNormalChapter
   const nOrd = item.farthestNormalOrder
   const eCh = item.farthestEliteChapter
   const eOrd = item.farthestEliteOrder
   let normal = fmt(nCh, nOrd)
   let elite = fmt(eCh, eOrd)
-  if (normal === '—' && (item.clearCount || 0) > 0 && item.farthestChapter) {
+  if (normal === '--' && (item.clearCount || 0) > 0 && item.farthestChapter) {
     normal = `第${item.farthestChapter}章`
   }
   return `普通 ${normal} · 精英 ${elite}`
