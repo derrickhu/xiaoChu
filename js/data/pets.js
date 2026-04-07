@@ -221,15 +221,8 @@ function getStageAvailablePets() {
   return getAllPets().filter(p => !RESERVED_PETS.includes(p.id))
 }
 
-// 不同获取渠道的品质权重
-const RARITY_WEIGHTS = {
-  starter:   { R:100, SR:0,  SSR:0  },  // 开局初始：全R
-  normal:    { R:50,  SR:40, SSR:10 },  // 普通战斗
-  elite:     { R:15,  SR:55, SSR:30 },  // 精英战斗
-  boss:      { R:0,   SR:40, SSR:60 },  // BOSS战斗
-  shop:      { R:30,  SR:50, SSR:20 },  // 商店招募
-  adventure: { R:0,   SR:30, SSR:70 },  // 奇遇
-}
+// 品质权重已迁移至 balance/petStar.js
+const { RARITY_WEIGHTS, PET_BIAS_RATE, STAR_ATK_MUL: _STAR_ATK_MUL, STAR_SKILL_MUL: _STAR_SKILL_MUL } = require('./balance/petStar')
 
 // ===== ★3满星技能强化覆写 =====
 // 每只宠物升到★3后技能质变，desc更新+数值/效果增强
@@ -422,8 +415,8 @@ function getStar5Override(petId) {
 // ===== 星级系统常量（★1初始 → ★2觉知 → ★3通灵 → ★4觉醒 → ★5超越） =====
 const MAX_STAR = 5          // 最高星级
 const DEX_COLLECT_STAR = 3  // 图鉴「收录」层级所需星级
-const STAR_ATK_MUL = 1.3    // 每升1星ATK倍率（局内肉鸽用，局外灵宠池用 POOL_STAR_ATK_MUL）
-const STAR_SKILL_MUL = 1.25 // 每升1星技能数值倍率
+const STAR_ATK_MUL = _STAR_ATK_MUL
+const STAR_SKILL_MUL = _STAR_SKILL_MUL
 
 // 星级名称映射
 const STAR_NAMES = { 1: '初始', 2: '觉知', 3: '通灵', 4: '觉醒', 5: '超越' }
@@ -531,7 +524,7 @@ function randomPetFromPool(sessionPool, ownedIds, source, maxedIds) {
   if (tierPool.length === 0) tierPool = pool
 
   // 30%概率偏向已有宠物（兼顾升星与新鲜感）
-  if (ownedIds && ownedIds.size > 0 && Math.random() < 0.3) {
+  if (ownedIds && ownedIds.size > 0 && Math.random() < PET_BIAS_RATE) {
     const owned = tierPool.filter(p => ownedIds.has(p.id))
     if (owned.length > 0) {
       const p = owned[Math.floor(Math.random() * owned.length)]

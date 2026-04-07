@@ -7,8 +7,9 @@
 const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
+const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
 
-const BOSS_STAT_FLOOR = { hp: 1.3, atk: 1.15, def: 1.1 }
+const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
 const CHAPTER_STAMINA = {
   1:  { normal: 10, elite: 15 },
@@ -25,20 +26,7 @@ const CHAPTER_STAMINA = {
   12: { normal: 38, elite: 56 },
 }
 
-const ELITE_MULTIPLIERS = {
-  1:  { hp: 1.8, atk: 1.3, def: 1.5 },
-  2:  { hp: 1.9, atk: 1.35, def: 1.5 },
-  3:  { hp: 2.0, atk: 1.4, def: 1.5 },
-  4:  { hp: 2.1, atk: 1.45, def: 1.6 },
-  5:  { hp: 2.2, atk: 1.5, def: 1.6 },
-  6:  { hp: 2.4, atk: 1.55, def: 1.7 },
-  7:  { hp: 2.6, atk: 1.6, def: 1.7 },
-  8:  { hp: 2.8, atk: 1.65, def: 1.8 },
-  9:  { hp: 3.0, atk: 1.7, def: 1.8 },
-  10: { hp: 3.2, atk: 1.75, def: 1.9 },
-  11: { hp: 3.4, atk: 1.8, def: 1.9 },
-  12: { hp: 3.5, atk: 1.8, def: 2.0 },
-}
+const ELITE_MULTIPLIERS = STAGE_ELITE_MULTIPLIERS
 
 const CHAPTER_RECOMMENDED = {
   1:  { cultLevel: 1,  petStar: 1 },
@@ -253,7 +241,7 @@ function buildAllStages() {
           const minion = {
             name: minionData.name,
             attr: minionData.attr,
-            hp: Math.round(minionData.hp * 0.6),
+            hp: Math.round(minionData.hp * STAGE_MINION_HP_RATIO),
             atk: minionData.atk,
             def: minionData.def,
             skills: [...minionData.skills],

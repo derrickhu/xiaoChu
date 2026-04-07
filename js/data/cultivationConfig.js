@@ -6,49 +6,22 @@
  */
 
 const {
-  CULT_MAX_LEVEL,
-  CULT_EXP_BASE,
-  CULT_EXP_LINEAR,
-  CULT_EXP_POW_EXP,
-  CULT_EXP_POW_COEFF,
-  CULT_KILL_BOSS_BASE,
-  CULT_KILL_BOSS_FLOOR_COEFF,
-  CULT_KILL_ELITE_BASE,
-  CULT_KILL_ELITE_FLOOR_COEFF,
-  CULT_KILL_NORMAL_BASE,
-  CULT_KILL_NORMAL_FLOOR_COEFF,
-} = require('./constants')
+  CULT_MAX_LEVEL, CULT_EXP_BASE, CULT_EXP_LINEAR, CULT_EXP_POW_EXP, CULT_EXP_POW_COEFF,
+  CULT_KILL_BOSS_BASE, CULT_KILL_BOSS_FLOOR_COEFF,
+  CULT_KILL_ELITE_BASE, CULT_KILL_ELITE_FLOOR_COEFF,
+  CULT_KILL_NORMAL_BASE, CULT_KILL_NORMAL_FLOOR_COEFF,
+  CULT_NEWBIE_EXP_DISCOUNT,
+  CULT_CONFIG, CULT_KEYS, CULT_REALMS,
+} = require('./balance/cultivation')
 
-// ===== 等级经验表 =====
-// 总计 60 级，每级给 1 修炼点，58 点可把修炼树全部点满，多出 2 点作为容错
 const MAX_LEVEL = CULT_MAX_LEVEL
 
 function expToNextLevel(level) {
   if (level >= MAX_LEVEL) return Infinity
   const base = Math.floor(CULT_EXP_BASE + level * CULT_EXP_LINEAR + Math.pow(level, CULT_EXP_POW_EXP) * CULT_EXP_POW_COEFF)
-  // 前三级大幅降低经验需求，让新手快速体验到修炼加成
-  if (level === 0) return Math.floor(base * 0.25)  // Lv0→1: 100
-  if (level === 1) return Math.floor(base * 0.3)   // Lv1→2: 151
-  if (level === 2) return Math.floor(base * 0.4)   // Lv2→3: 247
+  if (level < CULT_NEWBIE_EXP_DISCOUNT.length) return Math.floor(base * CULT_NEWBIE_EXP_DISCOUNT[level])
   return base
 }
-
-// 经验节奏（参考）：通天塔10层失败≈300 exp，约1局即可升前3级
-// Lv0→1: 100   Lv1→2: 151   Lv2→3: 247   Lv3→4: 736
-// Lv5→6: 978   Lv10→11: 1638   Lv20→21: 3123
-// Lv30→31: 4786   Lv50→51: 8536   Lv59→60: 10388
-
-// ===== 修炼树配置（加点制）=====
-// 每项每级消耗 1 修炼点
-const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:20, perLv:5,    unit:'HP上限',   desc:'队伍HP上限（全模式生效）' },
-  spirit:  { name:'灵力', theme:'通脉', maxLv:15, perLv:1,    unit:'心珠回复', desc:'心珠回复基数（全模式生效）' },
-  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, unit:'s转珠时间', desc:'转珠操作时间（全模式生效）' },
-  defense: { name:'根骨', theme:'筑基', maxLv:10, perLv:2,    unit:'减伤',     desc:'每次受伤减免固定值（全模式生效）' },
-  sense:   { name:'神识', theme:'开窍', maxLv:8,  perLv:8,    unit:'护盾',     desc:'开局获得护盾（全模式生效）' },
-}
-
-const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 
 // 修炼树总共需要的点数：20+15+5+10+8 = 58
 const TOTAL_POINTS_NEEDED = CULT_KEYS.reduce((s, k) => s + CULT_CONFIG[k].maxLv, 0)
@@ -71,16 +44,7 @@ function usedPoints(levels) {
   return sum
 }
 
-// ===== 修炼境界（由等级决定）=====
-const REALMS = [
-  { minLv: 0,  name: '凡人' },
-  { minLv: 1,  name: '感气期' },
-  { minLv: 5,  name: '练气期' },
-  { minLv: 15, name: '筑基期' },
-  { minLv: 30, name: '金丹期' },
-  { minLv: 45, name: '元婴期' },
-  { minLv: 58, name: '化神期' },
-]
+const REALMS = CULT_REALMS
 
 function currentRealm(level) {
   let realm = REALMS[0]

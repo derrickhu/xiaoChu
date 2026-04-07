@@ -12,6 +12,24 @@ const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMerg
 const { randomWeapon } = require('../data/weapons')
 const DF = require('./dmgFloat')
 const { addKillExp } = require('./battle')
+const {
+  SKILL_INSTANT_DMG_DEFAULT_PCT, SKILL_INSTANT_DMG_DOT_DEFAULT_PCT,
+  SKILL_MULTI_HIT_DEFAULT_HITS, SKILL_MULTI_HIT_DEFAULT_PCT,
+  SKILL_SHIELD_DEFAULT_VAL, SKILL_SHIELD_PLUS_DEFAULT_VAL,
+  SKILL_REDUCE_PCT_DEFAULT, SKILL_SHIELD_REFLECT_DEFAULTS,
+  SKILL_STUN_DOT_DEFAULTS, SKILL_COMBO_PLUS_DEFAULT, SKILL_COMBO_NEVER_BREAK_DEFAULT,
+  SKILL_COMBO_DMG_PCT_DEFAULT, SKILL_EXTRA_TIME_DEFAULTS,
+  SKILL_HP_MAX_SHIELD_DEFAULTS, SKILL_HEART_BOOST_DEFAULT_MUL,
+  SKILL_ON_KILL_HEAL_DUR, SKILL_WAR_GOD_DEFAULTS,
+  SKILL_TEAM_ATTACK_DEFAULT_PCT, SKILL_IMMUNE_CC_DEFAULTS,
+  SKILL_INSTANT_DOT_TICK_DEFAULT,
+  SHOP_UPGRADE_PET_DEFAULT_PCT, SHOP_HP_MAX_UP_DEFAULT_PCT,
+  SHOP_DMG_REDUCE_DEFAULT_PCT, SHOP_SKILL_DMG_UP_DEFAULT_PCT,
+  SHOP_CD_MIN, SHOP_STAR_CAP,
+  ADVENTURE_UPGRADE_PET_MUL, ADVENTURE_SHIELD_DEFAULT,
+  MERGE_PET_FRAGMENT_COUNT,
+  SPEED_KILL_TURNS,
+} = require('../data/balance/combat')
 
 // 辅助：tryMergePet 后处理满星入池/碎片（图鉴由 petPool 状态自动派生，不再手动写入）
 function _mergePetAndDex(g, allPets, newPet) {
@@ -26,8 +44,8 @@ function _mergePetAndDex(g, allPets, newPet) {
           g._pendingPoolEntry = { petId: result.target.id }
         }
       } else {
-        g.storage.addFragments(result.target.id, 5)
-        g._fragmentObtainedPopup = { petId: result.target.id, count: 5 }
+        g.storage.addFragments(result.target.id, MERGE_PET_FRAGMENT_COUNT)
+        g._fragmentObtainedPopup = { petId: result.target.id, count: MERGE_PET_FRAGMENT_COUNT }
       }
     }
   }
@@ -190,7 +208,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     }
     case 'shield': {
-      let shieldVal = sk.val || 30
+      let shieldVal = sk.val || SKILL_SHIELD_DEFAULT_VAL
       shieldVal = Math.round(shieldVal * sMul)
       if (sk.bonusPct) shieldVal = Math.round(shieldVal * (1 + sk.bonusPct / 100))
       g._addShield(shieldVal)
@@ -199,14 +217,14 @@ function triggerPetSkill(g, pet, idx) {
       break
     }
     case 'shieldPlus':
-      g._addShield(Math.round((sk.val || 40) * sMul))
-      g.heroBuffs.push({ type:'reduceDmg', pct:sk.reducePct||30, dur:sk.dur||1, bad:false, name:sk.name })
+      g._addShield(Math.round((sk.val || SKILL_SHIELD_PLUS_DEFAULT_VAL) * sMul))
+      g.heroBuffs.push({ type:'reduceDmg', pct:sk.reducePct||SKILL_REDUCE_PCT_DEFAULT, dur:sk.dur||1, bad:false, name:sk.name })
       // ★3附加反弹
       if (sk.reflectPct) g.heroBuffs.push({ type:'reflectPct', pct:sk.reflectPct, dur:sk.dur||2, bad:false, name:sk.name })
       break
     case 'shieldReflect':
-      g._addShield(Math.round((sk.val || 40) * sMul))
-      g.heroBuffs.push({ type:'reflectPct', pct:sk.reflectPct||20, dur:sk.dur||2, bad:false, name:sk.name })
+      g._addShield(Math.round((sk.val || SKILL_SHIELD_REFLECT_DEFAULTS.shield) * sMul))
+      g.heroBuffs.push({ type:'reflectPct', pct:sk.reflectPct||SKILL_SHIELD_REFLECT_DEFAULTS.reflectPct, dur:sk.dur||2, bad:false, name:sk.name })
       break
     case 'reduceDmg':
       g.heroBuffs.push({ type:'reduceDmg', pct:sk.pct, dur:2, bad:false, name:sk.name }); break
@@ -217,7 +235,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'stunDot':
       g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true })
-      g.enemyBuffs.push({ type:'dot', name:sk.name, dmg:Math.round((sk.dotDmg||30) * sMul), dur:sk.dotDur||3, bad:true, dotType: (pet.attr === 'fire') ? 'burn' : 'poison' })
+      g.enemyBuffs.push({ type:'dot', name:sk.name, dmg:Math.round((sk.dotDmg||SKILL_STUN_DOT_DEFAULTS.dotDmg) * sMul), dur:sk.dotDur||SKILL_STUN_DOT_DEFAULTS.dotDur, bad:true, dotType: (pet.attr === 'fire') ? 'burn' : 'poison' })
       break
     case 'stunBreakDef':
       g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur||1, bad:true })
@@ -226,21 +244,21 @@ function triggerPetSkill(g, pet, idx) {
       if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.stunDur||1, bad:true })
       break
     case 'comboPlus':
-      g.combo += sk.count || 2; break
+      g.combo += sk.count || SKILL_COMBO_PLUS_DEFAULT; break
     case 'comboPlusNeverBreak':
-      g.combo += sk.count || 3
+      g.combo += sk.count || SKILL_COMBO_NEVER_BREAK_DEFAULT
       g.comboNeverBreak = true
       // ★3附加Combo伤害加成
       if (sk.comboDmgPct) g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round(sk.comboDmgPct * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'comboNeverBreakPlus':
       g.comboNeverBreak = true
-      g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round((sk.comboDmgPct||50) * sMul), dur:1, bad:false, name:sk.name })
+      g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round((sk.comboDmgPct||SKILL_COMBO_DMG_PCT_DEFAULT) * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'extraTime':
-      g.dragTimeLimit += (sk.sec || 2) * 60; break
+      g.dragTimeLimit += (sk.sec || SKILL_EXTRA_TIME_DEFAULTS.sec) * 60; break
     case 'extraTimePlus':
-      g.dragTimeLimit += (sk.sec || 3) * 60
+      g.dragTimeLimit += (sk.sec || SKILL_EXTRA_TIME_DEFAULTS.secPlus) * 60
       if (sk.attr) g.goodBeadsNextTurn = true
       if (sk.comboNeverBreak) g.comboNeverBreak = true
       // ★3附加Combo
@@ -324,7 +342,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'instantDmg':
       if (g.enemy) {
-        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||150) / 100)
+        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_INSTANT_DMG_DEFAULT_PCT) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         // ★3无视防御
         if (sk.ignoreDefPct) {
@@ -341,27 +359,27 @@ function triggerPetSkill(g, pet, idx) {
           const heal = Math.round(g.heroMaxHp * sk.teamHealPct / 100)
           g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
         }
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'instantDmgDot':
       if (g.enemy) {
-        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||300) / 100)
+        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_INSTANT_DMG_DOT_DEFAULT_PCT) / 100)
         dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
         g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
         DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
-        g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||40) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
+        g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||SKILL_INSTANT_DOT_TICK_DEFAULT) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'multiHit':
       if (g.enemy) {
-        const hits = sk.hits || 3
+        const hits = sk.hits || SKILL_MULTI_HIT_DEFAULT_HITS
         let totalDmg = 0
         const hitColor = (ATTR_COLOR[sk.attr||pet.attr] && ATTR_COLOR[sk.attr||pet.attr].main) || V.TH.danger
         for (let h = 0; h < hits; h++) {
-          let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||100) / 100)
+          let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_MULTI_HIT_DEFAULT_PCT) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           totalDmg += dmg
           DF.petMultiHitDmg(g, dmg, hitColor, h, hits)
@@ -369,7 +387,7 @@ function triggerPetSkill(g, pet, idx) {
         g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
         g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
         g.shakeT = 10; g.shakeI = 6
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     case 'hpMaxUp': {
@@ -377,13 +395,13 @@ function triggerPetSkill(g, pet, idx) {
       g.heroMaxHp += inc; g.heroHp += inc; break
     }
     case 'hpMaxShield': {
-      const inc = Math.round(g.heroMaxHp * (sk.hpPct||30) / 100)
+      const inc = Math.round(g.heroMaxHp * (sk.hpPct||SKILL_HP_MAX_SHIELD_DEFAULTS.hpPct) / 100)
       g.heroMaxHp += inc; g.heroHp += inc
-      g._addShield(Math.round((sk.shieldVal || 50) * sMul))
+      g._addShield(Math.round((sk.shieldVal || SKILL_HP_MAX_SHIELD_DEFAULTS.shieldVal) * sMul))
       break
     }
     case 'heartBoost':
-      g.heroBuffs.push({ type:'heartBoost', mul:Math.round((sk.mul||2) * sMul * 10)/10, dur:sk.dur||1, bad:false, name:sk.name }); break
+      g.heroBuffs.push({ type:'heartBoost', mul:Math.round((sk.mul||SKILL_HEART_BOOST_DEFAULT_MUL) * sMul * 10)/10, dur:sk.dur||1, bad:false, name:sk.name }); break
     case 'allDmgUp':
       g.heroBuffs.push({ type:'allDmgUp', pct:Math.round(sk.pct * sMul), dur:sk.dur||3, bad:false, name:sk.name }); break
     case 'allAtkUp':
@@ -409,8 +427,8 @@ function triggerPetSkill(g, pet, idx) {
       if (sk.shieldVal) g._addShield(Math.round(sk.shieldVal * sMul))
       break
     case 'immuneShield':
-      g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur||2, bad:false, name:sk.name })
-      g._addShield(Math.round((sk.shieldVal || 50) * sMul))
+      g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur||SKILL_IMMUNE_CC_DEFAULTS.dur, bad:false, name:sk.name })
+      g._addShield(Math.round((sk.shieldVal || SKILL_IMMUNE_CC_DEFAULTS.shield) * sMul))
       break
     case 'beadRateUp':
       g.goodBeadsNextTurn = true; break
@@ -439,7 +457,7 @@ function triggerPetSkill(g, pet, idx) {
     case 'comboDmgUp':
       g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round(sk.pct * sMul), dur:1, bad:false, name:sk.name }); break
     case 'onKillHeal':
-      g.heroBuffs.push({ type:'onKillHeal', pct:Math.round(sk.pct * sMul), dur:99, bad:false, name:sk.name }); break
+      g.heroBuffs.push({ type:'onKillHeal', pct:Math.round(sk.pct * sMul), dur:SKILL_ON_KILL_HEAL_DUR, bad:false, name:sk.name }); break
     case 'purify':
       g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
       if (sk.immuneDur) g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur, bad:false, name:sk.name })
@@ -450,7 +468,7 @@ function triggerPetSkill(g, pet, idx) {
       }
       break
     case 'warGod':
-      g.heroBuffs.push({ type:'allAtkUp', pct:Math.round((sk.pct||40) * sMul), dur:sk.dur||3, bad:false, name:sk.name })
+      g.heroBuffs.push({ type:'allAtkUp', pct:Math.round((sk.pct||SKILL_WAR_GOD_DEFAULTS.pct) * sMul), dur:sk.dur||SKILL_WAR_GOD_DEFAULTS.dur, bad:false, name:sk.name })
       g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:sk.critDur||1, bad:false, name:sk.name })
       break
     case 'replaceBeads': {
@@ -486,7 +504,7 @@ function triggerPetSkill(g, pet, idx) {
         let totalTeamDmg = 0
         const totalPets = g.pets.length
         g.pets.forEach((p, idx) => {
-          let dmg = Math.round(getPetStarAtk(p) * (sk.pct || 100) / 100)
+          let dmg = Math.round(getPetStarAtk(p) * (sk.pct || SKILL_TEAM_ATTACK_DEFAULT_PCT) / 100)
           dmg = Math.round(dmg * (1 + g.runBuffs.allAtkPct / 100))
           dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
           if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
@@ -495,7 +513,7 @@ function triggerPetSkill(g, pet, idx) {
         })
         g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
         g._playHeroAttack(sk.name, pet.attr, 'burst')
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
+        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
       }
       break
     }
@@ -609,12 +627,12 @@ function applyShopItem(g, item) {
       // 需要选择目标宠物后调用 applyShopUpgradePet
       // fallback: 随机选一只
       const idx = Math.floor(Math.random() * g.pets.length)
-      g.pets[idx].atk = Math.round(g.pets[idx].atk * (1 + (item.pct||25)/100)); break
+      g.pets[idx].atk = Math.round(g.pets[idx].atk * (1 + (item.pct||SHOP_UPGRADE_PET_DEFAULT_PCT)/100)); break
     }
     case 'starUp': {
       // 需要选择目标宠物后调用 applyShopStarUp
       // fallback: 随机选一只未满星的
-      const candidates = g.pets.filter(p => (p.star || 1) < 3)
+      const candidates = g.pets.filter(p => (p.star || 1) < SHOP_STAR_CAP)
       if (candidates.length > 0) {
         const p = candidates[Math.floor(Math.random() * candidates.length)]
         p.star = (p.star || 1) + 1
@@ -625,21 +643,21 @@ function applyShopItem(g, item) {
     case 'cdReduce': {
       // 需要选择目标宠物后调用 applyShopCdReduce
       // fallback: 随机选一只 cd > 2 的
-      const candidates = g.pets.filter(p => p.cd > 2)
+      const candidates = g.pets.filter(p => p.cd > SHOP_CD_MIN)
       if (candidates.length > 0) {
         const p = candidates[Math.floor(Math.random() * candidates.length)]
-        p.cd = Math.max(2, p.cd - 1)
+        p.cd = Math.max(SHOP_CD_MIN, p.cd - 1)
       }
       break
     }
     case 'hpMaxUp': {
-      const inc = Math.round(g.heroMaxHp * (item.pct||15) / 100)
+      const inc = Math.round(g.heroMaxHp * (item.pct||SHOP_HP_MAX_UP_DEFAULT_PCT) / 100)
       g.heroMaxHp += inc; g.heroHp += inc; break
     }
     case 'dmgReduce':
-      g.runBuffs.dmgReducePct += (item.pct || 8)
+      g.runBuffs.dmgReducePct += (item.pct || SHOP_DMG_REDUCE_DEFAULT_PCT)
       g.runBuffLog = g.runBuffLog || []
-      g.runBuffLog.push({ id: item.id, label: `受伤减免+${item.pct||8}%`, buff: 'dmgReducePct', val: item.pct||8, floor: g.floor })
+      g.runBuffLog.push({ id: item.id, label: `受伤减免+${item.pct||SHOP_DMG_REDUCE_DEFAULT_PCT}%`, buff: 'dmgReducePct', val: item.pct||SHOP_DMG_REDUCE_DEFAULT_PCT, floor: g.floor })
       break
     case 'extraRevive':
       g.runBuffs.extraRevive += 1
@@ -647,9 +665,9 @@ function applyShopItem(g, item) {
       g.runBuffLog.push({ id: item.id, label: '额外复活+1', buff: 'extraRevive', val: 1, floor: g.floor })
       break
     case 'skillDmgUp':
-      g.runBuffs.skillDmgPct += (item.pct || 15)
+      g.runBuffs.skillDmgPct += (item.pct || SHOP_SKILL_DMG_UP_DEFAULT_PCT)
       g.runBuffLog = g.runBuffLog || []
-      g.runBuffLog.push({ id: item.id, label: `技能伤害+${item.pct||15}%`, buff: 'skillDmgPct', val: item.pct||15, floor: g.floor })
+      g.runBuffLog.push({ id: item.id, label: `技能伤害+${item.pct||SHOP_SKILL_DMG_UP_DEFAULT_PCT}%`, buff: 'skillDmgPct', val: item.pct||SHOP_SKILL_DMG_UP_DEFAULT_PCT, floor: g.floor })
       break
   }
 }
@@ -686,7 +704,7 @@ function applyShopPetByAttr(g, attr) {
 function applyShopStarUp(g, petIdx) {
   const p = g.pets[petIdx]
   if (!p) return false
-  if ((p.star || 1) >= 3) return false
+  if ((p.star || 1) >= SHOP_STAR_CAP) return false
   p.star = (p.star || 1) + 1
   g._lastRewardInfo = { type: 'starUp', petId: p.id }
   if (p.star >= MAX_STAR) {
@@ -705,7 +723,7 @@ function applyShopStarUp(g, petIdx) {
 function applyShopUpgradePet(g, petIdx, pct) {
   const p = g.pets[petIdx]
   if (!p) return false
-  p.atk = Math.round(p.atk * (1 + (pct||25)/100))
+  p.atk = Math.round(p.atk * (1 + (pct||SHOP_UPGRADE_PET_DEFAULT_PCT)/100))
   return true
 }
 
@@ -713,8 +731,8 @@ function applyShopUpgradePet(g, petIdx, pct) {
 function applyShopCdReduce(g, petIdx) {
   const p = g.pets[petIdx]
   if (!p) return false
-  if (p.cd <= 2) return false
-  p.cd = Math.max(2, p.cd - 1)
+  if (p.cd <= SHOP_CD_MIN) return false
+  p.cd = Math.max(SHOP_CD_MIN, p.cd - 1)
   return true
 }
 
@@ -745,8 +763,8 @@ function applyAdventure(g, adv) {
     case 'skipBattle':     g.skipNextBattle = true; break
     case 'fullHeal':       g.heroHp = g.heroMaxHp; break
     case 'extraTime':      g.runBuffs.extraTimeSec += adv.sec; _pushLog('extraTimeSec', adv.sec); break
-    case 'upgradePet':     { const i = Math.floor(Math.random()*g.pets.length); g.pets[i].atk = Math.round(g.pets[i].atk*1.2); break }
-    case 'shield':         g._addShield(adv.val || 50); break
+    case 'upgradePet':     { const i = Math.floor(Math.random()*g.pets.length); g.pets[i].atk = Math.round(g.pets[i].atk*ADVENTURE_UPGRADE_PET_MUL); break }
+    case 'shield':         g._addShield(adv.val || ADVENTURE_SHIELD_DEFAULT); break
     case 'nextStun':       g.nextStunEnemy = true; break
     case 'attrDmgUp':      g.runBuffs.attrDmgPct[adv.attr] = (g.runBuffs.attrDmgPct[adv.attr]||0) + adv.pct; break
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break

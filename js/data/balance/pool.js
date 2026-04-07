@@ -1,0 +1,46 @@
+/**
+ * 灵宠池养成数值 — 等级上限、经验曲线、升星消耗、攻击倍率
+ * 调优时只改此文件，逻辑代码通过 require 读取
+ */
+
+const POOL_MAX_LV = 40
+const POOL_ADV_MAX_LV = 60
+
+const POOL_RARITY_EXP_MUL = { R: 1.0, SR: 1.3, SSR: 1.6 }
+
+const POOL_EXP_BASE = 20
+const POOL_EXP_LINEAR = 8
+const POOL_EXP_POW_EXP = 1.4
+const POOL_EXP_POW_COEFF = 0.5
+
+const POOL_STAR_FRAG_COST = { 2: 8, 3: 25, 4: 40, 5: 60 }
+const POOL_STAR_LV_REQ = { 2: 10, 3: 25, 4: 38, 5: 48 }
+const POOL_STAR_ATK_MUL = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 }
+const POOL_STAR_AWAKEN_COST = { 4: 3, 5: 8 }
+const POOL_STAR_SS_COST = { 2: 0, 3: 0, 4: 0, 5: 0 }
+const POOL_STAR_LV_CAP = { 1: 40, 2: 40, 3: 40, 4: 50, 5: 60 }
+
+const POOL_FRAGMENT_TO_EXP = 40
+const POOL_ENTRY_LEVEL = 1
+const POOL_ENTRY_FRAGMENTS = 0
+const POOL_R_LV_BONUS_RATE = 0.8
+
+module.exports = {
+  POOL_MAX_LV,
+  POOL_ADV_MAX_LV,
+  POOL_RARITY_EXP_MUL,
+  POOL_EXP_BASE,
+  POOL_EXP_LINEAR,
+  POOL_EXP_POW_EXP,
+  POOL_EXP_POW_COEFF,
+  POOL_STAR_FRAG_COST,
+  POOL_STAR_LV_REQ,
+  POOL_STAR_ATK_MUL,
+  POOL_STAR_AWAKEN_COST,
+  POOL_STAR_SS_COST,
+  POOL_STAR_LV_CAP,
+  POOL_FRAGMENT_TO_EXP,
+  POOL_ENTRY_LEVEL,
+  POOL_ENTRY_FRAGMENTS,
+  POOL_R_LV_BONUS_RATE,
+}

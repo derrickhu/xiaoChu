@@ -18,6 +18,11 @@ const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
 const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
+const {
+  HERO_BASE_HP, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
+  REVIVE_HEAL_PCT, EXTRA_REVIVE_HEAL_PCT, WEAPON_REVIVE_HEAL_PCT,
+  FLOOR_ATK_BONUS_BASE, FLOOR_ATK_BONUS_PER_TIER, FLOOR_ATK_BONUS_INTERVAL,
+} = require('../data/balance/combat')
 const { TOWER_SETTLE } = require('../data/economyConfig')
 const { initBoard, addKillExp } = require('./battle')
 const ViewEnv = require('../views/env')
@@ -85,7 +90,7 @@ function startRun(g, petIds) {
       ...basePet,
       star: poolPet.star,
       atk: getPoolPetAtk(poolPet, dexBuffs),
-      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * 0.4) - 1) : 0,
+      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0,
       _poolId: id,
     }
   }).filter(Boolean)
@@ -93,7 +98,7 @@ function startRun(g, petIds) {
   g.sessionPetPool = []
   g.petBag = []
   g.weaponBag = []
-  g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
+  g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0
   g.realmLevel = 1
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
@@ -328,7 +333,7 @@ function endRun(g) {
     g.storage.addDailyTaskProgress('battle_3', 1)
   }
   g.storage.clearRunState()
-  if (g.storage.userAuthorized && !g._isGM) {
+  if (g.storage.userAuthorized) {
     g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
     g.storage.submitDexAndCombo()
   }
@@ -443,7 +448,7 @@ function onDefeat(g, W, H) {
   }
   if (g.tempRevive) {
     g.tempRevive = false
-    const reviveHealPct = g._reviveHealPct || 30
+    const reviveHealPct = g._reviveHealPct || REVIVE_HEAL_PCT
     g._reviveHealPct = null
     g.heroHp = Math.round(g.heroMaxHp * reviveHealPct / 100)
     g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'天护复活！', color:TH.accent, t:0, alpha:1 })
@@ -451,13 +456,13 @@ function onDefeat(g, W, H) {
     g.bState = 'playerTurn'; g.dragTimer = 0; return
   }
   if (g.runBuffs.extraRevive > 0) {
-    g.runBuffs.extraRevive--; g.heroHp = Math.round(g.heroMaxHp * 0.25)
+    g.runBuffs.extraRevive--; g.heroHp = Math.round(g.heroMaxHp * EXTRA_REVIVE_HEAL_PCT / 100)
     g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'奇迹复活！', color:TH.accent, t:0, alpha:1 })
     MusicMgr.playRevive()
     g.bState = 'playerTurn'; g.dragTimer = 0; return
   }
   if (g.weapon && g.weapon.type === 'revive' && !g.weaponReviveUsed) {
-    g.weaponReviveUsed = true; g.heroHp = Math.round(g.heroMaxHp * 0.2)
+    g.weaponReviveUsed = true; g.heroHp = Math.round(g.heroMaxHp * WEAPON_REVIVE_HEAL_PCT / 100)
     g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'不灭金身！', color:TH.accent, t:0, alpha:1 })
     MusicMgr.playRevive()
     g.bState = 'playerTurn'; g.dragTimer = 0; return
@@ -565,9 +570,9 @@ function gmSkipBattle(g) {
  * @returns {number} 攻击加成百分比（0 表示本层无加成）
  */
 function calcFloorAtkBonus(floor) {
-  if (floor <= 1 || floor % 5 !== 1) return 0
-  const tier = Math.floor((floor - 1) / 5)
-  return 6 + tier * 2
+  if (floor <= 1 || floor % FLOOR_ATK_BONUS_INTERVAL !== 1) return 0
+  const tier = Math.floor((floor - 1) / FLOOR_ATK_BONUS_INTERVAL)
+  return FLOOR_ATK_BONUS_BASE + tier * FLOOR_ATK_BONUS_PER_TIER
 }
 
 function _safeRun(fn) {

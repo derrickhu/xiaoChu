@@ -6,6 +6,7 @@
  */
 
 const { PETS, PET_RARITY, MAX_STAR, getPetRarity } = require('./pets')
+const { DEX_ELEM_MILESTONE_BUFFS, DEX_RARITY_MILESTONE_BUFFS } = require('./balance/economy')
 
 const DEX_COLLECT_STAR = 3
 const DEX_ATTRS = ['metal', 'wood', 'water', 'fire', 'earth']
@@ -19,11 +20,12 @@ function _buildElemMilestones() {
   for (const attr of DEX_ATTRS) {
     const label = DEX_ATTR_LABEL[attr]
     const total = PETS[attr].length
+    const b = DEX_ELEM_MILESTONE_BUFFS
     ms.push(
-      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: 5,           buff: { scope: attr, atkPct: 2 },            desc: `${label}属性5只发现 → ${label}宠ATK+2%` },
-      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: 10,          buff: { scope: attr, hpPct: 3 },             desc: `${label}属性10只发现 → ${label}宠HP+3%` },
-      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: 15,          buff: { scope: attr, atkPct: 5 },            desc: `${label}属性15只收录 → ${label}宠ATK+5%` },
-      { id: `elem_${attr}_20`, attr, tier: 'mastered',   need: total,       buff: { scope: attr, atkPct: 8, hpPct: 5 },  desc: `${label}属性${total}只精通 → ${label}宠ATK+8% HP+5%` },
+      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: 5,           buff: { scope: attr, ...b.discovered5 },     desc: `${label}属性5只发现 → ${label}宠ATK+${b.discovered5.atkPct}%` },
+      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: 10,          buff: { scope: attr, ...b.discovered10 },    desc: `${label}属性10只发现 → ${label}宠HP+${b.discovered10.hpPct}%` },
+      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: 15,          buff: { scope: attr, ...b.collected15 },     desc: `${label}属性15只收录 → ${label}宠ATK+${b.collected15.atkPct}%` },
+      { id: `elem_${attr}_20`, attr, tier: 'mastered',   need: total,       buff: { scope: attr, ...b.masteredAll },     desc: `${label}属性${total}只精通 → ${label}宠ATK+${b.masteredAll.atkPct}% HP+${b.masteredAll.hpPct}%` },
     )
   }
   return ms
@@ -41,9 +43,9 @@ const TOTAL_MILESTONES = [
 
 // ===== 稀有度里程碑（3档）=====
 const RARITY_MILESTONES = [
-  { id: 'rarity_R',   rarity: 'R',   tier: 'collected', need: PET_RARITY.R.length,   buff: { scope: 'all', defPct: 5 },  desc: `全R收录(${PET_RARITY.R.length}只★3) → 全队DEF+5%` },
-  { id: 'rarity_SR',  rarity: 'SR',  tier: 'collected', need: PET_RARITY.SR.length,  buff: { scope: 'all', hpPct: 8 },   desc: `全SR收录(${PET_RARITY.SR.length}只★3) → 全队HP+8%` },
-  { id: 'rarity_SSR', rarity: 'SSR', tier: 'collected', need: PET_RARITY.SSR.length, buff: { scope: 'all', atkPct: 10 },  desc: `全SSR收录(${PET_RARITY.SSR.length}只★3) → 全队ATK+10%` },
+  { id: 'rarity_R',   rarity: 'R',   tier: 'collected', need: PET_RARITY.R.length,   buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.R },   desc: `全R收录(${PET_RARITY.R.length}只★3) → 全队DEF+${DEX_RARITY_MILESTONE_BUFFS.R.defPct}%` },
+  { id: 'rarity_SR',  rarity: 'SR',  tier: 'collected', need: PET_RARITY.SR.length,  buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.SR },  desc: `全SR收录(${PET_RARITY.SR.length}只★3) → 全队HP+${DEX_RARITY_MILESTONE_BUFFS.SR.hpPct}%` },
+  { id: 'rarity_SSR', rarity: 'SSR', tier: 'collected', need: PET_RARITY.SSR.length, buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.SSR }, desc: `全SSR收录(${PET_RARITY.SSR.length}只★3) → 全队ATK+${DEX_RARITY_MILESTONE_BUFFS.SSR.atkPct}%` },
 ]
 
 const ELEM_MILESTONES = _buildElemMilestones()

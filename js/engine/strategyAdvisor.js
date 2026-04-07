@@ -8,9 +8,9 @@ const { POOL_STAR_ATK_MUL, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAK
 const { getPoolPetAtk, getPoolPetMaxLv } = require('../data/petPoolConfig')
 const { getPetById, getPetRarity } = require('../data/pets')
 const { CULT_CONFIG, CULT_KEYS, effectValue, usedPoints } = require('../data/cultivationConfig')
+const { COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5 } = require('../data/balance/combat')
 
-// Combo 伤害递增百分比（与 battle.js 一致）
-const COMBO_DMG_RATES = [0.35, 0.20, 0.10]
+const COMBO_DMG_RATES = COMBO_MUL_BREAKPOINTS.map(bp => bp.rate)
 
 /**
  * 估算平均每回合 Combo 段数（保守值）
@@ -266,8 +266,8 @@ function getHelpPageData() {
     counteredMul: COUNTERED_MUL,
     counterChain: ATTRS.map(a => ATTR_NAME[a]).join('→') + '→' + ATTR_NAME[ATTRS[0]],
     counterPairs: ATTRS.map(a => ({ from: ATTR_NAME[a], to: ATTR_NAME[COUNTER_MAP[a]] })),
-    elimMul4: 1.5,
-    elimMul5: 2.0,
+    elimMul4: ELIM_MUL_4,
+    elimMul5: ELIM_MUL_5,
     comboDmgRates: COMBO_DMG_RATES,
     starAtkMul: POOL_STAR_ATK_MUL,
     cultConfig: CULT_KEYS.map(k => ({

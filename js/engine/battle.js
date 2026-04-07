@@ -15,6 +15,24 @@ const Particles = require('./particles')
 const { killExpBase } = require('../data/cultivationConfig')
 const { COMBO_MILESTONES, COMBO_MILESTONE_INTERVAL, getComboTier, isComboMilestone } = require('../data/constants')
 const DF = require('./dmgFloat')
+const {
+  COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
+  HEAL_BASE, HEAL_FLOOR_COEFF,
+  LOW_HP_BURST, CRIT_BASE_DMG, CRIT_MAX_RATE,
+  ATK_REDUCE_FLOOR, NEXT_DMG_DOUBLE_MUL, HEART_BOOST_DEFAULT_MUL,
+  SPEED_KILL_TURNS, DRAG_BASE_SEC, STUN_BASE_DUR,
+  SHIELD_ON_ELIM_DEFAULT, EXECUTE_DEFAULT_THRESHOLD,
+  LOW_HP_DMG_UP_DEFAULT_THRESHOLD, AOE_ON_ELIM_HP_RATIO, AOE_ON_ELIM_MIN_COUNT,
+  ENEMY_SKILL_CD_RESET, ENEMY_FIRST_SKILL_DELAY,
+  NEWBIE_PET_ATTR_WEIGHT, GOOD_BEADS_WEIGHT,
+  ENEMY_AOE_DEFAULT_ATK_PCT, ENEMY_SELF_HEAL_DEFAULT_PCT,
+  ENEMY_SEAL_DEFAULT_DUR, ENEMY_DOT_ATK_RATIO,
+  BOSS_QUAKE_DEFAULT_ATK_PCT, BOSS_QUAKE_SEAL_DUR_DEFAULT,
+  BOSS_DEVOUR_DEFAULTS, BOSS_DOT_DEFAULTS, BOSS_MIRROR_DEFAULTS,
+  BOSS_WEAKEN_DEFAULTS, BOSS_BLITZ_DEFAULTS, BOSS_DRAIN_DEFAULT_ATK_PCT,
+  BOSS_ANNIHIL_DEFAULTS, BOSS_CURSE_DEFAULTS, BOSS_ULTIMATE_DEFAULTS,
+  PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
+} = require('../data/balance/combat')
 
 // 属性图标映射（用于伤害飘字）
 const ATTR_ICON = { metal: '⚔️', wood: '🌿', earth: '🪨', water: '💧', fire: '🔥' }
@@ -49,7 +67,7 @@ function _addKillExp(g) {
 // 新手 1-1 棋盘偏向：提升宠物属性珠权重，减少无用色
 function _applyNewbieBias(g, weights) {
   if (!g._isNewbieStage) return
-  g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] = 2.0 })
+  g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] = NEWBIE_PET_ATTR_WEIGHT })
 }
 
 function initBoard(g) {
@@ -57,7 +75,7 @@ function initBoard(g) {
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
   if (g.goodBeadsNextTurn) {
     g.goodBeadsNextTurn = false
-    g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
+    g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= GOOD_BEADS_WEIGHT })
   }
   _applyNewbieBias(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
@@ -90,7 +108,7 @@ function fillBoard(g) {
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
   if (g.goodBeadsNextTurn) {
     g.goodBeadsNextTurn = false
-    g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= 1.5 })
+    g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= GOOD_BEADS_WEIGHT })
   }
   _applyNewbieBias(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
@@ -259,25 +277,25 @@ function startNextElimAnim(g) {
   if (g.runBuffs.bonusCombo > 0 && g.combo === 1) { g.combo += g.runBuffs.bonusCombo }
   // 消除倍率
   let elimMul = 1.0
-  if (count === 4) elimMul = 1.5
-  else if (count >= 5) elimMul = 2.0
+  if (count === 4) elimMul = ELIM_MUL_4
+  else if (count >= 5) elimMul = ELIM_MUL_5
   if (count === 3) elimMul *= 1 + g.runBuffs.elim3DmgPct / 100
   if (count === 4) elimMul *= 1 + g.runBuffs.elim4DmgPct / 100
   if (count >= 5) elimMul *= 1 + g.runBuffs.elim5DmgPct / 100
   if (count >= 5 && g.enemy) {
-    const stunDur = 1 + g.runBuffs.stunDurBonus
+    const stunDur = STUN_BASE_DUR + g.runBuffs.stunDurBonus
     const hasStun = g.enemyBuffs.some(b => b.type === 'stun')
     if (!hasStun) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:stunDur, bad:true })
   }
   // 消除数值飘字
   let elimDisplayVal = 0, elimDisplayColor = '#fff'
   if (attr === 'heart') {
-    let healBase = 12 + Math.floor(g.floor * 0.8) + (g._cultHeartBase || 0)
+    let healBase = HEAL_BASE + Math.floor(g.floor * HEAL_FLOOR_COEFF) + (g._cultHeartBase || 0)
     let heal = healBase * elimMul
     heal *= 1 + g.runBuffs.heartBoostPct / 100
     if (g.weapon && g.weapon.type === 'heartBoost') heal *= 1 + g.weapon.pct / 100
     // 宠物技能heartBoost buff：心珠效果翻倍
-    g.heroBuffs.forEach(b => { if (b.type === 'heartBoost') heal *= b.mul || 2 })
+    g.heroBuffs.forEach(b => { if (b.type === 'heartBoost') heal *= b.mul || HEART_BOOST_DEFAULT_MUL })
     // 怪物debuff healBlock：心珠回复量减半
     g.heroBuffs.forEach(b => {
       if (b.type === 'debuff' && b.field === 'healRate') heal *= b.rate
@@ -318,18 +336,18 @@ function startNextElimAnim(g) {
     if (b.type === 'healOnElim' && b.attr === attr) g._pendingHeal += g.heroMaxHp * b.pct / 100
   })
   if (g.weapon && g.weapon.type === 'shieldOnElim' && g.weapon.attr === attr) {
-    g._addShield(g.weapon.val || 15)
+    g._addShield(g.weapon.val || SHIELD_ON_ELIM_DEFAULT)
   }
   g.heroBuffs.forEach(b => {
-    if (b.type === 'shieldOnElim' && b.attr === attr) g._addShield(b.val || 15)
+    if (b.type === 'shieldOnElim' && b.attr === attr) g._addShield(b.val || SHIELD_ON_ELIM_DEFAULT)
   })
   // 法宝aoeOnElim：消除指定属性珠达到minCount时触发对敌人额外伤害
-  if (g.weapon && g.weapon.type === 'aoeOnElim' && g.weapon.attr === attr && count >= (g.weapon.minCount || 5) && g.enemy) {
-    const aoeDmg = Math.round(g.enemy.maxHp * 0.1)
+  if (g.weapon && g.weapon.type === 'aoeOnElim' && g.weapon.attr === attr && count >= (g.weapon.minCount || AOE_ON_ELIM_MIN_COUNT) && g.enemy) {
+    const aoeDmg = Math.round(g.enemy.maxHp * AOE_ON_ELIM_HP_RATIO)
     g.enemy.hp = Math.max(0, g.enemy.hp - aoeDmg)
     DF.aoeDmg(g, aoeDmg, (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || '#ff6347')
     g.shakeT = 6; g.shakeI = 4
-    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
@@ -436,9 +454,16 @@ function findMatchesSeparate(g) {
 
 /** Combo 伤害倍率（递减分段），战斗结算与 UI 预估共用 */
 function getComboMul(combo) {
-  if (combo <= 6) return 1 + (combo - 1) * 0.20
-  if (combo <= 10) return 2.0 + (combo - 6) * 0.15
-  return 2.6 + (combo - 10) * 0.08
+  if (combo <= 1) return 1
+  const bp = COMBO_MUL_BREAKPOINTS
+  let mul = 1, prevMax = 1
+  for (const tier of bp) {
+    const max = tier.maxCombo || Infinity
+    if (combo <= max) return mul + (combo - prevMax) * tier.rate
+    mul += (max - prevMax) * tier.rate
+    prevMax = max
+  }
+  return mul
 }
 
 // ===== 宠物头像攻击数值展示 =====
@@ -490,8 +515,9 @@ function enterPetAtkShow(g) {
     if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
     // ===== 固有残血爆发：HP越低伤害越高，给玩家翻盘手段 =====
     const hpRatioShow = g.heroHp / g.heroMaxHp
-    if (hpRatioShow <= 0.15) dmg *= 2.0
-    else if (hpRatioShow <= 0.30) dmg *= 1.5
+    for (const b of LOW_HP_BURST) {
+      if (hpRatioShow <= b.threshold) { dmg *= b.mul; break }
+    }
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === pet.attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
@@ -548,7 +574,7 @@ function executeAttack(g) {
 }
 
 function calcCrit(g) {
-  let critRate = 0, critDmg = 50
+  let critRate = 0, critDmg = CRIT_BASE_DMG
   g.heroBuffs.forEach(b => { if (b.type === 'critBoost') critRate += b.pct })
   // guaranteeCrit：指定属性必暴击（检查该属性是否有伤害）
   const dmgMap = g._pendingDmgMap || {}
@@ -568,7 +594,7 @@ function calcCrit(g) {
     const maxCount = (g._pendingAttrMaxCount && g._pendingAttrMaxCount[g.weapon.attr]) || 0
     if (g.weapon.attr && dmgMap[g.weapon.attr] > 0 && (!g.weapon.minCount || maxCount >= g.weapon.minCount)) critRate = 100
   }
-  critRate = Math.min(critRate, 100)
+  critRate = Math.min(critRate, CRIT_MAX_RATE)
   return { critRate, critDmg }
 }
 
@@ -604,7 +630,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   for (const [attr, baseDmg] of Object.entries(dmgMap)) {
     let dmg = baseDmg * comboMul * comboBonusMul
     // 应用BOSS debuff攻击降低
-    if (debuffAtkReduce > 0) dmg *= Math.max(0.1, 1 - debuffAtkReduce)
+    if (debuffAtkReduce > 0) dmg *= Math.max(ATK_REDUCE_FLOOR, 1 - debuffAtkReduce)
     dmg *= 1 + g.runBuffs.allDmgPct / 100
     dmg *= 1 + (g.runBuffs.attrDmgPct[attr] || 0) / 100
     // 宠物技能临时buff加成
@@ -615,17 +641,18 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (buffLowHpDmgPct > 0 && g.heroHp / g.heroMaxHp <= 0.3) dmg *= 1 + buffLowHpDmgPct / 100
     // ===== 固有残血爆发：HP越低伤害越高 =====
     const hpRatioFinal = g.heroHp / g.heroMaxHp
-    if (hpRatioFinal <= 0.15) dmg *= 2.0
-    else if (hpRatioFinal <= 0.30) dmg *= 1.5
+    for (const b of LOW_HP_BURST) {
+      if (hpRatioFinal <= b.threshold) { dmg *= b.mul; break }
+    }
     // 法宝加成
     if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'allAtkUp') dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'attrPetAtkUp' && g.weapon.attr === attr) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'comboDmgUp') dmg *= 1 + g.weapon.pct / 100 * (g.combo > 1 ? 1 : 0)
-    if (g.weapon && g.weapon.type === 'lowHpDmgUp' && g.heroHp / g.heroMaxHp <= (g.weapon.threshold || 30) / 100) dmg *= 1 + g.weapon.pct / 100
+    if (g.weapon && g.weapon.type === 'lowHpDmgUp' && g.heroHp / g.heroMaxHp <= (g.weapon.threshold || LOW_HP_DMG_UP_DEFAULT_THRESHOLD) / 100) dmg *= 1 + g.weapon.pct / 100
     if (g.weapon && g.weapon.type === 'stunBonusDmg' && g.enemyBuffs.some(b => b.type === 'stun')) dmg *= 1 + g.weapon.pct / 100
     if (g.runBuffs.weaponBoostPct > 0) dmg *= 1 + g.runBuffs.weaponBoostPct / 100
-    if (g.nextDmgDouble) dmg *= 2
+    if (g.nextDmgDouble) dmg *= NEXT_DMG_DOUBLE_MUL
     if (g.enemy) {
       const enemyAttr = g.enemy.attr
       if (COUNTER_MAP[attr] === enemyAttr) {
@@ -690,7 +717,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
   }
   // 法宝execute：敌人残血低于阈值时直接斩杀
-  if (g.weapon && g.weapon.type === 'execute' && g.enemy && g.enemy.hp > 0 && g.enemy.hp / g.enemy.maxHp <= (g.weapon.threshold || 10) / 100) {
+  if (g.weapon && g.weapon.type === 'execute' && g.enemy && g.enemy.hp > 0 && g.enemy.hp / g.enemy.maxHp <= (g.weapon.threshold || EXECUTE_DEFAULT_THRESHOLD) / 100) {
     g.enemy.hp = 0
     g.skillEffects.push({ x:W*0.5, y:g._getEnemyCenterY(), text:'斩 杀 ！', color:'#ff2020', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
     g.shakeT = 10; g.shakeI = 6
@@ -715,7 +742,7 @@ function applyFinalDamage(g, dmgMap, heal) {
   // 胜利判定
   if (g.enemy && g.enemy.hp <= 0) {
     _addKillExp(g)
-    g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
+    g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
     g.bState = 'victory'; MusicMgr.playVictory()
     // 触发敌人死亡爆裂特效
     g._enemyDeathAnim = { timer: 0, duration: 45 }
@@ -846,7 +873,7 @@ function enemyTurn(g) {
         dotIdx++
       }
     })
-    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
@@ -920,7 +947,7 @@ function enemyTurn(g) {
       const sk = g._nextEnemySkill || g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
       MusicMgr.playEnemySkill()
       applyEnemySkill(g, sk)
-      g.enemySkillCd = 3  // 重置倒计时
+      g.enemySkillCd = ENEMY_SKILL_CD_RESET  // 重置倒计时
       // 预选下一个技能（用于UI预警）
       g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
     }
@@ -935,11 +962,11 @@ function enemyTurn(g) {
   })
   g.enemyBuffs.forEach(b => {
     if (b.type === 'selfHeal') {
-      const heal = Math.round(g.enemy.maxHp * (b.pct || 15) / 100)
+      const heal = Math.round(g.enemy.maxHp * (b.pct || ENEMY_SELF_HEAL_DEFAULT_PCT) / 100)
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + heal)
     }
   })
-  if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= 5; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
   g.turnCount++
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
@@ -961,11 +988,11 @@ function applyEnemySkill(g, skillKey) {
     case 'buff':
       g.enemyBuffs.push({ type:'buff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:false }); break
     case 'dot':
-      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:Math.round(g.enemy.atk*0.3), dur:sk.dur, bad:true }); break
+      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:Math.round(g.enemy.atk * ENEMY_DOT_ATK_RATIO), dur:sk.dur, bad:true }); break
     case 'seal':
       for (let i = 0; i < sk.count; i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-        if (g.board[r][c]) g.board[r][c].sealed = sk.dur || 2
+        if (g.board[r][c]) g.board[r][c].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
       }
       break
     case 'convert': {
@@ -985,7 +1012,7 @@ function applyEnemySkill(g, skillKey) {
       break
     }
     case 'aoe': {
-      let aoeDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.2))
+      let aoeDmg = Math.round(g.enemy.atk * (sk.atkPct || ENEMY_AOE_DEFAULT_ATK_PCT))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') aoeDmg = Math.round(aoeDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(aoeDmg); break
     }
@@ -999,7 +1026,7 @@ function applyEnemySkill(g, skillKey) {
       break
     }
     case 'selfHeal':
-      g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + Math.round(g.enemy.maxHp * (sk.pct||15) / 100)); break
+      g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + Math.round(g.enemy.maxHp * (sk.pct || ENEMY_SELF_HEAL_DEFAULT_PCT) / 100)); break
     case 'breakBead':
       for (let i = 0; i < sk.count; i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
@@ -1011,7 +1038,7 @@ function applyEnemySkill(g, skillKey) {
     case 'sealCol': {
       const sc = Math.floor(Math.random() * COLS)
       for (let r = 0; r < ROWS; r++) {
-        if (g.board[r][sc]) g.board[r][sc].sealed = sk.dur || 2
+        if (g.board[r][sc]) g.board[r][sc].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
       }
       break
     }
@@ -1021,7 +1048,7 @@ function applyEnemySkill(g, skillKey) {
         for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
             if (g.board[r][c] && g.board[r][c].attr === counterAttr) {
-              g.board[r][c].sealed = sk.dur || 2
+              g.board[r][c].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
             }
           }
         }
@@ -1061,7 +1088,7 @@ function applyEnemySkill(g, skillKey) {
       // 封锁整行灵珠
       const sr = Math.floor(Math.random() * ROWS)
       for (let c = 0; c < COLS; c++) {
-        if (g.board[sr][c]) g.board[sr][c].sealed = sk.dur || 2
+        if (g.board[sr][c]) g.board[sr][c].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
       }
       break
     }
@@ -1072,7 +1099,7 @@ function applyEnemySkill(g, skillKey) {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           if (g.board[r][c] && g.board[r][c].attr === targetAttr) {
-            g.board[r][c].sealed = sk.dur || 2
+            g.board[r][c].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
           }
         }
       }
@@ -1093,58 +1120,58 @@ function applyEnemySkill(g, skillKey) {
     // ===== BOSS专属技能 =====
     case 'bossQuake': {
       // 震天裂地：AOE伤害 + 封锁整行灵珠
-      let qDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.3))
+      let qDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_QUAKE_DEFAULT_ATK_PCT))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') qDmg = Math.round(qDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(qDmg)
       if (sk.sealType === 'row') {
         const sr = Math.floor(Math.random() * ROWS)
         for (let c = 0; c < COLS; c++) {
-          if (g.board[sr][c]) g.board[sr][c].sealed = sk.sealDur || 2
+          if (g.board[sr][c]) g.board[sr][c].sealed = sk.sealDur || BOSS_QUAKE_SEAL_DUR_DEFAULT
         }
       } else {
         for (let i = 0; i < (sk.sealCount || 3); i++) {
           const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || BOSS_QUAKE_SEAL_DUR_DEFAULT
         }
       }
       break
     }
     case 'bossDevour': {
       // 噬魂夺魄：造成伤害 + 窃取治疗（加healBlock debuff）
-      let dDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.6))
+      let dDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DEVOUR_DEFAULTS.atkPct))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') dDmg = Math.round(dDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(dDmg)
-      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:0.5, dur:2, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:BOSS_DEVOUR_DEFAULTS.healRate, dur:BOSS_DEVOUR_DEFAULTS.dur, bad:true })
       break
     }
     case 'bossDot': {
       // 业火焚天：按攻击力百分比的持续伤害
-      const dotDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.4))
-      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:dotDmg, dur:sk.dur || 3, bad:true })
+      const dotDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DOT_DEFAULTS.atkPct))
+      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:dotDmg, dur:sk.dur || BOSS_DOT_DEFAULTS.dur, bad:true })
       break
     }
     case 'bossVoidSeal': {
       // 虚空禁锢：封锁整行灵珠
       const sealRow = Math.floor(Math.random() * ROWS)
       for (let c = 0; c < COLS; c++) {
-        if (g.board[sealRow][c]) g.board[sealRow][c].sealed = sk.dur || 2
+        if (g.board[sealRow][c]) g.board[sealRow][c].sealed = sk.dur || ENEMY_SEAL_DEFAULT_DUR
       }
       break
     }
     case 'bossMirror':
       // 妖力护体：给BOSS自身反弹buff
-      g.enemyBuffs.push({ type:'bossMirror', name:sk.name, reflectPct:sk.reflectPct || 30, dur:sk.dur || 2, bad:false })
+      g.enemyBuffs.push({ type:'bossMirror', name:sk.name, reflectPct:sk.reflectPct || BOSS_MIRROR_DEFAULTS.reflectPct, dur:sk.dur || BOSS_MIRROR_DEFAULTS.dur, bad:false })
       break
     case 'bossWeaken':
       // 天罡镇压：同时降低攻击和防御
-      g.heroBuffs.push({ type:'debuff', name:sk.name+'(攻)', field:'atk', rate:sk.atkRate || 0.4, dur:sk.dur || 2, bad:true })
-      g.heroBuffs.push({ type:'debuff', name:sk.name+'(防)', field:'def', rate:sk.defRate || 0.4, dur:sk.dur || 2, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name+'(攻)', field:'atk', rate:sk.atkRate || BOSS_WEAKEN_DEFAULTS.atkRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name+'(防)', field:'def', rate:sk.defRate || BOSS_WEAKEN_DEFAULTS.defRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true })
       break
     case 'bossBlitz': {
       // 连环妖击：多段攻击
-      const hits = sk.hits || 3
+      const hits = sk.hits || BOSS_BLITZ_DEFAULTS.hits
       for (let i = 0; i < hits; i++) {
-        let bDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.4))
+        let bDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_BLITZ_DEFAULTS.atkPct))
         if (g.weapon && g.weapon.type === 'reduceSkillDmg') bDmg = Math.round(bDmg * (1 - g.weapon.pct / 100))
         g._dealDmgToHero(bDmg)
       }
@@ -1152,7 +1179,7 @@ function applyEnemySkill(g, skillKey) {
     }
     case 'bossDrain': {
       // 吸星大法：造成伤害并回复等量生命
-      let drDmg = Math.round(g.enemy.atk * (sk.atkPct || 0.5))
+      let drDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DRAIN_DEFAULT_ATK_PCT))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') drDmg = Math.round(drDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(drDmg)
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + drDmg)
@@ -1161,10 +1188,10 @@ function applyEnemySkill(g, skillKey) {
     }
     case 'bossAnnihil': {
       // 灭世天劫：大伤害 + 碎珠
-      let aDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.0))
+      let aDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ANNIHIL_DEFAULTS.atkPct))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') aDmg = Math.round(aDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(aDmg)
-      for (let i = 0; i < (sk.breakCount || 4); i++) {
+      for (let i = 0; i < (sk.breakCount || BOSS_ANNIHIL_DEFAULTS.breakCount); i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
         g.board[r][c] = null
       }
@@ -1173,12 +1200,12 @@ function applyEnemySkill(g, skillKey) {
     }
     case 'bossCurse':
       // 万妖诅咒：固定DOT + 心珠回复减半
-      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:sk.dmg || 100, dur:sk.dur || 3, bad:true })
-      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:0.5, dur:sk.dur || 3, bad:true })
+      g.heroBuffs.push({ type:'dot', name:sk.name, dmg:sk.dmg || BOSS_CURSE_DEFAULTS.dmg, dur:sk.dur || BOSS_CURSE_DEFAULTS.dur, bad:true })
+      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:BOSS_CURSE_DEFAULTS.healRate, dur:sk.dur || BOSS_CURSE_DEFAULTS.dur, bad:true })
       break
     case 'bossUltimate': {
       // 超越·终焉：大伤害 + 封锁（全场或随机） + 眩晕
-      let uDmg = Math.round(g.enemy.atk * (sk.atkPct || 1.8))
+      let uDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ULTIMATE_DEFAULTS.atkPct))
       if (g.weapon && g.weapon.type === 'reduceSkillDmg') uDmg = Math.round(uDmg * (1 - g.weapon.pct / 100))
       g._dealDmgToHero(uDmg)
       if (sk.sealType === 'all') {
@@ -1186,14 +1213,14 @@ function applyEnemySkill(g, skillKey) {
         for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
             if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) {
-              if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+              if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || BOSS_ULTIMATE_DEFAULTS.sealDur
             }
           }
         }
       } else {
-        for (let i = 0; i < (sk.sealCount || 4); i++) {
+        for (let i = 0; i < (sk.sealCount || BOSS_ULTIMATE_DEFAULTS.sealCount); i++) {
           const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
-          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || 2
+          if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || BOSS_ULTIMATE_DEFAULTS.sealDur
         }
       }
       const hasImmuneCtrl2 = g.heroBuffs.some(b => b.type === 'immuneCtrl')
@@ -1231,7 +1258,7 @@ function enterBattle(g, enemyData) {
   g.combo = 0; g.turnCount = 0; g._lowHpBurstShown = false
   // ===== 怪物技能倒计时：计算距下次释放还需几回合 =====
   g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0)
-    ? (g.enemy.isBoss ? 1 : 3)  // Boss 第1回合末即释放技能；普通怪第3回合
+    ? (g.enemy.isBoss ? ENEMY_FIRST_SKILL_DELAY.boss : ENEMY_FIRST_SKILL_DELAY.normal)  // Boss 第1回合末即释放技能；普通怪第3回合
     : -1
   // 预选首次释放的技能（用于UI预警）
   g._nextEnemySkill = (g.enemy.skills && g.enemy.skills.length > 0)
@@ -1258,11 +1285,11 @@ function enterBattle(g, enemyData) {
     g._comboFlash = 15  // Boss入场白闪
     g.skillEffects.push({ x:V.W*0.5, y:V.H*0.35, text:'⚠ BOSS ⚠', color:'#ff4040', t:0, alpha:1, scale:3.0, _initScale:3.0, big:true })
   }
-  g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? Math.max(0, Math.ceil(p.cd * 0.4) - 1) : 0 })
+  g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? Math.max(0, Math.ceil(p.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0 })
   initBoard(g)
   let extraTime = g.runBuffs.extraTimeSec
   if (g.weapon && g.weapon.type === 'extraTime') extraTime += g.weapon.sec
-  g.dragTimeLimit = (8 + extraTime) * 60
+  g.dragTimeLimit = (DRAG_BASE_SEC + extraTime) * 60
 }
 
 function _safeBattle(fn) {

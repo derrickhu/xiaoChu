@@ -1,7 +1,7 @@
 /**
  * GM 功能模块 — 灵宠消消塔
  * 白名单配置文件：config/gmList.json（发版更新即可新增/移除 GM 账号）
- * GM 玩家拥有：跳过战斗，但成绩不提交排行榜
+ * GM 玩家拥有：战斗中可「GM 跳过」；排行榜与其它玩家一样提交（需已授权）
  */
 const cloudSync = require('./cloudSync')
 

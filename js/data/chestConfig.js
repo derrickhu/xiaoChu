@@ -1,13 +1,10 @@
 /**
  * 召唤与碎片随机分配工具
+ * 数值定义已迁移至 balance/economy.js
  */
 
 const { PET_RARITY, getPetRarity } = require('./pets')
-
-const SUMMON_FRAG_COST = { R: 10, SR: 15, SSR: 25 }
-
-/** 签到/日任等未传权重时的默认碎片稀有度分布（R 为主、少量 SR） */
-const DEFAULT_RANDOM_FRAG_WEIGHTS = { R: 80, SR: 20, SSR: 0 }
+const { SUMMON_FRAG_COST, DEFAULT_RANDOM_FRAG_WEIGHTS } = require('./balance/economy')
 
 /**
  * 按 rarityWeights 随机选一只宠物，集中分配碎片

@@ -2,9 +2,9 @@
  * 关卡奖励预览 — stageInfoView 和 stageResultView 共用
  * 解决战前展示与实际结算不一致的问题
  */
-const { STAR_REWARDS } = require('../data/economyConfig')
+const { STAR_REWARDS, STAGE_SETTLE } = require('../data/economyConfig')
 
-const RATING_MUL = { S: 2.0, A: 1.5, B: 1.0 }
+const RATING_MUL = STAGE_SETTLE.ratingMul
 
 /**
  * 预览首通奖励（解析宠物是否已拥有 → 碎片）

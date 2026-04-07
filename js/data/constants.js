@@ -3,11 +3,12 @@
  * 各域名前缀: STAMINA_*, CLOUD_*, RANK_*, TOWER_*, CULT_*, POOL_*, DEX_*, IDLE_*
  */
 
-// ===== 体力系统 (STAMINA) =====
+// ===== 体力系统 (STAMINA) — 数值定义已迁移至 balance/economy.js =====
 
-const STAMINA_RECOVER_INTERVAL_MS = 3 * 60 * 1000
-const STAMINA_INITIAL = 100
-const STAMINA_SIDEBAR_REWARD = 30
+const {
+  STAMINA_RECOVER_INTERVAL_MS, STAMINA_INITIAL, STAMINA_SIDEBAR_REWARD,
+  TOWER_BASE_EVENT_WEIGHTS, TOWER_SHOP_DISPLAY_COUNT, TOWER_SHOP_FREE_COUNT, TOWER_SHOP_HP_COST_PCT,
+} = require('./balance/economy')
 
 // ===== 云同步 (CLOUD) =====
 
@@ -27,50 +28,26 @@ const TOWER_MAX_FLOOR = 30
 const TOWER_COUNTER_MUL = 1.6
 const TOWER_COUNTERED_MUL = 0.6
 const TOWER_RECENT_LIMIT = 3
-const TOWER_BASE_EVENT_WEIGHTS = {
-  battle:    70,
-  elite:      8,
-  adventure:  5,
-  shop:       4,
-  rest:       3,
-}
-const TOWER_SHOP_DISPLAY_COUNT = 4
-const TOWER_SHOP_FREE_COUNT = 1
-const TOWER_SHOP_HP_COST_PCT = 15
 
-// ===== 修炼系统 (CULT) =====
+// ===== 修炼系统 (CULT) — 数值定义已迁移至 balance/cultivation.js =====
 
-const CULT_MAX_LEVEL = 60
-const CULT_EXP_BASE = 400
-const CULT_EXP_LINEAR = 100
-const CULT_EXP_POW_EXP = 1.6
-const CULT_EXP_POW_COEFF = 6
-const CULT_KILL_BOSS_BASE = 30
-const CULT_KILL_BOSS_FLOOR_COEFF = 4
-const CULT_KILL_ELITE_BASE = 15
-const CULT_KILL_ELITE_FLOOR_COEFF = 3
-const CULT_KILL_NORMAL_BASE = 5
-const CULT_KILL_NORMAL_FLOOR_COEFF = 2
+const {
+  CULT_MAX_LEVEL, CULT_EXP_BASE, CULT_EXP_LINEAR, CULT_EXP_POW_EXP, CULT_EXP_POW_COEFF,
+  CULT_KILL_BOSS_BASE, CULT_KILL_BOSS_FLOOR_COEFF,
+  CULT_KILL_ELITE_BASE, CULT_KILL_ELITE_FLOOR_COEFF,
+  CULT_KILL_NORMAL_BASE, CULT_KILL_NORMAL_FLOOR_COEFF,
+} = require('./balance/cultivation')
 
-// ===== 灵宠池 (POOL) =====
+// ===== 灵宠池 (POOL) — 数值定义已迁移至 balance/pool.js =====
 
-const POOL_MAX_LV = 40
-const POOL_ADV_MAX_LV = 60
-const POOL_RARITY_EXP_MUL = { R: 1.0, SR: 1.3, SSR: 1.6 }
-const POOL_EXP_BASE = 20
-const POOL_EXP_LINEAR = 8
-const POOL_EXP_POW_EXP = 1.4
-const POOL_EXP_POW_COEFF = 0.5
-const POOL_STAR_FRAG_COST = { 2: 8, 3: 25, 4: 40, 5: 60 }
-const POOL_STAR_LV_REQ = { 2: 10, 3: 25, 4: 38, 5: 48 }
-const POOL_STAR_ATK_MUL = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 }
-const POOL_STAR_AWAKEN_COST = { 4: 3, 5: 8 }
-const POOL_STAR_SS_COST = { 2: 0, 3: 0, 4: 0, 5: 0 }
-const POOL_STAR_LV_CAP = { 1: 40, 2: 40, 3: 40, 4: 50, 5: 60 }
-const POOL_FRAGMENT_TO_EXP = 40
-const POOL_ENTRY_LEVEL = 1
-const POOL_ENTRY_FRAGMENTS = 0
-const POOL_R_LV_BONUS_RATE = 0.8
+const {
+  POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_RARITY_EXP_MUL,
+  POOL_EXP_BASE, POOL_EXP_LINEAR, POOL_EXP_POW_EXP, POOL_EXP_POW_COEFF,
+  POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_ATK_MUL,
+  POOL_STAR_AWAKEN_COST, POOL_STAR_SS_COST, POOL_STAR_LV_CAP,
+  POOL_FRAGMENT_TO_EXP, POOL_ENTRY_LEVEL, POOL_ENTRY_FRAGMENTS,
+  POOL_R_LV_BONUS_RATE,
+} = require('./balance/pool')
 
 // ===== 连击里程碑 (COMBO) =====
 // 阈值: 显示特殊文字的连击数

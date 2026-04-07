@@ -21,6 +21,10 @@ const _rects = {
 let _showPicker = -1
 let _pickerScroll = 0
 
+let _pickerTouchY = 0
+let _pickerScrolling = false
+let _pickerScrollStartInGrid = false
+
 function _formatTime(ms) {
   if (ms <= 0) return '已满'
   const totalSec = Math.ceil(ms / 1000)
@@ -239,6 +243,33 @@ function rIdle(g) {
   drawBottomBar(g)
 }
 
+function _computePickerGeometry(g) {
+  const { W, H, S } = V
+  const pw = W * 0.85
+  const ph = H * 0.55
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2
+  const pool = g.storage.petPool || []
+  const dispatched = new Set(g.storage.idleSlotPetIds)
+  const available = pool.filter(p => !dispatched.has(p.id))
+  const cardW = 56 * S
+  const cardH = 72 * S
+  const gap = 6 * S
+  const cols = Math.max(1, Math.floor((pw - 16 * S) / (cardW + gap)))
+  const listX = px + (pw - cols * (cardW + gap) + gap) / 2
+  const listY = py + 44 * S
+  const listBottom = py + ph - 8 * S
+  const viewportH = listBottom - listY
+  const rows = Math.ceil(available.length / cols)
+  const rowStep = cardH + 8 * S
+  const totalH = rows > 0 ? (rows - 1) * rowStep + cardH : 0
+  const maxScroll = Math.max(0, totalH - viewportH)
+  return {
+    px, py, pw, ph, listX, listY, listBottom, cols, cardW, cardH, rowStep, gap,
+    available, maxScroll,
+  }
+}
+
 function _drawPetPicker(g) {
   const { ctx: c, R, W, H, S } = V
 
@@ -246,10 +277,8 @@ function _drawPetPicker(g) {
   c.fillStyle = 'rgba(0,0,0,0.6)'
   c.fillRect(0, 0, W, H)
 
-  const pw = W * 0.85
-  const ph = H * 0.55
-  const px = (W - pw) / 2
-  const py = (H - ph) / 2
+  const geo = _computePickerGeometry(g)
+  const { px, py, pw, ph, listX, listY, listBottom, cols, cardW, cardH, rowStep, gap, available } = geo
 
   c.fillStyle = 'rgba(30,25,55,0.97)'
   R.rr(px, py, pw, ph, 14 * S); c.fill()
@@ -271,17 +300,7 @@ function _drawPetPicker(g) {
   c.fillText('✕', closeX + closeSize / 2, closeY + closeSize / 2)
   _rects.closeBtnRect = [closeX, closeY, closeSize, closeSize]
 
-  // 可选宠物列表
-  const pool = g.storage.petPool || []
-  const dispatched = new Set(g.storage.idleSlotPetIds)
-  const available = pool.filter(p => !dispatched.has(p.id))
-
   _rects.petPickerRects = []
-  const cardW = 56 * S
-  const cardH = 72 * S
-  const cols = Math.floor((pw - 16 * S) / (cardW + 6 * S))
-  const listX = px + (pw - cols * (cardW + 6 * S) + 6 * S) / 2
-  const listY = py + 44 * S
 
   if (available.length === 0) {
     c.fillStyle = 'rgba(200,200,220,0.5)'
@@ -289,13 +308,17 @@ function _drawPetPicker(g) {
     c.textAlign = 'center'
     c.fillText('没有可派遣的灵宠', W / 2, py + ph / 2)
   } else {
+    c.save()
+    c.beginPath()
+    c.rect(px + 4 * S, listY - 2 * S, pw - 8 * S, listBottom - listY + 4 * S)
+    c.clip()
     for (let i = 0; i < available.length; i++) {
       const p = available[i]
       const col = i % cols
       const row = Math.floor(i / cols)
-      const cx = listX + col * (cardW + 6 * S)
-      const cy = listY + row * (cardH + 8 * S) - _pickerScroll
-      if (cy + cardH < listY || cy > py + ph - 8 * S) continue
+      const cx = listX + col * (cardW + gap)
+      const cy = listY + row * rowStep - _pickerScroll
+      if (cy + cardH < listY - 4 * S || cy > listBottom + 4 * S) continue
 
       c.fillStyle = 'rgba(40,35,60,0.7)'
       R.rr(cx, cy, cardW, cardH, 6 * S); c.fill()
@@ -321,17 +344,48 @@ function _drawPetPicker(g) {
       }
       _rects.petPickerRects.push({ petId: p.id, rect: [cx, cy, cardW, cardH] })
     }
+    c.restore()
   }
   c.restore()
 }
 
 function tIdle(g, type, x, y) {
-  if (type !== 'end') return
+  const { S } = V
 
-  // 宠物选择弹窗
+  // 宠物选择弹窗：支持上下拖动列表（与 petPool 一致）
   if (_showPicker >= 0) {
+    const geo = _computePickerGeometry(g)
+    const pad = 8 * S
+    const inModal = x >= geo.px && x <= geo.px + geo.pw && y >= geo.py && y <= geo.py + geo.ph
+    const inGrid = inModal && y >= geo.listY && y <= geo.listBottom &&
+      x >= geo.px + pad && x <= geo.px + geo.pw - pad
+
+    if (type === 'start') {
+      _pickerTouchY = y
+      _pickerScrolling = false
+      _pickerScrollStartInGrid = inGrid && geo.available.length > 0 && geo.maxScroll > 0
+      return
+    }
+    if (type === 'move') {
+      if (!_pickerScrollStartInGrid) return
+      const dy = _pickerTouchY - y
+      if (Math.abs(dy) > 3 * S) _pickerScrolling = true
+      if (_pickerScrolling && geo.maxScroll > 0) {
+        _pickerScroll = Math.max(0, Math.min(geo.maxScroll, _pickerScroll + dy))
+        _pickerTouchY = y
+      }
+      return
+    }
+    if (type !== 'end') return
+
+    if (_pickerScrolling) {
+      _pickerScrolling = false
+      return
+    }
+
     if (_rects.closeBtnRect && _hitRect(x, y, ..._rects.closeBtnRect)) {
-      _showPicker = -1; return
+      _showPicker = -1
+      return
     }
     for (const item of _rects.petPickerRects) {
       if (_hitRect(x, y, ...item.rect)) {
@@ -340,9 +394,11 @@ function tIdle(g, type, x, y) {
         return
       }
     }
-    _showPicker = -1
+    if (!inModal) _showPicker = -1
     return
   }
+
+  if (type !== 'end') return
 
   // 返回按钮
   if (_rects.backBtnRect && _hitRect(x, y, ..._rects.backBtnRect)) {
@@ -420,6 +476,8 @@ function _hitRect(x, y, rx, ry, rw, rh) {
 function resetIdleView() {
   _showPicker = -1
   _pickerScroll = 0
+  _pickerScrolling = false
+  _pickerScrollStartInGrid = false
 }
 
 module.exports = { rIdle, tIdle, resetIdleView }

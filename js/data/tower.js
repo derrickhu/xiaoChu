@@ -55,40 +55,11 @@ const BASE_EVENT_WEIGHTS = TOWER_BASE_EVENT_WEIGHTS
 
 const MAX_FLOOR = TOWER_MAX_FLOOR
 
-// ===== 修仙境界系统（每层通关固定加血量上限，不回血） =====
-// 每项: { name, hpUp } — hpUp 为该层通关后增加的血量上限
-const REALM_TABLE = [
-  /*  1 */ { name:'凡人',       hpUp:0  },
-  /*  2 */ { name:'感气期',     hpUp:7  },
-  /*  3 */ { name:'引气入体',   hpUp:7  },
-  /*  4 */ { name:'凝气初成',   hpUp:7  },
-  /*  5 */ { name:'炼气一层',   hpUp:9  },
-  /*  6 */ { name:'炼气二层',   hpUp:8  },
-  /*  7 */ { name:'炼气三层',   hpUp:8  },
-  /*  8 */ { name:'炼气四层',   hpUp:8  },
-  /*  9 */ { name:'炼气五层',   hpUp:8  },
-  /* 10 */ { name:'筑基初期',   hpUp:12 },
-  /* 11 */ { name:'筑基中期',   hpUp:10 },
-  /* 12 */ { name:'筑基后期',   hpUp:10 },
-  /* 13 */ { name:'筑基圆满',   hpUp:10 },
-  /* 14 */ { name:'开光初期',   hpUp:10 },
-  /* 15 */ { name:'开光圆满',   hpUp:14 },
-  /* 16 */ { name:'融合初期',   hpUp:11 },
-  /* 17 */ { name:'融合后期',   hpUp:11 },
-  /* 18 */ { name:'融合圆满',   hpUp:11 },
-  /* 19 */ { name:'心动初期',   hpUp:11 },
-  /* 20 */ { name:'心动圆满',   hpUp:15 },
-  /* 21 */ { name:'金丹初期',   hpUp:13 },
-  /* 22 */ { name:'金丹中期',   hpUp:13 },
-  /* 23 */ { name:'金丹后期',   hpUp:13 },
-  /* 24 */ { name:'金丹圆满',   hpUp:13 },
-  /* 25 */ { name:'元婴初期',   hpUp:17 },
-  /* 26 */ { name:'元婴中期',   hpUp:15 },
-  /* 27 */ { name:'元婴后期',   hpUp:15 },
-  /* 28 */ { name:'元婴圆满',   hpUp:15 },
-  /* 29 */ { name:'化神初期',   hpUp:15 },
-  /* 30 */ { name:'化神圆满',   hpUp:18 },
-]
+// 境界表 / 怪物分段 / 敌技能 已迁移至 balance/enemy.js
+const {
+  REALM_TABLE, MONSTER_TIERS, ENEMY_DEF_RATIO, MONSTER_RANDOM_RANGE,
+  TOWER_ELITE_MUL, TOWER_BOSS_SCALING, ENEMY_SKILLS,
+} = require('./balance/enemy')
 
 // 获取指定层的境界信息
 function getRealmInfo(floor) {
@@ -96,16 +67,7 @@ function getRealmInfo(floor) {
   return REALM_TABLE[idx]
 }
 
-// ===== 怪物数据（按层段，30层制，数值曲线压平，保证后期不会断崖式碾压玩家） =====
-// 调优：ATK全面上调，确保每回合对英雄造成可感知的威胁（8%~15%血量）
-const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:280,  hpMax:480,   atkMin:10,  atkMax:18  },
-  { minFloor:6,   maxFloor:10,  hpMin:520,  hpMax:880,   atkMin:18,  atkMax:30  },
-  { minFloor:11,  maxFloor:15,  hpMin:920,  hpMax:1500,  atkMin:28,  atkMax:44  },
-  { minFloor:16,  maxFloor:20,  hpMin:1500, hpMax:2300,  atkMin:42,  atkMax:62  },
-  { minFloor:21,  maxFloor:25,  hpMin:2200, hpMax:3300,  atkMin:55,  atkMax:78  },
-  { minFloor:26,  maxFloor:30,  hpMin:3000, hpMax:4200,  atkMin:68,  atkMax:92  },
-]
+// MONSTER_TIERS 已迁移至 balance/enemy.js
 
 // 普通怪物名池（按属性）
 const MONSTER_NAMES = {
@@ -151,46 +113,7 @@ const BOSS_POOL_30 = [
   { name:'末劫天魔·无极',     bossNum:10 },  // 复用boss_10图
 ]
 
-// 妖兽技能池（普通怪/精英使用）
-const ENEMY_SKILLS = {
-  atkBuff:   { name:'妖气暴涨', desc:'攻击提升30%,持续2回合', type:'buff', field:'atk', rate:0.3, dur:2 },
-  poison:    { name:'瘴毒',     desc:'每回合造成{val}点伤害,持续3回合', type:'dot', dur:3 },
-  seal:      { name:'禁珠咒',   desc:'随机封锁4颗灵珠,持续2回合', type:'seal', count:4, dur:2 },
-  convert:   { name:'灵脉紊乱', desc:'随机转换3颗灵珠属性', type:'convert', count:3 },
-  aoe:       { name:'妖力横扫', desc:'对修士造成120%攻击力伤害', type:'aoe', atkPct:1.2 },
-  defDown:   { name:'碎甲爪',   desc:'降低修士防御30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
-  healBlock: { name:'噬灵术',   desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
-  stun:      { name:'妖力震慑', desc:'眩晕修士，无法操作1回合', type:'stun', dur:1 },
-  selfHeal:  { name:'妖力再生', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
-  defBuff:   { name:'坚甲术',   desc:'防御提升30%,持续2回合', type:'buff', field:'def', rate:0.3, dur:2 },
-  healPct:   { name:'灵气回春', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
-  breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
-  // ===== 固定关卡新增技能 =====
-  timeSqueeze:  { name:'时间压缩', desc:'拖拽时间减半,持续1回合', type:'debuff', field:'dragTime', rate:0.5, dur:1 },
-  attrAbsorb:   { name:'属性吸收', desc:'吞噬3颗己方属性灵珠化为心珠,回复10%生命', type:'attrAbsorb', count:3, healPct:10 },
-  sealColumn:   { name:'封灵柱',   desc:'封锁整列灵珠,持续2回合', type:'sealCol', dur:2 },
-  counterSeal:  { name:'克制封印', desc:'封锁所有克制自身属性的灵珠,持续2回合', type:'sealCounter', dur:2 },
-  // ===== 精英封珠技能 =====
-  eliteSealRow:   { name:'封灵锁链', desc:'封锁整行灵珠,持续2回合', type:'sealRow', dur:2 },
-  eliteSealAttr:  { name:'属性封印', desc:'封锁所有指定属性灵珠,持续2回合', type:'sealAttr', dur:2 },
-  eliteSealHeavy: { name:'禁珠大咒', desc:'随机封锁8颗灵珠,持续2回合', type:'seal', count:8, dur:2 },
-  // ===== BOSS专属技能 =====
-  bossRage:      { name:'狂暴咆哮', desc:'攻击提升50%,持续3回合', type:'buff', field:'atk', rate:0.5, dur:3 },
-  bossQuake:     { name:'震天裂地', desc:'造成130%攻击力伤害+封锁整行灵珠', type:'bossQuake', atkPct:1.3, sealType:'row', sealDur:2 },
-  bossDevour:    { name:'噬魂夺魄', desc:'造成110%攻击力伤害+窃取治疗', type:'bossDevour', atkPct:1.1, stealPct:20 },
-  bossInferno:   { name:'业火焚天', desc:'灼烧：每回合造成攻击力50%伤害,持续3回合', type:'bossDot', atkPct:0.5, dur:3 },
-  bossVoidSeal:  { name:'虚空禁锢', desc:'封锁整行灵珠,持续2回合', type:'bossVoidSeal', dur:2 },
-  bossConvert:   { name:'五行逆乱', desc:'随机6颗灵珠属性混乱', type:'convert', count:6 },
-  bossMirror:    { name:'妖力护体', desc:'反弹30%伤害,持续2回合', type:'bossMirror', reflectPct:30, dur:2 },
-  bossWeaken:    { name:'天罡镇压', desc:'修士攻击降低40%+防御降低40%,持续2回合', type:'bossWeaken', atkRate:0.4, defRate:0.4, dur:2 },
-  bossBlitz:     { name:'连环妖击', desc:'连续攻击3次，每次50%攻击力', type:'bossBlitz', hits:3, atkPct:0.5 },
-  bossDrain:     { name:'吸星大法', desc:'造成100%攻击力伤害并回复等量生命', type:'bossDrain', atkPct:1.0 },
-  bossAnnihil:   { name:'灭世天劫', desc:'造成150%攻击力伤害+破坏4颗灵珠', type:'bossAnnihil', atkPct:1.5, breakCount:4 },
-  bossCurse:     { name:'万妖诅咒', desc:'每回合受到固定100点伤害+心珠回复减半,持续3回合', type:'bossCurse', dmg:100, dur:3 },
-  bossUltimate:  { name:'超越·终焉', desc:'造成180%攻击力伤害+封锁外围灵珠+眩晕1回合', type:'bossUltimate', atkPct:1.8, sealType:'all', sealDur:2 },
-  bossSealAll:   { name:'万象封灵', desc:'以井字封阵封锁灵珠,持续1回合', type:'sealAll', dur:1 },
-  bossSealAttr:  { name:'五行禁锢', desc:'封锁全场指定属性灵珠,持续3回合', type:'sealAttr', dur:3 },
-}
+// ENEMY_SKILLS 已迁移至 balance/enemy.js
 
 // ===== BOSS专属技能组（每个BOSS有独立的2-3个技能） =====
 // 技能组用 bossNum 索引；30层新增的2个变体用 'name' 作为额外key
@@ -212,139 +135,22 @@ const BOSS_SKILL_SETS = {
   '末劫天魔·无极': ['bossUltimate', 'bossAnnihil','bossSealAll'],     // 终焉+灭世+全封
 }
 
-// ===== 奇遇事件（30个） =====
-const ADVENTURES = [
-  { id:'adv2',  name:'捡到仙丹',   desc:'立即回血50%',              effect:'healPct',     pct:50 },
-  { id:'adv3',  name:'上古洞府',   desc:'血量上限+10%',             effect:'hpMaxUp',     pct:10 },
-  { id:'adv5',  name:'仙兽引路',   desc:'下一层必定不遇怪',          effect:'skipBattle' },
-  { id:'adv6',  name:'秘境泉水',   desc:'满血回复',                  effect:'fullHeal' },
-  { id:'adv7',  name:'道骨仙风',   desc:'转珠时间+0.5秒',           effect:'extraTime',   sec:0.5 },
-  { id:'adv8',  name:'灵石遍地',   desc:'随机强化一只灵兽',          effect:'upgradePet' },
-  { id:'adv9',  name:'仙光护体',   desc:'获得一层临时护盾',          effect:'shield',      val:50 },
-  { id:'adv10', name:'古符现世',   desc:'下次战斗怪物眩晕一回合',    effect:'nextStun' },
-  { id:'adv11', name:'草木滋养',   desc:'木属性伤害+5%',            effect:'attrDmgUp',   attr:'wood', pct:5 },
-  { id:'adv12', name:'金水相合',   desc:'金属性+水属性伤害+5%',     effect:'multiAttrUp', attrs:['metal','water'], pct:5 },
-  { id:'adv13', name:'火焰赐福',   desc:'火属性伤害+8%',            effect:'attrDmgUp',   attr:'fire', pct:8 },
-  { id:'adv14', name:'大地加持',   desc:'土属性伤害+5%',            effect:'attrDmgUp',   attr:'earth', pct:5 },
-  { id:'adv15', name:'道心稳固',   desc:'下次战斗Combo不会断',      effect:'comboNeverBreak' },
-  { id:'adv17', name:'无尘之地',   desc:'清除所有负面状态',          effect:'clearDebuff' },
-  { id:'adv18', name:'灵泉洗礼',   desc:'心珠效果+20%',             effect:'heartBoost',  pct:20 },
-  { id:'adv19', name:'神兵残影',   desc:'法宝效果临时提升20%',       effect:'weaponBoost', pct:20 },
-  { id:'adv22', name:'妖巢宝箱',   desc:'全队攻击+8%持续本局',       effect:'allDmgUp',    pct:8 },
-  { id:'adv23', name:'上古战魂',   desc:'下一层伤害翻倍',            effect:'nextDmgDouble' },
-  { id:'adv24', name:'静心咒',     desc:'转珠时间+1秒',             effect:'extraTime',   sec:1 },
-  { id:'adv25', name:'天护',       desc:'抵挡一次致命攻击',          effect:'tempRevive' },
-  { id:'adv26', name:'灵兽觉醒',   desc:'随机一只灵兽攻击+10%',     effect:'petAtkUp',    pct:10 },
-  { id:'adv27', name:'仙酿',       desc:'回血70%',                  effect:'healPct',     pct:70 },
-  { id:'adv28', name:'地脉之力',   desc:'下回合必定高珠掉落',        effect:'goodBeads' },
-  { id:'adv29', name:'破邪',       desc:'免疫下一次控制',            effect:'immuneOnce' },
-  { id:'adv30', name:'机缘',       desc:'直接获得三选一奖励',        effect:'tripleChoice' },
-]
+// 奇遇/商店/休息/Buff池 已迁移至 balance/towerEvent.js
+const {
+  ADVENTURES, SHOP_ITEMS, REST_OPTIONS,
+  BUFF_POOL_MINOR, BUFF_POOL_MEDIUM, BUFF_POOL_MAJOR, BUFF_POOL_SPEEDKILL,
+} = require('./balance/towerEvent')
 
-// ===== 商店物品池（新版：10件，按权重抽4件，免费选1件，第2件消耗15%血） =====
-const SHOP_ITEMS = [
-  { id:'shop4',  name:'攻击秘药',   desc:'选择一只灵兽，攻击+25%',   effect:'upgradePet',   pct:25, weight:6, rarity:'rare' },
-  { id:'shop5',  name:'悟道丹',     desc:'选择一只灵兽，技能CD-1',   effect:'cdReduce',     weight:3,  rarity:'epic' },
-  { id:'shop6',  name:'满血回复',   desc:'血量恢复至上限',           effect:'fullHeal',     weight:10, rarity:'normal' },
-  { id:'shop7',  name:'血脉丹',     desc:'血量上限+15%',             effect:'hpMaxUp',      pct:15, weight:10, rarity:'normal' },
-  { id:'shop8',  name:'护身符',     desc:'永久受伤减免+8%',          effect:'dmgReduce',    pct:8, weight:6, rarity:'rare' },
-  { id:'shop9',  name:'还魂玉',     desc:'获得1次额外复活机会',      effect:'extraRevive',  weight:6,  rarity:'rare' },
-  { id:'shop10', name:'灵力结晶',   desc:'全队技能伤害+15%',         effect:'skillDmgUp',   pct:15, weight:10, rarity:'normal' },
-]
 const SHOP_DISPLAY_COUNT = TOWER_SHOP_DISPLAY_COUNT
 const SHOP_FREE_COUNT = TOWER_SHOP_FREE_COUNT
 const SHOP_HP_COST_PCT = TOWER_SHOP_HP_COST_PCT
 
-// ===== 休息之地选项 =====
-const REST_OPTIONS = [
-  { id:'rest1', name:'休息回血', desc:'回复35%最大血量', effect:'healPct', pct:35 },
-  { id:'rest2', name:'修炼增强', desc:'获得临时小BUFF（攻击+5%）', effect:'allAtkUp', pct:5 },
-]
-
-// ===== 胜利后三选一奖励类型 =====
 const REWARD_TYPES = {
   NEW_PET:    'newPet',
   NEW_WEAPON: 'newWeapon',
-  BUFF:       'buff',       // 全队加成奖励
+  BUFF:       'buff',
 }
 
-// ===== 加成奖励池（重做：去掉蚊子叮，改为体感明显的变革性效果）=====
-// 小档（普通战斗掉落）——每次拿到都能明显感到变强
-const BUFF_POOL_MINOR = [
-  { id:'m1',  label:'全队攻击 +12%',          buff:'allAtkPct',       val:12 },
-  { id:'m2',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
-  // 血量上限已由境界系统固定提供，从奖励池移除
-  { id:'m5',  label:'心珠回复 +20%',          buff:'heartBoostPct',   val:20 },
-  { id:'m6',  label:'Combo伤害 +12%',         buff:'comboDmgPct',     val:12 },
-  { id:'m7',  label:'3消伤害 +15%',           buff:'elim3DmgPct',     val:15 },
-  { id:'m8',  label:'转珠时间 +0.5秒',        buff:'extraTimeSec',    val:0.5 },
-  { id:'m9',  label:'每回合回血 +5',           buff:'regenPerTurn',    val:5 },
-  { id:'m10', label:'受伤减免 -8%',           buff:'dmgReducePct',    val:8 },
-  { id:'m11', label:'怪物攻击 -8%',           buff:'enemyAtkReducePct', val:8 },
-  { id:'m12', label:'怪物血量 -8%',           buff:'enemyHpReducePct',  val:8 },
-  { id:'m13', label:'立即恢复40%血量',        buff:'healNow',         val:40 },
-  { id:'m14', label:'战后额外回血15%',        buff:'postBattleHeal',  val:15 },
-]
-// 中档（精英战斗掉落）——质变级
-const BUFF_POOL_MEDIUM = [
-  { id:'e1',  label:'全队攻击 +15%',          buff:'allAtkPct',       val:15 },
-  // 血量上限已由境界系统固定提供，从奖励池移除
-  { id:'e3',  label:'心珠回复 +25%',          buff:'heartBoostPct',   val:25 },
-  { id:'e4',  label:'Combo伤害 +15%',         buff:'comboDmgPct',     val:15 },
-  { id:'e5',  label:'4消伤害 +20%',           buff:'elim4DmgPct',     val:20 },
-  { id:'e6',  label:'克制伤害 +15%',          buff:'counterDmgPct',   val:15 },
-  { id:'e7',  label:'技能伤害 +15%',          buff:'skillDmgPct',     val:15 },
-  { id:'e8',  label:'技能CD -15%',            buff:'skillCdReducePct',val:15 },
-  { id:'e9',  label:'转珠时间 +1秒',          buff:'extraTimeSec',    val:1 },
-  { id:'e10', label:'每回合回血 +5',           buff:'regenPerTurn',    val:5 },
-  { id:'e11', label:'受伤减免 -10%',          buff:'dmgReducePct',    val:10 },
-  { id:'e12', label:'精英攻击 -10%',          buff:'eliteAtkReducePct', val:10 },
-  { id:'e13', label:'精英血量 -10%',          buff:'eliteHpReducePct',  val:10 },
-  { id:'e14', label:'立即恢复50%血量',        buff:'healNow',         val:50 },
-  { id:'e15', label:'下场减伤30%',            buff:'nextDmgReduce',   val:30 },
-  { id:'e16', label:'战后额外回血20%',        buff:'postBattleHeal',  val:20 },
-]
-// 大档（BOSS战掉落）——超级强化，拿到就起飞
-const BUFF_POOL_MAJOR = [
-  { id:'M1',  label:'全队攻击 +25%',          buff:'allAtkPct',       val:25 },
-  // 血量上限已由境界系统固定提供，从奖励池移除
-  { id:'M3',  label:'心珠回复 +40%',          buff:'heartBoostPct',   val:40 },
-  { id:'M4',  label:'Combo伤害 +25%',         buff:'comboDmgPct',     val:25 },
-  { id:'M5',  label:'5消伤害 +30%',           buff:'elim5DmgPct',     val:30 },
-  { id:'M6',  label:'克制伤害 +25%',          buff:'counterDmgPct',   val:25 },
-  { id:'M7',  label:'技能伤害 +25%',          buff:'skillDmgPct',     val:25 },
-  { id:'M8',  label:'技能CD -25%',            buff:'skillCdReducePct',val:25 },
-  { id:'M9',  label:'转珠时间 +1.5秒',        buff:'extraTimeSec',    val:1.5 },
-  { id:'M10', label:'每回合回血 +8',           buff:'regenPerTurn',    val:8 },
-  { id:'M11', label:'受伤减免 -15%',          buff:'dmgReducePct',    val:15 },
-  { id:'M12', label:'额外 +2连击',            buff:'bonusCombo',      val:2 },
-  { id:'M13', label:'5消眩晕 +2回合',         buff:'stunDurBonus',    val:2 },
-  { id:'M14', label:'BOSS攻击 -15%',          buff:'bossAtkReducePct', val:15 },
-  { id:'M15', label:'BOSS血量 -15%',          buff:'bossHpReducePct',  val:15 },
-  { id:'M16', label:'立即恢复100%血量',       buff:'healNow',         val:100 },
-  { id:'M17', label:'下场减伤50%',            buff:'nextDmgReduce',   val:50 },
-  { id:'M18', label:'额外1次复活机会',        buff:'extraRevive',     val:1 },
-]
-// 速通奖励池（5回合内击败的额外奖励，独特效果）
-const BUFF_POOL_SPEEDKILL = [
-  { id:'s1',  label:'[速通] 回复40%血量',       buff:'healNow',           val:40 },
-  { id:'s2',  label:'[速通] 全队攻击 +12%',     buff:'allAtkPct',         val:12 },
-  // 血量上限已由境界系统固定提供，从速通池移除
-  { id:'s4',  label:'[速通] 心珠效果 +20%',     buff:'heartBoostPct',     val:20 },
-  { id:'s5',  label:'[速通] 怪物血量 -8%',      buff:'enemyHpReducePct',  val:8 },
-  { id:'s6',  label:'[速通] 转珠时间 +0.8秒',   buff:'extraTimeSec',      val:0.8 },
-  { id:'s7',  label:'[速通] 回血 +5/回合',      buff:'regenPerTurn',      val:5 },
-  { id:'s8',  label:'[速通] 受伤 -8%',          buff:'dmgReducePct',      val:8 },
-  { id:'s9',  label:'[速通] Combo伤害 +12%',    buff:'comboDmgPct',       val:12 },
-  { id:'s10', label:'[速通] 技能伤害 +12%',     buff:'skillDmgPct',       val:12 },
-  { id:'s11', label:'[速通] 下场首回合伤害翻倍', buff:'nextFirstTurnDouble', val:1 },
-  { id:'s12', label:'[速通] 下场敌人眩晕1回合', buff:'nextStunEnemy',      val:1 },
-  { id:'s13', label:'[速通] 获得60点护盾',      buff:'grantShield',        val:60 },
-  { id:'s14', label:'[速通] 技能CD全部重置',    buff:'resetAllCd',         val:1 },
-  { id:'s15', label:'[速通] 跳过下一场战斗',    buff:'skipNextBattle',     val:1 },
-  { id:'s16', label:'[速通] 下场免疫一次伤害',  buff:'immuneOnce',         val:1 },
-]
-// 合并所有（兼容旧引用）
 const ALL_BUFF_REWARDS = [...BUFF_POOL_MINOR, ...BUFF_POOL_MEDIUM, ...BUFF_POOL_MAJOR]
 
 // ===== 工具函数 =====
@@ -374,8 +180,7 @@ function generateMonster(floor) {
   // 层段内线性插值
   const progress = Math.min(1, (floor - tier.minFloor) / Math.max(1, tier.maxFloor - tier.minFloor))
 
-  // 增加随机性：基础值±15%波动
-  const rand = () => 0.85 + Math.random() * 0.30
+  const rand = () => MONSTER_RANDOM_RANGE[0] + Math.random() * MONSTER_RANDOM_RANGE[1]
   let hp  = Math.round(_lerp(tier.hpMin, tier.hpMax, progress) * rand())
   let atk = Math.round(_lerp(tier.atkMin, tier.atkMax, progress) * rand())
 
@@ -420,7 +225,7 @@ function generateMonster(floor) {
   const avatar = `enemies/tower/mon_${monKey}_${monIdx}`
   _pushRecent(avatar)
 
-  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * 0.35), skills, avatar }
+  return { name, attr, hp, maxHp: hp, atk, def: Math.round(atk * ENEMY_DEF_RATIO), skills, avatar }
 }
 
 // ===== 生成精英怪 =====
@@ -428,13 +233,12 @@ function generateElite(floor) {
   const base = generateMonster(floor)
   const attr = base.attr
 
-  // 精英 = 普通×(2.8~3.5)血 ×(1.8~2.3)攻
-  const hpMul = 2.8 + Math.random() * 0.7
-  const atkMul = 1.8 + Math.random() * 0.5
+  const hpMul = TOWER_ELITE_MUL.hp[0] + Math.random() * TOWER_ELITE_MUL.hp[1]
+  const atkMul = TOWER_ELITE_MUL.atk[0] + Math.random() * TOWER_ELITE_MUL.atk[1]
   base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp
   base.atk   = Math.round(base.atk * atkMul)
-  base.def   = Math.round(base.def * 1.5)
+  base.def   = Math.round(base.def * TOWER_ELITE_MUL.def)
 
   // 名称
   base.name = _pick(ELITE_NAMES[attr])
@@ -462,11 +266,11 @@ function generateElite(floor) {
 function generateBoss(floor) {
   const base = generateMonster(floor)
 
-  // BOSS倍率随层数递增（30层制：10层=1档，20层=2档，30层=3档）
-  const bossLevel = Math.round(floor / 10)  // 1~3
-  const hpMul  = Math.min(3.0 + (bossLevel - 1) * 0.6, 5)
-  const atkMul = Math.min(1.5 + (bossLevel - 1) * 0.15, 2)
-  const defMul = Math.min(1.2 + (bossLevel - 1) * 0.15, 1.6)
+  const bossLevel = Math.round(floor / 10)
+  const bs = TOWER_BOSS_SCALING
+  const hpMul  = Math.min(bs.hpBase  + (bossLevel - 1) * bs.hpStep,  bs.hpCap)
+  const atkMul = Math.min(bs.atkBase + (bossLevel - 1) * bs.atkStep, bs.atkCap)
+  const defMul = Math.min(bs.defBase + (bossLevel - 1) * bs.defStep, bs.defCap)
 
   base.hp    = Math.round(base.hp * hpMul)
   base.maxHp = base.hp

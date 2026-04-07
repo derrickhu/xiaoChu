@@ -19,8 +19,9 @@ const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 const { NEWBIE_PET_IDS } = require('../data/constants')
 const V = require('../views/env')
-
-const RATING_TO_STARS = { S: 3, A: 2, B: 1 }
+const { RATING_TO_STARS } = require('../data/balance/economy')
+const { NEWBIE_ENEMY_OVERRIDE } = require('../data/balance/enemy')
+const { HERO_BASE_HP, DRAG_BASE_SEC } = require('../data/balance/combat')
 
 /** 秘境本关是否存在 Boss 波（如守关关第一波小怪、第二波才是真 Boss） */
 function _stageHasBossWave(g) {
@@ -96,8 +97,8 @@ function startStage(g, stageId, teamPetIds) {
   }).filter(Boolean)
 
   // 基础属性初始化
-  g.heroMaxHp = 100
-  g.heroHp = 100
+  g.heroMaxHp = HERO_BASE_HP
+  g.heroHp = HERO_BASE_HP
   g.heroShield = 0
 
   // 应用修炼加成
@@ -105,7 +106,7 @@ function startStage(g, stageId, teamPetIds) {
   g.heroMaxHp += effectValue('body', cult.levels.body)
   g.heroHp = g.heroMaxHp
   g.heroShield = effectValue('sense', cult.levels.sense)
-  g.dragTimeLimit = (8 + effectValue('wisdom', cult.levels.wisdom)) * 60
+  g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
   g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
 
@@ -178,15 +179,15 @@ function startStageNewbie(g, stageId) {
     return { ...basePet, star: 1, atk: basePet.atk || 10, currentCd: 0, _temp: true }
   }).filter(Boolean)
 
-  g.heroMaxHp = 100
-  g.heroHp = 100
+  g.heroMaxHp = HERO_BASE_HP
+  g.heroHp = HERO_BASE_HP
   g.heroShield = 0
 
   const cult = g.storage.cultivation
   g.heroMaxHp += effectValue('body', cult.levels.body)
   g.heroHp = g.heroMaxHp
   g.heroShield = effectValue('sense', cult.levels.sense)
-  g.dragTimeLimit = (8 + effectValue('wisdom', cult.levels.wisdom)) * 60
+  g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
   g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
 
@@ -219,8 +220,8 @@ function startStageNewbie(g, stageId) {
 
   // 新手模式弱化敌人：确保临时队伍可在数回合内通关
   if (g.enemy) {
-    g.enemy.hp = 80; g.enemy.maxHp = 80
-    g.enemy.atk = 4; g.enemy.def = 0
+    g.enemy.hp = NEWBIE_ENEMY_OVERRIDE.hp; g.enemy.maxHp = NEWBIE_ENEMY_OVERRIDE.hp
+    g.enemy.atk = NEWBIE_ENEMY_OVERRIDE.atk; g.enemy.def = NEWBIE_ENEMY_OVERRIDE.def
   }
 
   g._isNewbieStage = true
@@ -447,7 +448,7 @@ function settleStage(g) {
     chapterClearReward,
   }
 
-  if (g.storage.userAuthorized && !g._isGM) {
+  if (g.storage.userAuthorized) {
     g.storage.submitStageRanking()
     g.storage.submitDexAndCombo()
   }

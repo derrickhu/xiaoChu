@@ -1,8 +1,13 @@
 /**
  * 经济系统配置 — 灵宠消消塔
- * 集中管理所有经济数值：货币定义、品质视觉、章节奖励、通天塔奖励、派遣奖励
- * 适配 12章 × 8关 普通/精英双难度 = 192关
+ * 数值定义已迁移至 balance/economy.js，本文件保留生成逻辑与对外导出
  */
+
+const {
+  ECONOMY_FRAMEWORK, IDLE_CFG, CHAPTER_CLEAR_REWARDS,
+  TOWER_SETTLE, STAGE_SETTLE, ROGUE_SETTLE,
+  TOWER_DAILY_FREE_RUNS, TOWER_DAILY_AD_EXTRA_RUNS,
+} = require('./balance/economy')
 
 const CURRENCY = {
   soulStone:   { name: '灵石',   icon: 'icon_soul_stone',   desc: '宠物升级的通用货币' },
@@ -48,43 +53,7 @@ const STAR_VISUAL = {
 
 const STAGES_PER_CHAPTER = 8
 
-// ===== 经济框架：按章节定义日收入目标与来源占比 =====
-const ECONOMY_FRAMEWORK = {
-  dailyTarget: {
-    1:  { soulStone: 300,  fragment: 6,  awakenStonePerWeek: 0 },
-    2:  { soulStone: 350,  fragment: 8,  awakenStonePerWeek: 0 },
-    3:  { soulStone: 420,  fragment: 10, awakenStonePerWeek: 0 },
-    4:  { soulStone: 520,  fragment: 12, awakenStonePerWeek: 2 },
-    5:  { soulStone: 620,  fragment: 15, awakenStonePerWeek: 3 },
-    6:  { soulStone: 740,  fragment: 18, awakenStonePerWeek: 4 },
-    7:  { soulStone: 880,  fragment: 22, awakenStonePerWeek: 6 },
-    8:  { soulStone: 1050, fragment: 26, awakenStonePerWeek: 8 },
-    9:  { soulStone: 1250, fragment: 30, awakenStonePerWeek: 10 },
-    10: { soulStone: 1480, fragment: 34, awakenStonePerWeek: 12 },
-    11: { soulStone: 1750, fragment: 40, awakenStonePerWeek: 15 },
-    12: { soulStone: 2080, fragment: 46, awakenStonePerWeek: 18 },
-  },
-  sourceRatio: {
-    stageRepeat: 0.35,
-    tower:       0.30,
-    dailyTask:   0.15,
-    idle:        0.10,
-    signIn:      0.10,
-  },
-  dailyTaskScale: {
-    1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0, 6: 2.4,
-    7: 2.8, 8: 3.3, 9: 3.9, 10: 4.6, 11: 5.4, 12: 6.4,
-  },
-}
-
-// ===== 派遣 / 挂机产出配置 =====
-const IDLE_CFG = {
-  maxSlots:        3,
-  fragIntervalMs:  3 * 3600 * 1000,
-  maxAccumulateMs: 24 * 3600 * 1000,
-  soulStonePerHour: 0.6,
-  petLvExpFactor:  0.02,
-}
+// ECONOMY_FRAMEWORK, IDLE_CFG 已迁移至 balance/economy.js
 
 // ===== 关卡奖励：基于 dailyTarget 公式生成 12 章 =====
 const _DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
@@ -149,54 +118,19 @@ function _genStarRewards() {
 }
 const STAR_REWARDS = _genStarRewards()
 
-// ===== 章节通关宝箱：通关整章（8/8 关首通）时一次性发放 =====
-const CHAPTER_CLEAR_REWARDS = {
-  1:  { soulStone: 50,  fragment: 3 },
-  2:  { soulStone: 60,  fragment: 4 },
-  3:  { soulStone: 80,  fragment: 5 },
-  4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },
-  5:  { soulStone: 120, fragment: 8,  awakenStone: 1 },
-  6:  { soulStone: 150, fragment: 10, awakenStone: 2 },
-  7:  { soulStone: 180, fragment: 12, awakenStone: 3 },
-  8:  { soulStone: 220, fragment: 14, awakenStone: 4 },
-  9:  { soulStone: 260, fragment: 16, awakenStone: 5 },
-  10: { soulStone: 300, fragment: 18, awakenStone: 6 },
-  11: { soulStone: 350, fragment: 22, awakenStone: 8 },
-  12: { soulStone: 400, fragment: 26, awakenStone: 10 },
-}
+// CHAPTER_CLEAR_REWARDS 已迁移至 balance/economy.js
 
-// ===== 通天塔每日挑战限制 =====
+const _AD_UNIT_A = 'adunit-00751e252c34ac8f'
+const _AD_UNIT_B = 'adunit-6e618cadef132ef4'
+const _AD_UNIT_C = 'adunit-cb64624cd4adedae'
+
 const TOWER_DAILY = {
-  freeRuns: 3,
-  adExtraRuns: 2,
+  freeRuns: TOWER_DAILY_FREE_RUNS,
+  adExtraRuns: TOWER_DAILY_AD_EXTRA_RUNS,
   adUnitId: _AD_UNIT_A,
 }
 
-// ===== 通天塔结算配置 =====
-const TOWER_SETTLE = {
-  fragment: {
-    perFloor:    0.3,
-    bossBonus:   1,
-    eliteBonus:  0.5,
-    clearBonus:  8,
-    failRatio:   0.6,
-  },
-  cultExp: {
-    perFloor:    3,
-    clearBonus:  500,
-    failRatio:   0.6,
-  },
-  soulStone: {
-    combatRatio: 0.04,
-    floorBase:   0.2,
-    floorGrowth: 0.06,
-    clearBonus:  30,
-  },
-  distribute: {
-    mode: 'team',
-    evenSplit: true,
-  },
-}
+// TOWER_SETTLE 已迁移至 balance/economy.js
 
 // ===== 周回碎片档位：基于 dailyTarget 公式生成 12 章 =====
 function _genRepFrag() {
@@ -213,19 +147,7 @@ function _genRepFrag() {
 }
 const CHAPTER_REP_FRAG = _genRepFrag()
 
-// ===== 秘境关卡结算配置 =====
-const STAGE_SETTLE = {
-  ratingMul: { S: 1.5, A: 1.2, B: 1.0 },
-  defeatExpRatio: 0.6,
-  defeatSSRatio: 0.5,
-}
-
-// ===== 肉鸽灵石结算系数 @deprecated 未实际调用，保留备用 =====
-const ROGUE_SETTLE = {
-  combatExpRatio: 0.3,
-  floorBonus:     2,
-  clearBonus:     200,
-}
+// STAGE_SETTLE, ROGUE_SETTLE 已迁移至 balance/economy.js
 
 /**
  * 获取玩家当前章节对应的每日任务奖励缩放系数
@@ -275,10 +197,6 @@ function getStarRewardConfig(chapter, order) {
 }
 
 // ===== IAA 广告位配置 =====
-const _AD_UNIT_A = 'adunit-00751e252c34ac8f'
-const _AD_UNIT_B = 'adunit-6e618cadef132ef4'
-const _AD_UNIT_C = 'adunit-cb64624cd4adedae'
-
 const AD_REWARDS = {
   revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1  },
   staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: 40 } },

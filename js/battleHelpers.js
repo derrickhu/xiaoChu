@@ -8,6 +8,7 @@ const MusicMgr = require('./runtime/music')
 const V = require('./views/env')
 const DF = require('./engine/dmgFloat')
 const { getBattleLayout: computeBattleLayout } = require('./views/battle/battleLayout')
+const { DMG_IMMUNE_MIN, WEAPON_SHIELD_BOOST_DEFAULT } = require('./data/balance/combat')
 
 /** 与战斗界面共用布局（含 eAreaBottom）；此处保留旧字段子集以兼容既有调用 */
 function getBattleLayout() {
@@ -57,7 +58,7 @@ function playHealEffect(g) {
 /** 统一添加护盾（自动应用法宝 shieldBoost 加成） */
 function addShield(g, val) {
   if (g.weapon && g.weapon.type === 'shieldBoost') {
-    val = Math.round(val * (1 + (g.weapon.pct || 50) / 100))
+    val = Math.round(val * (1 + (g.weapon.pct || WEAPON_SHIELD_BOOST_DEFAULT) / 100))
   }
   g.heroShield += val
   MusicMgr.playShieldGain()
@@ -67,7 +68,7 @@ function addShield(g, val) {
 /** 对英雄造成伤害（含护盾、绝对防御、飘字） */
 function dealDmgToHero(g, dmg) {
   const immune = g.heroBuffs && g.heroBuffs.find(b => b.type === 'dmgImmune')
-  if (immune && dmg > 1) dmg = 1
+  if (immune && dmg > DMG_IMMUNE_MIN) dmg = DMG_IMMUNE_MIN
   const { W, H } = V
   if (g.heroShield > 0) {
     if (dmg <= g.heroShield) {
