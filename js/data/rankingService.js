@@ -223,6 +223,10 @@ class RankingService {
             clearCount: ctx.stageClearCount,
             eliteClearCount: ctx.stageEliteClearCount,
             farthestChapter: ctx.farthestChapter,
+            farthestNormalChapter: ctx.farthestNormalChapter,
+            farthestNormalOrder: ctx.farthestNormalOrder,
+            farthestEliteChapter: ctx.farthestEliteChapter,
+            farthestEliteOrder: ctx.farthestEliteOrder,
           })
         }
         const result = await this._callRanking({ action: 'getStage' })
