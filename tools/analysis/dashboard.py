@@ -16,12 +16,56 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / 'data'
 
+
+@st.cache_data
+def _cached_weapon_details():
+    if load_weapon_details is None:
+        return {}
+    return load_weapon_details()
+
+
+@st.cache_data
+def _cached_pet_names():
+    if load_pet_names is None:
+        return {}
+    return load_pet_names()
+
+
 # 与 analyze.py 共用本地榜构建逻辑
 try:
-    from analyze import build_local_leaderboard_rows, build_rank_cross_report
+    from analyze import (
+        build_local_leaderboard_rows,
+        build_rank_cross_report,
+        compute_stage_progress,
+        build_stage_leaderboard_rows,
+        format_player_record_readable,
+        load_weapon_details,
+        load_pet_names,
+        pet_pool_dataframe,
+        weapon_collection_dataframe,
+        stage_clear_dataframe,
+        pet_dex_dataframe,
+        fragment_bank_dataframe,
+        idle_dispatch_dataframe,
+        build_player_select_labels,
+        format_stage_farthest_label,
+    )
 except ImportError:
     build_local_leaderboard_rows = None
     build_rank_cross_report = None
+    compute_stage_progress = None
+    build_stage_leaderboard_rows = None
+    format_player_record_readable = None
+    load_weapon_details = None
+    load_pet_names = None
+    pet_pool_dataframe = None
+    weapon_collection_dataframe = None
+    stage_clear_dataframe = None
+    pet_dex_dataframe = None
+    fragment_bank_dataframe = None
+    idle_dispatch_dataframe = None
+    build_player_select_labels = None
+    format_stage_farthest_label = None
 
 # ========== 页面配置 ==========
 
@@ -76,36 +120,58 @@ with st.sidebar:
             st.code(log, language='text')
 
     st.divider()
-    st.caption('数据来源: 微信云数据库')
+    st.caption('数据来源: 微信云数据库 · WX_SECRET 与 CDN 脚本同源（环境变量 / scripts/.cdn_secret / 本目录 .env）')
 
 
 # ========== 加载数据 ==========
 
 players = load_collection('playerData')
 if not players:
-    st.warning('暂无数据。请先点击侧边栏「刷新数据」，或运行 `node export_wx.js`')
+    st.warning('暂无数据。请先侧边栏「刷新数据」，或于本目录执行 `node export_wx.js`（需已配置 WX_SECRET，见 scripts/.cdn_secret）')
     st.stop()
 
 df = pd.DataFrame(players)
 total = len(df)
 
+# 秘境进度列（与客户端 stageClearRecord 一致）
+if compute_stage_progress is not None:
+    _sm = [compute_stage_progress(p) for p in players if isinstance(p, dict)]
+    stage_df = pd.DataFrame(_sm) if _sm else pd.DataFrame()
+else:
+    stage_df = pd.DataFrame()
+
 # ========== 顶部指标卡 ==========
 
 st.header('总览')
+st.caption('秘境（固定关卡）为主线玩法；通天塔（肉鸽）为支线。指标已拆成「秘境 / 通天塔」两组。')
 
 floors = df['bestFloor'].fillna(0) if 'bestFloor' in df.columns else pd.Series([0])
 runs = df['totalRuns'].fillna(0) if 'totalRuns' in df.columns else pd.Series([0])
-cleared = int((floors >= 30).sum())
+tower_cleared = int((floors >= 30).sum())
 
 stats_col = df.get('stats', pd.Series(dtype=object))
 combos = stats_col.apply(lambda x: x.get('maxCombo', 0) if isinstance(x, dict) else 0)
 dex_counts = df['petDex'].apply(lambda x: len(x) if isinstance(x, list) else 0) if 'petDex' in df.columns else pd.Series([0])
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+st.markdown('**秘境（主玩法）**')
+s1, s2, s3, s4 = st.columns(4)
+if len(stage_df) > 0 and total > 0:
+    has_stage = int((stage_df['farthest_normal_ch'] > 0).sum())
+    s1.metric('有秘境进度占比', f'{has_stage/total*100:.1f}%', help='至少通过一关普通秘境')
+    s2.metric('总星数·中位', f'{stage_df["stage_total_stars"].median():.0f}')
+    s3.metric('普通关通关·中位', f'{stage_df["stage_normal_cleared"].median():.0f}')
+    s4.metric('精英关通关·中位', f'{stage_df["stage_elite_cleared"].median():.0f}')
+else:
+    s1.metric('秘境数据', '—', help='无法解析 stageClearRecord')
+
+st.markdown('**通天塔（肉鸽）**')
+col1, col2, col3, col4 = st.columns(4)
 col1.metric('玩家总数', total)
-col2.metric('通关率', f'{cleared/total*100:.1f}%')
-col3.metric('平均最高层', f'{floors.mean():.1f}')
-col4.metric('人均对局', f'{runs.mean():.1f}')
+col2.metric('塔通关率(≥30层)', f'{tower_cleared/total*100:.1f}%')
+col3.metric('塔·均最高层', f'{floors.mean():.1f}')
+col4.metric('塔·人均对局', f'{runs.mean():.1f}')
+
+col5, col6 = st.columns(2)
 col5.metric('中位连击', f'{combos[combos>0].median():.0f}' if (combos > 0).any() else '-')
 col6.metric('中位图鉴', f'{dex_counts[dex_counts>0].median():.0f}' if (dex_counts > 0).any() else '-')
 
@@ -113,16 +179,294 @@ st.divider()
 
 # ========== Tab 页 ==========
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    '🏆 本地最高层榜', '📊 进度分布', '⚔️ 数值平衡', '🐾 宠物生态', '🧘 修炼系统', '🏰 关卡挑战', '💎 经济与引导',
+tab_stage, tab_player, tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    '🗺️ 秘境（主玩法）',
+    '👤 玩家透视',
+    '🏆 通天塔榜',
+    '📊 塔进度分布',
+    '⚔️ 数值平衡',
+    '🐾 宠物生态',
+    '🧘 修炼系统',
+    '🏰 秘境关卡漏斗',
+    '💎 经济与引导',
     '📎 排行·未完成局·挂机',
 ])
 
+# ---------- Tab 秘境：主玩法进度 ----------
+with tab_stage:
+    st.subheader('秘境进度总览')
+    st.caption(
+        '来自 `stageClearRecord`：总星数为各关最高评级 B/A/S 折算星数之和；最远关按已通关普通/精英关推进计算。'
+    )
+    if build_stage_leaderboard_rows is None:
+        st.error('无法加载 build_stage_leaderboard_rows')
+    elif len(stage_df) == 0:
+        st.info('无 stageClearRecord 可用数据')
+    else:
+        c_a, c_b = st.columns(2)
+        with c_a:
+            fig = px.histogram(
+                stage_df, x='stage_total_stars', nbins=min(40, max(12, int(stage_df['stage_total_stars'].max()) + 2)),
+                title='秘境：总星数分布',
+                labels={'stage_total_stars': '总星数', 'count': '玩家数'},
+                color_discrete_sequence=['#5C6BC0'],
+            )
+            fig.add_vline(
+                x=stage_df['stage_total_stars'].median(), line_dash='dash', line_color='red',
+                annotation_text=f"中位 {stage_df['stage_total_stars'].median():.0f}")
+            st.plotly_chart(fig, use_container_width=True)
+        with c_b:
+            prog = stage_df['farthest_normal_ch'] * 100 + stage_df['farthest_normal_ord']
+            prog_ok = prog[prog > 0]
+            if len(prog_ok) > 0:
+                fig = px.histogram(
+                    prog_ok, nbins=32,
+                    title='最远普通关进度分（章×100+关，仅已过关玩家）',
+                    labels={'value': '进度分', 'count': '玩家数'},
+                    color_discrete_sequence=['#7E57C2'],
+                )
+                fig.add_vline(x=prog_ok.median(), line_dash='dash', line_color='red',
+                              annotation_text=f"中位 {prog_ok.median():.0f}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info('暂无普通秘境通关记录')
+
+        c_c, c_d = st.columns(2)
+        with c_c:
+            fig = px.histogram(
+                stage_df, x='stage_normal_cleared', nbins=max(20, int(stage_df['stage_normal_cleared'].max()) + 2),
+                title='普通秘境：已通关关卡数分布',
+                labels={'stage_normal_cleared': '关卡数', 'count': '玩家数'},
+                color_discrete_sequence=['#26A69A'],
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        with c_d:
+            fig = px.histogram(
+                stage_df, x='stage_elite_cleared', nbins=max(12, int(stage_df['stage_elite_cleared'].max()) + 2),
+                title='精英秘境：已通关关卡数分布',
+                labels={'stage_elite_cleared': '关卡数', 'count': '玩家数'},
+                color_discrete_sequence=['#FF7043'],
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader('本地秘境进度榜')
+        st_rows = build_stage_leaderboard_rows(players)
+        st_lb = pd.DataFrame(st_rows)
+        if not st_lb.empty:
+            if '_updateTime' in st_lb.columns:
+                st_lb['更新时间'] = pd.to_datetime(st_lb['_updateTime'], unit='ms').dt.strftime('%Y-%m-%d %H:%M')
+            disp = st_lb.rename(columns={
+                'rank': '名次',
+                '_openid': 'OpenID',
+                'stage_total_stars': '总星数',
+                'stage_normal_cleared': '普通通关数',
+                'stage_elite_cleared': '精英通关数',
+                'farthest_normal_label': '最远普通关',
+                'farthest_elite_label': '最远精英关',
+            })
+            show_cols = [c for c in ['名次', 'OpenID', '总星数', '普通通关数', '精英通关数', '最远普通关', '最远精英关', '更新时间'] if c in disp.columns]
+            st.dataframe(disp[show_cols], use_container_width=True, hide_index=True)
+            st.download_button(
+                label='下载秘境榜 CSV',
+                data=disp[show_cols].to_csv(index=False).encode('utf-8-sig'),
+                file_name='local_stage_leaderboard.csv',
+                mime='text/csv',
+            )
+
+# ---------- Tab 玩家透视（单玩家：灵宠、法宝、秘境等）----------
+with tab_player:
+    st.subheader('单玩家档案')
+    st.caption(
+        '从全量 playerData 中选一人，查看灵宠池、已拥有法宝、秘境通关、图鉴与碎片等；名称自仓库 js 静态表解析。'
+    )
+    if (
+        build_player_select_labels is None
+        or pet_pool_dataframe is None
+        or format_player_record_readable is None
+    ):
+        st.error('无法加载 analyze 单玩家模块')
+    else:
+        filter_q = st.text_input(
+            '查找（完整 OpenID / OpenID 一段 / 与下方展示文案任意子串匹配，不区分大小写）',
+            '',
+            key='player_insight_filter',
+        )
+        labels = build_player_select_labels(players)
+
+        def _player_openid_lower(player_idx):
+            p = players[player_idx]
+            if not isinstance(p, dict):
+                return ''
+            return str(p.get('_openid') or p.get('openid') or '').lower()
+
+        if filter_q.strip():
+            q = filter_q.strip().lower()
+            labels = [
+                (lab, idx) for lab, idx in labels
+                if q in lab.lower() or q in _player_openid_lower(idx)
+            ]
+        if not labels:
+            st.warning('没有匹配的玩家，请清空筛选或换关键词')
+        else:
+            label_list = [x[0] for x in labels]
+            indices = [x[1] for x in labels]
+            pick = st.selectbox(
+                f'选择玩家（共 {len(labels)} 人）',
+                range(len(label_list)),
+                format_func=lambda i: label_list[i],
+            )
+            rec = players[indices[pick]]
+            oid = str(rec.get('_openid') or rec.get('openid') or '')
+            sp = compute_stage_progress(rec) if compute_stage_progress else {}
+
+            wdet = _cached_weapon_details()
+            pnames = _cached_pet_names()
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric('OpenID', oid[-12:] if len(oid) >= 12 else oid or '—')
+            m2.metric('秘境总星', sp.get('stage_total_stars', 0))
+            m3.metric('通天塔最高层', int(rec.get('bestFloor') or 0))
+            m4.metric('灵宠池人数', len(rec.get('petPool') or []) if isinstance(rec.get('petPool'), list) else 0)
+
+            if format_stage_farthest_label:
+                st.write(
+                    f"**最远普通关** {format_stage_farthest_label(sp, False)} · "
+                    f"**最远精英** {format_stage_farthest_label(sp, True)} · "
+                    f"**当前装备法宝** `{rec.get('equippedWeaponId') or '无'}`"
+                )
+
+            cult = rec.get('cultivation') if isinstance(rec.get('cultivation'), dict) else {}
+            if cult:
+                with st.expander('修炼 cultivation（等级 / 五维）'):
+                    st.json({
+                        'level': cult.get('level'),
+                        'exp': cult.get('exp'),
+                        'skillPoints': cult.get('skillPoints'),
+                        'levels': cult.get('levels'),
+                    })
+
+            pu1, pu2 = st.columns(2)
+            with pu1:
+                st.markdown('**秘境编队 savedStageTeam**')
+                team = rec.get('savedStageTeam')
+                if isinstance(team, list) and team:
+                    tdf = pd.DataFrame({
+                        '宠物ID': team,
+                        '名称': [pnames.get(str(x), '') for x in team],
+                    })
+                    st.dataframe(tdf, use_container_width=True, hide_index=True)
+                else:
+                    st.caption('无保存编队')
+
+            with pu2:
+                st.markdown('**体力 stamina**')
+                stm = rec.get('stamina') if isinstance(rec.get('stamina'), dict) else {}
+                if stm:
+                    st.json(stm)
+                else:
+                    st.caption('无 stamina 字段')
+
+            ptab1, ptab2, ptab3, ptab4, ptab5 = st.tabs([
+                '🐾 灵宠池 & 图鉴',
+                '⚔️ 法宝',
+                '🗺️ 秘境通关明细',
+                '💎 碎片 & 派遣',
+                '📄 文本摘要 & JSON',
+            ])
+
+            with ptab1:
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown('**灵宠池**（养成状态）')
+                    ppdf = pet_pool_dataframe(rec, pnames)
+                    if ppdf.empty:
+                        st.caption('灵宠池为空')
+                    else:
+                        st.dataframe(ppdf, use_container_width=True, hide_index=True)
+                        st.caption(f'共 {len(ppdf)} 只')
+                with c2:
+                    st.markdown('**图鉴 petDex**（≥3星收录）')
+                    ddf = pet_dex_dataframe(rec, pnames)
+                    if ddf.empty:
+                        st.caption('图鉴为空')
+                    else:
+                        st.dataframe(ddf, use_container_width=True, hide_index=True)
+                        st.caption(f'共 {len(ddf)} 条')
+
+            with ptab2:
+                st.markdown('**已拥有法宝 weaponCollection**')
+                wwdf = weapon_collection_dataframe(rec, wdet)
+                if wwdf.empty:
+                    st.caption('无法宝数据')
+                else:
+                    st.dataframe(wwdf, use_container_width=True, hide_index=True)
+                st.markdown('**通天塔历史阵容（stats.bestFloorPets / bestFloorWeapon）**')
+                raw_stats = rec.get('stats') if isinstance(rec.get('stats'), dict) else {}
+                bpets = raw_stats.get('bestFloorPets') if isinstance(raw_stats.get('bestFloorPets'), list) else []
+                if bpets:
+                    bdf = pd.DataFrame(bpets)
+                    st.dataframe(bdf, use_container_width=True, hide_index=True)
+                else:
+                    st.caption('无最高层阵容记录')
+                bw = raw_stats.get('bestFloorWeapon')
+                if isinstance(bw, dict):
+                    st.json(bw)
+                elif bw:
+                    st.text(str(bw))
+
+            with ptab3:
+                scdf = stage_clear_dataframe(rec)
+                if scdf.empty:
+                    st.caption('暂无秘境通关记录')
+                else:
+                    st.dataframe(scdf, use_container_width=True, hide_index=True)
+                    st.caption(f'已通关 {len(scdf)} 条关卡记录')
+
+            with ptab4:
+                a1, a2 = st.columns(2)
+                with a1:
+                    st.markdown('**碎片银行 fragmentBank**（未入池）')
+                    fbdf = fragment_bank_dataframe(rec)
+                    if fbdf.empty:
+                        st.caption('无碎片银行数据')
+                    else:
+                        fbdf2 = fbdf.copy()
+                        fbdf2['名称'] = fbdf2['宠物ID'].map(lambda x: pnames.get(str(x), ''))
+                        st.dataframe(fbdf2, use_container_width=True, hide_index=True)
+                with a2:
+                    st.markdown('**派遣挂机 idleDispatch**')
+                    idf = idle_dispatch_dataframe(rec, pnames)
+                    if idf.empty:
+                        st.caption('无派遣中槽位')
+                    else:
+                        st.dataframe(idf, use_container_width=True, hide_index=True)
+                soul = rec.get('soulStone')
+                aw = rec.get('awakenStone')
+                if soul is not None or aw is not None:
+                    st.write(f'灵石 soulStone: **{soul}** · 觉醒石 awakenStone: **{aw}**')
+
+            with ptab5:
+                try:
+                    readable = format_player_record_readable(rec)
+                    st.text_area('运营可读摘要（与 analyze 控制台一致）', readable, height=420)
+                except Exception as e:
+                    st.warning(f'生成可读摘要失败: {e}')
+                try:
+                    jraw = json.dumps(rec, ensure_ascii=False, indent=2, default=str)
+                    st.download_button(
+                        label='下载该玩家完整 JSON',
+                        data=jraw.encode('utf-8'),
+                        file_name=f'player_{oid[-8:] if len(oid) >= 8 else "data"}.json',
+                        mime='application/json',
+                    )
+                except Exception as e:
+                    st.warning(f'导出 JSON 失败: {e}')
+
 # ---------- Tab 0: 本地最高层榜（playerData，无需排行授权）----------
 with tab0:
-    st.subheader('本地最高层榜')
+    st.subheader('本地通天塔榜（最高层）')
     st.caption(
-        '数据来自 playerData 全量；排序与云端速通榜规则一致（层数优先；≥30层看通关回合）。'
+        '肉鸽通天塔：数据来自 playerData；排序与云端速通榜一致（层数优先；≥30层看通关回合）。'
     )
     if build_local_leaderboard_rows is None:
         st.error('无法加载 analyze.build_local_leaderboard_rows')
@@ -156,20 +500,21 @@ with tab0:
             head = lb_df.head(top_n)
             fig = px.bar(
                 head, x='rank', y='bestFloor',
-                title=f'前 {top_n} 名 — 最高层数',
+                title=f'前 {top_n} 名 — 通天塔最高层',
                 labels={'rank': '名次', 'bestFloor': '最高层'},
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info('无数据')
 
-# ---------- Tab 1: 进度分布 ----------
+# ---------- Tab 1: 通天塔进度分布 ----------
 with tab1:
+    st.caption('本页为**通天塔（肉鸽）**维度；秘境主玩法见首 Tab。')
     c1, c2 = st.columns(2)
 
     with c1:
         fig = px.histogram(df, x='bestFloor', nbins=max(int(floors.max()), 10),
-                           title='最高层数分布',
+                           title='通天塔：最高层数分布',
                            labels={'bestFloor': '最高层数', 'count': '玩家数'},
                            color_discrete_sequence=['#4CAF50'])
         fig.add_vline(x=floors.median(), line_dash='dash', line_color='red',
@@ -178,7 +523,7 @@ with tab1:
 
     with c2:
         fig = px.histogram(df, x='totalRuns', nbins=30,
-                           title='总对局数分布',
+                           title='通天塔：总对局数分布',
                            labels={'totalRuns': '总对局数', 'count': '玩家数'},
                            color_discrete_sequence=['#2196F3'])
         fig.add_vline(x=runs.median(), line_dash='dash', line_color='red',
@@ -192,7 +537,7 @@ with tab1:
     fig = px.pie(
         names=['轻度(≤5局)', '中度(6-30局)', '重度(>30局)'],
         values=[light, mid, heavy],
-        title='玩家分层',
+        title='玩家分层（按通天塔 totalRuns）',
         color_discrete_sequence=['#81C784', '#64B5F6', '#E57373'])
     st.plotly_chart(fig, use_container_width=True)
 
@@ -244,7 +589,7 @@ with tab3:
         if pet_counter:
             pet_df = pd.DataFrame(pet_counter.most_common(20), columns=['宠物', '使用人数'])
             fig = px.bar(pet_df, y='宠物', x='使用人数', orientation='h',
-                         title='最高层宠物使用率 Top 20',
+                         title='通天塔最高层阵容·宠物使用率 Top 20',
                          color='使用人数', color_continuous_scale='RdPu')
             fig.update_layout(yaxis={'autorange': 'reversed'})
             st.plotly_chart(fig, use_container_width=True)
@@ -273,7 +618,7 @@ with tab3:
                     attr_counter[p['attr']] += 1
     if attr_counter:
         attr_df = pd.DataFrame(attr_counter.most_common(), columns=['属性', '出场次数'])
-        fig = px.pie(attr_df, names='属性', values='出场次数', title='最高层宠物属性分布')
+        fig = px.pie(attr_df, names='属性', values='出场次数', title='通天塔最高层·宠物属性分布')
         st.plotly_chart(fig, use_container_width=True)
 
 
@@ -317,8 +662,9 @@ with tab4:
             st.info('暂无修炼数据')
 
 
-# ---------- Tab 5: 关卡挑战 ----------
+# ---------- Tab 5: 秘境关卡漏斗（逐关通过率）----------
 with tab5:
+    st.caption('秘境主玩法：每一关在全量玩家中的「曾有通关记录」占比（含重复闯关）。')
     c1, c2 = st.columns(2)
 
     with c1:
@@ -326,22 +672,23 @@ with tab5:
             stage_counter = Counter()
             for record in df['stageClearRecord'].dropna():
                 if isinstance(record, dict):
-                    for sid in record.keys():
-                        stage_counter[sid] += 1
+                    for sid, rec in record.items():
+                        if isinstance(rec, dict) and rec.get('cleared'):
+                            stage_counter[sid] += 1
 
             if stage_counter:
                 def stage_sort(s):
-                    parts = s.replace('stage_', '').split('_')
+                    parts = s.replace('stage_', '').replace('_elite', '').split('_')
                     try:
-                        return tuple(int(p) for p in parts)
+                        return tuple(int(p) for p in parts if p.isdigit())
                     except ValueError:
                         return (999, 999)
 
                 sorted_stages = sorted(stage_counter.items(), key=lambda x: stage_sort(x[0]))
-                stage_df = pd.DataFrame(sorted_stages, columns=['关卡', '通过人数'])
-                stage_df['通过率(%)'] = (stage_df['通过人数'] / total * 100).round(1)
+                funnel_df = pd.DataFrame(sorted_stages, columns=['关卡', '通过人数'])
+                funnel_df['通过率(%)'] = (funnel_df['通过人数'] / total * 100).round(1)
 
-                fig = px.bar(stage_df, x='关卡', y='通过率(%)', title='固定关卡通过率',
+                fig = px.bar(funnel_df, x='关卡', y='通过率(%)', title='秘境：逐关通过率（有通关记录人数 / 全量玩家）',
                              color='通过率(%)', color_continuous_scale='Blues',
                              text='通过率(%)')
                 fig.update_traces(textposition='outside')

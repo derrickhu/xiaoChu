@@ -5,6 +5,17 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { drawBackBtn } = require('./screens')
 const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
+
+/** 与灵宠池展示一致：绑定池的宠物 atk 已为 getPoolPetAtk 结果，不再套局内 getPetStarAtk */
+function _prepPetAtkLine(g, p) {
+  if (!p) return ''
+  if (p._poolId && g.storage.getPoolPet(p._poolId)) {
+    return `ATK:${Math.floor(p.atk)}`
+  }
+  const eff = getPetStarAtk(p)
+  return (p.star || 1) > 1 ? `ATK:${p.atk}→${eff}` : `ATK:${p.atk}`
+}
 
 // 背包滚动状态
 let _petBagScrollY = 0
@@ -133,9 +144,7 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(p.name.substring(0,5), cx, slotY+iconSz+3*S)
       ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
-      const pStarAtk = getPetStarAtk(p)
-      const pAtkDisp = (p.star || 1) > 1 ? `ATK:${p.atk}→${pStarAtk}` : `ATK:${p.atk}`
-      ctx.fillText(pAtkDisp, cx, slotY+iconSz+14*S)
+      ctx.fillText(_prepPetAtkLine(g, p), cx, slotY+iconSz+14*S)
     } else {
       const pf = fMap.metal
       if (pf && pf.width > 0) {
@@ -236,9 +245,7 @@ function _drawPetTab(g, padX, contentY) {
       ctx.fillStyle = ac ? ac.main : TH.text; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
       ctx.fillText(bp.name.substring(0,5), bcx, by+bagIcon+3*S)
       ctx.fillStyle = TH.dim; ctx.font = `${8*S}px "PingFang SC",sans-serif`
-      const bpStarAtk = getPetStarAtk(bp)
-      const bpAtkDisp = (bp.star || 1) > 1 ? `ATK:${bp.atk}→${bpStarAtk}` : `ATK:${bp.atk}`
-      ctx.fillText(bpAtkDisp, bcx, by+bagIcon+14*S)
+      ctx.fillText(_prepPetAtkLine(g, bp), bcx, by+bagIcon+14*S)
     } else {
       const bf = fMap.metal
       if (bf && bf.width > 0) {
@@ -467,7 +474,7 @@ function drawPrepareTip(g) {
 function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, maxTextW, g) {
   const curStar = d.star || 1
   const isMaxStar = curStar >= MAX_STAR
-  const curAtk = getPetStarAtk(d)
+  const curAtk = d._poolId && g.storage.getPoolPet(d._poolId) ? d.atk : getPetStarAtk(d)
   const skillDesc = petHasSkill(d) ? (getPetSkillDesc(d) || '') : ''
   const ac = ATTR_COLOR[d.attr]
 
@@ -483,7 +490,12 @@ function _drawPetTip(ctx, R, S, W, H, safeTop, tip, d, padX, padY, tipW, lineH, 
   let nextAtk = 0, nextSkillDesc = '', nextSkillDescLines = []
   if (!isMaxStar) {
     const nextPet = { ...d, star: curStar + 1 }
-    nextAtk = getPetStarAtk(nextPet)
+    if (d._poolId) {
+      const pp = g.storage.getPoolPet(d._poolId)
+      nextAtk = pp ? getPoolPetAtk({ ...pp, star: curStar + 1 }, g.storage.getDexBuffs()) : getPetStarAtk(nextPet)
+    } else {
+      nextAtk = getPetStarAtk(nextPet)
+    }
     nextSkillDesc = petHasSkill(nextPet) ? (getPetSkillDesc(nextPet) || (d.skill ? d.skill.desc : '')) : ''
     nextSkillDescLines = nextSkillDesc ? wrapText(nextSkillDesc, maxTextW - 4*S, 10) : []
   }

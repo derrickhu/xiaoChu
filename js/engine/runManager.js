@@ -11,7 +11,7 @@ const {
   EVENT_TYPE, ADVENTURES, MAX_FLOOR,
   generateFloorEvent, getRealmInfo,
 } = require('../data/tower')
-const { generateStarterPets, generateSessionPetPool, PETS, getPetById, petHasSkill } = require('../data/pets')
+const { generateStarterPets, generateSessionPetPool, PETS, getPetById, petHasSkill, MAX_STAR } = require('../data/pets')
 const { generateStarterWeapon, getWeaponById } = require('../data/weapons')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
@@ -64,6 +64,45 @@ function makeDefaultRunBuffs() {
   return JSON.parse(JSON.stringify(DEFAULT_RUN_BUFFS))
 }
 
+/** 从灵宠池生成单场通天塔上阵宠物（星级取池内记录，缺省按 ★1） */
+function makePoolRunPet(g, poolPetId) {
+  const poolPet = g.storage.getPoolPet(poolPetId)
+  const basePet = getPetById(poolPetId)
+  if (!basePet || !poolPet) return null
+  const dexBuffs = g.storage.getDexBuffs()
+  const star = Math.max(1, Math.min(MAX_STAR, Number(poolPet.star) || 1))
+  return {
+    ...basePet,
+    star,
+    atk: getPoolPetAtk(poolPet, dexBuffs),
+    currentCd: petHasSkill({ ...basePet, star })
+      ? Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET)
+      : 0,
+    _poolId: poolPetId,
+  }
+}
+
+/** 续档时与灵宠池对齐：修正旧存档里缺失的 star、atk，并处理技能解锁后的 CD */
+function syncPoolLinkedRunPet(g, pet) {
+  if (!pet || !pet._poolId) return pet
+  const poolPet = g.storage.getPoolPet(pet._poolId)
+  const basePet = getPetById(pet.id)
+  if (!basePet || !poolPet) return pet
+  const dexBuffs = g.storage.getDexBuffs()
+  const star = Math.max(1, Math.min(MAX_STAR, Number(poolPet.star) || 1))
+  const atk = getPoolPetAtk(poolPet, dexBuffs)
+  const hadSkill = petHasSkill(pet)
+  const hasSkillNow = petHasSkill({ ...basePet, star })
+  let currentCd = pet.currentCd
+  if (currentCd === undefined || currentCd === null) currentCd = 0
+  if (!hasSkillNow) {
+    currentCd = 0
+  } else if (hasSkillNow && !hadSkill) {
+    currentCd = Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET)
+  }
+  return { ...pet, star, atk, currentCd }
+}
+
 function startRun(g, petIds) {
   g.battleMode = 'roguelike'
   g.floor = 0
@@ -81,19 +120,7 @@ function startRun(g, petIds) {
 
   // 从灵宠池构建战斗宠物（带自己的宠物冲塔）
   const teamIds = petIds || g.storage.petPool.slice(0, 5).map(p => p.id)
-  const dexBuffs = g.storage.getDexBuffs()
-  g.pets = teamIds.map(id => {
-    const poolPet = g.storage.getPoolPet(id)
-    const basePet = getPetById(id)
-    if (!basePet || !poolPet) return null
-    return {
-      ...basePet,
-      star: poolPet.star,
-      atk: getPoolPetAtk(poolPet, dexBuffs),
-      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0,
-      _poolId: id,
-    }
-  }).filter(Boolean)
+  g.pets = teamIds.map(id => makePoolRunPet(g, id)).filter(Boolean)
 
   g.sessionPetPool = []
   g.petBag = []
@@ -392,7 +419,7 @@ function resumeRun(g) {
   if (!s) return
   g.battleMode = 'roguelike'
   g.floor = s.floor
-  g.pets = s.pets
+  g.pets = (s.pets || []).map(p => syncPoolLinkedRunPet(g, p))
   g.weapon = s.weapon
   g.petBag = s.petBag || []
   g.weaponBag = s.weaponBag || []

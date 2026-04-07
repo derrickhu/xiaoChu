@@ -10,6 +10,7 @@
 
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,181 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / 'data'
 OUTPUT_DIR = SCRIPT_DIR / 'output'
+# analyze.py 在 tools/analysis/ 下，仓库根为再上两级
+REPO_ROOT = SCRIPT_DIR.parent.parent
+
+# 秘境评级→星数（与 js/data/storage.js 一致）
+_STAGE_RATING_TO_STARS = {'S': 3, 'A': 2, 'B': 1}
+_RE_STAGE_NORMAL = re.compile(r'^stage_(\d+)_(\d+)$')
+_RE_STAGE_ELITE = re.compile(r'^stage_(\d+)_(\d+)_elite$')
+
+# 从仓库 weapons.js / pets.js 解析静态表（供单玩家透视）
+_WEAPON_LINE_RE = re.compile(
+    r"\{ id:'(w\d+)',\s+name:'([^']*)',\s+desc:'([^']*)',\s+type:'([\w]+)'"
+)
+_PET_HEAD_RE = re.compile(r"\{ id:'(\w+)',\s+name:'([^']*)'")
+_PET_ID_ATTR_HINT = {'m': 'metal', 'w': 'wood', 's': 'water', 'f': 'fire', 'e': 'earth'}
+
+
+def infer_pet_attr_from_id(pet_id):
+    if not pet_id or not isinstance(pet_id, str):
+        return ''
+    c = pet_id[0].lower()
+    return _PET_ID_ATTR_HINT.get(c, '')
+
+
+def load_weapon_details():
+    """id → {name, desc, type}"""
+    path = REPO_ROOT / 'js' / 'data' / 'weapons.js'
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding='utf-8')
+    return {
+        m.group(1): {'name': m.group(2), 'desc': m.group(3), 'type': m.group(4)}
+        for m in _WEAPON_LINE_RE.finditer(text)
+    }
+
+
+def load_pet_names():
+    """宠物 id → 名称"""
+    path = REPO_ROOT / 'js' / 'data' / 'pets.js'
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding='utf-8')
+    return dict(_PET_HEAD_RE.findall(text))
+
+
+def pet_pool_dataframe(rec, pet_names=None):
+    pet_names = pet_names or {}
+    rows = []
+    pool = rec.get('petPool') if isinstance(rec.get('petPool'), list) else []
+    for item in pool:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get('id') or ''
+        attr = item.get('attr') or infer_pet_attr_from_id(pid)
+        rows.append({
+            '宠物ID': pid,
+            '名称': pet_names.get(pid, ''),
+            '属性': attr,
+            '星级': item.get('star', 1),
+            '等级': item.get('level', 1),
+            '碎片': item.get('fragments', 0),
+            '来源': item.get('source', ''),
+        })
+    df = pd.DataFrame(rows)
+    if not df.empty and '星级' in df.columns:
+        df = df.sort_values(['星级', '等级', '宠物ID'], ascending=[False, False, True])
+    return df
+
+
+def weapon_collection_dataframe(rec, weapon_details=None):
+    weapon_details = weapon_details or {}
+    eq = rec.get('equippedWeaponId')
+    col = rec.get('weaponCollection') if isinstance(rec.get('weaponCollection'), list) else []
+    rows = []
+    for wid in col:
+        if not wid:
+            continue
+        info = weapon_details.get(wid, {})
+        rows.append({
+            '法宝ID': wid,
+            '名称': info.get('name', ''),
+            '效果类型': info.get('type', ''),
+            '简述': (info.get('desc') or '')[:120],
+            '当前装备': '✓' if wid == eq else '',
+        })
+    return pd.DataFrame(rows)
+
+
+def stage_clear_dataframe(rec):
+    scr = rec.get('stageClearRecord') if isinstance(rec.get('stageClearRecord'), dict) else {}
+    rows = []
+    for sid, r in scr.items():
+        if not isinstance(r, dict) or not r.get('cleared'):
+            continue
+        br = r.get('bestRating')
+        stars = _STAGE_RATING_TO_STARS.get(br, 0)
+        rows.append({
+            '关卡': sid,
+            '最高评级': br,
+            '折算星': stars,
+            '通关次数': r.get('clearCount', 0),
+        })
+    if not rows:
+        return pd.DataFrame(columns=['关卡', '最高评级', '折算星', '通关次数'])
+    sdf = pd.DataFrame(rows)
+
+    def sk(row_id):
+        raw = str(row_id).replace('stage_', '').replace('_elite', '')
+        parts = [p for p in raw.split('_') if p.isdigit()]
+        try:
+            tup = tuple(int(p) for p in parts)
+            return tup + (1,) if str(row_id).endswith('_elite') else tup + (0,)
+        except ValueError:
+            return (999, 999, 0)
+
+    sdf['_k'] = sdf['关卡'].map(sk)
+    sdf = sdf.sort_values('_k').drop(columns=['_k'])
+    return sdf
+
+
+def pet_dex_dataframe(rec, pet_names=None):
+    pet_names = pet_names or {}
+    dex = rec.get('petDex') if isinstance(rec.get('petDex'), list) else []
+    rows = [{'宠物ID': pid, '名称': pet_names.get(str(pid), ''), '属性': infer_pet_attr_from_id(str(pid))}
+            for pid in dex]
+    return pd.DataFrame(rows)
+
+
+def fragment_bank_dataframe(rec):
+    fb = rec.get('fragmentBank') if isinstance(rec.get('fragmentBank'), dict) else {}
+    rows = []
+    for k, v in fb.items():
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            n = 0
+        rows.append({'宠物ID': k, '碎片': n})
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values('碎片', ascending=False)
+    return df
+
+
+def idle_dispatch_dataframe(rec, pet_names=None):
+    pet_names = pet_names or {}
+    idle = rec.get('idleDispatch') if isinstance(rec.get('idleDispatch'), dict) else {}
+    slots = idle.get('slots') if isinstance(idle.get('slots'), list) else []
+    rows = []
+    for i, s in enumerate(slots):
+        if not isinstance(s, dict):
+            continue
+        pid = s.get('petId', '')
+        rows.append({
+            '槽位': i + 1,
+            '宠物ID': pid,
+            '名称': pet_names.get(str(pid), ''),
+            '开始时间': _fmt_ts_ms(s.get('startTime')),
+        })
+    return pd.DataFrame(rows)
+
+
+def build_player_select_labels(players):
+    """下拉用 (展示文案, players 下标)"""
+    opts = []
+    for i, p in enumerate(players):
+        if not isinstance(p, dict):
+            continue
+        oid = str(p.get('_openid') or p.get('openid') or '')
+        tail = oid[-10:] if len(oid) >= 10 else (oid or f'#{i}')
+        sp = compute_stage_progress(p)
+        bf = int(p.get('bestFloor') or 0)
+        pet_n = len(p.get('petPool')) if isinstance(p.get('petPool'), list) else 0
+        w_n = len(p.get('weaponCollection')) if isinstance(p.get('weaponCollection'), list) else 0
+        label = f'{tail} | 秘境★{sp["stage_total_stars"]} | 塔{bf}层 | 宠{pet_n} | 法宝{w_n}'
+        opts.append((label, i))
+    return opts
 
 
 # ========== 数据加载 ==========
@@ -59,8 +235,45 @@ def load_collection(name):
 
 # ========== 分析模块 ==========
 
+def analyze_stage_main(players):
+    """秘境（主玩法）进度分布"""
+    mlist = [compute_stage_progress(p) for p in players if isinstance(p, dict)]
+    if not mlist:
+        return
+    mdf = pd.DataFrame(mlist)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    stars = mdf['stage_total_stars']
+    axes[0].hist(stars, bins=min(36, max(10, int(stars.max()) + 2)),
+                  edgecolor='black', alpha=0.75, color='#5C6BC0')
+    axes[0].set_title('秘境：总星数分布（含未玩）')
+    axes[0].set_xlabel('总星数（各关 B/A/S 累计）')
+    axes[0].set_ylabel('玩家数')
+    axes[0].axvline(x=stars.median(), color='red', linestyle='--',
+                    label=f'中位数: {stars.median():.0f}')
+    axes[0].legend()
+
+    prog = mdf['farthest_normal_ch'] * 100 + mdf['farthest_normal_ord']
+    prog_pos = prog[prog > 0]
+    if len(prog_pos) > 0:
+        axes[1].hist(prog_pos, bins=30, edgecolor='black', alpha=0.75, color='#7E57C2')
+        axes[1].set_title('秘境：最远普通关进度分（章×100+关，仅已通关）')
+        axes[1].set_xlabel('进度分')
+        axes[1].set_ylabel('玩家数')
+        axes[1].axvline(x=prog_pos.median(), color='red', linestyle='--',
+                        label=f'中位数: {prog_pos.median():.0f}')
+        axes[1].legend()
+    else:
+        axes[1].text(0.5, 0.5, '暂无普通关通关', ha='center', va='center')
+
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / '0_stage_main.png', dpi=150)
+    plt.close()
+    print('  ✓ 0_stage_main.png — 秘境主玩法进度')
+
+
 def analyze_progression(df):
-    """玩家进度分布：bestFloor 直方图"""
+    """玩家进度分布：bestFloor 直方图（通天塔）"""
     if 'bestFloor' not in df.columns:
         return
 
@@ -71,7 +284,7 @@ def analyze_progression(df):
     max_floor = int(floors.max()) if len(floors) > 0 else 30
     bins = list(range(0, max_floor + 2))
     axes[0].hist(floors, bins=bins, edgecolor='black', alpha=0.7, color='#4CAF50')
-    axes[0].set_title('最高层数分布')
+    axes[0].set_title('通天塔：最高层数分布')
     axes[0].set_xlabel('最高层数 (bestFloor)')
     axes[0].set_ylabel('玩家数')
     axes[0].axvline(x=floors.median(), color='red', linestyle='--',
@@ -82,8 +295,8 @@ def analyze_progression(df):
     if 'totalRuns' in df.columns:
         runs = df['totalRuns'].dropna()
         axes[1].hist(runs, bins=30, edgecolor='black', alpha=0.7, color='#2196F3')
-        axes[1].set_title('总对局数分布')
-        axes[1].set_xlabel('总对局数 (totalRuns)')
+        axes[1].set_title('通天塔：总对局数分布')
+        axes[1].set_xlabel('总对局数 (totalRuns，肉鸽)')
         axes[1].set_ylabel('玩家数')
         axes[1].axvline(x=runs.median(), color='red', linestyle='--',
                         label=f'中位数: {runs.median():.0f}')
@@ -242,8 +455,9 @@ def analyze_stages(df):
         total_players = len(df)
         for record in df['stageClearRecord'].dropna():
             if isinstance(record, dict):
-                for stage_id in record.keys():
-                    stage_counter[stage_id] += 1
+                for stage_id, rec in record.items():
+                    if isinstance(rec, dict) and rec.get('cleared'):
+                        stage_counter[stage_id] += 1
 
         if stage_counter:
             sorted_stages = sorted(stage_counter.items(),
@@ -666,11 +880,21 @@ def print_summary(df):
     print(f'  玩家数据摘要 (共 {total} 名玩家)')
     print(f'{"="*50}')
 
+    players_list = df.to_dict('records')
+    stage_stats = [compute_stage_progress(p) for p in players_list]
+    if stage_stats:
+        s_stars = pd.Series([s['stage_total_stars'] for s in stage_stats])
+        s_norm = pd.Series([s['stage_normal_cleared'] for s in stage_stats])
+        s_nprog = sum(1 for s in stage_stats if s['farthest_normal_ch'] > 0)
+        print(f'  【秘境·主玩法】有普通关进度: {s_nprog}/{total} ({s_nprog/total*100:.1f}%)')
+        print(f'          总星数 Σ(B/A/S) | 中位: {s_stars.median():.0f}  均值: {s_stars.mean():.1f}  最高: {s_stars.max():.0f}')
+        print(f'          普通关通关数   | 中位: {s_norm.median():.0f}  均值: {s_norm.mean():.1f}  最高: {s_norm.max():.0f}')
+
     if 'bestFloor' in df.columns:
         floors = df['bestFloor'].dropna()
         cleared = (floors >= 30).sum()
-        print(f'  最高层数  | 中位数: {floors.median():.0f}  平均: {floors.mean():.1f}  最高: {floors.max():.0f}')
-        print(f'  通关率    | {cleared}/{total} ({cleared/total*100:.1f}%)')
+        print(f'  【通天塔】最高层 | 中位: {floors.median():.0f}  均值: {floors.mean():.1f}  最高: {floors.max():.0f}')
+        print(f'           ≥30层通关 | {cleared}/{total} ({cleared/total*100:.1f}%)')
 
     if 'totalRuns' in df.columns:
         runs = df['totalRuns'].dropna()
@@ -828,9 +1052,14 @@ def format_player_record_readable(rec):
 
     scr = rec.get('stageClearRecord')
     if isinstance(scr, dict) and scr:
-        sec('固定关卡')
+        sec('秘境·固定关卡')
         cleared = [k for k, v in scr.items() if isinstance(v, dict) and v.get('cleared')]
         kv('已通关关卡数', len(cleared))
+        sp_line = compute_stage_progress(rec)
+        kv('总星数·普通通关·精英通关',
+           f"{sp_line['stage_total_stars']} / {sp_line['stage_normal_cleared']} / {sp_line['stage_elite_cleared']}")
+        kv('最远普通关', format_stage_farthest_label(sp_line, False))
+        kv('最远精英关', format_stage_farthest_label(sp_line, True))
         if cleared:
             keys = sorted(cleared, key=_stage_sort_key)
             kv('关卡列表', ', '.join(keys[:15]) + (' …' if len(keys) > 15 else ''))
@@ -973,6 +1202,114 @@ def _local_all_sort_key(r):
     return (-bf, 2, 0, -mc, -tr)
 
 
+def compute_stage_progress(player):
+    """
+    从一条 playerData 解析秘境（固定关卡）进度，与客户端 Storage 逻辑对齐。
+    """
+    empty = {
+        'stage_total_stars': 0,
+        'stage_normal_cleared': 0,
+        'stage_elite_cleared': 0,
+        'farthest_normal_ch': 0,
+        'farthest_normal_ord': 0,
+        'farthest_elite_ch': 0,
+        'farthest_elite_ord': 0,
+    }
+    if not isinstance(player, dict):
+        return empty
+    rec = player.get('stageClearRecord')
+    if not isinstance(rec, dict):
+        return empty
+
+    total_stars = 0
+    normal_cleared = 0
+    elite_cleared = 0
+    best_n = [0, 0]
+    best_e = [0, 0]
+
+    for sid, r in rec.items():
+        if not isinstance(r, dict) or not r.get('cleared'):
+            continue
+        br = r.get('bestRating')
+        total_stars += _STAGE_RATING_TO_STARS.get(br, 0)
+        if sid.endswith('_elite'):
+            elite_cleared += 1
+            m = _RE_STAGE_ELITE.match(sid)
+            if m:
+                ch, ord_ = int(m.group(1)), int(m.group(2))
+                if ch > best_e[0] or (ch == best_e[0] and ord_ > best_e[1]):
+                    best_e = [ch, ord_]
+        else:
+            normal_cleared += 1
+            m = _RE_STAGE_NORMAL.match(sid)
+            if m:
+                ch, ord_ = int(m.group(1)), int(m.group(2))
+                if ch > best_n[0] or (ch == best_n[0] and ord_ > best_n[1]):
+                    best_n = [ch, ord_]
+
+    return {
+        'stage_total_stars': total_stars,
+        'stage_normal_cleared': normal_cleared,
+        'stage_elite_cleared': elite_cleared,
+        'farthest_normal_ch': best_n[0],
+        'farthest_normal_ord': best_n[1],
+        'farthest_elite_ch': best_e[0],
+        'farthest_elite_ord': best_e[1],
+    }
+
+
+def format_stage_farthest_label(sp, elite=False):
+    """展示用最远关卡文案"""
+    if elite:
+        ch, od = sp['farthest_elite_ch'], sp['farthest_elite_ord']
+        if ch <= 0:
+            return '-'
+        return f'精英 第{ch}章-{od}关'
+    ch, od = sp['farthest_normal_ch'], sp['farthest_normal_ord']
+    if ch <= 0:
+        return '未通关'
+    return f'第{ch}章-{od}关'
+
+
+def _stage_lb_sort_key(row):
+    return (
+        -row['farthest_normal_ch'],
+        -row['farthest_normal_ord'],
+        -row['stage_total_stars'],
+        -row['farthest_elite_ch'],
+        -row['farthest_elite_ord'],
+    )
+
+
+def build_stage_leaderboard_rows(players):
+    """
+    秘境进度本地榜：按最远普通关 → 总星数 → 最远精英关排序。
+    """
+    rows = []
+    for p in players:
+        if not isinstance(p, dict):
+            continue
+        sp = compute_stage_progress(p)
+        oid = p.get('_openid') or p.get('openid') or ''
+        rows.append({
+            '_openid': oid,
+            'stage_total_stars': sp['stage_total_stars'],
+            'stage_normal_cleared': sp['stage_normal_cleared'],
+            'stage_elite_cleared': sp['stage_elite_cleared'],
+            'farthest_normal_ch': sp['farthest_normal_ch'],
+            'farthest_normal_ord': sp['farthest_normal_ord'],
+            'farthest_elite_ch': sp['farthest_elite_ch'],
+            'farthest_elite_ord': sp['farthest_elite_ord'],
+            'farthest_normal_label': format_stage_farthest_label(sp, elite=False),
+            'farthest_elite_label': format_stage_farthest_label(sp, elite=True),
+            '_updateTime': p.get('_updateTime'),
+        })
+    rows.sort(key=_stage_lb_sort_key)
+    for i, row in enumerate(rows, 1):
+        row['rank'] = i
+    return rows
+
+
 def build_local_leaderboard_rows(players):
     """
     从 playerData 构建「本地最高层榜」行数据，含 openid，已按速通规则排序。
@@ -1064,6 +1401,44 @@ def print_local_floor_leaderboard(players, top_n=50):
         pct = (v / total * 100) if total else 0
         print(f'    {k:8s}  {v:5d}  ({pct:5.1f}%)')
 
+    print(f'{"="*50}\n')
+
+
+def print_stage_progress_leaderboard(players, top_n=50):
+    """秘境进度本地榜（主玩法），写入 JSON 并打印摘要。"""
+    rows = build_stage_leaderboard_rows(players)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = OUTPUT_DIR / 'local_stage_leaderboard.json'
+    try:
+        out_path.write_text(
+            json.dumps(rows, ensure_ascii=False, indent=2, default=str),
+            encoding='utf-8')
+    except Exception as e:
+        print(f'  [警告] 写入 {out_path} 失败: {e}')
+
+    total = len(rows)
+    ge1 = sum(1 for r in rows if r['farthest_normal_ch'] > 0)
+    print(f'\n{"="*50}')
+    print('  【本地秘境进度榜】（主玩法 · playerData · stageClearRecord）')
+    print(f'  全量已写入: {out_path}')
+    print(f'  人数: {total} | 已过普通关: {ge1} ({ge1/total*100:.1f}%)' if total else '  人数: 0')
+    print('  排序: 最远普通关(章→关) → 总星数 → 最远精英关')
+    print(f'{"="*50}')
+    head = (
+        f"  {'名':>4}  {'总星':>5}  {'普关':>5}  {'精关':>5}  "
+        f"{'最远普通':^14}  {'最远精英':^14}  OpenID"
+    )
+    print(head)
+    print(f'  {"-" * 70}')
+    for r in rows[:top_n]:
+        oid = r['_openid']
+        tail = oid[-6:] if len(oid) >= 6 else oid
+        print(
+            f"  {r['rank']:4d}  {r['stage_total_stars']:5d}  {r['stage_normal_cleared']:5d}  {r['stage_elite_cleared']:5d}  "
+            f"{r['farthest_normal_label']:^14}  {r['farthest_elite_label']:^14}  …{tail}"
+        )
+    if total > top_n:
+        print(f'\n  （控制台仅前 {top_n} 名）')
     print(f'{"="*50}\n')
 
 
@@ -1177,11 +1552,13 @@ def main():
 
     print_summary(df)
     print_top_floor_players_detail(players)
+    print_stage_progress_leaderboard(players)
     print_local_floor_leaderboard(players)
     print_rank_cross_summary(players)
     print_retention_assessment(players)
 
     print('生成分析图表...')
+    analyze_stage_main(players)
     analyze_progression(df)
     analyze_combat_balance(df)
     analyze_pet_usage(df)

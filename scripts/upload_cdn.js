@@ -16,7 +16,7 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 
-const PROJECT_ROOT = path.resolve(__dirname, '..')
+const { loadWxSecret, PROJECT_ROOT } = require('./loadWxSecret')
 const cdnCfg = require(path.join(PROJECT_ROOT, 'js', 'data', 'cdnConfig.js'))
 
 const APPID = 'wx53b03390106eff65'
@@ -29,29 +29,6 @@ const MANIFEST_LOCAL = path.join(PROJECT_ROOT, 'scripts', '.cdn_manifest.json')
 
 // 并发上传数
 const CONCURRENCY = 5
-
-// ===== 加载密钥 =====
-function loadWxSecret() {
-  // 1. 环境变量
-  if (process.env.WX_SECRET) return process.env.WX_SECRET
-  // 2. scripts/.cdn_secret
-  const secretFile = path.join(__dirname, '.cdn_secret')
-  if (fs.existsSync(secretFile)) {
-    for (const line of fs.readFileSync(secretFile, 'utf-8').split('\n')) {
-      const m = line.match(/^WX_SECRET=(.+)$/)
-      if (m) return m[1].trim()
-    }
-  }
-  // 3. tools/analysis/.env
-  const envFile = path.join(PROJECT_ROOT, 'tools', 'analysis', '.env')
-  if (fs.existsSync(envFile)) {
-    for (const line of fs.readFileSync(envFile, 'utf-8').split('\n')) {
-      const m = line.match(/^WX_SECRET=(.+)$/)
-      if (m) return m[1].trim()
-    }
-  }
-  return null
-}
 
 // ===== HTTP 工具 =====
 function httpsRequest(url, postData) {

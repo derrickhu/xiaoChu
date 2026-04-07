@@ -7,17 +7,9 @@ const https = require('https')
 const fs = require('fs')
 const path = require('path')
 
-// 自动加载 .env 文件
-const envFile = path.join(__dirname, '.env')
-if (fs.existsSync(envFile)) {
-  for (const line of fs.readFileSync(envFile, 'utf-8').split('\n')) {
-    const m = line.match(/^(\w+)=(.+)$/)
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim()
-  }
-}
+const { loadWxSecret } = require(path.join(__dirname, '..', '..', 'scripts', 'loadWxSecret'))
 
 const APPID = 'wx53b03390106eff65'
-const SECRET = process.env.WX_SECRET || ''
 const ENV_ID = 'cloud1-6g8y0x2i39e768eb'
 const DATA_DIR = path.join(__dirname, 'data')
 const COLLECTIONS = ['playerData', 'rankAll', 'rankDex', 'rankCombo']
@@ -95,10 +87,13 @@ async function exportCollection(token, name) {
 }
 
 async function main() {
-  const secret = SECRET
+  const secret = loadWxSecret()
   if (!secret) {
     console.error('错误: 未设置 WX_SECRET')
-    console.error('用法: WX_SECRET=你的appsecret node export_wx.js')
+    console.error('任选其一:')
+    console.error('  1) 环境变量: WX_SECRET=你的appsecret node export_wx.js')
+    console.error('  2) 写入 scripts/.cdn_secret 一行: WX_SECRET=你的appsecret')
+    console.error('  3) 写入 tools/analysis/.env 一行: WX_SECRET=你的appsecret')
     process.exit(1)
   }
 
