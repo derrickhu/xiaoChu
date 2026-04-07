@@ -3,8 +3,8 @@
  */
 const V = require('../env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS, COUNTER_MAP, COUNTER_BY } = require('../../data/tower')
-const { getPetStarAtk, getPetAvatarPath, getPetSkillDesc, petHasSkill, getPetRarity } = require('../../data/pets')
-const { RARITY_VISUAL, STAR_VISUAL } = require('../../data/economyConfig')
+const { getPetAvatarPath, petHasSkill } = require('../../data/pets')
+const { STAR_VISUAL } = require('../../data/economyConfig')
 const tutorial = require('../../engine/tutorial')
 const MusicMgr = require('../../runtime/music')
 const { BUFF_LABELS, DEBUFF_KEYS, getBuffIcon, shortBuffLabel } = require('../../data/buffConfig')
@@ -125,13 +125,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
         if (petFrame && petFrame.width > 0) {
           ctx.drawImage(petFrame, ix - frameOff, iconY - frameOff, frameSize, frameSize)
         }
-        // 品质色边框（R/SR/SSR）
-        const rv = RARITY_VISUAL[getPetRarity(p.id)] || RARITY_VISUAL.R
-        ctx.save()
-        ctx.strokeStyle = rv.borderColor
-        ctx.lineWidth = 2 * S
-        ctx.strokeRect(ix, iconY, iconSize, iconSize)
-        ctx.restore()
+        // 品质不再单独画矩形描边，避免绿/紫/金与五行相框、珠子属性混淆；稀有度可由星级与养成界面区分
         // ★ 星级标记（左下角，根据 STAR_VISUAL 着色）
         if ((p.star || 1) >= 1) {
           const pStar = p.star || 1
@@ -282,14 +276,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
             ctx.fillText('▲技能', cx, lblY + lblH/2)
           }
 
-          // === 5. 强脉冲发光边框 ===
-          const bw = canAct ? (2.5 + pulse * 1.5) * S : 2*S
-          ctx.globalAlpha = canAct ? 0.6 + pulse * 0.35 : 0.45
-          ctx.shadowColor = glowColor2
-          ctx.shadowBlur = canAct ? (10 + pulse * 6) * S : 4*S
-          ctx.strokeStyle = glowColor2
-          ctx.lineWidth = bw
-          ctx.strokeRect(ix - 2, iconY - 2, iconSize + 4, iconSize + 4)
+          // 不再画整格矩形描边，减少与五行相框叠色误解；光弧、箭头与「技能」标签已足够提示
 
           ctx.restore()
         }
