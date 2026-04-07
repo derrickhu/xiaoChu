@@ -1,11 +1,11 @@
 /**
  * 固定关卡管理 — 从编队到战斗到结算的完整生命周期
  *
- * startStage  — 初始化关卡战斗（扣体力、构建宠物、加载波次）
+ * startStage  — 初始化关卡战斗（预检查体力但不扣，构建宠物、加载波次）
  * loadWave    — 加载指定波次敌人
  * advanceWave — 波间推进（波次+1 并重置回合）
- * settleStage — 胜利结算（碎片/经验/评价）
- * settleStageDefeat — 失败结算（部分经验）
+ * settleStage — 胜利结算（扣体力、碎片/经验/评价）
+ * settleStageDefeat — 失败结算（扣体力、部分经验；UI 可看广告退还）
  */
 
 const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../data/stages')
@@ -19,7 +19,7 @@ const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 const { NEWBIE_PET_IDS } = require('../data/constants')
 const V = require('../views/env')
-const { RATING_TO_STARS } = require('../data/balance/economy')
+const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { NEWBIE_ENEMY_OVERRIDE } = require('../data/balance/enemy')
 const { HERO_BASE_HP, DRAG_BASE_SEC } = require('../data/balance/combat')
 
@@ -68,8 +68,8 @@ function startStage(g, stageId, teamPetIds) {
   if (!stage) return false
   if (teamPetIds.length < getEffectiveStageTeamMin(g.storage, stage)) return false
 
-  // 扣除体力
-  g.storage.consumeStamina(stage.staminaCost)
+  // 体力在结算时扣除（胜利 / 失败均扣，退出不扣）
+  g._stageStaminaCost = stage.staminaCost ?? STAMINA_COST
   // 记录每日挑战次数
   g.storage.recordStageChallenge(stageId)
 
@@ -153,15 +153,13 @@ function startStage(g, stageId, teamPetIds) {
 
 /**
  * 新手零宠物时专用：跳过编队，自动分配临时宠物，直接进入战斗
- * 体力与挑战次数与正式关卡一致（扣费成功后才记次数）
+ * 体力在结算时扣除
  */
 function startStageNewbie(g, stageId) {
   const stage = getStageById(stageId)
   if (!stage) return false
 
-  if (stage.staminaCost > 0 && !g.storage.consumeStamina(stage.staminaCost)) {
-    return false
-  }
+  g._stageStaminaCost = stage.staminaCost ?? STAMINA_COST
   g.storage.recordStageChallenge(stageId)
 
   g.battleMode = 'stage'
@@ -287,6 +285,9 @@ function isLastWave(g) {
 function settleStage(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
+
+  // 胜利扣体力
+  g.storage.consumeStamina(g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST)
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
@@ -428,6 +429,9 @@ function settleStage(g) {
     }
   }
 
+  // 碎片奖励总计（供广告翻倍使用）
+  const totalFragCount = rewards.filter(r => r.type === 'fragment' && !r.fromStar).reduce((s, r) => s + (r.count || 0), 0)
+
   g._stageResult = {
     stageId: g._stageId,
     stageName: stage.name,
@@ -446,6 +450,8 @@ function settleStage(g) {
     starBonusAwakenStone: starAwakenStone,
     starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
     chapterClearReward,
+    isBossStage: stage.order === 8,
+    totalFragCount,
   }
 
   if (g.storage.userAuthorized) {
@@ -458,10 +464,15 @@ function settleStage(g) {
 
 /**
  * 失败结算 — 不给碎片，修炼经验 60%、灵石 50%
+ * 扣体力，但 UI 可通过看广告退还
  */
 function settleStageDefeat(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
+
+  // 失败扣体力（可看广告退还）
+  const staminaCost = g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST
+  g.storage.consumeStamina(staminaCost)
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
@@ -488,6 +499,7 @@ function settleStageDefeat(g) {
     soulStone,
     totalTurns: g._stageTotalTurns,
     victory: false,
+    staminaCost,
     enemyHp: g.enemy ? g.enemy.hp : 0,
     enemyMaxHp: g.enemy ? g.enemy.maxHp : 0,
     enemyName: g.enemy ? g.enemy.name : '',

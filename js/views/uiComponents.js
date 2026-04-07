@@ -458,15 +458,18 @@ function drawConfirmDialog(g) {
   c.fillRect(0, 0, W, H)
   c.globalAlpha = alpha
 
-  // 面板尺寸
-  var panelW = W * 0.82
+  // 面板尺寸（看广告确认与失败结算一致：略宽 + infoPanel）
+  var useInfoPanel = d.confirmBtnType === 'adReward'
+  var panelW = useInfoPanel ? W * 0.88 : W * 0.82
   c.font = (12 * S) + 'px "PingFang SC",sans-serif'
   var contentLines = wrapText(c, d.content || '', panelW - 52 * S)
   var lineH = 20 * S
   var contentH = contentLines.length * lineH
-  var ribbonH = 42 * S
   var btnAreaH = 52 * S
-  var panelH = ribbonH + 24 * S + contentH + 18 * S + btnAreaH + 18 * S
+  var ribbonH = 42 * S
+  var panelH = useInfoPanel
+    ? (14 * S + 24 * S + 16 * S + contentH + 14 * S + btnAreaH)
+    : (ribbonH + 24 * S + contentH + 18 * S + btnAreaH + 18 * S)
   var px = (W - panelW) / 2
   var targetY = (H - panelH) / 2 - 8 * S
   var py = timer < 12 ? targetY + 30 * S * (1 - timer / 12) : targetY
@@ -478,18 +481,25 @@ function drawConfirmDialog(g) {
   c.scale(scale, scale)
   c.translate(-W / 2, -(py + panelH / 2))
 
-  // 面板底板
-  var panelResult = drawPanel(c, S, px, py, panelW, panelH, { ribbonH: ribbonH })
-  var ribbonCY = panelResult.ribbonCY
+  var titleCY
+  var textY
+  if (useInfoPanel) {
+    R.drawInfoPanel(px, py, panelW, panelH)
+    titleCY = py + 14 * S + 12 * S
+    textY = py + 14 * S + 24 * S + 16 * S
+  } else {
+    var panelResult = drawPanel(c, S, px, py, panelW, panelH, { ribbonH: ribbonH })
+    titleCY = panelResult.ribbonCY
+    textY = py + ribbonH + 24 * S
+  }
 
   // 标题
   c.fillStyle = '#5a3000'
   c.font = 'bold ' + (15 * S) + 'px "PingFang SC",sans-serif'
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(d.title || '提示', W / 2, ribbonCY)
+  c.fillText(d.title || '提示', W / 2, titleCY)
 
   // 正文（自动换行）
-  var textY = py + ribbonH + 24 * S
   c.fillStyle = '#4a3820'
   c.font = (12 * S) + 'px "PingFang SC",sans-serif'
   c.textAlign = 'center'; c.textBaseline = 'top'

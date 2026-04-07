@@ -206,6 +206,7 @@ const AD_REWARDS = {
   dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
   dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },
   towerExtraRun:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 2 },
+  staminaRefund:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 5 },
 }
 
 /**

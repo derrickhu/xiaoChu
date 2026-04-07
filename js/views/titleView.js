@@ -8,7 +8,7 @@ const P = require('../platform')
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
 const { drawPanel } = require('./uiComponents')
 const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, getEliteLockReason } = require('../data/stages')
-const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME } = require('../data/constants')
+const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
 
@@ -660,7 +660,7 @@ function drawStartBtn(g) {
     } else {
       ctx.fillStyle = '#5a2d0c'
       ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-      const cost = stage ? stage.staminaCost : 0
+      const cost = stage ? (stage.staminaCost ?? STAMINA_COST) : 0
       if (cost > 0) {
         // "开始游戏" + 体力图标 + 数字
         const text = '开始游戏'

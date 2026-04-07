@@ -5,26 +5,12 @@
  */
 
 const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
+const { STAMINA_COST } = require('./balance/economy')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
 
 const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
-
-const CHAPTER_STAMINA = {
-  1:  { normal: 10, elite: 15 },
-  2:  { normal: 12, elite: 18 },
-  3:  { normal: 16, elite: 24 },
-  4:  { normal: 18, elite: 27 },
-  5:  { normal: 20, elite: 30 },
-  6:  { normal: 22, elite: 33 },
-  7:  { normal: 24, elite: 36 },
-  8:  { normal: 27, elite: 40 },
-  9:  { normal: 30, elite: 44 },
-  10: { normal: 32, elite: 48 },
-  11: { normal: 35, elite: 52 },
-  12: { normal: 38, elite: 56 },
-}
 
 const ELITE_MULTIPLIERS = STAGE_ELITE_MULTIPLIERS
 
@@ -260,7 +246,7 @@ function buildAllStages() {
         waves: normalWaves,
         teamSize: s.teamSize || { min: 3, max: 5 },
         rating: s.rating,
-        staminaCost: s.staminaCost !== undefined ? s.staminaCost : CHAPTER_STAMINA[ch].normal,
+        staminaCost: s.staminaCost !== undefined ? s.staminaCost : STAMINA_COST,
         rewards: mkRewards(ch, ord, 'normal', s.pet, s.weapon, s.exp, s.repExp),
         dailyLimit: 0,
         unlockCondition: { prevStage },
@@ -305,7 +291,7 @@ function buildAllStages() {
         waves: eliteWaves,
         teamSize: { min: 3, max: 5 },
         rating: s.eRating,
-        staminaCost: CHAPTER_STAMINA[ch].elite,
+        staminaCost: STAMINA_COST,
         rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eWpn, s.eExp, s.eRepExp),
         dailyLimit: 0,
         unlockCondition: { normalStageS: `stage_${ch}_${ord}` },
@@ -541,7 +527,6 @@ function getEffectiveStageTeamMin(storage, stage) {
 module.exports = {
   CHAPTERS,
   STAGES,
-  CHAPTER_STAMINA,
   CHAPTER_RECOMMENDED,
   RATING_ORDER,
   getStageById,

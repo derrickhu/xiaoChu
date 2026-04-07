@@ -1,8 +1,7 @@
 /**
- * 激励视频/分享领奖后的奖励展示弹窗 — 图标 + 名称 + 金色数量
+ * 激励视频/分享领奖后的奖励展示弹窗 — 与失败结算同源 infoPanel 底板 + adReward 确认键
  */
 const V = require('./env')
-const { drawPanel } = require('./uiComponents')
 
 function _resolveIconPath(icon) {
   if (!icon) return null
@@ -40,12 +39,14 @@ function drawAdRewardPopup(g) {
   const alpha = Math.min(1, timer / 12)
   const lines = p.lines
   const rowH = 38 * S
-  const ribbonH = 44 * S
-  const subtitleH = p.subtitle ? 20 * S : 0
-  const contentH = subtitleH + lines.length * rowH + 10 * S
-  const btnAreaH = 54 * S
-  const panelW = W * 0.84
-  const panelH = ribbonH + 18 * S + contentH + btnAreaH
+  const subtitleH = p.subtitle ? 18 * S : 0
+  const padT = 14 * S
+  const titleBlockH = 24 * S
+  const gapAfterTitle = 8 * S
+  const rowsH = lines.length * rowH + 10 * S
+  const btnAreaH = 52 * S
+  const panelW = W * 0.88
+  const panelH = padT + titleBlockH + gapAfterTitle + subtitleH + rowsH + btnAreaH
 
   c.save()
 
@@ -67,16 +68,16 @@ function drawAdRewardPopup(g) {
   c.scale(scale, scale)
   c.translate(-W / 2, -(py + panelH / 2))
 
-  const panelResult = drawPanel(c, S, px, py, panelW, panelH, { ribbonH })
-  const ribbonCY = panelResult.ribbonCY
+  R.drawInfoPanel(px, py, panelW, panelH)
 
+  const titleCY = py + padT + titleBlockH * 0.5
   c.fillStyle = '#5a3000'
-  c.font = 'bold ' + (16 * S) + 'px "PingFang SC",sans-serif'
+  c.font = 'bold ' + (15 * S) + 'px "PingFang SC",sans-serif'
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(p.title, W / 2, ribbonCY)
+  c.fillText(p.title, W / 2, titleCY)
 
-  let cy = py + ribbonH + 14 * S
+  let cy = py + padT + titleBlockH + gapAfterTitle
   if (p.subtitle) {
     c.fillStyle = '#7a6848'
     c.font = (11 * S) + 'px "PingFang SC",sans-serif'
@@ -127,12 +128,12 @@ function drawAdRewardPopup(g) {
 
   c.restore()
 
-  const btnW = 176 * S
-  const btnH = 42 * S
+  const btnW = panelW * 0.7
+  const btnH = 36 * S
   const btnX = (W - btnW) / 2
-  const btnY = py + panelH - btnAreaH + 8 * S
+  const btnY = py + panelH - btnAreaH + 10 * S
   c.globalAlpha = alpha
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '确认', 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '确认', 'adReward')
 
   p._btnRect = [btnX, btnY, btnW, btnH]
 

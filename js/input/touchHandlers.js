@@ -398,12 +398,11 @@ function tDex(g, type, x, y) {
                   onRewarded: () => {
                     const { ALL_MILESTONES } = require('../data/dexConfig')
                     const m = ALL_MILESTONES.find(ms => ms.id === mr.milestoneId)
-                    if (m && m.reward) {
-                      if (m.reward.soulStone) g.storage.addSoulStone(m.reward.soulStone)
-                      if (m.reward.awakenStone) g.storage.addAwakenStone(m.reward.awakenStone)
+                    const result = g.storage.claimDexMilestoneAdReward(mr.milestoneId)
+                    if (result.success) {
+                      g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
+                      g._dirty = true
                     }
-                    g._dexMilestoneClaimPopup = { milestone: mr.milestoneId, reward: m && m.reward, doubled: true, timer: 0 }
-                    g._dirty = true
                   },
                   rewardPopup: () => {
                     const { ALL_MILESTONES } = require('../data/dexConfig')

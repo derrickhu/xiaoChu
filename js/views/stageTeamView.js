@@ -11,6 +11,7 @@ const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY } = require('../data/towe
 const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getEffectiveStageTeamMin, getEnemyPortraitPath } = require('../data/stages')
+const { STAMINA_COST } = require('../data/constants')
 const { getWeaponById } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 
@@ -39,7 +40,8 @@ function _hasUnpickedPetsInPool(g, selectedIds) {
 /** 保存编队并开始秘境战斗（体力、次数校验在内） */
 function _startStageBattle(g, selected, stage) {
   g.storage.saveStageteam(selected)
-  if (g.storage.currentStamina < stage.staminaCost) {
+  const staminaNeed = stage.staminaCost ?? STAMINA_COST
+  if (g.storage.currentStamina < staminaNeed) {
     const AdManager = require('../adManager')
     if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足')
     return
@@ -417,7 +419,7 @@ function rStageTeam(g) {
   // 消耗提示（按钮上方，图标+数值，带描边增强可读性）
   {
     const costText = `消耗：`
-    const costNum = `${stage.staminaCost}`
+    const costNum = `${stage.staminaCost ?? STAMINA_COST}`
     c.font = `bold ${13*S}px "PingFang SC",sans-serif`
     const costLabelW = c.measureText(costText).width
     const costNumW = c.measureText(costNum).width

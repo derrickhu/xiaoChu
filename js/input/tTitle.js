@@ -8,7 +8,7 @@ const { getBrowsableStages } = require('../data/stages')
 const { tDailyReward } = require('../views/dailyRewardView')
 
 const { TOWER_DAILY } = require('../data/economyConfig')
-const { STAGE_FORMATION_MIN_PETS, TITLE_HOME } = require('../data/constants')
+const { STAGE_FORMATION_MIN_PETS, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 
 const SWIPE_THRESHOLD = 40
 
@@ -315,10 +315,11 @@ function _handleStageStart(g) {
   }
 
   const stage = entry.stage
+  const staminaNeed = stage.staminaCost ?? STAMINA_COST
 
   // 新手（零宠物）：直接进入 1-1 战斗（体力与关卡配置一致）
   if (g.storage.petPoolCount === 0) {
-    if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
+    if (staminaNeed > 0 && g.storage.currentStamina < staminaNeed) {
       const AdManager = require('../adManager')
       if (!AdManager.openStaminaRecoveryConfirm(g)) {
         const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
@@ -346,7 +347,7 @@ function _handleStageStart(g) {
   }
 
   // 体力检查（使用 Canvas 确认框，避免 wx.showModal 触发基础库 updateTextView 错误）
-  if (stage.staminaCost > 0 && g.storage.currentStamina < stage.staminaCost) {
+  if (staminaNeed > 0 && g.storage.currentStamina < staminaNeed) {
     const AdManager = require('../adManager')
     if (!AdManager.openStaminaRecoveryConfirm(g)) {
       const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')

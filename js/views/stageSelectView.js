@@ -5,6 +5,7 @@
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { CHAPTERS, getChapterStages, isChapterUnlocked, isStageUnlocked, getStageAttr, getStageById, getEnemyPortraitPath } = require('../data/stages')
+const { STAMINA_COST } = require('../data/constants')
 const { CHAPTER_CLEAR_REWARDS, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { drawSeparator } = require('./uiUtils')
 const MusicMgr = require('../runtime/music')
@@ -293,7 +294,7 @@ function rStageSelect(g) {
       // 体力消耗
       c.font = `${10*S}px "PingFang SC",sans-serif`
       const staminaIcon = R.getImg('assets/ui/icon_stamina.png')
-      const costTxt = `${stage.staminaCost}`
+      const costTxt = `${stage.staminaCost ?? STAMINA_COST}`
       const stRightEdge = cardX + cardW - 14 * S
       if (staminaIcon && staminaIcon.width > 0) {
         const stSz = 14 * S
@@ -478,8 +479,9 @@ function tStageSelect(g, x, y, type) {
             P.showGameToast(`今日挑战次数已用完（${stage.dailyLimit}/${stage.dailyLimit}）`)
             return
           }
-          if (g.storage.currentStamina < stage.staminaCost) {
-            P.showGameToast(`体力不足（需要${stage.staminaCost}，当前${g.storage.currentStamina}）`)
+          const need = stage.staminaCost ?? STAMINA_COST
+          if (g.storage.currentStamina < need) {
+            P.showGameToast(`体力不足（需要${need}，当前${g.storage.currentStamina}）`)
             return
           }
         }

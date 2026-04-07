@@ -81,6 +81,9 @@ function _mergePlayerData(cloud, local) {
   const cloudMs = new Set(cloud.dexMilestonesClaimed || [])
   const localMs = new Set(local.dexMilestonesClaimed || [])
   result.dexMilestonesClaimed = [...new Set([...cloudMs, ...localMs])]
+  const cloudAd = new Set(cloud.dexMilestonesAdRewardClaimed || [])
+  const localAd = new Set(local.dexMilestonesAdRewardClaimed || [])
+  result.dexMilestonesAdRewardClaimed = [...new Set([...cloudAd, ...localAd])]
   // 不覆盖 _id 和平台标识
   delete result._id
   return result

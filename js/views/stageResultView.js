@@ -22,6 +22,7 @@ const _rects = {
   nextBtnRect: null,
   shareBtnRect: null,
   adDoubleBtnRect: null,
+  staminaRefundBtnRect: null,
 }
 
 let _animTimer = 0
@@ -548,6 +549,10 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     contentH += 24 * S
   }
 
+  // 看广告退还体力
+  const canRefund = !result.staminaRefunded && result.staminaCost > 0 && AdManager.canShow('staminaRefund')
+  if (canRefund || result.staminaRefunded) contentH += 44 * S
+
   contentH += pad + 48 * S
   const ph = contentH
 
@@ -776,6 +781,23 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += barH + 18 * S
   }
 
+  // ── 看广告退还体力 ──
+  if (canRefund) {
+    const rfBtnW = innerW * 0.7, rfBtnH = 36 * S
+    const rfBtnX = (W - rfBtnW) / 2, rfBtnY = cy
+    R.drawDialogBtn(rfBtnX, rfBtnY, rfBtnW, rfBtnH, `▶ 看广告 退还${result.staminaCost}体力`, 'adReward')
+    _rects.staminaRefundBtnRect = [rfBtnX, rfBtnY, rfBtnW, rfBtnH]
+    cy += 44 * S
+  } else if (result.staminaRefunded) {
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#60A060'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    c.fillText('✓ 体力已退还', W / 2, cy + 10 * S)
+    _rects.staminaRefundBtnRect = null
+    cy += 28 * S
+  } else {
+    _rects.staminaRefundBtnRect = null
+  }
+
   // ── 底部按钮 ──
   const btnH = 38 * S
   const btnGap = 12 * S
@@ -979,7 +1001,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
     contentH += 26 * S
   }
   contentH += 24 * S
-  if (result.victory && !result.adDoubled && AdManager.canShow('settleDouble')) contentH += 44 * S
+  if (result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble')) contentH += 44 * S
   contentH += pad + 48 * S
   if (result.victory && result.isFirstClear) contentH += 44 * S
   return contentH
@@ -1217,11 +1239,16 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   }
   cy += 24 * S
 
-  // === 看广告奖励翻倍按钮 ===
-  if (result.victory && !result.adDoubled && AdManager.canShow('settleDouble')) {
+  // === Boss 关看广告奖励翻倍（与失败结算「退还体力」同款金黄按钮 adReward） ===
+  if (result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble')) {
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
     const adBtnX = (W - adBtnW) / 2, adBtnY = cy
-    R.drawDialogBtn(adBtnX, adBtnY, adBtnW, adBtnH, '▶ 看广告 灵石/碎片翻倍', 'adReward')
+    const bonusSS = result.soulStone || 0
+    const bonusFrag = result.totalFragCount || 0
+    let label = '▶ 看广告 奖励翻倍'
+    if (bonusSS > 0 && bonusFrag > 0) label = `▶ 看广告 灵石+${bonusSS} 碎片+${bonusFrag}`
+    else if (bonusSS > 0) label = `▶ 看广告 灵石+${bonusSS}`
+    R.drawDialogBtn(adBtnX, adBtnY, adBtnW, adBtnH, label, 'adReward')
     _rects.adDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
     cy += 44 * S
   } else if (result.adDoubled) {
@@ -1849,9 +1876,37 @@ function tStageResult(g, x, y, type) {
     }
   }
 
+  // 看广告退还体力（失败）
+  if (_rects.staminaRefundBtnRect && g._hitRect(x, y, ..._rects.staminaRefundBtnRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    AdManager.showRewardedVideo('staminaRefund', {
+      fallbackToShare: true,
+      onRewarded: () => {
+        const r = g._stageResult
+        if (!r || r.staminaRefunded) return
+        r.staminaRefunded = true
+        const cost = r.staminaCost || 0
+        if (cost > 0) g.storage.addBonusStamina(cost)
+        g._dirty = true
+      },
+      rewardPopup: () => {
+        const r = g._stageResult
+        if (!r || !r.staminaRefunded) return null
+        const cost = r.staminaCost || 0
+        if (cost <= 0) return null
+        return {
+          title: '体力已退还',
+          subtitle: '失败不扣体力',
+          lines: [{ icon: 'icon_stamina', label: '体力', amount: '+' + cost }],
+        }
+      },
+    })
+    return
+  }
+
   const _firstClearGuide = _getFirstClearGuide(result)
 
-  // 看广告翻倍
+  // 看广告翻倍（仅 Boss 关胜利）
   if (_rects.adDoubleBtnRect && g._hitRect(x, y, ..._rects.adDoubleBtnRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('settleDouble', {
@@ -1863,7 +1918,12 @@ function tStageResult(g, x, y, type) {
         r.adDoubled = true
         const bonusSS = r.soulStone || 0
         if (bonusSS > 0) g.storage.addSoulStone(bonusSS)
-        g._stageSettleAdJustGranted = bonusSS > 0
+        // 碎片翻倍：对掉落碎片再发一份
+        const fragRewards = (r.rewards || []).filter(rw => rw.type === 'fragment' && rw.petId && !rw.fromStar)
+        fragRewards.forEach(rw => {
+          g.storage.addFragments(rw.petId, rw.count || 0)
+        })
+        g._stageSettleAdJustGranted = bonusSS > 0 || fragRewards.length > 0
         g._dirty = true
       },
       rewardPopup: () => {
@@ -1871,11 +1931,15 @@ function tStageResult(g, x, y, type) {
         g._stageSettleAdJustGranted = false
         const r = g._stageResult
         const ss = r && r.soulStone ? r.soulStone : 0
-        if (ss <= 0) return null
+        const frag = r && r.totalFragCount ? r.totalFragCount : 0
+        if (ss <= 0 && frag <= 0) return null
+        const lines = []
+        if (ss > 0) lines.push({ icon: 'icon_soul_stone', label: '灵石', amount: '+' + ss })
+        if (frag > 0) lines.push({ icon: 'icon_fragment', label: '碎片', amount: '+' + frag })
         return {
-          title: '灵石翻倍',
-          subtitle: '关卡结算额外奖励',
-          lines: [{ icon: 'icon_soul_stone', label: '灵石', amount: '+' + ss }],
+          title: '奖励翻倍',
+          subtitle: 'Boss 关额外奖励',
+          lines,
         }
       },
     })

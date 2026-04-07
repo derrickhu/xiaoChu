@@ -26,7 +26,7 @@ function localDateKey(d = new Date()) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 15
+const CURRENT_VERSION = 16
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -49,6 +49,7 @@ function defaultPersist() {
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表（兼容旧版）
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
     dexMilestonesClaimed: [],  // 图鉴里程碑：已领取的里程碑ID列表
+    dexMilestonesAdRewardClaimed: [],  // 图鉴里程碑：已领过广告额外一份货币奖励的里程碑ID
     cultivation: {
       level: 1,              // 人物等级（从1级起始）
       exp: 0,                // 当前等级已积累经验
@@ -234,6 +235,10 @@ const migrations = {
   14: (d) => {
     if (!d.towerDaily) d.towerDaily = { date: '', runs: 0, adRuns: 0 }
   },
+  // v15→v16：图鉴里程碑广告额外奖励（每档仅一次）
+  15: (d) => {
+    if (!d.dexMilestonesAdRewardClaimed) d.dexMilestonesAdRewardClaimed = []
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -368,6 +373,7 @@ class Storage {
 
   // ===== 图鉴里程碑系统 =====
   get dexMilestonesClaimed() { return this._d.dexMilestonesClaimed || [] }
+  get dexMilestonesAdRewardClaimed() { return this._d.dexMilestonesAdRewardClaimed || [] }
 
   claimDexMilestone(milestoneId) {
     const { ALL_MILESTONES, isMilestoneReached } = require('./dexConfig')
@@ -383,6 +389,21 @@ class Storage {
     }
     this._save()
     return { success: true, reward: m.reward || null, buff: m.buff || null }
+  }
+
+  /** 图鉴里程碑「翻倍」广告：额外发放一份货币奖励，每档里程碑仅一次 */
+  claimDexMilestoneAdReward(milestoneId) {
+    const { ALL_MILESTONES, isMilestoneReached } = require('./dexConfig')
+    const m = ALL_MILESTONES.find(ms => ms.id === milestoneId)
+    if (!m || !m.reward) return { success: false, message: '无广告奖励' }
+    if (!isMilestoneReached(m, this._d.petPool || [])) return { success: false, message: '未达成' }
+    if (!this._d.dexMilestonesAdRewardClaimed) this._d.dexMilestonesAdRewardClaimed = []
+    if (this._d.dexMilestonesAdRewardClaimed.includes(milestoneId)) return { success: false, message: '已领过' }
+    this._d.dexMilestonesAdRewardClaimed.push(milestoneId)
+    if (m.reward.soulStone) this._d.soulStone = (this._d.soulStone || 0) + m.reward.soulStone
+    if (m.reward.awakenStone) this._d.awakenStone = (this._d.awakenStone || 0) + m.reward.awakenStone
+    this._save()
+    return { success: true, reward: m.reward }
   }
 
   getDexBuffs() {

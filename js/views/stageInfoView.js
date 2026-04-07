@@ -10,6 +10,7 @@ const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin, getStageChapterOrderLabel, CHAPTER_RECOMMENDED } = require('../data/stages')
+const { STAMINA_COST } = require('../data/constants')
 const { STAR_REWARDS } = require('../data/economyConfig')
 const { getRewardPreview } = require('../engine/rewardPreview')
 const { drawPoolPetDetailPopup } = require('./dialogs')
@@ -161,7 +162,7 @@ function rStageInfo(g) {
 
   // 副标题：属性 + 波次 + 消耗（无限制时不显示次数）
   const dailyStr = hasDailyLimit ? `  ·  今日${dailyLeft}/${stage.dailyLimit}` : ''
-  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost}${dailyStr}`
+  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost ?? STAMINA_COST}${dailyStr}`
   c.font = `${10*S}px "PingFang SC",sans-serif`
   const subW = c.measureText(subText).width + 20 * S
   const subH = 20 * S
@@ -640,7 +641,7 @@ function tStageInfo(g, x, y, type) {
       g.setScene('stageTeam')
       return
     }
-    if (g.storage.currentStamina < stage.staminaCost) {
+    if (g.storage.currentStamina < (stage.staminaCost ?? STAMINA_COST)) {
       const AdManager = require('../adManager')
       if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足')
       return

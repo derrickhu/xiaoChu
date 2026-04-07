@@ -2099,6 +2099,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
   const { ctx, R, TH, W, S } = V
   const scrollY = g._dexMilestoneScrollY || 0
   const claimed = new Set(g.storage.dexMilestonesClaimed || [])
+  const adRewardClaimed = new Set(g.storage.dexMilestonesAdRewardClaimed || [])
   const pool = g.storage.petPool
 
   ctx.save()
@@ -2176,6 +2177,10 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
       const btnW = 52 * S, btnH2 = 24 * S
       const btnX = mx + cardW - btnW - 8 * S
       const btnY = my + (cardH - btnH2) / 2
+      const adW = 40 * S, adH = 20 * S
+      const adX = btnX - adW - 4 * S
+      const adY = my + (cardH - adH) / 2
+      const showAdDouble = reached && m.reward && !adRewardClaimed.has(m.id)
       if (isClaimed) {
         ctx.fillStyle = '#5c5046'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'
@@ -2196,11 +2201,8 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
         ctx.fillText('未达成', btnX + btnW / 2, btnY + btnH2 * 0.65)
       }
 
-      // IAA 翻倍按钮占位（已达成且为货币奖励类）
-      if (reached && !isClaimed && m.reward) {
-        const adW = 40 * S, adH = 20 * S
-        const adX = btnX - adW - 4 * S
-        const adY = my + (cardH - adH) / 2
+      // IAA 翻倍：已达成、有货币奖励、且本档广告额外奖励未领过（先领基础或先看广告均可，各档仅一次额外）
+      if (showAdDouble) {
         R.drawDialogBtn(adX, adY, adW, adH, '翻倍', 'adReward')
         if (my + cardH > contentTop && my < contentBottom) {
           g._dexMilestoneRects.push({ id: `ad_${m.id}`, type: 'ad_double', milestoneId: m.id, x: adX, y: adY, w: adW, h: adH })
