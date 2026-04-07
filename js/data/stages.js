@@ -8,7 +8,7 @@ const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAMINA_COST } = require('./balance/economy')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
-const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
+const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
 
 const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
@@ -175,6 +175,9 @@ const STAGE_SPECS = _genStageSpecs()
 
 function buildAllStages() {
   const stages = []
+  const grow = STAGE_MIN_GROWTH_RATE
+  let runMax = { hp: 0, atk: 0, def: 0 }
+
   for (let ch = 1; ch <= 12; ch++) {
     const specs = STAGE_SPECS[ch]
     const mult = ELITE_MULTIPLIERS[ch]
@@ -206,6 +209,14 @@ function buildAllStages() {
         bossAtk = Math.max(enemyData.atk, Math.round(maxPrevAtk * BOSS_STAT_FLOOR.atk))
         bossDef = Math.max(enemyData.def, Math.round(maxPrevDef * BOSS_STAT_FLOOR.def))
       }
+
+      // 全局递增保底：HP/ATK 严格递增(+1)，DEF 不回退即可
+      if (runMax.hp > 0) {
+        bossHp  = Math.max(bossHp,  Math.max(runMax.hp  + 1, Math.round(runMax.hp  * grow.hp)))
+        bossAtk = Math.max(bossAtk, Math.max(runMax.atk + 1, Math.round(runMax.atk * grow.atk)))
+        bossDef = Math.max(bossDef, Math.round(runMax.def * grow.def))
+      }
+      runMax = { hp: bossHp, atk: bossAtk, def: bossDef }
 
       const normalEnemy = {
         name: enemyData.name,

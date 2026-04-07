@@ -5,29 +5,29 @@
 
 // ===== 通天塔怪物面板 =====
 const MONSTER_TIERS = [
-  { minFloor:1,   maxFloor:5,   hpMin:280,  hpMax:480,   atkMin:10,  atkMax:18  },
-  { minFloor:6,   maxFloor:10,  hpMin:520,  hpMax:880,   atkMin:18,  atkMax:30  },
-  { minFloor:11,  maxFloor:15,  hpMin:920,  hpMax:1500,  atkMin:28,  atkMax:44  },
-  { minFloor:16,  maxFloor:20,  hpMin:1500, hpMax:2300,  atkMin:42,  atkMax:62  },
-  { minFloor:21,  maxFloor:25,  hpMin:2200, hpMax:3300,  atkMin:55,  atkMax:78  },
-  { minFloor:26,  maxFloor:30,  hpMin:3000, hpMax:4200,  atkMin:68,  atkMax:92  },
+  { minFloor:1,   maxFloor:5,   hpMin:400,   hpMax:700,    atkMin:14,   atkMax:26   },
+  { minFloor:6,   maxFloor:10,  hpMin:1000,  hpMax:1800,   atkMin:35,   atkMax:55   },
+  { minFloor:11,  maxFloor:15,  hpMin:2100,  hpMax:3500,   atkMin:55,   atkMax:85   },
+  { minFloor:16,  maxFloor:20,  hpMin:3800,  hpMax:5800,   atkMin:80,   atkMax:120  },
+  { minFloor:21,  maxFloor:25,  hpMin:5500,  hpMax:9000,   atkMin:110,  atkMax:160  },
+  { minFloor:26,  maxFloor:30,  hpMin:8000,  hpMax:14000,  atkMin:140,  atkMax:210  },
 ]
 
-const ENEMY_DEF_RATIO = 0.35
+const ENEMY_DEF_RATIO = 0.40
 const MONSTER_RANDOM_RANGE = [0.85, 0.30]
 
 // ===== 通天塔精英倍率 =====
 const TOWER_ELITE_MUL = {
-  hp:  [2.8, 0.7],
-  atk: [1.8, 0.5],
-  def: 1.5,
+  hp:  [3.5, 1.0],
+  atk: [2.2, 0.6],
+  def: 1.8,
 }
 
 // ===== 通天塔 Boss 缩放 =====
 const TOWER_BOSS_SCALING = {
-  hpBase:  3.0, hpStep:  0.6, hpCap:  5,
-  atkBase: 1.5, atkStep: 0.15, atkCap: 2,
-  defBase: 1.2, defStep: 0.15, defCap: 1.6,
+  hpBase:  4.0, hpStep:  1.0, hpCap:  7,
+  atkBase: 2.0, atkStep: 0.25, atkCap: 3,
+  defBase: 1.5, defStep: 0.2, defCap: 2.2,
 }
 
 // ===== 境界加成表 =====
@@ -121,6 +121,9 @@ const STAGE_ELITE_MULTIPLIERS = {
 // Boss 保底倍率
 const STAGE_BOSS_STAT_FLOOR = { hp: 1.3, atk: 1.15, def: 1.1 }
 
+// 全局递增保底：每关 hp/atk/def 至少为前一关的此比例，消除跨章断崖
+const STAGE_MIN_GROWTH_RATE = { hp: 1.03, atk: 1.02, def: 1.01 }
+
 // 守关小怪血量折扣
 const STAGE_MINION_HP_RATIO = 0.6
 
@@ -137,6 +140,7 @@ module.exports = {
   ENEMY_SKILLS,
   STAGE_ELITE_MULTIPLIERS,
   STAGE_BOSS_STAT_FLOOR,
+  STAGE_MIN_GROWTH_RATE,
   STAGE_MINION_HP_RATIO,
   NEWBIE_ENEMY_OVERRIDE,
 }

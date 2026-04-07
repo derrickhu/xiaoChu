@@ -71,6 +71,278 @@ def load_pet_names():
     return dict(_PET_HEAD_RE.findall(text))
 
 
+def _run_node_json(js_source: str, timeout=45):
+    """在仓库根目录执行 node -e，stdout 须为单行 JSON。"""
+    import subprocess
+    r = subprocess.run(
+        ['node', '-e', js_source],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'node failed')
+    out = (r.stdout or '').strip()
+    if not out:
+        return None
+    return json.loads(out)
+
+
+def load_static_pets_balance_rows():
+    """
+    从仓库 js/data/pets.js 读取全量灵宠配置（基础 atk、技能名/类型/文案、品质、属性）。
+    供仪表盘「游戏数值配置」与数值调优对照，无需玩家导出数据。
+    """
+    js = r"""
+const { getAllPets, getPetRarity } = require('./js/data/pets');
+const pets = getAllPets();
+const rows = pets.map(p => ({
+  id: p.id,
+  name: p.name,
+  attr: p.attr,
+  rarity: getPetRarity(p.id),
+  baseAtk: p.atk,
+  skillCd: p.cd,
+  skillName: p.skill ? p.skill.name : '',
+  skillType: p.skill ? p.skill.type : '',
+  skillDesc: p.skill ? p.skill.desc : '',
+}));
+console.log(JSON.stringify(rows));
+"""
+    return _run_node_json(js) or []
+
+
+def load_static_weapons_balance_rows():
+    """全量法宝静态表。dropTier=R/SR/SSR 来自 WEAPON_RARITY，仅用于关卡等掉落分层，不是法宝数据上的「品质」字段。"""
+    js = r"""
+const { WEAPONS, getWeaponRarity } = require('./js/data/weapons');
+const rows = WEAPONS.map(w => ({
+  id: w.id,
+  name: w.name,
+  dropTier: getWeaponRarity(w.id) || '—',
+  type: w.type,
+  desc: w.desc,
+}));
+console.log(JSON.stringify(rows));
+"""
+    return _run_node_json(js) or []
+
+
+def load_pool_growth_constants_json():
+    """灵宠池养成关键常量（constants.js），便于与表格对照调优。"""
+    js = r"""
+const c = require('./js/data/constants');
+const pick = (k) => c[k];
+const out = {
+  POOL_MAX_LV: pick('POOL_MAX_LV'),
+  POOL_ADV_MAX_LV: pick('POOL_ADV_MAX_LV'),
+  POOL_STAR_ATK_MUL: pick('POOL_STAR_ATK_MUL'),
+  POOL_STAR_FRAG_COST: pick('POOL_STAR_FRAG_COST'),
+  POOL_STAR_LV_REQ: pick('POOL_STAR_LV_REQ'),
+  POOL_STAR_LV_CAP: pick('POOL_STAR_LV_CAP'),
+  POOL_STAR_AWAKEN_COST: pick('POOL_STAR_AWAKEN_COST'),
+  POOL_R_LV_BONUS_RATE: pick('POOL_R_LV_BONUS_RATE'),
+  POOL_EXP_BASE: pick('POOL_EXP_BASE'),
+  POOL_EXP_LINEAR: pick('POOL_EXP_LINEAR'),
+  POOL_EXP_POW_EXP: pick('POOL_EXP_POW_EXP'),
+  POOL_EXP_POW_COEFF: pick('POOL_EXP_POW_COEFF'),
+  POOL_RARITY_EXP_MUL: pick('POOL_RARITY_EXP_MUL'),
+  POOL_FRAGMENT_TO_EXP: pick('POOL_FRAGMENT_TO_EXP'),
+};
+console.log(JSON.stringify(out));
+"""
+    return _run_node_json(js) or {}
+
+
+def load_static_enemies_balance_rows():
+    """秘境/注册表敌人底层面板（hp/atk/def/skills），与 stages 引用同一套 id。"""
+    js = r"""
+const { ENEMIES } = require('./js/data/enemyRegistry');
+const rows = Object.entries(ENEMIES).map(([id, e]) => ({
+  id,
+  name: e.name,
+  attr: e.attr,
+  hp: e.hp,
+  atk: e.atk,
+  def: e.def,
+  skills: (e.skills || []).join(', '),
+  isBoss: e.isBoss ? '是' : '',
+  isElite: e.isElite ? '是' : '',
+}));
+console.log(JSON.stringify(rows));
+"""
+    return _run_node_json(js) or []
+
+
+def load_static_stages_summary_rows():
+    """秘境每关：难度、体力、局内灵石、主战斗体 hp/atk/def、评价回合门槛（与客户端 STAGES 一致）。"""
+    js = r"""
+const { STAGES } = require('./js/data/stages');
+const rows = STAGES.map(st => {
+  const w = st.waves && st.waves[st.waves.length - 1];
+  const en = w && w.enemies && w.enemies[0];
+  const r = st.rating || {};
+  return {
+    id: st.id,
+    displayName: st.name,
+    chapter: st.chapter,
+    order: st.order,
+    difficulty: st.difficulty,
+    stamina: st.staminaCost,
+    battleSoulStone: st.battleSoulStone,
+    enemyName: en ? en.name : '',
+    hp: en ? en.hp : null,
+    atk: en ? en.atk : null,
+    def: en ? en.def : null,
+    sTurnLimit: r.s,
+    aTurnLimit: r.a,
+  };
+});
+console.log(JSON.stringify(rows));
+"""
+    return _run_node_json(js) or []
+
+
+def load_balance_combat_scalars_json():
+    """通天塔层段、秘境精英倍率、Boss 保底等（balance/enemy.js），供仪表盘表格化。"""
+    js = r"""
+const be = require('./js/data/balance/enemy');
+const out = {
+  MONSTER_TIERS: be.MONSTER_TIERS,
+  STAGE_ELITE_MULTIPLIERS: be.STAGE_ELITE_MULTIPLIERS,
+  STAGE_BOSS_STAT_FLOOR: be.STAGE_BOSS_STAT_FLOOR,
+  STAGE_MINION_HP_RATIO: be.STAGE_MINION_HP_RATIO,
+  TOWER_ELITE_MUL: be.TOWER_ELITE_MUL,
+  TOWER_BOSS_SCALING: be.TOWER_BOSS_SCALING,
+  ENEMY_DEF_RATIO: be.ENEMY_DEF_RATIO,
+};
+console.log(JSON.stringify(out));
+"""
+    return _run_node_json(js) or {}
+
+
+def load_tower_floors_reference_json():
+    """
+    通天塔 1..TOWER_MAX_FLOOR 逐层「典型」面板：与 tower.js 中 generateMonster / generateElite /
+    generateBoss 公式一致；MONSTER_RANDOM_RANGE 与 TOWER_ELITE_MUL 的随机项取区间中点，便于表格式对照
+    （实战仍有浮动，非包络上下界）。
+    """
+    js = r"""
+const be = require('./js/data/balance/enemy');
+const { TOWER_MAX_FLOOR } = require('./js/data/constants');
+const MONSTER_TIERS = be.MONSTER_TIERS;
+const ENEMY_DEF_RATIO = be.ENEMY_DEF_RATIO;
+const MONSTER_RANDOM_RANGE = be.MONSTER_RANDOM_RANGE;
+const TOWER_ELITE_MUL = be.TOWER_ELITE_MUL;
+const TOWER_BOSS_SCALING = be.TOWER_BOSS_SCALING;
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+const RAND_MID = MONSTER_RANDOM_RANGE[0] + MONSTER_RANDOM_RANGE[1] / 2;
+const eliteHpMul = TOWER_ELITE_MUL.hp[0] + TOWER_ELITE_MUL.hp[1] / 2;
+const eliteAtkMul = TOWER_ELITE_MUL.atk[0] + TOWER_ELITE_MUL.atk[1] / 2;
+
+function normalBaseline(floor) {
+  let tier = MONSTER_TIERS[MONSTER_TIERS.length - 1];
+  for (const t of MONSTER_TIERS) {
+    if (floor >= t.minFloor && floor <= t.maxFloor) { tier = t; break; }
+  }
+  const progress = Math.min(1, (floor - tier.minFloor) / Math.max(1, tier.maxFloor - tier.minFloor));
+  const hp = Math.round(lerp(tier.hpMin, tier.hpMax, progress) * RAND_MID);
+  const atk = Math.round(lerp(tier.atkMin, tier.atkMax, progress) * RAND_MID);
+  const def = Math.round(atk * ENEMY_DEF_RATIO);
+  return { hp, atk, def };
+}
+
+function eliteStats(floor) {
+  const b = normalBaseline(floor);
+  const hp = Math.round(b.hp * eliteHpMul);
+  const atk = Math.round(b.atk * eliteAtkMul);
+  const def = Math.round(b.def * TOWER_ELITE_MUL.def);
+  return { hp, atk, def };
+}
+
+function bossStats(floor) {
+  const b = normalBaseline(floor);
+  const bossLevel = Math.round(floor / 10);
+  const bs = TOWER_BOSS_SCALING;
+  const hpMul = Math.min(bs.hpBase + (bossLevel - 1) * bs.hpStep, bs.hpCap);
+  const atkMul = Math.min(bs.atkBase + (bossLevel - 1) * bs.atkStep, bs.atkCap);
+  const defMul = Math.min(bs.defBase + (bossLevel - 1) * bs.defStep, bs.defCap);
+  return {
+    hp: Math.round(b.hp * hpMul),
+    atk: Math.round(b.atk * atkMul),
+    def: Math.round(b.def * defMul),
+    hpMul, atkMul, defMul,
+    bossLevel,
+  };
+}
+
+const normal = [];
+const elite = [];
+for (let f = 1; f <= TOWER_MAX_FLOOR; f++) {
+  normal.push({ floor: f, ...normalBaseline(f) });
+  elite.push({ floor: f, ...eliteStats(f) });
+}
+const boss = [];
+for (let f = 10; f <= TOWER_MAX_FLOOR; f += 10) {
+  boss.push({ floor: f, ...bossStats(f) });
+}
+console.log(JSON.stringify({
+  towerMaxFloor: TOWER_MAX_FLOOR,
+  randMid: RAND_MID,
+  eliteHpMulMid: eliteHpMul,
+  eliteAtkMulMid: eliteAtkMul,
+  normal,
+  elite,
+  boss,
+}));
+"""
+    return _run_node_json(js) or {}
+
+
+def static_enemies_balance_dataframe():
+    rows = load_static_enemies_balance_rows()
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values(['attr', 'id'], ascending=[True, True])
+
+
+def static_stages_summary_dataframe():
+    rows = load_static_stages_summary_rows()
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    diff_order = {'normal': 0, 'elite': 1}
+    df['_d'] = df['difficulty'].map(lambda x: diff_order.get(x, 9))
+    df = df.sort_values(['chapter', 'order', '_d']).drop(columns=['_d'])
+    return df
+
+
+def static_pets_balance_dataframe():
+    rows = load_static_pets_balance_rows()
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    if not df.empty and 'rarity' in df.columns:
+        r_order = {'SSR': 0, 'SR': 1, 'R': 2}
+        df['_r'] = df['rarity'].map(lambda x: r_order.get(x, 9))
+        df = df.sort_values(['_r', 'attr', 'baseAtk', 'id']).drop(columns=['_r'])
+    return df
+
+
+def static_weapons_balance_dataframe():
+    rows = load_static_weapons_balance_rows()
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    if not df.empty and 'dropTier' in df.columns:
+        r_order = {'SSR': 0, 'SR': 1, 'R': 2}
+        df['_r'] = df['dropTier'].map(lambda x: r_order.get(x, 9))
+        df = df.sort_values(['_r', 'id']).drop(columns=['_r'])
+    return df
+
+
 def pet_pool_dataframe(rec, pet_names=None):
     pet_names = pet_names or {}
     rows = []
