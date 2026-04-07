@@ -449,6 +449,7 @@ function settleStage(g) {
 
   if (g.storage.userAuthorized && !g._isGM) {
     g.storage.submitStageRanking()
+    g.storage.submitDexAndCombo()
   }
 
   g.setScene('stageResult')

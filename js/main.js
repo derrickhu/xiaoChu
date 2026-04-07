@@ -636,6 +636,7 @@ class Main {
     this.rankScrollY = 0
     this.setScene('ranking')
     const needSubmit = this.storage.userAuthorized
+    if (needSubmit) this.storage.submitDexAndCombo()
     await this.storage.fetchRankingCombined('stage', needSubmit)
     console.log('[Ranking] 排行榜加载完成, 总耗时', Date.now() - t0, 'ms')
   }

@@ -1768,6 +1768,11 @@ class Storage {
     if (this._eventBus) {
       this._eventBus.emit('cloud:veteranRestored')
     }
+
+    // 云合并后数据已是最终态，静默提交图鉴/连击排行（未授权用户内部自动跳过）
+    if ((this._d.petPool || []).length > 0) {
+      this.submitDexAndCombo()
+    }
   }
 
 }
