@@ -192,6 +192,25 @@ function _spotlightRarityTag(rarityKey, attrKey) {
   return { rv, tag: rv.label }
 }
 
+/** 恭喜获得区：每张卡左上角稀有度菱形中心（统一规则，并排仅靠 gap 留缝） */
+function _heroSpotlightRarityBadgeCenter(avatarX, avatarY, S) {
+  return { cx: avatarX - 4 * S, cy: avatarY - 2 * S }
+}
+
+/** 恭喜获得区：每张卡右上角 New 丝带锚点（与稀有标对称的统一规则） */
+function _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S) {
+  return { tx: avatarX + avatarSize + 4 * S, ty: avatarY - 2 * S }
+}
+
+/** 并排多张时名称锚在各自图标中心，略向左右分开，避免长文案在中间挤在一起 */
+function _heroSpotlightLabelCx(tileCx, S, heroCount, heroIndex) {
+  if (heroCount <= 1) return tileCx
+  if (heroCount === 2) return tileCx + (heroIndex === 0 ? -12 * S : 12 * S)
+  if (heroIndex === 0) return tileCx - 8 * S
+  if (heroIndex === heroCount - 1) return tileCx + 8 * S
+  return tileCx
+}
+
 /** 关卡通关后：恭喜获得区高度（多卡并排时略压缩单卡尺寸） */
 function _victoryHeroBlockHeight(S, result) {
   const items = _heroSpotlightItems(result)
@@ -201,10 +220,11 @@ function _victoryHeroBlockHeight(S, result) {
   const hasPet = items.some(r => r.type === 'pet')
   // 星级叠在头像左下角内侧，不再占头像下方一整行
   const below = hasPet ? (16 * S + 12 * S) : (24 * S + 12 * S)
-  return 34 * S + avatarSz + below
+  const titleBelow = n >= 2 ? 40 * S : 34 * S
+  return titleBelow + avatarSz + below
 }
 
-function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatarY, avatarSize, at, heroCount) {
+function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatarY, avatarSize, at, heroCount, heroIndex) {
   const petId = reward.petId
   const pet = getPetById(petId)
   if (!pet) return
@@ -213,12 +233,12 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
   const poolPet = g.storage.getPoolPet(petId)
   const starLv = (poolPet && poolPet.star) ? poolPet.star : 1
 
-  const badgeCx = avatarX + 6 * S
-  const badgeCy = avatarY + 14 * S
+  const { cx: badgeCx, cy: badgeCy } = _heroSpotlightRarityBadgeCenter(avatarX, avatarY, S)
   _drawRarityDiamondBadge(c, S, badgeCx, badgeCy, rv, tag)
 
+  const { tx: newTx, ty: newTy } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
   c.save()
-  c.translate(avatarX + avatarSize + 4 * S, avatarY - 2 * S)
+  c.translate(newTx, newTy)
   c.rotate(-0.22)
   c.fillStyle = 'rgba(180,120,20,0.95)'
   R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
@@ -258,30 +278,33 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
   }
 
   const subY = avatarY + avatarSize + 16 * S
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const nameCx = _heroSpotlightLabelCx(cx, S, heroCount, heroIndex)
   c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
   c.fillStyle = '#fff5e0'
   if (heroCount <= 1) {
-    _strokeText(c, `获得灵宠「${pet.name}」`, cx, subY, 'rgba(0,0,0,0.45)', 2.5 * S)
+    _strokeText(c, `获得灵宠「${pet.name}」`, nameCx, subY, 'rgba(0,0,0,0.45)', 2.5 * S)
   } else {
     const shortName = pet.name.length > 6 ? pet.name.slice(0, 6) + '…' : pet.name
-    _strokeText(c, `灵宠「${shortName}」`, cx, subY, 'rgba(0,0,0,0.45)', 2 * S)
+    _strokeText(c, `灵宠「${shortName}」`, nameCx, subY, 'rgba(0,0,0,0.45)', 2 * S)
   }
 }
 
-function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, nameY, heroCount) {
+function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, nameY, heroCount, heroIndex) {
   const wid = reward.weaponId
   const w = getWeaponById(wid)
   if (!w) return
   const rarityKey = getWeaponRarity(wid) || 'R'
   const { rv, tag } = _spotlightRarityTag(rarityKey, w.attr || 'metal')
 
-  const badgeCxW = avatarX + 6 * S
-  const badgeCyW = avatarY + 14 * S
+  const { cx: badgeCxW, cy: badgeCyW } = _heroSpotlightRarityBadgeCenter(avatarX, avatarY, S)
   _drawRarityDiamondBadge(c, S, badgeCxW, badgeCyW, rv, tag)
 
   if (reward.isNew) {
+    const { tx: newTxW, ty: newTyW } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
     c.save()
-    c.translate(avatarX + avatarSize + 4 * S, avatarY - 2 * S)
+    c.translate(newTxW, newTyW)
     c.rotate(-0.22)
     c.fillStyle = 'rgba(180,120,20,0.95)'
     R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
@@ -301,13 +324,15 @@ function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, av
   R.drawCoverImg(R.getImg(iconPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 14 * S, shadow: strokeAttr, shadowBlur: 16, strokeStyle: strokeAttr, strokeWidth: 2.5 })
 
   c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const nameCx = _heroSpotlightLabelCx(cx, S, heroCount, heroIndex)
   c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
   c.fillStyle = '#fff5e0'
   if (heroCount <= 1) {
-    _strokeText(c, `获得法宝「${w.name}」`, cx, nameY, 'rgba(0,0,0,0.45)', 2.5 * S)
+    _strokeText(c, `获得法宝「${w.name}」`, nameCx, nameY, 'rgba(0,0,0,0.45)', 2.5 * S)
   } else {
     const shortName = w.name.length > 6 ? w.name.slice(0, 6) + '…' : w.name
-    _strokeText(c, `法宝「${shortName}」`, cx, nameY, 'rgba(0,0,0,0.45)', 2 * S)
+    _strokeText(c, `法宝「${shortName}」`, nameCx, nameY, 'rgba(0,0,0,0.45)', 2 * S)
   }
 }
 
@@ -321,7 +346,8 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
   c.globalAlpha = fadeIn * enter
 
   const n = items.length
-  const gap = 12 * S
+  // 双卡时留足缝：左卡 New 丝向外伸、右卡稀有菱形居左上角外侧，统一锚点下需 gap ≳ 0.5×卡宽（74S 卡用 ~42S）
+  const gap = n <= 1 ? 12 * S : n === 2 ? 42 * S : 22 * S
   const avatarSize = (n <= 1 ? 86 * S : n === 2 ? 74 * S : 64 * S) * bounce
   const rowW = n * avatarSize + (n - 1) * gap
   const startX = (W - rowW) / 2
@@ -331,7 +357,7 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
   c.fillStyle = '#FFF5E0'
   c.font = `bold ${17 * S}px "PingFang SC",sans-serif`
   _strokeText(c, '恭喜获得', W / 2, y + 12 * S, 'rgba(55,35,18,0.55)', 3 * S)
-  y += 34 * S
+  y += (n >= 2 ? 40 : 34) * S
 
   const avatarY = y
   const hasPet = items.some(r => r.type === 'pet')
@@ -350,9 +376,9 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
     const rowSlide = (1 - tileIn) * 16 * S
     c.translate(rowSlide, 0)
     if (reward.type === 'pet' && reward.petId) {
-      _drawVictoryHeroPetTile(g, c, R, S, result, reward, tileCx, avatarX, avatarY, avatarSize, at, n)
+      _drawVictoryHeroPetTile(g, c, R, S, result, reward, tileCx, avatarX, avatarY, avatarSize, at, n, i)
     } else if (reward.type === 'weapon' && reward.weaponId) {
-      _drawVictoryHeroWeaponTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, nameY, n)
+      _drawVictoryHeroWeaponTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, nameY, n, i)
     }
     c.restore()
   }
