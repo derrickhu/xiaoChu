@@ -176,13 +176,20 @@ console.log(JSON.stringify(rows));
 
 
 def load_static_stages_summary_rows():
-    """秘境每关：难度、体力、局内灵石、主战斗体 hp/atk/def、评价回合门槛（与客户端 STAGES 一致）。"""
+    """秘境每关：难度、体力、局内灵石、主战斗体 hp/atk/def、评价回合门槛、奖励（与客户端 STAGES 一致）。"""
     js = r"""
 const { STAGES } = require('./js/data/stages');
 const rows = STAGES.map(st => {
   const w = st.waves && st.waves[st.waves.length - 1];
   const en = w && w.enemies && w.enemies[0];
   const r = st.rating || {};
+  const rw = st.rewards || {};
+  const fc = rw.firstClear || [];
+  const rc = rw.repeatClear || {};
+  const fcPet = fc.find(x => x.type === 'pet');
+  const fcWpn = fc.find(x => x.type === 'weapon');
+  const fcExp = fc.find(x => x.type === 'exp');
+  const fcSS  = fc.find(x => x.type === 'soulStone');
   return {
     id: st.id,
     displayName: st.name,
@@ -197,6 +204,15 @@ const rows = STAGES.map(st => {
     def: en ? en.def : null,
     sTurnLimit: r.s,
     aTurnLimit: r.a,
+    fcPetId: fcPet ? fcPet.petId : '',
+    fcPetFrag: fcPet ? (fcPet.fragCount || 0) : 0,
+    fcWeaponId: fcWpn ? fcWpn.weaponId : '',
+    fcExp: fcExp ? fcExp.amount : 0,
+    fcSoulStone: fcSS ? fcSS.amount : 0,
+    rpFragMin: rc.fragments ? rc.fragments.min : 0,
+    rpFragMax: rc.fragments ? rc.fragments.max : 0,
+    rpExp: rc.exp || 0,
+    rpSoulStone: rc.soulStone || 0,
   };
 });
 console.log(JSON.stringify(rows));

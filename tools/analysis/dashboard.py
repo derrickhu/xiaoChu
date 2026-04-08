@@ -557,15 +557,35 @@ with tab_balance:
                         sd['id'].astype(str).str.lower().str.contains(t, na=False)
                         | sd['displayName'].astype(str).str.lower().str.contains(t, na=False)
                     ]
-                st.dataframe(
-                    sd.rename(columns={
-                        'id': '关卡ID', 'displayName': '名称', 'chapter': '章', 'order': '关',
-                        'difficulty': '难度', 'stamina': '体力', 'battleSoulStone': '局内灵石',
-                        'enemyName': '主敌人', 'hp': 'HP', 'atk': '攻击', 'def': '防御',
-                        'sTurnLimit': 'S评价回合≤', 'aTurnLimit': 'A评价回合≤',
-                    }),
-                    use_container_width=True, hide_index=True, height=480,
-                )
+
+                st5_battle, st5_reward = st.tabs(['⚔️ 战斗数值', '🎁 奖励数值'])
+                _stage_rename_battle = {
+                    'id': '关卡ID', 'displayName': '名称', 'chapter': '章', 'order': '关',
+                    'difficulty': '难度', 'stamina': '体力', 'battleSoulStone': '局内灵石',
+                    'enemyName': '主敌人', 'hp': 'HP', 'atk': '攻击', 'def': '防御',
+                    'sTurnLimit': 'S评价回合≤', 'aTurnLimit': 'A评价回合≤',
+                }
+                _stage_rename_reward = {
+                    'id': '关卡ID', 'displayName': '名称', 'chapter': '章', 'order': '关',
+                    'difficulty': '难度',
+                    'fcPetId': '首通宠物', 'fcPetFrag': '碎片数', 'fcWeaponId': '首通法宝',
+                    'fcExp': '首通经验', 'fcSoulStone': '首通灵石',
+                    'rpFragMin': '重复碎片min', 'rpFragMax': '重复碎片max',
+                    'rpExp': '重复经验', 'rpSoulStone': '重复灵石',
+                }
+                _battle_cols = [c for c in _stage_rename_battle if c in sd.columns]
+                _reward_cols = [c for c in _stage_rename_reward if c in sd.columns]
+
+                with st5_battle:
+                    st.dataframe(
+                        sd[_battle_cols].rename(columns=_stage_rename_battle),
+                        use_container_width=True, hide_index=True, height=480,
+                    )
+                with st5_reward:
+                    st.dataframe(
+                        sd[_reward_cols].rename(columns=_stage_rename_reward),
+                        use_container_width=True, hide_index=True, height=480,
+                    )
                 st.caption(f'共 {len(sd)} / {len(stages_df)} 条')
                 st.download_button('下载关卡摘要 CSV', sd.to_csv(index=False).encode('utf-8-sig'),
                                    'static_stages_summary.csv', 'text/csv', key='dl_stage')
