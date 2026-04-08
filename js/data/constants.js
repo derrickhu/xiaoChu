@@ -117,7 +117,13 @@ const TITLE_HOME = {
   /**
    * 通天塔首页：「今日次数」+ 开始/继续按钮 + 下方进度说明整体下移（×S），与塔图、底栏之间留出空隙
    */
-  towerStartClusterDownPt: 22,
+  towerStartClusterDownPt: 14,
+  /** 通天塔首页：塔图与开始按钮区整体上移（×S），为底部「本周活动」卡片留位 */
+  towerUiShiftUpPt: 22,
+  /** 进度文案基线（middle）到活动卡片顶边的间距（×S） */
+  towerEventBannerBelowProgressGapPt: 14,
+  /** 活动卡片比开始按钮（0.6 屏宽）多加的宽度（×S），略宽一点即可 */
+  towerEventBannerExtraWPt: 12,
   /** 每日签到：总宽度、红包图标边长、标签字号（×S） */
   dailySignBtnWidthPt: 62,
   dailySignIconPt: 52,

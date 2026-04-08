@@ -13,13 +13,9 @@ const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
   ELITE_MINION_HP_SCALE, CHAPTER_RECOMMENDED,
-  NORMAL_PET_QUOTA, ELITE_PET_QUOTA,
-  NORMAL_WPN_QUOTA, ELITE_WPN_QUOTA,
-  BOSS_REWARD_MIN_RARITY,
   STAGE_REWARD_PET_OVERRIDES,
 } = require('./balance/stage')
-const { getPetRarity, isReservedPet, getAllPets } = require('./pets')
-const { getWeaponRarity, getWeaponsByRarity, TOWER_ONLY_WEAPONS } = require('./weapons')
+const { getPetRarity } = require('./pets')
 
 const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
@@ -40,14 +36,17 @@ const CHAPTERS = [
   { id: 12, name: '终焉之地', desc: '万妖之巅，终极对决' },
 ]
 
-function mkRewards(ch, ord, diff, petId, weaponId, exp, repExp) {
+function mkRewards(ch, ord, diff, petId, exp, repExp) {
   const idx = ord - 1
-  const rarity = getPetRarity(petId)
-  const fragCount = FIRST_CLEAR_FRAG_COUNT[rarity] || FIRST_CLEAR_FRAG_COUNT.R
-  const firstClear = [
-    { type: 'pet', petId, fragCount },
-  ]
-  if (weaponId) firstClear.push({ type: 'weapon', weaponId })
+  const firstClear = []
+  if (petId) {
+    const rarity = getPetRarity(petId)
+    const fragCount = FIRST_CLEAR_FRAG_COUNT[rarity] || FIRST_CLEAR_FRAG_COUNT.R
+    firstClear.push({ type: 'pet', petId, fragCount })
+  } else {
+    firstClear.push({ type: 'randomPet', chapter: ch, order: ord, difficulty: diff })
+  }
+  firstClear.push({ type: 'randomWeapon', chapter: ch, order: ord, difficulty: diff })
   firstClear.push(
     { type: 'exp', amount: exp },
     { type: 'soulStone', amount: STAGE_REWARDS[ch][diff].soulStone.first[idx] },
@@ -78,98 +77,12 @@ function _genStageSpecs() {
     12: ['磐岩','深渊','万妖','金锋','花灵','焚天','九天','终焉守关'],
   }
 
-  // 构建可用宠物池（排除通天塔预留）
-  const _allPets = getAllPets().filter(p => !isReservedPet(p.id))
-  const _ATTRS = ['metal', 'wood', 'water', 'fire', 'earth']
-  const _petsByRarity = { R: [], SR: [], SSR: [] }
-  for (const p of _allPets) _petsByRarity[getPetRarity(p.id)].push(p.id)
-
-  // 构建可用法宝池（排除通天塔专属）
-  const _wpnByRarity = { R: [], SR: [], SSR: [] }
-  for (const r of ['R', 'SR', 'SSR']) {
-    _wpnByRarity[r] = getWeaponsByRarity(r)
-      .filter(w => !TOWER_ONLY_WEAPONS.includes(w.id))
-      .map(w => w.id)
-  }
-
-  const _petCursor = { R: 0, SR: 0, SSR: 0 }
-  const _wpnCursor = { R: 0, SR: 0, SSR: 0 }
-
-  function _pickPet(rarity) {
-    const pool = _petsByRarity[rarity]
-    if (!pool.length) return _petsByRarity.R[0]
-    const id = pool[_petCursor[rarity] % pool.length]
-    _petCursor[rarity]++
-    return id
-  }
-
-  function _pickWpn(rarity) {
-    const pool = _wpnByRarity[rarity]
-    if (!pool.length) return _wpnByRarity.R[0]
-    const id = pool[_wpnCursor[rarity] % pool.length]
-    _wpnCursor[rarity]++
-    return id
-  }
-
-  const RARITY_RANK = { R: 0, SR: 1, SSR: 2 }
-
-  function _buildRaritySeq(quota, bossMinRarity) {
-    const seq = []
-    for (const r of ['SSR', 'SR', 'R']) {
-      for (let n = 0; n < (quota[r] || 0); n++) seq.push(r)
-    }
-    seq.sort((a, b) => RARITY_RANK[a] - RARITY_RANK[b])
-    if (bossMinRarity && RARITY_RANK[seq[7]] < RARITY_RANK[bossMinRarity]) {
-      for (let j = 0; j < 7; j++) {
-        if (RARITY_RANK[seq[j]] >= RARITY_RANK[bossMinRarity]) {
-          const tmp = seq[j]; seq[j] = seq[7]; seq[7] = tmp
-          break
-        }
-      }
-      if (RARITY_RANK[seq[7]] < RARITY_RANK[bossMinRarity]) {
-        seq[7] = bossMinRarity
-      }
-    }
-    return seq
-  }
-
-  function _buildWpnRaritySeq(quota, bossMinRarity) {
-    const seq = []
-    for (const r of ['SSR', 'SR', 'R']) {
-      for (let n = 0; n < (quota[r] || 0); n++) seq.push(r)
-    }
-    seq.sort((a, b) => RARITY_RANK[a] - RARITY_RANK[b])
-    if (bossMinRarity && seq.length >= 4 && RARITY_RANK[seq[3]] < RARITY_RANK[bossMinRarity]) {
-      for (let j = 0; j < 3; j++) {
-        if (RARITY_RANK[seq[j]] >= RARITY_RANK[bossMinRarity]) {
-          const tmp = seq[j]; seq[j] = seq[3]; seq[3] = tmp
-          break
-        }
-      }
-      if (RARITY_RANK[seq[3]] < RARITY_RANK[bossMinRarity]) {
-        seq[3] = bossMinRarity
-      }
-    }
-    return seq
-  }
-
   const specs = {}
 
   for (let ch = 1; ch <= 12; ch++) {
     const ids = CHAPTER_ENEMY_IDS[ch]
     const chSpecs = []
     const names = _STAGE_NAMES[ch]
-
-    const nPetSeq = _buildRaritySeq(NORMAL_PET_QUOTA[ch], BOSS_REWARD_MIN_RARITY.normalPet[ch])
-    const ePetSeq = _buildRaritySeq(ELITE_PET_QUOTA[ch], BOSS_REWARD_MIN_RARITY.elitePet[ch])
-
-    const nWpnQuota = NORMAL_WPN_QUOTA[ch]
-    const eWpnQuota = ELITE_WPN_QUOTA[ch]
-    const nWpnSeq = _buildWpnRaritySeq(nWpnQuota, BOSS_REWARD_MIN_RARITY.normalWpn[ch])
-    const eWpnSeq = _buildWpnRaritySeq(eWpnQuota, BOSS_REWARD_MIN_RARITY.eliteWpn[ch])
-
-    let nWpnIdx = 0
-    let eWpnIdx = 0
 
     for (let i = 0; i < 8; i++) {
       const enemyId = ids[i]
@@ -188,12 +101,6 @@ function _genStageSpecs() {
       const sRating = Math.max(STAGE_RATING.minS, Math.round(STAGE_RATING.base + ch * STAGE_RATING.chCoeff + i * STAGE_RATING.ordCoeff)) + ratingBonus
       const aRating = sRating + STAGE_RATING.aOffset
 
-      const pet = _pickPet(nPetSeq[i])
-      const weapon = (i % 2 === 0 && i !== 6) || i === 7 ? _pickWpn(nWpnSeq[nWpnIdx++]) : null
-
-      const ePet = _pickPet(ePetSeq[i])
-      const eWpn = (i % 2 === 1) ? _pickWpn(eWpnSeq[eWpnIdx++]) : null
-
       const eSkillPool = ['atkBuff','defBuff','healPct','bossBlitz','bossWeaken','bossRage','breakBead','stun','bossDrain','bossAnnihil','timeSqueeze','sealColumn']
       const numESkills = ch <= STAGE_ELITE_SKILL_COUNT.early.maxChapter ? STAGE_ELITE_SKILL_COUNT.early.count
         : ch <= STAGE_ELITE_SKILL_COUNT.mid.maxChapter ? STAGE_ELITE_SKILL_COUNT.mid.count
@@ -206,26 +113,25 @@ function _genStageSpecs() {
 
       const stageName = (names[i] || '试炼') + '·' + (enemy ? enemy.name : enemyId)
 
+      const overrideKey = `${ch}_${ord}`
+      const eliteOverrideKey = `${ch}_${ord}e`
+
       const spec = {
         name: stageName,
         enemyId: enemyId,
-        pet, weapon, exp: expBase, repExp: repExpBase, bs: bsBase,
+        pet: STAGE_REWARD_PET_OVERRIDES[overrideKey] || null,
+        exp: expBase, repExp: repExpBase, bs: bsBase,
         rating: { s: sRating, a: aRating },
-        ePet, eWpn, eExp: Math.round(expBase * STAGE_ELITE_COEFFS.expMul), eRepExp: Math.round(repExpBase * STAGE_ELITE_COEFFS.expMul),
-        eBs: Math.round(bsBase * STAGE_ELITE_COEFFS.soulStoneMul), eRating: { s: sRating + STAGE_ELITE_COEFFS.ratingBonus, a: aRating + STAGE_ELITE_COEFFS.ratingBonus },
+        ePet: STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey] || null,
+        eExp: Math.round(expBase * STAGE_ELITE_COEFFS.expMul),
+        eRepExp: Math.round(repExpBase * STAGE_ELITE_COEFFS.expMul),
+        eBs: Math.round(bsBase * STAGE_ELITE_COEFFS.soulStoneMul),
+        eRating: { s: sRating + STAGE_ELITE_COEFFS.ratingBonus, a: aRating + STAGE_ELITE_COEFFS.ratingBonus },
         eSkills,
       }
 
       if (ch === 1 && i === 0) {
         spec.teamSize = { ...STAGE_TEAM_SIZE.initial }
-      }
-      const overrideKey = `${ch}_${ord}`
-      if (STAGE_REWARD_PET_OVERRIDES[overrideKey]) {
-        spec.pet = STAGE_REWARD_PET_OVERRIDES[overrideKey]
-      }
-      const eliteOverrideKey = `${ch}_${ord}e`
-      if (STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey]) {
-        spec.ePet = STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey]
       }
 
       chSpecs.push(spec)
@@ -322,7 +228,7 @@ function buildAllStages() {
         teamSize: s.teamSize || { ...STAGE_TEAM_SIZE.default },
         rating: s.rating,
         staminaCost: s.staminaCost !== undefined ? s.staminaCost : STAMINA_COST,
-        rewards: mkRewards(ch, ord, 'normal', s.pet, s.weapon, s.exp, s.repExp),
+        rewards: mkRewards(ch, ord, 'normal', s.pet, s.exp, s.repExp),
         dailyLimit: 0,
         unlockCondition: { prevStage },
         battleSoulStone: s.bs,
@@ -367,7 +273,7 @@ function buildAllStages() {
         teamSize: { ...STAGE_TEAM_SIZE.default },
         rating: s.eRating,
         staminaCost: STAMINA_COST,
-        rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eWpn, s.eExp, s.eRepExp),
+        rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eExp, s.eRepExp),
         dailyLimit: 0,
         unlockCondition: { normalStageS: `stage_${ch}_${ord}` },
         battleSoulStone: s.eBs,

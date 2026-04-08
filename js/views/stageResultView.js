@@ -1385,7 +1385,7 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
   c.restore()
 }
 
-// ===== 碎片奖励行（增强版：含进度提示） =====
+// ===== 碎片奖励行（增强版：含进度提示 + 星级） =====
 function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
   const pet = getPetById(reward.petId)
   const name = pet ? pet.name : reward.petId
@@ -1398,9 +1398,24 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
   const iconX = x + 4 * S
   const iconY = cy + (rowH - iconSz) / 2
 
+  const poolPet = g.storage.getPoolPet(reward.petId)
+  const star = poolPet ? poolPet.star : 1
+
   if (pet) {
-    const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+    const avatarPath = getPetAvatarPath({ ...pet, star })
     R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 5 * S, strokeStyle: attrColor, strokeWidth: 1.5 })
+
+    // 品质徽标（左上角，R/SR/SSR）
+    const rv = rarityVisualForAttr(getPetRarity(reward.petId), attr)
+    const badgeW = rv.label.length * 7 * S + 4 * S
+    const badgeH = 11 * S
+    const badgeX = iconX - 1 * S
+    const badgeY = iconY - 1 * S
+    c.fillStyle = rv.badgeBg
+    R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.fill()
+    c.fillStyle = rv.badgeColor; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
   }
 
   // 名称 + 数量
@@ -1415,7 +1430,6 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
   c.fillText(`×${reward.count}`, x + innerW, cy + rowH / 2 - 4 * S)
 
   // 碎片进度提示
-  const poolPet = g.storage.getPoolPet(reward.petId)
   if (poolPet) {
     const nextStar = poolPet.star + 1
     const cost = POOL_STAR_FRAG_COST[nextStar]

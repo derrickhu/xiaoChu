@@ -379,12 +379,11 @@ pick.STAGE_TEAM_SIZE = b.STAGE_TEAM_SIZE;
 pick.FIRST_CLEAR_FRAG_COUNT = b.FIRST_CLEAR_FRAG_COUNT;
 pick.ELITE_MINION_HP_SCALE = b.ELITE_MINION_HP_SCALE;
 pick.CHAPTER_RECOMMENDED = b.CHAPTER_RECOMMENDED;
-// stage reward quotas
-pick.NORMAL_PET_QUOTA = b.NORMAL_PET_QUOTA;
-pick.ELITE_PET_QUOTA = b.ELITE_PET_QUOTA;
-pick.NORMAL_WPN_QUOTA = b.NORMAL_WPN_QUOTA;
-pick.ELITE_WPN_QUOTA = b.ELITE_WPN_QUOTA;
-pick.BOSS_REWARD_MIN_RARITY = b.BOSS_REWARD_MIN_RARITY;
+// roguelike drop weights
+pick.PET_DROP_WEIGHTS = b.PET_DROP_WEIGHTS;
+pick.WPN_DROP_WEIGHTS = b.WPN_DROP_WEIGHTS;
+pick.ELITE_RARITY_BONUS = b.ELITE_RARITY_BONUS;
+pick.BOSS_RARITY_BONUS = b.BOSS_RARITY_BONUS;
 pick.STAGE_REWARD_PET_OVERRIDES = b.STAGE_REWARD_PET_OVERRIDES;
 // towerPacing
 pick.TOWER_SKILL_UNLOCK = b.TOWER_SKILL_UNLOCK;
@@ -412,9 +411,86 @@ pick.REWARD_DIST_W = b.REWARD_DIST_W;
 pick.REWARD_FIRST_CLEAR_MUL = b.REWARD_FIRST_CLEAR_MUL;
 pick.AD_REWARDS_NUMS = b.AD_REWARDS_NUMS;
 pick.DAILY_TASK_AWAKEN = b.DAILY_TASK_AWAKEN;
+// 通天塔：结算系数 + 每日挑战次数
+pick.TOWER_SETTLE = b.TOWER_SETTLE;
+pick.TOWER_DAILY_FREE_RUNS = b.TOWER_DAILY_FREE_RUNS;
+pick.TOWER_DAILY_AD_EXTRA_RUNS = b.TOWER_DAILY_AD_EXTRA_RUNS;
 console.log(JSON.stringify(pick));
 """
     return _run_node_json(js) or {}
+
+
+def tower_settle_reward_reference_rows(bal_all):
+    """
+    通天塔回合结束结算参考表（与 js/engine/runManager settleExp + settleAll 一致）。
+    不含局内战内修炼经验 / 灵石战斗项（elim/combo/kill），该项完全依赖当局消除，无法在静态表逐层预估。
+    """
+    settle = (bal_all or {}).get('TOWER_SETTLE')
+    max_f = int((bal_all or {}).get('TOWER_MAX_FLOOR') or 30)
+    if not settle or not isinstance(settle, dict):
+        return []
+    fc = settle.get('fragment') or {}
+    cc = settle.get('cultExp') or {}
+    sc = settle.get('soulStone') or {}
+    per_floor_frag = float(fc.get('perFloor') or 0)
+    boss_bonus = float(fc.get('bossBonus') or 0)
+    elite_bonus = float(fc.get('eliteBonus') or 0)
+    frag_clear_b = float(fc.get('clearBonus') or 0)
+    frag_fail_ratio = float(fc.get('failRatio') or 1)
+    c_per = float(cc.get('perFloor') or 0)
+    c_clear = float(cc.get('clearBonus') or 0)
+    c_fail = float(cc.get('failRatio') or 1)
+    f_base = float(sc.get('floorBase') or 0)
+    f_growth = float(sc.get('floorGrowth') or 0)
+    s_clear = float(sc.get('clearBonus') or 0)
+
+    def _floor_row(F, mode):
+        boss_count = F // 10
+        elite_est = (1 + (F - 5) // 7) if F >= 5 else 0
+        frag_base = F * per_floor_frag
+        frag_boss = boss_count * boss_bonus
+        frag_elite = elite_est * elite_bonus
+        layer_exp = F * c_per
+        pet_floor = int(F * f_base + f_growth * F * (F + 1) / 2)
+        if mode == 'fail':
+            frag_raw = frag_base + frag_boss + frag_elite
+            frag_final = int(frag_raw * frag_fail_ratio)
+            raw_exp = layer_exp
+            exp_final = int(raw_exp * c_fail)
+            ss_floor = pet_floor
+            clear_frag = 0
+            clear_exp = 0
+            clear_ss = 0
+        else:
+            frag_raw = frag_base + frag_boss + frag_elite + frag_clear_b
+            frag_final = int(frag_raw)
+            raw_exp = layer_exp + c_clear
+            exp_final = int(raw_exp)
+            ss_floor = pet_floor + int(s_clear)
+            clear_frag = frag_clear_b
+            clear_exp = c_clear
+            clear_ss = int(s_clear)
+        return {
+            '终点': '中途失败/撤离' if mode == 'fail' else '满层通关',
+            '到达层': F,
+            'Boss场次': boss_count,
+            '精英估算次数': elite_est,
+            '修炼经验_层数项': round(layer_exp, 4),
+            '修炼经验_通关加成': round(clear_exp, 4) if mode == 'clear' else 0,
+            '修炼经验_合计_表内': exp_final,
+            '灵石_层数项': pet_floor,
+            '灵石_通关加成': clear_ss,
+            '灵石_表内小计': ss_floor,
+            '碎片_层数项': round(frag_base, 4),
+            '碎片_Boss': frag_boss,
+            '碎片_精英': frag_elite,
+            '碎片_通关加成': clear_frag,
+            '碎片_合计': frag_final,
+        }
+
+    rows = [_floor_row(F, 'fail') for F in range(1, max_f + 1)]
+    rows.append(_floor_row(max_f, 'clear'))
+    return rows
 
 
 def static_enemies_balance_dataframe():

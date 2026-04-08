@@ -7,6 +7,7 @@ const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
 const { RANK_CACHE_TTL_MS } = require('./constants')
+const { isCurrentUserGM } = require('./gmConfig')
 
 class RankingService {
   /**
@@ -63,6 +64,10 @@ class RankingService {
   }
 
   async submitScore(floor, pets, weapon, totalTurns) {
+    if (isCurrentUserGM()) {
+      console.warn('[Ranking] GM 账号跳过提交通天塔成绩')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady() || !ctx.userAuthorized) {
       console.warn('[Ranking] 提交跳过: cloudReady=', cloudSync.isReady(), 'authorized=', ctx.userAuthorized)
@@ -92,6 +97,10 @@ class RankingService {
   }
 
   async submitDexAndCombo() {
+    if (isCurrentUserGM()) {
+      console.warn('[Ranking] GM 账号跳过提交图鉴/连击榜')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady() || !ctx.userAuthorized) return
     const t0 = Date.now()
@@ -113,6 +122,10 @@ class RankingService {
   }
 
   async submitStageRanking() {
+    if (isCurrentUserGM()) {
+      console.warn('[Ranking] GM 账号跳过提交秘境榜')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady() || !ctx.userAuthorized) return
     if (ctx.stageTotalStars <= 0 && ctx.stageClearCount <= 0) return
@@ -214,7 +227,8 @@ class RankingService {
     try {
       if (tab === 'stage') {
         const ctx = this._getContext()
-        if (needSubmit && ctx.userAuthorized && (ctx.stageTotalStars > 0 || ctx.stageClearCount > 0)) {
+        const canSubmit = needSubmit && ctx.userAuthorized && !isCurrentUserGM()
+        if (canSubmit && (ctx.stageTotalStars > 0 || ctx.stageClearCount > 0)) {
           await this._callRanking({
             action: 'submitStage',
             nickName: ctx.userInfo.nickName,
@@ -238,23 +252,30 @@ class RankingService {
           console.log('[Ranking] 秘境榜获取到', this.rankStageList.length, '条记录')
         }
       } else {
-        const data = { action: 'submitAndGetAll' }
-        if (needSubmit) {
-          const ctx = this._getContext()
-          if (ctx.userAuthorized) {
-            data.nickName = ctx.userInfo.nickName
-            data.avatarUrl = ctx.userInfo.avatarUrl
-            data.floor = ctx.bestFloor
-            data.pets = (ctx.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr }))
-            data.weapon = ctx.bestFloorWeapon ? { name: ctx.bestFloorWeapon.name } : null
-            data.totalTurns = ctx.bestTotalTurns || 0
-            data.petDexCount = ctx.petDexCount
-            data.masteredCount = ctx.masteredCount
-            data.collectedCount = ctx.collectedCount
-            data.maxCombo = ctx.maxCombo
+        const ctx = this._getContext()
+        const doTowerSubmit =
+          needSubmit && ctx.userAuthorized && !isCurrentUserGM()
+        let result
+        if (doTowerSubmit) {
+          result = await this._callRanking({
+            action: 'submitAndGetAll',
+            nickName: ctx.userInfo.nickName,
+            avatarUrl: ctx.userInfo.avatarUrl,
+            floor: ctx.bestFloor,
+            pets: (ctx.bestFloorPets || []).map(p => ({ name: p.name, attr: p.attr })),
+            weapon: ctx.bestFloorWeapon ? { name: ctx.bestFloorWeapon.name } : null,
+            totalTurns: ctx.bestTotalTurns || 0,
+            petDexCount: ctx.petDexCount,
+            masteredCount: ctx.masteredCount,
+            collectedCount: ctx.collectedCount,
+            maxCombo: ctx.maxCombo,
+          })
+        } else {
+          if (needSubmit && isCurrentUserGM()) {
+            console.warn('[Ranking] GM 账号仅拉取通天塔榜，不上传')
           }
+          result = await this._callRanking({ action: 'getAll' })
         }
-        const result = await this._callRanking(data)
         if (result && result.code === 0) {
           this.rankAllList = result.list || []
           this.rankAllMyRank = result.myRank || -1

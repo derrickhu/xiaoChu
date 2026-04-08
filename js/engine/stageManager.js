@@ -560,8 +560,26 @@ function resolveReward(g, reward) {
     g.storage.addToPetPool(petId, 'stage')
     return { type: 'pet', petId }
   }
+  if (reward.type === 'randomPet') {
+    const { rollRandomPet, FIRST_CLEAR_FRAG_COUNT } = require('../data/dropRoller')
+    const { petId, rarity } = rollRandomPet(reward.chapter, reward.order, reward.difficulty)
+    const inPool = g.storage.petPool.find(p => p.id === petId)
+    if (inPool) {
+      const fragCount = FIRST_CLEAR_FRAG_COUNT[rarity] || FIRST_CLEAR_FRAG_COUNT.R
+      g.storage.addFragmentSmart(petId, fragCount)
+      return { type: 'fragment', petId, count: fragCount, wasPet: true }
+    }
+    g.storage.addToPetPool(petId, 'stage')
+    return { type: 'pet', petId }
+  }
   if (reward.type === 'weapon') {
     const weaponId = reward.weaponId
+    const isNew = g.storage.addWeapon(weaponId)
+    return { type: 'weapon', weaponId, isNew }
+  }
+  if (reward.type === 'randomWeapon') {
+    const { rollRandomWeapon } = require('../data/dropRoller')
+    const { weaponId } = rollRandomWeapon(reward.chapter, reward.order, reward.difficulty)
     const isNew = g.storage.addWeapon(weaponId)
     return { type: 'weapon', weaponId, isNew }
   }

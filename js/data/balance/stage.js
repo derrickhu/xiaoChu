@@ -64,82 +64,40 @@ const CHAPTER_RECOMMENDED = {
   12: { cultLevel: 55, petStar: 5 },
 }
 
-// ===== 普通关每章 8 只宠物的品质配额 =====
-// 可用关卡宠物：R=29 SR=47 SSR=4（排除通天塔预留）
-const NORMAL_PET_QUOTA = {
-  1:  { R:7, SR:1, SSR:0 },
-  2:  { R:7, SR:1, SSR:0 },
-  3:  { R:6, SR:2, SSR:0 },
-  4:  { R:4, SR:4, SSR:0 },
-  5:  { R:3, SR:5, SSR:0 },
-  6:  { R:2, SR:6, SSR:0 },
-  7:  { R:1, SR:7, SSR:0 },
-  8:  { R:0, SR:7, SSR:1 },
-  9:  { R:0, SR:8, SSR:0 },
-  10: { R:0, SR:7, SSR:1 },
-  11: { R:0, SR:7, SSR:1 },
-  12: { R:0, SR:7, SSR:1 },
+// ===== Roguelike 随机掉落权重（每章基础概率，总和不必 =100，按权重抽取） =====
+const PET_DROP_WEIGHTS = {
+  1:  { R: 88, SR: 12, SSR: 0 },
+  2:  { R: 78, SR: 22, SSR: 0 },
+  3:  { R: 65, SR: 34, SSR: 1 },
+  4:  { R: 48, SR: 50, SSR: 2 },
+  5:  { R: 30, SR: 66, SSR: 4 },
+  6:  { R: 15, SR: 79, SSR: 6 },
+  7:  { R: 0,  SR: 90, SSR: 10 },
+  8:  { R: 0,  SR: 87, SSR: 13 },
+  9:  { R: 0,  SR: 83, SSR: 17 },
+  10: { R: 0,  SR: 78, SSR: 22 },
+  11: { R: 0,  SR: 73, SSR: 27 },
+  12: { R: 0,  SR: 68, SSR: 32 },
 }
 
-// ===== 精英关每章 8 只宠物的品质配额（始终 >= 同章普通） =====
-const ELITE_PET_QUOTA = {
-  1:  { R:7, SR:1, SSR:0 },
-  2:  { R:5, SR:3, SSR:0 },
-  3:  { R:3, SR:5, SSR:0 },
-  4:  { R:2, SR:6, SSR:0 },
-  5:  { R:0, SR:8, SSR:0 },
-  6:  { R:0, SR:8, SSR:0 },
-  7:  { R:0, SR:7, SSR:1 },
-  8:  { R:0, SR:8, SSR:0 },
-  9:  { R:0, SR:7, SSR:1 },
-  10: { R:0, SR:7, SSR:1 },
-  11: { R:0, SR:6, SSR:2 },
-  12: { R:0, SR:6, SSR:2 },
+const WPN_DROP_WEIGHTS = {
+  1:  { R: 92, SR: 8,  SSR: 0 },
+  2:  { R: 82, SR: 18, SSR: 0 },
+  3:  { R: 68, SR: 31, SSR: 1 },
+  4:  { R: 50, SR: 48, SSR: 2 },
+  5:  { R: 32, SR: 64, SSR: 4 },
+  6:  { R: 15, SR: 79, SSR: 6 },
+  7:  { R: 0,  SR: 90, SSR: 10 },
+  8:  { R: 0,  SR: 85, SSR: 15 },
+  9:  { R: 0,  SR: 80, SSR: 20 },
+  10: { R: 0,  SR: 74, SSR: 26 },
+  11: { R: 0,  SR: 67, SSR: 33 },
+  12: { R: 0,  SR: 60, SSR: 40 },
 }
 
-// ===== 普通关法宝配额（每章 4 把，偶数关出法宝） =====
-const NORMAL_WPN_QUOTA = {
-  1:  { R:4, SR:0, SSR:0 },
-  2:  { R:3, SR:1, SSR:0 },
-  3:  { R:2, SR:2, SSR:0 },
-  4:  { R:1, SR:3, SSR:0 },
-  5:  { R:0, SR:4, SSR:0 },
-  6:  { R:0, SR:4, SSR:0 },
-  7:  { R:0, SR:3, SSR:1 },
-  8:  { R:0, SR:3, SSR:1 },
-  9:  { R:0, SR:2, SSR:2 },
-  10: { R:0, SR:2, SSR:2 },
-  11: { R:0, SR:1, SSR:3 },
-  12: { R:0, SR:0, SSR:4 },
-}
-
-// ===== 精英关法宝配额（每章 4 把，奇数关出法宝） =====
-const ELITE_WPN_QUOTA = {
-  1:  { R:4, SR:0, SSR:0 },
-  2:  { R:2, SR:2, SSR:0 },
-  3:  { R:1, SR:3, SSR:0 },
-  4:  { R:0, SR:4, SSR:0 },
-  5:  { R:0, SR:3, SSR:1 },
-  6:  { R:0, SR:2, SSR:2 },
-  7:  { R:0, SR:1, SSR:3 },
-  8:  { R:0, SR:1, SSR:3 },
-  9:  { R:0, SR:0, SSR:4 },
-  10: { R:0, SR:0, SSR:4 },
-  11: { R:0, SR:0, SSR:4 },
-  12: { R:0, SR:0, SSR:4 },
-}
-
-// ===== Boss 关(x-8)保底品质 =====
-const BOSS_REWARD_MIN_RARITY = {
-  normalPet:  { 1:'SR', 2:'SR', 3:'SR', 4:'SR', 5:'SR', 6:'SR',
-                7:'SR', 8:'SSR', 9:'SR', 10:'SSR', 11:'SSR', 12:'SSR' },
-  elitePet:   { 1:'SR', 2:'SR', 3:'SR', 4:'SR', 5:'SR', 6:'SR',
-                7:'SSR', 8:'SR', 9:'SSR', 10:'SSR', 11:'SSR', 12:'SSR' },
-  normalWpn:  { 1:'R', 2:'R',  3:'R',  4:'SR', 5:'SR', 6:'SR',
-                7:'SR', 8:'SR', 9:'SSR', 10:'SSR', 11:'SSR', 12:'SSR' },
-  eliteWpn:   { 1:'R', 2:'R',  3:'SR', 4:'SR', 5:'SR', 6:'SSR',
-                7:'SSR', 8:'SSR', 9:'SSR', 10:'SSR', 11:'SSR', 12:'SSR' },
-}
+// 精英关 / Boss 关额外加成（叠加到基础权重后归一化抽取）
+const ELITE_RARITY_BONUS = { SR: 3, SSR: 5 }
+const BOSS_RARITY_BONUS  = { SR: 3, SSR: 8 }
 
 // ===== 宠物奖励特殊覆盖（前几关避免与新手赠送重复） =====
 // 普通关: 'ch_ord'，精英关: 'ch_orde'
@@ -159,10 +117,9 @@ module.exports = {
   FIRST_CLEAR_FRAG_COUNT,
   ELITE_MINION_HP_SCALE,
   CHAPTER_RECOMMENDED,
-  NORMAL_PET_QUOTA,
-  ELITE_PET_QUOTA,
-  NORMAL_WPN_QUOTA,
-  ELITE_WPN_QUOTA,
-  BOSS_REWARD_MIN_RARITY,
+  PET_DROP_WEIGHTS,
+  WPN_DROP_WEIGHTS,
+  ELITE_RARITY_BONUS,
+  BOSS_RARITY_BONUS,
   STAGE_REWARD_PET_OVERRIDES,
 }

@@ -18,6 +18,12 @@ function previewFirstClear(g, stage) {
       if (inPool) return { type: 'fragment', petId: r.petId, count: r.fragCount || 5, wasPet: true }
       return { type: 'pet', petId: r.petId }
     }
+    if (r.type === 'randomPet') {
+      return { type: 'randomPet', chapter: r.chapter, order: r.order, difficulty: r.difficulty }
+    }
+    if (r.type === 'randomWeapon') {
+      return { type: 'randomWeapon', chapter: r.chapter, order: r.order, difficulty: r.difficulty }
+    }
     return { ...r }
   })
 }

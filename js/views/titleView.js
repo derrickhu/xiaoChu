@@ -11,6 +11,9 @@ const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, 
 const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
+const { getCurrentSeason, getSeasonSSRPet, getSeasonSRPet, getTowerEventCountdownLabel } = require('../data/towerEvent')
+const { getPetAvatarPath, getPetRarity } = require('../data/pets')
+const { ATTR_COLOR } = require('../data/tower')
 
 const MODE_CFG = {
   tower: { name: '通天塔', img: 'assets/ui/tower_rogue.png', icon: '⚔', switchKey: 'stage' },
@@ -92,16 +95,112 @@ function drawSceneArea(g) {
     const imgH = imgW / ratioW
     const imgX = (W - imgW) / 2
     const imgY = L.petRowY - imgH + 14 * S - TITLE_HOME.towerImgLiftPt * S
-    ctx.drawImage(towerImg, imgX, imgY, imgW, imgH)
+    const towerShiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
+    ctx.drawImage(towerImg, imgX, imgY - towerShiftUp, imgW, imgH)
   } else {
     ctx.save()
+    const towerShiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
     ctx.font = `${80*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.globalAlpha = 0.6
-    ctx.fillText('🏯', W / 2, L.topBarBottom + sceneH * 0.45)
+    ctx.fillText('🏯', W / 2, L.topBarBottom + sceneH * 0.45 - towerShiftUp)
     ctx.globalAlpha = 1
     ctx.restore()
   }
+}
+
+// ===== 通天塔活动横幅（绘在「开始挑战」按钮与进度文字下方）=====
+function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
+  const season = getCurrentSeason()
+  if (!season) return
+  const ssrPet = getSeasonSSRPet()
+  const srPet = getSeasonSRPet()
+  if (!ssrPet) return
+
+  const gap = (TITLE_HOME.towerEventBannerBelowProgressGapPt || 12) * S
+  // 与开始按钮同宽（0.6W），仅略加宽
+  const startBtnW = W * 0.60
+  const extraW = TITLE_HOME.towerEventBannerExtraWPt * S
+  const bannerW = startBtnW + extraW
+  const avatarSz = 40 * S
+  const padV = 8 * S
+  const padH = 8 * S
+  let bannerH = Math.max(avatarSz + padV * 2, 54 * S)
+  const bannerX = (W - bannerW) / 2
+  const progressBottom = progressMidY + 7 * S
+  let bannerY = progressBottom + gap
+  const maxCardBottom = L.bottomBarY - 5 * S
+  if (bannerY + bannerH > maxCardBottom) {
+    bannerY = maxCardBottom - bannerH
+    if (bannerY < progressBottom + 3 * S) {
+      bannerH = Math.max(48 * S, maxCardBottom - progressBottom - gap)
+      bannerY = progressBottom + gap
+    }
+  }
+
+  // 淡色柔和底板（ parchment / 暖白）
+  c.save()
+  const rad = 8 * S
+  const bgGrad = c.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH)
+  bgGrad.addColorStop(0, 'rgba(255,252,245,0.94)')
+  bgGrad.addColorStop(0.5, 'rgba(255,245,228,0.92)')
+  bgGrad.addColorStop(1, 'rgba(250,238,215,0.9)')
+  c.fillStyle = bgGrad
+  R.rr(bannerX, bannerY, bannerW, bannerH, rad); c.fill()
+  c.strokeStyle = 'rgba(210,190,160,0.65)'; c.lineWidth = 1 * S
+  R.rr(bannerX, bannerY, bannerW, bannerH, rad); c.stroke()
+
+  const avatarX = bannerX + padH
+  const avatarY = bannerY + (bannerH - avatarSz) / 2
+
+  // SSR 头像
+  const avatarPath = getPetAvatarPath({ ...ssrPet, star: 1 })
+  const avatarImg = R.getImg(avatarPath)
+  if (avatarImg && avatarImg.width > 0) {
+    R.drawCoverImg(avatarImg, avatarX, avatarY, avatarSz, avatarSz, { radius: 6 * S })
+  }
+
+  // SSR 金框
+  const ssrColor = ATTR_COLOR[ssrPet.attr]
+  if (ssrColor) {
+    c.strokeStyle = ssrColor.main || '#ffd700'
+  } else {
+    c.strokeStyle = '#ffd700'
+  }
+  c.lineWidth = 1.5 * S
+  R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.stroke()
+
+  // SSR 标签
+  c.fillStyle = 'rgba(180,120,0,0.9)'
+  R.rr(avatarX, avatarY, 20 * S, 10 * S, 3 * S); c.fill()
+  c.fillStyle = '#fff'; c.font = `bold ${6.5*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('SSR', avatarX + 10 * S, avatarY + 5 * S)
+
+  // 右侧文字区
+  const textX = avatarX + avatarSz + 8 * S
+  const textTop = bannerY + padV
+
+  // 第1行：本周挑战 + 右对齐倒计时（每周一 0:00 UTC+8 切换赛季与奖励宠）
+  c.textBaseline = 'top'
+  c.fillStyle = '#9A7228'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.fillText('本周挑战', textX, textTop)
+  c.textAlign = 'right'
+  c.font = `bold ${8.5*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#8b6914'
+  c.fillText(getTowerEventCountdownLabel(), bannerX + bannerW - padH, textTop)
+  c.textAlign = 'left'
+
+  // 第2行：SSR 名称
+  c.fillStyle = '#3d2f22'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillText(ssrPet.name, textX, textTop + 13 * S)
+
+  // 第3行：通关获得
+  c.fillStyle = '#2d7a48'; c.font = `${8.5*S}px "PingFang SC",sans-serif`
+  c.fillText('通关即得整宠！', textX, textTop + 28 * S)
+
+  c.restore()
 }
 
 // ===== 秘境场景区：精致卡片选关 =====
@@ -569,10 +668,11 @@ function drawStartBtn(g) {
 
   if (mode === 'tower') {
     const clusterDy = TITLE_HOME.towerStartClusterDownPt * S
+    const shiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
     const btnW = W * 0.60
     const btnH = L.startBtnH
     const btnX = (W - btnW) / 2
-    const btnY = L.startBtnY + clusterDy
+    const btnY = L.startBtnY + clusterDy - shiftUp
 
     // 使用 btn_start.png 资源，fallback 到渐变色
     const btnImg = R.getImg('assets/ui/btn_start.png')
@@ -626,7 +726,8 @@ function drawStartBtn(g) {
     ctx.fillStyle = 'rgba(80,50,20,0.7)'
     ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textBaseline = 'middle'
-    ctx.fillText(progressText, W / 2, L.progressY + L.progressH / 2 + clusterDy)
+    const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
+    ctx.fillText(progressText, W / 2, progressMidY)
   } else {
     // 灵兽秘境模式 — 内嵌选关
     const entry = _getDisplayStage(g)
@@ -1272,6 +1373,14 @@ function rTitle(g) {
   drawStaminaBar(g)
   drawDailyRewardBtn(g)
   drawGameClubBtn(g)
+  if ((g.titleMode || 'tower') === 'tower') {
+    const { ctx, R, W, S } = V
+    const L = getLayout()
+    const clusterDy = TITLE_HOME.towerStartClusterDownPt * S
+    const shiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
+    const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
+    _drawTowerEventBanner(g, ctx, R, W, S, L, progressMidY)
+  }
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)

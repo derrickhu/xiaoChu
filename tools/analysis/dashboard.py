@@ -58,6 +58,7 @@ try:
         load_balance_combat_scalars_json,
         load_tower_floors_reference_json,
         load_balance_all_json,
+        tower_settle_reward_reference_rows,
     )
 except ImportError:
     build_local_leaderboard_rows = None
@@ -84,6 +85,7 @@ except ImportError:
     load_balance_combat_scalars_json = None
     load_tower_floors_reference_json = None
     load_balance_all_json = None
+    tower_settle_reward_reference_rows = None
 
 # ========== 页面配置 ==========
 
@@ -613,42 +615,35 @@ with tab_balance:
                     )
 
                     if bal_all:
-                        with st.expander('🎯 品质配额表（来自 balance/stage.js）'):
-                            def _quota_df(quota_dict, label):
+                        with st.expander('🎲 Roguelike 掉落权重表（来自 balance/stage.js）'):
+                            def _weight_df(weight_dict, label):
                                 rows = []
                                 for ch in range(1, 13):
-                                    q = quota_dict.get(str(ch), quota_dict.get(ch, {}))
+                                    q = weight_dict.get(str(ch), weight_dict.get(ch, {}))
                                     rows.append({'章': ch, 'R': q.get('R', 0), 'SR': q.get('SR', 0), 'SSR': q.get('SSR', 0)})
                                 df = pd.DataFrame(rows)
                                 df.columns = ['章', f'{label} R', f'{label} SR', f'{label} SSR']
                                 return df
 
-                            npq = bal_all.get('NORMAL_PET_QUOTA', {})
-                            epq = bal_all.get('ELITE_PET_QUOTA', {})
-                            nwq = bal_all.get('NORMAL_WPN_QUOTA', {})
-                            ewq = bal_all.get('ELITE_WPN_QUOTA', {})
+                            pdw = bal_all.get('PET_DROP_WEIGHTS', {})
+                            wdw = bal_all.get('WPN_DROP_WEIGHTS', {})
 
-                            st.markdown('**宠物品质配额**（每章 8 只）')
-                            pet_q = _quota_df(npq, '普通').merge(_quota_df(epq, '精英'), on='章')
-                            st.dataframe(pet_q, use_container_width=True, hide_index=True)
+                            st.markdown('**灵宠掉落权重**（每章基础概率）')
+                            st.dataframe(_weight_df(pdw, '灵宠'), use_container_width=True, hide_index=True)
 
-                            st.markdown('**法宝品质配额**（每章 4 把）')
-                            wpn_q = _quota_df(nwq, '普通').merge(_quota_df(ewq, '精英'), on='章')
-                            st.dataframe(wpn_q, use_container_width=True, hide_index=True)
+                            st.markdown('**法宝掉落权重**（每章基础概率）')
+                            st.dataframe(_weight_df(wdw, '法宝'), use_container_width=True, hide_index=True)
 
-                            boss_min = bal_all.get('BOSS_REWARD_MIN_RARITY', {})
-                            if boss_min:
-                                st.markdown('**Boss 关(x-8)保底品质**')
-                                boss_rows = []
-                                for ch in range(1, 13):
-                                    boss_rows.append({
-                                        '章': ch,
-                                        '普通宠物': boss_min.get('normalPet', {}).get(str(ch), ''),
-                                        '精英宠物': boss_min.get('elitePet', {}).get(str(ch), ''),
-                                        '普通法宝': boss_min.get('normalWpn', {}).get(str(ch), ''),
-                                        '精英法宝': boss_min.get('eliteWpn', {}).get(str(ch), ''),
-                                    })
-                                st.dataframe(pd.DataFrame(boss_rows), use_container_width=True, hide_index=True)
+                            elite_bonus = bal_all.get('ELITE_RARITY_BONUS', {})
+                            boss_bonus = bal_all.get('BOSS_RARITY_BONUS', {})
+                            if elite_bonus or boss_bonus:
+                                st.markdown('**额外加成**')
+                                bonus_rows = []
+                                if elite_bonus:
+                                    bonus_rows.append({'类型': '精英关', 'SR+': elite_bonus.get('SR', 0), 'SSR+': elite_bonus.get('SSR', 0)})
+                                if boss_bonus:
+                                    bonus_rows.append({'类型': 'Boss关', 'SR+': boss_bonus.get('SR', 0), 'SSR+': boss_bonus.get('SSR', 0)})
+                                st.dataframe(pd.DataFrame(bonus_rows), use_container_width=True, hide_index=True)
 
                             overrides = bal_all.get('STAGE_REWARD_PET_OVERRIDES', {})
                             if overrides:
@@ -670,6 +665,61 @@ with tab_balance:
                 '数据来自 `balance/enemy.js`（MONSTER_TIERS、精英/Boss 倍率）与 `tower.js`（`generateMonster` / '
                 '`generateElite` / `generateBoss`）。逐层表为随机系数取中位后的典型值，供调优对照。'
             )
+            st.markdown('##### 结算与通关奖励（`TOWER_SETTLE` · `runManager.settleAll`）')
+            st.caption(
+                '**中途失败**：`finalFloor` = 结束时的层数，碎片/修炼经验再乘 `failRatio`。'
+                '**满层通关**：`finalFloor` = `TOWER_MAX_FLOOR`，含 `clearBonus`，失败折扣不生效。'
+                '碎片按参战灵宠**均分**入包（`distribute.mode=team`）。'
+                '表内**不含**局内战内修炼经验与灵石战斗项（消除/连击/击杀 × `soulStone.combatRatio`），以当局为准。'
+            )
+            if bal_all:
+                td1, td2 = st.columns(2)
+                with td1:
+                    st.caption('每日挑战次数（`balance/economy.js`）')
+                    st.write({
+                        '免费次数/日': bal_all.get('TOWER_DAILY_FREE_RUNS', '—'),
+                        '广告额外次数/日': bal_all.get('TOWER_DAILY_AD_EXTRA_RUNS', '—'),
+                    })
+                with td2:
+                    st.caption('日任「挑战通天塔1次」')
+                    st.write('奖励在 `DAILY_TASKS` 中 `condition.type === towerRun` 项（常为灵石）；全量见 economy 配置 Tab。')
+                ts = bal_all.get('TOWER_SETTLE')
+                if ts:
+                    frag = ts.get('fragment') or {}
+                    cult = ts.get('cultExp') or {}
+                    soul = ts.get('soulStone') or {}
+                    dist = ts.get('distribute') or {}
+                    st.markdown('**碎片 / 修炼 / 灵石 系数**')
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.json(frag)
+                    with c2:
+                        st.json(cult)
+                    with c3:
+                        st.json({**soul, '_distribute': dist})
+                if tower_settle_reward_reference_rows:
+                    try:
+                        twr = tower_settle_reward_reference_rows(bal_all)
+                        if twr:
+                            st.markdown('**逐层撤离 vs 满层一行对照**（局内战内奖励除外）')
+                            st.dataframe(
+                                pd.DataFrame(twr),
+                                use_container_width=True,
+                                hide_index=True,
+                                height=420,
+                            )
+                            st.download_button(
+                                '下载通天塔结算参考 CSV',
+                                pd.DataFrame(twr).to_csv(index=False).encode('utf-8-sig'),
+                                'tower_settle_rewards_reference.csv',
+                                'text/csv',
+                                key='dl_tw_settle',
+                            )
+                    except Exception as e:
+                        st.warning(f'通天塔结算表生成失败: {e}')
+            else:
+                st.info('未加载 `balance` 全量数据，无法展示 TOWER_SETTLE。')
+
             if combat_bal:
                 st.markdown('##### 层段 hp/atk 区间（MONSTER_TIERS）')
                 tiers = combat_bal.get('MONSTER_TIERS')

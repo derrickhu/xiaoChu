@@ -7,6 +7,7 @@ const {
   STAMINA_INITIAL,
   STAMINA_SIDEBAR_REWARD,
 } = require('./constants')
+const { isCurrentUserGM } = require('./gmConfig')
 const { DATA_VERSION } = require('./giftConfig')
 /**
  * 存储管理 — 灵宠消消塔
@@ -26,7 +27,7 @@ function localDateKey(d = new Date()) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 16
+const CURRENT_VERSION = 17
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -111,6 +112,11 @@ function defaultPersist() {
     invitedBy: null,
     // 广告观看记录（每日频控）
     adWatchLog: {},            // { [slotId]: { date: 'YYYY-MM-DD', count: N } }
+    // 通天塔活动赛季
+    towerEvent: {
+      seasonIndex: -1,         // 当前赛季序号（-1 表示从未初始化）
+      claimed: [],             // 已领取的里程碑层数: [5, 10, ...]
+    },
     // 回归 / 删档（与 giftConfig.DATA_VERSION 对齐见 _load / resetAll 收尾赋值；此处 0 供「缺字段的旧存档」merge 后仍走 _checkDataVersion）
     lastActiveDate: '',
     dataVersion: 0,
@@ -238,6 +244,10 @@ const migrations = {
   // v15→v16：图鉴里程碑广告额外奖励（每档仅一次）
   15: (d) => {
     if (!d.dexMilestonesAdRewardClaimed) d.dexMilestonesAdRewardClaimed = []
+  },
+  // v16→v17：通天塔活动赛季
+  16: (d) => {
+    if (!d.towerEvent) d.towerEvent = { seasonIndex: -1, claimed: [] }
   },
 }
 
@@ -686,6 +696,7 @@ class Storage {
   }
 
   consumeStamina(amount) {
+    if (isCurrentUserGM()) return true
     this._recoverStamina()
     if (this._d.stamina.current < amount) return false
     this._d.stamina.current -= amount
@@ -1138,6 +1149,38 @@ class Storage {
     this._refreshTowerDaily()
     this._d.towerDaily.adRuns++
     this._save()
+  }
+
+  // ===== 通天塔活动赛季 =====
+
+  /**
+   * 确保 towerEvent 与当前赛季同步；赛季切换时重置 claimed
+   */
+  _refreshTowerEvent() {
+    const { getCurrentSeasonIndex } = require('./towerEvent')
+    const idx = getCurrentSeasonIndex()
+    const te = this._d.towerEvent
+    if (!te || te.seasonIndex !== idx) {
+      this._d.towerEvent = { seasonIndex: idx, claimed: [] }
+    }
+  }
+
+  getTowerEventState() {
+    this._refreshTowerEvent()
+    return this._d.towerEvent
+  }
+
+  isTowerMilestoneClaimed(floor) {
+    this._refreshTowerEvent()
+    return (this._d.towerEvent.claimed || []).includes(floor)
+  }
+
+  claimTowerMilestone(floor) {
+    this._refreshTowerEvent()
+    if (!this._d.towerEvent.claimed.includes(floor)) {
+      this._d.towerEvent.claimed.push(floor)
+      this._save()
+    }
   }
 
   // ===== 持久化编队 =====
@@ -1745,6 +1788,7 @@ class Storage {
     if (!this._d.chestRewards) this._d.chestRewards = { claimed: {} }
     if (!this._d.adWatchLog) this._d.adWatchLog = {}
     if (!this._d.towerDaily) this._d.towerDaily = { date: '', runs: 0, adRuns: 0 }
+    if (!this._d.towerEvent) this._d.towerEvent = { seasonIndex: -1, claimed: [] }
   }
 
   _save() {

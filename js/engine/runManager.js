@@ -27,6 +27,9 @@ const { TOWER_SETTLE } = require('../data/economyConfig')
 const { initBoard, addKillExp } = require('./battle')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
+const {
+  getCurrentSeason, getClaimableMilestones, pickRandomReservedSSR,
+} = require('../data/towerEvent')
 
 /** 轻量深拷贝（仅用于可 JSON 序列化的游戏状态对象） */
 function _deepClone(obj) {
@@ -273,6 +276,40 @@ function settleExp(g) {
 }
 
 /**
+ * 通天塔活动里程碑检测 & 发放
+ * 在 endRun → settleAll 之后调用，写入 g._lastRunEventRewards 供 UI 展示
+ */
+function _checkTowerEventMilestones(g) {
+  g._lastRunEventRewards = []
+  const bestFloor = g.storage.bestFloor || 0
+  const teState = g.storage.getTowerEventState()
+  const claimable = getClaimableMilestones(bestFloor, teState.claimed)
+  if (claimable.length === 0) return
+
+  const season = getCurrentSeason()
+  if (!season) return
+
+  for (const m of claimable) {
+    const reward = { floor: m.floor, type: m.type, count: m.count }
+
+    if (m.type === 'srFrag') {
+      g.storage.addFragmentSmart(season.sr, m.count)
+      reward.petId = season.sr
+    } else if (m.type === 'ssrFrag') {
+      const targetId = pickRandomReservedSSR()
+      g.storage.addFragmentSmart(targetId, m.count)
+      reward.petId = targetId
+    } else if (m.type === 'ssrPet') {
+      g.storage.addToPetPool(season.ssr, 'towerEvent')
+      reward.petId = season.ssr
+    }
+
+    g.storage.claimTowerMilestone(m.floor)
+    g._lastRunEventRewards.push(reward)
+  }
+}
+
+/**
  * 完整结算（仅 endRun 使用）：修炼经验 + 灵石 + 碎片
  * 所有奖励统一写入 g._lastRunSettleRewards 供结算 UI 展示
  */
@@ -365,6 +402,7 @@ function endRun(g) {
     g.storage.submitDexAndCombo()
   }
   settleAll(g)
+  _checkTowerEventMilestones(g)
   if (g._lastRunExp > 0 && !g.storage.isGuideShown('cultivation_unlock')) {
     g._pendingGuide = 'cultivation_unlock'
   }

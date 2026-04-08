@@ -13,6 +13,7 @@ const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamM
 const { STAMINA_COST } = require('../data/constants')
 const { STAR_REWARDS } = require('../data/economyConfig')
 const { getRewardPreview } = require('../engine/rewardPreview')
+const { getMaxDropRarity } = require('../data/dropRoller')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
 
@@ -227,6 +228,7 @@ function rStageInfo(g) {
     for (const r of estPreview.firstClear) {
       if (r.type === 'pet') estH += 22 * S + 4 * S
       else if (r.type === 'fragment' && r.wasPet) estH += 18 * S + 4 * S
+      else if (r.type === 'randomPet' || r.type === 'randomWeapon') estH += 16 * S
       else estH += 13 * S
     }
     estH += 2 * S
@@ -354,6 +356,20 @@ function rStageInfo(g) {
           c.fillText(`  ${fragName} ×${r.count}`, indent + 12 * S, iy)
           iy += 13 * S
         }
+      } else if (r.type === 'randomPet') {
+        const maxR = getMaxDropRarity(r.chapter, r.difficulty, 'pet')
+        const label = maxR === 'SSR' ? '可能掉落 SSR 灵宠' : maxR === 'SR' ? '可能掉落 SR 灵宠' : '随机灵宠'
+        const color = maxR === 'SSR' ? '#ffd700' : maxR === 'SR' ? '#d4a0ff' : 'rgba(255,230,150,0.8)'
+        c.fillStyle = color; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`✦ ${label}`, indent + 12 * S, iy)
+        iy += 16 * S
+      } else if (r.type === 'randomWeapon') {
+        const maxR = getMaxDropRarity(r.chapter, r.difficulty, 'weapon')
+        const label = maxR === 'SSR' ? '可能掉落 SSR 法宝' : maxR === 'SR' ? '可能掉落 SR 法宝' : '随机法宝'
+        const color = maxR === 'SSR' ? '#ffd700' : maxR === 'SR' ? '#d4a0ff' : 'rgba(255,230,150,0.8)'
+        c.fillStyle = color; c.font = `${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`✦ ${label}`, indent + 12 * S, iy)
+        iy += 16 * S
       } else if (r.type === 'weapon') {
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
         c.fillText(`  法宝奖励`, indent + 12 * S, iy)

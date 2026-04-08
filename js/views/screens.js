@@ -407,6 +407,11 @@ function _goComputeContentH(g, S) {
   const _srNewWpns = sr && sr.newWeapons && sr.newWeapons.length > 0
   if (_srNewWpns) h += 48 * S
 
+  const eventRewards = g._lastRunEventRewards || []
+  if (eventRewards.length > 0) {
+    h += 4 * S + 8 * S + 24 * S + eventRewards.length * 30 * S + 4 * S
+  }
+
   h += 24 * S
   if (!g._goAdDoubled && AdManager.canShow('settleDouble')) h += 44 * S
   h += pad + 48 * S
@@ -650,6 +655,59 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
     c.fillText(newWpns.map(w => w.name).join('、'), W * 0.5, cy + 4 * S)
     c.restore()
     cy += 20 * S
+  }
+
+  // === 通天塔活动里程碑奖励 ===
+  const eventRewards = g._lastRunEventRewards || []
+  if (eventRewards.length > 0) {
+    cy += 4 * S
+    c.strokeStyle = 'rgba(200,160,80,0.4)'; c.lineWidth = 1 * S
+    c.beginPath(); c.moveTo(px + pad, cy); c.lineTo(px + pw - pad, cy); c.stroke()
+    cy += 8 * S
+
+    const evtTitleAlpha = _rowAlpha(rowIdx++)
+    c.save(); c.globalAlpha *= evtTitleAlpha
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillStyle = '#E8C547'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    c.save(); c.shadowColor = 'rgba(255,200,0,0.3)'; c.shadowBlur = 6 * S
+    c.fillText('🎉 活动里程碑达成！', W * 0.5, cy + 6 * S)
+    c.restore()
+    c.restore()
+    cy += 24 * S
+
+    for (const er of eventRewards) {
+      const erAlpha = _rowAlpha(rowIdx++)
+      c.save(); c.globalAlpha *= erAlpha
+      const pet = getPetById(er.petId)
+      const petName = pet ? pet.name : er.petId
+      const ac = pet ? (ATTR_COLOR[pet.attr] || ATTR_COLOR.metal) : ATTR_COLOR.metal
+      const iconSz = 24 * S
+      const iconX = px + pad + 4 * S
+      const iconCY = cy
+
+      const avatarPath = pet ? require('../data/pets').getPetAvatarPath({ ...pet, star: 1 }) : null
+      if (avatarPath) {
+        R.drawCoverImg(R.getImg(avatarPath), iconX, iconCY, iconSz, iconSz, { radius: 4 * S, strokeStyle: ac.main, strokeWidth: 1.5 })
+      }
+
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      if (er.type === 'ssrPet') {
+        c.fillStyle = '#FFD700'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+        c.fillText(`SSR 整宠「${petName}」`, iconX + iconSz + 8 * S, iconCY + iconSz / 2)
+        c.textAlign = 'right'; c.fillStyle = '#E8C547'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`${er.floor}层 通关奖励`, px + pw - pad, iconCY + iconSz / 2)
+      } else {
+        const label = er.type === 'srFrag' ? 'SR' : 'SSR'
+        c.fillStyle = er.type === 'ssrFrag' ? '#E8C547' : '#B0A0FF'
+        c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`${label}「${petName}」碎片 ×${er.count}`, iconX + iconSz + 8 * S, iconCY + iconSz / 2)
+        c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.fillText(`${er.floor}层 里程碑`, px + pw - pad, iconCY + iconSz / 2)
+      }
+      c.restore()
+      cy += 30 * S
+    }
+    cy += 4 * S
   }
 
   // === 汇总行 ===

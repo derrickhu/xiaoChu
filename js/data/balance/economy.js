@@ -204,6 +204,35 @@ const DAILY_TASK_AWAKEN = {
   allBonusOffset: 4,
 }
 
+// ===== 通天塔活动赛季 =====
+// 每周轮换，共10期（10 SSR + 10 SR），周一 0:00 自动切换
+const TOWER_EVENT_SEASONS = [
+  { season: 1,  ssr: 'm18', sr: 'm16' }, // 金锋战神 + 金罡战魂
+  { season: 2,  ssr: 's17', sr: 's19' }, // 沧澜鲲鹏 + 水纹灵獭
+  { season: 3,  ssr: 'f16', sr: 'f19' }, // 焚天火蟒 + 炎狱火龙
+  { season: 4,  ssr: 'e18', sr: 'e17' }, // 镇地神牛 + 后土灵蚕
+  { season: 5,  ssr: 'w10', sr: 'w18' }, // 万木之主 + 青鸾翠雀
+  { season: 6,  ssr: 'm19', sr: 'm17' }, // 金耀星君 + 金翎神使
+  { season: 7,  ssr: 'w20', sr: 'w19' }, // 神木麒麟 + 万木神龟
+  { season: 8,  ssr: 'f17', sr: 'f20' }, // 赤焰麒麟 + 火灵神猫
+  { season: 9,  ssr: 'e20', sr: 'e19' }, // 玄武神君 + 厚土灵龟
+  { season: 10, ssr: 'm20', sr: 's20' }, // 万钧金神 + 冰凰神鸟
+]
+
+// 活动里程碑：floor → 奖励, type: srFrag / ssrFrag / ssrPet
+const TOWER_EVENT_MILESTONES = [
+  { floor:  5, type: 'srFrag',  count: 3  },
+  { floor: 10, type: 'srFrag',  count: 5  },
+  { floor: 15, type: 'srFrag',  count: 7  },
+  { floor: 20, type: 'ssrFrag', count: 4  },
+  { floor: 25, type: 'ssrFrag', count: 6  },
+  { floor: 30, type: 'ssrPet',  count: 1  },
+]
+
+// 活动起始基准日（第1期开始的周一 0:00 UTC+8）
+const TOWER_EVENT_EPOCH = new Date('2026-04-13T00:00:00+08:00').getTime()
+const TOWER_EVENT_PERIOD_MS = 7 * 24 * 3600 * 1000
+
 // ===== 审计用默认值 =====
 const AUDIT_DEFAULTS = {
   avgFloor: 15,
@@ -261,4 +290,8 @@ module.exports = {
   AD_REWARDS_NUMS,
   DAILY_TASK_AWAKEN,
   AUDIT_DEFAULTS,
+  TOWER_EVENT_SEASONS,
+  TOWER_EVENT_MILESTONES,
+  TOWER_EVENT_EPOCH,
+  TOWER_EVENT_PERIOD_MS,
 }
