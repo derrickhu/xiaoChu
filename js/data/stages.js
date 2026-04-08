@@ -9,25 +9,21 @@ const { STAMINA_COST } = require('./balance/economy')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
+const {
+  STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
+  STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
+  ELITE_MINION_HP_SCALE, CHAPTER_RECOMMENDED,
+  NORMAL_PET_QUOTA, ELITE_PET_QUOTA,
+  NORMAL_WPN_QUOTA, ELITE_WPN_QUOTA,
+  BOSS_REWARD_MIN_RARITY,
+  STAGE_REWARD_PET_OVERRIDES,
+} = require('./balance/stage')
+const { getPetRarity, isReservedPet, getAllPets } = require('./pets')
+const { getWeaponRarity, getWeaponsByRarity, TOWER_ONLY_WEAPONS } = require('./weapons')
 
 const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
 const ELITE_MULTIPLIERS = STAGE_ELITE_MULTIPLIERS
-
-const CHAPTER_RECOMMENDED = {
-  1:  { cultLevel: 1,  petStar: 1 },
-  2:  { cultLevel: 3,  petStar: 1 },
-  3:  { cultLevel: 6,  petStar: 1 },
-  4:  { cultLevel: 10, petStar: 2 },
-  5:  { cultLevel: 15, petStar: 2 },
-  6:  { cultLevel: 20, petStar: 2 },
-  7:  { cultLevel: 25, petStar: 3 },
-  8:  { cultLevel: 30, petStar: 3 },
-  9:  { cultLevel: 35, petStar: 3 },
-  10: { cultLevel: 40, petStar: 4 },
-  11: { cultLevel: 48, petStar: 4 },
-  12: { cultLevel: 55, petStar: 5 },
-}
 
 const CHAPTERS = [
   { id: 1,  name: '灵山试炼', desc: '灵山脚下，试炼开始' },
@@ -46,8 +42,10 @@ const CHAPTERS = [
 
 function mkRewards(ch, ord, diff, petId, weaponId, exp, repExp) {
   const idx = ord - 1
+  const rarity = getPetRarity(petId)
+  const fragCount = FIRST_CLEAR_FRAG_COUNT[rarity] || FIRST_CLEAR_FRAG_COUNT.R
   const firstClear = [
-    { type: 'pet', petId, fragCount: 5 },
+    { type: 'pet', petId, fragCount },
   ]
   if (weaponId) firstClear.push({ type: 'weapon', weaponId })
   firstClear.push(
@@ -80,33 +78,98 @@ function _genStageSpecs() {
     12: ['磐岩','深渊','万妖','金锋','花灵','焚天','九天','终焉守关'],
   }
 
-  const _PET_POOL = [
-    'm1','f1','e1','w1','s1','m2','f2','e2','w2','s2',
-    'm3','f3','e3','w3','s3','m4','f4','e4','w4','s4',
-    'm5','f5','e5','w5','s5','m6','f6','e6','w6','s6',
-    'm7','f7','e7','w7','s7','m8','f8','e8','w8','s8',
-    'm9','f9','e9','w9','s9','m10','f10','e10','w10','s10',
-    'm11','f11','e11','w11','s11','m12','f12','e12','w12','s12',
-    'm13','f13','e13','w13','s13','m14','f14','e14','w14','s14',
-    'm15','f15','e15','w15','s15','m16','f16','e16','w16','s16',
-    'm17','f17','e17','w17','s17','m18','f18','e18','w18','s18',
-  ]
-  const _WPN_POOL = [
-    'w1','w2','w3','w4','w5','w6','w7','w8','w9','w10',
-    'w11','w12','w13','w14','w15','w16','w17','w18','w19','w20',
-    'w21','w22','w23','w24','w25','w26','w27','w28','w29','w30',
-    'w31','w32','w33','w34','w35','w36','w37','w38','w39','w40',
-    'w41','w42','w43','w44','w45','w46','w47','w48','w49','w50',
-  ]
+  // 构建可用宠物池（排除通天塔预留）
+  const _allPets = getAllPets().filter(p => !isReservedPet(p.id))
+  const _ATTRS = ['metal', 'wood', 'water', 'fire', 'earth']
+  const _petsByRarity = { R: [], SR: [], SSR: [] }
+  for (const p of _allPets) _petsByRarity[getPetRarity(p.id)].push(p.id)
+
+  // 构建可用法宝池（排除通天塔专属）
+  const _wpnByRarity = { R: [], SR: [], SSR: [] }
+  for (const r of ['R', 'SR', 'SSR']) {
+    _wpnByRarity[r] = getWeaponsByRarity(r)
+      .filter(w => !TOWER_ONLY_WEAPONS.includes(w.id))
+      .map(w => w.id)
+  }
+
+  const _petCursor = { R: 0, SR: 0, SSR: 0 }
+  const _wpnCursor = { R: 0, SR: 0, SSR: 0 }
+
+  function _pickPet(rarity) {
+    const pool = _petsByRarity[rarity]
+    if (!pool.length) return _petsByRarity.R[0]
+    const id = pool[_petCursor[rarity] % pool.length]
+    _petCursor[rarity]++
+    return id
+  }
+
+  function _pickWpn(rarity) {
+    const pool = _wpnByRarity[rarity]
+    if (!pool.length) return _wpnByRarity.R[0]
+    const id = pool[_wpnCursor[rarity] % pool.length]
+    _wpnCursor[rarity]++
+    return id
+  }
+
+  const RARITY_RANK = { R: 0, SR: 1, SSR: 2 }
+
+  function _buildRaritySeq(quota, bossMinRarity) {
+    const seq = []
+    for (const r of ['SSR', 'SR', 'R']) {
+      for (let n = 0; n < (quota[r] || 0); n++) seq.push(r)
+    }
+    seq.sort((a, b) => RARITY_RANK[a] - RARITY_RANK[b])
+    if (bossMinRarity && RARITY_RANK[seq[7]] < RARITY_RANK[bossMinRarity]) {
+      for (let j = 0; j < 7; j++) {
+        if (RARITY_RANK[seq[j]] >= RARITY_RANK[bossMinRarity]) {
+          const tmp = seq[j]; seq[j] = seq[7]; seq[7] = tmp
+          break
+        }
+      }
+      if (RARITY_RANK[seq[7]] < RARITY_RANK[bossMinRarity]) {
+        seq[7] = bossMinRarity
+      }
+    }
+    return seq
+  }
+
+  function _buildWpnRaritySeq(quota, bossMinRarity) {
+    const seq = []
+    for (const r of ['SSR', 'SR', 'R']) {
+      for (let n = 0; n < (quota[r] || 0); n++) seq.push(r)
+    }
+    seq.sort((a, b) => RARITY_RANK[a] - RARITY_RANK[b])
+    if (bossMinRarity && seq.length >= 4 && RARITY_RANK[seq[3]] < RARITY_RANK[bossMinRarity]) {
+      for (let j = 0; j < 3; j++) {
+        if (RARITY_RANK[seq[j]] >= RARITY_RANK[bossMinRarity]) {
+          const tmp = seq[j]; seq[j] = seq[3]; seq[3] = tmp
+          break
+        }
+      }
+      if (RARITY_RANK[seq[3]] < RARITY_RANK[bossMinRarity]) {
+        seq[3] = bossMinRarity
+      }
+    }
+    return seq
+  }
 
   const specs = {}
-  let petIdx = 0
-  let wpnIdx = 0
 
   for (let ch = 1; ch <= 12; ch++) {
     const ids = CHAPTER_ENEMY_IDS[ch]
     const chSpecs = []
     const names = _STAGE_NAMES[ch]
+
+    const nPetSeq = _buildRaritySeq(NORMAL_PET_QUOTA[ch], BOSS_REWARD_MIN_RARITY.normalPet[ch])
+    const ePetSeq = _buildRaritySeq(ELITE_PET_QUOTA[ch], BOSS_REWARD_MIN_RARITY.elitePet[ch])
+
+    const nWpnQuota = NORMAL_WPN_QUOTA[ch]
+    const eWpnQuota = ELITE_WPN_QUOTA[ch]
+    const nWpnSeq = _buildWpnRaritySeq(nWpnQuota, BOSS_REWARD_MIN_RARITY.normalWpn[ch])
+    const eWpnSeq = _buildWpnRaritySeq(eWpnQuota, BOSS_REWARD_MIN_RARITY.eliteWpn[ch])
+
+    let nWpnIdx = 0
+    let eWpnIdx = 0
 
     for (let i = 0; i < 8; i++) {
       const enemyId = ids[i]
@@ -114,24 +177,27 @@ function _genStageSpecs() {
       const ord = i + 1
       const globalOrd = (ch - 1) * 8 + ord
 
-      const expBase = Math.round(60 + globalOrd * 10)
-      const repExpBase = Math.round(expBase * 0.68)
-      const bsBase = Math.round(15 + globalOrd * 2.2)
+      const expBase = Math.round(STAGE_EXP.base + globalOrd * STAGE_EXP.perOrd)
+      const repExpBase = Math.round(expBase * STAGE_EXP.repeatRatio)
+      const bsBase = Math.round(STAGE_SOUL_STONE.base + globalOrd * STAGE_SOUL_STONE.perOrd)
 
-      const ratingBonus = ch <= 2 ? 2 : ch <= 3 ? 1 : 0
-      const sRating = Math.max(5, Math.round(4 + ch * 0.6 + i * 0.2)) + ratingBonus
-      const aRating = sRating + 3
+      let ratingBonus = 0
+      for (const eb of STAGE_RATING.earlyBonus) {
+        if (ch <= eb.maxChapter) { ratingBonus = eb.bonus; break }
+      }
+      const sRating = Math.max(STAGE_RATING.minS, Math.round(STAGE_RATING.base + ch * STAGE_RATING.chCoeff + i * STAGE_RATING.ordCoeff)) + ratingBonus
+      const aRating = sRating + STAGE_RATING.aOffset
 
-      const pet = _PET_POOL[petIdx % _PET_POOL.length]
-      petIdx++
-      const weapon = (i % 2 === 0) ? _WPN_POOL[wpnIdx++ % _WPN_POOL.length] : null
+      const pet = _pickPet(nPetSeq[i])
+      const weapon = (i % 2 === 0 && i !== 6) || i === 7 ? _pickWpn(nWpnSeq[nWpnIdx++]) : null
 
-      const ePet = _PET_POOL[petIdx % _PET_POOL.length]
-      petIdx++
-      const eWpn = (i % 2 === 1) ? _WPN_POOL[wpnIdx++ % _WPN_POOL.length] : null
+      const ePet = _pickPet(ePetSeq[i])
+      const eWpn = (i % 2 === 1) ? _pickWpn(eWpnSeq[eWpnIdx++]) : null
 
       const eSkillPool = ['atkBuff','defBuff','healPct','bossBlitz','bossWeaken','bossRage','breakBead','stun','bossDrain','bossAnnihil','timeSqueeze','sealColumn']
-      const numESkills = ch <= 3 ? 1 : ch <= 7 ? 2 : 3
+      const numESkills = ch <= STAGE_ELITE_SKILL_COUNT.early.maxChapter ? STAGE_ELITE_SKILL_COUNT.early.count
+        : ch <= STAGE_ELITE_SKILL_COUNT.mid.maxChapter ? STAGE_ELITE_SKILL_COUNT.mid.count
+        : STAGE_ELITE_SKILL_COUNT.late.count
       const eSkills = []
       for (let s = 0; s < numESkills; s++) {
         const sk = eSkillPool[(ch * 3 + i * 2 + s) % eSkillPool.length]
@@ -145,23 +211,21 @@ function _genStageSpecs() {
         enemyId: enemyId,
         pet, weapon, exp: expBase, repExp: repExpBase, bs: bsBase,
         rating: { s: sRating, a: aRating },
-        ePet, eWpn, eExp: Math.round(expBase * 1.3), eRepExp: Math.round(repExpBase * 1.3),
-        eBs: Math.round(bsBase * 1.2), eRating: { s: sRating + 2, a: aRating + 2 },
+        ePet, eWpn, eExp: Math.round(expBase * STAGE_ELITE_COEFFS.expMul), eRepExp: Math.round(repExpBase * STAGE_ELITE_COEFFS.expMul),
+        eBs: Math.round(bsBase * STAGE_ELITE_COEFFS.soulStoneMul), eRating: { s: sRating + STAGE_ELITE_COEFFS.ratingBonus, a: aRating + STAGE_ELITE_COEFFS.ratingBonus },
         eSkills,
       }
 
       if (ch === 1 && i === 0) {
-        spec.teamSize = { min: 1, max: 5 }
-        // 1-1：首通奖 f1（火）；与新手并入池的金木水土四只凑齐五行，不在此关再奖 m1
-        spec.pet = 'f1'
+        spec.teamSize = { ...STAGE_TEAM_SIZE.initial }
       }
-      if (ch === 1 && i === 1) {
-        // 1-2：原 e1 与新手 e1 重复会变碎片，改为 m2
-        spec.pet = 'm2'
+      const overrideKey = `${ch}_${ord}`
+      if (STAGE_REWARD_PET_OVERRIDES[overrideKey]) {
+        spec.pet = STAGE_REWARD_PET_OVERRIDES[overrideKey]
       }
-      if (ch === 1 && i === 2) {
-        // 1-3：原 s1 与新手 s1 重复会变碎片，改为 w2
-        spec.pet = 'w2'
+      const eliteOverrideKey = `${ch}_${ord}e`
+      if (STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey]) {
+        spec.ePet = STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey]
       }
 
       chSpecs.push(spec)
@@ -255,7 +319,7 @@ function buildAllStages() {
         order: ord,
         difficulty: 'normal',
         waves: normalWaves,
-        teamSize: s.teamSize || { min: 3, max: 5 },
+        teamSize: s.teamSize || { ...STAGE_TEAM_SIZE.default },
         rating: s.rating,
         staminaCost: s.staminaCost !== undefined ? s.staminaCost : STAMINA_COST,
         rewards: mkRewards(ch, ord, 'normal', s.pet, s.weapon, s.exp, s.repExp),
@@ -283,7 +347,7 @@ function buildAllStages() {
           const eMinion = {
             name: '狂暴·' + eMinionData.name,
             attr: eMinionData.attr,
-            hp: Math.round(eMinionData.hp * mult.hp * 0.6),
+            hp: Math.round(eMinionData.hp * mult.hp * ELITE_MINION_HP_SCALE),
             atk: Math.round(eMinionData.atk * mult.atk),
             def: Math.round(eMinionData.def * mult.def),
             skills: [...eMinionData.skills],
@@ -300,7 +364,7 @@ function buildAllStages() {
         order: ord,
         difficulty: 'elite',
         waves: eliteWaves,
-        teamSize: { min: 3, max: 5 },
+        teamSize: { ...STAGE_TEAM_SIZE.default },
         rating: s.eRating,
         staminaCost: STAMINA_COST,
         rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eWpn, s.eExp, s.eRepExp),

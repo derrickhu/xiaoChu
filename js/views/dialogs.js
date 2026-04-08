@@ -5,6 +5,7 @@ const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
 const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getPetById } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { ENEMY_DOT_ATK_RATIO, ENEMY_SKILL_DESC_ATK_RATIO } = require('../data/balance/combat')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 
 // ===== 退出确认弹窗 =====
@@ -144,7 +145,7 @@ function drawEnemyDetailDialog(g) {
         lines.push({ text: `· ${skData.name}`, color: '#7A5C30', bold: true, size: 10, h: smallLineH })
         let desc = skData.desc || ''
         if (desc.includes('{val}')) {
-          const val = skData.type === 'dot' ? Math.round(e.atk * 0.3) : Math.round(e.atk * 0.8)
+          const val = skData.type === 'dot' ? Math.round(e.atk * ENEMY_DOT_ATK_RATIO) : Math.round(e.atk * ENEMY_SKILL_DESC_ATK_RATIO)
           desc = desc.replace('{val}', val)
         }
         const descLines = _wrapTextDialog(desc, maxTextW - 8*S, 9)

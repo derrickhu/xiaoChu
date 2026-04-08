@@ -71,6 +71,29 @@ def load_pet_names():
     return dict(_PET_HEAD_RE.findall(text))
 
 
+_pet_rarity_map_cache = None
+
+
+def load_pet_rarity_map():
+    """宠物 id → 品质 R/SR/SSR（静态配置，与养成等级无关）。"""
+    global _pet_rarity_map_cache
+    if _pet_rarity_map_cache is not None:
+        return _pet_rarity_map_cache
+    js = r"""
+const { getAllPets, getPetRarity } = require('./js/data/pets');
+const o = {};
+for (const p of getAllPets()) {
+  o[p.id] = getPetRarity(p.id);
+}
+console.log(JSON.stringify(o));
+"""
+    try:
+        _pet_rarity_map_cache = _run_node_json(js) or {}
+    except Exception:
+        _pet_rarity_map_cache = {}
+    return _pet_rarity_map_cache
+
+
 def _run_node_json(js_source: str, timeout=45):
     """在仓库根目录执行 node -e，stdout 须为单行 JSON。"""
     import subprocess
@@ -178,7 +201,10 @@ console.log(JSON.stringify(rows));
 def load_static_stages_summary_rows():
     """秘境每关：难度、体力、局内灵石、主战斗体 hp/atk/def、评价回合门槛、奖励（与客户端 STAGES 一致）。"""
     js = r"""
-const { STAGES } = require('./js/data/stages');
+const { STAGES, CHAPTER_RECOMMENDED } = require('./js/data/stages');
+const { getPetRarity, getPetById } = require('./js/data/pets');
+const { getWeaponById, getWeaponRarity } = require('./js/data/weapons');
+const poolBal = require('./js/data/balance/pool');
 const rows = STAGES.map(st => {
   const w = st.waves && st.waves[st.waves.length - 1];
   const en = w && w.enemies && w.enemies[0];
@@ -190,11 +216,26 @@ const rows = STAGES.map(st => {
   const fcWpn = fc.find(x => x.type === 'weapon');
   const fcExp = fc.find(x => x.type === 'exp');
   const fcSS  = fc.find(x => x.type === 'soulStone');
+  const reco = CHAPTER_RECOMMENDED[st.chapter] || {};
+  const globalOrd = (st.chapter - 1) * 8 + st.order;
+  const pid = fcPet ? fcPet.petId : '';
+  const wid = fcWpn ? fcWpn.weaponId : '';
+  const p = pid ? getPetById(pid) : null;
+  const wpn = wid ? getWeaponById(wid) : null;
+  const weaponOrd = wid ? (parseInt(String(wid).replace(/^w/i, ''), 10) || null) : null;
+  const entryStar = 1;
+  const fcPetLvCap = pid ? Math.max(
+    poolBal.POOL_STAR_LV_CAP[entryStar] || poolBal.POOL_MAX_LV,
+    poolBal.POOL_ADV_MAX_LV
+  ) : null;
   return {
     id: st.id,
     displayName: st.name,
     chapter: st.chapter,
     order: st.order,
+    globalOrd,
+    recCultLevel: reco.cultLevel != null ? reco.cultLevel : null,
+    recPetStar: reco.petStar != null ? reco.petStar : null,
     difficulty: st.difficulty,
     stamina: st.staminaCost,
     battleSoulStone: st.battleSoulStone,
@@ -204,9 +245,15 @@ const rows = STAGES.map(st => {
     def: en ? en.def : null,
     sTurnLimit: r.s,
     aTurnLimit: r.a,
-    fcPetId: fcPet ? fcPet.petId : '',
+    fcPetId: pid,
+    fcPetName: p ? p.name : '',
+    fcPetRarity: pid ? getPetRarity(pid) : '',
     fcPetFrag: fcPet ? (fcPet.fragCount || 0) : 0,
-    fcWeaponId: fcWpn ? fcWpn.weaponId : '',
+    fcPetLvCap,
+    fcWeaponId: wid,
+    fcWeaponName: wpn ? wpn.name : '',
+    fcWeaponRarity: wid ? (getWeaponRarity(wid) || '') : '',
+    fcWeaponOrd: weaponOrd,
     fcExp: fcExp ? fcExp.amount : 0,
     fcSoulStone: fcSS ? fcSS.amount : 0,
     rpFragMin: rc.fragments ? rc.fragments.min : 0,
@@ -246,7 +293,7 @@ def load_tower_floors_reference_json():
     """
     js = r"""
 const be = require('./js/data/balance/enemy');
-const { TOWER_MAX_FLOOR } = require('./js/data/constants');
+const { TOWER_MAX_FLOOR } = require('./js/data/balance/combat');
 const MONSTER_TIERS = be.MONSTER_TIERS;
 const ENEMY_DEF_RATIO = be.ENEMY_DEF_RATIO;
 const MONSTER_RANDOM_RANGE = be.MONSTER_RANDOM_RANGE;
@@ -317,6 +364,59 @@ console.log(JSON.stringify({
     return _run_node_json(js) or {}
 
 
+def load_balance_all_json():
+    """从 balance/index.js 统一入口加载所有数值模块的标量/小表。"""
+    js = r"""
+const b = require('./js/data/balance');
+const pick = {};
+// stage
+pick.STAGE_EXP = b.STAGE_EXP;
+pick.STAGE_SOUL_STONE = b.STAGE_SOUL_STONE;
+pick.STAGE_RATING = b.STAGE_RATING;
+pick.STAGE_ELITE_COEFFS = b.STAGE_ELITE_COEFFS;
+pick.STAGE_ELITE_SKILL_COUNT = b.STAGE_ELITE_SKILL_COUNT;
+pick.STAGE_TEAM_SIZE = b.STAGE_TEAM_SIZE;
+pick.FIRST_CLEAR_FRAG_COUNT = b.FIRST_CLEAR_FRAG_COUNT;
+pick.ELITE_MINION_HP_SCALE = b.ELITE_MINION_HP_SCALE;
+pick.CHAPTER_RECOMMENDED = b.CHAPTER_RECOMMENDED;
+// stage reward quotas
+pick.NORMAL_PET_QUOTA = b.NORMAL_PET_QUOTA;
+pick.ELITE_PET_QUOTA = b.ELITE_PET_QUOTA;
+pick.NORMAL_WPN_QUOTA = b.NORMAL_WPN_QUOTA;
+pick.ELITE_WPN_QUOTA = b.ELITE_WPN_QUOTA;
+pick.BOSS_REWARD_MIN_RARITY = b.BOSS_REWARD_MIN_RARITY;
+pick.STAGE_REWARD_PET_OVERRIDES = b.STAGE_REWARD_PET_OVERRIDES;
+// towerPacing
+pick.TOWER_SKILL_UNLOCK = b.TOWER_SKILL_UNLOCK;
+pick.TOWER_FORCED_ELITE_FLOORS = b.TOWER_FORCED_ELITE_FLOORS;
+pick.TOWER_EVENT_SCALING = b.TOWER_EVENT_SCALING;
+pick.TOWER_BOSS_POOL_THRESHOLDS = b.TOWER_BOSS_POOL_THRESHOLDS;
+pick.TOWER_BOSS_LEVEL_DIVISOR = b.TOWER_BOSS_LEVEL_DIVISOR;
+pick.TOWER_REWARD_COUNT = b.TOWER_REWARD_COUNT;
+pick.TOWER_SPEED_KILL_TURNS = b.TOWER_SPEED_KILL_TURNS;
+pick.BEAD_WEIGHTS = { heart: b.BEAD_WEIGHTS ? b.BEAD_WEIGHTS.heart : 0.8, attrBias: b.BEAD_WEIGHTS ? b.BEAD_WEIGHTS.attrBias : 1.4, weaponMul: b.BEAD_WEIGHTS ? b.BEAD_WEIGHTS.weaponMul : 1.5 };
+// dex
+pick.DEX_COLLECT_STAR = b.DEX_COLLECT_STAR;
+pick.DEX_ELEM_MILESTONE_NEEDS = b.DEX_ELEM_MILESTONE_NEEDS;
+pick.DEX_TOTAL_MILESTONES = b.DEX_TOTAL_MILESTONES;
+// combat extras
+pick.TOWER_MAX_FLOOR = b.TOWER_MAX_FLOOR;
+pick.TOWER_COUNTER_MUL = b.TOWER_COUNTER_MUL;
+pick.TOWER_COUNTERED_MUL = b.TOWER_COUNTERED_MUL;
+pick.TOWER_RECENT_LIMIT = b.TOWER_RECENT_LIMIT;
+pick.ADVISOR_AVG_COMBO = b.ADVISOR_AVG_COMBO;
+pick.ADVISOR_TARGET_TURNS = b.ADVISOR_TARGET_TURNS;
+// economy extras
+pick.DAILY_STAGE_EST = b.DAILY_STAGE_EST;
+pick.REWARD_DIST_W = b.REWARD_DIST_W;
+pick.REWARD_FIRST_CLEAR_MUL = b.REWARD_FIRST_CLEAR_MUL;
+pick.AD_REWARDS_NUMS = b.AD_REWARDS_NUMS;
+pick.DAILY_TASK_AWAKEN = b.DAILY_TASK_AWAKEN;
+console.log(JSON.stringify(pick));
+"""
+    return _run_node_json(js) or {}
+
+
 def static_enemies_balance_dataframe():
     rows = load_static_enemies_balance_rows()
     if not rows:
@@ -359,8 +459,10 @@ def static_weapons_balance_dataframe():
     return df
 
 
-def pet_pool_dataframe(rec, pet_names=None):
+def pet_pool_dataframe(rec, pet_names=None, pet_rarity=None):
     pet_names = pet_names or {}
+    if pet_rarity is None:
+        pet_rarity = load_pet_rarity_map()
     rows = []
     pool = rec.get('petPool') if isinstance(rec.get('petPool'), list) else []
     for item in pool:
@@ -371,16 +473,50 @@ def pet_pool_dataframe(rec, pet_names=None):
         rows.append({
             '宠物ID': pid,
             '名称': pet_names.get(pid, ''),
+            '品质': pet_rarity.get(pid, ''),
             '属性': attr,
             '星级': item.get('star', 1),
-            '等级': item.get('level', 1),
+            '养成等级': item.get('level', 1),
             '碎片': item.get('fragments', 0),
             '来源': item.get('source', ''),
         })
     df = pd.DataFrame(rows)
     if not df.empty and '星级' in df.columns:
-        df = df.sort_values(['星级', '等级', '宠物ID'], ascending=[False, False, True])
+        df = df.sort_values(['星级', '养成等级', '宠物ID'], ascending=[False, False, True])
     return df
+
+
+def saved_stage_team_dataframe(rec, pet_names=None, pet_rarity=None):
+    """秘境保存编队：宠物 ID + 名称 + 品质 + 从灵宠池同步的养成等级/星级（池外则空）。"""
+    pet_names = pet_names or {}
+    if pet_rarity is None:
+        pet_rarity = load_pet_rarity_map()
+    team = rec.get('savedStageTeam')
+    if not isinstance(team, list) or not team:
+        return pd.DataFrame()
+    pool = rec.get('petPool') if isinstance(rec.get('petPool'), list) else []
+    level_by_id = {}
+    star_by_id = {}
+    for item in pool:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get('id')
+        if not pid:
+            continue
+        sid = str(pid)
+        level_by_id[sid] = item.get('level', 1)
+        star_by_id[sid] = item.get('star', 1)
+    rows = []
+    for x in team:
+        sid = str(x)
+        rows.append({
+            '宠物ID': sid,
+            '名称': pet_names.get(sid, ''),
+            '品质': pet_rarity.get(sid, ''),
+            '养成等级': level_by_id.get(sid),
+            '星级': star_by_id.get(sid),
+        })
+    return pd.DataFrame(rows)
 
 
 def weapon_collection_dataframe(rec, weapon_details=None):

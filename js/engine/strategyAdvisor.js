@@ -8,14 +8,14 @@ const { POOL_STAR_ATK_MUL, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAK
 const { getPoolPetAtk, getPoolPetMaxLv } = require('../data/petPoolConfig')
 const { getPetById, getPetRarity } = require('../data/pets')
 const { CULT_CONFIG, CULT_KEYS, effectValue, usedPoints } = require('../data/cultivationConfig')
-const { COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5 } = require('../data/balance/combat')
+const {
+  COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
+  ADVISOR_AVG_COMBO, ADVISOR_TARGET_TURNS, ADVISOR_COUNTER_BONUS,
+} = require('../data/balance/combat')
 
 const COMBO_DMG_RATES = COMBO_MUL_BREAKPOINTS.map(bp => bp.rate)
 
-/**
- * 估算平均每回合 Combo 段数（保守值）
- */
-const AVG_COMBO_STAGES = 2.5
+const AVG_COMBO_STAGES = ADVISOR_AVG_COMBO
 
 /**
  * 估算 Combo 倍率
@@ -156,9 +156,8 @@ function analyzeDefeat(storage, result) {
   const effectiveAtk = teamTotalAtk * (hasCounter ? 1.3 : 1) * comboMul
   const turnsToKill = effectiveAtk > 0 ? Math.ceil(enemyHp / effectiveAtk) : 99
 
-  // 建议 ATK：让 turnsToKill <= 8 为目标
-  const targetTurns = 8
-  const suggestedAtk = Math.ceil(enemyHp / (targetTurns * comboMul * (hasCounter ? 1.3 : 1)))
+  const targetTurns = ADVISOR_TARGET_TURNS
+  const suggestedAtk = Math.ceil(enemyHp / (targetTurns * comboMul * (hasCounter ? ADVISOR_COUNTER_BONUS : 1)))
 
   const tips = []
 

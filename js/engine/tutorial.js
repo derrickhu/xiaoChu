@@ -13,6 +13,7 @@ const P = require('../platform')
 const V = require('../views/env')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { PETS, getPetById, petHasSkill } = require('../data/pets')
+const { HERO_BASE_HP } = require('../data/balance/combat')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { NEWBIE_PET_IDS } = require('../data/constants')
@@ -492,7 +493,7 @@ function finish(g) {
 
   // 重新正式开始（从第1层）
   const runMgr = require('./runManager')
-  g.heroHp = 100; g.heroMaxHp = 100; g.heroShield = 0
+  g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0
   g._baseHeroMaxHp = null
   g.heroBuffs = []; g.enemyBuffs = []
   g.enemy = null

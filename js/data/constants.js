@@ -22,12 +22,10 @@ const CLOUD_SYNC_RETRY_INTERVAL_MS = 120000
 
 const RANK_CACHE_TTL_MS = 30000
 
-// ===== 塔层 / 肉鸽 (TOWER) =====
-
-const TOWER_MAX_FLOOR = 30
-const TOWER_COUNTER_MUL = 1.6
-const TOWER_COUNTERED_MUL = 0.6
-const TOWER_RECENT_LIMIT = 3
+// ===== 塔层 / 肉鸽 (TOWER) — 数值已迁移至 balance/combat.js =====
+const {
+  TOWER_MAX_FLOOR, TOWER_COUNTER_MUL, TOWER_COUNTERED_MUL, TOWER_RECENT_LIMIT,
+} = require('./balance/combat')
 
 // ===== 修炼系统 (CULT) — 数值定义已迁移至 balance/cultivation.js =====
 

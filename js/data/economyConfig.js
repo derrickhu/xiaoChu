@@ -7,6 +7,11 @@ const {
   ECONOMY_FRAMEWORK, IDLE_CFG, CHAPTER_CLEAR_REWARDS,
   TOWER_SETTLE, STAGE_SETTLE, ROGUE_SETTLE,
   TOWER_DAILY_FREE_RUNS, TOWER_DAILY_AD_EXTRA_RUNS,
+  DAILY_STAGE_EST, REWARD_DIST_W, REWARD_FIRST_CLEAR_MUL,
+  REWARD_ELITE_MUL, REWARD_FRAG_SOURCE_RATIO,
+  REWARD_AWAKEN_WEEKLY_DIVISOR, REWARD_AWAKEN_MIN_REPEAT,
+  REWARD_STAR_COEFFS, REWARD_STAR_AWAKEN_MIN_CHAPTER, REWARD_STAR_AWAKEN_MIN_ORD,
+  REP_FRAG_COEFFS, AD_REWARDS_NUMS, AUDIT_DEFAULTS,
 } = require('./balance/economy')
 
 const CURRENCY = {
@@ -56,8 +61,8 @@ const STAGES_PER_CHAPTER = 8
 // ECONOMY_FRAMEWORK, IDLE_CFG 已迁移至 balance/economy.js
 
 // ===== 关卡奖励：基于 dailyTarget 公式生成 12 章 =====
-const _DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
-const _DIST_W = [0.7, 0.8, 0.85, 0.95, 1.0, 1.1, 1.25, 1.4]
+const _DAILY_STAGE_EST = DAILY_STAGE_EST
+const _DIST_W = REWARD_DIST_W
 
 function _genStageRewards() {
   const R = {}
@@ -66,18 +71,18 @@ function _genStageRewards() {
     const est = _DAILY_STAGE_EST[ch]
     const avgR = dt.soulStone * ECONOMY_FRAMEWORK.sourceRatio.stageRepeat / est
     const repeatSS = _DIST_W.map(w => Math.round(avgR * w))
-    const firstSS = repeatSS.map(r => Math.round(r * 1.5))
+    const firstSS = repeatSS.map(r => Math.round(r * REWARD_FIRST_CLEAR_MUL))
 
-    const avgFrag = Math.max(1, dt.fragment * 0.5 / est)
+    const avgFrag = Math.max(1, dt.fragment * REWARD_FRAG_SOURCE_RATIO / est)
     const repeatFrag = _DIST_W.map(w => Math.max(1, Math.round(avgFrag * w)))
-    const firstFrag = repeatFrag.map(r => Math.round(r * 1.5))
+    const firstFrag = repeatFrag.map(r => Math.round(r * REWARD_FIRST_CLEAR_MUL))
 
     let awRepeat = 0
     let awFirst = Array(8).fill(0)
     if (dt.awakenStonePerWeek > 0) {
       awRepeat = Math.round((dt.awakenStonePerWeek / (est * 7)) * 100) / 100
-      awRepeat = Math.max(0.05, awRepeat)
-      awFirst = _DIST_W.map((w, i) => i < 3 && ch < 8 ? 0 : Math.max(1, Math.round(dt.awakenStonePerWeek / 6 * w)))
+      awRepeat = Math.max(REWARD_AWAKEN_MIN_REPEAT, awRepeat)
+      awFirst = _DIST_W.map((w, i) => i < 3 && ch < 8 ? 0 : Math.max(1, Math.round(dt.awakenStonePerWeek / REWARD_AWAKEN_WEEKLY_DIVISOR * w)))
     }
 
     R[ch] = {
@@ -87,9 +92,9 @@ function _genStageRewards() {
         awakenStone: { first: awFirst, repeat: awRepeat },
       },
       elite: {
-        soulStone: { first: firstSS.map(v => Math.round(v * 1.5)), repeat: repeatSS.map(v => Math.round(v * 1.5)) },
-        fragment: { first: firstFrag.map(v => Math.round(v * 1.4)), repeat: repeatFrag.map(v => Math.round(v * 1.3)) },
-        awakenStone: { first: awFirst.map(v => Math.round(v * 1.5)), repeat: Math.round(awRepeat * 1.5 * 100) / 100 },
+        soulStone: { first: firstSS.map(v => Math.round(v * REWARD_ELITE_MUL.soulStone)), repeat: repeatSS.map(v => Math.round(v * REWARD_ELITE_MUL.soulStone)) },
+        fragment: { first: firstFrag.map(v => Math.round(v * REWARD_ELITE_MUL.fragment.first)), repeat: repeatFrag.map(v => Math.round(v * REWARD_ELITE_MUL.fragment.repeat)) },
+        awakenStone: { first: awFirst.map(v => Math.round(v * REWARD_ELITE_MUL.awakenStone)), repeat: Math.round(awRepeat * REWARD_ELITE_MUL.awakenStone * 100) / 100 },
       },
     }
   }
@@ -102,14 +107,14 @@ function _genStarRewards() {
   const R = {}
   for (let ch = 1; ch <= 12; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
-    const base2 = Math.round(dt.soulStone * 0.01)
-    const base3 = Math.round(dt.soulStone * 0.02)
-    const fBase = Math.max(0, Math.round(dt.fragment * 0.08))
+    const base2 = Math.round(dt.soulStone * REWARD_STAR_COEFFS.ss2Pct)
+    const base3 = Math.round(dt.soulStone * REWARD_STAR_COEFFS.ss3Pct)
+    const fBase = Math.max(0, Math.round(dt.fragment * REWARD_STAR_COEFFS.fragBasePct))
     R[ch] = _DIST_W.map((w, i) => {
       const s2 = { soulStone: Math.round(base2 * w), fragment: Math.max(0, Math.round(fBase * w)) }
-      const s3 = { soulStone: Math.round(base3 * w), fragment: Math.max(1, Math.round(fBase * 1.5 * w)) }
-      if (ch >= 4 && i >= 4) {
-        s3.awakenStone = Math.max(1, Math.round(dt.awakenStonePerWeek / 12 * w))
+      const s3 = { soulStone: Math.round(base3 * w), fragment: Math.max(1, Math.round(fBase * REWARD_STAR_COEFFS.fragStar3Mul * w)) }
+      if (ch >= REWARD_STAR_AWAKEN_MIN_CHAPTER && i >= REWARD_STAR_AWAKEN_MIN_ORD) {
+        s3.awakenStone = Math.max(1, Math.round(dt.awakenStonePerWeek / REWARD_STAR_COEFFS.awakenWeeklyDivisor * w))
       }
       return { star2: s2, star3: s3 }
     })
@@ -137,10 +142,10 @@ function _genRepFrag() {
   const R = {}
   for (let ch = 1; ch <= 12; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
-    const base = Math.max(1, Math.round(dt.fragment / 10))
+    const base = Math.max(1, Math.round(dt.fragment / REP_FRAG_COEFFS.baseDivisor))
     R[ch] = {
-      normal: { min: base, max: base + Math.max(1, Math.round(base * 0.5)), pool: 'chapter' },
-      elite:  { min: base + 1, max: base + Math.max(2, Math.round(base * 0.8)), pool: 'chapter' },
+      normal: { min: base, max: base + Math.max(1, Math.round(base * REP_FRAG_COEFFS.normalMaxMul)), pool: 'chapter' },
+      elite:  { min: base + REP_FRAG_COEFFS.eliteMinOffset, max: base + Math.max(2, Math.round(base * REP_FRAG_COEFFS.eliteMaxMul)), pool: 'chapter' },
     }
   }
   return R
@@ -199,11 +204,11 @@ function getStarRewardConfig(chapter, order) {
 // ===== IAA 广告位配置 =====
 const AD_REWARDS = {
   revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1  },
-  staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: 40 } },
-  signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
-  dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: 2 },
-  settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
-  dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: 2 },
+  staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: AD_REWARDS_NUMS.staminaRecoveryAmount } },
+  signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.signMultiplier },
+  dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.dailyTaskMultiplier },
+  settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: AD_REWARDS_NUMS.settleMultiplier },
+  dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: AD_REWARDS_NUMS.dexMultiplier },
   dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },
   towerExtraRun:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 2 },
   staminaRefund:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 5 },
@@ -217,23 +222,23 @@ function auditDailyIncome(chapter) {
   const dt = ECONOMY_FRAMEWORK.dailyTarget[chapter]
   const sr = ECONOMY_FRAMEWORK.sourceRatio
   if (!dt) return null
-  const est = _DAILY_STAGE_EST[chapter] || 15
+  const est = _DAILY_STAGE_EST[chapter] || AUDIT_DEFAULTS.avgFloor
   const chRewards = STAGE_REWARDS[chapter]
   const repeatSS = chRewards ? chRewards.normal.soulStone.repeat : []
   const avgRepeatSS = repeatSS.length > 0 ? repeatSS.reduce((a, b) => a + b, 0) / repeatSS.length : 0
 
   const stageIncome = Math.round(avgRepeatSS * est)
   const towerSS = TOWER_SETTLE.soulStone
-  const avgFloor = 15
-  const towerPerRun = Math.floor(avgFloor * towerSS.floorBase + towerSS.floorGrowth * avgFloor * (avgFloor + 1) / 2) + Math.floor(200 * towerSS.combatRatio)
+  const avgFloor = AUDIT_DEFAULTS.avgFloor
+  const towerPerRun = Math.floor(avgFloor * towerSS.floorBase + towerSS.floorGrowth * avgFloor * (avgFloor + 1) / 2) + Math.floor(AUDIT_DEFAULTS.combatBase * towerSS.combatRatio)
   const towerRuns = TOWER_DAILY.freeRuns + TOWER_DAILY.adExtraRuns
   const towerIncome = towerPerRun * towerRuns
 
   const scale = ECONOMY_FRAMEWORK.dailyTaskScale[chapter] || 1
-  const taskIncome = Math.round(94 * scale)
+  const taskIncome = Math.round(AUDIT_DEFAULTS.baseTaskSS * scale)
 
-  const idleHours = 16
-  const idleIncome = Math.floor(idleHours * IDLE_CFG.soulStonePerHour * (1 + 5 * IDLE_CFG.petLvExpFactor))
+  const idleHours = AUDIT_DEFAULTS.idleHours
+  const idleIncome = Math.floor(idleHours * IDLE_CFG.soulStonePerHour * (1 + AUDIT_DEFAULTS.idlePetLvFactor * IDLE_CFG.petLvExpFactor))
 
   const signIncome = Math.round(dt.soulStone * sr.signIn)
 

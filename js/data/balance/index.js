@@ -10,6 +10,11 @@ const petStar = require('./petStar')
 const economy = require('./economy')
 const cultivation = require('./cultivation')
 const pool = require('./pool')
+const petBase = require('./petBase')
+const weaponBase = require('./weaponBase')
+const stage = require('./stage')
+const towerPacing = require('./towerPacing')
+const dex = require('./dex')
 
 module.exports = {
   ...combat,
@@ -19,4 +24,9 @@ module.exports = {
   ...economy,
   ...cultivation,
   ...pool,
+  ...petBase,
+  ...weaponBase,
+  ...stage,
+  ...towerPacing,
+  ...dex,
 }

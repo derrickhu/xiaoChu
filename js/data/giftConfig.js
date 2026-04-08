@@ -9,6 +9,7 @@ const {
   SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS,
   INVITE_REWARD, INVITE_MAX_COUNT,
   COMEBACK_THRESHOLD_MS, COMEBACK_REWARD, WIPE_COMPENSATION,
+  DAILY_TASK_AWAKEN,
 } = require('./balance/economy')
 
 /**
@@ -24,8 +25,8 @@ function getScaledDailyTaskReward(task, chapter) {
   if (task.reward.fragment) r.fragment = Math.max(1, Math.round(task.reward.fragment * scale))
   if (task.reward.awakenStone) r.awakenStone = Math.max(1, Math.round(task.reward.awakenStone * scale))
   if (task.reward.stamina) r.stamina = Math.round(task.reward.stamina * scale)
-  if (chapter >= 6 && task.reward.soulStone >= 15) {
-    r.awakenStone = (r.awakenStone || 0) + Math.max(1, Math.floor((chapter - 5) * 0.5))
+  if (chapter >= DAILY_TASK_AWAKEN.threshold && task.reward.soulStone >= DAILY_TASK_AWAKEN.minSoulStone) {
+    r.awakenStone = (r.awakenStone || 0) + Math.max(1, Math.floor((chapter - DAILY_TASK_AWAKEN.threshold + 1) * DAILY_TASK_AWAKEN.coeff))
   }
   return r
 }
@@ -41,8 +42,8 @@ function getScaledDailyAllBonus(chapter) {
   if (DAILY_ALL_COMPLETE_BONUS.soulStone) r.soulStone = Math.round(DAILY_ALL_COMPLETE_BONUS.soulStone * scale)
   if (DAILY_ALL_COMPLETE_BONUS.stamina) r.stamina = Math.round(DAILY_ALL_COMPLETE_BONUS.stamina * scale)
   if (DAILY_ALL_COMPLETE_BONUS.fragment) r.fragment = Math.max(1, Math.round(DAILY_ALL_COMPLETE_BONUS.fragment * scale))
-  if (chapter >= 6) {
-    r.awakenStone = Math.max(1, Math.floor((chapter - 4) * 0.5))
+  if (chapter >= DAILY_TASK_AWAKEN.threshold) {
+    r.awakenStone = Math.max(1, Math.floor((chapter - DAILY_TASK_AWAKEN.allBonusOffset) * DAILY_TASK_AWAKEN.coeff))
   }
   return r
 }

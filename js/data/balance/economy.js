@@ -174,6 +174,45 @@ const DEX_RARITY_MILESTONE_BUFFS = {
   SSR: { atkPct: 10 },
 }
 
+// ===== 关卡奖励生成系数（从 economyConfig.js 迁入） =====
+const DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
+const REWARD_DIST_W = [0.7, 0.8, 0.85, 0.95, 1.0, 1.1, 1.25, 1.4]
+const REWARD_FIRST_CLEAR_MUL = 1.5
+const REWARD_ELITE_MUL = { soulStone: 1.5, fragment: { first: 1.4, repeat: 1.3 }, awakenStone: 1.5 }
+const REWARD_FRAG_SOURCE_RATIO = 0.5
+const REWARD_AWAKEN_WEEKLY_DIVISOR = 6
+const REWARD_AWAKEN_MIN_REPEAT = 0.05
+const REWARD_STAR_COEFFS = { ss2Pct: 0.01, ss3Pct: 0.02, fragBasePct: 0.08, fragStar3Mul: 1.5, awakenWeeklyDivisor: 12 }
+const REWARD_STAR_AWAKEN_MIN_CHAPTER = 4
+const REWARD_STAR_AWAKEN_MIN_ORD = 4
+const REP_FRAG_COEFFS = { baseDivisor: 10, normalMaxMul: 0.5, eliteMinOffset: 1, eliteMaxMul: 0.8 }
+
+// ===== 广告奖励数值 =====
+const AD_REWARDS_NUMS = {
+  staminaRecoveryAmount: 40,
+  settleMultiplier: 2,
+  dexMultiplier: 2,
+  signMultiplier: 2,
+  dailyTaskMultiplier: 2,
+}
+
+// ===== 日任觉醒石追加系数（从 giftConfig.js 迁入） =====
+const DAILY_TASK_AWAKEN = {
+  threshold: 6,
+  coeff: 0.5,
+  minSoulStone: 15,
+  allBonusOffset: 4,
+}
+
+// ===== 审计用默认值 =====
+const AUDIT_DEFAULTS = {
+  avgFloor: 15,
+  combatBase: 200,
+  baseTaskSS: 94,
+  idleHours: 16,
+  idlePetLvFactor: 5,
+}
+
 module.exports = {
   STAMINA_RECOVER_INTERVAL_MS,
   STAMINA_INITIAL,
@@ -208,4 +247,18 @@ module.exports = {
   DEFAULT_RANDOM_FRAG_WEIGHTS,
   DEX_ELEM_MILESTONE_BUFFS,
   DEX_RARITY_MILESTONE_BUFFS,
+  DAILY_STAGE_EST,
+  REWARD_DIST_W,
+  REWARD_FIRST_CLEAR_MUL,
+  REWARD_ELITE_MUL,
+  REWARD_FRAG_SOURCE_RATIO,
+  REWARD_AWAKEN_WEEKLY_DIVISOR,
+  REWARD_AWAKEN_MIN_REPEAT,
+  REWARD_STAR_COEFFS,
+  REWARD_STAR_AWAKEN_MIN_CHAPTER,
+  REWARD_STAR_AWAKEN_MIN_ORD,
+  REP_FRAG_COEFFS,
+  AD_REWARDS_NUMS,
+  DAILY_TASK_AWAKEN,
+  AUDIT_DEFAULTS,
 }

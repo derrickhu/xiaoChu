@@ -42,6 +42,7 @@ try:
         load_weapon_details,
         load_pet_names,
         pet_pool_dataframe,
+        saved_stage_team_dataframe,
         weapon_collection_dataframe,
         stage_clear_dataframe,
         pet_dex_dataframe,
@@ -56,6 +57,7 @@ try:
         static_stages_summary_dataframe,
         load_balance_combat_scalars_json,
         load_tower_floors_reference_json,
+        load_balance_all_json,
     )
 except ImportError:
     build_local_leaderboard_rows = None
@@ -66,6 +68,7 @@ except ImportError:
     load_weapon_details = None
     load_pet_names = None
     pet_pool_dataframe = None
+    saved_stage_team_dataframe = None
     weapon_collection_dataframe = None
     stage_clear_dataframe = None
     pet_dex_dataframe = None
@@ -80,6 +83,7 @@ except ImportError:
     static_stages_summary_dataframe = None
     load_balance_combat_scalars_json = None
     load_tower_floors_reference_json = None
+    load_balance_all_json = None
 
 # ========== 页面配置 ==========
 
@@ -294,6 +298,16 @@ with tab_balance:
                 tower_ref = load_tower_floors_reference_json()
             except Exception as e:
                 st.warning(f'通天塔逐层数值导出失败: {e}')
+
+        bal_all = {}
+        if load_balance_all_json:
+            try:
+                bal_all = load_balance_all_json()
+            except Exception as e:
+                st.warning(f'balance 全量数据导出失败: {e}')
+
+        _pet_names = _cached_pet_names()
+        _wpn_details = _cached_weapon_details()
 
         bc1, bc2, bc3, bc4, bc5, bc6 = st.tabs([
             '🐾 灵宠 · 技能 / 基础 atk / cd',
@@ -561,14 +575,19 @@ with tab_balance:
                 st5_battle, st5_reward = st.tabs(['⚔️ 战斗数值', '🎁 奖励数值'])
                 _stage_rename_battle = {
                     'id': '关卡ID', 'displayName': '名称', 'chapter': '章', 'order': '关',
+                    'globalOrd': '秘境序', 'recCultLevel': '推荐修炼', 'recPetStar': '推荐星级',
                     'difficulty': '难度', 'stamina': '体力', 'battleSoulStone': '局内灵石',
                     'enemyName': '主敌人', 'hp': 'HP', 'atk': '攻击', 'def': '防御',
                     'sTurnLimit': 'S评价回合≤', 'aTurnLimit': 'A评价回合≤',
                 }
                 _stage_rename_reward = {
                     'id': '关卡ID', 'displayName': '名称', 'chapter': '章', 'order': '关',
+                    'globalOrd': '秘境序', 'recCultLevel': '推荐修炼', 'recPetStar': '推荐星级',
                     'difficulty': '难度',
-                    'fcPetId': '首通宠物', 'fcPetFrag': '碎片数', 'fcWeaponId': '首通法宝',
+                    'fcPetName': '首通宠物(整宠)', 'fcPetId': '宠物ID', 'fcPetRarity': '宠物品质',
+                    'fcPetFrag': '重复碎片数', 'fcPetLvCap': '宠物养成上限',
+                    'fcWeaponName': '首通法宝(整件)', 'fcWeaponId': '法宝ID',
+                    'fcWeaponOrd': '法宝档位', 'fcWeaponRarity': '法宝品质',
                     'fcExp': '首通经验', 'fcSoulStone': '首通灵石',
                     'rpFragMin': '重复碎片min', 'rpFragMax': '重复碎片max',
                     'rpExp': '重复经验', 'rpSoulStone': '重复灵石',
@@ -577,15 +596,70 @@ with tab_balance:
                 _reward_cols = [c for c in _stage_rename_reward if c in sd.columns]
 
                 with st5_battle:
+                    st.caption('秘境序 / 推荐修炼 / 推荐星级含义同「奖励数值」页说明。')
                     st.dataframe(
                         sd[_battle_cols].rename(columns=_stage_rename_battle),
                         use_container_width=True, hide_index=True, height=480,
                     )
                 with st5_reward:
+                    st.caption(
+                        '首通宠物奖励为**整宠**直接入池；重复获得时转为升星碎片（R=3片 SR=5片 SSR=10片）。法宝为**整件**直接获得。'
+                        ' 秘境序：全局第 1～96 关进度；推荐修炼/星级见 `CHAPTER_RECOMMENDED`。'
+                    )
+                    rd = sd[_reward_cols].copy()
                     st.dataframe(
-                        sd[_reward_cols].rename(columns=_stage_rename_reward),
+                        rd.rename(columns=_stage_rename_reward),
                         use_container_width=True, hide_index=True, height=480,
                     )
+
+                    if bal_all:
+                        with st.expander('🎯 品质配额表（来自 balance/stage.js）'):
+                            def _quota_df(quota_dict, label):
+                                rows = []
+                                for ch in range(1, 13):
+                                    q = quota_dict.get(str(ch), quota_dict.get(ch, {}))
+                                    rows.append({'章': ch, 'R': q.get('R', 0), 'SR': q.get('SR', 0), 'SSR': q.get('SSR', 0)})
+                                df = pd.DataFrame(rows)
+                                df.columns = ['章', f'{label} R', f'{label} SR', f'{label} SSR']
+                                return df
+
+                            npq = bal_all.get('NORMAL_PET_QUOTA', {})
+                            epq = bal_all.get('ELITE_PET_QUOTA', {})
+                            nwq = bal_all.get('NORMAL_WPN_QUOTA', {})
+                            ewq = bal_all.get('ELITE_WPN_QUOTA', {})
+
+                            st.markdown('**宠物品质配额**（每章 8 只）')
+                            pet_q = _quota_df(npq, '普通').merge(_quota_df(epq, '精英'), on='章')
+                            st.dataframe(pet_q, use_container_width=True, hide_index=True)
+
+                            st.markdown('**法宝品质配额**（每章 4 把）')
+                            wpn_q = _quota_df(nwq, '普通').merge(_quota_df(ewq, '精英'), on='章')
+                            st.dataframe(wpn_q, use_container_width=True, hide_index=True)
+
+                            boss_min = bal_all.get('BOSS_REWARD_MIN_RARITY', {})
+                            if boss_min:
+                                st.markdown('**Boss 关(x-8)保底品质**')
+                                boss_rows = []
+                                for ch in range(1, 13):
+                                    boss_rows.append({
+                                        '章': ch,
+                                        '普通宠物': boss_min.get('normalPet', {}).get(str(ch), ''),
+                                        '精英宠物': boss_min.get('elitePet', {}).get(str(ch), ''),
+                                        '普通法宝': boss_min.get('normalWpn', {}).get(str(ch), ''),
+                                        '精英法宝': boss_min.get('eliteWpn', {}).get(str(ch), ''),
+                                    })
+                                st.dataframe(pd.DataFrame(boss_rows), use_container_width=True, hide_index=True)
+
+                            overrides = bal_all.get('STAGE_REWARD_PET_OVERRIDES', {})
+                            if overrides:
+                                st.markdown('**特殊覆盖**（避免与新手赠送宠物重复）')
+                                ov_display = [
+                                    {'关卡': f'stage_{k.replace("_", "-")}', '覆盖宠物ID': v,
+                                     '宠物名称': _pet_names.get(v, v)}
+                                    for k, v in overrides.items()
+                                ]
+                                st.dataframe(pd.DataFrame(ov_display), use_container_width=True, hide_index=True)
+
                 st.caption(f'共 {len(sd)} / {len(stages_df)} 条')
                 st.download_button('下载关卡摘要 CSV', sd.to_csv(index=False).encode('utf-8-sig'),
                                    'static_stages_summary.csv', 'text/csv', key='dl_stage')
@@ -826,12 +900,11 @@ with tab_player:
             pu1, pu2 = st.columns(2)
             with pu1:
                 st.markdown('**秘境编队 savedStageTeam**')
-                team = rec.get('savedStageTeam')
-                if isinstance(team, list) and team:
-                    tdf = pd.DataFrame({
-                        '宠物ID': team,
-                        '名称': [pnames.get(str(x), '') for x in team],
-                    })
+                if saved_stage_team_dataframe is not None:
+                    tdf = saved_stage_team_dataframe(rec, pnames)
+                else:
+                    tdf = pd.DataFrame()
+                if not tdf.empty:
                     st.dataframe(tdf, use_container_width=True, hide_index=True)
                 else:
                     st.caption('无保存编队')
@@ -856,6 +929,10 @@ with tab_player:
                 c1, c2 = st.columns(2)
                 with c1:
                     st.markdown('**灵宠池**（养成状态）')
+                    st.caption(
+                        '**品质** R/SR/SSR：宠物静态稀有度，与养成无关；'
+                        '**星级**：升星档位；**养成等级**：灵宠池中的 Lv（经验升级，≠品质）。'
+                    )
                     ppdf = pet_pool_dataframe(rec, pnames)
                     if ppdf.empty:
                         st.caption('灵宠池为空')

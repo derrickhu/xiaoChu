@@ -3,7 +3,13 @@
  * 5属性 × 20只 = 100只宠物
  * 核心改动：CD大幅缩短(3-6)、效果大幅增强、变珠整行/列级别
  * 新增"五行共鸣"必杀技机制（4只宠物技能全部就绪时可触发）
+ *
+ * 数值面板（atk/cd/skill参数）统一定义在 balance/petBase.js
  */
+
+const {
+  PET_BASE_STATS, STAR3_SKILL_NUMS, STAR4_PASSIVE_NUMS, STAR5_SKILL_NUMS,
+} = require('./balance/petBase')
 
 // ===== 技能效果类型 =====
 // dmgBoost  — 下次该属性伤害×N倍（改为倍率制，体感更强）
@@ -168,6 +174,21 @@ const PETS = {
     { id:'e19', name:'厚土灵龟',  atk:11, skill:{ name:'灵龟镇水', desc:'全部水珠转土珠+全队防御+20%', type:'replaceBeads', fromAttr:'water', toAttr:'earth', defBoost:20 }, cd:5 },
     { id:'e20', name:'玄武神君',  atk:13, skill:{ name:'玄武破天', desc:'眩晕2回合+土伤×3倍', type:'stunPlusDmg', attr:'earth', pct:200, stunDur:2 }, cd:6 },
   ],
+}
+
+// ===== 从 balance/petBase.js 同步数值面板 =====
+for (const attr of ['metal','wood','water','fire','earth']) {
+  for (const p of PETS[attr]) {
+    const bs = PET_BASE_STATS[p.id]
+    if (!bs) continue
+    p.atk = bs.atk
+    p.cd  = bs.cd
+    if (bs.skill && p.skill) {
+      for (const k of Object.keys(bs.skill)) {
+        p.skill[k] = bs.skill[k]
+      }
+    }
+  }
 }
 
 // ===== 宠物品质分级（SSR传说 / SR超稀有 / R稀有） =====
@@ -335,14 +356,10 @@ const STAR3_SKILL_OVERRIDE = {
 }
 
 // ===== ★4 觉醒被动（按品质模板批量分配） =====
-// 每只宠物在 ★4 解锁一个被动能力
 const STAR4_PASSIVE = {
-  // R 品质被动：「韧性」— 受到致死伤害时保留 1HP（每局 1 次）
-  R:   { name: '韧性', desc: '受到致死伤害时保留1HP（每局1次）', type: 'lastStand' },
-  // SR 品质被动：「专精」— 该属性消除伤害 +15%
-  SR:  { name: '专精', desc: '该属性消除伤害+15%', type: 'attrDmgUp', pct: 15 },
-  // SSR 品质被动：「霸体」— 免疫首次控制效果
-  SSR: { name: '霸体', desc: '免疫首次控制效果', type: 'immuneFirstCC' },
+  R:   { name: '韧性', desc: '受到致死伤害时保留1HP（每局1次）', ...STAR4_PASSIVE_NUMS.R },
+  SR:  { name: '专精', desc: '该属性消除伤害+15%', ...STAR4_PASSIVE_NUMS.SR },
+  SSR: { name: '霸体', desc: '免疫首次控制效果', ...STAR4_PASSIVE_NUMS.SSR },
 }
 
 // 获取宠物 ★4 觉醒被动（根据品质）
@@ -402,7 +419,14 @@ function getPetSkillDesc(pet) {
   return pet.skill ? pet.skill.desc : ''
 }
 
-// 获取★3强化数据（若有）
+// ===== 从 balance/petBase.js 同步 ★3/★5 数值 =====
+for (const [id, nums] of Object.entries(STAR3_SKILL_NUMS)) {
+  if (STAR3_SKILL_OVERRIDE[id]) Object.assign(STAR3_SKILL_OVERRIDE[id], nums)
+}
+for (const [id, nums] of Object.entries(STAR5_SKILL_NUMS)) {
+  if (STAR5_SKILL_OVERRIDE[id]) Object.assign(STAR5_SKILL_OVERRIDE[id], nums)
+}
+
 function getStar3Override(petId) {
   return STAR3_SKILL_OVERRIDE[petId] || null
 }

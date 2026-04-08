@@ -8,6 +8,7 @@ const { drawBackBtn } = require('./screens')
 const { wrapText } = require('./prepareView')
 const { drawPanel } = require('./uiComponents')
 const { getPetStarAtk, MAX_STAR, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
+const { ADVENTURE_UPGRADE_PET_MUL } = require('../data/balance/combat')
 
 // ===== 滚动状态（挂在模块级，避免每帧重置） =====
 let _scrollY = 0          // 当前滚动偏移
@@ -451,7 +452,7 @@ function _drawEventShop(g, ev) {
         ctx.fillText(canSelect ? `★${p.star||1}→★${(p.star||1)+1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
       } else if (selectType === 'upgradePet') {
         ctx.fillStyle = '#c07030'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
-        ctx.fillText(`ATK:${p.atk}→${Math.round(p.atk*1.25)}`, px+petSlotSz/2, py2+petSlotSz+22*S)
+        ctx.fillText(`ATK:${p.atk}→${Math.round(p.atk*ADVENTURE_UPGRADE_PET_MUL)}`, px+petSlotSz/2, py2+petSlotSz+22*S)
       } else if (selectType === 'cdReduce') {
         ctx.fillStyle = canSelect ? '#508090' : 'rgba(180,160,130,0.5)'; ctx.font = `${7*S}px "PingFang SC",sans-serif`
         ctx.fillText(canSelect ? `CD:${p.cd}→${p.cd-1}` : dimReason, px+petSlotSz/2, py2+petSlotSz+22*S)
@@ -474,7 +475,7 @@ function _drawEventShop(g, ev) {
       ctx.fillStyle = '#5C3A1E'; ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
       let detailText = sp.name
       if (selectType === 'starUp') detailText += `  ★${sp.star||1} → ★${(sp.star||1)+1}`
-      else if (selectType === 'upgradePet') detailText += `  ATK ${sp.atk} → ${Math.round(sp.atk*1.25)}`
+      else if (selectType === 'upgradePet') detailText += `  ATK ${sp.atk} → ${Math.round(sp.atk*ADVENTURE_UPGRADE_PET_MUL)}`
       else if (selectType === 'cdReduce') detailText += `  CD ${sp.cd} → ${sp.cd-1}`
       ctx.fillText(detailText, W*0.5, descY + 18*S)
       ctx.fillStyle = 'rgba(92,58,30,0.6)'; ctx.font = `${9*S}px "PingFang SC",sans-serif`

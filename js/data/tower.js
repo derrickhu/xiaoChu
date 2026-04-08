@@ -141,6 +141,13 @@ const {
   BUFF_POOL_MINOR, BUFF_POOL_MEDIUM, BUFF_POOL_MAJOR, BUFF_POOL_SPEEDKILL,
 } = require('./balance/towerEvent')
 
+const {
+  TOWER_SKILL_UNLOCK, TOWER_FORCED_ELITE_FLOORS, TOWER_EVENT_SCALING,
+  TOWER_BOSS_POOL_THRESHOLDS, TOWER_BOSS_LEVEL_DIVISOR, TOWER_REWARD_COUNT,
+  TOWER_SPEED_KILL_TURNS, BEAD_WEIGHTS: _BEAD_WEIGHTS,
+  TOWER_NAME_TIER_DIVISOR, TOWER_SHOP_DEFAULT_WEIGHT,
+} = require('./balance/towerPacing')
+
 const SHOP_DISPLAY_COUNT = TOWER_SHOP_DISPLAY_COUNT
 const SHOP_FREE_COUNT = TOWER_SHOP_FREE_COUNT
 const SHOP_HP_COST_PCT = TOWER_SHOP_HP_COST_PCT
@@ -186,7 +193,7 @@ function generateMonster(floor) {
 
   // 名字：基准档位 ±1 随机浮动，增加同层段怪物多样性
   const names = MONSTER_NAMES[attr]
-  const baseIdx = Math.min(Math.floor(floor / 5), names.length - 1)
+  const baseIdx = Math.min(Math.floor(floor / TOWER_NAME_TIER_DIVISOR), names.length - 1)
   const lo = Math.max(0, baseIdx - 1)
   const hi = Math.min(names.length - 1, baseIdx + 1)
   // 在 [lo, hi] 范围内随机选取，优先避开最近出现过的
@@ -200,21 +207,19 @@ function generateMonster(floor) {
   nameIdx = fresh.length > 0 ? _pick(fresh) : _pick(candidates)
   const name = names[nameIdx]
 
-  // 技能：前5层1个轻量技能，6-8层1个基础技能，9层起逐步加技能（30层制）
   const skills = []
-  const skillPoolLight = ['convert','aoe']              // 前期轻量技能（转珠/小范围伤害）
-  const skillPool1 = ['poison','seal','convert']        // 控制/干扰类
-  const skillPool2 = ['atkBuff','defDown','healBlock']  // 增强/削弱类
-  if (floor <= 5) {
-    skills.push(_pick(skillPoolLight))                  // 1-5层: 1个轻量技能
-  } else if (floor <= 8) {
-    skills.push(_pick(skillPool1))                      // 6-8层: 1个Pool1技能
+  const skillPoolLight = ['convert','aoe']
+  const skillPool1 = ['poison','seal','convert']
+  const skillPool2 = ['atkBuff','defDown','healBlock']
+  if (floor <= TOWER_SKILL_UNLOCK.lightPhase) {
+    skills.push(_pick(skillPoolLight))
+  } else if (floor <= TOWER_SKILL_UNLOCK.basicPhase) {
+    skills.push(_pick(skillPool1))
   } else {
-    skills.push(_pick(skillPool1))                      // 9层起: 1个Pool1技能
-    if (floor >= 18) skills.push(_pick(skillPool2))     // 18层起: 再加1个Pool2技能
+    skills.push(_pick(skillPool1))
+    if (floor >= TOWER_SKILL_UNLOCK.advancedPhase) skills.push(_pick(skillPool2))
   }
-  // 25层以上有小概率带第3个技能
-  if (floor >= 25 && Math.random() < 0.3) {
+  if (floor >= TOWER_SKILL_UNLOCK.extraPhase && Math.random() < TOWER_SKILL_UNLOCK.extraChance) {
     const allSkills = [...skillPool1, ...skillPool2, 'breakBead']
     const extra = _pick(allSkills.filter(s => !skills.includes(s)))
     if (extra) skills.push(extra)
@@ -266,7 +271,7 @@ function generateElite(floor) {
 function generateBoss(floor) {
   const base = generateMonster(floor)
 
-  const bossLevel = Math.round(floor / 10)
+  const bossLevel = Math.round(floor / TOWER_BOSS_LEVEL_DIVISOR)
   const bs = TOWER_BOSS_SCALING
   const hpMul  = Math.min(bs.hpBase  + (bossLevel - 1) * bs.hpStep,  bs.hpCap)
   const atkMul = Math.min(bs.atkBase + (bossLevel - 1) * bs.atkStep, bs.atkCap)
@@ -281,9 +286,9 @@ function generateBoss(floor) {
 
   // 按层级从不同BOSS池中随机选取
   let pool
-  if (floor >= 30)      pool = BOSS_POOL_30
-  else if (floor >= 20) pool = BOSS_POOL_20
-  else                  pool = BOSS_POOL_10
+  if (floor >= TOWER_BOSS_POOL_THRESHOLDS.pool30)      pool = BOSS_POOL_30
+  else if (floor >= TOWER_BOSS_POOL_THRESHOLDS.pool20) pool = BOSS_POOL_20
+  else                                                  pool = BOSS_POOL_10
 
   const chosen = pool[Math.floor(Math.random() * pool.length)]
   base.name = chosen.name
@@ -305,8 +310,7 @@ function generateFloorEvent(floor) {
   if (floor % 10 === 0) {
     return { type: EVENT_TYPE.BOSS, data: generateBoss(floor) }
   }
-  // 强制精英层：第5/12/18/24层，在BOSS层之间增加挑战节点
-  if (floor === 5 || floor === 12 || floor === 18 || floor === 24) {
+  if (TOWER_FORCED_ELITE_FLOORS.includes(floor)) {
     return { type: EVENT_TYPE.ELITE, data: generateElite(floor) }
   }
 
@@ -320,21 +324,20 @@ function generateFloorEvent(floor) {
     weights.shop = 0
     weights.rest = 0
   } else if (floor <= 4) {
-    // 2-4层：开放奇遇和休息
     weights.elite = 0
     weights.shop = 0
-    weights.adventure = 8
-    weights.rest = 3
+    weights.adventure = TOWER_EVENT_SCALING.earlyAdventure
+    weights.rest = TOWER_EVENT_SCALING.earlyRest
   } else {
-    // 5层起：全面开放
-    weights.elite += Math.floor(floor / 4) * 3
-    if (floor % 5 === 0) weights.elite += 18
-    weights.adventure += Math.floor(floor / 6) * 2
-    weights.shop += Math.floor(floor / 8) * 2
-    weights.rest += Math.floor(floor / 8) * 2
-    if (floor >= 15) weights.battle -= 15
-    if (floor >= 22) weights.battle -= 10
-    if (floor >= 15) weights.elite += 5
+    const es = TOWER_EVENT_SCALING
+    weights.elite += Math.floor(floor / es.eliteGrowth.divisor) * es.eliteGrowth.mult
+    if (floor % 5 === 0) weights.elite += es.eliteBossFloorBonus
+    weights.adventure += Math.floor(floor / es.adventureGrowth.divisor) * es.adventureGrowth.mult
+    weights.shop += Math.floor(floor / es.shopGrowth.divisor) * es.shopGrowth.mult
+    weights.rest += Math.floor(floor / es.restGrowth.divisor) * es.restGrowth.mult
+    if (floor >= 15) weights.battle -= es.battleReduceAt15
+    if (floor >= 22) weights.battle -= es.battleReduceAt22
+    if (floor >= 15) weights.elite += es.eliteBonusAt15
   }
 
   const total = Object.values(weights).reduce((a, b) => a + b, 0)
@@ -358,11 +361,11 @@ function generateFloorEvent(floor) {
       const items = []
       const pool = [...SHOP_ITEMS]
       for (let i = 0; i < SHOP_DISPLAY_COUNT && pool.length > 0; i++) {
-        const totalW = pool.reduce((s, it) => s + (it.weight || 10), 0)
+        const totalW = pool.reduce((s, it) => s + (it.weight || TOWER_SHOP_DEFAULT_WEIGHT), 0)
         let roll = Math.random() * totalW
         let picked = 0
         for (let j = 0; j < pool.length; j++) {
-          roll -= (pool[j].weight || 10)
+          roll -= (pool[j].weight || TOWER_SHOP_DEFAULT_WEIGHT)
           if (roll <= 0) { picked = j; break }
         }
         items.push(pool.splice(picked, 1)[0])
@@ -392,11 +395,11 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
   }
 
   if (eventType === 'boss') {
-    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MAJOR))
+    for (let i = 0; i < TOWER_REWARD_COUNT; i++) rewards.push(pickFrom(BUFF_POOL_MAJOR))
   } else if (eventType === 'elite') {
-    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MEDIUM))
+    for (let i = 0; i < TOWER_REWARD_COUNT; i++) rewards.push(pickFrom(BUFF_POOL_MEDIUM))
   } else {
-    for (let i = 0; i < 3; i++) rewards.push(pickFrom(BUFF_POOL_MINOR))
+    for (let i = 0; i < TOWER_REWARD_COUNT; i++) rewards.push(pickFrom(BUFF_POOL_MINOR))
   }
 
   if (speedKill) {
@@ -409,15 +412,13 @@ function generateRewards(floor, eventType, speedKill, ownedWeaponIds, sessionPet
 // ===== 灵珠权重（根据属性偏好生成） =====
 function getBeadWeights(floorAttr, weapon) {
   const weights = {
-    metal: 1, wood: 1, earth: 1, water: 1, fire: 1, heart: 0.8
+    metal: 1, wood: 1, earth: 1, water: 1, fire: 1, heart: _BEAD_WEIGHTS.heart
   }
-  // 如果本层有属性偏向，增加该属性珠出现率
   if (floorAttr && weights[floorAttr] !== undefined) {
-    weights[floorAttr] = 1.4
+    weights[floorAttr] = _BEAD_WEIGHTS.attrBias
   }
-  // 法宝beadRateUp效果
   if (weapon && weapon.type === 'beadRateUp' && weapon.attr) {
-    weights[weapon.attr] = (weights[weapon.attr] || 1) * 1.5
+    weights[weapon.attr] = (weights[weapon.attr] || 1) * _BEAD_WEIGHTS.weaponMul
   }
   return weights
 }

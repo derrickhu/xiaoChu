@@ -7,8 +7,11 @@
 
 const { PETS, PET_RARITY, MAX_STAR, getPetRarity } = require('./pets')
 const { DEX_ELEM_MILESTONE_BUFFS, DEX_RARITY_MILESTONE_BUFFS } = require('./balance/economy')
-
-const DEX_COLLECT_STAR = 3
+const {
+  DEX_COLLECT_STAR,
+  DEX_ELEM_MILESTONE_NEEDS,
+  DEX_TOTAL_MILESTONES: _DEX_TOTAL_MS,
+} = require('./balance/dex')
 const DEX_ATTRS = ['metal', 'wood', 'water', 'fire', 'earth']
 const DEX_ATTR_LABEL = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
 
@@ -21,25 +24,32 @@ function _buildElemMilestones() {
     const label = DEX_ATTR_LABEL[attr]
     const total = PETS[attr].length
     const b = DEX_ELEM_MILESTONE_BUFFS
+    const needs = DEX_ELEM_MILESTONE_NEEDS
     ms.push(
-      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: 5,           buff: { scope: attr, ...b.discovered5 },     desc: `${label}属性5只发现 → ${label}宠ATK+${b.discovered5.atkPct}%` },
-      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: 10,          buff: { scope: attr, ...b.discovered10 },    desc: `${label}属性10只发现 → ${label}宠HP+${b.discovered10.hpPct}%` },
-      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: 15,          buff: { scope: attr, ...b.collected15 },     desc: `${label}属性15只收录 → ${label}宠ATK+${b.collected15.atkPct}%` },
+      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: needs[0],    buff: { scope: attr, ...b.discovered5 },     desc: `${label}属性${needs[0]}只发现 → ${label}宠ATK+${b.discovered5.atkPct}%` },
+      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: needs[1],    buff: { scope: attr, ...b.discovered10 },    desc: `${label}属性${needs[1]}只发现 → ${label}宠HP+${b.discovered10.hpPct}%` },
+      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: needs[2],    buff: { scope: attr, ...b.collected15 },     desc: `${label}属性${needs[2]}只收录 → ${label}宠ATK+${b.collected15.atkPct}%` },
       { id: `elem_${attr}_20`, attr, tier: 'mastered',   need: total,       buff: { scope: attr, ...b.masteredAll },     desc: `${label}属性${total}只精通 → ${label}宠ATK+${b.masteredAll.atkPct}% HP+${b.masteredAll.hpPct}%` },
     )
   }
   return ms
 }
 
-// ===== 总量里程碑（6档）=====
-const TOTAL_MILESTONES = [
-  { id: 'total_10',  tier: 'discovered', need: 10,  reward: { soulStone: 300 },                               desc: '10只发现 → 300灵石' },
-  { id: 'total_25',  tier: 'discovered', need: 25,  reward: { soulStone: 500, awakenStone: 1 },               desc: '25只发现 → 500灵石+1觉醒石' },
-  { id: 'total_40',  tier: 'collected',  need: 40,  reward: { soulStone: 1000, awakenStone: 3 },              desc: '40只收录 → 1000灵石+3觉醒石' },
-  { id: 'total_60',  tier: 'collected',  need: 60,  reward: { soulStone: 2000, awakenStone: 5 },              desc: '60只收录 → 2000灵石+5觉醒石' },
-  { id: 'total_80',  tier: 'collected',  need: 80,  reward: { soulStone: 3000, awakenStone: 8 },              desc: '80只收录 → 3000灵石+8觉醒石' },
-  { id: 'total_100', tier: 'mastered',   need: 100, reward: { soulStone: 5000, awakenStone: 15 },             desc: '100只精通 → 5000灵石+15觉醒石' },
-]
+// ===== 总量里程碑（从 balance/dex.js 读取数值）=====
+const TOTAL_MILESTONES = _DEX_TOTAL_MS.map(m => {
+  const rDesc = Object.entries(m.reward).map(([k, v]) => {
+    const label = { soulStone: '灵石', awakenStone: '觉醒石' }[k] || k
+    return `${v}${label}`
+  }).join('+')
+  const tierLabel = { discovered: '发现', collected: '收录', mastered: '精通' }[m.tier] || m.tier
+  return {
+    id: `total_${m.need}`,
+    tier: m.tier,
+    need: m.need,
+    reward: { ...m.reward },
+    desc: `${m.need}只${tierLabel} → ${rDesc}`,
+  }
+})
 
 // ===== 稀有度里程碑（3档）=====
 const RARITY_MILESTONES = [

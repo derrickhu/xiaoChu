@@ -4,8 +4,11 @@
  * 主角仅装备1件，全程生效
  * 法宝 = 被动技能（类似队长技能）
  * 法宝本身无属性、无攻击值
- * 某些法宝的效果可针对特定属性（用效果内嵌的 attr 字段表示）
+ *
+ * 数值面板（type/pct/attr等参数）统一定义在 balance/weaponBase.js
  */
+
+const { WEAPON_BASE_STATS } = require('./balance/weaponBase')
 
 const WEAPONS = [
   // --- 攻击增伤类 ---
@@ -78,6 +81,15 @@ const WEAPONS = [
   { id:'w49', name:'九鼎神印',   desc:'每5层血量上限+5%',                  type:'perFloorBuff',  per:5, pct:5, field:'hpMax' },
   { id:'w50', name:'玄冰琉璃',   desc:'每回合概率挡一次伤害',              type:'blockChance',   chance:20 },
 ]
+
+// ===== 从 balance/weaponBase.js 同步数值面板 =====
+for (const w of WEAPONS) {
+  const bs = WEAPON_BASE_STATS[w.id]
+  if (!bs) continue
+  for (const k of Object.keys(bs)) {
+    w[k] = bs[k]
+  }
+}
 
 // ===== 法宝品质分级（用于固定关卡掉落） =====
 const WEAPON_RARITY = {
