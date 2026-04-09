@@ -457,7 +457,7 @@ function _handleBottomBar(g, x, y, L) {
     cv.resetScroll(); g.setScene('cultivation'); cv.checkRealmBreak(g); return
   }
   if (key === 'pets' && g.storage.petPoolCount > 0) {
-    g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+    g._petPoolFilter = 'all'; g._petPoolRarityFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
     g.setScene('petPool'); return
   }
   if (key === 'dex') { g.setScene('dex'); return }

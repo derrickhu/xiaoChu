@@ -101,9 +101,16 @@ function drawGoldBtn(c, R, S, x, y, w, h, text, disabled, fontSize) {
 // ===== 筛选后的宠物池 =====
 function getFilteredPool(g) {
   const pool = g.storage.petPool || []
-  const filter = g._petPoolFilter || 'all'
-  if (filter === 'all') return pool
-  return pool.filter(p => p.attr === filter)
+  const attrFilter = g._petPoolFilter || 'all'
+  const rarityFilter = g._petPoolRarityFilter || 'all'
+  return pool.filter(p => {
+    if (attrFilter !== 'all' && p.attr !== attrFilter) return false
+    if (rarityFilter !== 'all') {
+      const { getPetRarity } = require('../data/pets')
+      if (getPetRarity(p.id) !== rarityFilter) return false
+    }
+    return true
+  })
 }
 
 // ===== 矩形命中检测 =====

@@ -211,17 +211,49 @@ function _heroSpotlightLabelCx(tileCx, S, heroCount, heroIndex) {
   return tileCx
 }
 
+function _isDuplicatePetSpotlightReward(reward) {
+  return !!(reward && reward.type === 'fragment' && reward.petId && reward.wasPet)
+}
+
+function _isDuplicateWeaponSpotlightReward(reward) {
+  return !!(reward && reward.type === 'weapon' && reward.weaponId && !reward.isNew && reward.dupeSoulStone)
+}
+
+function _isPetSpotlightReward(reward) {
+  return !!(reward && ((reward.type === 'pet' && reward.petId) || _isDuplicatePetSpotlightReward(reward)))
+}
+
 /** 关卡通关后：恭喜获得区高度（多卡并排时略压缩单卡尺寸） */
 function _victoryHeroBlockHeight(S, result) {
   const items = _heroSpotlightItems(result)
   const n = items.length
   if (n === 0) return 0
   const avatarSz = n <= 1 ? 86 * S : n === 2 ? 74 * S : 64 * S
-  const hasPet = items.some(r => r.type === 'pet')
+  const hasPet = items.some(_isPetSpotlightReward)
+  const hasConversionReward = items.some(r => _isDuplicatePetSpotlightReward(r) || _isDuplicateWeaponSpotlightReward(r))
   // 星级叠在头像左下角内侧，不再占头像下方一整行
-  const below = hasPet ? (16 * S + 12 * S) : (24 * S + 12 * S)
+  const below = hasPet
+    ? (16 * S + 12 * S + (hasConversionReward ? 10 * S : 0))
+    : (24 * S + 12 * S + (hasConversionReward ? 10 * S : 0))
   const titleBelow = n >= 2 ? 40 * S : 34 * S
   return titleBelow + avatarSz + below
+}
+
+function _drawHeroSpotlightRibbon(c, R, S, tx, ty, text, fillStyle) {
+  c.save()
+  c.translate(tx, ty)
+  c.rotate(-0.22)
+  c.fillStyle = fillStyle || 'rgba(180,120,20,0.95)'
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
+  c.strokeStyle = 'rgba(255,240,200,0.7)'
+  c.lineWidth = 1 * S
+  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
+  c.fillStyle = '#FFF8E0'
+  c.font = `bold ${text.length > 2 ? 8 * S : 9 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText(text, 0, 0)
+  c.restore()
 }
 
 function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatarY, avatarSize, at, heroCount, heroIndex) {
@@ -237,18 +269,7 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
   _drawRarityDiamondBadge(c, S, badgeCx, badgeCy, rv, tag)
 
   const { tx: newTx, ty: newTy } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
-  c.save()
-  c.translate(newTx, newTy)
-  c.rotate(-0.22)
-  c.fillStyle = 'rgba(180,120,20,0.95)'
-  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
-  c.strokeStyle = 'rgba(255,240,200,0.7)'; c.lineWidth = 1 * S
-  R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
-  c.fillStyle = '#FFF8E0'
-  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('New', 0, 0)
-  c.restore()
+  _drawHeroSpotlightRibbon(c, R, S, newTx, newTy, 'New')
 
   const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
   const avatarPath = getPetAvatarPath({ ...pet, star: starLv })
@@ -291,6 +312,146 @@ function _drawVictoryHeroPetTile(g, c, R, S, result, reward, cx, avatarX, avatar
   }
 }
 
+function _drawVictoryHeroDuplicatePetTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, at, heroCount, heroIndex) {
+  const petId = reward.petId
+  const pet = getPetById(petId)
+  if (!pet) return
+
+  const rarityKey = getPetRarity(petId)
+  const { rv, tag } = _spotlightRarityTag(rarityKey, pet.attr)
+  const poolPet = g.storage.getPoolPet(petId)
+  const starLv = (poolPet && poolPet.star) ? poolPet.star : 1
+  const ac = ATTR_COLOR[pet.attr] || ATTR_COLOR.metal
+  const avatarPath = getPetAvatarPath({ ...pet, star: starLv })
+  const centerX = avatarX + avatarSize / 2
+  const centerY = avatarY + avatarSize / 2
+  const convert = Math.min(1, Math.max(0, (at - 34) / 20))
+  const petAlpha = 1 - convert
+  const shardAlpha = Math.min(1, Math.max(0, (convert - 0.2) / 0.8))
+  const nameCx = _heroSpotlightLabelCx(cx, S, heroCount, heroIndex)
+
+  const { cx: badgeCx, cy: badgeCy } = _heroSpotlightRarityBadgeCenter(avatarX, avatarY, S)
+  _drawRarityDiamondBadge(c, S, badgeCx, badgeCy, rv, tag)
+
+  const { tx: ribbonTx, ty: ribbonTy } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
+  _drawHeroSpotlightRibbon(c, R, S, ribbonTx, ribbonTy, '已有', 'rgba(150,105,40,0.96)')
+
+  if (petAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= petAlpha
+    c.translate(centerX, centerY)
+    const petScale = 1 - convert * 0.12
+    c.scale(petScale, petScale)
+    R.drawCoverImg(R.getImg(avatarPath), -avatarSize / 2, -avatarSize / 2, avatarSize, avatarSize, {
+      radius: 14 * S,
+      shadow: ac.main,
+      shadowBlur: 18,
+      strokeStyle: ac.main,
+      strokeWidth: 2.5,
+    })
+
+    const starN = Math.min(Math.max(starLv, 1), 5)
+    const starFontPx = Math.min(24 * S, avatarSize * 0.34)
+    const starStep = starFontPx * 0.78
+    const padL = 8 * S
+    const padB = 10 * S
+    const starY = avatarSize / 2 - padB
+    const starX0 = -avatarSize / 2 + padL
+    c.font = `bold ${starFontPx}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'
+    c.textBaseline = 'middle'
+    for (let si = 0; si < starN; si++) {
+      const sx = starX0 + si * starStep
+      c.strokeStyle = 'rgba(0,0,0,0.55)'
+      c.lineWidth = 2.2 * S
+      c.strokeText('★', sx, starY)
+      c.fillStyle = ac.main
+      c.shadowColor = rgbaFromHex(ac.main, 0.5)
+      c.shadowBlur = 5 * S
+      c.fillText('★', sx, starY)
+      c.shadowBlur = 0
+    }
+    c.restore()
+  }
+
+  if (convert > 0.02) {
+    for (let i = 0; i < 8; i++) {
+      const ang = i / 8 * Math.PI * 2 + at * 0.03
+      const radius = (12 + (i % 3) * 4) * S * convert
+      const px = centerX + Math.cos(ang) * radius
+      const py = centerY + Math.sin(ang) * radius
+      const pr = (2.8 + (i % 2) * 0.9) * S * (0.65 + 0.35 * convert)
+      c.save()
+      c.globalAlpha *= convert * 0.9
+      c.translate(px, py)
+      c.rotate(ang)
+      c.fillStyle = i % 2 === 0 ? '#FFE7A8' : ac.lt || '#FFD57A'
+      c.beginPath()
+      c.moveTo(0, -pr)
+      c.lineTo(pr * 0.85, 0)
+      c.lineTo(0, pr)
+      c.lineTo(-pr * 0.85, 0)
+      c.closePath()
+      c.fill()
+      c.restore()
+    }
+  }
+
+  if (shardAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= shardAlpha
+    c.translate(centerX, centerY)
+    const shardScale = 0.6 + 0.4 * shardAlpha + 0.05 * Math.sin(at * 0.09)
+    c.scale(shardScale, shardScale)
+    c.fillStyle = 'rgba(255,245,210,0.28)'
+    c.beginPath()
+    c.arc(0, 0, avatarSize * 0.24, 0, Math.PI * 2)
+    c.fill()
+    c.rotate(0.22)
+    c.fillStyle = '#F4C86B'
+    c.strokeStyle = 'rgba(255,248,225,0.85)'
+    c.lineWidth = 1.4 * S
+    c.beginPath()
+    c.moveTo(0, -11 * S)
+    c.lineTo(9 * S, -2 * S)
+    c.lineTo(4 * S, 10 * S)
+    c.lineTo(-5 * S, 8 * S)
+    c.lineTo(-10 * S, -1 * S)
+    c.closePath()
+    c.fill()
+    c.stroke()
+    c.restore()
+  }
+
+  const nameY = avatarY + avatarSize + 16 * S
+  const statusY = nameY + 12 * S
+  const shortName = pet.name.length > 6 ? pet.name.slice(0, 6) + '…' : pet.name
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#fff5e0'
+  c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
+  _strokeText(c, heroCount <= 1 ? `获得灵宠「${pet.name}」` : `灵宠「${shortName}」`, nameCx, nameY, 'rgba(0,0,0,0.45)', heroCount <= 1 ? 2.5 * S : 2 * S)
+
+  const preAlpha = 1 - Math.min(1, Math.max(0, (convert - 0.05) / 0.5))
+  const postAlpha = Math.min(1, Math.max(0, (convert - 0.15) / 0.85))
+  if (preAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= preAlpha
+    c.fillStyle = '#FFEAB8'
+    c.font = `${8.5 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, '重复灵宠转化中...', nameCx, statusY, 'rgba(0,0,0,0.35)', 1.6 * S)
+    c.restore()
+  }
+  if (postAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= postAlpha
+    c.fillStyle = '#FFEAB8'
+    c.font = `${8.5 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, `已拥有，转为碎片×${reward.count || 0}`, nameCx, statusY, 'rgba(0,0,0,0.35)', 1.6 * S)
+    c.restore()
+  }
+}
+
 function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, nameY, heroCount, heroIndex) {
   const wid = reward.weaponId
   const w = getWeaponById(wid)
@@ -303,18 +464,7 @@ function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, av
 
   if (reward.isNew) {
     const { tx: newTxW, ty: newTyW } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
-    c.save()
-    c.translate(newTxW, newTyW)
-    c.rotate(-0.22)
-    c.fillStyle = 'rgba(180,120,20,0.95)'
-    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.fill()
-    c.strokeStyle = 'rgba(255,240,200,0.7)'; c.lineWidth = 1 * S
-    R.rr(-18 * S, -7 * S, 36 * S, 14 * S, 3 * S); c.stroke()
-    c.fillStyle = '#FFF8E0'
-    c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('New', 0, 0)
-    c.restore()
+    _drawHeroSpotlightRibbon(c, R, S, newTxW, newTyW, 'New')
   }
 
   const wAc = w.attr ? (ATTR_COLOR[w.attr] || ATTR_COLOR.metal) : null
@@ -333,6 +483,111 @@ function _drawVictoryHeroWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, av
   } else {
     const shortName = w.name.length > 6 ? w.name.slice(0, 6) + '…' : w.name
     _strokeText(c, `法宝「${shortName}」`, nameCx, nameY, 'rgba(0,0,0,0.45)', 2 * S)
+  }
+}
+
+function _drawVictoryHeroDuplicateWeaponTile(g, c, R, S, reward, cx, avatarX, avatarY, avatarSize, at, heroCount, heroIndex) {
+  const wid = reward.weaponId
+  const w = getWeaponById(wid)
+  if (!w) return
+
+  const rarityKey = getWeaponRarity(wid) || 'R'
+  const { rv, tag } = _spotlightRarityTag(rarityKey, w.attr || 'metal')
+  const wAc = w.attr ? (ATTR_COLOR[w.attr] || ATTR_COLOR.metal) : ATTR_COLOR.metal
+  const centerX = avatarX + avatarSize / 2
+  const centerY = avatarY + avatarSize / 2
+  const convert = Math.min(1, Math.max(0, (at - 34) / 18))
+  const weaponAlpha = 1 - convert * 0.92
+  const soulAlpha = Math.min(1, Math.max(0, (convert - 0.12) / 0.88))
+  const nameCx = _heroSpotlightLabelCx(cx, S, heroCount, heroIndex)
+
+  const { cx: badgeCxW, cy: badgeCyW } = _heroSpotlightRarityBadgeCenter(avatarX, avatarY, S)
+  _drawRarityDiamondBadge(c, S, badgeCxW, badgeCyW, rv, tag)
+
+  const { tx: ribbonTx, ty: ribbonTy } = _heroSpotlightNewRibbonAnchor(avatarX, avatarY, avatarSize, S)
+  _drawHeroSpotlightRibbon(c, R, S, ribbonTx, ribbonTy, '已有', 'rgba(150,105,40,0.96)')
+
+  const iconPath = `assets/equipment/fabao_${wid}.png`
+  if (weaponAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= weaponAlpha
+    c.translate(centerX, centerY)
+    const weaponScale = 1 - convert * 0.1
+    c.scale(weaponScale, weaponScale)
+    R.drawCoverImg(R.getImg(iconPath), -avatarSize / 2, -avatarSize / 2, avatarSize, avatarSize, {
+      radius: 14 * S,
+      shadow: wAc.main,
+      shadowBlur: 16,
+      strokeStyle: wAc.main,
+      strokeWidth: 2.5,
+    })
+    c.restore()
+  }
+
+  if (convert > 0.03) {
+    for (let i = 0; i < 7; i++) {
+      const ang = i / 7 * Math.PI * 2 + at * 0.025
+      const radius = (10 + (i % 3) * 4) * S * convert
+      const px = centerX + Math.cos(ang) * radius
+      const py = centerY + Math.sin(ang) * radius
+      c.save()
+      c.globalAlpha *= convert * 0.8
+      c.fillStyle = i % 2 === 0 ? '#FFE8A8' : (wAc.lt || '#FFD36B')
+      c.beginPath()
+      c.arc(px, py, (2.4 + (i % 2) * 0.8) * S, 0, Math.PI * 2)
+      c.fill()
+      c.restore()
+    }
+  }
+
+  if (soulAlpha > 0.01) {
+    const soulIcon = R.getImg('assets/ui/icon_soul_stone.png')
+    c.save()
+    c.globalAlpha *= soulAlpha
+    c.translate(centerX, centerY)
+    const soulScale = 0.7 + 0.3 * soulAlpha + 0.04 * Math.sin(at * 0.09)
+    c.scale(soulScale, soulScale)
+    c.fillStyle = 'rgba(255,236,170,0.26)'
+    c.beginPath()
+    c.arc(0, 0, avatarSize * 0.22, 0, Math.PI * 2)
+    c.fill()
+    if (soulIcon && soulIcon.width > 0) {
+      c.drawImage(soulIcon, -16 * S, -16 * S, 32 * S, 32 * S)
+    } else {
+      c.fillStyle = '#69B9FF'
+      c.beginPath()
+      c.arc(0, 0, 10 * S, 0, Math.PI * 2)
+      c.fill()
+    }
+    c.restore()
+  }
+
+  const nameY = avatarY + avatarSize + 20 * S
+  const statusY = nameY + 12 * S
+  const shortName = w.name.length > 6 ? w.name.slice(0, 6) + '…' : w.name
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#fff5e0'
+  c.font = `bold ${(heroCount <= 1 ? 11 : 10) * S}px "PingFang SC",sans-serif`
+  _strokeText(c, heroCount <= 1 ? `获得法宝「${w.name}」` : `法宝「${shortName}」`, nameCx, nameY, 'rgba(0,0,0,0.45)', heroCount <= 1 ? 2.5 * S : 2 * S)
+
+  const preAlpha = 1 - Math.min(1, Math.max(0, (convert - 0.03) / 0.45))
+  const postAlpha = Math.min(1, Math.max(0, (convert - 0.1) / 0.9))
+  if (preAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= preAlpha
+    c.fillStyle = '#FFEAB8'
+    c.font = `${8.5 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, '已有法宝熔炼中...', nameCx, statusY, 'rgba(0,0,0,0.35)', 1.6 * S)
+    c.restore()
+  }
+  if (postAlpha > 0.01) {
+    c.save()
+    c.globalAlpha *= postAlpha
+    c.fillStyle = '#FFEAB8'
+    c.font = `${8.5 * S}px "PingFang SC",sans-serif`
+    _strokeText(c, `已拥有，熔炼为灵石+${reward.dupeSoulStone || 0}`, nameCx, statusY, 'rgba(0,0,0,0.35)', 1.6 * S)
+    c.restore()
   }
 }
 
@@ -360,7 +615,7 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
   y += (n >= 2 ? 40 : 34) * S
 
   const avatarY = y
-  const hasPet = items.some(r => r.type === 'pet')
+  const hasPet = items.some(_isPetSpotlightReward)
   const nameY = hasPet ? avatarY + avatarSize + 16 * S : avatarY + avatarSize + 20 * S
 
   _drawPedestalCloud(c, R, S, W / 2, avatarY + avatarSize, Math.max(rowW * 0.5, avatarSize * 1.15))
@@ -377,6 +632,10 @@ function _drawVictoryHeroSpotlight(g, c, R, W, S, result, blockTop, at, fadeIn) 
     c.translate(rowSlide, 0)
     if (reward.type === 'pet' && reward.petId) {
       _drawVictoryHeroPetTile(g, c, R, S, result, reward, tileCx, avatarX, avatarY, avatarSize, at, n, i)
+    } else if (_isDuplicatePetSpotlightReward(reward)) {
+      _drawVictoryHeroDuplicatePetTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, at, n, i)
+    } else if (_isDuplicateWeaponSpotlightReward(reward)) {
+      _drawVictoryHeroDuplicateWeaponTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, at, n, i)
     } else if (reward.type === 'weapon' && reward.weaponId) {
       _drawVictoryHeroWeaponTile(g, c, R, S, reward, tileCx, avatarX, avatarY, avatarSize, nameY, n, i)
     }
@@ -864,6 +1123,8 @@ function _generateDefeatTips(g, result) {
 function _isFeaturedNewDrop(r) {
   if (!r) return false
   if (r.type === 'pet' && r.petId) return true
+  if (_isDuplicatePetSpotlightReward(r)) return true
+  if (_isDuplicateWeaponSpotlightReward(r)) return true
   if (r.type === 'weapon' && r.weaponId && r.isNew) return true
   return false
 }
@@ -888,9 +1149,12 @@ function _partitionDropRewards(rewards) {
   const out = []
   let i = 0
   while (i < rewards.length) {
-    if (_isFeaturedNewDrop(rewards[i])) {
+    const isInlineNewGroupReward = rewards[i]
+      && (((rewards[i].type === 'pet' && rewards[i].petId) || (rewards[i].type === 'weapon' && rewards[i].weaponId && rewards[i].isNew)))
+    if (isInlineNewGroupReward) {
       const items = []
-      while (i < rewards.length && _isFeaturedNewDrop(rewards[i])) {
+      while (i < rewards.length && rewards[i]
+        && (((rewards[i].type === 'pet' && rewards[i].petId) || (rewards[i].type === 'weapon' && rewards[i].weaponId && rewards[i].isNew)))) {
         items.push(rewards[i])
         i++
       }
@@ -1163,7 +1427,9 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     const ssDelay = 15 + rowIdx * 6
     const ssAlpha = Math.min(1, Math.max(0, (at - ssDelay) / 12))
     c.save(); c.globalAlpha *= ssAlpha
-    const ssLabel = hasChapterClear ? '本关灵石' : '灵石'
+    const ssLabel = result.duplicateWeaponSoulStone > 0
+      ? (hasChapterClear ? '本关灵石（含法宝熔炼）' : '灵石（含法宝熔炼）')
+      : (hasChapterClear ? '本关灵石' : '灵石')
     _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, '#5577AA', '#3366AA')
     c.restore()
     cy += 32 * S

@@ -651,11 +651,11 @@ class Storage {
    * 升星（消耗碎片，需满足等级门槛）
    */
   upgradePoolPetStar(petId) {
-    const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST } = require('./petPoolConfig')
+    const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST, getPoolPetMaxStar } = require('./petPoolConfig')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry) return { ok: false, reason: 'not_found' }
     const nextStar = entry.star + 1
-    const maxStar = entry.source === 'stage' ? 4 : 3
+    const maxStar = getPoolPetMaxStar(entry)
     if (nextStar > maxStar) return { ok: false, reason: 'max_star' }
     const lvReq = POOL_STAR_LV_REQ[nextStar]
     if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }

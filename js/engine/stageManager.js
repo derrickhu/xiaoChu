@@ -13,13 +13,14 @@ const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { effectValue } = require('../data/cultivationConfig')
 const { STAR_REWARDS, CHAPTER_CLEAR_REWARDS, STAGE_SETTLE, STAGES_PER_CHAPTER } = require('../data/economyConfig')
-const { getWeaponById } = require('../data/weapons')
+const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 const { NEWBIE_PET_IDS } = require('../data/constants')
 const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
+const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
 const { NEWBIE_ENEMY_OVERRIDE } = require('../data/balance/enemy')
 const { HERO_BASE_HP, DRAG_BASE_SEC, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET } = require('../data/balance/combat')
 
@@ -349,6 +350,10 @@ function settleStage(g) {
     const fcSS = stage.rewards.firstClear.find(r => r.type === 'soulStone')
     if (fcSS) soulStone += fcSS.amount
   }
+  const duplicateWeaponSoulStone = rewards
+    .filter(r => r.type === 'weapon' && r.weaponId && r.dupeSoulStone)
+    .reduce((sum, r) => sum + (r.dupeSoulStone || 0), 0)
+  soulStone += duplicateWeaponSoulStone
 
   // ---- 星级首次达成奖励 ----
   const prevClaimed = g.storage.getStageStarsClaimed(g._stageId)
@@ -452,6 +457,7 @@ function settleStage(g) {
     chapterClearReward,
     isBossStage: stage.order === 8,
     totalFragCount,
+    duplicateWeaponSoulStone,
   }
 
   if (g.storage.userAuthorized) {
@@ -575,12 +581,22 @@ function resolveReward(g, reward) {
   if (reward.type === 'weapon') {
     const weaponId = reward.weaponId
     const isNew = g.storage.addWeapon(weaponId)
+    if (!isNew) {
+      const rarity = getWeaponRarity(weaponId) || 'R'
+      const dupeSoulStone = DUPLICATE_WEAPON_SOULSTONE[rarity] || DUPLICATE_WEAPON_SOULSTONE.R || 0
+      return { type: 'weapon', weaponId, isNew, wasDuplicate: dupeSoulStone > 0, dupeSoulStone }
+    }
     return { type: 'weapon', weaponId, isNew }
   }
   if (reward.type === 'randomWeapon') {
     const { rollRandomWeapon } = require('../data/dropRoller')
     const { weaponId } = rollRandomWeapon(reward.chapter, reward.order, reward.difficulty)
     const isNew = g.storage.addWeapon(weaponId)
+    if (!isNew) {
+      const rarity = getWeaponRarity(weaponId) || 'R'
+      const dupeSoulStone = DUPLICATE_WEAPON_SOULSTONE[rarity] || DUPLICATE_WEAPON_SOULSTONE.R || 0
+      return { type: 'weapon', weaponId, isNew, wasDuplicate: dupeSoulStone > 0, dupeSoulStone }
+    }
     return { type: 'weapon', weaponId, isNew }
   }
   if (reward.type === 'fragment') {

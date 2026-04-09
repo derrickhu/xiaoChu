@@ -1727,7 +1727,8 @@ function drawNewRunConfirm(g) {
 
 // ===== Dex（灵兽图鉴 — 三层收集 + 里程碑 / 法宝图鉴） =====
 
-const { WEAPONS, getWeaponById } = require('../data/weapons')
+const { WEAPONS, getWeaponById, getWeaponRarity } = require('../data/weapons')
+const { drawCornerRarityBadge, drawInlineRarityBadge } = require('./rarityBadge')
 
 const _DEX_TAB_KEYS = ['all', ...DEX_ATTRS, 'milestone']
 const _DEX_TAB_LABELS = { all:'全部', metal:'金', wood:'木', water:'水', fire:'火', earth:'土', milestone:'里程碑' }
@@ -1928,16 +1929,22 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
     }
 
     const owned = collSet.has(wpn.id)
+    const rarityKey = getWeaponRarity(wpn.id) || 'R'
 
     ctx.fillStyle = owned ? 'rgba(255,252,248,0.9)' : 'rgba(32,28,22,0.42)'
     R.rr(cx, cy, cellW, cellH, 4 * S); ctx.fill()
     ctx.strokeStyle = owned ? 'rgba(212,175,55,0.55)' : 'rgba(90,75,55,0.45)'
     ctx.lineWidth = owned ? 1.5 * S : 0.5 * S
     R.rr(cx, cy, cellW, cellH, 4 * S); ctx.stroke()
-
     const iconH = cellW
     if (owned) {
       R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), cx + 2, cy + 2, cellW - 4, iconH - 4, { radius: 4 * S })
+      drawCornerRarityBadge(ctx, R, S, cx + 3 * S, cy + 3 * S, rarityKey, wpn.attr, {
+        minWidth: 18 * S,
+        height: 10 * S,
+        fontSize: 6.4 * S,
+        radius: 2.6 * S,
+      })
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.15)'
       ctx.font = `${cellW * 0.4}px "PingFang SC",sans-serif`
@@ -1966,6 +1973,7 @@ function _drawDexWeaponDetail(g) {
   const wpn = getWeaponById(wpnId)
   if (!wpn) return
   const owned = (g.storage.weaponCollection || []).includes(wpnId)
+  const rarityKey = getWeaponRarity(wpnId) || 'R'
 
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
@@ -1986,7 +1994,7 @@ function _drawDexWeaponDetail(g) {
       line += descText[ci]
     }
   }
-  const ph = innerPad * 2 + 52 * S + iconSz + 14 * S + descLines * 15 * S + 24 * S
+  const ph = innerPad * 2 + 70 * S + iconSz + 14 * S + descLines * 15 * S + 24 * S
   const px = (W - pw) / 2
   const py = (H - ph) / 2
 
@@ -2002,9 +2010,16 @@ function _drawDexWeaponDetail(g) {
   ctx.fillStyle = '#3a1a00'
   ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
   ctx.fillText(owned ? wpn.name : '???', px + pw / 2, py + innerPad + 22 * S)
+  if (owned) {
+    drawInlineRarityBadge(ctx, R, S, px + pw / 2, py + innerPad + 28 * S, rarityKey, wpn.attr, {
+      minWidth: 30 * S,
+      height: 14 * S,
+      fontSize: 8 * S,
+    })
+  }
 
   const iconX = px + (pw - iconSz) / 2
-  const iconY = py + innerPad + 32 * S
+  const iconY = py + innerPad + 48 * S
 
   if (owned) {
     R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), iconX, iconY, iconSz, iconSz, { radius: 8 * S })

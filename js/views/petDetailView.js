@@ -8,8 +8,9 @@ const V = require('./env')
 const uiUtils = require('./uiUtils')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill, getPetLore, getStar3Override, getStar4Passive, getStar5Override } = require('../data/pets')
-const { getPoolPetAtk, getPoolPetMaxLv, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { getPoolPetAtk, getPoolPetMaxLv, getPoolPetMaxStar, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
+const P = require('../platform')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 
 /** 已拥有详情页头像占屏宽比例（rPetDetail 翻页箭头垂直位置须与此一致；无头像框时可略大） */
@@ -489,7 +490,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
   const isMaxLv = poolPet.level >= maxLv
   const ac = attrColor ? attrColor.main : '#666'
-  const maxStar = 5
+  const maxStar = getPoolPetMaxStar(poolPet)
   const STAR_GOLD_ON = '#E8B820'
   const STAR_GOLD_OFF = 'rgba(232,184,32,0.4)'
 
@@ -750,7 +751,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const btnXLv = rightEdge - btnWLv
     const btnYLv = cy - 1 * S
     const canLvUp = expPool >= nextLvExp
-    _drawBtn(c, R, S, btnXLv, btnYLv, btnWLv, btnHLv, '升级', canLvUp, '#5CB8FF', fBtnPanel)
+    _drawBtn(c, R, S, btnXLv, btnYLv, btnWLv, btnHLv, '升级', canLvUp, '#5CB8FF', fBtnPanel, canLvUp)
     if (isCurrentPet) _rects.levelUpBtnRect = [btnXLv, btnYLv, btnWLv, btnHLv]
   }
   cy += 19 * S
@@ -906,7 +907,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const canStarUp = lvOk && fragOk && awakenOk
     const sBtnW = Math.min(contentW, rightEdge - indent)
     const sBtnX = indent
-    _drawBtn(c, R, S, sBtnX, cy, sBtnW, starBtnH, '升星', canStarUp, '#FFD700', fBtnPanel)
+    _drawBtn(c, R, S, sBtnX, cy, sBtnW, starBtnH, '升星', canStarUp, '#FFD700', fBtnPanel, canStarUp)
     if (isCurrentPet) _rects.starUpBtnRect = [sBtnX, cy, sBtnW, starBtnH]
     cy += starBtnH + 6 * S
 
@@ -958,10 +959,22 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 }
 
 // ===== 按钮 =====
-function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize) {
+function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize, glow) {
   const fs = fontSize || (10 * S)
   const r = 6 * S
   if (enabled) {
+    // 呼吸发光（glow=true 时）
+    if (glow) {
+      const pulse = 0.25 + 0.25 * Math.sin(Date.now() * 0.004)
+      c.save()
+      c.shadowColor = color
+      c.shadowBlur = 10 * S * pulse
+      c.strokeStyle = color
+      c.lineWidth = 2.5 * S
+      c.globalAlpha = 0.5 + pulse
+      R.rr(x - 1 * S, y - 1 * S, w + 2 * S, h + 2 * S, r + 1 * S); c.stroke()
+      c.restore()
+    }
     const grad = c.createLinearGradient(x, y, x, y + h)
     grad.addColorStop(0, color + '30')
     grad.addColorStop(1, color + '18')
@@ -1139,6 +1152,16 @@ function _doStarUp(g) {
   if (result.ok) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
     g._pendingShareScene = { scene: 'petStarUp', data: { petName: (require('../data/pets').getPetById(petId) || {}).name || petId, star: result.newStar } }
+  } else {
+    const msgMap = {
+      max_star: '已达当前灵宠最高星级',
+      level_low: `等级需达到 ${result.required} 级`,
+      fragments_low: `碎片不足，需要 ${result.required}`,
+      awaken_stone_low: `觉醒石不足，需要 ${result.required}`,
+      not_found: '灵宠数据异常',
+    }
+    const msg = msgMap[result.reason] || '升星失败'
+    if (P.showGameToast) P.showGameToast(msg)
   }
 }
 

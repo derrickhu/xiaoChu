@@ -5,7 +5,7 @@
 const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetRarity, getPetAvatarPath } = require('../data/pets')
-const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { getPoolPetAtk, canLevelUp, canStarUp } = require('../data/petPoolConfig')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
@@ -13,7 +13,7 @@ const P = require('../platform')
 const { getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
 
 // 属性筛选标签
-const FILTERS = [
+const ATTR_FILTERS = [
   { key: 'all', label: '全部' },
   { key: 'metal', label: '金' },
   { key: 'wood', label: '木' },
@@ -22,9 +22,17 @@ const FILTERS = [
   { key: 'earth', label: '土' },
 ]
 
+const RARITY_FILTERS = [
+  { key: 'all', label: '全部品质' },
+  { key: 'R', label: 'R' },
+  { key: 'SR', label: 'SR' },
+  { key: 'SSR', label: 'SSR' },
+]
+
 // 模块内触摸区域（不污染 g）
 const _rects = {
-  filterRects: [],        // [{ key, rect: [x,y,w,h] }]
+  filterRects: [],        // 属性筛选 [{ key, rect: [x,y,w,h] }]
+  rarityFilterRects: [],  // 品质筛选 [{ key, rect: [x,y,w,h] }]
   cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
   backBtnRect: null,      // [x,y,w,h]
   idleBtnRect: null,      // [x,y,w,h]
@@ -106,11 +114,12 @@ function rPetPool(g) {
   // === 属性筛选 ===
   const filterY = contentTop + 10 * S
   const filterH = 26 * S
-  const filterW = (W - 24 * S) / FILTERS.length
+  const filterW = (W - 24 * S) / ATTR_FILTERS.length
   _rects.filterRects = []
+  _rects.rarityFilterRects = []
   c.save()
-  for (let i = 0; i < FILTERS.length; i++) {
-    const f = FILTERS[i]
+  for (let i = 0; i < ATTR_FILTERS.length; i++) {
+    const f = ATTR_FILTERS[i]
     const fx = 12 * S + i * filterW
     const isActive = (g._petPoolFilter || 'all') === f.key
     // 标签背景色改为与背景色一致的碧翠色系
@@ -131,13 +140,36 @@ function rPetPool(g) {
     c.fillText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW - 4 * S, filterH] })
   }
+
+  const rarityY = filterY + filterH + 6 * S
+  const rarityGap = 6 * S
+  const rarityW = (W - 24 * S - rarityGap * (RARITY_FILTERS.length - 1)) / RARITY_FILTERS.length
+  for (let i = 0; i < RARITY_FILTERS.length; i++) {
+    const f = RARITY_FILTERS[i]
+    const fx = 12 * S + i * (rarityW + rarityGap)
+    const isActive = (g._petPoolRarityFilter || 'all') === f.key
+    c.fillStyle = isActive ? 'rgba(235,190,90,0.45)' : 'rgba(235,190,90,0.15)'
+    R.rr(fx, rarityY, rarityW, filterH, 6 * S); c.fill()
+    if (isActive) {
+      c.strokeStyle = 'rgba(255,215,120,0.85)'; c.lineWidth = 2 * S
+      R.rr(fx, rarityY, rarityW, filterH, 6 * S); c.stroke()
+    }
+    c.fillStyle = isActive ? '#fff8e0' : 'rgba(255,245,220,0.82)'
+    c.font = `bold ${(f.key === 'all' ? 9.5 : 11) * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.strokeStyle = 'rgba(0,0,0,0.35)'
+    c.lineWidth = 2.2 * S
+    c.strokeText(f.label, fx + rarityW / 2, rarityY + filterH / 2)
+    c.fillText(f.label, fx + rarityW / 2, rarityY + filterH / 2)
+    _rects.rarityFilterRects.push({ key: f.key, rect: [fx, rarityY, rarityW, filterH] })
+  }
   c.restore()
 
   // 派遣按钮 rect 占位（实际绘制在卡片网格下方）
   _rects.idleBtnRect = null
 
   // === 卡片网格 ===
-  const gridTop = filterY + filterH + 8 * S
+  const gridTop = filterY + filterH + 6 * S + filterH + 8 * S
   const gridBottom = contentBottom - 78 * S
   const pool = _getFilteredPool(g)
   const cols = 3
@@ -172,7 +204,7 @@ function rPetPool(g) {
 
     if (cy + cardH < gridTop || cy > gridBottom) continue
 
-    _drawPetCard(c, R, S, W, cx, cy, cardW, cardH, pet)
+    _drawPetCard(c, R, S, W, cx, cy, cardW, cardH, pet, g)
     const clippedH = Math.min(cardH, gridBottom - cy)
     _rects.cardRects.push({ petId: pet.id, rect: [cx, cy, cardW, clippedH] })
   }
@@ -181,12 +213,15 @@ function rPetPool(g) {
   const bank = g.storage.fragmentBank || {}
   const ownedIds = new Set(pool.map(p => p.id))
   const filter = g._petPoolFilter || 'all'
+  const rarityFilter = g._petPoolRarityFilter || 'all'
   const ghostPets = Object.keys(bank)
     .filter(id => !ownedIds.has(id) && bank[id] > 0)
     .filter(id => {
-      if (filter === 'all') return true
       const bp = getPetById(id)
-      return bp && bp.attr === filter
+      if (!bp) return false
+      if (filter !== 'all' && bp.attr !== filter) return false
+      if (rarityFilter !== 'all' && getPetRarity(id) !== rarityFilter) return false
+      return true
     })
   const ghostStart = pool.length
   for (let gi = 0; gi < ghostPets.length; gi++) {
@@ -266,7 +301,7 @@ function rPetPool(g) {
 }
 
 // ===== 宠物卡片 =====
-function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
+function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   const basePet = getPetById(poolPet.id)
   if (!basePet) return
   const rarity = getPetRarity(poolPet.id)
@@ -403,6 +438,23 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet) {
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(badgeText, x + 5 * S, y + 4 * S)
   c.restore()
+
+  // 可升级/可升星红点（右上角）
+  if (g) {
+    const ss = g.storage.soulStone || 0
+    const aw = g.storage.awakenStone || 0
+    if (canLevelUp(poolPet, ss) || canStarUp(poolPet, aw)) {
+      const dotR = 5 * S
+      const dotX = x + w - 6 * S
+      const dotY = y + 6 * S
+      c.save()
+      c.beginPath()
+      c.arc(dotX, dotY, dotR, 0, Math.PI * 2)
+      c.fillStyle = '#ff4444'; c.fill()
+      c.strokeStyle = '#fff'; c.lineWidth = 1.5 * S; c.stroke()
+      c.restore()
+    }
+  }
 
   c.restore()
 }
@@ -575,6 +627,14 @@ function tPetPool(g, x, y, type) {
     for (const f of _rects.filterRects) {
       if (g._hitRect(x, y, ...f.rect)) {
         g._petPoolFilter = f.key
+        g._petPoolScroll = 0
+        return
+      }
+    }
+
+    for (const f of _rects.rarityFilterRects) {
+      if (g._hitRect(x, y, ...f.rect)) {
+        g._petPoolRarityFilter = f.key
         g._petPoolScroll = 0
         return
       }

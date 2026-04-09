@@ -43,7 +43,10 @@ const STAGE_TEAM_SIZE = {
 }
 
 // ===== 首通碎片数（按品质区分，高品质多给碎片帮助玩家攒星） =====
-const FIRST_CLEAR_FRAG_COUNT = { R: 3, SR: 5, SSR: 10 }
+const FIRST_CLEAR_FRAG_COUNT = { R: 5, SR: 8, SSR: 12 }
+
+// ===== 重复法宝熔炼灵石（按品质区分，保证重复奖励不至于白掉） =====
+const DUPLICATE_WEAPON_SOULSTONE = { R: 20, SR: 35, SSR: 60 }
 
 // ===== 精英小怪相对倍率（精英关 boss 前小怪的 HP 缩放） =====
 const ELITE_MINION_HP_SCALE = 0.6
@@ -115,6 +118,7 @@ module.exports = {
   STAGE_ELITE_SKILL_COUNT,
   STAGE_TEAM_SIZE,
   FIRST_CLEAR_FRAG_COUNT,
+  DUPLICATE_WEAPON_SOULSTONE,
   ELITE_MINION_HP_SCALE,
   CHAPTER_RECOMMENDED,
   PET_DROP_WEIGHTS,

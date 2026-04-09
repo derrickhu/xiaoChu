@@ -277,6 +277,7 @@ function tTitle(g, type, x, y) {
       case 1: {
         if (g.storage.petPoolCount >= 1) {
           g._petPoolFilter = 'all'
+          g._petPoolRarityFilter = 'all'
           g._petPoolScroll = 0
           g._petPoolDetail = null
           g.setScene('petPool')

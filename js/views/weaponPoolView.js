@@ -4,10 +4,17 @@
  */
 const V = require('./env')
 const { WEAPON_ACQUIRE_HINT_UNOWNED } = require('../data/constants')
-const { WEAPONS, getWeaponById } = require('../data/weapons')
+const { WEAPONS, getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
+const { drawCornerRarityBadge, drawInlineRarityBadge } = require('./rarityBadge')
 
 const OWNED_CARD_BORDER = 'rgba(212,175,55,0.65)'
+const FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'R', label: 'R' },
+  { key: 'SR', label: 'SR' },
+  { key: 'SSR', label: 'SSR' },
+]
 
 const _rects = {
   filterRects: [],
@@ -52,10 +59,39 @@ function rWeaponPool(g) {
 
   _rects.filterRects = []
 
+  const filterY = contentTop + 8 * S
+  const filterH = 26 * S
+  const filterGap = 6 * S
+  const filterW = (W - 24 * S - filterGap * (FILTERS.length - 1)) / FILTERS.length
+  c.save()
+  for (let i = 0; i < FILTERS.length; i++) {
+    const f = FILTERS[i]
+    const fx = 12 * S + i * (filterW + filterGap)
+    const isActive = (g._weaponPoolFilter || 'all') === f.key
+    c.fillStyle = isActive ? 'rgba(235,190,90,0.45)' : 'rgba(235,190,90,0.15)'
+    R.rr(fx, filterY, filterW, filterH, 6 * S); c.fill()
+    if (isActive) {
+      c.strokeStyle = 'rgba(255,215,120,0.85)'; c.lineWidth = 2 * S
+      R.rr(fx, filterY, filterW, filterH, 6 * S); c.stroke()
+    }
+    c.fillStyle = isActive ? '#fff8e0' : 'rgba(255,245,220,0.82)'
+    c.font = `bold ${(f.key === 'all' ? 10 : 11) * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.strokeStyle = 'rgba(0,0,0,0.35)'
+    c.lineWidth = 2.2 * S
+    c.strokeText(f.label, fx + filterW / 2, filterY + filterH / 2)
+    c.fillText(f.label, fx + filterW / 2, filterY + filterH / 2)
+    _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW, filterH] })
+  }
+  c.restore()
+
   // 卡片网格
-  const gridTop = contentTop + 8 * S
+  const gridTop = filterY + filterH + 8 * S
   const gridBottom = contentBottom
-  const weapons = WEAPONS.slice()
+  const rarityFilter = g._weaponPoolFilter || 'all'
+  const weapons = rarityFilter === 'all'
+    ? WEAPONS.slice()
+    : WEAPONS.filter(w => getWeaponRarity(w.id) === rarityFilter)
   const cols = 4
   const cardGap = 6 * S
   const padX = 12 * S
@@ -102,6 +138,7 @@ function rWeaponPool(g) {
 function _drawWeaponCard(c, R, S, x, y, w, h, wpn, owned, equipped) {
   const iconH = w
   const textH = h - iconH
+  const rarityKey = getWeaponRarity(wpn.id) || 'R'
 
   c.save()
   if (owned) {
@@ -136,6 +173,11 @@ function _drawWeaponCard(c, R, S, x, y, w, h, wpn, owned, equipped) {
       c.textAlign = 'center'; c.textBaseline = 'middle'
       c.fillText('装备中', x + w / 2, y + badgeH / 2)
     }
+    drawCornerRarityBadge(c, R, S, x + 4 * S, y + (equipped ? 14 * S : 4 * S), rarityKey, wpn.attr, {
+      minWidth: 20 * S,
+      height: 11 * S,
+      fontSize: 6.8 * S,
+    })
   } else {
     c.globalAlpha = 0.3
     c.fillStyle = '#666'
@@ -200,7 +242,7 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   const descBlockH = descLinesArr.length * lineHDesc + 10 * S
   const btnH2 = owned ? 36 * S : 0
   const btnGap = owned ? 12 * S : 0
-  const topToIcon = 32 * S + 18 * S + (equipped ? 22 * S : 0) + 20 * S
+  const topToIcon = 32 * S + 18 * S + (equipped ? 22 * S : 0) + 30 * S
   const contentStack = innerPad + topToIcon + iconSz + gapAfterIcon + gapAfterSep + descBlockH + btnGap + btnH2 + innerPad
   const ph = insetT + insetB + contentStack
   const px = (W - pw) / 2
@@ -249,6 +291,7 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   c.fillStyle = '#5A4530'
   c.font = `bold ${16*S}px "PingFang SC",sans-serif`
   c.fillText(owned ? wpn.name : '???', px + pw / 2, curY)
+  const rarityKey = getWeaponRarity(wpnId) || 'R'
 
   if (equipped) {
     curY += 22 * S
@@ -257,7 +300,17 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
     c.fillText('✦ 装备中', px + pw / 2, curY)
   }
 
-  curY += 20 * S
+  if (owned) {
+    curY += equipped ? 8 * S : 6 * S
+    drawInlineRarityBadge(c, R, S, px + pw / 2, curY, rarityKey, wpn.attr, {
+      minWidth: 30 * S,
+      height: 14 * S,
+      fontSize: 8 * S,
+    })
+    curY += 22 * S
+  } else {
+    curY += 10 * S
+  }
   const iconX = px + (pw - iconSz) / 2
   const iconY = curY
 
@@ -374,6 +427,14 @@ function tWeaponPool(g, x, y, type) {
   if (type === 'end') {
     if (_scrolling) { _scrolling = false; return }
 
+    for (const f of _rects.filterRects) {
+      if (g._hitRect(x, y, ...f.rect)) {
+        g._weaponPoolFilter = f.key
+        g._weaponPoolScroll = 0
+        return
+      }
+    }
+
     const { BAR_ITEMS, getLayout: getBarLayout } = require('./bottomBar')
     const Lbar = getBarLayout()
     // 底栏必须优先于网格：最后一行卡片命中框可能纵向延伸到导航条区域，否则易误点法宝详情
@@ -389,7 +450,7 @@ function tWeaponPool(g, x, y, type) {
         }
         if (item.key === 'pets') {
           if (g.storage.petPoolCount >= 1) {
-            g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+            g._petPoolFilter = 'all'; g._petPoolRarityFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
             g.setScene('petPool')
           }
           return

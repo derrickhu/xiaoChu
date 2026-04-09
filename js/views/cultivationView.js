@@ -516,7 +516,7 @@ function tCultivation(g, x, y, type) {
           if (item.key === 'battle' || item.key === 'stage') { g.setScene('title'); return }
           if (item.key === 'pets') {
             if (g.storage.petPoolCount > 0) {
-              g._petPoolFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
+              g._petPoolFilter = 'all'; g._petPoolRarityFilter = 'all'; g._petPoolScroll = 0; g._petPoolDetail = null
               g.setScene('petPool')
             }
             return

@@ -8,7 +8,6 @@ module.exports = {
     'assets/backgrounds',
     'assets/equipment',
     'assets/intro',
-    'assets/share',
     'audio_bgm',
   ],
   bundledDirs: [
@@ -16,6 +15,7 @@ module.exports = {
     'assets/orbs',
     'assets/battle',
     'assets/hero',
+    'assets/share',
     'audio',
   ],
   ignoreFiles: ['game.js', '.DS_Store', 'Thumbs.db'],

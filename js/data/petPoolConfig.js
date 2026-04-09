@@ -8,7 +8,7 @@
  * - 独立于肉鸽内★1→★3的简化升星，这里是长期局外养成
  */
 
-const { getPetRarity, getPetById } = require('./pets')
+const { getPetRarity, getPetById, MAX_STAR } = require('./pets')
 const {
   POOL_MAX_LV,
   POOL_ADV_MAX_LV,
@@ -80,6 +80,15 @@ function getPoolPetMaxLv(poolPet) {
   return Math.max(starCap, sourceCap)
 }
 
+/**
+ * 灵宠池可升最高星级（须与 storage.upgradePoolPetStar 一致）
+ * 仅标记为 roguelike 入池的维持 ★3；秘境/召唤/活动/教学等可走满 ★5
+ */
+function getPoolPetMaxStar(poolPet) {
+  if (!poolPet) return MAX_STAR
+  return poolPet.source === 'roguelike' ? 3 : MAX_STAR
+}
+
 // ===== 入池默认值 =====
 
 const ENTRY_LEVEL = POOL_ENTRY_LEVEL
@@ -114,6 +123,33 @@ function calcIdleReward(elapsedMs, petLevel) {
   return { fragments, soulStone }
 }
 
+/**
+ * 判断灵宠是否可升级（灵石足够升至少 1 级）
+ */
+function canLevelUp(poolPet, soulStone) {
+  if (!poolPet) return false
+  const maxLv = getPoolPetMaxLv(poolPet)
+  if (poolPet.level >= maxLv) return false
+  const rarity = getPetRarity(poolPet.id)
+  return soulStone >= petExpToNextLevel(poolPet.level, rarity)
+}
+
+/**
+ * 判断灵宠是否可升星（碎片、等级、觉醒石全部满足）
+ */
+function canStarUp(poolPet, awakenStone) {
+  if (!poolPet) return false
+  const nextStar = (poolPet.star || 1) + 1
+  const maxStar = getPoolPetMaxStar(poolPet)
+  if (nextStar > maxStar) return false
+  const fragCost = POOL_STAR_FRAG_COST[nextStar]
+  const lvReq = POOL_STAR_LV_REQ[nextStar]
+  if (!fragCost || !lvReq) return false
+  if (poolPet.fragments < fragCost || poolPet.level < lvReq) return false
+  const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
+  return awakenCost === 0 || (awakenStone || 0) >= awakenCost
+}
+
 module.exports = {
   POOL_MAX_LV,
   POOL_ADV_MAX_LV,
@@ -128,6 +164,9 @@ module.exports = {
   FRAGMENT_TO_EXP,
   getPoolPetAtk,
   getPoolPetMaxLv,
+  getPoolPetMaxStar,
+  canLevelUp,
+  canStarUp,
   ENTRY_LEVEL,
   ENTRY_FRAGMENTS,
   calcRoguelikeSoulStone,

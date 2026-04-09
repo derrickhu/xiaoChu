@@ -252,16 +252,13 @@ function drawBottomBar(g) {
           ctx.fillStyle = '#ff4444'; ctx.fill()
         }
       }
-      // 灵宠池红点：有宠物可升星或有派遣可收取时显示
+      // 灵宠池红点：有宠物可升星/可升级或有派遣可收取时显示
       if (item.key === 'pets' && !isLocked) {
-        const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ } = require('../data/petPoolConfig')
+        const { canLevelUp, canStarUp } = require('../data/petPoolConfig')
         const pool = g.storage.petPool || []
-        const hasUpgradeable = pool.some(p => {
-          const nextStar = (p.star || 1) + 1
-          const fragCost = POOL_STAR_FRAG_COST[nextStar]
-          const lvReq = POOL_STAR_LV_REQ[nextStar]
-          return fragCost && lvReq && p.fragments >= fragCost && p.level >= lvReq
-        })
+        const ss = g.storage.soulStone || 0
+        const aw = g.storage.awakenStone || 0
+        const hasUpgradeable = pool.some(p => canStarUp(p, aw) || canLevelUp(p, ss))
         const hasIdleReward = g.storage.idleHasReward()
         if (hasUpgradeable || hasIdleReward) {
           ctx.globalAlpha = 1
