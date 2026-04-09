@@ -8,6 +8,7 @@ const V = require('./env')
 const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../data/tower')
 const { getPetById, getPetAvatarPath, MAX_STAR } = require('../data/pets')
+const { getWeaponById } = require('../data/weapons')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getStageAttr, getEnemyPortraitPath, getEffectiveStageTeamMin, getStageChapterOrderLabel, CHAPTER_RECOMMENDED } = require('../data/stages')
 const { STAMINA_COST } = require('../data/constants')
@@ -371,8 +372,10 @@ function rStageInfo(g) {
         c.fillText(`✦ ${label}`, indent + 12 * S, iy)
         iy += 16 * S
       } else if (r.type === 'weapon') {
-        c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  法宝奖励`, indent + 12 * S, iy)
+        const rewardWeapon = getWeaponById(r.weaponId)
+        const weaponName = rewardWeapon ? rewardWeapon.name : '法宝奖励'
+        c.fillStyle = '#ffd700'; c.font = `${10*S}px "PingFang SC",sans-serif`
+        c.fillText(`✦ ${weaponName}`, indent + 12 * S, iy)
         iy += 13 * S
       } else if (r.type === 'exp') {
         c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`

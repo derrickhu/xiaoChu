@@ -688,12 +688,15 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     const stageName = stageData ? stageData.name : '关卡'
     const waveTotal = g._stageWaves ? g._stageWaves.length : 1
     const waveCur = (g._stageWaveIdx || 0) + 1
+    const isMultiWave = waveTotal > 1
     ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-    ctx.fillText(stageName, W*0.5, labelCY - 2*S)
+    ctx.fillText(stageName, W*0.5, isMultiWave ? (labelCY - 2*S) : labelCY)
     ctx.restore()
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`第 ${waveCur}/${waveTotal} 波`, W*0.5, labelCY + 9*S)
+    if (isMultiWave) {
+      ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(`第 ${waveCur}/${waveTotal} 波`, W*0.5, labelCY + 9*S)
+    }
   } else if (evType === 'boss') {
     const floorText = `第 ${g.floor} 层`
     const bossTag = '⚠ BOSS ⚠'

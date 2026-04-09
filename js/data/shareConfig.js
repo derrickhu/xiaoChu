@@ -19,7 +19,13 @@ const SHARE_SCENES = {
     imageUrl: 'assets/share/share_cover.jpg',
   },
   stageFirstClear: {
-    titleFn: (d) => `秘境「${d.stageName}」首通 ${d.rating} 评价！灵宠消消乐，你也来试试！`,
+    titleFn: (d) => {
+      if (d.isFinalBoss) {
+        const prefix = d.isElite ? '精英终章' : '终章'
+        return `${prefix}「${d.stageName}」首通 ${d.rating} 评价！终章守关已破，快来挑战万妖之主！`
+      }
+      return `秘境「${d.stageName}」首通 ${d.rating} 评价！灵宠消消乐，你也来试试！`
+    },
     imageUrl: 'assets/share/share_default.jpg',
   },
   petStarUp: {

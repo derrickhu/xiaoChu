@@ -574,31 +574,58 @@ function adReviveCallback(g, W, H) {
 }
 
 // ===== 道具系统 =====
-// 分享获取道具（标记为已获取，不立即使用）
+// 看广告获取道具（标记为已获取，不立即使用）
 function obtainItemReset(g) {
   if (g.itemResetObtained || g.itemResetUsed) return false
-  const { doShare } = require('../share')
-  doShare(g, 'towerItem', { floor: g.floor })
-  g.itemResetObtained = true
-  MusicMgr.playReward()
+  const AdManager = require('../adManager')
+  AdManager.showRewardedVideo('towerItem', {
+    fallbackToShare: false,
+    onRewarded: () => {
+      g.itemResetObtained = true
+      MusicMgr.playReward()
+      g._dirty = true
+    },
+    rewardPopup: {
+      title: '获得灵宝',
+      subtitle: '灵宝匣奖励已解锁',
+      lines: [{ icon: 'icon_chest', label: '乾坤重置', amount: '×1' }],
+    },
+  })
   return true
 }
 
 function obtainItemHeal(g) {
   if (g.itemHealObtained || g.itemHealUsed) return false
-  const { doShare } = require('../share')
-  doShare(g, 'towerItem', { floor: g.floor })
-  g.itemHealObtained = true
-  MusicMgr.playReward()
+  const AdManager = require('../adManager')
+  AdManager.showRewardedVideo('towerItem', {
+    fallbackToShare: false,
+    onRewarded: () => {
+      g.itemHealObtained = true
+      MusicMgr.playReward()
+      g._dirty = true
+    },
+    rewardPopup: {
+      title: '获得灵宝',
+      subtitle: '灵宝匣奖励已解锁',
+      lines: [{ icon: 'icon_chest', label: '回春妙术', amount: '×1' }],
+    },
+  })
   return true
 }
 
 // 使用已获取的道具
 function useItemReset(g) {
   if (!g.itemResetObtained || g.itemResetUsed || g.bState !== 'playerTurn' || g.dragging) return false
+  const prevBoardSig = JSON.stringify((g.board || []).map(row => (row || []).map(cell => (cell && typeof cell === 'object') ? cell.attr : cell)))
+  let nextBoardSig = prevBoardSig
+  for (let i = 0; i < 5 && nextBoardSig === prevBoardSig; i++) {
+    initBoard(g)
+    nextBoardSig = JSON.stringify((g.board || []).map(row => (row || []).map(cell => (cell && typeof cell === 'object') ? cell.attr : cell)))
+  }
   g.itemResetUsed = true
   g._showItemMenu = false
-  initBoard(g)
+  g._confirmDialog = null
+  g._dirty = true
   g.skillEffects.push({ x: ViewEnv.W*0.5, y: ViewEnv.H*0.5, text:'乾坤重置！', color:'#66ccff', t:0, alpha:1 })
   MusicMgr.playReward()
   return true

@@ -130,6 +130,13 @@ function startStage(g, stageId, teamPetIds) {
   g.weaponReviveUsed = false
   g.goodBeadsNextTurn = false
   g.adReviveUsed = false
+  g.itemResetObtained = false
+  g.itemResetUsed = false
+  g.itemHealObtained = false
+  g.itemHealUsed = false
+  g._showItemMenu = false
+  g._itemMenuRects = null
+  g._itemObtainCooldown = 0
   g.turnCount = 0
   g.combo = 0
   g.runTotalTurns = 0
@@ -207,6 +214,13 @@ function startStageNewbie(g, stageId) {
   g.weaponReviveUsed = false
   g.goodBeadsNextTurn = false
   g.adReviveUsed = false
+  g.itemResetObtained = false
+  g.itemResetUsed = false
+  g.itemHealObtained = false
+  g.itemHealUsed = false
+  g._showItemMenu = false
+  g._itemMenuRects = null
+  g._itemObtainCooldown = 0
   g.turnCount = 0
   g.combo = 0
   g.runTotalTurns = 0

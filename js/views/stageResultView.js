@@ -223,6 +223,40 @@ function _isPetSpotlightReward(reward) {
   return !!(reward && ((reward.type === 'pet' && reward.petId) || _isDuplicatePetSpotlightReward(reward)))
 }
 
+function _getStageResultMeta(result) {
+  if (!result || !result.stageId) return null
+  return getStageById(result.stageId)
+}
+
+function _isFinalBossStageResult(result) {
+  const stage = _getStageResultMeta(result)
+  return !!(stage && stage.chapter === 12 && stage.order === 8)
+}
+
+function _victoryHeadline(result) {
+  if (_isFinalBossStageResult(result)) return result.isFirstClear ? '终章通关' : '终章凯旋'
+  return '关卡通关'
+}
+
+function _victorySubHeadline(result) {
+  if (!_isFinalBossStageResult(result)) return ''
+  return result.isFirstClear ? '终章守关奖励已解锁' : '终章守关已再次击破'
+}
+
+function _victoryHeroTitle(result) {
+  if (_isFinalBossStageResult(result)) return result.isFirstClear ? '终章赐宝' : '终章战利品'
+  return '恭喜获得'
+}
+
+function _victoryRewardSectionTitle(result) {
+  return _isFinalBossStageResult(result) ? '终章掉落' : '掉落奖励'
+}
+
+function _victoryFirstClearTag(result) {
+  if (!result || !result.isFirstClear) return ''
+  return _isFinalBossStageResult(result) ? '✦ 终章首通' : '✦ 首通奖励'
+}
+
 /** 关卡通关后：恭喜获得区高度（多卡并排时略压缩单卡尺寸） */
 function _victoryHeroBlockHeight(S, result) {
   const items = _heroSpotlightItems(result)
@@ -657,11 +691,14 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   c.globalAlpha = fadeIn
 
   // === 标题 ===
+  const headline = _victoryHeadline(result)
+  const subHeadline = _victorySubHeadline(result)
+  const headerExtra = subHeadline ? 16 * S : 0
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.save()
   c.shadowColor = 'rgba(120,80,0,0.7)'; c.shadowBlur = 10 * S
   c.fillStyle = '#FFD700'; c.font = `bold ${24*S}px "PingFang SC",sans-serif`
-  _strokeText(c, '关卡通关', W * 0.5, safeTop + 46 * S, 'rgba(100,60,0,0.6)', 4 * S)
+  _strokeText(c, headline, W * 0.5, safeTop + 46 * S, 'rgba(100,60,0,0.6)', 4 * S)
   c.restore()
 
   const divW = W * 0.22
@@ -673,9 +710,16 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
 
   c.fillStyle = '#5A4020'; c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   _strokeText(c, result.stageName || '', W * 0.5, safeTop + 80 * S, 'rgba(255,240,200,0.6)', 3 * S)
+  if (subHeadline) {
+    c.save()
+    c.fillStyle = '#B8860B'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    _strokeText(c, subHeadline, W * 0.5, safeTop + 96 * S, 'rgba(255,245,220,0.55)', 2.5 * S)
+    c.restore()
+  }
 
   // === 评价星级（大尺寸，动画入场） ===
-  const starY = safeTop + 108 * S
+  const starY = safeTop + 108 * S + headerExtra
   const starSize = 30 * S
   const starGap = 6 * S
   const starCount = result.starCount || (result.rating === 'S' ? 3 : result.rating === 'A' ? 2 : 1)
@@ -1338,15 +1382,17 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   // === 掉落奖励 ===
   if (hasRewards) {
+    const rewardSectionTitle = _victoryRewardSectionTitle(result)
+    const firstClearTag = _victoryFirstClearTag(result)
     c.textAlign = 'left'; c.textBaseline = 'middle'
     c.fillStyle = '#8B7355'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText('掉落奖励', px + pad, cy + 6 * S)
-    if (result.isFirstClear) {
+    c.fillText(rewardSectionTitle, px + pad, cy + 6 * S)
+    if (firstClearTag) {
       c.save()
       c.textAlign = 'right'
       c.shadowColor = 'rgba(200,150,0,0.5)'; c.shadowBlur = 6 * S
       c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.fillText('✦ 首通奖励', px + pw - pad, cy + 6 * S)
+      c.fillText(firstClearTag, px + pw - pad, cy + 6 * S)
       c.restore()
     }
     cy += 24 * S
@@ -2255,7 +2301,12 @@ function tStageResult(g, x, y, type) {
   if (_rects.shareBtnRect && g._hitRect(x, y, ..._rects.shareBtnRect)) {
     const { doShare } = require('../share')
     const stage = getStageById(result.stageId)
-    doShare(g, 'stageFirstClear', { stageName: stage ? stage.name : '', rating: result.rating || '' })
+    doShare(g, 'stageFirstClear', {
+      stageName: stage ? stage.name : '',
+      rating: result.rating || '',
+      isFinalBoss: !!(stage && stage.chapter === 12 && stage.order === 8),
+      isElite: !!(stage && stage.difficulty === 'elite'),
+    })
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

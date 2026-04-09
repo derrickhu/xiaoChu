@@ -102,12 +102,21 @@ const WPN_DROP_WEIGHTS = {
 const ELITE_RARITY_BONUS = { SR: 3, SSR: 5 }
 const BOSS_RARITY_BONUS  = { SR: 3, SSR: 8 }
 
-// ===== 宠物奖励特殊覆盖（前几关避免与新手赠送重复） =====
+// ===== 宠物奖励特殊覆盖（前几关避免与新手赠送重复；终章守关提供专属首通） =====
 // 普通关: 'ch_ord'，精英关: 'ch_orde'
 const STAGE_REWARD_PET_OVERRIDES = {
   '1_1': 'f1',
   '1_2': 'm2',
   '1_3': 'w2',
+  '12_8': 'f10',
+  '12_8e': 'e10',
+}
+
+// ===== 法宝奖励特殊覆盖（终章守关提供专属首通） =====
+// 普通关: 'ch_ord'，精英关: 'ch_orde'
+const STAGE_REWARD_WEAPON_OVERRIDES = {
+  '12_8': 'w46',
+  '12_8e': 'w47',
 }
 
 module.exports = {
@@ -126,4 +135,5 @@ module.exports = {
   ELITE_RARITY_BONUS,
   BOSS_RARITY_BONUS,
   STAGE_REWARD_PET_OVERRIDES,
+  STAGE_REWARD_WEAPON_OVERRIDES,
 }

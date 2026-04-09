@@ -28,7 +28,7 @@ function drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, d
     drawExpIndicator(g, exitBtnX, exitBtnY + exitBtnSize + 6*S, exitBtnSize, S)
   }
 
-  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat' && g.battleMode !== 'stage') {
+  if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
     const chestSz = 36*S
     const chestX = W - chestSz - 8*S
     const chestY = eAreaTop + (eAreaBottom - eAreaTop) * 0.32

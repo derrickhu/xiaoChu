@@ -13,7 +13,7 @@ const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
   ELITE_MINION_HP_SCALE, CHAPTER_RECOMMENDED,
-  STAGE_REWARD_PET_OVERRIDES,
+  STAGE_REWARD_PET_OVERRIDES, STAGE_REWARD_WEAPON_OVERRIDES,
 } = require('./balance/stage')
 const { getPetRarity } = require('./pets')
 
@@ -36,7 +36,7 @@ const CHAPTERS = [
   { id: 12, name: '终焉之地', desc: '万妖之巅，终极对决' },
 ]
 
-function mkRewards(ch, ord, diff, petId, exp, repExp) {
+function mkRewards(ch, ord, diff, petId, weaponId, exp, repExp) {
   const idx = ord - 1
   const firstClear = []
   if (petId) {
@@ -46,7 +46,11 @@ function mkRewards(ch, ord, diff, petId, exp, repExp) {
   } else {
     firstClear.push({ type: 'randomPet', chapter: ch, order: ord, difficulty: diff })
   }
-  firstClear.push({ type: 'randomWeapon', chapter: ch, order: ord, difficulty: diff })
+  if (weaponId) {
+    firstClear.push({ type: 'weapon', weaponId })
+  } else {
+    firstClear.push({ type: 'randomWeapon', chapter: ch, order: ord, difficulty: diff })
+  }
   firstClear.push(
     { type: 'exp', amount: exp },
     { type: 'soulStone', amount: STAGE_REWARDS[ch][diff].soulStone.first[idx] },
@@ -120,9 +124,11 @@ function _genStageSpecs() {
         name: stageName,
         enemyId: enemyId,
         pet: STAGE_REWARD_PET_OVERRIDES[overrideKey] || null,
+        weapon: STAGE_REWARD_WEAPON_OVERRIDES[overrideKey] || null,
         exp: expBase, repExp: repExpBase, bs: bsBase,
         rating: { s: sRating, a: aRating },
         ePet: STAGE_REWARD_PET_OVERRIDES[eliteOverrideKey] || null,
+        eWeapon: STAGE_REWARD_WEAPON_OVERRIDES[eliteOverrideKey] || null,
         eExp: Math.round(expBase * STAGE_ELITE_COEFFS.expMul),
         eRepExp: Math.round(repExpBase * STAGE_ELITE_COEFFS.expMul),
         eBs: Math.round(bsBase * STAGE_ELITE_COEFFS.soulStoneMul),
@@ -228,7 +234,7 @@ function buildAllStages() {
         teamSize: s.teamSize || { ...STAGE_TEAM_SIZE.default },
         rating: s.rating,
         staminaCost: s.staminaCost !== undefined ? s.staminaCost : STAMINA_COST,
-        rewards: mkRewards(ch, ord, 'normal', s.pet, s.exp, s.repExp),
+        rewards: mkRewards(ch, ord, 'normal', s.pet, s.weapon, s.exp, s.repExp),
         dailyLimit: 0,
         unlockCondition: { prevStage },
         battleSoulStone: s.bs,
@@ -273,7 +279,7 @@ function buildAllStages() {
         teamSize: { ...STAGE_TEAM_SIZE.default },
         rating: s.eRating,
         staminaCost: STAMINA_COST,
-        rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eExp, s.eRepExp),
+        rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eWeapon, s.eExp, s.eRepExp),
         dailyLimit: 0,
         unlockCondition: { normalStageS: `stage_${ch}_${ord}` },
         battleSoulStone: s.eBs,

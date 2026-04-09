@@ -125,7 +125,7 @@ function _drawItemMenu(g) {
       }
     } else {
       ctx.fillStyle = '#8B6914'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-      ctx.fillText('分享获取', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
+      ctx.fillText('看广告获取', menuX + menuW - padX - 10*S, iy + itemH * 0.5)
     }
 
     ctx.restore()
