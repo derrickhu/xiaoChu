@@ -179,6 +179,26 @@ class Main {
       P.onTouchEnd(e => this.onTouch('end', e))
     }
 
+    this._appWasHidden = false
+    this._resumeForceRenderFrames = 0
+    P.onHide(() => {
+      this._appWasHidden = true
+      this._dirty = true
+      wxBtns.destroyFeedbackBtn(this)
+      wxBtns.destroyGameClubBtn(this)
+    })
+    P.onShow(() => {
+      if (!this._appWasHidden) return
+      this._appWasHidden = false
+      this._dirty = true
+      this._lastRenderedScene = null
+      this._resumeForceRenderFrames = 6
+      wxBtns.destroyFeedbackBtn(this)
+      wxBtns.destroyGameClubBtn(this)
+      try { ctx.clearRect(0, 0, W, H) } catch (_) {}
+      console.log('[Lifecycle] resume from background, force redraw')
+    })
+
     this.dt = 0; this.timeScale = 1.0
     let _lastTime = 0
     const loop = (now) => {
@@ -470,6 +490,10 @@ class Main {
 
   // ===== 渲染入口 =====
   render() {
+    if (this._resumeForceRenderFrames > 0) {
+      this._resumeForceRenderFrames--
+      this._dirty = true
+    }
     if (this.scene !== this._lastRenderedScene) { this._dirty = true; this._lastRenderedScene = this.scene }
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
