@@ -8,6 +8,90 @@ const { ANIM_CFG: _animCfg } = require('./dmgFloat')
 
 let _compactFrame = 0
 
+function _lerp(a, b, p) {
+  return a + (b - a) * p
+}
+
+function _easeOutCubic(p) {
+  const x = Math.max(0, Math.min(1, p))
+  return 1 - Math.pow(1 - x, 3)
+}
+
+function _updateDmgFloatList(list, S) {
+  if (!list || list.length === 0) return
+  const AC_D = _animCfg.dmgFloat
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i]
+    if (f._dead) continue
+    if (f.delay > 0) {
+      f.delay--
+      continue
+    }
+    f.t++
+    const motion = f.motion || AC_D
+    const popFrames = Math.max(1, motion.popFrames || 4)
+    const settleFrames = Math.max(popFrames + 1, motion.settleFrames || popFrames + 4)
+    const riseFrames = Math.max(1, motion.riseFrames || 14)
+    const driftFrames = Math.max(0, motion.driftFrames || 0)
+    const lifeFrames = Math.max(settleFrames + 1, motion.lifeFrames || 24)
+    const fadeStart = Math.min(lifeFrames - 1, Math.max(settleFrames, motion.fadeStart || lifeFrames - 8))
+    const startScale = motion.startScale == null ? 0.78 : motion.startScale
+    const peakScale = motion.peakScale == null ? 1.18 : motion.peakScale
+    const settleScale = motion.settleScale == null ? 1 : motion.settleScale
+
+    if (f.t <= popFrames) {
+      const p = _easeOutCubic(f.t / popFrames)
+      f.scale = f._baseScale * _lerp(startScale, peakScale, p)
+    } else if (f.t <= settleFrames) {
+      const p = _easeOutCubic((f.t - popFrames) / (settleFrames - popFrames))
+      f.scale = f._baseScale * _lerp(peakScale, settleScale, p)
+    } else {
+      f.scale = f._baseScale * settleScale
+    }
+
+    const riseP = Math.min(1, f.t / riseFrames)
+    const riseDist = (motion.riseDist || 0) * S
+    const returnFrames = Math.max(0, motion.returnFrames || 0)
+    const holdFrames = Math.max(0, motion.holdFrames || 0)
+    const returnTo = (motion.returnTo || 0) * S
+    let yOffset = -_easeOutCubic(riseP) * riseDist
+    if (returnFrames > 0 && f.t > riseFrames) {
+      const returnP = Math.min(1, (f.t - riseFrames) / returnFrames)
+      yOffset = _lerp(-riseDist, -returnTo, _easeOutCubic(returnP))
+    } else if (f.t > riseFrames && driftFrames > 0) {
+      const driftP = Math.min(1, (f.t - riseFrames) / driftFrames)
+      yOffset -= _easeOutCubic(driftP) * (motion.driftDist || 0) * S
+    }
+    if (returnFrames > 0 && f.t > riseFrames + returnFrames + holdFrames && driftFrames > 0) {
+      const driftP = Math.min(1, (f.t - riseFrames - returnFrames - holdFrames) / driftFrames)
+      yOffset = -returnTo - _easeOutCubic(driftP) * (motion.driftDist || 0) * S
+    }
+    if (f.anchorLane) {
+      f._anchorYOffset = yOffset
+    } else {
+      f.y = f._baseY + yOffset
+    }
+
+    let shakeOffset = 0
+    if (f._shake && motion.shakeDur > 0 && f.t <= motion.shakeDur) {
+      shakeOffset += Math.sin(f.t * 3.5) * motion.shakeAmp * S * (1 - f.t / motion.shakeDur)
+    }
+    if (motion.jitterFrames > 0 && f.t <= motion.jitterFrames) {
+      shakeOffset += Math.sin(f.t * 5.2) * motion.jitterAmp * S * (1 - f.t / motion.jitterFrames)
+    }
+    f._shakeOffset = shakeOffset
+
+    const targetAlpha = f._targetAlpha == null ? 1 : f._targetAlpha
+    if (f.t < fadeStart) {
+      f.alpha = targetAlpha
+    } else {
+      const fadeDur = Math.max(1, lifeFrames - fadeStart)
+      f.alpha = Math.max(0, targetAlpha * (1 - (f.t - fadeStart) / fadeDur))
+    }
+    if (f.t >= lifeFrames || f.alpha <= 0) f._dead = true
+  }
+}
+
 function updateAnimations(g) {
   const { S } = ViewEnv
   _compactFrame++
@@ -46,29 +130,8 @@ function updateAnimations(g) {
     p.vx *= 0.98
     if (p.t >= p.life) { g._comboParticles.splice(i, 1) }
   }
-  const AC_D = _animCfg.dmgFloat
-  for (let i = 0; i < g.dmgFloats.length; i++) {
-    const f = g.dmgFloats[i]
-    if (f._dead) continue
-    f.t++
-    // 入场弹跳缩放（_initScale 和起始峰值 scale 由工厂预设，避免首帧跳变）
-    if (f.t <= AC_D.bounceDur) {
-      f.scale = f._initScale * (1 + AC_D.bounceAmp * Math.max(0, 1 - f.t / AC_D.bounceDur))
-    } else {
-      f.scale = f._initScale
-    }
-    // 水平震动（回合总伤等带 _shake 标记的飘字）
-    if (f._shake && f.t <= AC_D.shakeDur) {
-      f._shakeOffset = Math.sin(f.t * 3.5) * AC_D.shakeAmp * S * (1 - f.t / AC_D.shakeDur)
-    } else {
-      f._shakeOffset = 0
-    }
-    // 停留 → 上飘 → 淡出
-    if (f.t <= AC_D.stayFrames) { f.y -= AC_D.staySpeed*S }
-    else if (f.t <= AC_D.floatFrames) { f.y -= AC_D.floatSpeed*S; f.alpha -= AC_D.floatAlphaDec }
-    else { f.y -= AC_D.fadeSpeed*S; f.alpha -= AC_D.fadeAlphaDec }
-    if (f.alpha <= 0) f._dead = true
-  }
+  _updateDmgFloatList(g.dmgFloats, S)
+  _updateDmgFloatList(g._petSlotFloats, S)
   for (let i = 0; i < g.skillEffects.length; i++) {
     const e = g.skillEffects[i]
     if (e._dead) continue
@@ -127,6 +190,7 @@ function updateAnimations(g) {
   _updateComboAnim(g, S)
   if (_compactFrame % 60 === 0) {
     g.dmgFloats = g.dmgFloats.filter(x => !x._dead)
+    if (g._petSlotFloats) g._petSlotFloats = g._petSlotFloats.filter(x => !x._dead)
     g.skillEffects = g.skillEffects.filter(x => !x._dead)
     g.elimFloats = g.elimFloats.filter(x => !x._dead)
     if (g._expFloats) g._expFloats = g._expFloats.filter(x => !x._dead)

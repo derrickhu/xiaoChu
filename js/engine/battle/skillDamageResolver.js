@@ -64,7 +64,7 @@ function resolveInstantDmg(g, payload) {
   }
 
   result.totalDmg = dmg
-  result.entries.push({ dmg, color: getSkillColor(sk.attr) })
+  result.entries.push({ dmg, color: getSkillColor(sk.attr), petIdx: payload.idx })
   if (sk.stunDur) result.enemyBuffsToAdd.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
   if (sk.teamHealPct) result.heroHeal = Math.round(ctx.heroMaxHp * sk.teamHealPct / 100)
   return result
@@ -82,7 +82,7 @@ function resolveInstantDmgDot(g, payload) {
   dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
 
   result.totalDmg = dmg
-  result.entries.push({ dmg, color: getSkillColor(sk.attr) })
+  result.entries.push({ dmg, color: getSkillColor(sk.attr || pet.attr), petIdx: payload.idx, attr: sk.attr || pet.attr })
   result.enemyBuffsToAdd.push({
     type:'dot',
     name:'灼烧',
@@ -109,7 +109,7 @@ function resolveMultiHit(g, payload) {
     let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_MULTI_HIT_DEFAULT_PCT) / 100)
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
     totalDmg += dmg
-    result.entries.push({ dmg, color, hitIdx, totalHits: hits })
+    result.entries.push({ dmg, color, hitIdx, totalHits: hits, petIdx: payload.idx, attr: sk.attr || pet.attr })
   }
 
   result.totalDmg = totalDmg
@@ -134,7 +134,7 @@ function resolveTeamAttack(g, payload) {
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
     dmg = Math.max(0, dmg - enemyDefense)
     totalDmg += dmg
-    result.entries.push({ dmg, color: getSkillColor(p.attr), petIdx, totalPets })
+    result.entries.push({ dmg, color: getSkillColor(p.attr), petIdx, totalPets, attr: p.attr })
   })
 
   result.totalDmg = totalDmg

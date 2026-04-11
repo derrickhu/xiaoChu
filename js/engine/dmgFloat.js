@@ -1,81 +1,386 @@
 /**
- * 伤害飘字视觉中枢 — 所有飘字的位置、样式、动画参数集中管理
- * 
- * 【调整视觉效果只需改这个文件的三张配置表】
- * 
- * RENDER_CFG — 渲染样式（字号、描边、发光、标签）
- * ANIM_CFG   — 动画节奏（弹跳、停留、上飘、淡出）
- * FLOAT_CFG  — 各飘字类型的位置偏移与缩放
- * 
- * 锚点说明：
- *   - 对敌类飘字：以「敌方血条上沿」为锚点，dy 负值 = 向上偏移
- *   - 对主角类飘字：以「屏幕高度百分比」yR 定位（0=顶部，1=底部）
- * 
- * 单位：dy/dx/gap 均为逻辑像素，运行时自动乘以 S（缩放因子）
+ * 伤害飘字视觉中枢 — 所有伤害数字的位置、样式、动画参数集中管理
+ *
+ * 第 4 期目标：
+ * - 去掉 emoji 风格正文
+ * - 统一数字样式与跳跃节奏
+ * - 让宠物攻击数字从宠物位附近起跳
+ * - 为后续数字缓存 / drawImage 渲染预留结构
  */
 const V = require('../views/env')
+const { ATTR_COLOR } = require('../data/tower')
 
-// 属性图标（用于飘字前缀）
-const ATTR_ICON = { metal:'⚔️', wood:'🌿', earth:'🪨', water:'💧', fire:'🔥', heart:'❤️' }
+const SLOT_ATTR_PALETTE = {
+  metal: { fillTop: '#fff7a8', fillBottom: '#ffd63d', glowColor: '#ffe14d', tagColor: '#fff5d2' },
+  wood:  { fillTop: '#d8ff8d', fillBottom: '#6ef235', glowColor: '#90ff57', tagColor: '#edffd5' },
+  earth: { fillTop: '#ffe4a3', fillBottom: '#ffb347', glowColor: '#ffc85a', tagColor: '#fff0d4' },
+  water: { fillTop: '#b8fdff', fillBottom: '#44d7ff', glowColor: '#61efff', tagColor: '#dcffff' },
+  fire:  { fillTop: '#ffd0b8', fillBottom: '#ff7a58', glowColor: '#ff9668', tagColor: '#ffe3d8' },
+  heart: { fillTop: '#ffd6ef', fillBottom: '#ff73be', glowColor: '#ff8ccc', tagColor: '#fff0f8' },
+}
 
-// ===== 渲染样式配置 =====
 const RENDER_CFG = {
-  // dmgFloat（通用伤害飘字：回合总伤、技能、DOT、主角受伤等）
-  dmgFloat:  { fontSize: 28, stroke: 4.5, glow: 8, tagRatio: 0.5 },
-  // elimFloat（消除即时反馈飘字）
+  dmgFloat: {
+    defaultStyle: 'damageMain',
+    styles: {
+      damageMain: {
+        fontSize: 31,
+        stroke: 6,
+        strokeColor: '#201400',
+        glow: 10,
+        glowColor: '#ffb100',
+        fillTop: '#fff7b8',
+        fillBottom: '#ffd43c',
+        tagRatio: 0.28,
+        tagColor: '#fff4cf',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      damageCrit: {
+        fontSize: 37,
+        stroke: 7,
+        strokeColor: '#241400',
+        glow: 14,
+        glowColor: '#ff9f1a',
+        fillTop: '#fffbd0',
+        fillBottom: '#ffe14d',
+        tagRatio: 0.26,
+        tagColor: '#fff8dc',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      damageMinor: {
+        fontSize: 24,
+        stroke: 5,
+        strokeColor: '#201400',
+        glow: 8,
+        glowColor: '#ffb000',
+        fillTop: '#fff3a0',
+        fillBottom: '#ffcf40',
+        tagRatio: 0.3,
+        tagColor: '#ffffff',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      slotDamageMain: {
+        fontSize: 19,
+        stroke: 4.5,
+        strokeColor: '#101010',
+        glow: 8,
+        glowColor: '#ffe14d',
+        fillTop: '#fff7b8',
+        fillBottom: '#ffd43c',
+        tagRatio: 0.24,
+        tagColor: '#fff5d2',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      slotDamageCrit: {
+        fontSize: 22,
+        stroke: 5,
+        strokeColor: '#101010',
+        glow: 10,
+        glowColor: '#fff06a',
+        fillTop: '#fffde0',
+        fillBottom: '#ffe352',
+        tagRatio: 0.24,
+        tagColor: '#fff9dd',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      slotDamageMinor: {
+        fontSize: 13,
+        stroke: 3.2,
+        strokeColor: '#101010',
+        glow: 6,
+        glowColor: '#ffe14d',
+        fillTop: '#fff7b8',
+        fillBottom: '#ffd43c',
+        tagRatio: 0.22,
+        tagColor: '#fff5d2',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next Condensed","Arial Black","PingFang SC",sans-serif',
+      },
+      heal: {
+        fontSize: 28,
+        stroke: 5,
+        strokeColor: '#06210f',
+        glow: 10,
+        glowColor: '#46d96d',
+        fillTop: '#d8ffd8',
+        fillBottom: '#58ea68',
+        tagRatio: 0.28,
+        tagColor: '#ecffec',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next","Arial Black","PingFang SC",sans-serif',
+      },
+      heroDmg: {
+        fontSize: 29,
+        stroke: 5.5,
+        strokeColor: '#2b0606',
+        glow: 9,
+        glowColor: '#ff5d5d',
+        fillTop: '#ffd4d4',
+        fillBottom: '#ff5454',
+        tagRatio: 0.28,
+        tagColor: '#fff0f0',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next","Arial Black","PingFang SC",sans-serif',
+      },
+      shield: {
+        fontSize: 26,
+        stroke: 5,
+        strokeColor: '#041b24',
+        glow: 9,
+        glowColor: '#58dcff',
+        fillTop: '#d5f8ff',
+        fillBottom: '#6bd6ff',
+        tagRatio: 0.28,
+        tagColor: '#f3feff',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next","Arial Black","PingFang SC",sans-serif',
+      },
+      dot: {
+        fontSize: 23,
+        stroke: 4.5,
+        strokeColor: '#1c0a22',
+        glow: 7,
+        glowColor: '#b35cff',
+        fillTop: '#f0d6ff',
+        fillBottom: '#b45cff',
+        tagRatio: 0.3,
+        tagColor: '#f9ebff',
+        fontWeight: 900,
+        fontFamily: '"Avenir Next","Arial Black","PingFang SC",sans-serif',
+      },
+    },
+  },
   elimFloat: { fontSize: 24, stroke: 4, glow: 6 },
 }
 
-// ===== 动画节奏配置 =====
+const MOTION_PRESETS = {
+  damageMain: {
+    startScale: 0.76,
+    peakScale: 1.22,
+    settleScale: 1,
+    popFrames: 5,
+    settleFrames: 10,
+    riseFrames: 16,
+    riseDist: 22,
+    driftFrames: 10,
+    driftDist: 10,
+    lifeFrames: 32,
+    fadeStart: 23,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  slotDamageMain: {
+    startScale: 0.72,
+    peakScale: 1.22,
+    settleScale: 1,
+    popFrames: 5,
+    settleFrames: 12,
+    riseFrames: 7,
+    riseDist: 18,
+    returnFrames: 9,
+    returnTo: 1.5,
+    holdFrames: 14,
+    lifeFrames: 36,
+    fadeStart: 29,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  slotDamageCrit: {
+    startScale: 0.76,
+    peakScale: 1.34,
+    settleScale: 1.02,
+    popFrames: 5,
+    settleFrames: 13,
+    riseFrames: 8,
+    riseDist: 22,
+    returnFrames: 10,
+    returnTo: 2,
+    holdFrames: 16,
+    lifeFrames: 40,
+    fadeStart: 31,
+    shakeDur: 7,
+    shakeAmp: 2.1,
+    jitterFrames: 8,
+    jitterAmp: 1.5,
+  },
+  slotDamageMinor: {
+    startScale: 0.8,
+    peakScale: 1.12,
+    settleScale: 1,
+    popFrames: 4,
+    settleFrames: 8,
+    riseFrames: 5,
+    riseDist: 10,
+    returnFrames: 7,
+    returnTo: 1,
+    holdFrames: 12,
+    lifeFrames: 28,
+    fadeStart: 21,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  damageCrit: {
+    startScale: 0.8,
+    peakScale: 1.36,
+    settleScale: 1.06,
+    popFrames: 5,
+    settleFrames: 11,
+    riseFrames: 18,
+    riseDist: 26,
+    driftFrames: 12,
+    driftDist: 12,
+    lifeFrames: 36,
+    fadeStart: 25,
+    shakeDur: 8,
+    shakeAmp: 3.4,
+    jitterFrames: 8,
+    jitterAmp: 2.5,
+  },
+  damageMinor: {
+    startScale: 0.86,
+    peakScale: 1.08,
+    settleScale: 1,
+    popFrames: 3,
+    settleFrames: 6,
+    riseFrames: 12,
+    riseDist: 14,
+    driftFrames: 8,
+    driftDist: 6,
+    lifeFrames: 22,
+    fadeStart: 14,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  heal: {
+    startScale: 0.84,
+    peakScale: 1.12,
+    settleScale: 1,
+    popFrames: 4,
+    settleFrames: 8,
+    riseFrames: 15,
+    riseDist: 16,
+    driftFrames: 9,
+    driftDist: 8,
+    lifeFrames: 25,
+    fadeStart: 17,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  heroDmg: {
+    startScale: 0.88,
+    peakScale: 1.12,
+    settleScale: 1,
+    popFrames: 4,
+    settleFrames: 8,
+    riseFrames: 12,
+    riseDist: 14,
+    driftFrames: 8,
+    driftDist: 7,
+    lifeFrames: 22,
+    fadeStart: 14,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 5,
+    jitterAmp: 1.6,
+  },
+  shield: {
+    startScale: 0.86,
+    peakScale: 1.14,
+    settleScale: 1,
+    popFrames: 4,
+    settleFrames: 8,
+    riseFrames: 14,
+    riseDist: 15,
+    driftFrames: 8,
+    driftDist: 6,
+    lifeFrames: 24,
+    fadeStart: 16,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+  dot: {
+    startScale: 0.88,
+    peakScale: 1.08,
+    settleScale: 1,
+    popFrames: 3,
+    settleFrames: 6,
+    riseFrames: 12,
+    riseDist: 12,
+    driftFrames: 8,
+    driftDist: 6,
+    lifeFrames: 22,
+    fadeStart: 14,
+    shakeDur: 0,
+    shakeAmp: 0,
+    jitterFrames: 0,
+    jitterAmp: 0,
+  },
+}
+
 const ANIM_CFG = {
-  dmgFloat: {
-    bounceDur: 12,     // 入场弹跳帧数
-    bounceAmp: 0.8,    // 入场弹跳幅度（1.0 = 翻倍缩放）
-    stayFrames: 30,    // 停留阶段帧数（缓慢上移）
-    floatFrames: 60,   // 正常上飘结束帧
-    staySpeed: 0.15,   // 停留阶段上移速度（×S）
-    floatSpeed: 0.5,   // 上飘阶段上移速度（×S）
-    fadeSpeed: 0.8,    // 淡出阶段上移速度（×S）
-    floatAlphaDec: 0.005, // 上飘阶段每帧透明度衰减
-    fadeAlphaDec: 0.04,   // 淡出阶段每帧透明度衰减
-    shakeDur: 6,       // 回合总伤水平震动帧数
-    shakeAmp: 3,       // 震动幅度（逻辑像素，×S）
-  },
+  dmgFloat: MOTION_PRESETS.damageMain,
   elimFloat: {
-    bounceDur: 10,     // 入场弹跳帧数
-    bounceAmp: 0.7,    // 入场弹跳幅度
-    stayFrames: 18,    // 短暂停留结束帧
-    lifeFrames: 35,    // 总寿命帧数
-    bounceSpeed: 0.2,  // 弹入阶段上移速度（×S）
-    staySpeed: 0.4,    // 停留阶段上移速度（×S）
-    fadeSpeed: 0.8,    // 淡出阶段上移速度（×S）
-    fadeAlphaDec: 0.06,// 淡出阶段每帧透明度衰减
+    bounceDur: 10,
+    bounceAmp: 0.7,
+    stayFrames: 18,
+    lifeFrames: 35,
+    bounceSpeed: 0.2,
+    staySpeed: 0.4,
+    fadeSpeed: 0.8,
+    fadeAlphaDec: 0.06,
   },
 }
 
-// ===== 飘字类型配置（位置偏移与缩放） =====
 const FLOAT_CFG = {
-  // --- 对敌伤害（锚点：敌方血条上沿） ---
-  enemyTotal:      { dy: -10,  scale: 1.6, critScale: 2.0, tag: '回合伤害' },
-  elimDmg:         { dy: 10,   attrDx: { metal:-60, wood:-30, water:0, fire:30, earth:60, heart:0 } },
-  petSkill:        { dy: -15,  dx: -40, scale: 1.1, tag: '技能' },
-  petMultiHit:     { dy: -20,  hGap: 45, scale: 1.0, tag: '连击' },
-  petTeamAtk:      { dy: -20,  hGap: 50, scale: 1.0, tag: '群攻' },
-  aoeDmg:          { dy: -35,  dx: 40, scale: 1.1, tag: '法宝' },
-  dotOnEnemy:      { dy: -45,  hGap: 30, scale: 0.9 },
-  reflectToEnemy:  { dy: -55,  dx: 50, scale: 1.0, tag: '反弹' },
-  enemyHeal:       { dy: -10,  tag: '敌方回血' },
+  enemyTotal:      { dy: -10, scale: 1.36, critScale: 1.62 },
+  elimDmg:         { dy: 10, attrDx: { metal:-60, wood:-30, water:0, fire:30, earth:60, heart:0 } },
+  petNormalAtk:    { slotYRatio: 0.58, scale: 1.0, delayStep: 2 },
+  petSkill:        { slotYRatio: 0.58, scale: 1.0 },
+  petMultiHit:     { upperYRatio: 0.52, lowerYRatio: 0.76, xStep: 7, scale: 1.0 },
+  petTeamAtk:      { slotYRatio: 0.58, scale: 1.0, delayStep: 2 },
+  aoeDmg:          { dy: -34, dx: 40, scale: 1.0, tag: '范围' },
+  dotOnEnemy:      { dy: -46, hGap: 24, scale: 0.92 },
+  reflectToEnemy:  { dy: -56, dx: 48, scale: 0.96, tag: '反弹' },
+  enemyHeal:       { dy: -10, scale: 1.0 },
 
-  // --- 对主角效果（锚点：屏幕高度百分比） ---
-  heroHeal:        { yR: 0.65, xSpread: 0.2, scale: 1.2, tag: '回复' },
-  heroDmg:         { yR: 0.70, scale: 1.2, tag: '受击' },
-  heroShieldGain:  { yR: 0.65, scale: 1.1 },
-  heroShieldBlock: { yR: 0.60, scale: 1.6 },
-  heroShieldBreak: { yR: 0.60, scale: 1.4 },
-  eventCost:       { yR: 0.35, scale: 1.2, tag: '代价' },
+  heroHeal:        { yR: 0.65, xSpread: 0.2, scale: 1.05, tag: '回复' },
+  heroDmg:         { yR: 0.70, scale: 1.02, tag: '受击' },
+  heroShieldGain:  { yR: 0.65, scale: 0.98, tag: '护盾' },
+  heroShieldBlock: { yR: 0.60, scale: 1.04, tag: '格挡' },
+  heroShieldBreak: { yR: 0.60, scale: 1.0, tag: '盾挡' },
+  eventCost:       { yR: 0.35, scale: 1.0, tag: '代价' },
 }
 
-// 获取敌方血条上沿 Y 坐标（延迟加载 battleHelpers，避免循环依赖）
+function formatNumber(num) {
+  return Math.max(0, Math.round(num || 0)).toLocaleString('en-US')
+}
+
+function getDmgRenderStyle(styleKey) {
+  const cfg = RENDER_CFG.dmgFloat
+  return (cfg.styles && cfg.styles[styleKey]) || cfg.styles[cfg.defaultStyle]
+}
+
+function getDmgMotion(styleKey) {
+  return MOTION_PRESETS[styleKey] || ANIM_CFG.dmgFloat
+}
+
 function _enemyHpY() {
   const bh = require('../battleHelpers')
   const L = bh.getBattleLayout()
@@ -83,15 +388,118 @@ function _enemyHpY() {
   return eAreaBottom - 26 * V.S
 }
 
-// 创建 dmgFloat 时预设弹跳起始 scale，避免首帧渲染出现「先小后大」跳变
+function _getPetSlotRect(g, petIdx) {
+  const frameScale = 1.12
+  if (g && g._petBtnRects && g._petBtnRects[petIdx]) {
+    const rect = g._petBtnRects[petIdx]
+    const frameW = rect[2] * frameScale
+    const frameH = rect[3] * frameScale
+    return {
+      x: rect[0] - (frameW - rect[2]) / 2,
+      y: rect[1] - (frameH - rect[3]) / 2,
+      w: frameW,
+      h: frameH,
+    }
+  }
+  const bh = require('../battleHelpers')
+  const L = bh.getBattleLayout()
+  const { S } = V
+  const sidePad = 8 * S
+  const petGap = 8 * S
+  const wpnGap = 12 * S
+  const ix = sidePad + L.iconSize + wpnGap + (petIdx || 0) * (L.iconSize + petGap)
+  const iconY = L.teamBarY + (L.teamBarH - L.iconSize) / 2
+  const frameW = L.iconSize * frameScale
+  const frameH = L.iconSize * frameScale
+  return {
+    x: ix - (frameW - L.iconSize) / 2,
+    y: iconY - (frameH - L.iconSize) / 2,
+    w: frameW,
+    h: frameH,
+  }
+}
+
+function _petSlotAnchor(g, petIdx, lane, hitIdx, totalHits) {
+  const rect = _getPetSlotRect(g, petIdx)
+  const multiCfg = FLOAT_CFG.petMultiHit
+  const mainCfg = FLOAT_CFG.petNormalAtk || FLOAT_CFG.petSkill
+  const teamCfg = FLOAT_CFG.petTeamAtk
+  let x = rect.x + rect.w * 0.5
+  let y = rect.y + rect.h * (mainCfg.slotYRatio || 0.38)
+  if (lane === 'team') {
+    y = rect.y + rect.h * (teamCfg.slotYRatio || 0.38)
+  } else if (lane === 'minor') {
+    const spread = ((hitIdx || 0) - ((totalHits || 1) - 1) / 2) * (multiCfg.xStep || 0) * V.S
+    x += spread
+    y = rect.y + rect.h * ((hitIdx || 0) === 0 ? (multiCfg.upperYRatio || 0.4) : (multiCfg.lowerYRatio || 0.74))
+  }
+  return { x, y, rect }
+}
+
+function _getSlotPalette(attr, fallbackColor) {
+  if (attr && SLOT_ATTR_PALETTE[attr]) return SLOT_ATTR_PALETTE[attr]
+  if (attr && ATTR_COLOR[attr]) {
+    const ac = ATTR_COLOR[attr]
+    return {
+      fillTop: ac.lt || '#ffffff',
+      fillBottom: ac.main || fallbackColor || '#ffd63d',
+      glowColor: ac.lt || ac.main || fallbackColor || '#ffe14d',
+      tagColor: '#ffffff',
+    }
+  }
+  if (fallbackColor) {
+    return {
+      fillTop: '#ffffff',
+      fillBottom: fallbackColor,
+      glowColor: fallbackColor,
+      tagColor: '#ffffff',
+    }
+  }
+  return SLOT_ATTR_PALETTE.metal
+}
+
+function _applySlotPalette(obj, attr, fallbackColor) {
+  const palette = _getSlotPalette(attr, fallbackColor)
+  obj.fillTop = palette.fillTop
+  obj.fillBottom = palette.fillBottom
+  obj.glowColor = palette.glowColor
+  obj.tagColor = palette.tagColor
+  obj.color = palette.fillBottom
+  return obj
+}
+
+function ensurePetSlotFloats(g) {
+  if (!g._petSlotFloats) g._petSlotFloats = []
+  return g._petSlotFloats
+}
+
+function _initDmgObj(obj) {
+  obj.styleKey = obj.styleKey || RENDER_CFG.dmgFloat.defaultStyle
+  obj.motion = obj.motion || getDmgMotion(obj.styleKey)
+  obj._baseScale = obj.scale || 1
+  obj._initScale = obj._baseScale
+  obj._targetAlpha = obj.alpha == null ? 1 : obj.alpha
+  obj.t = obj.t || 0
+  obj.delay = obj.delay || 0
+  const startScale = obj.motion && obj.motion.startScale != null ? obj.motion.startScale : 0.78
+  obj.scale = obj._baseScale * startScale
+  obj.alpha = obj.delay > 0 ? 0 : obj._targetAlpha
+  return obj
+}
+
 function _pushDmg(g, obj) {
-  const amp = ANIM_CFG.dmgFloat.bounceAmp
-  obj._initScale = obj.scale || 1
-  obj.scale = obj._initScale * (1 + amp)
+  _initDmgObj(obj)
+  obj._baseX = obj.x
+  obj._baseY = obj.y
   g.dmgFloats.push(obj)
 }
 
-// 创建 elimFloat 时同理
+function _pushPetSlot(g, obj) {
+  _initDmgObj(obj)
+  obj._anchorYOffset = obj._anchorYOffset || 0
+  ensurePetSlotFloats(g).push(obj)
+}
+
 function _pushElim(g, obj) {
   const amp = ANIM_CFG.elimFloat.bounceAmp
   obj._baseScale = obj.scale || 1
@@ -99,190 +507,280 @@ function _pushElim(g, obj) {
   g.elimFloats.push(obj)
 }
 
-// ==================== 对敌伤害飘字 ====================
-
-/** 回合总伤害（居中，最醒目） */
-function enemyTotalDmg(g, dmg, isCrit) {
-  const { W, S } = V
-  const c = FLOAT_CFG.enemyTotal
-  _pushDmg(g, {
-    x: W * 0.5, y: _enemyHpY() + c.dy * S,
-    text: `-${dmg}`, color: isCrit ? '#ffdd00' : '#ff2222',
-    t: 0, alpha: 1, scale: isCrit ? c.critScale : c.scale,
-    tag: c.tag, _shake: true
-  })
-}
-
-/** 消除预伤害飘字（按属性水平偏移，避免重叠） */
 function elimDmg(g, text, color, attr, baseScale) {
   const { W, S } = V
   const c = FLOAT_CFG.elimDmg
   const offsetX = ((c.attrDx[attr]) || 0) * S
   _pushElim(g, {
-    x: W * 0.5 + offsetX, y: _enemyHpY() + c.dy * S,
-    text, color,
-    t: 0, alpha: 1, scale: baseScale
+    x: W * 0.5 + offsetX,
+    y: _enemyHpY() + c.dy * S,
+    text,
+    color,
+    t: 0,
+    alpha: 1,
+    scale: baseScale,
   })
 }
 
-/** 宠物技能单体伤害 */
-function petSkillDmg(g, dmg, color) {
-  const { W, S } = V
+function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx) {
+  const c = FLOAT_CFG.petNormalAtk
+  const step = c.delayStep || 0
+  const floatObj = {
+    petIdx: petIdx == null ? 0 : petIdx,
+    anchorLane: 'main',
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: isCrit ? 'slotDamageCrit' : 'slotDamageMain',
+    delay: Math.max(0, orderIdx == null ? petIdx || 0 : orderIdx) * step,
+    _shake: !!isCrit,
+  }
+  _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
+}
+
+function petSkillDmg(g, dmg, color, petIdx, attr) {
   const c = FLOAT_CFG.petSkill
-  _pushDmg(g, {
-    x: W * 0.5 + (c.dx || 0) * S, y: _enemyHpY() + c.dy * S,
-    text: `🐾${dmg}`, color,
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
-  })
+  const floatObj = {
+    petIdx: petIdx == null ? 0 : petIdx,
+    anchorLane: 'main',
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'slotDamageMain',
+  }
+  _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
 }
 
-/** 宠物连击伤害（水平排列，hitIdx 从 0 开始） */
-function petMultiHitDmg(g, dmg, color, hitIdx, totalHits) {
-  const { W, S } = V
+function petMultiHitDmg(g, dmg, color, hitIdx, totalHits, petIdx, attr) {
   const c = FLOAT_CFG.petMultiHit
-  _pushDmg(g, {
-    x: W * 0.5 + (hitIdx - (totalHits - 1) / 2) * c.hGap * S,
-    y: _enemyHpY() + c.dy * S,
-    text: `🐾${dmg}`, color,
-    t: hitIdx * 4, alpha: 1, scale: c.scale,
-    tag: hitIdx === 0 ? c.tag : undefined
-  })
+  const resolvedHitIdx = hitIdx || 0
+  const floatObj = {
+    petIdx: petIdx == null ? 0 : petIdx,
+    anchorLane: 'minor',
+    hitIdx: resolvedHitIdx,
+    totalHits: totalHits || 1,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: resolvedHitIdx === 0 ? 'slotDamageMain' : 'slotDamageMinor',
+    delay: resolvedHitIdx * 3,
+  }
+  _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
 }
 
-/** 宠物群攻伤害（按宠物位置水平排列） */
-function petTeamAtkDmg(g, dmg, color, petIdx, totalPets) {
-  const { W, S } = V
+function petTeamAtkDmg(g, dmg, color, petIdx, totalPets, attr) {
   const c = FLOAT_CFG.petTeamAtk
+  const resolvedPetIdx = petIdx == null ? 0 : petIdx
+  const floatObj = {
+    petIdx: resolvedPetIdx,
+    anchorLane: 'team',
+    totalPets: totalPets || 1,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'slotDamageMain',
+    delay: resolvedPetIdx * (c.delayStep || 0),
+  }
+  _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
+}
+
+function enemyTotal(g, dmg, color, isCrit) {
+  const { W, S } = V
+  const c = FLOAT_CFG.enemyTotal
   _pushDmg(g, {
-    x: W * 0.5 + (petIdx - (totalPets - 1) / 2) * c.hGap * S,
+    x: W * 0.5,
     y: _enemyHpY() + c.dy * S,
-    text: `🐾${dmg}`, color,
-    t: 0, alpha: 1, scale: c.scale,
-    tag: petIdx === 0 ? c.tag : undefined
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: isCrit ? (c.critScale || c.scale || 1.5) : c.scale,
+    styleKey: isCrit ? 'damageCrit' : 'damageMain',
+    color,
+    tag: '总伤',
+    _shake: !!isCrit,
   })
 }
 
-/** AOE 法宝伤害 */
-function aoeDmg(g, dmg, color) {
+function aoeDmg(g, dmg) {
   const { W, S } = V
   const c = FLOAT_CFG.aoeDmg
   _pushDmg(g, {
-    x: W * 0.5 + (c.dx || 0) * S, y: _enemyHpY() + c.dy * S,
-    text: `💥${dmg}`, color,
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
+    x: W * 0.5 + (c.dx || 0) * S,
+    y: _enemyHpY() + c.dy * S,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'damageMinor',
+    tag: c.tag,
   })
 }
 
-/** 敌人身上 DOT 结算伤害（idx 用于水平偏移避免重叠） */
 function dotOnEnemy(g, dmg, dotType, idx) {
   const { W, S } = V
   const c = FLOAT_CFG.dotOnEnemy
-  const icon = dotType === 'burn' ? '🔥' : '☠️'
   const tagText = dotType === 'burn' ? '灼烧' : '中毒'
   _pushDmg(g, {
-    x: W * 0.5 + idx * (c.hGap || 30) * S, y: _enemyHpY() + c.dy * S,
-    text: `${icon}${dmg}`, color: '#a040a0',
-    t: 0, alpha: 1, scale: c.scale, tag: idx === 0 ? tagText : undefined
+    x: W * 0.5 + idx * (c.hGap || 30) * S,
+    y: _enemyHpY() + c.dy * S,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'dot',
+    tag: idx === 0 ? tagText : undefined,
   })
 }
 
-/** 护体反弹伤害 */
 function reflectToEnemy(g, dmg, color) {
   const { W, S } = V
   const c = FLOAT_CFG.reflectToEnemy
   _pushDmg(g, {
-    x: W * 0.5 + (c.dx || 0) * S, y: _enemyHpY() + c.dy * S,
-    text: `🛡️${dmg}`, color: color || '#40b8e0',
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
+    x: W * 0.5 + (c.dx || 0) * S,
+    y: _enemyHpY() + c.dy * S,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'shield',
+    color,
+    tag: c.tag,
   })
 }
 
-/** 敌方回血 */
 function enemyHeal(g, amt) {
   const { W, S } = V
   const c = FLOAT_CFG.enemyHeal
   _pushDmg(g, {
-    x: W * 0.5, y: _enemyHpY() + c.dy * S,
-    text: `+${amt}`, color: '#80ff80',
-    t: 0, alpha: 1, tag: c.tag
+    x: W * 0.5,
+    y: _enemyHpY() + c.dy * S,
+    text: `+${formatNumber(amt)}`,
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'heal',
   })
 }
 
-// ==================== 主角相关飘字 ====================
-
-/** 主角回复（带随机水平偏移） */
 function heroHeal(g, amt, color) {
   const { W, H } = V
   const c = FLOAT_CFG.heroHeal
   const spread = c.xSpread || 0.2
   _pushDmg(g, {
-    x: W * (0.5 - spread / 2) + Math.random() * W * spread, y: H * c.yR,
-    text: `❤️+${amt}`, color: color || '#4dcc4d',
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
+    x: W * (0.5 - spread / 2) + Math.random() * W * spread,
+    y: H * c.yR,
+    text: `+${formatNumber(amt)}`,
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'heal',
+    color,
+    tag: c.tag,
   })
 }
 
-/** 主角受伤 */
 function heroDmg(g, dmg, color) {
-  const { W, H, TH } = V
+  const { W, H } = V
   const c = FLOAT_CFG.heroDmg
   _pushDmg(g, {
-    x: W * 0.5, y: H * c.yR,
-    text: `-${dmg}`, color: color || (TH && TH.danger) || '#ff4444',
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
+    x: W * 0.5,
+    y: H * c.yR,
+    text: `-${formatNumber(dmg)}`,
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'heroDmg',
+    color,
+    tag: c.tag,
   })
 }
 
-/** 获得护盾 */
 function heroShieldGain(g, val) {
   const { W, H } = V
   const c = FLOAT_CFG.heroShieldGain
   _pushDmg(g, {
-    x: W * 0.5, y: H * c.yR,
-    text: `+${val}盾`, color: '#7ddfff',
-    t: 0, alpha: 1, scale: c.scale
+    x: W * 0.5,
+    y: H * c.yR,
+    text: `+${formatNumber(val)}`,
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'shield',
+    tag: c.tag,
   })
 }
 
-/** 护盾完美抵挡 */
 function heroShieldBlock(g, dmg) {
   const { W, H } = V
   const c = FLOAT_CFG.heroShieldBlock
   _pushDmg(g, {
-    x: W * 0.5, y: H * c.yR,
-    text: `护盾吸收 ${dmg}`, color: '#7ddfff',
-    t: 0, alpha: 1, scale: c.scale
+    x: W * 0.5,
+    y: H * c.yR,
+    text: formatNumber(dmg),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'shield',
+    tag: c.tag,
   })
 }
 
-/** 护盾击碎后盾挡部分 */
 function heroShieldBreak(g, shieldAbs) {
   const { W, H } = V
   const c = FLOAT_CFG.heroShieldBreak
   _pushDmg(g, {
-    x: W * 0.45, y: H * c.yR,
-    text: `盾挡 ${shieldAbs}`, color: '#40b8e0',
-    t: 0, alpha: 1, scale: c.scale
+    x: W * 0.45,
+    y: H * c.yR,
+    text: formatNumber(shieldAbs),
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'shield',
+    tag: c.tag,
   })
 }
 
-/** 事件扣血 */
 function eventCost(g, cost) {
   const { W, H } = V
   const c = FLOAT_CFG.eventCost
   _pushDmg(g, {
-    x: W * 0.5, y: H * c.yR,
-    text: `-${cost}HP`, color: '#ff4444',
-    t: 0, alpha: 1, scale: c.scale, tag: c.tag
+    x: W * 0.5,
+    y: H * c.yR,
+    text: `-${formatNumber(cost)}`,
+    t: 0,
+    alpha: 1,
+    scale: c.scale,
+    styleKey: 'heroDmg',
+    tag: c.tag,
   })
 }
 
 module.exports = {
-  FLOAT_CFG, RENDER_CFG, ANIM_CFG, ATTR_ICON,
-  enemyTotalDmg, elimDmg,
-  petSkillDmg, petMultiHitDmg, petTeamAtkDmg,
-  aoeDmg, dotOnEnemy, reflectToEnemy, enemyHeal,
-  heroHeal, heroDmg,
-  heroShieldGain, heroShieldBlock, heroShieldBreak,
+  FLOAT_CFG,
+  RENDER_CFG,
+  ANIM_CFG,
+  MOTION_PRESETS,
+  formatNumber,
+  getDmgRenderStyle,
+  getDmgMotion,
+  elimDmg,
+  enemyTotal,
+  petNormalAtkDmg,
+  petSkillDmg,
+  petMultiHitDmg,
+  petTeamAtkDmg,
+  aoeDmg,
+  dotOnEnemy,
+  reflectToEnemy,
+  enemyHeal,
+  heroHeal,
+  heroDmg,
+  heroShieldGain,
+  heroShieldBlock,
+  heroShieldBreak,
   eventCost,
 }

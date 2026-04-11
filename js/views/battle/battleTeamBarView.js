@@ -8,6 +8,58 @@ const { STAR_VISUAL } = require('../../data/economyConfig')
 const tutorial = require('../../engine/tutorial')
 const MusicMgr = require('../../runtime/music')
 const { BUFF_LABELS, DEBUFF_KEYS, getBuffIcon, shortBuffLabel } = require('../../data/buffConfig')
+const { FLOAT_CFG } = require('../../engine/dmgFloat')
+
+function _getPetFloatFrameRect(rect) {
+  const frameScale = 1.12
+  const frameW = rect[2] * frameScale
+  const frameH = rect[3] * frameScale
+  return {
+    x: rect[0] - (frameW - rect[2]) / 2,
+    y: rect[1] - (frameH - rect[3]) / 2,
+    w: frameW,
+    h: frameH,
+  }
+}
+
+function _resolvePetFloatAnchor(rect, floatObj) {
+  const frameRect = _getPetFloatFrameRect(rect)
+  const multiCfg = FLOAT_CFG.petMultiHit
+  const mainCfg = FLOAT_CFG.petNormalAtk || FLOAT_CFG.petSkill
+  const teamCfg = FLOAT_CFG.petTeamAtk
+  let x = frameRect.x + frameRect.w * 0.5
+  let y = frameRect.y + frameRect.h * (mainCfg.slotYRatio || 0.58)
+
+  if (floatObj.anchorLane === 'team') {
+    y = frameRect.y + frameRect.h * (teamCfg.slotYRatio || 0.58)
+  } else if (floatObj.anchorLane === 'minor') {
+    const hitIdx = floatObj.hitIdx || 0
+    const totalHits = floatObj.totalHits || 1
+    const spread = (hitIdx - (totalHits - 1) / 2) * (multiCfg.xStep || 0) * V.S
+    x += spread
+    y = frameRect.y + frameRect.h * (hitIdx === 0 ? (multiCfg.upperYRatio || 0.52) : (multiCfg.lowerYRatio || 0.76))
+  }
+
+  return { x, y }
+}
+
+function _drawPetSlotFloats(g) {
+  const floats = g._petSlotFloats || []
+  if (floats.length === 0 || !g._petBtnRects || g._petBtnRects.length === 0) return
+
+  for (let i = 0; i < floats.length; i++) {
+    const f = floats[i]
+    if (!f || f._dead || f.delay > 0) continue
+    const rect = g._petBtnRects[f.petIdx]
+    if (!rect) continue
+    const anchor = _resolvePetFloatAnchor(rect, f)
+    const drawFloat = Object.assign({}, f, {
+      x: anchor.x,
+      y: anchor.y + (f._anchorYOffset || 0),
+    })
+    V.R.drawDmgFloat(drawFloat)
+  }
+}
 
 // ===== 队伍栏 =====
 function drawTeamBar(g, topY, barH, iconSize) {
@@ -294,6 +346,7 @@ function drawTeamBar(g, topY, barH, iconSize) {
       }
     }
   }
+  _drawPetSlotFloats(g)
   ctx.restore()
 }
 

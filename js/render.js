@@ -190,6 +190,7 @@ class Render {
     }
     this._beadTexCache = null
     this._beadTexSrcVer = null
+    this._dmgFloatTexCache = null
   }
 
   /**
@@ -1666,29 +1667,144 @@ class Render {
     c.restore()
   }
 
-  // ===== 伤害飘字（读取 RENDER_CFG 配置） =====
+  _getDmgFloatSprite(f, RS) {
+    if (!this._P || !this._P.createOffscreenCanvas || !f || !f.text) return null
+    if (!this._dmgFloatTexCache) this._dmgFloatTexCache = {}
+    const cacheKey = [
+      this.S,
+      f.styleKey || 'damageMain',
+      RS.fontSize,
+      RS.stroke,
+      RS.glow,
+      f.text,
+      f.tag || '',
+      f.color || '',
+      f.fillTop || '',
+      f.fillBottom || '',
+      f.glowColor || '',
+      f.tagColor || '',
+    ].join('|')
+    if (this._dmgFloatTexCache[cacheKey]) return this._dmgFloatTexCache[cacheKey]
+
+    const baseFontSize = RS.fontSize * this.S
+    const fontWeight = RS.fontWeight || 900
+    const fontFamily = RS.fontFamily || '"PingFang SC",sans-serif'
+    const fillTop = f.fillTop || RS.fillTop || f.color || TH.danger
+    const fillBottom = f.fillBottom || RS.fillBottom || f.color || TH.danger
+    const strokeColor = RS.strokeColor || 'rgba(0,0,0,0.85)'
+    const glowColor = f.glowColor || RS.glowColor || f.color || TH.danger
+    const tagColor = f.tagColor || RS.tagColor || '#ffffff'
+    const tagSize = f.tag ? baseFontSize * (RS.tagRatio || 0.28) : 0
+    const pad = Math.ceil((RS.stroke + RS.glow + 8) * this.S)
+
+    this.ctx.save()
+    this.ctx.font = `${fontWeight} ${baseFontSize}px ${fontFamily}`
+    const textW = Math.ceil(this.ctx.measureText(f.text).width)
+    let tagW = 0
+    if (f.tag) {
+      this.ctx.font = `bold ${tagSize}px "PingFang SC",sans-serif`
+      tagW = Math.ceil(this.ctx.measureText(f.tag).width)
+    }
+    this.ctx.restore()
+
+    const width = Math.max(1, Math.ceil(Math.max(textW, tagW) + pad * 2))
+    const height = Math.max(1, Math.ceil(baseFontSize + pad * 2 + (f.tag ? tagSize * 1.4 : 0)))
+    const oc = this._P.createOffscreenCanvas({ type: '2d', width, height })
+    const octx = oc.getContext('2d')
+    const anchorX = width * 0.5
+    const textY = pad + baseFontSize * 0.58
+
+    octx.textAlign = 'center'
+    octx.textBaseline = 'middle'
+    octx.lineJoin = 'round'
+    octx.miterLimit = 2
+    octx.font = `${fontWeight} ${baseFontSize}px ${fontFamily}`
+    const fillGrad = octx.createLinearGradient(anchorX, textY - baseFontSize * 0.55, anchorX, textY + baseFontSize * 0.55)
+    fillGrad.addColorStop(0, fillTop)
+    fillGrad.addColorStop(1, fillBottom)
+    octx.strokeStyle = strokeColor
+    octx.lineWidth = RS.stroke * this.S
+    octx.strokeText(f.text, anchorX, textY)
+    octx.shadowColor = glowColor
+    octx.shadowBlur = RS.glow * this.S
+    octx.fillStyle = fillGrad
+    octx.fillText(f.text, anchorX, textY)
+    octx.shadowBlur = 0
+
+    if (f.tag) {
+      const tagY = textY + baseFontSize * 0.58
+      octx.font = `bold ${tagSize}px "PingFang SC",sans-serif`
+      octx.strokeStyle = 'rgba(0,0,0,0.75)'
+      octx.lineWidth = 2.2 * this.S
+      octx.strokeText(f.tag, anchorX, tagY)
+      octx.fillStyle = tagColor
+      octx.fillText(f.tag, anchorX, tagY)
+    }
+
+    const sprite = { canvas: oc, width, height, anchorX, anchorY: textY }
+    const keys = Object.keys(this._dmgFloatTexCache)
+    if (keys.length >= 180) {
+      for (let i = 0; i < 40; i++) delete this._dmgFloatTexCache[keys[i]]
+    }
+    this._dmgFloatTexCache[cacheKey] = sprite
+    return sprite
+  }
+
+  // ===== 伤害飘字（支持按样式 key 渲染数字与跳跃反馈） =====
   drawDmgFloat(f) {
-    const {ctx:c,S} = this
-    const RC = require('./engine/dmgFloat').RENDER_CFG.dmgFloat
-    const {x,y,text,color,alpha,scale,tag} = f
+    const { ctx:c, S } = this
+    const { getDmgRenderStyle } = require('./engine/dmgFloat')
+    const { x, y, text, color, alpha, scale, tag, styleKey } = f
+    const RS = getDmgRenderStyle(styleKey)
     const drawX = x + (f._shakeOffset || 0)
-    c.save(); c.globalAlpha=alpha||1
-    const sz = (RC.fontSize*(scale||1))*S
-    c.font=`bold ${sz}px "PingFang SC",sans-serif`
-    c.textAlign='center'; c.textBaseline='middle'
-    c.strokeStyle='rgba(0,0,0,0.85)'; c.lineWidth=RC.stroke*S; c.strokeText(text,drawX,y)
-    c.shadowColor = color || TH.danger; c.shadowBlur = RC.glow*S
-    c.fillStyle=color||TH.danger
-    c.fillText(text,drawX,y)
+    const drawY = y
+    const sprite = this._getDmgFloatSprite(f, RS)
+
+    c.save()
+    c.globalAlpha = alpha == null ? 1 : alpha
+    if (sprite) {
+      const drawW = sprite.width * (scale || 1)
+      const drawH = sprite.height * (scale || 1)
+      c.drawImage(sprite.canvas, drawX - sprite.anchorX * (scale || 1), drawY - sprite.anchorY * (scale || 1), drawW, drawH)
+      c.restore()
+      return
+    }
+
+    const sz = (RS.fontSize * (scale || 1)) * S
+    const fontWeight = RS.fontWeight || 900
+    const fontFamily = RS.fontFamily || '"PingFang SC",sans-serif'
+    const fillTop = f.fillTop || RS.fillTop || color || TH.danger
+    const fillBottom = f.fillBottom || RS.fillBottom || color || TH.danger
+    const strokeColor = RS.strokeColor || 'rgba(0,0,0,0.85)'
+    const glowColor = f.glowColor || RS.glowColor || color || TH.danger
+    const tagColor = f.tagColor || RS.tagColor || '#ffffff'
+    c.font = `${fontWeight} ${sz}px ${fontFamily}`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.lineJoin = 'round'
+    c.miterLimit = 2
+
+    const fillGrad = c.createLinearGradient(drawX, drawY - sz * 0.55, drawX, drawY + sz * 0.55)
+    fillGrad.addColorStop(0, fillTop)
+    fillGrad.addColorStop(1, fillBottom)
+    c.strokeStyle = strokeColor
+    c.lineWidth = RS.stroke * S
+    c.strokeText(text, drawX, drawY)
+    c.shadowColor = glowColor
+    c.shadowBlur = RS.glow * S
+    c.fillStyle = fillGrad
+    c.fillText(text, drawX, drawY)
     c.shadowBlur = 0
+
     if (tag) {
-      const tagSz = sz * RC.tagRatio
+      const tagSz = sz * (RS.tagRatio || 0.28)
       c.font = `bold ${tagSz}px "PingFang SC",sans-serif`
-      c.globalAlpha = (alpha || 1) * 0.75
-      c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 2.5*S
-      const tagY = y + sz * 0.55
+      c.globalAlpha = (alpha == null ? 1 : alpha) * 0.78
+      c.strokeStyle = 'rgba(0,0,0,0.75)'
+      c.lineWidth = 2.2 * S
+      const tagY = drawY + sz * 0.58
       c.strokeText(tag, drawX, tagY)
-      c.fillStyle = '#ffffff'
+      c.fillStyle = tagColor
       c.fillText(tag, drawX, tagY)
     }
     c.restore()

@@ -38,6 +38,7 @@ function initState(g) {
   // ===== 动画 =====
   g.dmgFloats = []; g.skillEffects = []
   g.elimFloats = []
+  g._petSlotFloats = []
   g._comboAnim = { num: 0, timer: 0, scale: 1 }
   g._comboParticles = []
   g._comboFlash = 0

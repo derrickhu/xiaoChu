@@ -79,15 +79,15 @@ function _applyResolvedPetSkillDamage(g, result) {
 
   if (result.type === 'single') {
     entries.forEach(item => {
-      emitFloat(g, 'petSkillDmg', { dmg: item.dmg, color: item.color })
+      emitFloat(g, 'petSkillDmg', { dmg: item.dmg, color: item.color, petIdx: item.petIdx, attr: item.attr })
     })
   } else if (result.type === 'multi') {
     entries.forEach(item => {
-      emitFloat(g, 'petMultiHitDmg', { dmg: item.dmg, color: item.color, hitIdx: item.hitIdx, totalHits: item.totalHits })
+      emitFloat(g, 'petMultiHitDmg', { dmg: item.dmg, color: item.color, hitIdx: item.hitIdx, totalHits: item.totalHits, petIdx: item.petIdx, attr: item.attr })
     })
   } else if (result.type === 'team') {
     entries.forEach(item => {
-      emitFloat(g, 'petTeamAtkDmg', { dmg: item.dmg, color: item.color, petIdx: item.petIdx, totalPets: item.totalPets })
+      emitFloat(g, 'petTeamAtkDmg', { dmg: item.dmg, color: item.color, petIdx: item.petIdx, totalPets: item.totalPets, attr: item.attr })
     })
   }
 
@@ -352,19 +352,19 @@ function triggerPetSkill(g, pet, idx) {
       }
       break
     case 'instantDmg': {
-      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const result = resolveSkillDamage(g, { pet, sk, sMul, idx })
       const commit = _applyResolvedPetSkillDamage(g, result)
       if (commit.enemyKilled) return
       break
     }
     case 'instantDmgDot': {
-      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const result = resolveSkillDamage(g, { pet, sk, sMul, idx })
       const commit = _applyResolvedPetSkillDamage(g, result)
       if (commit.enemyKilled) return
       break
     }
     case 'multiHit': {
-      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const result = resolveSkillDamage(g, { pet, sk, sMul, idx })
       const commit = _applyResolvedPetSkillDamage(g, result)
       if (commit.enemyKilled) return
       break
@@ -479,7 +479,7 @@ function triggerPetSkill(g, pet, idx) {
       break
     }
     case 'teamAttack': {
-      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const result = resolveSkillDamage(g, { pet, sk, sMul, idx })
       const commit = _applyResolvedPetSkillDamage(g, result)
       if (commit.enemyKilled) return
       break

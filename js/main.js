@@ -396,7 +396,7 @@ class Main {
     }
     if (this.bState === 'petAtkShow') {
       this._stateTimer++
-      if (this._stateTimer >= 10) { this._stateTimer = 0; this.bState = 'preAttack' }
+      if (this._stateTimer >= 14) { this._stateTimer = 0; this.bState = 'preAttack' }
     }
     if (this.bState === 'preAttack') {
       this._stateTimer++; if (this._stateTimer >= 12) { this._stateTimer = 0; battleEngine.executeAttack(this) }

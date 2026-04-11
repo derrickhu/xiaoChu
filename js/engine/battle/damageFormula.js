@@ -273,73 +273,69 @@ function calcTotalDamage(ctx, options) {
 
 function calcPetDisplayBreakdown(ctx, options) {
   const opts = options || {}
-  const comboMul = getComboMul(ctx.combo)
-  const comboBonusMul = 1 + ((ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0) / 100
-  const critMul = opts.critMul != null ? opts.critMul : 1
-  const buff = opts.buffMultipliers || collectBuffMultipliers(ctx)
   const pets = ctx.pets || []
-  const attrPetCount = {}
+  const pendingDmgMap = (ctx && ctx.pendingDmgMap) || {}
+  const critMul = opts.critMul != null ? opts.critMul : 1
+  const buffMultipliers = opts.buffMultipliers || collectBuffMultipliers(ctx)
+  const comboMul = opts.comboMul != null ? opts.comboMul : getComboMul(ctx.combo)
+  const comboBonusMul = opts.comboBonusMul != null ? opts.comboBonusMul : (1 + ((ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0) / 100)
+  const enemyDefense = opts.enemyDefense != null ? opts.enemyDefense : getEnemyDefense(ctx)
+  const breakdown = pets.map((pet, index) => ({ index, attr: pet.attr, dmg: 0, isCounter: false, isCountered: false }))
 
-  pets.forEach(p => {
-    attrPetCount[p.attr] = (attrPetCount[p.attr] || 0) + 1
+  const petsByAttr = {}
+  pets.forEach((pet, index) => {
+    if (!petsByAttr[pet.attr]) petsByAttr[pet.attr] = []
+    petsByAttr[pet.attr].push({ pet, index })
   })
 
-  return pets.map((pet, index) => {
-    const totalBaseDmg = (ctx.pendingDmgMap && ctx.pendingDmgMap[pet.attr]) || 0
-    if (totalBaseDmg <= 0) {
-      return { index, attr: pet.attr, dmg: 0, isCounter: false, isCountered: false }
-    }
+  Object.entries(pendingDmgMap).forEach(([attr, baseDmg]) => {
+    const attrPets = petsByAttr[attr] || []
+    if (baseDmg <= 0 || attrPets.length === 0) return
 
-    const sameAttrPets = pets.filter(p => p.attr === pet.attr)
-    const totalAtk = sameAttrPets.reduce((sum, p) => sum + getPetStarAtk(p), 0)
-    const ratio = totalAtk > 0 ? getPetStarAtk(pet) / totalAtk : 1 / attrPetCount[pet.attr]
-    const hpRatio = ctx.heroMaxHp > 0 ? ctx.heroHp / ctx.heroMaxHp : 1
-    let dmg = totalBaseDmg * ratio * comboMul * comboBonusMul
+    const detail = calcDamagePerAttr(ctx, attr, baseDmg, {
+      buffMultipliers,
+      enemyDefense,
+      comboMul,
+      comboBonusMul,
+      critMul,
+    })
 
-    dmg *= 1 + ((ctx.runBuffs && ctx.runBuffs.allDmgPct) || 0) / 100
-    dmg *= 1 + (((ctx.runBuffs && ctx.runBuffs.attrDmgPct) && ctx.runBuffs.attrDmgPct[pet.attr]) || 0) / 100
-    dmg *= 1 + buff.buffAllDmgPct / 100
-    dmg *= 1 + buff.buffAllAtkPct / 100
-    dmg *= 1 + (buff.buffAttrDmgPct[pet.attr] || 0) / 100
-    if (buff.buffComboDmgPct > 0 && ctx.combo > 1) dmg *= 1 + buff.buffComboDmgPct / 100
-    if (buff.buffLowHpDmgPct > 0 && hpRatio <= 0.3) dmg *= 1 + buff.buffLowHpDmgPct / 100
-
-    for (const rule of LOW_HP_BURST) {
-      if (hpRatio <= rule.threshold) {
-        dmg *= rule.mul
-        break
+    const totalAttrDmg = Math.max(0, Math.round(detail.dmg || 0))
+    const totalAtk = attrPets.reduce((sum, item) => sum + getPetStarAtk(item.pet), 0)
+    const unitRatio = totalAtk > 0 ? null : 1 / attrPets.length
+    const shares = attrPets.map(item => {
+      const ratio = unitRatio == null ? (getPetStarAtk(item.pet) / totalAtk) : unitRatio
+      const raw = totalAttrDmg * ratio
+      const dmg = Math.floor(raw)
+      return {
+        index: item.index,
+        raw,
+        dmg,
+        frac: raw - dmg,
       }
+    })
+
+    let remainder = totalAttrDmg - shares.reduce((sum, item) => sum + item.dmg, 0)
+    shares.sort((a, b) => {
+      if (b.frac !== a.frac) return b.frac - a.frac
+      return a.index - b.index
+    })
+    for (let i = 0; i < shares.length && remainder > 0; i++, remainder--) {
+      shares[i].dmg += 1
     }
 
-    if (ctx.weapon && ctx.weapon.type === 'attrDmgUp' && ctx.weapon.attr === pet.attr) dmg *= 1 + ctx.weapon.pct / 100
-    if (ctx.weapon && ctx.weapon.type === 'allAtkUp') dmg *= 1 + ctx.weapon.pct / 100
-    if (ctx.weapon && ctx.weapon.type === 'attrPetAtkUp' && ctx.weapon.attr === pet.attr) dmg *= 1 + ctx.weapon.pct / 100
-
-    let isCounter = false
-    let isCountered = false
-    if (ctx.enemy) {
-      const enemyAttr = ctx.enemy.attr
-      if (COUNTER_MAP[pet.attr] === enemyAttr) {
-        dmg *= COUNTER_MUL
-        dmg *= 1 + ((ctx.runBuffs && ctx.runBuffs.counterDmgPct) || 0) / 100
-        isCounter = true
-      } else if (COUNTER_BY[pet.attr] === enemyAttr) {
-        dmg *= COUNTERED_MUL
-        isCountered = true
+    shares.forEach(item => {
+      breakdown[item.index] = {
+        index: item.index,
+        attr,
+        dmg: item.dmg,
+        isCounter: detail.isCounter,
+        isCountered: detail.isCountered,
       }
-    }
-
-    dmg *= critMul
-    dmg = Math.round(dmg)
-
-    return {
-      index,
-      attr: pet.attr,
-      dmg,
-      isCounter,
-      isCountered,
-    }
+    })
   })
+
+  return breakdown
 }
 
 module.exports = {

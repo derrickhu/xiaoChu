@@ -50,9 +50,6 @@ const {
   PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
 } = require('../data/balance/combat')
 
-// 属性图标映射（用于伤害飘字）
-const ATTR_ICON = { metal: '⚔️', wood: '🌿', earth: '🪨', water: '💧', fire: '🔥' }
-
 // 击杀经验（统一调用避免遗漏）
 function _addKillExp(g) {
   if (!g.enemy) return
@@ -338,10 +335,10 @@ function startNextElimAnim(g) {
     }
   }
   if (elimDisplayVal > 0 && cells.length > 0) {
-    const prefix = attr === 'heart' ? '+' : ''
-    const attrIcon = ATTR_ICON[attr] || (attr === 'heart' ? '❤️' : '')
-    const baseScale = count >= 5 ? 1.4 : count === 4 ? 1.2 : 1.0
-    DF.elimDmg(g, `${attrIcon}${prefix}${elimDisplayVal}`, elimDisplayColor, attr, baseScale)
+    if (attr === 'heart') {
+      const baseScale = count >= 5 ? 1.4 : count === 4 ? 1.2 : 1.0
+      DF.elimDmg(g, `+${Math.round(elimDisplayVal)}`, elimDisplayColor, attr, baseScale)
+    }
     MusicMgr.playEliminate(count)
   }
   // 法宝/buff 消除效果
@@ -491,6 +488,14 @@ function enterPetAtkShow(g) {
     g._petFinalDmg[item.index] = item.dmg
     if (item.dmg <= 0) continue
     hasAny = true
+    emitFloat(g, 'petNormalAtkDmg', {
+      dmg: item.dmg,
+      color: (ATTR_COLOR[item.attr] && ATTR_COLOR[item.attr].main) || V.TH.accent,
+      petIdx: item.index,
+      attr: item.attr,
+      isCrit: critState.isCrit,
+      orderIdx: i,
+    })
     if (item.isCounter) {
       const cac = ATTR_COLOR[item.attr]
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'克制！', color: cac ? cac.main : '#ffd700', scale:2.2, _initScale:2.2, big:true })
@@ -501,6 +506,7 @@ function enterPetAtkShow(g) {
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'抵抗...', color:'#888888', scale:1.4, _initScale:1.4 })
     }
   }
+
 
   const heal = calcHealFromCtx(ctx)
   if (heal > 0) {
@@ -557,9 +563,15 @@ function applyFinalDamage(g, dmgMap, heal) {
 
   if (totalDmg > 0 && g.enemy) {
     const oldPct = g.enemy.hp / g.enemy.maxHp
+    const leadAttr = Object.keys(dmgMap || {})[0] || 'metal'
     g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
     g._enemyHpLoss = { fromPct: oldPct, timer: 0, dmg: totalDmg, isCrit: isCrit }
-    emitCast(g, { kind: 'heroAttack', attr: Object.keys(dmgMap || {})[0] || 'metal' })
+    emitFloat(g, 'enemyTotal', {
+      dmg: totalDmg,
+      color: (ATTR_COLOR[leadAttr] && ATTR_COLOR[leadAttr].main) || V.TH.accent,
+      isCrit: isCrit,
+    })
+    emitCast(g, { kind: 'heroAttack', attr: leadAttr })
     emitShake(g, { t: isCrit ? 14 : 8, i: isCrit ? 8 : 4 })
     if (isCrit) emitFlash(g, 'combo', { timer: 10 })
     if (isCrit) {
@@ -569,7 +581,6 @@ function applyFinalDamage(g, dmgMap, heal) {
       MusicMgr.playAttack()
     }
 
-    emitFloat(g, 'enemyTotalDmg', { dmg: totalDmg, isCrit: isCrit })
     if (g.weapon && g.weapon.type === 'poisonChance' && Math.random()*100 < g.weapon.chance) {
       g.enemyBuffs.push({ type:'dot', name:'中毒', dmg:g.weapon.dmg, dur:g.weapon.dur, bad:true, dotType:'poison' })
     }
