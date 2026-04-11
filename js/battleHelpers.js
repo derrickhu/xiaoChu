@@ -2,12 +2,16 @@
  * 战斗辅助函数 — 从 Main 中提取的布局计算、动画触发、伤害处理
  * 通过 ViewEnv 获取屏幕常量，避免依赖 Main 的闭包变量
  */
-const { ATTR_COLOR } = require('./data/tower')
-const { TH } = require('./render')
 const MusicMgr = require('./runtime/music')
 const V = require('./views/env')
-const DF = require('./engine/dmgFloat')
 const { getBattleLayout: computeBattleLayout } = require('./views/battle/battleLayout')
+const {
+  emitNotice,
+  emitFloat,
+  emitShake,
+  emitFlash,
+  emitCast,
+} = require('./engine/battle/fxEmitter')
 const { DMG_IMMUNE_MIN, WEAPON_SHIELD_BOOST_DEFAULT } = require('./data/balance/combat')
 
 /** 与战斗界面共用布局（含 eAreaBottom）；此处保留旧字段子集以兼容既有调用 */
@@ -25,34 +29,15 @@ function getEnemyCenterY() {
 }
 
 function playHeroAttack(g, skillName, attr, type) {
-  g.heroAttackAnim = { active:true, progress:0, duration:24 }
-  g.enemyHurtAnim  = { active:true, progress:0, duration:18 }
-  g._enemyHitFlash = 12
-  g._enemyTintFlash = 8
-  // 顿帧：命中时短暂冻结增强打击感
-  g._hitStopFrames = 3
-  // 屏幕闪白
-  g._screenFlash = 4; g._screenFlashMax = 4; g._screenFlashColor = '#fff'
-  const color = (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || TH.accent
-  const eCenterY = getEnemyCenterY()
-  g.skillCastAnim = { active:true, progress:0, duration:30, type:type||'slash', color, skillName:skillName||'', targetX:V.W*0.5, targetY:eCenterY }
+  emitCast(g, { kind: 'heroAttack', skillName, attr, type, targetY: getEnemyCenterY() })
 }
 
 function playEnemyAttack(g) {
-  g.enemyAttackAnim = { active:true, progress:0, duration:20 }
-  g.heroHurtAnim    = { active:true, progress:0, duration:18 }
-  g._hitStopFrames = 2
-  // 受击闪红
-  g._screenFlash = 3; g._screenFlashMax = 3; g._screenFlashColor = '#ff2244'
-  g._heroHurtFlash = 10
-  const L = getBattleLayout()
-  g.skillCastAnim = { active:true, progress:0, duration:30, type:'enemyAtk', color:TH.danger, skillName:'', targetX:V.W*0.5, targetY:L.hpBarY }
+  emitCast(g, { kind: 'enemyAttack' })
 }
 
 function playHealEffect(g) {
-  const L = getBattleLayout()
-  g.skillCastAnim = { active:true, progress:0, duration:25, type:'heal', color:'#4dcc4d', skillName:'', targetX:V.W*0.5, targetY:L.hpBarY }
-  MusicMgr.playHeal()
+  emitCast(g, { kind: 'heal' })
 }
 
 /** 统一添加护盾（自动应用法宝 shieldBoost 加成） */
@@ -62,33 +47,58 @@ function addShield(g, val) {
   }
   g.heroShield += val
   MusicMgr.playShieldGain()
-  DF.heroShieldGain(g, val)
+  emitFloat(g, 'heroShieldGain', { val })
 }
 
 /** 对英雄造成伤害（含护盾、绝对防御、飘字） */
 function dealDmgToHero(g, dmg) {
   const immune = g.heroBuffs && g.heroBuffs.find(b => b.type === 'dmgImmune')
-  if (immune && dmg > DMG_IMMUNE_MIN) dmg = DMG_IMMUNE_MIN
+  let resolvedDmg = Math.max(0, dmg || 0)
+  if (immune && resolvedDmg > DMG_IMMUNE_MIN) resolvedDmg = DMG_IMMUNE_MIN
+  const result = {
+    incomingDamage: resolvedDmg,
+    actualDamage: 0,
+    blockedByShield: false,
+    fullyBlocked: false,
+    shieldAbsorbed: 0,
+    heroDied: false,
+  }
+  if (resolvedDmg <= 0) return result
+
   const { W, H } = V
   if (g.heroShield > 0) {
-    if (dmg <= g.heroShield) {
-      g.heroShield -= dmg
-      g.skillEffects.push({ x:W*0.5, y:H*0.52, text:'完美抵挡！', color:'#40e8ff', t:0, alpha:1, scale:2.5, _initScale:2.5, big:true })
-      DF.heroShieldBlock(g, dmg)
-      g.shakeT = 4; g.shakeI = 2
-      g._blockFlash = 8
+    if (resolvedDmg <= g.heroShield) {
+      g.heroShield -= resolvedDmg
+      result.blockedByShield = true
+      result.fullyBlocked = true
+      result.shieldAbsorbed = resolvedDmg
+      emitNotice(g, { x:W*0.5, y:H*0.52, text:'完美抵挡！', color:'#40e8ff', scale:2.5, _initScale:2.5, big:true })
+      emitFloat(g, 'heroShieldBlock', { dmg: resolvedDmg })
+      emitShake(g, { t: 4, i: 2 })
+      emitFlash(g, 'block', { timer: 8 })
       MusicMgr.playBlock()
-      return
+      return result
     }
     const shieldAbs = g.heroShield
-    dmg -= g.heroShield; g.heroShield = 0
-    g.skillEffects.push({ x:W*0.5, y:H*0.52, text:'护盾击碎！', color:'#ff9040', t:0, alpha:1, scale:2.0, _initScale:2.0 })
-    DF.heroShieldBreak(g, shieldAbs)
+    resolvedDmg -= g.heroShield
+    g.heroShield = 0
+    result.blockedByShield = true
+    result.shieldAbsorbed = shieldAbs
+    emitNotice(g, { x:W*0.5, y:H*0.52, text:'护盾击碎！', color:'#ff9040', scale:2.0, _initScale:2.0 })
+    emitFloat(g, 'heroShieldBreak', { shieldAbs })
   }
-  const oldPct = g.heroHp / g.heroMaxHp
-  g.heroHp = Math.max(0, g.heroHp - dmg)
-  g._heroHpLoss = { fromPct: oldPct, timer: 0 }
-  DF.heroDmg(g, dmg)
+  if (resolvedDmg <= 0) return result
+
+  const oldHp = g.heroHp
+  const oldPct = oldHp / g.heroMaxHp
+  g.heroHp = Math.max(0, oldHp - resolvedDmg)
+  result.actualDamage = oldHp - g.heroHp
+  result.heroDied = g.heroHp <= 0
+  if (result.actualDamage > 0) {
+    g._heroHpLoss = { fromPct: oldPct, timer: 0 }
+    emitFloat(g, 'heroDmg', { dmg: result.actualDamage })
+  }
+  return result
 }
 
 module.exports = { getBattleLayout, getEnemyCenterY, playHeroAttack, playEnemyAttack, playHealEffect, addShield, dealDmgToHero }

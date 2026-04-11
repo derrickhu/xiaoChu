@@ -2,9 +2,8 @@
  * 连击数字、里程碑、背景特效与全屏反馈
  */
 const V = require('../env')
-const { COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL } = require('../../data/tower')
 const { COMBO_MILESTONES, getComboTier, isComboMilestone } = require('../../data/constants')
-const { getComboMul } = require('../../engine/battle')
+const { estimateDamage } = require('../../engine/battle/damageEstimator')
 const Particles = require('../../engine/particles')
 const FXComposer = require('../../engine/effectComposer')
 
@@ -361,81 +360,10 @@ function drawCombo(g, cellSize, boardTop) {
   const baseSz = tier >= 4 ? 52*S : tier >= 3 ? 46*S : tier >= 2 ? 40*S : tier >= 1 ? 34*S : isLow ? 22*S : 32*S
   const lowAlphaMul = isLow ? 0.5 : 1.0
 
-  const comboMulVal = getComboMul(g.combo)
-  const comboBonusPct = g.runBuffs.comboDmgPct || 0
-  const totalMul = comboMulVal * (1 + comboBonusPct / 100)
-  const extraPct = Math.round((totalMul - 1) * 100)
-
-  // 汇总 heroBuffs（与 applyFinalDamage 完全对齐，仅不含暴击随机性）
-  let buffAllDmgPct = 0, buffAllAtkPct = 0, buffComboDmgPct = 0, buffLowHpDmgPct = 0
-  let debuffAtkReduce = 0
-  const buffAttrDmgPct = {}
-  if (g.heroBuffs) {
-    g.heroBuffs.forEach(b => {
-      if (b.type === 'dmgBoost') buffAttrDmgPct[b.attr] = (buffAttrDmgPct[b.attr] || 0) + b.pct
-      else if (b.type === 'allDmgUp') buffAllDmgPct += b.pct
-      else if (b.type === 'allAtkUp') buffAllAtkPct += b.pct
-      else if (b.type === 'comboDmgUp') buffComboDmgPct += b.pct
-      else if (b.type === 'lowHpDmgUp') buffLowHpDmgPct += b.pct
-      else if (b.type === 'debuff' && b.field === 'atk') debuffAtkReduce += b.rate
-    })
-  }
-
-  // 敌人防御（含 buff）
-  let eDef = 0
-  if (g.enemy) {
-    eDef = g.enemy.def || 0
-    const defBuff = (g.enemyBuffs || []).find(b => b.type === 'buff' && b.field === 'def')
-    if (defBuff) eDef = Math.round(eDef * (1 + defBuff.rate))
-  }
-
-  const hpRatio = g.heroMaxHp > 0 ? g.heroHp / g.heroMaxHp : 1
-
-  let estTotalDmg = 0
-  const pdm = g._pendingDmgMap || {}
-  for (const attr in pdm) {
-    let d = pdm[attr] * totalMul
-    if (debuffAtkReduce > 0) d *= Math.max(0.1, 1 - debuffAtkReduce)
-    d *= 1 + (g.runBuffs.allDmgPct || 0) / 100
-    d *= 1 + ((g.runBuffs.attrDmgPct && g.runBuffs.attrDmgPct[attr]) || 0) / 100
-    d *= 1 + buffAllDmgPct / 100
-    d *= 1 + buffAllAtkPct / 100
-    d *= 1 + ((buffAttrDmgPct[attr]) || 0) / 100
-    if (buffComboDmgPct > 0 && g.combo > 1) d *= 1 + buffComboDmgPct / 100
-    if (buffLowHpDmgPct > 0 && hpRatio <= 0.3) d *= 1 + buffLowHpDmgPct / 100
-    if (hpRatio <= 0.15) d *= 2.0
-    else if (hpRatio <= 0.30) d *= 1.5
-    // 法宝
-    if (g.weapon && g.weapon.type === 'attrDmgUp' && g.weapon.attr === attr) d *= 1 + g.weapon.pct / 100
-    if (g.weapon && g.weapon.type === 'allAtkUp') d *= 1 + g.weapon.pct / 100
-    if (g.weapon && g.weapon.type === 'attrPetAtkUp' && g.weapon.attr === attr) d *= 1 + g.weapon.pct / 100
-    if (g.weapon && g.weapon.type === 'comboDmgUp') d *= 1 + g.weapon.pct / 100 * (g.combo > 1 ? 1 : 0)
-    if (g.weapon && g.weapon.type === 'lowHpDmgUp' && hpRatio <= (g.weapon.threshold || 30) / 100) d *= 1 + g.weapon.pct / 100
-    if (g.weapon && g.weapon.type === 'stunBonusDmg' && (g.enemyBuffs || []).some(b => b.type === 'stun')) d *= 1 + g.weapon.pct / 100
-    if ((g.runBuffs.weaponBoostPct || 0) > 0) d *= 1 + g.runBuffs.weaponBoostPct / 100
-    if (g.nextDmgDouble) d *= 2
-    // 克制 / 被克制
-    if (g.enemy) {
-      if (COUNTER_MAP[attr] === g.enemy.attr) {
-        d *= COUNTER_MUL
-        d *= 1 + (g.runBuffs.counterDmgPct || 0) / 100
-      } else if (COUNTER_BY[attr] === g.enemy.attr) {
-        d *= COUNTERED_MUL
-      }
-    }
-    // 防御扣减 + 无视防御
-    d = Math.max(0, d - eDef)
-    if (eDef > 0 && g.weapon && g.weapon.type === 'ignoreDefPct' && g.weapon.attr === attr) {
-      d += eDef * g.weapon.pct / 100
-    }
-    if (eDef > 0 && g.heroBuffs) {
-      g.heroBuffs.forEach(b => {
-        if (b.type === 'ignoreDefPct' && b.attr === attr) d += eDef * b.pct / 100
-      })
-    }
-    estTotalDmg += d
-  }
-  estTotalDmg = Math.round(estTotalDmg)
+  const est = estimateDamage(g)
+  const comboBonusPct = est.comboBonusPct
+  const extraPct = est.extraPct
+  const estTotalDmg = est.estTotalDmg
 
   const comboText = `${g.combo} 连击`
   const comboFont = `italic 900 ${baseSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`

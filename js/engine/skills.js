@@ -8,27 +8,28 @@ const guideMgr = require('./guideManager')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
-const { randomPet, randomPetFromPool, getPetStarAtk, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
+const { randomPet, randomPetFromPool, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
-const DF = require('./dmgFloat')
-const { addKillExp } = require('./battle')
 const {
-  SKILL_INSTANT_DMG_DEFAULT_PCT, SKILL_INSTANT_DMG_DOT_DEFAULT_PCT,
-  SKILL_MULTI_HIT_DEFAULT_HITS, SKILL_MULTI_HIT_DEFAULT_PCT,
+  resolveSkillDamage,
+  commitSkillDamage,
+  emitFloat,
+  emitCast,
+  emitPetSkillIntro,
+} = require('./battle/index')
+const {
   SKILL_SHIELD_DEFAULT_VAL, SKILL_SHIELD_PLUS_DEFAULT_VAL,
   SKILL_REDUCE_PCT_DEFAULT, SKILL_SHIELD_REFLECT_DEFAULTS,
   SKILL_STUN_DOT_DEFAULTS, SKILL_COMBO_PLUS_DEFAULT, SKILL_COMBO_NEVER_BREAK_DEFAULT,
   SKILL_COMBO_DMG_PCT_DEFAULT, SKILL_EXTRA_TIME_DEFAULTS,
   SKILL_HP_MAX_SHIELD_DEFAULTS, SKILL_HEART_BOOST_DEFAULT_MUL,
   SKILL_ON_KILL_HEAL_DUR, SKILL_WAR_GOD_DEFAULTS,
-  SKILL_TEAM_ATTACK_DEFAULT_PCT, SKILL_IMMUNE_CC_DEFAULTS,
-  SKILL_INSTANT_DOT_TICK_DEFAULT,
+  SKILL_IMMUNE_CC_DEFAULTS,
   SHOP_UPGRADE_PET_DEFAULT_PCT, SHOP_HP_MAX_UP_DEFAULT_PCT,
   SHOP_DMG_REDUCE_DEFAULT_PCT, SHOP_SKILL_DMG_UP_DEFAULT_PCT,
   SHOP_CD_MIN, SHOP_STAR_CAP,
   ADVENTURE_UPGRADE_PET_MUL, ADVENTURE_SHIELD_DEFAULT,
   MERGE_PET_FRAGMENT_COUNT,
-  SPEED_KILL_TURNS,
 } = require('../data/balance/combat')
 
 // 辅助：tryMergePet 后处理满星入池/碎片（图鉴由 petPool 状态自动派生，不再手动写入）
@@ -72,6 +73,27 @@ function _pickRandomCells(g, count, targetAttr) {
   }))
 }
 
+function _applyResolvedPetSkillDamage(g, result) {
+  if (!result || !result.handled) return { enemyKilled: false, result }
+  const entries = result.entries || []
+
+  if (result.type === 'single') {
+    entries.forEach(item => {
+      emitFloat(g, 'petSkillDmg', { dmg: item.dmg, color: item.color })
+    })
+  } else if (result.type === 'multi') {
+    entries.forEach(item => {
+      emitFloat(g, 'petMultiHitDmg', { dmg: item.dmg, color: item.color, hitIdx: item.hitIdx, totalHits: item.totalHits })
+    })
+  } else if (result.type === 'team') {
+    entries.forEach(item => {
+      emitFloat(g, 'petTeamAtkDmg', { dmg: item.dmg, color: item.color, petIdx: item.petIdx, totalPets: item.totalPets })
+    })
+  }
+
+  return commitSkillDamage(g, result)
+}
+
 function triggerPetSkill(g, pet, idx) {
   const { S, W, H } = V
   const baseSk = pet.skill; if (!baseSk) return
@@ -88,45 +110,34 @@ function triggerPetSkill(g, pet, idx) {
 
   // 攻击伤害类技能：使用攻击光波特效 + pet_skill.mp3
   const isAttackSkill = (sk.type === 'instantDmg' || sk.type === 'teamAttack' || sk.type === 'multiHit' || sk.type === 'instantDmgDot')
+  MusicMgr.playSkill()
   if (isAttackSkill) {
-    MusicMgr.playSkill()
-    // 攻击光波特效（从宠物头像位置向敌人发射）
-    const eCenterY = g._getEnemyCenterY()
-    g._petSkillWave = {
+    emitPetSkillIntro(g, {
       petIdx: idx,
-      attr: sk.attr || pet.attr,
-      color: attrColor,
-      timer: 0,
-      duration: 24,
-      targetX: W * 0.5,
-      targetY: eCenterY
-    }
-    // 攻击类也显示技能名（不显示描述，效果体现在伤害飘字上）
-    g._skillFlash = {
       petName: pet.name,
       skillName: sk.name,
       skillDesc: '',
+      attr: sk.attr || pet.attr,
       color: attrColor,
-      timer: 0,
-      duration: 24,
-      petIdx: idx
-    }
-    g._comboFlash = 6
-    g.shakeT = 6; g.shakeI = 4
+      waveDuration: 24,
+      flashDuration: 24,
+      comboFlash: 6,
+      shake: { t: 6, i: 4 },
+    })
   } else {
     // 非攻击类技能：快闪技能名 + 描述 + 宠物头像弹跳 + 属性色光环
-    MusicMgr.playSkill()
-    g._skillFlash = {
+    emitPetSkillIntro(g, {
+      petIdx: idx,
       petName: pet.name,
       skillName: sk.name,
       skillDesc: getPetSkillDesc(pet) || '',
+      attr: sk.attr || pet.attr,
       color: attrColor,
-      timer: 0,
-      duration: 36,  // 0.6秒，留足时间阅读描述
-      petIdx: idx
-    }
-    g._comboFlash = 8
-    g.shakeT = 5; g.shakeI = 3
+      showWave: false,
+      flashDuration: 36,
+      comboFlash: 8,
+      shake: { t: 5, i: 3 },
+    })
   }
   // 星级技能数值倍率（★1=1.0, ★2=1.25, ★3≈1.56）
   const sMul = getPetStarSkillMul(pet)
@@ -283,8 +294,8 @@ function triggerPetSkill(g, pet, idx) {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp*sk.pct*sMul/100))
       if (g.heroHp > hpOld1) {
         g._heroHpGain = { fromPct: oldPct1, timer: 0 }
-        g._playHealEffect()
-        DF.heroHeal(g, g.heroHp - hpOld1)
+        emitCast(g, { kind: 'heal' })
+        emitFloat(g, 'heroHeal', { amt: g.heroHp - hpOld1 })
       }
       // ★3附加净化
       if (sk.cleanse) {
@@ -301,8 +312,8 @@ function triggerPetSkill(g, pet, idx) {
       g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(sk.val * sMul))
       if (g.heroHp > hpOld2) {
         g._heroHpGain = { fromPct: oldPct2, timer: 0 }
-        g._playHealEffect()
-        DF.heroHeal(g, g.heroHp - hpOld2)
+        emitCast(g, { kind: 'heal' })
+        emitFloat(g, 'heroHeal', { amt: g.heroHp - hpOld2 })
       }
       break
     }
@@ -311,8 +322,8 @@ function triggerPetSkill(g, pet, idx) {
       g.heroHp = g.heroMaxHp
       if (g.heroHp > hpOld3) {
         g._heroHpGain = { fromPct: oldPct3, timer: 0 }
-        g._playHealEffect()
-        DF.heroHeal(g, g.heroHp - hpOld3)
+        emitCast(g, { kind: 'heal' })
+        emitFloat(g, 'heroHeal', { amt: g.heroHp - hpOld3 })
       }
       break
     }
@@ -321,8 +332,8 @@ function triggerPetSkill(g, pet, idx) {
       g.heroHp = g.heroMaxHp
       if (g.heroHp > hpOld4) {
         g._heroHpGain = { fromPct: oldPct4, timer: 0 }
-        g._playHealEffect()
-        DF.heroHeal(g, g.heroHp - hpOld4)
+        emitCast(g, { kind: 'heal' })
+        emitFloat(g, 'heroHeal', { amt: g.heroHp - hpOld4 })
       }
       if (sk.atkPct) g.heroBuffs.push({ type:'allAtkUp', pct:Math.round(sk.atkPct * sMul), dur:3, bad:false, name:sk.name })
       break
@@ -337,59 +348,27 @@ function triggerPetSkill(g, pet, idx) {
         // DOT施放特效（在怪物身上显示火焰/毒雾）
         const eCY = g._getEnemyCenterY()
         const dotColor = dotType === 'burn' ? '#ff6020' : '#40cc60'
-        g.skillCastAnim = { active:true, progress:0, duration:20, type:'dot', color:dotColor, skillName:'', targetX:W*0.5, targetY:eCY, dotType }
+        emitCast(g, { kind: 'dot', color: dotColor, targetY: eCY, dotType })
       }
       break
-    case 'instantDmg':
-      if (g.enemy) {
-        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_INSTANT_DMG_DEFAULT_PCT) / 100)
-        dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
-        // ★3无视防御
-        if (sk.ignoreDefPct) {
-          const ignoreDef = Math.round((g.enemy.def || 0) * sk.ignoreDefPct / 100)
-          dmg = Math.max(0, dmg + ignoreDef)  // 相当于少减防御
-        }
-        g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
-        g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
-        // ★3附加眩晕
-        if (sk.stunDur) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
-        // ★3附加全体回复
-        if (sk.teamHealPct) {
-          const heal = Math.round(g.heroMaxHp * sk.teamHealPct / 100)
-          g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
-        }
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
-      }
+    case 'instantDmg': {
+      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const commit = _applyResolvedPetSkillDamage(g, result)
+      if (commit.enemyKilled) return
       break
-    case 'instantDmgDot':
-      if (g.enemy) {
-        let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_INSTANT_DMG_DOT_DEFAULT_PCT) / 100)
-        dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
-        g.enemy.hp = Math.max(0, g.enemy.hp - dmg)
-        DF.petSkillDmg(g, dmg, (ATTR_COLOR[sk.attr] && ATTR_COLOR[sk.attr].main) || V.TH.danger)
-        g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
-        g.enemyBuffs.push({ type:'dot', name:'灼烧', dmg:Math.round((sk.dotDmg||SKILL_INSTANT_DOT_TICK_DEFAULT) * sMul), dur:sk.dotDur||3, bad:true, dotType:'burn' })
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
-      }
+    }
+    case 'instantDmgDot': {
+      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const commit = _applyResolvedPetSkillDamage(g, result)
+      if (commit.enemyKilled) return
       break
-    case 'multiHit':
-      if (g.enemy) {
-        const hits = sk.hits || SKILL_MULTI_HIT_DEFAULT_HITS
-        let totalDmg = 0
-        const hitColor = (ATTR_COLOR[sk.attr||pet.attr] && ATTR_COLOR[sk.attr||pet.attr].main) || V.TH.danger
-        for (let h = 0; h < hits; h++) {
-          let dmg = Math.round(getPetStarAtk(pet) * (sk.pct||SKILL_MULTI_HIT_DEFAULT_PCT) / 100)
-          dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
-          totalDmg += dmg
-          DF.petMultiHitDmg(g, dmg, hitColor, h, hits)
-        }
-        g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)
-        g._playHeroAttack(sk.name, sk.attr || pet.attr, 'burst')
-        g.shakeT = 10; g.shakeI = 6
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
-      }
+    }
+    case 'multiHit': {
+      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const commit = _applyResolvedPetSkillDamage(g, result)
+      if (commit.enemyKilled) return
       break
+    }
     case 'hpMaxUp': {
       const inc = Math.round(g.heroMaxHp * sk.pct / 100)
       g.heroMaxHp += inc; g.heroHp += inc; break
@@ -500,21 +479,9 @@ function triggerPetSkill(g, pet, idx) {
       break
     }
     case 'teamAttack': {
-      if (g.enemy) {
-        let totalTeamDmg = 0
-        const totalPets = g.pets.length
-        g.pets.forEach((p, idx) => {
-          let dmg = Math.round(getPetStarAtk(p) * (sk.pct || SKILL_TEAM_ATTACK_DEFAULT_PCT) / 100)
-          dmg = Math.round(dmg * (1 + g.runBuffs.allAtkPct / 100))
-          dmg = Math.round(dmg * (1 + g.runBuffs.skillDmgPct / 100))
-          if (g.enemy) dmg = Math.max(0, dmg - (g.enemy.def || 0))
-          totalTeamDmg += dmg
-          DF.petTeamAtkDmg(g, dmg, (ATTR_COLOR[p.attr] && ATTR_COLOR[p.attr].main) || V.TH.danger, idx, totalPets)
-        })
-        g.enemy.hp = Math.max(0, g.enemy.hp - totalTeamDmg)
-        g._playHeroAttack(sk.name, pet.attr, 'burst')
-        if (g.enemy.hp <= 0) { addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; g._enemyDeathAnim = { timer: 0, duration: 45 }; return }
-      }
+      const result = resolveSkillDamage(g, { pet, sk, sMul })
+      const commit = _applyResolvedPetSkillDamage(g, result)
+      if (commit.enemyKilled) return
       break
     }
   }
