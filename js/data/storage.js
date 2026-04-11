@@ -318,6 +318,34 @@ class Storage {
   get totalRuns()   { return this._d.totalRuns }
   get stats()       { return this._d.stats }
   get settings()    { return this._d.settings }
+  get cloudSyncReady() { return !!this._cloudSyncReady }
+
+  hasGameplayProgress(data = this._d) {
+    if (!data || typeof data !== 'object') return false
+    const cult = data.cultivation || {}
+    const levels = cult.levels || {}
+    const hasCultivationProgress = (cult.totalExpEarned || 0) > 0
+      || (cult.skillPoints || 0) > 0
+      || Object.keys(levels).some((key) => (levels[key] || 0) > 0)
+    const fragmentBank = data.fragmentBank || {}
+    const hasFragments = Object.keys(fragmentBank).some((key) => (fragmentBank[key] || 0) > 0)
+
+    return (data.bestFloor || 0) > 0
+      || (data.totalRuns || 0) > 0
+      || ((data.petPool && data.petPool.length) || 0) > 0
+      || ((data.petDex && data.petDex.length) || 0) > 0
+      || ((data.weaponCollection && data.weaponCollection.length) || 0) > 0
+      || (data.soulStone || 0) > 0
+      || (data.awakenStone || 0) > 0
+      || !!(data.stageClearRecord && Object.keys(data.stageClearRecord).length > 0)
+      || hasFragments
+      || hasCultivationProgress
+  }
+
+  hasPersistentProgress(data = this._d) {
+    if (this.hasGameplayProgress(data)) return true
+    return !!(data && data.guideFlags && Object.keys(data.guideFlags).length > 0)
+  }
 
   // 更新最高层数
   updateBestFloor(floor, pets, weapon, totalTurns) {
@@ -1802,12 +1830,18 @@ class Storage {
   }
 
   async _initCloud() {
-    await cloudSync.init(this._d, {
-      localKey: LOCAL_KEY,
-      currentVersion: CURRENT_VERSION,
-      runMigrations,
-      onSyncDone: () => this._onCloudSyncDone(),
-    })
+    try {
+      await cloudSync.init(this._d, {
+        localKey: LOCAL_KEY,
+        currentVersion: CURRENT_VERSION,
+        runMigrations,
+        onSyncDone: () => this._onCloudSyncDone(),
+      })
+    } catch (e) {
+      console.warn('[Storage] Cloud init error:', e && (e.message || e))
+    } finally {
+      this._cloudSyncReady = true
+    }
     this._ranking.preheatRanking()
   }
 
@@ -1816,8 +1850,8 @@ class Storage {
    * 修复：清除缓存后重进，云端数据证明是老玩家时补写 introDone/tutorialDone
    */
   _onCloudSyncDone() {
-    const isVeteran = this._d.bestFloor > 0 || this._d.totalRuns > 0
-    if (!isVeteran) return
+    const hasProgress = this.hasPersistentProgress()
+    if (!hasProgress) return
 
     // 补写独立 key，防止下次启动还走新手流程
     if (!P.getStorageSync('introDone')) {
@@ -1827,6 +1861,10 @@ class Storage {
     if (!P.getStorageSync('tutorialDone')) {
       P.setStorageSync('tutorialDone', true)
       console.log('[Storage] 云端为老玩家，补写 tutorialDone')
+    }
+    if (!P.getStorageSync('stageTutorialDone')) {
+      P.setStorageSync('stageTutorialDone', true)
+      console.log('[Storage] 云端为老玩家，补写 stageTutorialDone')
     }
 
     // 通知主循环：如果当前还在 intro/教学中，应跳转回首页

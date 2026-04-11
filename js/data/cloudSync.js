@@ -36,6 +36,40 @@ let _localKey = ''
 let _currentVersion = 0
 let _runMigrations = null
 
+function _hasAnyKey(obj) {
+  return !!(obj && typeof obj === 'object' && Object.keys(obj).length > 0)
+}
+
+function _hasNonZeroMapValue(obj) {
+  if (!obj || typeof obj !== 'object') return false
+  return Object.keys(obj).some((key) => {
+    const val = obj[key]
+    if (typeof val === 'number') return val > 0
+    if (Array.isArray(val)) return val.length > 0
+    return !!val
+  })
+}
+
+function _hasGameplayProgress(data) {
+  if (!data || typeof data !== 'object') return false
+  const cult = data.cultivation || {}
+  const levels = cult.levels || {}
+  const hasCultivationProgress = (cult.totalExpEarned || 0) > 0
+    || (cult.skillPoints || 0) > 0
+    || Object.keys(levels).some((key) => (levels[key] || 0) > 0)
+
+  return (data.bestFloor || 0) > 0
+    || (data.totalRuns || 0) > 0
+    || ((data.petPool && data.petPool.length) || 0) > 0
+    || ((data.petDex && data.petDex.length) || 0) > 0
+    || ((data.weaponCollection && data.weaponCollection.length) || 0) > 0
+    || (data.soulStone || 0) > 0
+    || (data.awakenStone || 0) > 0
+    || _hasAnyKey(data.stageClearRecord)
+    || _hasNonZeroMapValue(data.fragmentBank)
+    || hasCultivationProgress
+}
+
 // ===== 深度合并 =====
 // cloud 的值覆盖 target，但对嵌套对象递归合并
 // 保留 target 中有但 cloud 中没有的字段（如后来新增的 bestTotalTurns）
@@ -88,13 +122,20 @@ async function _syncFromCloud() {
         _syncToCloud()
         return
       }
+      const cloudHasProgress = _hasGameplayProgress(cloudData)
+      const localHasProgress = _hasGameplayProgress(_dataRef)
       const cloudTime = cloudData._updateTime || cloudData.updatedAt || 0
       const localTime = _dataRef._updateTime || 0
-      if (cloudTime > localTime) {
+      const shouldMergeFromCloud = (cloudHasProgress && !localHasProgress)
+        || (cloudHasProgress && localTime === 0)
+        || cloudTime > localTime
+
+      if (shouldMergeFromCloud) {
         _deepMerge(_dataRef, cloudData)
         if ((_dataRef._version || 0) < _currentVersion) {
           _runMigrations(_dataRef)
         }
+        _dataRef._updateTime = cloudTime || Date.now()
         P.setStorageSync(_localKey, JSON.stringify(_dataRef))
         console.log('[Storage] 云端数据已合并到本地')
       }
@@ -111,14 +152,18 @@ async function _syncToCloud() {
   }
   _syncing = true
   try {
+    const syncTime = Date.now()
+    _dataRef._updateTime = syncTime
+    try { P.setStorageSync(_localKey, JSON.stringify(_dataRef)) } catch (e) {}
+
     if (P.isDouyin) {
-      await api.syncPlayerData({ ..._dataRef, _updateTime: Date.now() })
+      await api.syncPlayerData({ ..._dataRef })
     } else {
       if (!_openid) return
       const db = P.cloud.database()
       const col = db.collection('playerData')
       const res = await col.where({ _openid: _openid }).get()
-      const saveData = { ..._dataRef, _updateTime: Date.now() }
+      const saveData = { ..._dataRef }
       delete saveData._id
       delete saveData._openid
       const _ = db.command

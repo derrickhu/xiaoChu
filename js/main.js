@@ -86,11 +86,21 @@ class Main {
 
     // 云同步恢复老玩家数据时，跳过新手漫画/教学（修复清除缓存后重进的问题）
     this.events.on('cloud:veteranRestored', () => {
+      const inNewbieBattle = this.scene === 'battle'
+        && (tutorial.isActive() || this._isNewbieStage || this._pendingStageTutorial || !!this._newbiePetIntro)
+
+      this._pendingGuide = null
+      this._pendingStageTutorial = false
+      this._newbiePetIntro = null
+      this._newbiePetCelebrate = null
+      this._newbieTeamOverview = null
+      this._isNewbieStage = false
+
       if (this.scene === 'intro') {
         console.log('[Main] 云端已恢复老玩家数据，跳过开场漫画')
         this.setScene('title'); MusicMgr.playBgm()
-      } else if (this.scene === 'battle' && tutorial.isActive()) {
-        console.log('[Main] 云端已恢复老玩家数据，跳过战斗教学')
+      } else if (inNewbieBattle) {
+        console.log('[Main] 云端已恢复老玩家数据，退出新手战斗流程')
         // 不调用 tutorial.finish() —— 它会触发 nextFloor 进入正式局
         // 仅清理教学激活状态，然后安全回到首页
         tutorial._forceDeactivate && tutorial._forceDeactivate()
@@ -328,7 +338,10 @@ class Main {
     if (this.scene === 'loading') {
       const elapsed = Date.now() - this._loadStart
       if (this._loadReady && elapsed > 500) {
-        if (!P.getStorageSync('introDone')) {
+        if (!this.storage.cloudSyncReady && elapsed < 2500) return
+
+        const shouldSkipIntro = !!P.getStorageSync('introDone') || this.storage.hasPersistentProgress()
+        if (!shouldSkipIntro) {
           introView.init()
           this.setScene('intro')
         } else {
@@ -396,10 +409,10 @@ class Main {
     }
     if (this.bState === 'petAtkShow') {
       this._stateTimer++
-      if (this._stateTimer >= 14) { this._stateTimer = 0; this.bState = 'preAttack' }
+      if (this._stateTimer >= 16) { this._stateTimer = 0; this.bState = 'preAttack' }
     }
     if (this.bState === 'preAttack') {
-      this._stateTimer++; if (this._stateTimer >= 12) { this._stateTimer = 0; battleEngine.executeAttack(this) }
+      this._stateTimer++; if (this._stateTimer >= 8) { this._stateTimer = 0; battleEngine.executeAttack(this) }
     }
     if (this.bState === 'preEnemy') {
       this._stateTimer++; if (this._stateTimer >= 30) { this._stateTimer = 0; battleEngine.enemyTurn(this) }
