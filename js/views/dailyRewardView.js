@@ -614,7 +614,7 @@ function _drawHuahuaWideSlots(c, R, rewards, x, y, w, h, dayDone, u) {
     c.textAlign = 'center'
     c.textBaseline = 'top'
     c.font = `bold ${slot.line.length > 3 ? 11 * u : 14 * u}px "PingFang SC",sans-serif`
-    c.fillStyle = dayDone ? '#BDBDBD' : '#4E342E'
+    c.fillStyle = dayDone ? '#BDBDBD' : '#3E2723'
     c.fillText(slot.line, cx, lineY)
     if (slot.subLine) {
       c.font = `${9 * u}px "PingFang SC",sans-serif`
@@ -671,7 +671,7 @@ function _drawHuahuaDayCard(c, R, opts, u) {
   if (showWideRewards) {
     _drawHuahuaWideSlots(c, R, rewards, x, y, w, h, dayDone, u)
   } else {
-    const ICON_SZ = (highlight ? 48 : (vis.subLine ? 40 : 52)) * u
+    const ICON_SZ = (highlight ? 48 : 52) * u
     iconSzForSub = ICON_SZ
     const icy = contentCY - 8 * u
     _drawHuahuaRewardIconInCard(c, R, icx, icy, ICON_SZ, vis, dayDone)
@@ -681,11 +681,11 @@ function _drawHuahuaDayCard(c, R, opts, u) {
       c.font = `bold ${amtFs}px "PingFang SC",sans-serif`
       c.textAlign = 'center'
       c.textBaseline = 'top'
-      c.lineWidth = dayDone ? 0 : 2.5 * u
-      c.strokeStyle = 'rgba(255, 255, 255, 0.95)'
+      c.lineWidth = 3 * u
+      c.strokeStyle = dayDone ? 'transparent' : 'rgba(255, 255, 255, 0.95)'
       const amtY = contentCY + ICON_SZ / 2 - 4 * u
       if (!dayDone) c.strokeText(amtStr, icx, amtY)
-      c.fillStyle = dayDone ? '#AAAAAA' : '#4E342E'
+      c.fillStyle = dayDone ? '#AAAAAA' : '#3E2723'
       c.fillText(amtStr, icx, amtY)
     }
   }
