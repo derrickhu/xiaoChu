@@ -8,6 +8,7 @@ const V = require('../env')
 const { getRealmInfo, MAX_FLOOR, generateRewards } = require('../../data/tower')
 const { getMaxedPetIds } = require('../../data/pets')
 const { TOWER_SETTLE } = require('../../data/economyConfig')
+const { getMilestonesAtFloor, getNextMilestonePreview } = require('../../data/towerEvent')
 const { calcFloorAtkBonus } = require('../../engine/runManager')
 const MusicMgr = require('../../runtime/music')
 
@@ -79,6 +80,9 @@ function _handleTowerFloorVictory(g) {
   const floorCombat = ((g._runElimExp || 0) + (g._runComboExp || 0) + (g._runKillExp || 0)) - (g._floorStartCombatExp || 0)
   const ssCfg = TOWER_SETTLE.soulStone
   const soulStone = Math.floor(floorCombat * ssCfg.combatRatio) + Math.ceil(ssCfg.floorBase + floor * ssCfg.floorGrowth)
+  const claimedMilestones = (g.storage.getTowerEventState() || {}).claimed || []
+  const floorMilestones = getMilestonesAtFloor(floor, claimedMilestones)
+  const nextMilestone = getNextMilestonePreview(floor, claimedMilestones)
 
   g._towerFloorResult = {
     floor: floor,
@@ -96,6 +100,8 @@ function _handleTowerFloorVictory(g) {
     nextRealmName: nextRealmName,
     floorExp: floorExp,
     soulStone: soulStone,
+    floorMilestones: floorMilestones,
+    nextMilestone: nextMilestone,
   }
 
   // 提前生成奖励（原本在 main.js update 中懒生成）

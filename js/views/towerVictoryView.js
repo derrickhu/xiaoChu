@@ -5,7 +5,9 @@
  * 渲染入口：rTowerVictory  触摸入口：tTowerVictory
  */
 const V = require('./env')
-const { getRealmInfo } = require('../data/tower')
+const { ATTR_COLOR } = require('../data/tower')
+const { getCurrentSeason } = require('../data/towerEvent')
+const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { drawCelebrationBackdrop, drawRewardRow, drawBuffCard } = require('./uiComponents')
 const MusicMgr = require('../runtime/music')
 const guideMgr = require('../engine/guideManager')
@@ -16,6 +18,202 @@ let _lastScene = null
 const STATS_ANIM_DURATION = 30
 const STATS_SETTLE_FRAME = 15
 const CARD_APPEAR_FRAME = STATS_SETTLE_FRAME + STATS_ANIM_DURATION + 5
+
+function _getMilestoneHintData(d) {
+  const season = getCurrentSeason()
+  const current = d.floorMilestones && d.floorMilestones[0]
+  if (current) {
+    if (current.type === 'srFrag') {
+      const pet = season ? getPetById(season.sr) : null
+      return {
+        badge: '本层里程碑',
+        title: pet ? `SR「${pet.name}」碎片 ×${current.count}` : `SR 碎片 ×${current.count}`,
+        detail: '确认奖励后立即发放',
+        highlight: true,
+        pet: pet,
+      }
+    }
+    if (current.type === 'ssrFrag') {
+      return {
+        badge: '本层里程碑',
+        title: `SSR 随机碎片 ×${current.count}`,
+        detail: '确认奖励后立即发放',
+        highlight: true,
+        pet: null,
+        genericLabel: 'SSR',
+      }
+    }
+    const pet = season ? getPetById(season.ssr) : null
+    return {
+      badge: '本层里程碑',
+      title: pet ? `SSR「${pet.name}」整宠` : 'SSR 整宠 ×1',
+      detail: '确认奖励后立即发放',
+      highlight: true,
+      pet: pet,
+    }
+  }
+
+  const next = d.nextMilestone
+  if (!next) return null
+  if (next.type === 'srFrag') {
+    const pet = season ? getPetById(season.sr) : null
+    return {
+      badge: '下一档奖励',
+      title: pet ? `第${next.floor}层 · SR「${pet.name}」碎片 ×${next.count}` : `第${next.floor}层 · SR 碎片 ×${next.count}`,
+      detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
+      highlight: false,
+      pet: pet,
+    }
+  }
+  if (next.type === 'ssrFrag') {
+    return {
+      badge: '下一档奖励',
+      title: `第${next.floor}层 · SSR 随机碎片 ×${next.count}`,
+      detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
+      highlight: false,
+      pet: null,
+      genericLabel: 'SSR',
+    }
+  }
+  const pet = season ? getPetById(season.ssr) : null
+  return {
+    badge: '下一档奖励',
+    title: pet ? `第${next.floor}层 · SSR「${pet.name}」整宠` : `第${next.floor}层 · SSR 整宠 ×1`,
+    detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
+    highlight: false,
+    pet: pet,
+  }
+}
+
+function _drawMilestoneHintAvatar(c, R, S, hint, x, y, size) {
+  if (hint.pet) {
+    const pet = hint.pet
+    const attrKey = pet.attr || 'metal'
+    const ac = ATTR_COLOR[attrKey] || ATTR_COLOR.metal
+    const avatarImg = R.getImg(getPetAvatarPath({ ...pet, star: 1 }))
+
+    c.save()
+    c.shadowColor = ac.main
+    c.shadowBlur = (hint.highlight ? 12 : 8) * S
+    R.drawCoverImg(avatarImg, x, y, size, size, {
+      radius: 8 * S,
+      strokeStyle: ac.main,
+      strokeWidth: 1.8 * S,
+    })
+    c.restore()
+
+    const frameImg = R.getImg(`assets/ui/frame_pet_${attrKey}.png`)
+    if (frameImg && frameImg.width > 0) {
+      const frameSz = size * 1.14
+      const frameOff = (frameSz - size) / 2
+      c.drawImage(frameImg, x - frameOff, y - frameOff, frameSz, frameSz)
+    }
+    return
+  }
+
+  const cx = x + size / 2
+  const cy = y + size / 2
+  const grd = c.createRadialGradient(cx, cy - size * 0.16, size * 0.08, cx, cy, size * 0.7)
+  grd.addColorStop(0, hint.highlight ? 'rgba(255,247,210,0.98)' : 'rgba(255,250,232,0.96)')
+  grd.addColorStop(1, hint.highlight ? 'rgba(215,150,40,0.95)' : 'rgba(193,155,92,0.92)')
+
+  c.save()
+  c.fillStyle = grd
+  c.strokeStyle = hint.highlight ? 'rgba(216,156,29,0.95)' : 'rgba(160,124,68,0.8)'
+  c.lineWidth = 1.5 * S
+  c.shadowColor = hint.highlight ? 'rgba(216,156,29,0.38)' : 'rgba(150,120,60,0.25)'
+  c.shadowBlur = 8 * S
+  c.beginPath()
+  c.arc(cx, cy, size * 0.46, 0, Math.PI * 2)
+  c.fill()
+  c.stroke()
+
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#6B430D'
+  c.font = `bold ${8.8 * S}px "PingFang SC",sans-serif`
+  c.fillText(hint.genericLabel || '奖励', cx, cy + 0.5 * S)
+  c.restore()
+}
+
+function _finishTowerVictory(g) {
+  g._towerMilestoneRewardPopup = null
+  g._towerMilestonePopupBtnRect = null
+  g._towerFloorResult = null
+  g._nextFloor()
+}
+
+function _drawTowerMilestonePopup(g) {
+  const popup = g._towerMilestoneRewardPopup
+  if (!popup || !popup.rewards || popup.rewards.length === 0) return
+  const { ctx: c, R, W, H, S } = V
+
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.48)'
+  c.fillRect(0, 0, W, H)
+
+  const panelW = W * 0.82
+  const lineH = 34 * S
+  const panelH = 136 * S + popup.rewards.length * lineH
+  const panelX = (W - panelW) / 2
+  const panelY = H * 0.20
+  const pad = 14 * S
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#E8C547'
+  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  c.save()
+  c.shadowColor = 'rgba(255,200,0,0.35)'
+  c.shadowBlur = 8 * S
+  c.fillText(`第 ${popup.floor} 层里程碑达成`, W * 0.5, panelY + 26 * S)
+  c.restore()
+
+  c.fillStyle = '#8B6914'
+  c.font = `${10 * S}px "PingFang SC",sans-serif`
+  c.fillText('奖励已立即发放', W * 0.5, panelY + 46 * S)
+
+  let cy = panelY + 66 * S
+  popup.rewards.forEach((reward) => {
+    const pet = reward.petId ? getPetById(reward.petId) : null
+    const ac = pet ? (ATTR_COLOR[pet.attr] || ATTR_COLOR.metal) : ATTR_COLOR.metal
+    const iconSz = 24 * S
+    const iconX = panelX + pad
+    const iconY = cy - iconSz / 2
+
+    if (pet) {
+      const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+      const avatarImg = R.getImg(avatarPath)
+      if (avatarImg && avatarImg.width > 0) {
+        R.drawCoverImg(avatarImg, iconX, iconY, iconSz, iconSz, { radius: 4 * S, strokeStyle: ac.main, strokeWidth: 1.4 })
+      }
+    }
+
+    c.textAlign = 'left'
+    c.fillStyle = reward.type === 'ssrPet' ? '#D89C1D' : (reward.type === 'ssrFrag' ? '#D89C1D' : '#7E5BC6')
+    c.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+    let text = ''
+    if (reward.type === 'ssrPet') text = `SSR「${pet ? pet.name : '灵宠'}」整宠`
+    else if (reward.type === 'ssrFrag') text = `SSR「${pet ? pet.name : '随机灵宠'}」碎片 ×${reward.count}`
+    else text = `SR「${pet ? pet.name : '灵宠'}」碎片 ×${reward.count}`
+    c.fillText(text, iconX + iconSz + 8 * S, cy)
+
+    c.textAlign = 'right'
+    c.fillStyle = '#A09070'
+    c.font = `${9 * S}px "PingFang SC",sans-serif`
+    c.fillText(reward.type === 'ssrPet' ? '已加入灵宠池' : '已加入灵兽碎片库', panelX + panelW - pad, cy)
+    cy += lineH
+  })
+
+  const btnW = panelW * 0.55
+  const btnH = 36 * S
+  const btnX = (W - btnW) / 2
+  const btnY = panelY + panelH - btnH - 16 * S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '继续登塔', 'confirm')
+  g._towerMilestonePopupBtnRect = [btnX, btnY, btnW, btnH]
+  c.restore()
+}
 
 function rTowerVictory(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
@@ -90,6 +288,7 @@ function rTowerVictory(g) {
   const contentStart = Math.max(0, at - STATS_SETTLE_FRAME)
   const animProgress = Math.min(1, contentStart / STATS_ANIM_DURATION)
   const easeP = 1 - Math.pow(1 - animProgress, 3)
+  const milestoneHint = _getMilestoneHintData(d)
 
   let panelContentH = pad * 0.5
   if (d.hpUp > 0) panelContentH += lineH + 22 * S
@@ -97,6 +296,7 @@ function rTowerVictory(g) {
   if (d.weaponBuff) panelContentH += lineH
   if (d.floorExp > 0) panelContentH += lineH
   if (d.soulStone > 0) panelContentH += lineH
+  if (milestoneHint) panelContentH += 42 * S
   panelContentH += pad * 0.5
 
   const panelTop = subtitleY + 6 * S
@@ -190,18 +390,56 @@ function rTowerVictory(g) {
     cy += lineH
   }
 
-  // --- 修炼经验 ---
+  // --- 修炼贡献 ---
   if (d.floorExp > 0) {
     var animExp = Math.round(d.floorExp * easeP)
-    drawRewardRow(c, R, S, panelX + pad, cy, innerW, 'icon_cult_exp', '修炼经验', '+' + animExp, '#8B7355', '#B8860B')
+    drawRewardRow(c, R, S, panelX + pad, cy, innerW, 'icon_cult_exp', '本层修炼贡献', '+' + animExp, '#8B7355', '#B8860B')
     cy += lineH
   }
 
-  // --- 灵石 ---
+  // --- 灵石贡献 ---
   if (d.soulStone > 0) {
     var animSS = Math.round(d.soulStone * easeP)
-    drawRewardRow(c, R, S, panelX + pad, cy, innerW, 'icon_soul_stone', '灵石', '+' + animSS, '#5577AA', '#3366AA')
+    drawRewardRow(c, R, S, panelX + pad, cy, innerW, 'icon_soul_stone', '本层灵石贡献', '+' + animSS, '#5577AA', '#3366AA')
     cy += lineH
+  }
+
+  if (milestoneHint) {
+    const hintH = 36 * S
+    const hintX = panelX + pad
+    const hintY = cy
+    const avatarSz = 26 * S
+    const avatarX = hintX + 8 * S
+    const avatarY = hintY + (hintH - avatarSz) / 2
+    const textX = avatarX + avatarSz + 10 * S
+    const textRight = hintX + innerW - 8 * S
+
+    c.save()
+    c.fillStyle = milestoneHint.highlight ? 'rgba(255,240,190,0.78)' : 'rgba(255,248,232,0.72)'
+    c.strokeStyle = milestoneHint.highlight ? 'rgba(216,156,29,0.65)' : 'rgba(180,150,90,0.35)'
+    c.lineWidth = 1 * S
+    R.rr(hintX, hintY, innerW, hintH, 9 * S); c.fill()
+    R.rr(hintX, hintY, innerW, hintH, 9 * S); c.stroke()
+
+    _drawMilestoneHintAvatar(c, R, S, milestoneHint, avatarX, avatarY, avatarSz)
+
+    c.textBaseline = 'middle'
+    c.textAlign = 'left'
+    c.fillStyle = milestoneHint.highlight ? '#C27712' : '#8B6914'
+    c.font = 'bold ' + (9 * S) + 'px "PingFang SC",sans-serif'
+    c.fillText(milestoneHint.badge, textX, hintY + 10 * S)
+
+    c.textAlign = 'right'
+    c.fillStyle = milestoneHint.highlight ? '#C06020' : '#8B7A60'
+    c.font = (8.2 * S) + 'px "PingFang SC",sans-serif'
+    c.fillText(milestoneHint.detail, textRight, hintY + 10 * S)
+
+    c.textAlign = 'left'
+    c.fillStyle = '#5A4020'
+    c.font = 'bold ' + (10.2 * S) + 'px "PingFang SC",sans-serif'
+    c.fillText(milestoneHint.title, textX, hintY + 24 * S)
+    c.restore()
+    cy += 42 * S
   }
 
   // === 奖励卡片区 ===
@@ -267,6 +505,7 @@ function rTowerVictory(g) {
   }
 
   c.restore()
+  _drawTowerMilestonePopup(g)
 }
 
 function tTowerVictory(g, x, y, type) {
@@ -275,21 +514,38 @@ function tTowerVictory(g, x, y, type) {
   // 弹窗优先处理（applyReward 可能触发的宠物/碎片弹窗）
   if (g._petObtainedPopup) {
     g._petObtainedPopup = null
-    g._towerFloorResult = null
-    g._nextFloor()
+    if (g._towerMilestoneRewardPopup) return
+    _finishTowerVictory(g)
     return
   }
   if (g._star3Celebration && g._star3Celebration.phase === 'ready') {
     g._star3Celebration = null
     if (g._pendingPoolEntry) { g._petPoolEntryPopup = g._pendingPoolEntry; g._pendingPoolEntry = null; return }
     if (g._fragmentObtainedPopup) return
-    g._towerFloorResult = null
-    g._nextFloor()
+    if (g._towerMilestoneRewardPopup) return
+    _finishTowerVictory(g)
     return
   }
   if (g._star3Celebration) return
-  if (g._petPoolEntryPopup) { g._petPoolEntryPopup = null; g._towerFloorResult = null; g._nextFloor(); return }
-  if (g._fragmentObtainedPopup) { g._fragmentObtainedPopup = null; g._towerFloorResult = null; g._nextFloor(); return }
+  if (g._petPoolEntryPopup) {
+    g._petPoolEntryPopup = null
+    if (g._towerMilestoneRewardPopup) return
+    _finishTowerVictory(g)
+    return
+  }
+  if (g._fragmentObtainedPopup) {
+    g._fragmentObtainedPopup = null
+    if (g._towerMilestoneRewardPopup) return
+    _finishTowerVictory(g)
+    return
+  }
+
+  if (g._towerMilestoneRewardPopup) {
+    if (g._towerMilestonePopupBtnRect && g._hitRect(x, y, ...g._towerMilestonePopupBtnRect)) {
+      _finishTowerVictory(g)
+    }
+    return
+  }
 
   // 卡片选择
   if (g._rewardRects) {
@@ -308,11 +564,11 @@ function tTowerVictory(g, x, y, type) {
     g.heroBuffs = []; g.enemyBuffs = []
 
     g._applyReward(g.rewards[g.selectedReward])
+    if (g._towerFloorResult) g._claimTowerFloorMilestones(g._towerFloorResult.floor)
 
-    if (g._star3Celebration || g._petObtainedPopup || g._petPoolEntryPopup || g._fragmentObtainedPopup) return
+    if (g._star3Celebration || g._petObtainedPopup || g._petPoolEntryPopup || g._fragmentObtainedPopup || g._towerMilestoneRewardPopup) return
 
-    g._towerFloorResult = null
-    g._nextFloor()
+    _finishTowerVictory(g)
   }
 }
 

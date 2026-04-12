@@ -312,6 +312,7 @@ class Main {
   _startRun(petIds) { runMgr.startRun(this, petIds) }
   _nextFloor() { runMgr.nextFloor(this) }
   _restoreBattleHpMax() { runMgr.restoreBattleHpMax(this) }
+  _claimTowerFloorMilestones(floor) { return runMgr.claimTowerFloorMilestones(this, floor) }
   _endRun() { runMgr.endRun(this) }
   _saveAndExit() { runMgr.saveAndExit(this) }
   _resumeRun() { runMgr.resumeRun(this) }

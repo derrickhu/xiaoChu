@@ -66,11 +66,32 @@ function getSeasonSRPet() {
 }
 
 /**
- * 给定 bestFloor 和已领取列表，返回可领取的新里程碑数组
+ * 给定已达楼层和已领取列表，返回可领取的新里程碑数组
  */
 function getClaimableMilestones(bestFloor, claimedFloors) {
   const claimed = new Set(claimedFloors || [])
   return TOWER_EVENT_MILESTONES.filter(m => bestFloor >= m.floor && !claimed.has(m.floor))
+}
+
+/**
+ * 返回当前楼层刚好命中的未领取里程碑（用于即时领奖）
+ */
+function getMilestonesAtFloor(floor, claimedFloors) {
+  const claimed = new Set(claimedFloors || [])
+  return TOWER_EVENT_MILESTONES.filter(m => m.floor === floor && !claimed.has(m.floor))
+}
+
+/**
+ * 返回下一档未领取里程碑预告
+ */
+function getNextMilestonePreview(progressFloor, claimedFloors) {
+  const claimed = new Set(claimedFloors || [])
+  const next = TOWER_EVENT_MILESTONES.find(m => m.floor > progressFloor && !claimed.has(m.floor))
+  if (!next) return null
+  return {
+    ...next,
+    floorsLeft: Math.max(0, next.floor - progressFloor),
+  }
 }
 
 /**
@@ -91,6 +112,8 @@ module.exports = {
   getSeasonSSRPet,
   getSeasonSRPet,
   getClaimableMilestones,
+  getMilestonesAtFloor,
+  getNextMilestonePreview,
   pickRandomReservedSSR,
   TOWER_EVENT_MILESTONES,
 }

@@ -11,7 +11,7 @@ const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, 
 const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
-const { getCurrentSeason, getSeasonSSRPet, getSeasonSRPet, getTowerEventCountdownLabel } = require('../data/towerEvent')
+const { getCurrentSeason, getSeasonSSRPet, getSeasonSRPet, getTowerEventCountdownLabel, getNextMilestonePreview } = require('../data/towerEvent')
 const { getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { ATTR_COLOR } = require('../data/tower')
 
@@ -117,6 +117,14 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
   const srPet = getSeasonSRPet()
   if (!ssrPet) return
 
+  const claimedFloors = (g.storage.getTowerEventState() || {}).claimed || []
+  let progressFloor = g.storage.bestFloor || 0
+  if (g.storage.hasSavedRun && g.storage.hasSavedRun()) {
+    const saved = g.storage.loadRunState()
+    if (saved && saved.floor != null) progressFloor = Math.max(0, (saved.floor || 1) - 1)
+  }
+  const nextMilestone = getNextMilestonePreview(progressFloor, claimedFloors)
+
   const gap = (TITLE_HOME.towerEventBannerBelowProgressGapPt || 12) * S
   // 与开始按钮同宽（0.6W），仅略加宽
   const startBtnW = W * 0.60
@@ -125,7 +133,7 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
   const avatarSz = 40 * S
   const padV = 8 * S
   const padH = 8 * S
-  let bannerH = Math.max(avatarSz + padV * 2, 54 * S)
+  let bannerH = Math.max(avatarSz + padV * 2, 66 * S)
   const bannerX = (W - bannerW) / 2
   const progressBottom = progressMidY + 7 * S
   let bannerY = progressBottom + gap
@@ -198,7 +206,23 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
 
   // 第3行：通关获得
   c.fillStyle = '#2d7a48'; c.font = `${8.5*S}px "PingFang SC",sans-serif`
-  c.fillText('通关即得整宠！', textX, textTop + 28 * S)
+  c.fillText('30层登顶可得本周 SSR 整宠', textX, textTop + 28 * S)
+
+  // 第4行：下一档里程碑预告
+  let nextLine = '本周里程碑已全部达成'
+  if (nextMilestone) {
+    if (nextMilestone.type === 'srFrag') {
+      nextLine = `下一档：${nextMilestone.floor}层 · ${srPet ? srPet.name : 'SR'}碎片×${nextMilestone.count}`
+    } else if (nextMilestone.type === 'ssrFrag') {
+      nextLine = `下一档：${nextMilestone.floor}层 · SSR随机碎片×${nextMilestone.count}`
+    } else {
+      nextLine = `下一档：${nextMilestone.floor}层 · ${ssrPet.name}整宠`
+    }
+    if (nextMilestone.floorsLeft > 0) nextLine += `（差${nextMilestone.floorsLeft}层）`
+  }
+  c.fillStyle = '#7B5A28'
+  c.font = `${8*S}px "PingFang SC",sans-serif`
+  c.fillText(nextLine, textX, textTop + 42 * S)
 
   c.restore()
 }

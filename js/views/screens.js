@@ -670,7 +670,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillStyle = '#E8C547'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
     c.save(); c.shadowColor = 'rgba(255,200,0,0.3)'; c.shadowBlur = 6 * S
-    c.fillText('🎉 活动里程碑达成！', W * 0.5, cy + 6 * S)
+    c.fillText('🎉 本局里程碑奖励回顾', W * 0.5, cy + 6 * S)
     c.restore()
     c.restore()
     cy += 24 * S

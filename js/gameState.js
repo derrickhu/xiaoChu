@@ -183,6 +183,9 @@ function initState(g) {
   g._towerFloorSettlePending = false  // 防止重复过层结算
   g._towerClearSettlePending = false  // 防止重复通关结算
   g._towerVictoryBtnRect = null // 过层结算页「选择奖励」按钮区域
+  g._towerMilestoneRewardPopup = null // 过层即时里程碑奖励弹层 { floor, rewards }
+  g._towerMilestonePopupBtnRect = null // 里程碑奖励弹层按钮区域
+  g._towerJustClaimedMilestones = [] // 本局已即时领取的里程碑奖励记录
 
   // ===== Phase 3：固定关卡 =====
   g.battleMode = 'roguelike'    // 'roguelike' | 'stage'

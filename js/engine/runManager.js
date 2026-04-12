@@ -28,7 +28,7 @@ const { initBoard, addKillExp } = require('./battle')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
 const {
-  getCurrentSeason, getClaimableMilestones, pickRandomReservedSSR,
+  getCurrentSeason, getClaimableMilestones, getMilestonesAtFloor, pickRandomReservedSSR,
 } = require('../data/towerEvent')
 
 /** 轻量深拷贝（仅用于可 JSON 序列化的游戏状态对象） */
@@ -120,6 +120,9 @@ function startRun(g, petIds) {
   g.itemHealObtained = false
   g.itemHealUsed = false
   g._showItemMenu = false
+  g._towerMilestoneRewardPopup = null
+  g._towerMilestonePopupBtnRect = null
+  g._towerJustClaimedMilestones = []
 
   // 从灵宠池构建战斗宠物（带自己的宠物冲塔）
   const teamIds = petIds || g.storage.petPool.slice(0, 5).map(p => p.id)
@@ -176,6 +179,8 @@ function nextFloor(g) {
   // 上一层的过层/通关结算防重入标记必须清除，否则下一层战斗胜利后无法再次进入 towerVictory
   g._towerFloorSettlePending = false
   g._towerClearSettlePending = false
+  g._towerMilestoneRewardPopup = null
+  g._towerMilestonePopupBtnRect = null
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
   g.floor++
   // 通关检测：超过最大层数即为通关
@@ -276,20 +281,19 @@ function settleExp(g) {
 }
 
 /**
- * 通天塔活动里程碑检测 & 发放
- * 在 endRun → settleAll 之后调用，写入 g._lastRunEventRewards 供 UI 展示
+ * 通天塔里程碑奖励发放（中途即时领奖 / 结算页兜底共用）
  */
-function _checkTowerEventMilestones(g) {
-  g._lastRunEventRewards = []
-  const bestFloor = g.storage.bestFloor || 0
-  const teState = g.storage.getTowerEventState()
-  const claimable = getClaimableMilestones(bestFloor, teState.claimed)
-  if (claimable.length === 0) return
-
+function _grantTowerEventMilestones(g, milestones, opts = {}) {
+  if (!milestones || milestones.length === 0) return []
   const season = getCurrentSeason()
-  if (!season) return
+  if (!season) return []
 
-  for (const m of claimable) {
+  const recordRun = opts.recordRun !== false
+  const playSound = opts.playSound !== false
+  if (!Array.isArray(g._towerJustClaimedMilestones)) g._towerJustClaimedMilestones = []
+
+  const granted = []
+  for (const m of milestones) {
     const reward = { floor: m.floor, type: m.type, count: m.count }
 
     if (m.type === 'srFrag') {
@@ -305,8 +309,47 @@ function _checkTowerEventMilestones(g) {
     }
 
     g.storage.claimTowerMilestone(m.floor)
-    g._lastRunEventRewards.push(reward)
+    granted.push(reward)
   }
+
+  if (recordRun && granted.length > 0) {
+    const existingFloors = new Set((g._towerJustClaimedMilestones || []).map(item => item.floor))
+    granted.forEach((reward) => {
+      if (!existingFloors.has(reward.floor)) {
+        g._towerJustClaimedMilestones.push(reward)
+        existingFloors.add(reward.floor)
+      }
+    })
+  }
+
+  if (playSound && granted.length > 0) MusicMgr.playReward()
+  return granted
+}
+
+/**
+ * 在过层结算页中即时领取当前层里程碑奖励
+ */
+function claimTowerFloorMilestones(g, floor) {
+  const teState = g.storage.getTowerEventState()
+  const claimable = getMilestonesAtFloor(floor, teState.claimed)
+  const granted = _grantTowerEventMilestones(g, claimable)
+  if (granted.length > 0) {
+    g._towerMilestoneRewardPopup = { floor, rewards: granted }
+    g._towerMilestonePopupBtnRect = null
+  }
+  return granted
+}
+
+/**
+ * 通天塔活动里程碑检测 & 发放
+ * 在 endRun → settleAll 之后调用，写入 g._lastRunEventRewards 供 UI 回顾展示
+ */
+function _checkTowerEventMilestones(g) {
+  const finalFloor = g.cleared ? MAX_FLOOR : Math.max(0, (g.floor || 0) - 1)
+  const teState = g.storage.getTowerEventState()
+  const claimable = getClaimableMilestones(finalFloor, teState.claimed)
+  _grantTowerEventMilestones(g, claimable, { playSound: false })
+  g._lastRunEventRewards = (g._towerJustClaimedMilestones || []).slice()
 }
 
 /**
@@ -445,6 +488,7 @@ function saveAndExit(g) {
     itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
     itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
     curEvent: g.curEvent || null,
+    towerJustClaimedMilestones: g._towerJustClaimedMilestones || [],
   })
   g.storage.saveRunState(runState)
   g.showExitDialog = false
@@ -480,6 +524,9 @@ function resumeRun(g) {
   g.weaponReviveUsed = s.weaponReviveUsed || false
   g.goodBeadsNextTurn = s.goodBeadsNextTurn || false
   g.runTotalTurns = s.runTotalTurns || 0
+  g._towerJustClaimedMilestones = s.towerJustClaimedMilestones || []
+  g._towerMilestoneRewardPopup = null
+  g._towerMilestonePopupBtnRect = null
   // 道具状态恢复
   g.itemResetObtained = s.itemResetObtained || false
   g.itemResetUsed = s.itemResetUsed || false
@@ -698,5 +745,6 @@ module.exports = {
   adReviveCallback: _safeRun(adReviveCallback),
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
   gmSkipBattle: _safeRun(gmSkipBattle),
+  claimTowerFloorMilestones: _safeRun(claimTowerFloorMilestones),
   calcFloorAtkBonus,
 }
