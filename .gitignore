@@ -18,6 +18,9 @@ build/
 *.tmp
 *.temp
 
+# Cursor skills / 本地密钥（勿提交）
+.cursor/skills/gemini-image-gen/api_key.local
+
 # Environment
 .env
 .env.local

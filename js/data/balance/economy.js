@@ -123,14 +123,60 @@ const ROGUE_SETTLE = {
 }
 
 // ===== 签到奖励 =====
+const LOGIN_CYCLE_DAYS = 30
+const LOGIN_SPECIAL_PET_ID = 'f4'
+const LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS = 25
+const LOGIN_PAGE_GROUPS = [
+  { index: 0, startDay: 1, endDay: 7, isFinale: false },
+  { index: 1, startDay: 8, endDay: 14, isFinale: false },
+  { index: 2, startDay: 15, endDay: 21, isFinale: false },
+  { index: 3, startDay: 22, endDay: 28, isFinale: false },
+  { index: 4, startDay: 29, endDay: 30, isFinale: true },
+]
+// ── 里程碑宠物奖励（进度条上方的 SSR 宠物头像，到天数后可点击领取）──
+// 第7天=整宠，第15/22/30天=碎片；不可视频双倍
+const LOGIN_MILESTONE_PETS = [
+  { day: 7,  petId: LOGIN_SPECIAL_PET_ID, type: 'pet',      count: 1,  duplicateFragments: LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS },
+  { day: 15, petId: LOGIN_SPECIAL_PET_ID, type: 'fragment',  count: 10 },
+  { day: 22, petId: LOGIN_SPECIAL_PET_ID, type: 'fragment',  count: 15 },
+  { day: 30, petId: LOGIN_SPECIAL_PET_ID, type: 'fragment',  count: 25 },
+]
+// 兼容旧逻辑的30天完成奖励（现在由 LOGIN_MILESTONE_PETS day:30 替代）
+const LOGIN_MILESTONE_REWARD = {
+  soulStone: 100,
+}
+// ── 每日签到奖励（只有灵石和体力，宠物/碎片/觉醒石移到里程碑）──
 const LOGIN_REWARDS = [
-  { day: 1, rewards: { soulStone: 50,  stamina: 20 } },
-  { day: 2, rewards: { soulStone: 60,  fragment: 3 } },
-  { day: 3, rewards: { soulStone: 70,  stamina: 30 } },
-  { day: 4, rewards: { soulStone: 75,  fragment: 5 } },
-  { day: 5, rewards: { soulStone: 85,  stamina: 40 } },
-  { day: 6, rewards: { soulStone: 100, fragment: 8, awakenStone: 1 } },
-  { day: 7, rewards: { soulStone: 130, stamina: 50, fragment: 10, awakenStone: 2, petChoice: true } },
+  { day: 1,  rewards: { soulStone: 30 } },
+  { day: 2,  rewards: { soulStone: 40 } },
+  { day: 3,  rewards: { soulStone: 50, stamina: 20 } },
+  { day: 4,  rewards: { soulStone: 60 } },
+  { day: 5,  rewards: { soulStone: 70, stamina: 30 } },
+  { day: 6,  rewards: { soulStone: 80 } },
+  { day: 7,  rewards: { soulStone: 90, stamina: 40 } },
+  { day: 8,  rewards: { soulStone: 100 } },
+  { day: 9,  rewards: { soulStone: 110, stamina: 40 } },
+  { day: 10, rewards: { soulStone: 120 } },
+  { day: 11, rewards: { soulStone: 130 } },
+  { day: 12, rewards: { soulStone: 140, stamina: 50 } },
+  { day: 13, rewards: { soulStone: 150 } },
+  { day: 14, rewards: { soulStone: 160, stamina: 50 } },
+  { day: 15, rewards: { soulStone: 170 } },
+  { day: 16, rewards: { soulStone: 180 } },
+  { day: 17, rewards: { soulStone: 190, stamina: 60 } },
+  { day: 18, rewards: { soulStone: 200 } },
+  { day: 19, rewards: { soulStone: 210, stamina: 60 } },
+  { day: 20, rewards: { soulStone: 220 } },
+  { day: 21, rewards: { soulStone: 230, stamina: 60 } },
+  { day: 22, rewards: { soulStone: 240 } },
+  { day: 23, rewards: { soulStone: 250 } },
+  { day: 24, rewards: { soulStone: 260, stamina: 70 } },
+  { day: 25, rewards: { soulStone: 275 } },
+  { day: 26, rewards: { soulStone: 290, stamina: 80 } },
+  { day: 27, rewards: { soulStone: 305 } },
+  { day: 28, rewards: { soulStone: 320, stamina: 80 } },
+  { day: 29, rewards: { soulStone: 340 } },
+  { day: 30, rewards: { soulStone: 360, stamina: 120 } },
 ]
 const LOGIN_WEEKLY_RATIO = 0.6
 
@@ -260,6 +306,12 @@ module.exports = {
   STAGE_SETTLE,
   RATING_TO_STARS,
   ROGUE_SETTLE,
+  LOGIN_CYCLE_DAYS,
+  LOGIN_SPECIAL_PET_ID,
+  LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS,
+  LOGIN_PAGE_GROUPS,
+  LOGIN_MILESTONE_REWARD,
+  LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,
   LOGIN_WEEKLY_RATIO,
   DAILY_TASKS,

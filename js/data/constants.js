@@ -124,14 +124,18 @@ const TITLE_HOME = {
   towerEventBannerBelowProgressGapPt: 14,
   /** 活动卡片比开始按钮（0.6 屏宽）多加的宽度（×S），略宽一点即可 */
   towerEventBannerExtraWPt: 12,
-  /** 每日签到：总宽度、红包图标边长、标签字号（×S） */
+  /** 右侧签到 / 游戏圈 / 任务三枚图标边长（×S），共用此项 */
   dailySignBtnWidthPt: 62,
-  dailySignIconPt: 52,
+  dailySignIconPt: 46,
   dailySignLabelPt: 11,
   /** 签到按钮顶边 = safeTop + 此项×S */
   dailySignTopBelowSafePt: 38,
   /** 游戏圈入口与签到区块底边的间距（×S），图标宽与签到图标一致 */
   gameClubGapBelowDailyPt: 10,
+  /** 每日任务入口：紧贴游戏圈图标区块底边的间距（×S） */
+  dailyTaskGapBelowGameClubPt: 10,
+  /** 每日任务入口图标（与 daily_sign_icon 同列；缺图时用 Canvas 占位） */
+  dailyTaskBtnImage: 'assets/ui/daily_task_icon.png',
   /** 微信 createGameClubButton type=image（1:1，内容等比装进方图） */
   gameClubBtnImage: 'assets/ui/game_club_entry.png',
   /**
@@ -151,6 +155,56 @@ const TITLE_HOME = {
   stageNavBtnHeightPt: 42,
   stageNavBtnRadiusPt: 10,
   stageNavChevronPt: 9,
+}
+
+/**
+ * 签到弹窗 — 布局与 game2D_huahua/src/gameobjects/ui/CheckInPanel.ts 设计坐标一致
+ * （DESIGN_WIDTH=750；本工程画布宽 W，缩放 u=W/750，勿再用 main的 S=W/375 去乘14、20 等「花华设计像素」）
+ * 图片在 assets/ui/checkin_huahua/
+ */
+const CHECKIN_HUAHUA = {
+  maskAlpha: 0.6,
+  designWidth: 750,
+  /** CheckInPanel CARD_AREA_W（与花华一致；随 u=W/750 铺满比例，不再用像素上限 620 锁死） */
+  cardAreaWDesign: 620,
+  /** CheckInPanel CARD_GAP */
+  cardGapDesign: 14,
+  /** 常规卡片高度 */
+  cardHDesign: 172,
+  /** 强调卡/终章卡高度 */
+  highlightCardHDesign: 132,
+  /** 终章达成卡高度 */
+  finaleBonusHDesign: 118,
+  /** 底部操作区预留高度 */
+  actionAreaHDesign: 160,
+  /** 操作区与卡片区垂直间距 */
+  actionGapDesign: 20,
+  /** CheckInPanel._refresh ESTIMATED_H（标题区+里程碑+分页卡片+双按钮留白） */
+  estimatedContentHDesign: 1040,
+  milestoneMaxDays: 30,
+  milestoneThresholds: [7, 15, 22, 30],
+  titleBanner: 'assets/ui/checkin_huahua/checkin_title_banner.png',
+  /** 横幅上「每日奖励」相对图高的纵位置0~1（标题略上提，尽量落在卷轴正文视觉正中） */
+  titleTextYFrac: 0.59,
+  /** 仅标题横幅相对面板顶额外下移，设计像素×(W/750)，不带动整块面板 */
+  titleBannerOffsetYPt: 14,
+  /** 标题横幅绘制后推进到下一个区块的有效高度比例，低于1可吃掉图底部视觉空白 */
+  titleBannerAdvanceFrac: 0.78,
+  milestonePanel: 'assets/ui/checkin_huahua/checkin_milestone_panel.png',
+  cardFuture: 'assets/ui/checkin_huahua/checkin_card_future.png',
+  cardToday: 'assets/ui/checkin_huahua/checkin_card_today.png',
+  cardSigned: 'assets/ui/checkin_huahua/checkin_card_signed.png',
+  cardHighlight: 'assets/ui/checkin_huahua/checkin_card_day7.png',
+  /** 兼容旧签到页字段名，待30天签到视图重构完成后移除 */
+  cardDay7: 'assets/ui/checkin_huahua/checkin_card_day7.png',
+  btnOrange: 'assets/ui/checkin_huahua/deco_card_btn_2.png',
+  milestoneGift: (i) => `assets/ui/checkin_huahua/checkin_milestone_gift_${i}.png`,
+  /** 第7天固定 SSR 展示图标（默认走炎狱火麟头像） */
+  specialPetIcon: 'assets/pets/pet_f4.png',
+  /** 兼容旧签到页字段名，待30天签到视图重构完成后移除 */
+  day7PetChoiceIcon: 'assets/pets/pet_f4.png',
+  /** 兼容旧签到页字段名，待30天签到视图重构完成后移除 */
+  day7HDesign: 132,
 }
 
 /** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
@@ -253,6 +307,7 @@ module.exports = {
   STAGE_CARD,
   TITLE_LOGO,
   TITLE_HOME,
+  CHECKIN_HUAHUA,
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   NEWBIE_PET_IDS,

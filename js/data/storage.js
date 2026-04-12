@@ -90,9 +90,13 @@ function defaultPersist() {
     equippedWeaponId: null,    // 当前装备的法宝ID
     // 签到系统
     loginSign: {
-      day: 0,                  // 当前签到天数 (1-7)
+      day: 0,                  // 当前签到轮次进度 (1-30)
       lastDate: '',            // 上次签到日期 'YYYY-MM-DD'
-      isNewbie: true,          // 是否仍在新手 7 日周期
+      isNewbie: true,          // 是否仍处于首轮 30 天高爽奖励
+      totalSignDays: 0,        // 历史累计签到天数
+      pendingDoubleRewards: null, // 当日可翻倍资源快照
+      doubleClaimedDate: '',   // 当日是否已完成翻倍领取
+      cycleDays: 30,           // 当前签到轮次天数，用于兼容旧存档
     },
     // 每日任务
     dailyTaskProgress: {
@@ -795,7 +799,48 @@ class Storage {
   // ===== 签到系统 =====
 
   _ensureLoginSign() {
-    if (!this._d.loginSign) this._d.loginSign = { day: 0, lastDate: '', isNewbie: true }
+    const { LOGIN_CYCLE_DAYS } = require('./giftConfig')
+    if (!this._d.loginSign) {
+      this._d.loginSign = {
+        day: 0,
+        lastDate: '',
+        isNewbie: true,
+        totalSignDays: 0,
+        pendingDoubleRewards: null,
+        doubleClaimedDate: '',
+        cycleDays: LOGIN_CYCLE_DAYS,
+        milestonePetClaimed: [],
+      }
+      return
+    }
+    const sign = this._d.loginSign
+    if (!Array.isArray(sign.milestonePetClaimed)) sign.milestonePetClaimed = []
+    const legacyDay = Math.max(0, Number(sign.day) || 0)
+    const total = Math.max(0, Number(sign.totalSignDays) || legacyDay)
+    sign.totalSignDays = total
+    sign.cycleDays = LOGIN_CYCLE_DAYS
+    sign.day = total > 0 ? ((total - 1) % LOGIN_CYCLE_DAYS) + 1 : 0
+    sign.isNewbie = total < LOGIN_CYCLE_DAYS
+    if (typeof sign.lastDate !== 'string') sign.lastDate = ''
+    if (typeof sign.doubleClaimedDate !== 'string') sign.doubleClaimedDate = ''
+    if (!sign.pendingDoubleRewards || typeof sign.pendingDoubleRewards !== 'object') sign.pendingDoubleRewards = null
+    const today = localDateKey()
+    if (sign.lastDate !== today) {
+      sign.pendingDoubleRewards = null
+    } else if (!sign.pendingDoubleRewards && sign.doubleClaimedDate !== today) {
+      // 旧存档迁移 / 升级后首次打开：今天已签到但缺少翻倍快照，自动补上
+      const {
+        cloneLoginRewardRewards,
+        getDoubleableLoginRewards,
+        getScaledLoginRewardByDay,
+      } = require('./giftConfig')
+      const cycleDay = sign.day || 1
+      const scaled = getScaledLoginRewardByDay(cycleDay, sign.isNewbie)
+      if (scaled && scaled.rewards) {
+        const doubleable = getDoubleableLoginRewards(scaled.rewards)
+        sign.pendingDoubleRewards = Object.keys(doubleable).length ? cloneLoginRewardRewards(doubleable) : null
+      }
+    }
   }
 
   get loginSign() { this._ensureLoginSign(); return this._d.loginSign }
@@ -805,24 +850,200 @@ class Storage {
     return this._d.loginSign.lastDate !== localDateKey()
   }
 
+  get loginRewardDoubleState() {
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    const today = localDateKey()
+    const pendingRewards = sign.pendingDoubleRewards && typeof sign.pendingDoubleRewards === 'object'
+      ? Object.assign({}, sign.pendingDoubleRewards)
+      : null
+    const hasPending = !!(pendingRewards && Object.keys(pendingRewards).length)
+    const claimed = sign.doubleClaimedDate === today
+    const eligible = !this.canSignToday && sign.lastDate === today && hasPending && !claimed
+    return { eligible, claimed, pendingRewards }
+  }
+
+  _mergeLoginRewardResult(target, patch) {
+    if (!patch) return target
+    Object.keys(patch).forEach((key) => {
+      const value = patch[key]
+      if (value == null) return
+      if (typeof value === 'number') {
+        target[key] = (target[key] || 0) + value
+        return
+      }
+      if (Array.isArray(value)) {
+        target[key] = (target[key] || []).concat(value)
+        return
+      }
+      if ((key === 'petFragment' || key === 'petDuplicateFragment') && value.petId) {
+        if (target[key] && target[key].petId === value.petId) {
+          target[key].count = (target[key].count || 0) + (value.count || 0)
+        } else {
+          target[key] = { petId: value.petId, count: value.count || 0 }
+        }
+        return
+      }
+      target[key] = Object.assign({}, value)
+    })
+    return target
+  }
+
+  _grantLoginRewardBundle(rewards) {
+    const granted = {}
+    if (!rewards) return granted
+    if (rewards.soulStone) {
+      this.addSoulStone(rewards.soulStone)
+      granted.soulStone = rewards.soulStone
+    }
+    if (rewards.awakenStone) {
+      this.addAwakenStone(rewards.awakenStone)
+      granted.awakenStone = rewards.awakenStone
+    }
+    if (rewards.stamina) {
+      this.addBonusStamina(rewards.stamina)
+      granted.stamina = rewards.stamina
+    }
+    if (rewards.fragment) {
+      const fragResult = this.addRandomFragments(rewards.fragment)
+      granted.fragment = rewards.fragment
+      if (fragResult && fragResult.petId) granted.fragmentDetails = [fragResult]
+    }
+    if (rewards.petFragment && rewards.petFragment.petId && rewards.petFragment.count > 0) {
+      this.addFragmentSmart(rewards.petFragment.petId, rewards.petFragment.count)
+      granted.petFragment = { petId: rewards.petFragment.petId, count: rewards.petFragment.count }
+    }
+    if (rewards.petId) {
+      const petId = rewards.petId
+      if (this.getPoolPet(petId)) {
+        const duplicate = rewards.petDuplicateFragment
+        if (duplicate && duplicate.petId && duplicate.count > 0) {
+          this.addFragmentSmart(duplicate.petId, duplicate.count)
+          granted.petDuplicateFragment = { petId: duplicate.petId, count: duplicate.count }
+        }
+      } else if (this.addToPetPool(petId, 'signIn')) {
+        granted.petId = petId
+      }
+    } else if (rewards.petDuplicateFragment && rewards.petDuplicateFragment.petId && rewards.petDuplicateFragment.count > 0) {
+      this.addFragmentSmart(rewards.petDuplicateFragment.petId, rewards.petDuplicateFragment.count)
+      granted.petDuplicateFragment = {
+        petId: rewards.petDuplicateFragment.petId,
+        count: rewards.petDuplicateFragment.count,
+      }
+    }
+    return granted
+  }
+
   claimLoginReward() {
     if (!this.canSignToday) return null
     this._ensureLoginSign()
     const sign = this._d.loginSign
-    sign.day = (sign.day % 7) + 1
-    if (sign.day === 1 && sign.lastDate) sign.isNewbie = false
+    const {
+      LOGIN_CYCLE_DAYS,
+      cloneLoginRewardRewards,
+      getDoubleableLoginRewards,
+      getLoginMilestoneReward,
+      getLoginPageIndex,
+      getLoginRewardRatio,
+      getScaledLoginRewardByDay,
+    } = require('./giftConfig')
+    const claimIsNewbie = (sign.totalSignDays || 0) < LOGIN_CYCLE_DAYS
+    const claimDay = ((sign.totalSignDays || 0) % LOGIN_CYCLE_DAYS) + 1
+    const scaled = getScaledLoginRewardByDay(claimDay, claimIsNewbie)
+    if (!scaled || !scaled.rewards) return null
+
+    const grantedRewards = this._grantLoginRewardBundle(scaled.rewards)
+    let milestoneRewards = null
+    if (claimDay === LOGIN_CYCLE_DAYS) {
+      milestoneRewards = this._grantLoginRewardBundle(getLoginMilestoneReward(claimIsNewbie))
+    }
+
+    sign.day = claimDay
     sign.lastDate = localDateKey()
-    const { LOGIN_REWARDS, LOGIN_WEEKLY_RATIO } = require('./giftConfig')
-    const base = LOGIN_REWARDS[sign.day - 1]
-    if (!base) { this._save(); return null }
-    const ratio = sign.isNewbie ? 1 : LOGIN_WEEKLY_RATIO
-    const r = base.rewards
-    if (r.soulStone) this.addSoulStone(Math.floor(r.soulStone * ratio))
-    if (r.awakenStone) this.addAwakenStone(Math.floor(r.awakenStone * ratio))
-    if (r.stamina) this.addBonusStamina(Math.floor(r.stamina * ratio))
-    if (r.fragment) this.addRandomFragments(Math.floor(r.fragment * ratio))
+    sign.totalSignDays = (sign.totalSignDays || 0) + 1
+    sign.isNewbie = sign.totalSignDays < LOGIN_CYCLE_DAYS
+    sign.pendingDoubleRewards = cloneLoginRewardRewards(getDoubleableLoginRewards(scaled.rewards))
+    if (!Object.keys(sign.pendingDoubleRewards).length) sign.pendingDoubleRewards = null
+    sign.doubleClaimedDate = ''
+    sign.cycleDays = LOGIN_CYCLE_DAYS
     this._save()
-    return { day: sign.day, rewards: r, isNewbie: sign.isNewbie, ratio }
+
+    return {
+      day: claimDay,
+      totalSignDays: sign.totalSignDays,
+      isNewbie: claimIsNewbie,
+      ratio: getLoginRewardRatio(claimIsNewbie),
+      pageIndex: getLoginPageIndex(claimDay),
+      rewards: grantedRewards,
+      milestoneRewards,
+      doubleableRewards: sign.pendingDoubleRewards ? cloneLoginRewardRewards(sign.pendingDoubleRewards) : null,
+      canDouble: !!(sign.pendingDoubleRewards && Object.keys(sign.pendingDoubleRewards).length),
+    }
+  }
+
+  claimLoginAdDouble() {
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    const today = localDateKey()
+    if (this.canSignToday || sign.lastDate !== today || sign.doubleClaimedDate === today) return null
+    const { cloneLoginRewardRewards, getLoginPageIndex } = require('./giftConfig')
+    const pendingRewards = sign.pendingDoubleRewards ? cloneLoginRewardRewards(sign.pendingDoubleRewards) : null
+    if (!pendingRewards || !Object.keys(pendingRewards).length) return null
+    const grantedRewards = this._grantLoginRewardBundle(pendingRewards)
+    sign.doubleClaimedDate = today
+    this._save()
+    return {
+      day: sign.day || 0,
+      totalSignDays: sign.totalSignDays || 0,
+      pageIndex: getLoginPageIndex(sign.day || 1),
+      rewards: grantedRewards,
+    }
+  }
+
+  /**
+   * 领取里程碑宠物奖励（进度条上的 SSR 头像，不可视频双倍）
+   * @param {number} day - 里程碑天数 (7/15/22/30)
+   * @returns {{ success, message, reward }|null}
+   */
+  claimMilestonePet(day) {
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    const { LOGIN_MILESTONE_PETS } = require('./giftConfig')
+    const milestone = LOGIN_MILESTONE_PETS.find(m => m.day === day)
+    if (!milestone) return { success: false, message: '里程碑不存在' }
+
+    // 检查进度是否达到
+    const progressDays = this.canSignToday
+      ? (sign.totalSignDays || 0) % 30
+      : (sign.day || 0)
+    if (progressDays < day) return { success: false, message: '签到天数未达到' }
+
+    // 检查是否已领取
+    if (!Array.isArray(sign.milestonePetClaimed)) sign.milestonePetClaimed = []
+    if (sign.milestonePetClaimed.includes(day)) return { success: false, message: '已领取' }
+
+    // 发放奖励
+    const reward = {}
+    if (milestone.type === 'pet') {
+      // 整宠：尝试入池，已有则给重复碎片
+      if (this.getPoolPet(milestone.petId)) {
+        const dupCount = milestone.duplicateFragments || 25
+        this.addFragmentSmart(milestone.petId, dupCount)
+        reward.petDuplicateFragment = { petId: milestone.petId, count: dupCount }
+      } else {
+        this.addToPetPool(milestone.petId, 'signIn')
+        reward.petId = milestone.petId
+      }
+    } else if (milestone.type === 'fragment') {
+      this.addFragmentSmart(milestone.petId, milestone.count)
+      reward.petFragment = { petId: milestone.petId, count: milestone.count }
+    }
+
+    // 标记已领取
+    sign.milestonePetClaimed.push(day)
+    this._save()
+
+    return { success: true, reward, milestone }
   }
 
   // ===== 每日任务 =====
@@ -836,9 +1057,13 @@ class Storage {
 
   get dailyTaskProgress() { this._ensureDailyTask(); return this._d.dailyTaskProgress }
 
-  /** 首页「每日奖励」入口红点：今日未签到、任一条任务可领未领、或全完成但未领额外奖 */
-  get hasDailyRewardEntryBadge() {
-    if (this.canSignToday) return true
+  /** 首页「每日签到」入口红点 */
+  get hasSignInEntryBadge() {
+    return this.canSignToday
+  }
+
+  /** 首页「每日任务」入口红点：可领任务或全完成但未领额外奖 */
+  get hasDailyTaskEntryBadge() {
     this._ensureDailyTask()
     const p = this._d.dailyTaskProgress
     const { DAILY_TASKS } = require('./giftConfig')
@@ -849,6 +1074,11 @@ class Storage {
     const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
     if (allDone && !p.allClaimed) return true
     return false
+  }
+
+  /** 兼容：签到或任务任一有红点 */
+  get hasDailyRewardEntryBadge() {
+    return this.hasSignInEntryBadge || this.hasDailyTaskEntryBadge
   }
 
   addDailyTaskProgress(taskId, amount) {
@@ -1817,6 +2047,64 @@ class Storage {
     if (!this._d.adWatchLog) this._d.adWatchLog = {}
     if (!this._d.towerDaily) this._d.towerDaily = { date: '', runs: 0, adRuns: 0 }
     if (!this._d.towerEvent) this._d.towerEvent = { seasonIndex: -1, claimed: [] }
+  }
+
+  // ===== GM 调试方法（仅白名单用户可调用）=====
+
+  /** GM：重置今日签到状态（让 canSignToday 变为 true，同时清除广告次数） */
+  gmResetSignToday() {
+    if (!isCurrentUserGM()) return
+    this._ensureLoginSign()
+    this._d.loginSign.lastDate = ''
+    this._d.loginSign.pendingDoubleRewards = null
+    this._d.loginSign.doubleClaimedDate = ''
+    // 同时清除签到翻倍广告次数，方便完整测试签到→翻倍流程
+    if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
+      delete this._d.adWatchLog.signDouble
+    }
+    this._save()
+  }
+
+  /** GM：重置翻倍状态（保留签到，重新变为可翻倍） */
+  gmResetDouble() {
+    if (!isCurrentUserGM()) return
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    sign.doubleClaimedDate = ''
+    const { getScaledLoginRewardByDay, getDoubleableLoginRewards, cloneLoginRewardRewards } = require('./giftConfig')
+    const cycleDay = sign.day || 1
+    const scaled = getScaledLoginRewardByDay(cycleDay, sign.isNewbie)
+    if (scaled && scaled.rewards) {
+      sign.pendingDoubleRewards = cloneLoginRewardRewards(getDoubleableLoginRewards(scaled.rewards))
+    }
+    this._save()
+  }
+
+  /** GM：直接设置累计签到天数（同时清除广告次数，模拟"到了新的一天"） */
+  gmSetSignDay(n) {
+    if (!isCurrentUserGM()) return
+    const { LOGIN_CYCLE_DAYS } = require('./giftConfig')
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    sign.totalSignDays = Math.max(0, n)
+    sign.day = sign.totalSignDays > 0 ? ((sign.totalSignDays - 1) % LOGIN_CYCLE_DAYS) + 1 : 0
+    sign.isNewbie = sign.totalSignDays < LOGIN_CYCLE_DAYS
+    sign.lastDate = ''
+    sign.pendingDoubleRewards = null
+    sign.doubleClaimedDate = ''
+    // 模拟换天：广告次数也一并清除
+    if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
+      delete this._d.adWatchLog.signDouble
+    }
+    this._save()
+  }
+
+  /** GM：体力回满 */
+  gmRefillStamina() {
+    if (!isCurrentUserGM()) return
+    this._recoverStamina()
+    this._d.stamina.current = this.maxStamina
+    this._save()
   }
 
   _save() {

@@ -81,7 +81,7 @@ function updateGameClubBtn(g, dpr) {
     return
   }
   const shouldShow = g.scene === 'title'
-    && !g.showMorePanel && !g.showSidebarPanel && !g._showDailyReward
+    && !g.showMorePanel && !g.showSidebarPanel && !g._showDailySign && !g._showDailyTasks
     && !g._confirmDialog && !g._adRewardPopup
     && P.isWeChat
   if (!shouldShow) { destroyGameClubBtn(g); return }

@@ -148,6 +148,9 @@ function initState(g) {
   g.showNewRunConfirm = false
   g.showMorePanel = false         // 首页「更多」面板
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
+  g._showDailySign = false        // 首页每日签到弹窗
+  g._showDailyTasks = false       // 首页每日任务弹窗
+  g._showGMPanel = false          // GM调试面板弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
   g.titleMode = 'stage'           // 首页当前展示的模式：'tower' | 'stage'
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）

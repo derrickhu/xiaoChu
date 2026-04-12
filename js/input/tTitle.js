@@ -5,7 +5,8 @@ const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const runMgr = require('../engine/runManager')
 const { getBrowsableStages } = require('../data/stages')
-const { tDailyReward } = require('../views/dailyRewardView')
+const { tDailySign, tDailyTasks } = require('../views/dailyRewardView')
+const { tGMPanel } = require('../views/gmPanelView')
 
 const { TOWER_DAILY } = require('../data/economyConfig')
 const { STAGE_FORMATION_MIN_PETS, TITLE_HOME, STAMINA_COST } = require('../data/constants')
@@ -42,8 +43,11 @@ function _checkTowerDailyLimit(g) {
 }
 
 function tTitle(g, type, x, y) {
-  // ⓪ 每日奖励弹窗
-  if (g._showDailyReward) { tDailyReward(g, x, y, type); return }
+  // ⓪ GM 面板（覆盖在签到弹窗之上，优先处理）
+  if (g._showGMPanel) { if (tGMPanel(g, x, y, type)) return }
+  // ⓪ 每日任务 / 每日签到弹窗（任务叠在上层时需先处理）
+  if (g._showDailyTasks) { tDailyTasks(g, x, y, type); return }
+  if (g._showDailySign) { tDailySign(g, x, y, type); return }
 
   // ① 侧边栏复访弹窗
   if (g.showSidebarPanel) {
@@ -92,6 +96,11 @@ function tTitle(g, type, x, y) {
     }
     if (rects.bgm && g._hitRect(x, y, ...rects.bgm)) {
       g.storage.toggleBgm(); MusicMgr.toggleBgm(); return
+    }
+    if (rects.gm && g._hitRect(x, y, ...rects.gm)) {
+      g._showGMPanel = true
+      MusicMgr.playClick && MusicMgr.playClick()
+      return
     }
     return
   }
@@ -244,9 +253,18 @@ function tTitle(g, type, x, y) {
     g.showSidebarPanel = true; return
   }
 
-  // ⑥b 每日奖励按钮
-  if (g._dailyRewardBtnRect && g._hitRect(x, y, ...g._dailyRewardBtnRect)) {
-    g._showDailyReward = true
+  // ⑥b 每日签到
+  if (g._dailySignBtnRect && g._hitRect(x, y, ...g._dailySignBtnRect)) {
+    g._showDailyTasks = false
+    g._showDailySign = true
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
+
+  // ⑥b2 每日任务
+  if (g._dailyTaskBtnRect && g._hitRect(x, y, ...g._dailyTaskBtnRect)) {
+    g._showDailySign = false
+    g._showDailyTasks = true
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

@@ -132,7 +132,7 @@ const PETS = {
     { id:'f1',  name:'赤焰火狐',  atk:8,  skill:{ name:'焰爪连击', desc:'下次火属性伤害×2倍', type:'dmgBoost', attr:'fire', pct:100 }, cd:2 },
     { id:'f2',  name:'焚天火狼',  atk:9,  skill:{ name:'烈火珠阵', desc:'整行珠子变火珠', type:'convertRow', attr:'fire' }, cd:4 },
     { id:'f3',  name:'烈阳火凰',  atk:11, skill:{ name:'凤凰烈焰', desc:'350%火属性直接伤害', type:'instantDmg', attr:'fire', pct:350 }, cd:4 },
-    { id:'f4',  name:'炎狱火麟',  atk:11, skill:{ name:'炎狱暴击', desc:'必暴击+暴击伤害+50%', type:'guaranteeCrit', critDmgBonus:50 }, cd:3 },
+    { id:'f4',  name:'炎狱火麟',  atk:13, skill:{ name:'炎狱暴击', desc:'必暴击+暴击伤害+100%', type:'guaranteeCrit', critDmgBonus:100 }, cd:4 },
     { id:'f5',  name:'爆炎火蟾',  atk:10, skill:{ name:'烈焰灼烧', desc:'灼烧：每回合30点持续3回合', type:'dot', dmg:30, dur:3 }, cd:3 },
     { id:'f6',  name:'火莲灵花',  atk:11, skill:{ name:'火莲绽放', desc:'Combo伤害额外+60%', type:'comboDmgUp', pct:60 }, cd:3 },
     { id:'f7',  name:'焚天火鸦',  atk:11, skill:{ name:'焚天之怒', desc:'敌人眩晕2回合', type:'stun', dur:2 }, cd:5 },
@@ -200,14 +200,14 @@ const PET_RARITY = {
     'm10','m18','m19','m20',        // 九天金凰、金锋战神、金耀星君、万钧金神
     'w10','w20',                    // 万木之主、神木麒麟
     's10','s17',                    // 沧海龙神、沧澜鲲鹏
-    'f10','f16','f17',              // 朱雀神火、焚天火蟒、赤焰麒麟
+    'f4','f10','f16','f17',         // 炎狱火麟、朱雀神火、焚天火蟒、赤焰麒麟
     'e10','e18','e20',              // 后土神兽、镇地神牛、玄武神君
   ],
   SR: [
     'm4','m5','m6','m9','m11','m13','m14','m15','m16','m17',  // 金属性中坚
     'w5','w6','w7','w12','w14','w15','w16','w17','w18','w19', // 木属性中坚
     's4','s6','s8','s11','s12','s14','s15','s16','s18','s19','s20', // 水属性中坚
-    'f3','f4','f5','f6','f7','f8','f11','f12','f13','f14','f15','f18','f19','f20', // 火属性中坚
+    'f3','f5','f6','f7','f8','f11','f12','f13','f14','f15','f18','f19','f20', // 火属性中坚
     'e4','e5','e8','e9','e11','e12','e13','e14','e15','e16','e17','e19', // 土属性中坚
   ],
   R: [
@@ -315,7 +315,7 @@ const STAR3_SKILL_OVERRIDE = {
   f1:  { desc:'下次火属性伤害×3倍，持续2回合', pct:200, dur:2 },
   f2:  { desc:'整行变火珠+额外随机3颗变火珠', extra:3 },
   f3:  { desc:'500%火属性直接伤害', pct:500 },
-  f4:  { desc:'必暴击+暴击伤害+80%', critDmgBonus:80 },
+  f4:  { desc:'必暴击+暴击伤害+130%', critDmgBonus:130 },
   f5:  { desc:'灼烧40点/回合，持续4回合', dmg:40, dur:4 },
   f6:  { desc:'Combo伤害额外+80%', pct:80 },
   f7:  { desc:'眩晕2回合+期间受伤+30%', dur:2, extraDmgPct:30 },

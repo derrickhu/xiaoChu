@@ -162,9 +162,27 @@ function linesFromRewards(r) {
   if (!r) return L
   if (r.soulStone) L.push({ icon: 'icon_soul_stone', label: '灵石', amount: '+' + r.soulStone })
   if (r.stamina) L.push({ icon: 'icon_stamina', label: '体力', amount: '+' + r.stamina })
-  if (r.awakenStone) L.push({ icon: 'icon_chest', label: '觉醒石', amount: '+' + r.awakenStone })
+  if (r.awakenStone) L.push({ icon: 'icon_awaken_stone', label: '觉醒石', amount: '+' + r.awakenStone })
   if (r.fragment) L.push({ icon: 'frame_fragment', label: '随机碎片', amount: '+' + r.fragment })
-  if (r.petChoice) L.push({ icon: 'daily_sign_icon', label: '灵宠', amount: 'SR 自选×1' })
+  if (r.petId) {
+    const { getPetById, getPetAvatarPath } = require('../data/pets')
+    const pet = getPetById(r.petId)
+    L.push({
+      icon: pet ? getPetAvatarPath({ ...pet, star: 1 }) : 'daily_sign_icon',
+      label: '灵宠',
+      amount: (pet ? pet.name : '指定灵宠') + '×1',
+    })
+  }
+  const petFragment = r.petDuplicateFragment || r.petFragment
+  if (petFragment && petFragment.petId) {
+    const { getPetById, getPetAvatarPath } = require('../data/pets')
+    const pet = getPetById(petFragment.petId)
+    L.push({
+      icon: pet ? getPetAvatarPath({ ...pet, star: 1 }) : 'frame_fragment',
+      label: (pet ? pet.name : '指定灵宠') + '碎片',
+      amount: '+' + petFragment.count,
+    })
+  }
   return L
 }
 

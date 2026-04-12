@@ -1,0 +1,22 @@
+---
+description: 图片资源 — 改图不改原图；切图/抠图/压缩等导出到新文件，不覆盖生成原稿
+globs: "**/*.{png,jpg,jpeg,webp,gif,svg,py,mdc}"
+alwaysApply: true
+---
+
+# 图片资源：改图不改原图
+
+## 原则
+
+- **原稿**（AI 生成、手绘导出、摄影等）只作为**只读输入**，保留完整文件名与内容，供重做切图或换风格时复用。
+- **切图、抠图、去底、缩放、压缩、调色** 等后处理结果必须写入**另一路径**（如 `*_game.png`、`*_ui.png` 或与原稿并列的约定名），**禁止**用处理结果覆盖原稿。
+- 游戏内引用、CDN、打包清单只指向**最终交付图**；原稿可不进包体，但须留在仓库或约定目录供维护。
+
+## 本项目约定（示例）
+
+- 每日任务入口：`assets/ui/daily_task_icon_source.png` 为原稿；`assets/ui/daily_task_icon.png` 为 BiRefNet 抠图 + 居中交付图（`process_daily_task_icon_transparent.py`）。
+- 每日签到入口：`assets/ui/daily_sign_icon_source.png` 为原稿（大画布留白）；`assets/ui/daily_sign_icon.png` 为按 alpha 裁外围后居中 1024²（`normalize_ui_icon_canvas.py`），与任务图同槽绘制时主体占比接近。
+
+## 脚本
+
+- 后处理脚本默认：**读** `*_source`（或参数指定原稿），**写** 交付路径，不把原稿当输出默认值。
