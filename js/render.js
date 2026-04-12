@@ -1638,17 +1638,98 @@ class Render {
   drawSkillEffect(f) {
     const {ctx:c,S} = this
     const {x,y,text,color,alpha,scale,big} = f
-    c.save(); c.globalAlpha=alpha
+    const baseAlpha = alpha == null ? 1 : alpha
     const sz = big ? 28 : 16
     const sc = scale || 1
+
+    if (f.variant === 'crit') {
+      const glowColor = f.glowColor || color || '#ffd84f'
+      const pulseT = f.t || 0
+      const lifeFrames = Math.max(1, f.lifeFrames || 54)
+      const pulseP = Math.min(1, pulseT / lifeFrames)
+      const flareFade = Math.max(0, 1 - pulseP)
+      const titleSz = (big ? 34 : 20) * sc * S
+      const coreR = titleSz * (0.95 + pulseP * 0.2)
+      const ringR = titleSz * (1.35 + pulseP * 0.34)
+      const outerR = titleSz * (1.72 + pulseP * 0.42)
+
+      c.save()
+      c.translate(x, y)
+      c.globalCompositeOperation = 'lighter'
+      c.globalAlpha = baseAlpha * 0.5 * flareFade
+      const glow = c.createRadialGradient(0, 0, 0, 0, 0, coreR)
+      glow.addColorStop(0, '#ffffff')
+      glow.addColorStop(0.32, glowColor)
+      glow.addColorStop(1, 'rgba(255,255,255,0)')
+      c.fillStyle = glow
+      c.beginPath(); c.arc(0, 0, coreR, 0, Math.PI * 2); c.fill()
+
+      c.globalAlpha = baseAlpha * 0.78 * flareFade
+      c.strokeStyle = glowColor
+      c.lineWidth = 2.8 * S
+      c.beginPath(); c.arc(0, 0, ringR, 0, Math.PI * 2); c.stroke()
+
+      c.globalAlpha = baseAlpha * 0.52 * flareFade
+      c.strokeStyle = '#fff6ce'
+      c.lineWidth = 1.6 * S
+      c.beginPath(); c.arc(0, 0, outerR, 0, Math.PI * 2); c.stroke()
+
+      c.globalAlpha = baseAlpha * 0.86 * flareFade
+      c.strokeStyle = '#fff8de'
+      c.lineWidth = 1.7 * S
+      for (let i = 0; i < 8; i++) {
+        const ang = -Math.PI / 2 + i * Math.PI / 4
+        const innerR = titleSz * 0.4
+        const outerR2 = titleSz * (1.32 + (i % 2 === 0 ? 0.2 : 0))
+        c.beginPath()
+        c.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
+        c.lineTo(Math.cos(ang) * outerR2, Math.sin(ang) * outerR2)
+        c.stroke()
+      }
+      c.restore()
+
+      c.save()
+      c.globalAlpha = baseAlpha
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.font = `italic 900 ${titleSz}px "Avenir-Black","Arial Black","PingFang SC",sans-serif`
+      const critGrad = c.createLinearGradient(x, y - titleSz * 0.72, x, y + titleSz * 0.45)
+      critGrad.addColorStop(0, '#ffffff')
+      critGrad.addColorStop(0.24, '#fff6c8')
+      critGrad.addColorStop(0.7, color || '#ffd84f')
+      critGrad.addColorStop(1, '#ffbc22')
+      c.strokeStyle = 'rgba(45,20,0,0.92)'
+      c.lineWidth = (big ? 6 : 4) * S
+      c.strokeText(text, x, y)
+      c.shadowColor = glowColor
+      c.shadowBlur = (26 + flareFade * 12) * S
+      c.fillStyle = critGrad
+      c.fillText(text, x, y)
+      c.shadowBlur = 0
+
+      if (f.subText) {
+        const subSz = (big ? 10 : 8) * sc * S
+        const subY = y - titleSz * 0.84
+        c.font = `italic 900 ${subSz}px "Avenir Next Condensed","Arial Black","PingFang SC",sans-serif`
+        c.strokeStyle = 'rgba(0,0,0,0.8)'
+        c.lineWidth = 2.2 * S
+        c.strokeText(f.subText, x, subY)
+        c.fillStyle = '#fff7d2'
+        c.fillText(f.subText, x, subY)
+      }
+      c.restore()
+      return
+    }
+
+    c.save(); c.globalAlpha=baseAlpha
     c.fillStyle=color||TH.accent; c.font=`bold ${sz*sc*S}px "PingFang SC",sans-serif`
     c.textAlign='center'; c.textBaseline='middle'
     c.strokeStyle='rgba(0,0,0,0.6)'; c.lineWidth=(big?4:3)*S; c.strokeText(text,x,y)
     c.fillText(text,x,y)
     // 大字光晕
-    if (big && alpha > 0.5) {
+    if (big && baseAlpha > 0.5) {
       c.shadowColor = color || '#40e8ff'
-      c.shadowBlur = 20*S*alpha
+      c.shadowBlur = 20*S*baseAlpha
       c.fillText(text,x,y)
       c.shadowBlur = 0
     }
@@ -1678,9 +1759,11 @@ class Render {
       RS.glow,
       f.text,
       f.tag || '',
+      f.tagPosition || '',
       f.color || '',
       f.fillTop || '',
       f.fillBottom || '',
+      f.strokeColor || '',
       f.glowColor || '',
       f.tagColor || '',
     ].join('|')
@@ -1691,9 +1774,10 @@ class Render {
     const fontFamily = RS.fontFamily || '"PingFang SC",sans-serif'
     const fillTop = f.fillTop || RS.fillTop || f.color || TH.danger
     const fillBottom = f.fillBottom || RS.fillBottom || f.color || TH.danger
-    const strokeColor = RS.strokeColor || 'rgba(0,0,0,0.85)'
+    const strokeColor = f.strokeColor || RS.strokeColor || 'rgba(0,0,0,0.85)'
     const glowColor = f.glowColor || RS.glowColor || f.color || TH.danger
     const tagColor = f.tagColor || RS.tagColor || '#ffffff'
+    const tagPosition = f.tagPosition === 'top' ? 'top' : 'bottom'
     const tagSize = f.tag ? baseFontSize * (RS.tagRatio || 0.28) : 0
     const pad = Math.ceil((RS.stroke + RS.glow + 8) * this.S)
 
@@ -1708,11 +1792,14 @@ class Render {
     this.ctx.restore()
 
     const width = Math.max(1, Math.ceil(Math.max(textW, tagW) + pad * 2))
-    const height = Math.max(1, Math.ceil(baseFontSize + pad * 2 + (f.tag ? tagSize * 1.4 : 0)))
+    const extraTagH = f.tag ? tagSize * 1.4 : 0
+    const height = Math.max(1, Math.ceil(baseFontSize + pad * 2 + extraTagH))
     const oc = this._P.createOffscreenCanvas({ type: '2d', width, height })
     const octx = oc.getContext('2d')
     const anchorX = width * 0.5
-    const textY = pad + baseFontSize * 0.58
+    const textY = tagPosition === 'top'
+      ? pad + extraTagH + baseFontSize * 0.58
+      : pad + baseFontSize * 0.58
 
     octx.textAlign = 'center'
     octx.textBaseline = 'middle'
@@ -1732,7 +1819,9 @@ class Render {
     octx.shadowBlur = 0
 
     if (f.tag) {
-      const tagY = textY + baseFontSize * 0.58
+      const tagY = tagPosition === 'top'
+        ? pad + tagSize * 0.62
+        : textY + baseFontSize * 0.58
       octx.font = `bold ${tagSize}px "PingFang SC",sans-serif`
       octx.strokeStyle = 'rgba(0,0,0,0.75)'
       octx.lineWidth = 2.2 * this.S
@@ -1758,26 +1847,124 @@ class Render {
     const RS = getDmgRenderStyle(styleKey)
     const drawX = x + (f._shakeOffset || 0)
     const drawY = y
-    const sprite = this._getDmgFloatSprite(f, RS)
-
-    c.save()
-    c.globalAlpha = alpha == null ? 1 : alpha
-    if (sprite) {
-      const drawW = sprite.width * (scale || 1)
-      const drawH = sprite.height * (scale || 1)
-      c.drawImage(sprite.canvas, drawX - sprite.anchorX * (scale || 1), drawY - sprite.anchorY * (scale || 1), drawW, drawH)
-      c.restore()
-      return
-    }
-
-    const sz = (RS.fontSize * (scale || 1)) * S
+    const baseAlpha = alpha == null ? 1 : alpha
+    const drawScale = scale || 1
+    const sz = (RS.fontSize * drawScale) * S
     const fontWeight = RS.fontWeight || 900
     const fontFamily = RS.fontFamily || '"PingFang SC",sans-serif'
     const fillTop = f.fillTop || RS.fillTop || color || TH.danger
     const fillBottom = f.fillBottom || RS.fillBottom || color || TH.danger
-    const strokeColor = RS.strokeColor || 'rgba(0,0,0,0.85)'
+    const strokeColor = f.strokeColor || RS.strokeColor || 'rgba(0,0,0,0.85)'
     const glowColor = f.glowColor || RS.glowColor || color || TH.danger
     const tagColor = f.tagColor || RS.tagColor || '#ffffff'
+    const burstStyle = f._burstStyle || ''
+    const burstFrames = Math.max(0, f._burstFrames || 0)
+    const sprite = this._getDmgFloatSprite(f, RS)
+
+    c.save()
+    c.globalAlpha = baseAlpha
+
+    const isCritFloat = styleKey === 'slotDamageCrit' || styleKey === 'damageCrit'
+
+    if (burstStyle && burstFrames > 0 && f.t > 0) {
+      const burstP = Math.min(1, f.t / burstFrames)
+      const burstFade = 1 - burstP
+      if (burstFade > 0.01) {
+        const burstColor = f._burstColor || glowColor
+        const isTotalCrit = burstStyle === 'totalCrit'
+        const coreRadius = sz * ((isTotalCrit ? 1.15 : 0.88) + burstP * (isTotalCrit ? 0.45 : 0.28))
+        const ringRadius = sz * ((isTotalCrit ? 1.42 : 1.05) + burstP * (isTotalCrit ? 0.3 : 0.18))
+        const outerRingRadius = ringRadius * (isTotalCrit ? 1.24 : 1.16)
+        const rayInner = sz * (isTotalCrit ? 0.38 : 0.24)
+        const rayOuter = sz * ((isTotalCrit ? 1.15 : 0.8) + burstP * 0.22)
+        const slashInner = sz * (isTotalCrit ? 0.2 : 0.12)
+        const slashOuter = sz * (isTotalCrit ? 1.42 : 1.02)
+        const rayCount = isTotalCrit ? 8 : 6
+
+        c.save()
+        c.globalCompositeOperation = 'lighter'
+        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.54 : 0.42) * burstFade
+        const burstGlow = c.createRadialGradient(drawX, drawY, 0, drawX, drawY, coreRadius)
+        burstGlow.addColorStop(0, '#ffffff')
+        burstGlow.addColorStop(0.34, burstColor)
+        burstGlow.addColorStop(1, 'rgba(255,255,255,0)')
+        c.fillStyle = burstGlow
+        c.beginPath(); c.arc(drawX, drawY, coreRadius, 0, Math.PI * 2); c.fill()
+
+        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.78 : 0.58) * burstFade
+        c.strokeStyle = burstColor
+        c.lineWidth = (isTotalCrit ? 2.3 : 1.8) * S
+        c.beginPath(); c.arc(drawX, drawY, ringRadius, 0, Math.PI * 2); c.stroke()
+
+        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.44 : 0.28) * burstFade
+        c.strokeStyle = '#fff8d8'
+        c.lineWidth = (isTotalCrit ? 1.8 : 1.2) * S
+        c.beginPath(); c.arc(drawX, drawY, outerRingRadius, 0, Math.PI * 2); c.stroke()
+
+        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.95 : 0.72) * burstFade
+        c.strokeStyle = '#fff7ce'
+        c.lineWidth = (isTotalCrit ? 1.8 : 1.3) * S
+        for (let i = 0; i < rayCount; i++) {
+          const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
+          c.beginPath()
+          c.moveTo(drawX + Math.cos(ang) * rayInner, drawY + Math.sin(ang) * rayInner)
+          c.lineTo(drawX + Math.cos(ang) * rayOuter, drawY + Math.sin(ang) * rayOuter)
+          c.stroke()
+        }
+
+        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.62 : 0.46) * burstFade
+        c.strokeStyle = '#ffffff'
+        c.lineWidth = (isTotalCrit ? 1.6 : 1.1) * S
+        for (let i = 0; i < 4; i++) {
+          const ang = Math.PI / 4 + i * Math.PI / 2
+          c.beginPath()
+          c.moveTo(drawX + Math.cos(ang) * slashInner, drawY + Math.sin(ang) * slashInner)
+          c.lineTo(drawX + Math.cos(ang) * slashOuter, drawY + Math.sin(ang) * slashOuter)
+          c.stroke()
+        }
+        c.restore()
+      }
+    }
+
+    if (sprite) {
+      const drawW = sprite.width * drawScale
+      const drawH = sprite.height * drawScale
+      const baseDrawX = drawX - sprite.anchorX * drawScale
+      const baseDrawY = drawY - sprite.anchorY * drawScale
+      const critEchoAlpha = isCritFloat
+        ? baseAlpha * (burstFrames > 0
+          ? Math.max(0.12, (1 - Math.min(1, f.t / Math.max(1, burstFrames))) * 0.42)
+          : 0.14)
+        : 0
+
+      if (critEchoAlpha > 0.01) {
+        const echoCount = styleKey === 'damageCrit' ? 3 : 2
+        const echoStep = (styleKey === 'damageCrit' ? 6 : 3.5) * S
+        for (let i = 0; i < echoCount; i++) {
+          const p = (i + 1) / echoCount
+          const offX = (i - (echoCount - 1) / 2) * echoStep * (0.75 + p * 0.25)
+          const offY = echoStep * (0.55 + p * 0.7)
+          c.save()
+          c.globalCompositeOperation = 'lighter'
+          c.globalAlpha = critEchoAlpha * (0.3 + p * 0.18)
+          c.drawImage(sprite.canvas, baseDrawX + offX, baseDrawY + offY, drawW, drawH)
+          c.restore()
+        }
+      }
+
+      c.drawImage(sprite.canvas, baseDrawX, baseDrawY, drawW, drawH)
+
+      if (critEchoAlpha > 0.01) {
+        c.save()
+        c.globalCompositeOperation = 'screen'
+        c.globalAlpha = critEchoAlpha * 0.28
+        c.drawImage(sprite.canvas, baseDrawX, baseDrawY - (styleKey === 'damageCrit' ? 1.2 : 0.8) * S, drawW, drawH)
+        c.restore()
+      }
+      c.restore()
+      return
+    }
+
     c.font = `${fontWeight} ${sz}px ${fontFamily}`
     c.textAlign = 'center'
     c.textBaseline = 'middle'
@@ -1799,10 +1986,12 @@ class Render {
     if (tag) {
       const tagSz = sz * (RS.tagRatio || 0.28)
       c.font = `bold ${tagSz}px "PingFang SC",sans-serif`
-      c.globalAlpha = (alpha == null ? 1 : alpha) * 0.78
+      c.globalAlpha = baseAlpha * 0.78
       c.strokeStyle = 'rgba(0,0,0,0.75)'
       c.lineWidth = 2.2 * S
-      const tagY = drawY + sz * 0.58
+      const tagY = f.tagPosition === 'top'
+        ? drawY - sz * 0.86
+        : drawY + sz * 0.58
       c.strokeText(tag, drawX, tagY)
       c.fillStyle = tagColor
       c.fillText(tag, drawX, tagY)

@@ -8,7 +8,7 @@ const { STAR_VISUAL } = require('../../data/economyConfig')
 const tutorial = require('../../engine/tutorial')
 const MusicMgr = require('../../runtime/music')
 const { BUFF_LABELS, DEBUFF_KEYS, getBuffIcon, shortBuffLabel } = require('../../data/buffConfig')
-const { FLOAT_CFG } = require('../../engine/dmgFloat')
+const { resolvePetFloatAnchor } = require('../../engine/dmgFloat')
 
 function _getPetFloatFrameRect(rect) {
   const frameScale = 1.12
@@ -22,25 +22,140 @@ function _getPetFloatFrameRect(rect) {
   }
 }
 
-function _resolvePetFloatAnchor(rect, floatObj) {
-  const frameRect = _getPetFloatFrameRect(rect)
-  const multiCfg = FLOAT_CFG.petMultiHit
-  const mainCfg = FLOAT_CFG.petNormalAtk || FLOAT_CFG.petSkill
-  const teamCfg = FLOAT_CFG.petTeamAtk
-  let x = frameRect.x + frameRect.w * 0.5
-  let y = frameRect.y + frameRect.h * (mainCfg.slotYRatio || 0.58)
+function _drawPetCritPulse(rect, floatObj) {
+  if (!floatObj || !floatObj._slotPulseStyle || floatObj.t <= 0) return
+  const totalFrames = Math.max(1, floatObj._slotPulseFrames || 16)
+  const pulseP = Math.min(1, floatObj.t / totalFrames)
+  const fade = 1 - pulseP
+  if (fade <= 0) return
 
-  if (floatObj.anchorLane === 'team') {
-    y = frameRect.y + frameRect.h * (teamCfg.slotYRatio || 0.58)
-  } else if (floatObj.anchorLane === 'minor') {
-    const hitIdx = floatObj.hitIdx || 0
-    const totalHits = floatObj.totalHits || 1
-    const spread = (hitIdx - (totalHits - 1) / 2) * (multiCfg.xStep || 0) * V.S
-    x += spread
-    y = frameRect.y + frameRect.h * (hitIdx === 0 ? (multiCfg.upperYRatio || 0.52) : (multiCfg.lowerYRatio || 0.76))
+  const { ctx, R, S } = V
+  const frameRect = _getPetFloatFrameRect(rect)
+  const cx = frameRect.x + frameRect.w * 0.5
+  const cy = frameRect.y + frameRect.h * 0.5
+  const pulseColor = floatObj.glowColor || '#ffe14d'
+  const critBoost = floatObj.styleKey === 'slotDamageCrit' ? 1.14 : 1
+  const glowRadius = frameRect.w * (0.46 + pulseP * 0.22) * critBoost
+  const ringRadius = frameRect.w * (0.6 + pulseP * 0.24) * critBoost
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = fade * 0.48
+  const glow = ctx.createRadialGradient(cx, cy, frameRect.w * 0.1, cx, cy, glowRadius)
+  glow.addColorStop(0, '#ffffff')
+  glow.addColorStop(0.34, pulseColor)
+  glow.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = glow
+  ctx.beginPath(); ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2); ctx.fill()
+
+  ctx.globalAlpha = fade * 0.2
+  ctx.fillStyle = pulseColor
+  R.rr(frameRect.x - 2 * S, frameRect.y - 2 * S, frameRect.w + 4 * S, frameRect.h + 4 * S, 9 * S); ctx.fill()
+
+  ctx.globalAlpha = fade * 0.82
+  ctx.strokeStyle = pulseColor
+  ctx.lineWidth = (2.5 + fade * 1.8) * S
+  R.rr(frameRect.x - 1 * S, frameRect.y - 1 * S, frameRect.w + 2 * S, frameRect.h + 2 * S, 8 * S); ctx.stroke()
+
+  ctx.globalAlpha = fade * 0.56
+  ctx.strokeStyle = '#fff6d0'
+  ctx.lineWidth = 1.4 * S
+  R.rr(frameRect.x + 1 * S, frameRect.y + 1 * S, frameRect.w - 2 * S, frameRect.h - 2 * S, 6 * S); ctx.stroke()
+
+  ctx.globalAlpha = fade * 0.54
+  ctx.strokeStyle = pulseColor
+  ctx.lineWidth = 1.8 * S
+  ctx.beginPath(); ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2); ctx.stroke()
+
+  ctx.globalAlpha = fade * 0.88
+  ctx.strokeStyle = '#fff4c0'
+  ctx.lineWidth = 1.4 * S
+  for (let i = 0; i < 4; i++) {
+    const ang = -Math.PI / 2 + i * Math.PI / 2
+    const innerR = frameRect.w * 0.28
+    const outerR = frameRect.w * 0.52
+    ctx.beginPath()
+    ctx.moveTo(cx + Math.cos(ang) * innerR, cy + Math.sin(ang) * innerR)
+    ctx.lineTo(cx + Math.cos(ang) * outerR, cy + Math.sin(ang) * outerR)
+    ctx.stroke()
   }
 
-  return { x, y }
+  if (floatObj.styleKey === 'slotDamageCrit' && floatObj._slotBadgeText) {
+    const badgeFrames = Math.max(1, floatObj._slotBadgeFrames || totalFrames)
+    const badgeP = Math.min(1, floatObj.t / badgeFrames)
+    const badgeFade = Math.max(0, 1 - badgeP)
+    const badgeW = Math.max(34 * S, frameRect.w * 0.62)
+    const badgeH = 15 * S
+    const badgeY = frameRect.y - (7 + badgeP * 10) * S
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = badgeFade * 0.96
+    const badgeGrad = ctx.createLinearGradient(cx, badgeY - badgeH * 0.5, cx, badgeY + badgeH * 0.5)
+    badgeGrad.addColorStop(0, '#fffbe3')
+    badgeGrad.addColorStop(1, pulseColor)
+    ctx.fillStyle = 'rgba(38,20,0,0.42)'
+    R.rr(cx - badgeW * 0.5 + 1 * S, badgeY - badgeH * 0.5 + 1 * S, badgeW, badgeH, 7 * S); ctx.fill()
+    ctx.fillStyle = badgeGrad
+    R.rr(cx - badgeW * 0.5, badgeY - badgeH * 0.5, badgeW, badgeH, 7 * S); ctx.fill()
+    ctx.strokeStyle = '#fff6cf'
+    ctx.lineWidth = 1.2 * S
+    R.rr(cx - badgeW * 0.5, badgeY - badgeH * 0.5, badgeW, badgeH, 7 * S); ctx.stroke()
+    ctx.fillStyle = '#5a2d00'
+    ctx.font = `bold ${9.5 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(floatObj._slotBadgeText, cx, badgeY + 0.4 * S)
+  }
+  ctx.restore()
+}
+
+function _drawPetFloatLaunchGlow(rect, drawX, drawY, floatObj) {
+  if (!floatObj) return
+  const { ctx, S } = V
+  const frameRect = _getPetFloatFrameRect(rect)
+  const frameCy = frameRect.y + frameRect.h * 0.48
+  const frameTop = frameRect.y + frameRect.h * 0.18
+  const lift = Math.max(0, frameCy - drawY)
+  const liftP = Math.min(1, lift / (frameRect.h * 1.35))
+  if (liftP <= 0.06) return
+
+  const critBoost = floatObj.styleKey === 'slotDamageCrit' ? 1.18 : 0.82
+  const pulseColor = floatObj.glowColor || '#ffe14d'
+  const beamTopY = Math.min(drawY, frameTop)
+  const beamBottomY = frameRect.y + frameRect.h * 0.72
+  const beamHalfW = frameRect.w * (0.09 + liftP * 0.16) * critBoost
+  const glowR = frameRect.w * (0.16 + liftP * 0.14) * critBoost
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = (0.12 + liftP * 0.16) * critBoost
+  const beamGrad = ctx.createLinearGradient(drawX, beamTopY, drawX, beamBottomY)
+  beamGrad.addColorStop(0, 'rgba(255,255,255,0)')
+  beamGrad.addColorStop(0.22, pulseColor)
+  beamGrad.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = beamGrad
+  ctx.beginPath()
+  ctx.moveTo(drawX - beamHalfW * 0.25, beamTopY)
+  ctx.lineTo(drawX + beamHalfW * 0.25, beamTopY)
+  ctx.lineTo(drawX + beamHalfW, beamBottomY)
+  ctx.lineTo(drawX - beamHalfW, beamBottomY)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.globalAlpha = (0.18 + liftP * 0.24) * critBoost
+  const topGlow = ctx.createRadialGradient(drawX, drawY, 0, drawX, drawY, glowR)
+  topGlow.addColorStop(0, '#ffffff')
+  topGlow.addColorStop(0.4, pulseColor)
+  topGlow.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = topGlow
+  ctx.beginPath(); ctx.arc(drawX, drawY, glowR, 0, Math.PI * 2); ctx.fill()
+
+  if (floatObj.styleKey === 'slotDamageCrit') {
+    ctx.globalAlpha = 0.28 + liftP * 0.2
+    ctx.strokeStyle = '#fff8d8'
+    ctx.lineWidth = 1.2 * S
+    ctx.beginPath(); ctx.arc(drawX, drawY, glowR * 1.12, 0, Math.PI * 2); ctx.stroke()
+  }
+  ctx.restore()
 }
 
 function _drawPetSlotFloats(g) {
@@ -52,10 +167,14 @@ function _drawPetSlotFloats(g) {
     if (!f || f._dead || f.delay > 0) continue
     const rect = g._petBtnRects[f.petIdx]
     if (!rect) continue
-    const anchor = _resolvePetFloatAnchor(rect, f)
+    _drawPetCritPulse(rect, f)
+    const anchor = resolvePetFloatAnchor(g, f)
+    const drawX = anchor.x
+    const drawY = anchor.y + (f._anchorYOffset || 0)
+    _drawPetFloatLaunchGlow(rect, drawX, drawY, f)
     const drawFloat = Object.assign({}, f, {
-      x: anchor.x,
-      y: anchor.y + (f._anchorYOffset || 0),
+      x: drawX,
+      y: drawY,
     })
     V.R.drawDmgFloat(drawFloat)
   }
@@ -346,7 +465,6 @@ function drawTeamBar(g, topY, barH, iconSize) {
       }
     }
   }
-  _drawPetSlotFloats(g)
   ctx.restore()
 }
 
@@ -443,6 +561,7 @@ function drawRunBuffIcons(g, topY, bottomY) {
 
 module.exports = {
   drawTeamBar,
+  drawPetSlotFloats: _drawPetSlotFloats,
   drawBuffIcons,
   drawBuffIconsLabeled,
   drawRunBuffIcons,

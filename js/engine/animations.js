@@ -33,6 +33,9 @@ function _updateDmgFloatList(list, S) {
     const settleFrames = Math.max(popFrames + 1, motion.settleFrames || popFrames + 4)
     const riseFrames = Math.max(1, motion.riseFrames || 14)
     const driftFrames = Math.max(0, motion.driftFrames || 0)
+    const returnFrames = Math.max(0, motion.returnFrames || 0)
+    const reboundFrames = Math.max(0, motion.reboundFrames || 0)
+    const holdFrames = Math.max(0, motion.holdFrames || 0)
     const lifeFrames = Math.max(settleFrames + 1, motion.lifeFrames || 24)
     const fadeStart = Math.min(lifeFrames - 1, Math.max(settleFrames, motion.fadeStart || lifeFrames - 8))
     const startScale = motion.startScale == null ? 0.78 : motion.startScale
@@ -50,21 +53,27 @@ function _updateDmgFloatList(list, S) {
     }
 
     const riseP = Math.min(1, f.t / riseFrames)
+    const startYOffset = (motion.startYOffset || 0) * S
     const riseDist = (motion.riseDist || 0) * S
-    const returnFrames = Math.max(0, motion.returnFrames || 0)
-    const holdFrames = Math.max(0, motion.holdFrames || 0)
     const returnTo = (motion.returnTo || 0) * S
-    let yOffset = -_easeOutCubic(riseP) * riseDist
+    const reboundTo = (motion.reboundTo == null ? (motion.returnTo || 0) : motion.reboundTo) * S
+    const settleTo = reboundFrames > 0 ? reboundTo : returnTo
+    let yOffset = startYOffset - _easeOutCubic(riseP) * riseDist
     if (returnFrames > 0 && f.t > riseFrames) {
-      const returnP = Math.min(1, (f.t - riseFrames) / returnFrames)
-      yOffset = _lerp(-riseDist, -returnTo, _easeOutCubic(returnP))
+      if (reboundFrames > 0 && f.t > riseFrames + returnFrames) {
+        const reboundP = Math.min(1, (f.t - riseFrames - returnFrames) / reboundFrames)
+        yOffset = _lerp(-returnTo, -reboundTo, _easeOutCubic(reboundP))
+      } else {
+        const returnP = Math.min(1, (f.t - riseFrames) / returnFrames)
+        yOffset = _lerp(-riseDist, -returnTo, _easeOutCubic(returnP))
+      }
     } else if (f.t > riseFrames && driftFrames > 0) {
       const driftP = Math.min(1, (f.t - riseFrames) / driftFrames)
       yOffset -= _easeOutCubic(driftP) * (motion.driftDist || 0) * S
     }
-    if (returnFrames > 0 && f.t > riseFrames + returnFrames + holdFrames && driftFrames > 0) {
-      const driftP = Math.min(1, (f.t - riseFrames - returnFrames - holdFrames) / driftFrames)
-      yOffset = -returnTo - _easeOutCubic(driftP) * (motion.driftDist || 0) * S
+    if (returnFrames > 0 && f.t > riseFrames + returnFrames + reboundFrames + holdFrames && driftFrames > 0) {
+      const driftP = Math.min(1, (f.t - riseFrames - returnFrames - reboundFrames - holdFrames) / driftFrames)
+      yOffset = -settleTo - _easeOutCubic(driftP) * (motion.driftDist || 0) * S
     }
     if (f.anchorLane) {
       f._anchorYOffset = yOffset
@@ -97,6 +106,9 @@ function updateAnimations(g) {
   _compactFrame++
   if (g.shakeT > 0) g.shakeT--
   if (g._comboFlash > 0) g._comboFlash--
+  else if (g._comboFlashMeta) g._comboFlashMeta = null
+  if (g._blockFlash > 0) g._blockFlash--
+  if (g._screenFlash > 0) g._screenFlash--
   // 敌人受击闪白
   if (g._enemyHitFlash > 0) g._enemyHitFlash--
   // 敌人死亡爆裂
@@ -135,7 +147,41 @@ function updateAnimations(g) {
   for (let i = 0; i < g.skillEffects.length; i++) {
     const e = g.skillEffects[i]
     if (e._dead) continue
-    e.t++; e.y -= 0.6*S; e.alpha -= 0.012
+    e.t++
+    const useCustomMotion = e.lifeFrames != null || e.fadeStart != null || e.riseSpeed != null || e.waveAmp != null || e._settleScale != null || e._pulseAmp != null
+    if (useCustomMotion) {
+      if (e._baseX == null) e._baseX = e.x
+      if (e._baseY == null) e._baseY = e.y
+      if (e._targetAlpha == null) e._targetAlpha = e.alpha == null ? 1 : e.alpha
+      const lifeFrames = Math.max(1, e.lifeFrames || 84)
+      const fadeStart = Math.min(lifeFrames - 1, Math.max(0, e.fadeStart == null ? lifeFrames - 20 : e.fadeStart))
+      const riseSpeed = (e.riseSpeed == null ? 0.6 : e.riseSpeed) * S
+      const waveAmp = (e.waveAmp || 0) * S
+      const waveFreq = e.waveFreq || 0.45
+      const waveFade = Math.max(0.24, 1 - e.t / lifeFrames)
+      e.x = e._baseX + Math.sin(e.t * waveFreq) * waveAmp * waveFade
+      e.y = e._baseY - e.t * riseSpeed
+      if (e._initScale) {
+        const settleScale = e._settleScale == null ? 1.0 : e._settleScale
+        if (e.t < 15) {
+          e.scale = settleScale + (e._initScale - settleScale) * Math.max(0, 1 - e.t / 12) * (1 + 0.2 * Math.sin(e.t * 0.8))
+        } else if (e._pulseAmp) {
+          const pulseP = Math.max(0, 1 - Math.max(0, e.t - 15) / Math.max(1, lifeFrames - 15))
+          e.scale = settleScale + Math.sin(e.t * (e._pulseSpeed || 0.55)) * e._pulseAmp * pulseP
+        } else {
+          e.scale = settleScale
+        }
+      }
+      if (e.t < fadeStart) {
+        e.alpha = e._targetAlpha
+      } else {
+        const fadeDur = Math.max(1, lifeFrames - fadeStart)
+        e.alpha = Math.max(0, e._targetAlpha * (1 - (e.t - fadeStart) / fadeDur))
+      }
+      if (e.t >= lifeFrames || e.alpha <= 0) e._dead = true
+      continue
+    }
+    e.y -= 0.6*S; e.alpha -= 0.012
     // 缩放弹跳动画：从大到1.0快速收缩
     if (e._initScale && e.t < 15) {
       e.scale = 1.0 + (e._initScale - 1.0) * Math.max(0, 1 - e.t / 12) * (1 + 0.2 * Math.sin(e.t * 0.8))
@@ -231,52 +277,39 @@ function _updateBeadConvertAnim(g) {
 
 function _updateComboAnim(g, S) {
   if (!g._comboAnim) return
+
+  const POP_END = 16
+  const HOLD_END = 60
+  const TOTAL_END = 86
   const inBattle = g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow'
-  // 战斗中且弹入动画已完成(timer>=14)时冻结timer，确保combo文字持续可见
-  const freezeTimer = inBattle && g._comboAnim.timer >= 14
-  if (!freezeTimer && g._comboAnim.timer < 70) g._comboAnim.timer++
+  const freezeTimer = inBattle && g._comboAnim.timer >= POP_END
+
+  if (!freezeTimer && g._comboAnim.timer < TOTAL_END) g._comboAnim.timer++
+
   const t = g._comboAnim.timer
-  if (t <= 14) {
-    // 弹入阶段（14帧）：从大缩小到1.0，更有弹性
-    const p = t / 14
-    const initScale = g._comboAnim._initScale || 2.5
-    if (p < 0.35) g._comboAnim.scale = initScale - (initScale - 0.75) * (p / 0.35)
-    else if (p < 0.55) g._comboAnim.scale = 0.75 + 0.35 * ((p - 0.35) / 0.2)
-    else if (p < 0.75) g._comboAnim.scale = 1.1 - 0.1 * ((p - 0.55) / 0.2)
-    else g._comboAnim.scale = 1.0
+  if (t <= POP_END) {
+    const p = t / POP_END
+    const initScale = g._comboAnim._initScale || 2.9
+    if (p < 0.25) g._comboAnim.scale = initScale - (initScale - 0.72) * (p / 0.25)
+    else if (p < 0.52) g._comboAnim.scale = 0.72 + 0.48 * ((p - 0.25) / 0.27)
+    else if (p < 0.74) g._comboAnim.scale = 1.2 - 0.24 * ((p - 0.52) / 0.22)
+    else g._comboAnim.scale = 0.96 + 0.07 * ((p - 0.74) / 0.26)
     g._comboAnim.alpha = 1
-    g._comboAnim.offsetY = 0
+    g._comboAnim.offsetY = p < 0.45 ? (1 - p / 0.45) * 10 * S : 0
   } else if (inBattle) {
-    const breathP = Math.sin((t - 14) * 0.15) * 0.04
-    g._comboAnim.scale = 1.0 + breathP
+    g._comboAnim.scale = 1.03
     g._comboAnim.alpha = 1
     g._comboAnim.offsetY = 0
-  } else if (t <= 50) {
-    const breathP = Math.sin((t - 14) * 0.15) * 0.04
-    g._comboAnim.scale = 1.0 + breathP
+  } else if (t <= HOLD_END) {
+    const breathP = Math.sin((t - POP_END) * 0.18) * 0.055
+    g._comboAnim.scale = 1.03 + breathP
     g._comboAnim.alpha = 1
-    g._comboAnim.offsetY = 0
+    g._comboAnim.offsetY = Math.sin((t - POP_END) * 0.09) * -1.5 * S
   } else {
-    // 淡出阶段
-    const fadeP = Math.min(1, (t - 50) / 20)
-    g._comboAnim.scale = 1.0 - 0.12 * fadeP
+    const fadeP = Math.min(1, (t - HOLD_END) / (TOTAL_END - HOLD_END))
+    g._comboAnim.scale = 1.03 - 0.16 * fadeP
     g._comboAnim.alpha = 1 - fadeP
-    g._comboAnim.offsetY = -fadeP * 25 * S
-  }
-  // 伤害部分延迟6帧后弹入（10帧展开）
-  const dt = t - 6
-  if (dt > 0 && dt <= 10) {
-    const dp = dt / 10
-    if (dp < 0.4) g._comboAnim.dmgScale = 2.0 - 2.0 * (dp / 0.4)
-    else if (dp < 0.7) g._comboAnim.dmgScale = 0.85 + 0.15 * ((dp - 0.4) / 0.3)
-    else g._comboAnim.dmgScale = 1.0
-    g._comboAnim.dmgAlpha = Math.min(1, dt / 5)
-  } else if (dt > 10) {
-    g._comboAnim.dmgScale = 1.0
-    g._comboAnim.dmgAlpha = 1
-  } else {
-    g._comboAnim.dmgScale = 0
-    g._comboAnim.dmgAlpha = 0
+    g._comboAnim.offsetY = -fadeP * 30 * S
   }
 }
 

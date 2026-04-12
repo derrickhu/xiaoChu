@@ -42,6 +42,7 @@ function initState(g) {
   g._comboAnim = { num: 0, timer: 0, scale: 1 }
   g._comboParticles = []
   g._comboFlash = 0
+  g._comboFlashMeta = null
   g._petFinalDmg = {}
   g._petAtkRollTimer = 0
   g.shakeT = 0; g.shakeI = 0; g.shakeDecay = 0.85

@@ -226,42 +226,45 @@ function startNextElimAnim(g) {
   // Combo弹出动画（使用配置的分档）
   const tier = getComboTier(g.combo)
   const isTierBreak = isComboMilestone(g.combo)
-  g._comboAnim = { num: g.combo, timer: 0, scale: 2.5, _initScale: 2.5, alpha: 1, offsetY: 0, dmgScale: 0, dmgAlpha: 0 }
-  g._comboFlash = tier >= 1 ? 12 : 8
+  g._comboAnim = { num: g.combo, timer: 0, scale: 2.9, _initScale: 2.9, alpha: 1, offsetY: 0 }
+  g._comboFlash = tier >= 3 ? 18 : tier >= 1 ? 14 : 10
   if (isTierBreak) {
-    g._comboFlash = 16
-    g._comboAnim.scale = 3.5; g._comboAnim._initScale = 3.5
+    g._comboFlash = tier >= 4 ? 24 : 20
+    g._comboAnim.scale = 4.0; g._comboAnim._initScale = 4.0
   }
   // ★ Combo里程碑：仅保留视觉特效提示，不再给予隐藏的buff/护盾/回血
-  // 粒子数量根据 tier 递增
-  const pCount = (tier >= 4 ? 24 : tier >= 3 ? 18 : tier >= 2 ? 14 : tier >= 1 ? 10 : 6) + (isTierBreak ? 10 : 0)
+  // 粒子数量根据 tier 递增，并整体加重爆发感
+  const pCount = (tier >= 4 ? 30 : tier >= 3 ? 24 : tier >= 2 ? 18 : tier >= 1 ? 13 : 8) + (isTierBreak ? 12 : 0)
   const pCx = W * 0.5, pCy = g.boardY + (ROWS * g.cellSize) * 0.32
   const pColors = tier >= 4 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
     : tier >= 3 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
     : tier >= 2 ? ['#ff8c00','#ffd700','#fff','#ffcc66']
     : tier >= 1 ? ['#4d88ff','#ffd700','#fff','#8ec5ff']
     : ['#ffd700','#ffe066','#fff']
+  const speedMul = tier >= 4 ? 1.8 : tier >= 3 ? 1.65 : tier >= 2 ? 1.5 : tier >= 1 ? 1.25 : 1.05
+  const sizeMul = tier >= 4 ? 1.55 : tier >= 3 ? 1.42 : tier >= 2 ? 1.28 : tier >= 1 ? 1.12 : 1
+  const starChance = tier >= 2 ? 0.42 : 0.3
   for (let i = 0; i < pCount; i++) {
     const angle = Math.random() * Math.PI * 2
-    const speed = (2 + Math.random() * 4) * S * (tier >= 2 ? 1.5 : 1)
+    const speed = (2.4 + Math.random() * 4.6) * S * speedMul
     g._comboParticles.push({
       x: pCx, y: pCy,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - (1 + Math.random() * 2) * S,
-      size: (2 + Math.random() * 3) * S * (tier >= 2 ? 1.3 : 1),
+      vy: Math.sin(angle) * speed - (1.2 + Math.random() * 2.3) * S,
+      size: (2.4 + Math.random() * 3.2) * S * sizeMul,
       color: pColors[Math.floor(Math.random() * pColors.length)],
-      life: 20 + Math.floor(Math.random() * 20),
-      t: 0, gravity: 0.15 * S,
-      type: Math.random() < 0.3 ? 'star' : 'circle'
+      life: 24 + Math.floor(Math.random() * 22),
+      t: 0, gravity: 0.14 * S,
+      type: Math.random() < starChance ? 'star' : 'circle'
     })
   }
   if (isTierBreak) {
-    const ringCount = tier >= 4 ? 24 : tier >= 3 ? 21 : tier >= 2 ? 18 : 12
+    const ringCount = tier >= 4 ? 28 : tier >= 3 ? 24 : tier >= 2 ? 20 : 14
     const ringColors = tier >= 4 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : tier >= 3 ? ['#fff','#9d4dff','#ffd700'] : tier >= 2 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#4d88ff','#ffd700']
     Particles.ring({
       x: pCx, y: pCy,
-      count: ringCount, speed: (5 + g.combo * 0.3) * S,
-      size: (4 + g.combo * 0.2) * S, life: 30, gravity: 0.03 * S,
+      count: ringCount, speed: (6 + g.combo * 0.34) * S,
+      size: (5 + g.combo * 0.22) * S, life: 34, gravity: 0.03 * S,
       colors: ringColors, shape: 'star', drag: 0.97,
     })
   }
@@ -480,22 +483,28 @@ function enterPetAtkShow(g) {
   g._pendingCritMul = critState.critMul
 
   const petBreakdown = calcPetDisplayBreakdown(ctx, { critMul: critState.critMul })
+  const pendingDmgMap = (ctx && ctx.pendingDmgMap) || {}
   let hasAny = false
+  let activeOrder = 0
   g._petFinalDmg = {}
 
   for (let i = 0; i < petBreakdown.length; i++) {
     const item = petBreakdown[i]
+    const participated = (pendingDmgMap[item.attr] || 0) > 0
     g._petFinalDmg[item.index] = item.dmg
-    if (item.dmg <= 0) continue
+    if (!participated) continue
     hasAny = true
     emitFloat(g, 'petNormalAtkDmg', {
-      dmg: item.dmg,
-      color: (ATTR_COLOR[item.attr] && ATTR_COLOR[item.attr].main) || V.TH.accent,
+      dmg: Math.max(0, item.dmg || 0),
+      color: item.dmg > 0
+        ? ((ATTR_COLOR[item.attr] && ATTR_COLOR[item.attr].main) || V.TH.accent)
+        : '#d8d8d8',
       petIdx: item.index,
-      attr: item.attr,
-      isCrit: critState.isCrit,
-      orderIdx: i,
+      attr: item.dmg > 0 ? item.attr : null,
+      isCrit: !!(critState.isCrit && item.dmg > 0),
+      orderIdx: activeOrder,
     })
+    activeOrder++
     if (item.isCounter) {
       const cac = ATTR_COLOR[item.attr]
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'克制！', color: cac ? cac.main : '#ffd700', scale:2.2, _initScale:2.2, big:true })
@@ -504,6 +513,8 @@ function enterPetAtkShow(g) {
       MusicMgr.playComboMilestone(5)
     } else if (item.isCountered) {
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'抵抗...', color:'#888888', scale:1.4, _initScale:1.4 })
+    } else if (item.dmg <= 0) {
+      emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'未破防', color:'#a8a8a8', scale:1.4, _initScale:1.4 })
     }
   }
 
@@ -571,12 +582,54 @@ function applyFinalDamage(g, dmgMap, heal) {
       color: (ATTR_COLOR[leadAttr] && ATTR_COLOR[leadAttr].main) || V.TH.accent,
       isCrit: isCrit,
     })
-    emitCast(g, { kind: 'heroAttack', attr: leadAttr })
-    emitShake(g, { t: isCrit ? 14 : 8, i: isCrit ? 8 : 4 })
-    if (isCrit) emitFlash(g, 'combo', { timer: 10 })
+    emitCast(g, {
+      kind: 'heroAttack',
+      attr: leadAttr,
+      hitFlash: isCrit ? 15 : 12,
+      tintFlash: isCrit ? 10 : 8,
+      hitStop: isCrit ? 4 : 3,
+      castDuration: isCrit ? 34 : 30,
+      enemyDuration: isCrit ? 20 : 18,
+    })
+    emitShake(g, { t: isCrit ? 20 : 8, i: isCrit ? 12 : 4 })
+    if (isCrit) emitFlash(g, 'combo', {
+      timer: 16,
+      maxTimer: 18,
+      focus: 'enemy',
+      y: g._getEnemyCenterY(),
+      radius: 116 * S,
+      color: '#fff1b8',
+      ringColor: '#ffe37a',
+      rayColor: '#fff8d8',
+      style: 'critBurst',
+      rays: 10,
+      ringCount: 2,
+      alphaMul: 1.4,
+      allowLowCombo: true,
+    })
     if (isCrit) {
+      emitFlash(g, 'screen', { timer: 6, max: 6, color: '#fff3c6' })
       MusicMgr.playAttackCrit()
-      emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-40*S, text:'暴击！', color:'#ffdd00', scale:2.5, _initScale:2.5, big:true })
+      emitNotice(g, {
+        x:W*0.5,
+        y:g._getEnemyCenterY()-34*S,
+        text:'暴击！',
+        subText:'CRITICAL',
+        color:'#ffdd58',
+        glowColor:'#ffe994',
+        scale:3.05,
+        _initScale:3.6,
+        _settleScale:1.16,
+        _pulseAmp:0.08,
+        _pulseSpeed:0.42,
+        riseSpeed:0.38,
+        waveAmp:2.8,
+        waveFreq:0.4,
+        lifeFrames:56,
+        fadeStart:34,
+        big:true,
+        variant:'crit'
+      })
     } else {
       MusicMgr.playAttack()
     }
@@ -1162,7 +1215,7 @@ function enterBattle(g, enemyData) {
     MusicMgr.playBoss(); MusicMgr.playBossBgm()
     emitShake(g, { t: 20, i: 6 })  // Boss入场强震
     g._bossEntrance = 30
-    emitFlash(g, 'combo', { timer: 15 })  // Boss入场白闪
+    emitFlash(g, 'combo', { timer: 15, focus: 'enemy', y: V.H * 0.35, radius: 150 * S, color: '#fff0f0', alphaMul: 1.2, allowLowCombo: true })  // Boss入场白闪
     emitNotice(g, { x:V.W*0.5, y:V.H*0.35, text:'⚠ BOSS ⚠', color:'#ff4040', scale:3.0, _initScale:3.0, big:true })
   }
   g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? Math.max(0, Math.ceil(p.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0 })

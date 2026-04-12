@@ -143,15 +143,23 @@ function resolveCritFromCtx(ctx, options) {
   }
 }
 
-function calcDamagePerAttr(ctx, attr, baseDmg, options) {
+function getIgnoreDefensePct(ctx, attr) {
+  let ignorePct = 0
+  if (ctx.weapon && ctx.weapon.type === 'ignoreDefPct' && ctx.weapon.attr === attr) {
+    ignorePct += ctx.weapon.pct || 0
+  }
+  ;(ctx.heroBuffs || []).forEach(b => {
+    if (b.type === 'ignoreDefPct' && b.attr === attr) ignorePct += b.pct || 0
+  })
+  return Math.max(0, Math.min(100, ignorePct))
+}
+
+function calcAttrPreDefense(ctx, attr, baseDmg, options) {
   const opts = options || {}
   const buff = opts.buffMultipliers || collectBuffMultipliers(ctx)
-  const enemyDefense = opts.enemyDefense != null ? opts.enemyDefense : getEnemyDefense(ctx)
   const comboMul = opts.comboMul != null ? opts.comboMul : getComboMul(ctx.combo)
   const comboBonusMul = opts.comboBonusMul != null ? opts.comboBonusMul : (1 + ((ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0) / 100)
   const hpRatio = ctx.heroMaxHp > 0 ? ctx.heroHp / ctx.heroMaxHp : 1
-  const applyDefense = opts.applyDefense !== false
-  const critMul = opts.critMul != null ? opts.critMul : 1
 
   let dmg = baseDmg * comboMul * comboBonusMul
   if (buff.debuffAtkReduce > 0) dmg *= Math.max(ATK_REDUCE_FLOOR, 1 - buff.debuffAtkReduce)
@@ -193,26 +201,122 @@ function calcDamagePerAttr(ctx, attr, baseDmg, options) {
     }
   }
 
-  if (applyDefense) {
-    dmg = Math.max(0, dmg - enemyDefense)
-    if (enemyDefense > 0 && ctx.weapon && ctx.weapon.type === 'ignoreDefPct' && ctx.weapon.attr === attr) {
-      dmg += enemyDefense * ctx.weapon.pct / 100
-    }
-    ;(ctx.heroBuffs || []).forEach(b => {
-      if (enemyDefense > 0 && b.type === 'ignoreDefPct' && b.attr === attr) dmg += enemyDefense * b.pct / 100
-    })
-  }
-
-  dmg *= critMul
-  dmg = Math.round(dmg)
-
   return {
     attr,
-    dmg,
+    baseDmg,
+    preDefenseDmg: Math.max(0, dmg),
+    ignoreDefensePct: getIgnoreDefensePct(ctx, attr),
     isCounter,
     isCountered,
-    enemyDefense,
   }
+}
+
+function allocateDefenseShares(details, enemyDefense) {
+  const shares = new Array(details.length)
+  for (let i = 0; i < shares.length; i++) shares[i] = 0
+  if (!(enemyDefense > 0) || !details || details.length === 0) return shares
+
+  let remainingDefense = enemyDefense
+  let active = details.map((detail, index) => ({
+    index,
+    preDefenseDmg: Math.max(0, detail.preDefenseDmg || 0),
+    defenseFactor: Math.max(0, 1 - (detail.ignoreDefensePct || 0) / 100),
+  })).filter(item => item.preDefenseDmg > 0 && item.defenseFactor > 0)
+
+  while (remainingDefense > 0.0001 && active.length > 0) {
+    const totalWeight = active.reduce((sum, item) => sum + item.preDefenseDmg * item.defenseFactor, 0)
+    if (totalWeight <= 0) break
+
+    let consumed = 0
+    const nextActive = []
+    for (let i = 0; i < active.length; i++) {
+      const item = active[i]
+      const maxAbsorb = Math.max(0, item.preDefenseDmg - shares[item.index])
+      if (maxAbsorb <= 0.0001) continue
+      const candidate = remainingDefense * (item.preDefenseDmg * item.defenseFactor) / totalWeight
+      const applied = Math.min(maxAbsorb, candidate)
+      shares[item.index] += applied
+      consumed += applied
+      if (maxAbsorb - applied > 0.0001) nextActive.push(item)
+    }
+
+    if (consumed <= 0.0001) break
+    remainingDefense -= consumed
+    active = nextActive
+  }
+
+  return shares
+}
+
+function finalizeAttrDamage(detail, enemyDefense, defenseShare, critMul) {
+  let dmg = Math.max(0, (detail.preDefenseDmg || 0) - Math.max(0, defenseShare || 0))
+  dmg *= critMul
+  dmg = Math.round(dmg)
+  return {
+    attr: detail.attr,
+    dmg,
+    isCounter: !!detail.isCounter,
+    isCountered: !!detail.isCountered,
+    enemyDefense,
+    defenseShare: defenseShare || 0,
+    ignoreDefensePct: detail.ignoreDefensePct || 0,
+    preDefenseDmg: detail.preDefenseDmg || 0,
+  }
+}
+
+function resolveAttrDamageBreakdown(ctx, options) {
+  const opts = options || {}
+  const buffMultipliers = opts.buffMultipliers || collectBuffMultipliers(ctx)
+  const comboMul = opts.comboMul != null ? opts.comboMul : getComboMul(ctx.combo)
+  const comboBonusMul = opts.comboBonusMul != null ? opts.comboBonusMul : (1 + ((ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0) / 100)
+  const enemyDefense = opts.enemyDefense != null ? opts.enemyDefense : getEnemyDefense(ctx)
+  const critMul = opts.critMul != null ? opts.critMul : 1
+  const pendingDmgMap = opts.pendingDmgMap || ctx.pendingDmgMap || {}
+  const applyDefense = opts.applyDefense !== false
+
+  const preDetails = []
+  for (const [attr, baseDmg] of Object.entries(pendingDmgMap)) {
+    preDetails.push(calcAttrPreDefense(ctx, attr, baseDmg, {
+      buffMultipliers,
+      comboMul,
+      comboBonusMul,
+    }))
+  }
+
+  const defenseShares = applyDefense ? allocateDefenseShares(preDetails, enemyDefense) : new Array(preDetails.length).fill(0)
+  const attrBreakdown = preDetails.map((detail, index) => finalizeAttrDamage(detail, enemyDefense, defenseShares[index], critMul))
+
+  const counterAttrs = {}
+  const counteredAttrs = {}
+  let totalDmg = 0
+  for (let i = 0; i < attrBreakdown.length; i++) {
+    const detail = attrBreakdown[i]
+    if (detail.isCounter) counterAttrs[detail.attr] = true
+    if (detail.isCountered) counteredAttrs[detail.attr] = true
+    if (detail.dmg > 0) totalDmg += detail.dmg
+  }
+
+  return {
+    totalDmg,
+    attrBreakdown,
+    counterAttrs,
+    counteredAttrs,
+    enemyDefense,
+    buffMultipliers,
+    comboMul,
+    comboBonusMul,
+  }
+}
+
+function calcDamagePerAttr(ctx, attr, baseDmg, options) {
+  const opts = options || {}
+  const enemyDefense = opts.enemyDefense != null ? opts.enemyDefense : getEnemyDefense(ctx)
+  const critMul = opts.critMul != null ? opts.critMul : 1
+  const detail = calcAttrPreDefense(ctx, attr, baseDmg, opts)
+  const defenseShare = opts.applyDefense === false
+    ? 0
+    : enemyDefense * Math.max(0, 1 - (detail.ignoreDefensePct || 0) / 100)
+  return finalizeAttrDamage(detail, enemyDefense, defenseShare, critMul)
 }
 
 function calcHealFromCtx(ctx) {
@@ -227,47 +331,32 @@ function calcTotalDamage(ctx, options) {
     mode: opts.critMode || 'runtime',
     usePendingCrit: opts.usePendingCrit !== false,
   })
-  const buffMultipliers = collectBuffMultipliers(ctx)
-  const comboMul = getComboMul(ctx.combo)
-  const comboBonusPct = (ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0
-  const comboBonusMul = 1 + comboBonusPct / 100
-  const enemyDefense = getEnemyDefense(ctx)
-  const attrBreakdown = []
-  const counterAttrs = {}
-  const counteredAttrs = {}
-  let totalDmg = 0
-
   const pendingDmgMap = opts.pendingDmgMap || ctx.pendingDmgMap || {}
-  for (const [attr, baseDmg] of Object.entries(pendingDmgMap)) {
-    const detail = calcDamagePerAttr(ctx, attr, baseDmg, {
-      buffMultipliers,
-      enemyDefense,
-      comboMul,
-      comboBonusMul,
-      critMul: crit.critMul,
-      applyDefense: opts.applyDefense !== false,
-    })
-    attrBreakdown.push(detail)
-    if (detail.isCounter) counterAttrs[attr] = true
-    if (detail.isCountered) counteredAttrs[attr] = true
-    if (detail.dmg > 0) totalDmg += detail.dmg
-  }
+  const resolved = resolveAttrDamageBreakdown(ctx, {
+    pendingDmgMap,
+    enemyDefense: opts.enemyDefense,
+    buffMultipliers: opts.buffMultipliers,
+    comboMul: opts.comboMul,
+    comboBonusMul: opts.comboBonusMul,
+    critMul: crit.critMul,
+    applyDefense: opts.applyDefense !== false,
+  })
 
   return {
-    totalDmg,
-    attrBreakdown,
+    totalDmg: resolved.totalDmg,
+    attrBreakdown: resolved.attrBreakdown,
     isCrit: crit.isCrit,
     critMul: crit.critMul,
     critRate: crit.critRate,
     critDmg: crit.critDmg,
     heal: calcHealFromCtx(ctx),
-    comboMul,
-    comboBonusPct,
-    extraPct: Math.round((comboMul * comboBonusMul - 1) * 100),
-    counterAttrs,
-    counteredAttrs,
-    enemyDefense,
-    buffMultipliers,
+    comboMul: resolved.comboMul,
+    comboBonusPct: Math.round((resolved.comboBonusMul - 1) * 100),
+    extraPct: Math.round((resolved.comboMul * resolved.comboBonusMul - 1) * 100),
+    counterAttrs: resolved.counterAttrs,
+    counteredAttrs: resolved.counteredAttrs,
+    enemyDefense: resolved.enemyDefense,
+    buffMultipliers: resolved.buffMultipliers,
   }
 }
 
@@ -276,10 +365,6 @@ function calcPetDisplayBreakdown(ctx, options) {
   const pets = ctx.pets || []
   const pendingDmgMap = (ctx && ctx.pendingDmgMap) || {}
   const critMul = opts.critMul != null ? opts.critMul : 1
-  const buffMultipliers = opts.buffMultipliers || collectBuffMultipliers(ctx)
-  const comboMul = opts.comboMul != null ? opts.comboMul : getComboMul(ctx.combo)
-  const comboBonusMul = opts.comboBonusMul != null ? opts.comboBonusMul : (1 + ((ctx.runBuffs && ctx.runBuffs.comboDmgPct) || 0) / 100)
-  const enemyDefense = opts.enemyDefense != null ? opts.enemyDefense : getEnemyDefense(ctx)
   const breakdown = pets.map((pet, index) => ({ index, attr: pet.attr, dmg: 0, isCounter: false, isCountered: false }))
 
   const petsByAttr = {}
@@ -288,18 +373,25 @@ function calcPetDisplayBreakdown(ctx, options) {
     petsByAttr[pet.attr].push({ pet, index })
   })
 
+  const resolved = resolveAttrDamageBreakdown(ctx, {
+    pendingDmgMap,
+    enemyDefense: opts.enemyDefense,
+    buffMultipliers: opts.buffMultipliers,
+    comboMul: opts.comboMul,
+    comboBonusMul: opts.comboBonusMul,
+    critMul,
+    applyDefense: opts.applyDefense !== false,
+  })
+  const detailsByAttr = {}
+  resolved.attrBreakdown.forEach(detail => {
+    detailsByAttr[detail.attr] = detail
+  })
+
   Object.entries(pendingDmgMap).forEach(([attr, baseDmg]) => {
     const attrPets = petsByAttr[attr] || []
     if (baseDmg <= 0 || attrPets.length === 0) return
 
-    const detail = calcDamagePerAttr(ctx, attr, baseDmg, {
-      buffMultipliers,
-      enemyDefense,
-      comboMul,
-      comboBonusMul,
-      critMul,
-    })
-
+    const detail = detailsByAttr[attr] || { dmg: 0, isCounter: false, isCountered: false }
     const totalAttrDmg = Math.max(0, Math.round(detail.dmg || 0))
     const totalAtk = attrPets.reduce((sum, item) => sum + getPetStarAtk(item.pet), 0)
     const unitRatio = totalAtk > 0 ? null : 1 / attrPets.length

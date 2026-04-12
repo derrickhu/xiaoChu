@@ -410,10 +410,10 @@ class Main {
     }
     if (this.bState === 'petAtkShow') {
       this._stateTimer++
-      if (this._stateTimer >= 16) { this._stateTimer = 0; this.bState = 'preAttack' }
+      if (this._stateTimer >= 24) { this._stateTimer = 0; this.bState = 'preAttack' }
     }
     if (this.bState === 'preAttack') {
-      this._stateTimer++; if (this._stateTimer >= 8) { this._stateTimer = 0; battleEngine.executeAttack(this) }
+      this._stateTimer++; if (this._stateTimer >= 10) { this._stateTimer = 0; battleEngine.executeAttack(this) }
     }
     if (this.bState === 'preEnemy') {
       this._stateTimer++; if (this._stateTimer >= 30) { this._stateTimer = 0; battleEngine.enemyTurn(this) }
@@ -562,7 +562,6 @@ class Main {
       ctx.fillStyle = this._screenFlashColor || '#fff'
       ctx.fillRect(0, 0, W, H)
       ctx.restore()
-      this._screenFlash--
     }
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)

@@ -106,6 +106,21 @@ function emitFlash(g, kind, payload) {
       break
     case 'combo':
       g._comboFlash = data.timer || 0
+      g._comboFlashMeta = g._comboFlash > 0 ? {
+        maxTimer: data.maxTimer || data.timer || 1,
+        focus: data.focus || 'board',
+        color: data.color || '#fffff0',
+        x: data.x,
+        y: data.y,
+        radius: data.radius || 0,
+        alphaMul: data.alphaMul == null ? 1 : data.alphaMul,
+        allowLowCombo: !!data.allowLowCombo,
+        style: data.style || '',
+        ringColor: data.ringColor || '',
+        rayColor: data.rayColor || '',
+        rays: data.rays || 0,
+        ringCount: data.ringCount || 0,
+      } : null
       break
     case 'screen':
       g._screenFlash = data.timer || 0
