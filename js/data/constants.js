@@ -129,7 +129,7 @@ const TITLE_HOME = {
   dailySignIconPt: 46,
   dailySignLabelPt: 11,
   /** 签到按钮顶边 = safeTop + 此项×S */
-  dailySignTopBelowSafePt: 38,
+  dailySignTopBelowSafePt: 58,
   /** 游戏圈入口与签到区块底边的间距（×S），图标宽与签到图标一致 */
   gameClubGapBelowDailyPt: 10,
   /** 每日任务入口：紧贴游戏圈图标区块底边的间距（×S） */
