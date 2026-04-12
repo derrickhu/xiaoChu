@@ -31,6 +31,7 @@ const {
   calcTotalDamage,
   calcPetDisplayBreakdown,
 } = require('./battle/damageFormula')
+const { getCritFxPlan } = require('./battle/critFxConfig')
 const {
   COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
   HEAL_BASE, HEAL_FLOOR_COEFF,
@@ -483,6 +484,7 @@ function enterPetAtkShow(g) {
   g._pendingCritMul = critState.critMul
 
   const petBreakdown = calcPetDisplayBreakdown(ctx, { critMul: critState.critMul })
+  const critFxPlan = critState.isCrit ? getCritFxPlan(g) : null
   const pendingDmgMap = (ctx && ctx.pendingDmgMap) || {}
   let hasAny = false
   let activeOrder = 0
@@ -494,6 +496,7 @@ function enterPetAtkShow(g) {
     g._petFinalDmg[item.index] = item.dmg
     if (!participated) continue
     hasAny = true
+    const isCritHit = !!(critState.isCrit && item.dmg > 0)
     emitFloat(g, 'petNormalAtkDmg', {
       dmg: Math.max(0, item.dmg || 0),
       color: item.dmg > 0
@@ -501,7 +504,12 @@ function enterPetAtkShow(g) {
         : '#d8d8d8',
       petIdx: item.index,
       attr: item.dmg > 0 ? item.attr : null,
-      isCrit: !!(critState.isCrit && item.dmg > 0),
+      isCrit: isCritHit,
+      critFxTier: isCritHit
+        ? (activeOrder === 0
+          ? (critFxPlan && critFxPlan.slotPrimaryTier)
+          : (critFxPlan && critFxPlan.slotSecondaryTier))
+        : 'none',
       orderIdx: activeOrder,
     })
     activeOrder++
@@ -556,6 +564,15 @@ function applyFinalDamage(g, dmgMap, heal) {
   const result = calcTotalDamage(ctx, { critMode: 'runtime' })
   const totalDmg = result.totalDmg
   const isCrit = result.isCrit
+  const critFxPlan = isCrit
+    ? getCritFxPlan(g, {
+      dmgFloats: 1,
+      notices: 1,
+      comboFlash: 1,
+      screenFlash: 1,
+      skillCast: 1,
+    })
+    : null
   const resolvedHeal = result.heal
 
   if (g._pendingCrit != null) {
@@ -581,20 +598,19 @@ function applyFinalDamage(g, dmgMap, heal) {
       dmg: totalDmg,
       color: (ATTR_COLOR[leadAttr] && ATTR_COLOR[leadAttr].main) || V.TH.accent,
       isCrit: isCrit,
+      critFxTier: critFxPlan ? critFxPlan.totalBurstTier : 'none',
     })
-    emitCast(g, {
+    emitCast(g, Object.assign({
       kind: 'heroAttack',
       attr: leadAttr,
-      hitFlash: isCrit ? 15 : 12,
-      tintFlash: isCrit ? 10 : 8,
-      hitStop: isCrit ? 4 : 3,
-      castDuration: isCrit ? 34 : 30,
-      enemyDuration: isCrit ? 20 : 18,
-    })
-    emitShake(g, { t: isCrit ? 20 : 8, i: isCrit ? 12 : 4 })
-    if (isCrit) emitFlash(g, 'combo', {
-      timer: 16,
-      maxTimer: 18,
+      hitFlash: 12,
+      tintFlash: 8,
+      hitStop: 3,
+      castDuration: 30,
+      enemyDuration: 18,
+    }, isCrit && critFxPlan ? critFxPlan.cast : null))
+    emitShake(g, isCrit && critFxPlan ? critFxPlan.shake : { t: 8, i: 4 })
+    if (isCrit) emitFlash(g, 'combo', Object.assign({
       focus: 'enemy',
       y: g._getEnemyCenterY(),
       radius: 116 * S,
@@ -606,17 +622,31 @@ function applyFinalDamage(g, dmgMap, heal) {
       ringCount: 2,
       alphaMul: 1.4,
       allowLowCombo: true,
-    })
+    }, critFxPlan ? {
+      timer: critFxPlan.comboFlash.timer,
+      maxTimer: critFxPlan.comboFlash.maxTimer,
+      radius: 116 * S * (critFxPlan.comboFlash.radiusMul || 1),
+      rays: critFxPlan.comboFlash.rays,
+      ringCount: critFxPlan.comboFlash.ringCount,
+      alphaMul: critFxPlan.comboFlash.alphaMul,
+    } : {
+      timer: 16,
+      maxTimer: 18,
+    }))
     if (isCrit) {
-      emitFlash(g, 'screen', { timer: 6, max: 6, color: '#fff3c6' })
+      emitFlash(g, 'screen', critFxPlan ? critFxPlan.screenFlash : { timer: 6, max: 6, color: '#fff3c6' })
       MusicMgr.playAttackCrit()
-      emitNotice(g, {
+      emitNotice(g, Object.assign({
         x:W*0.5,
         y:g._getEnemyCenterY()-34*S,
         text:'暴击！',
-        subText:'CRITICAL',
         color:'#ffdd58',
         glowColor:'#ffe994',
+        big:true,
+        fxQuality: critFxPlan ? critFxPlan.quality : 'full',
+        variant:'crit'
+      }, critFxPlan ? critFxPlan.notice : {
+        subText:'CRITICAL',
         scale:3.05,
         _initScale:3.6,
         _settleScale:1.16,
@@ -627,9 +657,7 @@ function applyFinalDamage(g, dmgMap, heal) {
         waveFreq:0.4,
         lifeFrames:56,
         fadeStart:34,
-        big:true,
-        variant:'crit'
-      })
+      }))
     } else {
       MusicMgr.playAttack()
     }

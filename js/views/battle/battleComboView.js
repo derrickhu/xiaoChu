@@ -3,8 +3,86 @@
  */
 const V = require('../env')
 const { COMBO_MILESTONES, getComboTier, isComboMilestone } = require('../../data/constants')
+const P = require('../../platform')
 const Particles = require('../../engine/particles')
 const FXComposer = require('../../engine/effectComposer')
+
+const _comboTextMeasureCache = {}
+const _comboCritBurstCache = {}
+
+function _measureTextCached(ctx, font, text) {
+  const key = `${font}|${text}`
+  if (_comboTextMeasureCache[key] != null) return _comboTextMeasureCache[key]
+  const width = ctx.measureText(text).width
+  const keys = Object.keys(_comboTextMeasureCache)
+  if (keys.length >= 96) {
+    for (let i = 0; i < 24; i++) delete _comboTextMeasureCache[keys[i]]
+  }
+  _comboTextMeasureCache[key] = width
+  return width
+}
+
+function _getComboCritBurstSprite(meta, S) {
+  if (!P.createOffscreenCanvas) return null
+  const ringColor = meta.ringColor || '#ffe37a'
+  const rayColor = meta.rayColor || '#fff8d8'
+  const rayCount = meta.rays || 10
+  const ringCount = meta.ringCount || 2
+  const key = [S, ringColor, rayColor, rayCount, ringCount].join('|')
+  if (_comboCritBurstCache[key]) return _comboCritBurstCache[key]
+
+  const size = Math.max(96, Math.ceil(280 * S))
+  const oc = P.createOffscreenCanvas({ type: '2d', width: size, height: size })
+  const octx = oc.getContext('2d')
+  const cx = size * 0.5
+  const cy = size * 0.5
+  const baseRadius = size * 0.32
+
+  octx.save()
+  octx.translate(cx, cy)
+  octx.globalCompositeOperation = 'lighter'
+  for (let ringIdx = 0; ringIdx < ringCount; ringIdx++) {
+    octx.globalAlpha = 0.8 - ringIdx * 0.16
+    octx.strokeStyle = ringIdx === 0 ? ringColor : '#fff7d3'
+    octx.lineWidth = (5 - ringIdx * 0.7) * S
+    octx.beginPath()
+    octx.arc(0, 0, baseRadius * (0.72 + ringIdx * 0.16), 0, Math.PI * 2)
+    octx.stroke()
+  }
+
+  octx.globalAlpha = 0.92
+  octx.strokeStyle = rayColor
+  octx.lineWidth = 1.9 * S
+  for (let i = 0; i < rayCount; i++) {
+    const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
+    const innerR = baseRadius * 0.26
+    const outerR = baseRadius * (i % 2 === 0 ? 1.42 : 1.26)
+    octx.beginPath()
+    octx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
+    octx.lineTo(Math.cos(ang) * outerR, Math.sin(ang) * outerR)
+    octx.stroke()
+  }
+
+  octx.globalAlpha = 0.82
+  octx.strokeStyle = '#ffffff'
+  octx.lineWidth = 2.3 * S
+  for (let i = 0; i < 4; i++) {
+    const ang = Math.PI / 4 + i * Math.PI / 2
+    octx.beginPath()
+    octx.moveTo(Math.cos(ang) * baseRadius * 0.2, Math.sin(ang) * baseRadius * 0.2)
+    octx.lineTo(Math.cos(ang) * baseRadius * 1.5, Math.sin(ang) * baseRadius * 1.5)
+    octx.stroke()
+  }
+  octx.restore()
+
+  const sprite = { canvas: oc, width: size, height: size, anchorX: cx, anchorY: cy, baseRadius }
+  const keys = Object.keys(_comboCritBurstCache)
+  if (keys.length >= 24) {
+    for (let i = 0; i < 6; i++) delete _comboCritBurstCache[keys[i]]
+  }
+  _comboCritBurstCache[key] = sprite
+  return sprite
+}
 
 function drawComboBgEffects(cs) {
   const { ctx, S, W, comboCx, comboCy, baseSz, comboAlpha, isSuper, isMega, glowColor, ca } = cs
@@ -136,9 +214,9 @@ function drawComboMainText(cs) {
   const suffixFont = `italic 900 ${suffixSz}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
 
   ctx.font = numFont
-  const numWidth = ctx.measureText(numText).width
+  const numWidth = _measureTextCached(ctx, numFont, numText)
   ctx.font = suffixFont
-  const suffixWidth = ctx.measureText(suffixText).width
+  const suffixWidth = _measureTextCached(ctx, suffixFont, suffixText)
 
   const totalWidth = numWidth + gap + suffixWidth
   const startX = -totalWidth / 2
@@ -267,49 +345,61 @@ function drawComboVFX(g) {
       if (meta.style === 'critBurst' && focus === 'enemy') {
         const flashMax = Math.max(1, meta.maxTimer || 8)
         const burstP = 1 - g._comboFlash / flashMax
-        const ringColor = meta.ringColor || '#ffe37a'
-        const rayColor = meta.rayColor || '#fff8d8'
-        const rayCount = meta.rays || 10
-        const ringCount = meta.ringCount || 2
-        ctx.save()
-        ctx.translate(flashCx, flashCy)
-        ctx.globalCompositeOperation = 'lighter'
-        for (let ringIdx = 0; ringIdx < ringCount; ringIdx++) {
-          const ringDelay = ringIdx * 0.14
-          const ringProg = Math.max(0, Math.min(1, (burstP - ringDelay) / Math.max(0.18, 1 - ringDelay)))
-          if (ringProg <= 0) continue
-          ctx.globalAlpha = Math.max(0, flashAlpha * (0.82 - ringIdx * 0.18) * (1 - ringProg))
-          ctx.strokeStyle = ringIdx === 0 ? ringColor : '#fff7d3'
-          ctx.lineWidth = (4.4 - ringProg * 2.6 - ringIdx * 0.6) * S
-          ctx.beginPath()
-          ctx.arc(0, 0, flashR * (0.42 + ringProg * (0.62 + ringIdx * 0.12)), 0, Math.PI * 2)
-          ctx.stroke()
-        }
+        const burstSprite = _getComboCritBurstSprite(meta, S)
+        if (burstSprite) {
+          const burstScale = (flashR / Math.max(1, burstSprite.baseRadius)) * (0.88 + burstP * 0.24)
+          const burstW = burstSprite.width * burstScale
+          const burstH = burstSprite.height * burstScale
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = flashAlpha * (0.92 - burstP * 0.28)
+          ctx.drawImage(burstSprite.canvas, flashCx - burstSprite.anchorX * burstScale, flashCy - burstSprite.anchorY * burstScale, burstW, burstH)
+          ctx.restore()
+        } else {
+          const ringColor = meta.ringColor || '#ffe37a'
+          const rayColor = meta.rayColor || '#fff8d8'
+          const rayCount = meta.rays || 10
+          const ringCount = meta.ringCount || 2
+          ctx.save()
+          ctx.translate(flashCx, flashCy)
+          ctx.globalCompositeOperation = 'lighter'
+          for (let ringIdx = 0; ringIdx < ringCount; ringIdx++) {
+            const ringDelay = ringIdx * 0.14
+            const ringProg = Math.max(0, Math.min(1, (burstP - ringDelay) / Math.max(0.18, 1 - ringDelay)))
+            if (ringProg <= 0) continue
+            ctx.globalAlpha = Math.max(0, flashAlpha * (0.82 - ringIdx * 0.18) * (1 - ringProg))
+            ctx.strokeStyle = ringIdx === 0 ? ringColor : '#fff7d3'
+            ctx.lineWidth = (4.4 - ringProg * 2.6 - ringIdx * 0.6) * S
+            ctx.beginPath()
+            ctx.arc(0, 0, flashR * (0.42 + ringProg * (0.62 + ringIdx * 0.12)), 0, Math.PI * 2)
+            ctx.stroke()
+          }
 
-        ctx.globalAlpha = flashAlpha * 1.1
-        ctx.strokeStyle = rayColor
-        ctx.lineWidth = 1.9 * S
-        for (let i = 0; i < rayCount; i++) {
-          const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
-          const innerR = flashR * 0.16
-          const outerR = flashR * (0.62 + burstP * 0.24 + (i % 2 === 0 ? 0.1 : 0))
-          ctx.beginPath()
-          ctx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
-          ctx.lineTo(Math.cos(ang) * outerR, Math.sin(ang) * outerR)
-          ctx.stroke()
-        }
+          ctx.globalAlpha = flashAlpha * 1.1
+          ctx.strokeStyle = rayColor
+          ctx.lineWidth = 1.9 * S
+          for (let i = 0; i < rayCount; i++) {
+            const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
+            const innerR = flashR * 0.16
+            const outerR = flashR * (0.62 + burstP * 0.24 + (i % 2 === 0 ? 0.1 : 0))
+            ctx.beginPath()
+            ctx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
+            ctx.lineTo(Math.cos(ang) * outerR, Math.sin(ang) * outerR)
+            ctx.stroke()
+          }
 
-        ctx.globalAlpha = flashAlpha * 0.86
-        ctx.strokeStyle = '#ffffff'
-        ctx.lineWidth = 2.4 * S
-        for (let i = 0; i < 4; i++) {
-          const ang = Math.PI / 4 + i * Math.PI / 2
-          ctx.beginPath()
-          ctx.moveTo(Math.cos(ang) * flashR * 0.12, Math.sin(ang) * flashR * 0.12)
-          ctx.lineTo(Math.cos(ang) * flashR * 0.78, Math.sin(ang) * flashR * 0.78)
-          ctx.stroke()
+          ctx.globalAlpha = flashAlpha * 0.86
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 2.4 * S
+          for (let i = 0; i < 4; i++) {
+            const ang = Math.PI / 4 + i * Math.PI / 2
+            ctx.beginPath()
+            ctx.moveTo(Math.cos(ang) * flashR * 0.12, Math.sin(ang) * flashR * 0.12)
+            ctx.lineTo(Math.cos(ang) * flashR * 0.78, Math.sin(ang) * flashR * 0.78)
+            ctx.stroke()
+          }
+          ctx.restore()
         }
-        ctx.restore()
       }
     }
   }

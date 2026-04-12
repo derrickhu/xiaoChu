@@ -581,9 +581,74 @@ function elimDmg(g, text, color, attr, baseScale) {
   })
 }
 
-function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx) {
+function _getSlotCritFx(tier) {
+  switch (tier) {
+    case 'full':
+      return {
+        _shake: true,
+        _burstStyle: 'slotCrit',
+        _burstFrames: 24,
+        _burstColor: '#ffe780',
+        _slotPulseStyle: 'crit',
+        _slotPulseFrames: 34,
+        _slotBadgeText: '暴击',
+        _slotBadgeFrames: 28,
+        _launchGlowStyle: 'crit',
+      }
+    case 'burst':
+      return {
+        _shake: true,
+        _burstStyle: 'slotCrit',
+        _burstFrames: 18,
+        _burstColor: '#ffe780',
+        _slotPulseStyle: '',
+        _slotPulseFrames: 0,
+        _slotBadgeText: '',
+        _slotBadgeFrames: 0,
+        _launchGlowStyle: 'crit',
+      }
+    case 'text':
+      return {
+        _shake: false,
+        _burstStyle: '',
+        _burstFrames: 0,
+        _burstColor: '',
+        _slotPulseStyle: '',
+        _slotPulseFrames: 0,
+        _slotBadgeText: '',
+        _slotBadgeFrames: 0,
+        _launchGlowStyle: '',
+      }
+    default:
+      return {
+        _shake: false,
+        _burstStyle: '',
+        _burstFrames: 0,
+        _burstColor: '',
+        _slotPulseStyle: '',
+        _slotPulseFrames: 0,
+        _slotBadgeText: '',
+        _slotBadgeFrames: 0,
+        _launchGlowStyle: 'normal',
+      }
+  }
+}
+
+function _getEnemyCritBurstFx(tier) {
+  switch (tier) {
+    case 'full':
+      return { _burstStyle: 'totalCrit', _burstFrames: 26 }
+    case 'burst':
+      return { _burstStyle: 'totalCrit', _burstFrames: 18 }
+    default:
+      return { _burstStyle: '', _burstFrames: 0 }
+  }
+}
+
+function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx, critFxTier) {
   const c = FLOAT_CFG.petNormalAtk
   const step = c.delayStep || 0
+  const critFx = isCrit ? _getSlotCritFx(critFxTier || 'full') : _getSlotCritFx('normal')
   const floatObj = {
     petIdx: petIdx == null ? 0 : petIdx,
     anchorLane: 'main',
@@ -593,14 +658,15 @@ function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx) {
     scale: c.scale,
     styleKey: isCrit ? 'slotDamageCrit' : 'slotDamageMain',
     delay: Math.max(0, orderIdx == null ? petIdx || 0 : orderIdx) * step,
-    _shake: !!isCrit,
-    _burstStyle: isCrit ? 'slotCrit' : '',
-    _burstFrames: isCrit ? 24 : 0,
-    _burstColor: isCrit ? '#ffe780' : '',
-    _slotPulseStyle: isCrit ? 'crit' : '',
-    _slotPulseFrames: isCrit ? 34 : 0,
-    _slotBadgeText: isCrit ? '暴击' : '',
-    _slotBadgeFrames: isCrit ? 28 : 0,
+    _shake: critFx._shake,
+    _burstStyle: critFx._burstStyle,
+    _burstFrames: critFx._burstFrames,
+    _burstColor: critFx._burstColor,
+    _slotPulseStyle: critFx._slotPulseStyle,
+    _slotPulseFrames: critFx._slotPulseFrames,
+    _slotBadgeText: critFx._slotBadgeText,
+    _slotBadgeFrames: critFx._slotBadgeFrames,
+    _launchGlowStyle: critFx._launchGlowStyle,
   }
   _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
 }
@@ -654,9 +720,11 @@ function petTeamAtkDmg(g, dmg, color, petIdx, totalPets, attr) {
   _pushPetSlot(g, _applySlotPalette(floatObj, attr, color))
 }
 
-function enemyTotal(g, dmg, color, isCrit) {
+function enemyTotal(g, dmg, color, isCrit, critFxTier) {
   const { W, S } = V
   const c = FLOAT_CFG.enemyTotal
+  const critBurstFx = isCrit ? _getEnemyCritBurstFx(critFxTier || 'full') : _getEnemyCritBurstFx('none')
+  const useHeavyCritFx = !!(critBurstFx && critBurstFx._burstFrames > 0)
   const critPalette = isCrit
     ? {
         color: '#ff8d4a',
@@ -674,9 +742,13 @@ function enemyTotal(g, dmg, color, isCrit) {
     text: formatNumber(dmg),
     t: 0,
     alpha: 1,
-    scale: isCrit ? (c.critScale || c.scale || 1.5) : c.scale,
+    scale: isCrit
+      ? (useHeavyCritFx ? (c.critScale || c.scale || 1.5) : Math.max(c.scale || 1, (c.critScale || c.scale || 1.5) * 0.9))
+      : c.scale,
     styleKey: isCrit ? 'damageCrit' : 'damageMain',
-    motion: isCrit ? MOTION_PRESETS.enemyTotalCrit : MOTION_PRESETS.enemyTotalMain,
+    motion: isCrit
+      ? (useHeavyCritFx ? MOTION_PRESETS.enemyTotalCrit : MOTION_PRESETS.damageCrit)
+      : MOTION_PRESETS.enemyTotalMain,
     color: critPalette ? critPalette.color : color,
     fillTop: critPalette ? critPalette.fillTop : undefined,
     fillBottom: critPalette ? critPalette.fillBottom : undefined,
@@ -685,9 +757,9 @@ function enemyTotal(g, dmg, color, isCrit) {
     tag: isCrit ? '暴击' : '总伤',
     tagPosition: isCrit ? 'top' : 'bottom',
     tagColor: critPalette ? critPalette.tagColor : undefined,
-    _shake: !!isCrit,
-    _burstStyle: isCrit ? 'totalCrit' : '',
-    _burstFrames: isCrit ? 26 : 0,
+    _shake: !!(isCrit && useHeavyCritFx),
+    _burstStyle: critBurstFx._burstStyle,
+    _burstFrames: critBurstFx._burstFrames,
     _burstColor: critPalette ? critPalette.burstColor : '',
   })
 }

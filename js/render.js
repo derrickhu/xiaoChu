@@ -191,6 +191,7 @@ class Render {
     this._beadTexCache = null
     this._beadTexSrcVer = null
     this._dmgFloatTexCache = null
+    this._fxTexCache = null
   }
 
   /**
@@ -1634,6 +1635,203 @@ class Render {
     c.restore()
   }
 
+  _cacheFxSprite(bucket, cacheKey, limit, buildSprite) {
+    if (!this._P || !this._P.createOffscreenCanvas || !bucket || !cacheKey || !buildSprite) return null
+    if (!this._fxTexCache) this._fxTexCache = {}
+    const store = this._fxTexCache[bucket] || (this._fxTexCache[bucket] = {})
+    if (store[cacheKey]) return store[cacheKey]
+    const sprite = buildSprite()
+    if (!sprite) return null
+    const keys = Object.keys(store)
+    if (keys.length >= limit) {
+      const trim = Math.max(1, Math.floor(limit * 0.25))
+      for (let i = 0; i < trim; i++) delete store[keys[i]]
+    }
+    store[cacheKey] = sprite
+    return sprite
+  }
+
+  _getCritBurstSprite(style, color) {
+    if (!style || !color) return null
+    const isTotalCrit = style === 'totalCrit'
+    const size = Math.max(64, Math.ceil((isTotalCrit ? 236 : 168) * this.S))
+    const cacheKey = [this.S, style, color].join('|')
+    return this._cacheFxSprite('critBurst', cacheKey, 64, () => {
+      const oc = this._P.createOffscreenCanvas({ type: '2d', width: size, height: size })
+      const octx = oc.getContext('2d')
+      const cx = size * 0.5
+      const cy = size * 0.5
+      const glowR = size * (isTotalCrit ? 0.22 : 0.2)
+      const ringR = size * (isTotalCrit ? 0.31 : 0.27)
+      const outerRingR = size * (isTotalCrit ? 0.39 : 0.34)
+      const innerR = size * (isTotalCrit ? 0.1 : 0.08)
+      const rayOuterR = size * (isTotalCrit ? 0.39 : 0.3)
+      const slashOuterR = size * (isTotalCrit ? 0.44 : 0.35)
+      const rayCount = isTotalCrit ? 8 : 6
+
+      octx.save()
+      octx.translate(cx, cy)
+      octx.globalCompositeOperation = 'lighter'
+      const glow = octx.createRadialGradient(0, 0, 0, 0, 0, glowR)
+      glow.addColorStop(0, '#ffffff')
+      glow.addColorStop(0.34, color)
+      glow.addColorStop(1, 'rgba(255,255,255,0)')
+      octx.fillStyle = glow
+      octx.beginPath(); octx.arc(0, 0, glowR, 0, Math.PI * 2); octx.fill()
+
+      octx.globalAlpha = isTotalCrit ? 0.86 : 0.72
+      octx.strokeStyle = color
+      octx.lineWidth = (isTotalCrit ? 5.2 : 4.2) * this.S
+      octx.beginPath(); octx.arc(0, 0, ringR, 0, Math.PI * 2); octx.stroke()
+
+      octx.globalAlpha = isTotalCrit ? 0.56 : 0.38
+      octx.strokeStyle = '#fff8d8'
+      octx.lineWidth = (isTotalCrit ? 4.2 : 3) * this.S
+      octx.beginPath(); octx.arc(0, 0, outerRingR, 0, Math.PI * 2); octx.stroke()
+
+      octx.globalAlpha = isTotalCrit ? 0.92 : 0.82
+      octx.strokeStyle = '#fff7ce'
+      octx.lineWidth = (isTotalCrit ? 3.8 : 2.8) * this.S
+      for (let i = 0; i < rayCount; i++) {
+        const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
+        octx.beginPath()
+        octx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
+        octx.lineTo(Math.cos(ang) * rayOuterR, Math.sin(ang) * rayOuterR)
+        octx.stroke()
+      }
+
+      octx.globalAlpha = isTotalCrit ? 0.66 : 0.52
+      octx.strokeStyle = '#ffffff'
+      octx.lineWidth = (isTotalCrit ? 3.2 : 2.2) * this.S
+      for (let i = 0; i < 4; i++) {
+        const ang = Math.PI / 4 + i * Math.PI / 2
+        octx.beginPath()
+        octx.moveTo(Math.cos(ang) * innerR * 0.7, Math.sin(ang) * innerR * 0.7)
+        octx.lineTo(Math.cos(ang) * slashOuterR, Math.sin(ang) * slashOuterR)
+        octx.stroke()
+      }
+      octx.restore()
+      return { canvas: oc, width: size, height: size, anchorX: cx, anchorY: cy }
+    })
+  }
+
+  _getCritNoticeBurstSprite(big, glowColor) {
+    const size = Math.max(72, Math.ceil((big ? 220 : 156) * this.S))
+    const cacheKey = [this.S, big ? '1' : '0', glowColor || ''].join('|')
+    return this._cacheFxSprite('critNoticeBurst', cacheKey, 32, () => {
+      const oc = this._P.createOffscreenCanvas({ type: '2d', width: size, height: size })
+      const octx = oc.getContext('2d')
+      const cx = size * 0.5
+      const cy = size * 0.5
+      const coreR = size * 0.2
+      const ringR = size * 0.31
+      const outerR = size * 0.4
+      octx.save()
+      octx.translate(cx, cy)
+      octx.globalCompositeOperation = 'lighter'
+      const glow = octx.createRadialGradient(0, 0, 0, 0, 0, coreR)
+      glow.addColorStop(0, '#ffffff')
+      glow.addColorStop(0.32, glowColor || '#ffd84f')
+      glow.addColorStop(1, 'rgba(255,255,255,0)')
+      octx.fillStyle = glow
+      octx.beginPath(); octx.arc(0, 0, coreR, 0, Math.PI * 2); octx.fill()
+
+      octx.globalAlpha = 0.8
+      octx.strokeStyle = glowColor || '#ffd84f'
+      octx.lineWidth = (big ? 5.2 : 4.2) * this.S
+      octx.beginPath(); octx.arc(0, 0, ringR, 0, Math.PI * 2); octx.stroke()
+
+      octx.globalAlpha = 0.52
+      octx.strokeStyle = '#fff6ce'
+      octx.lineWidth = (big ? 3.2 : 2.4) * this.S
+      octx.beginPath(); octx.arc(0, 0, outerR, 0, Math.PI * 2); octx.stroke()
+
+      octx.globalAlpha = 0.9
+      octx.strokeStyle = '#fff8de'
+      octx.lineWidth = (big ? 3.2 : 2.4) * this.S
+      for (let i = 0; i < 8; i++) {
+        const ang = -Math.PI / 2 + i * Math.PI / 4
+        const innerR = size * 0.08
+        const outerR2 = size * (i % 2 === 0 ? 0.39 : 0.35)
+        octx.beginPath()
+        octx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
+        octx.lineTo(Math.cos(ang) * outerR2, Math.sin(ang) * outerR2)
+        octx.stroke()
+      }
+      octx.restore()
+      return { canvas: oc, width: size, height: size, anchorX: cx, anchorY: cy }
+    })
+  }
+
+  _getCritNoticeTextSprite(f) {
+    if (!f || !f.text) return null
+    const text = f.text
+    const subText = f.subText || ''
+    const big = !!f.big
+    const titleSize = (big ? 34 : 20) * this.S
+    const subSize = subText ? (big ? 10 : 8) * this.S : 0
+    const cacheKey = [
+      this.S,
+      big ? '1' : '0',
+      text,
+      subText,
+      f.color || '',
+      f.glowColor || '',
+    ].join('|')
+    return this._cacheFxSprite('critNoticeText', cacheKey, 48, () => {
+      this.ctx.save()
+      this.ctx.font = `italic 900 ${titleSize}px "Avenir-Black","Arial Black","PingFang SC",sans-serif`
+      const textW = Math.ceil(this.ctx.measureText(text).width)
+      let subW = 0
+      if (subText) {
+        this.ctx.font = `italic 900 ${subSize}px "Avenir Next Condensed","Arial Black","PingFang SC",sans-serif`
+        subW = Math.ceil(this.ctx.measureText(subText).width)
+      }
+      this.ctx.restore()
+
+      const padX = Math.ceil(28 * this.S)
+      const padY = Math.ceil(24 * this.S)
+      const width = Math.max(1, Math.ceil(Math.max(textW, subW) + padX * 2))
+      const height = Math.max(1, Math.ceil(titleSize + padY * 2 + (subText ? titleSize * 0.6 : 0)))
+      const oc = this._P.createOffscreenCanvas({ type: '2d', width, height })
+      const octx = oc.getContext('2d')
+      const cx = width * 0.5
+      const cy = height * 0.5 + (subText ? titleSize * 0.12 : 0)
+
+      octx.save()
+      octx.textAlign = 'center'
+      octx.textBaseline = 'middle'
+      octx.lineJoin = 'round'
+      octx.miterLimit = 2
+      octx.font = `italic 900 ${titleSize}px "Avenir-Black","Arial Black","PingFang SC",sans-serif`
+      const grad = octx.createLinearGradient(cx, cy - titleSize * 0.72, cx, cy + titleSize * 0.45)
+      grad.addColorStop(0, '#ffffff')
+      grad.addColorStop(0.24, '#fff6c8')
+      grad.addColorStop(0.7, f.color || '#ffd84f')
+      grad.addColorStop(1, '#ffbc22')
+      octx.strokeStyle = 'rgba(45,20,0,0.92)'
+      octx.lineWidth = (big ? 6 : 4) * this.S
+      octx.strokeText(text, cx, cy)
+      octx.shadowColor = f.glowColor || f.color || '#ffd84f'
+      octx.shadowBlur = (big ? 26 : 18) * this.S
+      octx.fillStyle = grad
+      octx.fillText(text, cx, cy)
+      octx.shadowBlur = 0
+
+      if (subText) {
+        const subY = cy - titleSize * 0.84
+        octx.font = `italic 900 ${subSize}px "Avenir Next Condensed","Arial Black","PingFang SC",sans-serif`
+        octx.strokeStyle = 'rgba(0,0,0,0.8)'
+        octx.lineWidth = 2.2 * this.S
+        octx.strokeText(subText, cx, subY)
+        octx.fillStyle = '#fff7d2'
+        octx.fillText(subText, cx, subY)
+      }
+      octx.restore()
+      return { canvas: oc, width, height, anchorX: cx, anchorY: cy }
+    })
+  }
+
   // ===== 技能触发特效 =====
   drawSkillEffect(f) {
     const {ctx:c,S} = this
@@ -1648,77 +1846,47 @@ class Render {
       const lifeFrames = Math.max(1, f.lifeFrames || 54)
       const pulseP = Math.min(1, pulseT / lifeFrames)
       const flareFade = Math.max(0, 1 - pulseP)
+      const fxQuality = f.fxQuality || 'full'
       const titleSz = (big ? 34 : 20) * sc * S
-      const coreR = titleSz * (0.95 + pulseP * 0.2)
-      const ringR = titleSz * (1.35 + pulseP * 0.34)
-      const outerR = titleSz * (1.72 + pulseP * 0.42)
+      const burstSprite = this._getCritNoticeBurstSprite(!!big, glowColor)
+      const textSprite = this._getCritNoticeTextSprite(f)
+      const burstAlphaMul = fxQuality === 'lite' ? 0.34 : (fxQuality === 'medium' ? 0.48 : 0.62)
 
-      c.save()
-      c.translate(x, y)
-      c.globalCompositeOperation = 'lighter'
-      c.globalAlpha = baseAlpha * 0.5 * flareFade
-      const glow = c.createRadialGradient(0, 0, 0, 0, 0, coreR)
-      glow.addColorStop(0, '#ffffff')
-      glow.addColorStop(0.32, glowColor)
-      glow.addColorStop(1, 'rgba(255,255,255,0)')
-      c.fillStyle = glow
-      c.beginPath(); c.arc(0, 0, coreR, 0, Math.PI * 2); c.fill()
-
-      c.globalAlpha = baseAlpha * 0.78 * flareFade
-      c.strokeStyle = glowColor
-      c.lineWidth = 2.8 * S
-      c.beginPath(); c.arc(0, 0, ringR, 0, Math.PI * 2); c.stroke()
-
-      c.globalAlpha = baseAlpha * 0.52 * flareFade
-      c.strokeStyle = '#fff6ce'
-      c.lineWidth = 1.6 * S
-      c.beginPath(); c.arc(0, 0, outerR, 0, Math.PI * 2); c.stroke()
-
-      c.globalAlpha = baseAlpha * 0.86 * flareFade
-      c.strokeStyle = '#fff8de'
-      c.lineWidth = 1.7 * S
-      for (let i = 0; i < 8; i++) {
-        const ang = -Math.PI / 2 + i * Math.PI / 4
-        const innerR = titleSz * 0.4
-        const outerR2 = titleSz * (1.32 + (i % 2 === 0 ? 0.2 : 0))
-        c.beginPath()
-        c.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR)
-        c.lineTo(Math.cos(ang) * outerR2, Math.sin(ang) * outerR2)
-        c.stroke()
+      if (burstSprite && flareFade > 0.01) {
+        const burstScale = sc * (0.92 + pulseP * 0.24)
+        const burstW = burstSprite.width * burstScale
+        const burstH = burstSprite.height * burstScale
+        c.save()
+        c.globalCompositeOperation = 'lighter'
+        c.globalAlpha = baseAlpha * burstAlphaMul * flareFade
+        c.drawImage(burstSprite.canvas, x - burstSprite.anchorX * burstScale, y - burstSprite.anchorY * burstScale, burstW, burstH)
+        c.restore()
+        if (fxQuality !== 'lite') {
+          FXComposer.drawGlowSpot(c, x, y, titleSz * (1.02 + pulseP * 0.18), glowColor, baseAlpha * (fxQuality === 'medium' ? 0.15 : 0.22) * flareFade)
+        }
       }
-      c.restore()
 
-      c.save()
-      c.globalAlpha = baseAlpha
-      c.textAlign = 'center'
-      c.textBaseline = 'middle'
-      c.font = `italic 900 ${titleSz}px "Avenir-Black","Arial Black","PingFang SC",sans-serif`
-      const critGrad = c.createLinearGradient(x, y - titleSz * 0.72, x, y + titleSz * 0.45)
-      critGrad.addColorStop(0, '#ffffff')
-      critGrad.addColorStop(0.24, '#fff6c8')
-      critGrad.addColorStop(0.7, color || '#ffd84f')
-      critGrad.addColorStop(1, '#ffbc22')
-      c.strokeStyle = 'rgba(45,20,0,0.92)'
-      c.lineWidth = (big ? 6 : 4) * S
-      c.strokeText(text, x, y)
-      c.shadowColor = glowColor
-      c.shadowBlur = (26 + flareFade * 12) * S
-      c.fillStyle = critGrad
-      c.fillText(text, x, y)
-      c.shadowBlur = 0
-
-      if (f.subText) {
-        const subSz = (big ? 10 : 8) * sc * S
-        const subY = y - titleSz * 0.84
-        c.font = `italic 900 ${subSz}px "Avenir Next Condensed","Arial Black","PingFang SC",sans-serif`
-        c.strokeStyle = 'rgba(0,0,0,0.8)'
-        c.lineWidth = 2.2 * S
-        c.strokeText(f.subText, x, subY)
-        c.fillStyle = '#fff7d2'
-        c.fillText(f.subText, x, subY)
+      if (textSprite) {
+        const drawW = textSprite.width * sc
+        const drawH = textSprite.height * sc
+        const drawX = x - textSprite.anchorX * sc
+        const drawY = y - textSprite.anchorY * sc
+        const echoAlpha = fxQuality === 'lite'
+          ? baseAlpha * 0.06
+          : baseAlpha * (fxQuality === 'medium' ? (0.1 + flareFade * 0.08) : (0.14 + flareFade * 0.12))
+        if (echoAlpha > 0.01) {
+          c.save()
+          c.globalCompositeOperation = 'lighter'
+          c.globalAlpha = echoAlpha
+          c.drawImage(textSprite.canvas, drawX, drawY - 1.2 * S, drawW, drawH)
+          c.restore()
+        }
+        c.save()
+        c.globalAlpha = baseAlpha
+        c.drawImage(textSprite.canvas, drawX, drawY, drawW, drawH)
+        c.restore()
+        return
       }
-      c.restore()
-      return
     }
 
     c.save(); c.globalAlpha=baseAlpha
@@ -1872,57 +2040,70 @@ class Render {
       if (burstFade > 0.01) {
         const burstColor = f._burstColor || glowColor
         const isTotalCrit = burstStyle === 'totalCrit'
-        const coreRadius = sz * ((isTotalCrit ? 1.15 : 0.88) + burstP * (isTotalCrit ? 0.45 : 0.28))
-        const ringRadius = sz * ((isTotalCrit ? 1.42 : 1.05) + burstP * (isTotalCrit ? 0.3 : 0.18))
-        const outerRingRadius = ringRadius * (isTotalCrit ? 1.24 : 1.16)
-        const rayInner = sz * (isTotalCrit ? 0.38 : 0.24)
-        const rayOuter = sz * ((isTotalCrit ? 1.15 : 0.8) + burstP * 0.22)
-        const slashInner = sz * (isTotalCrit ? 0.2 : 0.12)
-        const slashOuter = sz * (isTotalCrit ? 1.42 : 1.02)
-        const rayCount = isTotalCrit ? 8 : 6
+        const burstSprite = this._getCritBurstSprite(burstStyle, burstColor)
+        if (burstSprite) {
+          const burstScale = drawScale * ((isTotalCrit ? 1.02 : 0.9) + burstP * (isTotalCrit ? 0.3 : 0.18))
+          const burstW = burstSprite.width * burstScale
+          const burstH = burstSprite.height * burstScale
+          c.save()
+          c.globalCompositeOperation = 'lighter'
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.7 : 0.56) * burstFade
+          c.drawImage(burstSprite.canvas, drawX - burstSprite.anchorX * burstScale, drawY - burstSprite.anchorY * burstScale, burstW, burstH)
+          c.restore()
+          FXComposer.drawGlowSpot(c, drawX, drawY, sz * (isTotalCrit ? 1.08 : 0.82), burstColor, baseAlpha * (isTotalCrit ? 0.16 : 0.12) * burstFade)
+        } else {
+          const coreRadius = sz * ((isTotalCrit ? 1.15 : 0.88) + burstP * (isTotalCrit ? 0.45 : 0.28))
+          const ringRadius = sz * ((isTotalCrit ? 1.42 : 1.05) + burstP * (isTotalCrit ? 0.3 : 0.18))
+          const outerRingRadius = ringRadius * (isTotalCrit ? 1.24 : 1.16)
+          const rayInner = sz * (isTotalCrit ? 0.38 : 0.24)
+          const rayOuter = sz * ((isTotalCrit ? 1.15 : 0.8) + burstP * 0.22)
+          const slashInner = sz * (isTotalCrit ? 0.2 : 0.12)
+          const slashOuter = sz * (isTotalCrit ? 1.42 : 1.02)
+          const rayCount = isTotalCrit ? 8 : 6
 
-        c.save()
-        c.globalCompositeOperation = 'lighter'
-        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.54 : 0.42) * burstFade
-        const burstGlow = c.createRadialGradient(drawX, drawY, 0, drawX, drawY, coreRadius)
-        burstGlow.addColorStop(0, '#ffffff')
-        burstGlow.addColorStop(0.34, burstColor)
-        burstGlow.addColorStop(1, 'rgba(255,255,255,0)')
-        c.fillStyle = burstGlow
-        c.beginPath(); c.arc(drawX, drawY, coreRadius, 0, Math.PI * 2); c.fill()
+          c.save()
+          c.globalCompositeOperation = 'lighter'
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.54 : 0.42) * burstFade
+          const burstGlow = c.createRadialGradient(drawX, drawY, 0, drawX, drawY, coreRadius)
+          burstGlow.addColorStop(0, '#ffffff')
+          burstGlow.addColorStop(0.34, burstColor)
+          burstGlow.addColorStop(1, 'rgba(255,255,255,0)')
+          c.fillStyle = burstGlow
+          c.beginPath(); c.arc(drawX, drawY, coreRadius, 0, Math.PI * 2); c.fill()
 
-        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.78 : 0.58) * burstFade
-        c.strokeStyle = burstColor
-        c.lineWidth = (isTotalCrit ? 2.3 : 1.8) * S
-        c.beginPath(); c.arc(drawX, drawY, ringRadius, 0, Math.PI * 2); c.stroke()
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.78 : 0.58) * burstFade
+          c.strokeStyle = burstColor
+          c.lineWidth = (isTotalCrit ? 2.3 : 1.8) * S
+          c.beginPath(); c.arc(drawX, drawY, ringRadius, 0, Math.PI * 2); c.stroke()
 
-        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.44 : 0.28) * burstFade
-        c.strokeStyle = '#fff8d8'
-        c.lineWidth = (isTotalCrit ? 1.8 : 1.2) * S
-        c.beginPath(); c.arc(drawX, drawY, outerRingRadius, 0, Math.PI * 2); c.stroke()
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.44 : 0.28) * burstFade
+          c.strokeStyle = '#fff8d8'
+          c.lineWidth = (isTotalCrit ? 1.8 : 1.2) * S
+          c.beginPath(); c.arc(drawX, drawY, outerRingRadius, 0, Math.PI * 2); c.stroke()
 
-        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.95 : 0.72) * burstFade
-        c.strokeStyle = '#fff7ce'
-        c.lineWidth = (isTotalCrit ? 1.8 : 1.3) * S
-        for (let i = 0; i < rayCount; i++) {
-          const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
-          c.beginPath()
-          c.moveTo(drawX + Math.cos(ang) * rayInner, drawY + Math.sin(ang) * rayInner)
-          c.lineTo(drawX + Math.cos(ang) * rayOuter, drawY + Math.sin(ang) * rayOuter)
-          c.stroke()
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.95 : 0.72) * burstFade
+          c.strokeStyle = '#fff7ce'
+          c.lineWidth = (isTotalCrit ? 1.8 : 1.3) * S
+          for (let i = 0; i < rayCount; i++) {
+            const ang = -Math.PI / 2 + i * Math.PI * 2 / rayCount
+            c.beginPath()
+            c.moveTo(drawX + Math.cos(ang) * rayInner, drawY + Math.sin(ang) * rayInner)
+            c.lineTo(drawX + Math.cos(ang) * rayOuter, drawY + Math.sin(ang) * rayOuter)
+            c.stroke()
+          }
+
+          c.globalAlpha = baseAlpha * (isTotalCrit ? 0.62 : 0.46) * burstFade
+          c.strokeStyle = '#ffffff'
+          c.lineWidth = (isTotalCrit ? 1.6 : 1.1) * S
+          for (let i = 0; i < 4; i++) {
+            const ang = Math.PI / 4 + i * Math.PI / 2
+            c.beginPath()
+            c.moveTo(drawX + Math.cos(ang) * slashInner, drawY + Math.sin(ang) * slashInner)
+            c.lineTo(drawX + Math.cos(ang) * slashOuter, drawY + Math.sin(ang) * slashOuter)
+            c.stroke()
+          }
+          c.restore()
         }
-
-        c.globalAlpha = baseAlpha * (isTotalCrit ? 0.62 : 0.46) * burstFade
-        c.strokeStyle = '#ffffff'
-        c.lineWidth = (isTotalCrit ? 1.6 : 1.1) * S
-        for (let i = 0; i < 4; i++) {
-          const ang = Math.PI / 4 + i * Math.PI / 2
-          c.beginPath()
-          c.moveTo(drawX + Math.cos(ang) * slashInner, drawY + Math.sin(ang) * slashInner)
-          c.lineTo(drawX + Math.cos(ang) * slashOuter, drawY + Math.sin(ang) * slashOuter)
-          c.stroke()
-        }
-        c.restore()
       }
     }
 

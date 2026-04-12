@@ -32,7 +32,7 @@ function emitFloat(g, kind, payload) {
   if (!g || !kind || !payload) return
   switch (kind) {
     case 'petNormalAtkDmg':
-      DF.petNormalAtkDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr, payload.isCrit, payload.orderIdx)
+      DF.petNormalAtkDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr, payload.isCrit, payload.orderIdx, payload.critFxTier)
       break
     case 'petSkillDmg':
       DF.petSkillDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr)
@@ -44,7 +44,7 @@ function emitFloat(g, kind, payload) {
       DF.petTeamAtkDmg(g, payload.dmg, payload.color, payload.petIdx, payload.totalPets, payload.attr)
       break
     case 'enemyTotal':
-      DF.enemyTotal(g, payload.dmg, payload.color, payload.isCrit)
+      DF.enemyTotal(g, payload.dmg, payload.color, payload.isCrit, payload.critFxTier)
       break
     case 'aoeDmg':
       DF.aoeDmg(g, payload.dmg, payload.color)

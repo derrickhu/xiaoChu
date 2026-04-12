@@ -5,9 +5,92 @@ const V = require('../env')
 const { TH } = require('../../render')
 const { ATTR_COLOR } = require('../../data/tower')
 const { getPetSkillDesc } = require('../../data/pets')
+const P = require('../../platform')
+const FXComposer = require('../../engine/effectComposer')
+
+const _skillFlashTextCache = {}
+
+function _getBattleFxQuality(g) {
+  return (g && g._battleFxQuality) || 'full'
+}
+
+function _seededUnit(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453123
+  return x - Math.floor(x)
+}
+
+function _seededRange(seed, min, max) {
+  return min + _seededUnit(seed) * (max - min)
+}
+
+function _getSkillFlashTextSprite(f, S) {
+  if (!f || !P.createOffscreenCanvas) return null
+  const hasDesc = !!f.skillDesc
+  const key = [S, f.color || '', f.skillName || '', f.skillDesc || '', hasDesc ? '1' : '0'].join('|')
+  if (_skillFlashTextCache[key]) return _skillFlashTextCache[key]
+
+  const measureCanvas = P.createOffscreenCanvas({ type: '2d', width: 8, height: 8 })
+  const measureCtx = measureCanvas.getContext('2d')
+  const nameFont = `bold ${11 * S}px "PingFang SC",sans-serif`
+  const descFont = hasDesc
+    ? `bold ${18 * S}px "PingFang SC",sans-serif`
+    : `italic 900 ${24 * S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  measureCtx.font = nameFont
+  const nameW = Math.ceil(measureCtx.measureText(f.skillName || '').width)
+  measureCtx.font = descFont
+  const descW = Math.ceil(measureCtx.measureText(hasDesc ? (f.skillDesc || '') : (f.skillName || '')).width)
+
+  const width = Math.max(1, Math.ceil(Math.max(nameW, descW) + 30 * S))
+  const height = Math.max(1, Math.ceil((hasDesc ? 46 : 30) * S))
+  const oc = P.createOffscreenCanvas({ type: '2d', width, height })
+  const octx = oc.getContext('2d')
+  const cx = width * 0.5
+  const cy = height * 0.5
+
+  octx.save()
+  octx.textAlign = 'center'
+  octx.textBaseline = 'middle'
+  if (hasDesc) {
+    octx.font = nameFont
+    octx.strokeStyle = 'rgba(0,0,0,0.5)'
+    octx.lineWidth = 2 * S
+    octx.strokeText(f.skillName || '', cx, cy - 14 * S)
+    octx.fillStyle = f.color || '#ffffff'
+    octx.fillText(f.skillName || '', cx, cy - 14 * S)
+
+    octx.font = descFont
+    octx.strokeStyle = 'rgba(0,0,0,0.85)'
+    octx.lineWidth = 4 * S
+    octx.strokeText(f.skillDesc || '', cx, cy + 8 * S)
+    octx.shadowColor = f.color || '#ffffff'
+    octx.shadowBlur = 12 * S
+    octx.fillStyle = '#ffffff'
+    octx.fillText(f.skillDesc || '', cx, cy + 8 * S)
+    octx.shadowBlur = 0
+  } else {
+    octx.font = descFont
+    octx.strokeStyle = 'rgba(0,0,0,0.8)'
+    octx.lineWidth = 4 * S
+    octx.strokeText(f.skillName || '', cx, cy)
+    octx.shadowColor = f.color || '#ffffff'
+    octx.shadowBlur = 14 * S
+    octx.fillStyle = '#ffffff'
+    octx.fillText(f.skillName || '', cx, cy)
+    octx.shadowBlur = 0
+  }
+  octx.restore()
+
+  const sprite = { canvas: oc, width, height, anchorX: cx, anchorY: cy }
+  const keys = Object.keys(_skillFlashTextCache)
+  if (keys.length >= 32) {
+    for (let i = 0; i < 8; i++) delete _skillFlashTextCache[keys[i]]
+  }
+  _skillFlashTextCache[key] = sprite
+  return sprite
+}
 
 function drawPetSkillWave(g) {
-  const { ctx, R, TH, W, H, S } = V
+  const { ctx, TH, S } = V
   const wave = g._petSkillWave
   if (!wave) return
   wave.timer++
@@ -15,14 +98,15 @@ function drawPetSkillWave(g) {
 
   const t = wave.timer
   const dur = wave.duration
-  const p = t / dur  // 0→1 进度
+  const p = t / dur
   const clr = wave.color || TH.accent
+  const quality = _getBattleFxQuality(g)
+  const qualityMul = quality === 'lite' ? 0.68 : (quality === 'medium' ? 0.84 : 1)
 
-  // 计算宠物头像位置（光波起点）
   const L = g._getBattleLayout()
   const iconSize = L.iconSize
   const iconY = L.teamBarY + (L.teamBarH - iconSize) / 2
-  const sidePad = 8*S, wpnGap = 12*S, petGap = 8*S
+  const sidePad = 8 * S, wpnGap = 12 * S, petGap = 8 * S
   let ix
   if (wave.petIdx === 0) { ix = sidePad }
   else { ix = sidePad + iconSize + wpnGap + (wave.petIdx - 1) * (iconSize + petGap) }
@@ -31,99 +115,85 @@ function drawPetSkillWave(g) {
   const targetX = wave.targetX
   const targetY = wave.targetY
 
-  // 安全检查：坐标值必须是有限数值，否则 createRadialGradient 会抛异常导致渲染循环中断
   if (!isFinite(startX) || !isFinite(startY) || !isFinite(targetX) || !isFinite(targetY) || !isFinite(iconSize)) {
     g._petSkillWave = null; return
+  }
+  if (wave._seed == null) {
+    wave._seed = ((wave.petIdx == null ? 0 : wave.petIdx) + 1) * 131 + Math.round(targetX * 0.5) + Math.round(targetY * 0.25)
   }
 
   ctx.save()
 
-  // 阶段1（0-0.15）：宠物头像蓄力光环
   if (p < 0.15) {
     const chargeP = p / 0.15
-    const chargeR = iconSize * 0.4 * chargeP
+    const chargeR = iconSize * (0.26 + chargeP * 0.18) * qualityMul
     if (chargeR > 0) {
-      ctx.globalAlpha = 0.6 + chargeP * 0.4
-      const chargeGrd = ctx.createRadialGradient(startX, startY, 0, startX, startY, chargeR)
-      chargeGrd.addColorStop(0, '#fff')
-      chargeGrd.addColorStop(0.5, clr)
-      chargeGrd.addColorStop(1, 'transparent')
-      ctx.fillStyle = chargeGrd
-      ctx.beginPath(); ctx.arc(startX, startY, chargeR, 0, Math.PI*2); ctx.fill()
+      FXComposer.drawGlowSpot(ctx, startX, startY, chargeR, clr, (0.24 + chargeP * 0.3) * qualityMul)
+      if (quality !== 'lite') {
+        ctx.globalAlpha = (0.3 + chargeP * 0.36) * qualityMul
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath(); ctx.arc(startX, startY, Math.max(1, chargeR * 0.2), 0, Math.PI * 2); ctx.fill()
+      }
     }
   }
 
-  // 阶段2（0.1-0.6）：光波从宠物飞向敌人
   if (p >= 0.1 && p < 0.6) {
-    const flyP = (p - 0.1) / 0.5  // 0→1
-    const easedP = 1 - Math.pow(1 - flyP, 2)  // ease-out
+    const flyP = (p - 0.1) / 0.5
+    const easedP = 1 - Math.pow(1 - flyP, 2)
     const curX = startX + (targetX - startX) * easedP
     const curY = startY + (targetY - startY) * easedP
-    const waveR = 18*S + flyP * 12*S
+    const waveR = (18 * S + flyP * 12 * S) * qualityMul
 
-    // 光波主体
-    ctx.globalAlpha = 0.9 - flyP * 0.3
-    const waveGrd = ctx.createRadialGradient(curX, curY, 0, curX, curY, waveR)
-    waveGrd.addColorStop(0, '#fff')
-    waveGrd.addColorStop(0.3, clr)
-    waveGrd.addColorStop(0.7, clr + '88')
-    waveGrd.addColorStop(1, 'transparent')
-    ctx.fillStyle = waveGrd
-    ctx.beginPath(); ctx.arc(curX, curY, waveR, 0, Math.PI*2); ctx.fill()
+    FXComposer.drawGlowSpot(ctx, curX, curY, waveR, clr, (0.36 - flyP * 0.1) * qualityMul)
 
-    // 光波拖尾
-    ctx.globalAlpha = 0.4 * (1 - flyP)
-    const tailLen = 40*S
+    ctx.globalAlpha = 0.34 * (1 - flyP) * qualityMul
+    const tailLen = (quality === 'lite' ? 24 : (quality === 'medium' ? 32 : 40)) * S
     const tailAngle = Math.atan2(targetY - startY, targetX - startX)
     const tailX = curX - Math.cos(tailAngle) * tailLen * flyP
     const tailY = curY - Math.sin(tailAngle) * tailLen * flyP
     const tailGrd = ctx.createLinearGradient(tailX, tailY, curX, curY)
     tailGrd.addColorStop(0, 'transparent')
-    tailGrd.addColorStop(0.5, clr + '44')
+    tailGrd.addColorStop(0.45, clr + '44')
     tailGrd.addColorStop(1, clr + 'aa')
     ctx.strokeStyle = tailGrd
-    ctx.lineWidth = 6*S
+    ctx.lineWidth = (quality === 'lite' ? 4 : 6) * S
     ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(curX, curY); ctx.stroke()
 
-    // 光波碎片
-    for (let i = 0; i < 4; i++) {
-      const angle = Math.PI*2 / 4 * i + flyP * 3
-      const dist = waveR * 0.6
+    const shardCount = quality === 'full' ? 4 : (quality === 'medium' ? 3 : 2)
+    for (let i = 0; i < shardCount; i++) {
+      const angle = Math.PI * 2 / shardCount * i + flyP * 3
+      const dist = waveR * 0.58
       const px = curX + Math.cos(angle) * dist
       const py = curY + Math.sin(angle) * dist
-      ctx.globalAlpha = 0.5 * (1 - flyP)
+      ctx.globalAlpha = 0.42 * (1 - flyP) * qualityMul
       ctx.fillStyle = i % 2 === 0 ? '#fff' : clr
-      ctx.beginPath(); ctx.arc(px, py, 3*S, 0, Math.PI*2); ctx.fill()
+      ctx.beginPath(); ctx.arc(px, py, (quality === 'lite' ? 2.1 : 3) * S, 0, Math.PI * 2); ctx.fill()
     }
   }
 
-  // 阶段3（0.5-1.0）：命中 — 密集碎片+速度线+闪光（非大爆炸）
   if (p >= 0.5) {
-    const hitP = (p - 0.5) / 0.5  // 0→1
+    const hitP = (p - 0.5) / 0.5
 
-    // 紧凑闪光核心（半径小，衰减快）
     if (hitP < 0.3) {
-      const coreR = 15*S + hitP / 0.3 * 20*S
-      ctx.globalAlpha = (0.3 - hitP) / 0.3 * 0.8
-      const coreGrd = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, coreR)
-      coreGrd.addColorStop(0, '#fff')
-      coreGrd.addColorStop(0.5, clr)
-      coreGrd.addColorStop(1, 'transparent')
-      ctx.fillStyle = coreGrd
-      ctx.beginPath(); ctx.arc(targetX, targetY, coreR, 0, Math.PI*2); ctx.fill()
+      const coreR = (15 * S + hitP / 0.3 * 20 * S) * qualityMul
+      FXComposer.drawGlowSpot(ctx, targetX, targetY, coreR, clr, ((0.3 - hitP) / 0.3) * 0.48 * qualityMul)
     }
 
-    // 速度线（从命中点向外放射的短线）
     if (hitP < 0.6) {
       const lineP = hitP / 0.6
+      const lineCount = quality === 'full' ? 12 : (quality === 'medium' ? 8 : 4)
       ctx.save()
-      ctx.globalAlpha = (1 - lineP) * 0.7
-      ctx.strokeStyle = clr; ctx.lineWidth = 2*S
-      ctx.shadowColor = clr; ctx.shadowBlur = 6*S
-      for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2 + wave.timer * 0.05
-        const innerR = 10*S + lineP * 25*S
-        const outerR = innerR + (8 + Math.random() * 12) * S * (1 - lineP)
+      ctx.globalAlpha = (1 - lineP) * (quality === 'lite' ? 0.4 : 0.64)
+      ctx.strokeStyle = clr
+      ctx.lineWidth = (quality === 'lite' ? 1.4 : 2) * S
+      if (quality !== 'lite') {
+        ctx.shadowColor = clr
+        ctx.shadowBlur = 4 * S
+      }
+      for (let i = 0; i < lineCount; i++) {
+        const angle = (i / lineCount) * Math.PI * 2 + wave.timer * 0.05
+        const innerR = 10 * S + lineP * 25 * S * qualityMul
+        const outerR = innerR + _seededRange(wave._seed + i * 17 + Math.floor(hitP * 100), 6, quality === 'full' ? 20 : 14) * S * (1 - lineP)
         ctx.beginPath()
         ctx.moveTo(targetX + Math.cos(angle) * innerR, targetY + Math.sin(angle) * innerR)
         ctx.lineTo(targetX + Math.cos(angle) * outerR, targetY + Math.sin(angle) * outerR)
@@ -133,27 +203,27 @@ function drawPetSkillWave(g) {
       ctx.restore()
     }
 
-    // 密集碎片粒子（小而多，快速扩散）
+    const shardCount = quality === 'full' ? 16 : (quality === 'medium' ? 10 : 6)
     ctx.save()
-    for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2 + hitP * 2
-      const speed = 15 + (i % 3) * 8
+    for (let i = 0; i < shardCount; i++) {
+      const angle = (i / shardCount) * Math.PI * 2 + hitP * 2
+      const speed = (quality === 'lite' ? 11 : 15) + (i % 3) * (quality === 'full' ? 8 : 5)
       const dist = hitP * speed * S
       const px = targetX + Math.cos(angle) * dist
       const py = targetY + Math.sin(angle) * dist
-      const pr = (1 - hitP) * (1.5 + (i % 4) * 0.5) * S
-      ctx.globalAlpha = (1 - hitP * hitP) * 0.7
+      const pr = (1 - hitP) * (quality === 'lite' ? 1.3 : 1.5 + (i % 4) * 0.5) * S
+      ctx.globalAlpha = (1 - hitP * hitP) * (quality === 'lite' ? 0.5 : 0.7)
       ctx.fillStyle = i % 3 === 0 ? '#fff' : i % 3 === 1 ? clr : clr + 'cc'
-      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI*2); ctx.fill()
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill()
     }
     ctx.restore()
 
-    // 薄冲击环（比原来小很多，仅一个快速扩散环）
-    if (hitP < 0.4) {
-      const ringR = 12*S + hitP / 0.4 * 35*S
-      ctx.globalAlpha = (0.4 - hitP) / 0.4 * 0.5
-      ctx.strokeStyle = clr; ctx.lineWidth = (2 - hitP * 4) * S
-      ctx.beginPath(); ctx.arc(targetX, targetY, ringR, 0, Math.PI*2); ctx.stroke()
+    if (hitP < 0.4 && quality !== 'lite') {
+      const ringR = 12 * S + hitP / 0.4 * (quality === 'medium' ? 26 : 35) * S
+      ctx.globalAlpha = (0.4 - hitP) / 0.4 * 0.42 * qualityMul
+      ctx.strokeStyle = clr
+      ctx.lineWidth = (quality === 'medium' ? 1.5 : 2) * S
+      ctx.beginPath(); ctx.arc(targetX, targetY, ringR, 0, Math.PI * 2); ctx.stroke()
     }
   }
 
@@ -162,7 +232,7 @@ function drawPetSkillWave(g) {
 
 // ===== 技能快闪（替代横幅，0.33秒即时反馈） =====
 function drawSkillFlash(g) {
-  const { ctx, R, TH, W, H, S } = V
+  const { ctx, W, H, S } = V
   const f = g._skillFlash
   if (!f) return
   f.timer++
@@ -170,81 +240,61 @@ function drawSkillFlash(g) {
 
   const t = f.timer
   const dur = f.duration
-  const p = t / dur  // 0→1 进度
+  const quality = _getBattleFxQuality(g)
+  const qualityMul = quality === 'lite' ? 0.68 : (quality === 'medium' ? 0.84 : 1)
+  const textSprite = _getSkillFlashTextSprite(f, S)
 
   ctx.save()
 
-  // 全屏属性色闪光（快速衰减）
   if (t <= 6) {
-    const flashAlpha = (1 - t / 6) * 0.3
-    const flashGrd = ctx.createRadialGradient(W*0.5, H*0.38, 0, W*0.5, H*0.38, W*0.6)
-    flashGrd.addColorStop(0, f.color)
-    flashGrd.addColorStop(0.5, f.color + '44')
-    flashGrd.addColorStop(1, 'transparent')
-    ctx.globalAlpha = flashAlpha
-    ctx.fillStyle = flashGrd
+    const flashAlpha = (1 - t / 6) * (quality === 'lite' ? 0.12 : (quality === 'medium' ? 0.2 : 0.3))
+    ctx.globalAlpha = flashAlpha * 0.42
+    ctx.fillStyle = f.color
     ctx.fillRect(0, 0, W, H)
+    FXComposer.drawGlowSpot(ctx, W * 0.5, H * 0.38, W * (quality === 'lite' ? 0.22 : 0.3), f.color, flashAlpha)
   }
 
-  // 整体弹入缩放
   const mainScale = t <= 6
-    ? 2.0 - (t / 6) * 1.0  // 2.0→1.0 放大弹入
+    ? 2.0 - (t / 6) * 1.0
     : t <= 12
-      ? 1.0 + Math.sin((t - 6) / 6 * Math.PI) * 0.05  // 微微呼吸
-      : 1.0 - (t - 12) / (dur - 12) * 0.3  // 缩小消失
+      ? 1.0 + Math.sin((t - 6) / 6 * Math.PI) * 0.05
+      : 1.0 - (t - 12) / (dur - 12) * 0.3
   const mainAlpha = t <= 12 ? 1 : 1 - (t - 12) / (dur - 12)
-
-  const hasDesc = !!f.skillDesc
-  // 有描述时：技能名在上方做小标签，描述居中做主体；无描述时技能名做主体
-  const centerY = hasDesc ? H * 0.36 : H * 0.36
+  const centerY = H * 0.36
 
   ctx.globalAlpha = mainAlpha
-  ctx.translate(W*0.5, centerY)
+  ctx.translate(W * 0.5, centerY)
   ctx.scale(mainScale, mainScale)
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
 
-  if (hasDesc) {
-    // --- 技能名（弱化：小字号、半透明、属性色，在描述上方） ---
-    ctx.save()
-    ctx.globalAlpha = mainAlpha * 0.6
-    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4*S
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2*S
-    ctx.strokeText(f.skillName, 0, -20*S)
-    ctx.fillStyle = f.color
-    ctx.fillText(f.skillName, 0, -20*S)
-    ctx.shadowBlur = 0
-    ctx.restore()
-
-    // --- 技能描述（主体：大字号、高亮、发光） ---
-    ctx.font = `bold ${18*S}px "PingFang SC",sans-serif`
-    ctx.shadowColor = f.color; ctx.shadowBlur = 16*S
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4*S
-    ctx.strokeText(f.skillDesc, 0, 6*S)
-    ctx.fillStyle = '#fff'
-    ctx.fillText(f.skillDesc, 0, 6*S)
-    ctx.shadowBlur = 0
-  } else {
-    // --- 无描述：技能名做主体（攻击技能等） ---
-    ctx.font = `italic 900 ${24*S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
-    ctx.shadowColor = f.color; ctx.shadowBlur = 20*S
-    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 4*S
-    ctx.strokeText(f.skillName, 0, 0)
-    ctx.fillStyle = '#fff'
-    ctx.fillText(f.skillName, 0, 0)
-    ctx.shadowBlur = 0
+  if (textSprite) {
+    const drawW = textSprite.width
+    const drawH = textSprite.height
+    const drawX = -textSprite.anchorX
+    const drawY = -textSprite.anchorY
+    const echoAlpha = mainAlpha * (quality === 'lite' ? 0.08 : (quality === 'medium' ? 0.12 : 0.18))
+    if (echoAlpha > 0.01) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = echoAlpha
+      ctx.drawImage(textSprite.canvas, drawX, drawY - 1.2 * S, drawW, drawH)
+      ctx.restore()
+    }
+    ctx.drawImage(textSprite.canvas, drawX, drawY, drawW, drawH)
   }
 
-  // 属性色光环扩散
   if (t <= 10) {
-    const ringR = 30*S + (t / 10) * 80*S
-    const ringAlpha = (1 - t / 10) * 0.6
-    ctx.globalAlpha = ringAlpha
-    ctx.beginPath()
-    ctx.arc(0, 0, ringR, 0, Math.PI*2)
-    ctx.strokeStyle = f.color
-    ctx.lineWidth = (4 - t / 10 * 3) * S
-    ctx.stroke()
+    if (quality === 'lite') {
+      FXComposer.drawGlowSpot(ctx, 0, 0, (30 + t * 3.2) * S, f.color, (1 - t / 10) * 0.18)
+    } else {
+      const ringR = 30 * S + (t / 10) * (quality === 'medium' ? 60 : 80) * S
+      const ringAlpha = (1 - t / 10) * (quality === 'medium' ? 0.42 : 0.6)
+      ctx.globalAlpha = ringAlpha
+      ctx.beginPath()
+      ctx.arc(0, 0, ringR, 0, Math.PI * 2)
+      ctx.strokeStyle = f.color
+      ctx.lineWidth = (quality === 'medium' ? 3 : (4 - t / 10 * 3)) * S
+      ctx.stroke()
+    }
   }
 
   ctx.restore()
