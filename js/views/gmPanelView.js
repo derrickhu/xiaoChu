@@ -121,17 +121,17 @@ function rGMPanel(g) {
   c.fillText(infoText, innerL, cy)
   cy += 24 * u
 
-  // ── 签到天数调整 ──
+  // ── 签到调试 ──
   c.fillStyle = '#78909C'
   c.font = `bold ${12 * u}px "PingFang SC",sans-serif`
   c.textAlign = 'left'
-  c.fillText('签到天数', innerL, cy + 4 * u)
+  c.fillText('签到调试', innerL, cy + 4 * u)
 
   const btnH = 30 * u
   const btnGap = 8 * u
   const dayBtns = [
     { id: 'day_dec', label: '−1', w: 46 * u, color: '#546E7A' },
-    { id: 'day_inc', label: '+1天', w: 62 * u, color: '#546E7A' },
+    { id: 'day_inc', label: '下一天', w: 72 * u, color: '#546E7A' },
   ]
   let bx = innerL + 72 * u
   for (const btn of dayBtns) {
@@ -242,10 +242,9 @@ function _handleBtn(g, id) {
       P.showGameToast(`签到天数: ${st.loginSign.totalSignDays}`)
       break
     case 'day_inc':
-      // 直接累加签到天数 +1，并重置今日签到状态
-      st.gmSetSignDay((st.loginSign.totalSignDays || 0) + 1)
-      st.gmResetSignToday()
-      P.showGameToast(`签到天数+1 → ${st.loginSign.totalSignDays}天`)
+      // 仅推进到下一天，不直接篡改签到数据；连续签到会在真正签到时自然 +1
+      st.gmAdvanceDay(1)
+      P.showGameToast(`已前进到下一天，可继续签到`)
       break
     case 'reset_sign':
       st.gmResetSignToday()

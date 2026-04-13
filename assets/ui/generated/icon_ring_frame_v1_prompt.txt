@@ -1,0 +1,23 @@
+Create a single ornamental circular UI frame for a Chinese xianxia mobile game home screen icon entry.
+
+Requirements:
+- Show ONLY the frame asset itself, centered, front-facing, perfectly symmetrical.
+- No icon inside, no text, no characters, no extra objects.
+- The center of the circle should be open and clean so we can place our own icon later.
+- Style: elegant Chinese fantasy / xianxia / parchment-and-gold UI, matching a light beige and gold game interface.
+- Main material: pale gold metal ring with subtle jade accents, delicate engraved cloud patterns, refined ornamental details, premium but not noisy.
+- The bottom arc should stay visually clean and slightly lighter, because later our label text will overlap and cover that lower part of the ring.
+- Make the ring feel like a polished in-game button frame, not jewelry, not a photo, not realistic product photography.
+- Use soft warm highlights, gentle depth, crisp edges, hand-painted game UI rendering.
+- Keep the outer silhouette clean for background removal.
+- Background must be plain pure white, with no shadows, no gradient, no floor, no environment.
+- Output should look like a production-ready game UI asset.
+
+Negative constraints:
+- No background scene
+- No floating particles
+- No ribbons hanging below
+- No square frame
+- No perspective tilt
+- No watermark
+- No text

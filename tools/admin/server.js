@@ -48,7 +48,22 @@ function loadGameMeta() {
   const chNames = ['灵山试炼','幽冥秘境','天劫雷域','仙灵古域','万妖禁地','苍穹裂谷','精英试炼','九幽深渊','太古战场','天罡圣域','混沌秘界','终焉之地']
   for (let i = 0; i < 12; i++) CHAPTERS.push({ id: i + 1, name: chNames[i] })
 
-  return { ALL_PETS, CHAPTERS, ATTR_CN }
+  // 法宝
+  const ALL_WEAPONS = [
+    {id:'w1',name:'天机镜',rarity:'R'},{id:'w2',name:'破军钟',rarity:'R'},{id:'w3',name:'碧落仙葫',rarity:'R'},{id:'w4',name:'沧海玄珠',rarity:'R'},{id:'w5',name:'赤霄神灯',rarity:'R'},{id:'w6',name:'昆仑玉璧',rarity:'R'},{id:'w7',name:'八卦金盘',rarity:'R'},{id:'w8',name:'流云仙扇',rarity:'R'},{id:'w9',name:'燎原宝塔',rarity:'R'},
+    {id:'w10',name:'火凤令牌',rarity:'SR'},{id:'w11',name:'紫金葫芦',rarity:'SR'},{id:'w12',name:'焚心宝印',rarity:'SR'},
+    {id:'w13',name:'玄铁如意',rarity:'R'},{id:'w14',name:'藤甲天衣',rarity:'R'},{id:'w15',name:'寒冰宝鉴',rarity:'R'},{id:'w16',name:'厚土宝甲',rarity:'R'},{id:'w17',name:'烈焰神甲',rarity:'R'},
+    {id:'w18',name:'万寿青莲',rarity:'R'},{id:'w19',name:'九转金丹',rarity:'R'},{id:'w20',name:'缠枝灵索',rarity:'R'},
+    {id:'w21',name:'凤血丹炉',rarity:'SR'},{id:'w22',name:'长生玉牌',rarity:'SR'},{id:'w23',name:'玲珑玉净瓶',rarity:'SR'},
+    {id:'w24',name:'建木神符',rarity:'SR'},{id:'w25',name:'磐石仙鼎',rarity:'SR'},{id:'w26',name:'水月宝镜',rarity:'SR'},{id:'w27',name:'开山神斧',rarity:'SR'},{id:'w28',name:'山河社稷图',rarity:'SR'},{id:'w29',name:'不灭金身',rarity:'SR'},
+    {id:'w30',name:'聚灵金铃',rarity:'SR'},{id:'w31',name:'扶桑神木',rarity:'SR'},{id:'w32',name:'潮汐法螺',rarity:'SR'},{id:'w33',name:'三昧真火扇',rarity:'SR'},{id:'w34',name:'息壤神珠',rarity:'SR'},
+    {id:'w35',name:'金翼飞轮',rarity:'SR'},{id:'w36',name:'定水神针',rarity:'SR'},{id:'w37',name:'踏火风火轮',rarity:'SR'},
+    {id:'w38',name:'炎龙法珠',rarity:'SSR'},{id:'w39',name:'蛊雕毒珠',rarity:'SSR'},{id:'w40',name:'玄龟宝印',rarity:'SSR'},{id:'w41',name:'玄武宝令',rarity:'SSR'},{id:'w42',name:'碧波神灯',rarity:'SSR'},{id:'w43',name:'浴火金莲',rarity:'SSR'},
+    {id:'w44',name:'鲛人泪珠',rarity:'SSR'},{id:'w45',name:'灵木仙屏',rarity:'SSR'},{id:'w46',name:'镇妖宝塔',rarity:'SSR'},{id:'w47',name:'混元宝伞',rarity:'SSR'},
+    {id:'w48',name:'镇岳金印',rarity:'SSR'},{id:'w49',name:'九鼎神印',rarity:'SSR'},{id:'w50',name:'玄冰琉璃',rarity:'SSR'},
+  ]
+
+  return { ALL_PETS, CHAPTERS, ATTR_CN, ALL_WEAPONS }
 }
 
 const GAME_META = loadGameMeta()

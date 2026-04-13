@@ -42,6 +42,27 @@ function _checkTowerDailyLimit(g) {
   return false
 }
 
+function _openHomeDailyTaskPanel(g, target) {
+  g._showDailySign = false
+  g._showDailyTasks = true
+  g._dailyTaskFocusId = target && target.taskId ? target.taskId : null
+  g._dailyTaskFocusSection = target && target.section ? target.section : null
+}
+
+function _handleHomeDailyTaskClick(g) {
+  const target = g._homeDailyTaskTarget || null
+  const action = target && target.action ? target.action : 'tasks'
+  g._showDailySign = false
+  if (action === 'mode' && target && target.mode) {
+    g._showDailyTasks = false
+    g._dailyTaskFocusId = null
+    g._dailyTaskFocusSection = null
+    g.titleMode = target.mode
+    return
+  }
+  _openHomeDailyTaskPanel(g, target)
+}
+
 function tTitle(g, type, x, y) {
   // ⓪ GM 面板（覆盖在签到弹窗之上，优先处理）
   if (g._showGMPanel) { if (tGMPanel(g, x, y, type)) return }
@@ -257,6 +278,15 @@ function tTitle(g, type, x, y) {
   if (g._dailySignBtnRect && g._hitRect(x, y, ...g._dailySignBtnRect)) {
     g._showDailyTasks = false
     g._showDailySign = true
+    g._dailyTaskFocusId = null
+    g._dailyTaskFocusSection = null
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
+
+  // ⑥b1 首页任务追踪卡
+  if (g._homeDailyTaskRect && g._hitRect(x, y, ...g._homeDailyTaskRect)) {
+    _handleHomeDailyTaskClick(g)
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }
@@ -265,6 +295,8 @@ function tTitle(g, type, x, y) {
   if (g._dailyTaskBtnRect && g._hitRect(x, y, ...g._dailyTaskBtnRect)) {
     g._showDailySign = false
     g._showDailyTasks = true
+    g._dailyTaskFocusId = null
+    g._dailyTaskFocusSection = null
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

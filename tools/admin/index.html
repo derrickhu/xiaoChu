@@ -179,6 +179,40 @@ select { min-width: 120px; }
       </div>
     </div>
 
+    <!-- 法宝 -->
+    <div class="card">
+      <h2>🗡️ 法宝阁</h2>
+      <p style="font-size:12px;color:#8d6e63;margin:0 0 8px;">当前装备：<strong id="weapon-equipped">无</strong></p>
+      <div id="weapon-list" class="pet-grid"></div>
+      <div class="add-pet-form" style="margin-top:8px;">
+        <span class="field-label" style="min-width:auto;">手动添加</span>
+        <select id="weapon-add-select" style="max-width:200px;"></select>
+        <button class="btn btn-success btn-sm" onclick="addWeapon()">+ 添加</button>
+        <button class="btn btn-sm" style="background:#78909c;color:#fff;margin-left:8px;" onclick="toggleRandomWeaponForm()">🎲 随机发放</button>
+      </div>
+      <div class="add-pet-form hidden" id="random-weapon-form" style="margin-top:6px;">
+        <span class="field-label" style="min-width:auto;">数量</span>
+        <input type="number" id="random-weapon-count" value="5" min="1" max="50" style="width:60px;">
+        <span class="field-label" style="min-width:auto;">品质</span>
+        <select id="random-weapon-rarity">
+          <option value="all">全部随机</option>
+          <option value="R">R</option>
+          <option value="SR">SR</option>
+          <option value="SSR">SSR</option>
+        </select>
+        <button class="btn btn-success btn-sm" onclick="doRandomWeapons()">确定生成</button>
+      </div>
+      <div class="add-pet-form" style="margin-top:6px;">
+        <span class="field-label" style="min-width:auto;">批量添加</span>
+        <input type="text" id="weapon-batch-ids" style="flex:1;min-width:200px;" placeholder="输入法宝ID，逗号分隔，如 w1,w4,w5"
+          value="w1,w4,w5,w8,w9,w12,w13,w16,w17,w20,w21,w24,w25,w28,w29,w32,w33,w36,w37,w40,w41,w44,w45,w48,w49">
+        <button class="btn btn-success btn-sm" onclick="doBatchWeapons()">批量添加</button>
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveWeapons()">💾 保存法宝</button>
+      </div>
+    </div>
+
     <!-- 签到 -->
     <div class="card">
       <h2>📅 签到系统</h2>
@@ -208,6 +242,8 @@ const API = ''
 let _player = null
 let _meta = null
 let _petPool = []
+let _weaponCollection = []
+let _equippedWeaponId = null
 let _stageRecord = {}
 
 async function api(path, opts) {
@@ -238,6 +274,8 @@ async function loadPlayer() {
   if (!r.ok) return toast(r.error || '查询失败', false)
   _player = r.data
   _petPool = [...(_player.petPool || [])]
+  _weaponCollection = [...(_player.weaponCollection || [])]
+  _equippedWeaponId = _player.equippedWeaponId || null
   _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
   renderPlayer()
   document.getElementById('editor').style.display = 'block'
@@ -277,6 +315,8 @@ function renderPlayer() {
   document.getElementById('sign-consec').value = sign.consecutiveDay || 0
 
   renderPetPool()
+  renderWeaponList()
+  renderWeaponSelect()
   renderStageEditor()
   renderPetSelect()
 
@@ -365,6 +405,107 @@ function doRandomPets() {
   toast(`已添加 ${toAdd} 只随机灵宠`)
 }
 
+// ===== 法宝管理 =====
+function renderWeaponList() {
+  const el = document.getElementById('weapon-list')
+  if (!_weaponCollection.length) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">暂无法宝</p>'; return }
+  const rColors = { SSR: 'badge-ssr', SR: 'badge-sr', R: 'badge-r' }
+  const weapons = _meta.ALL_WEAPONS || []
+  el.innerHTML = _weaponCollection.map((wid, i) => {
+    const w = weapons.find(x => x.id === wid) || { id: wid, name: wid, rarity: 'R' }
+    const equipped = wid === _equippedWeaponId ? ' ⚔️' : ''
+    return `<div class="pet-item">
+      <span class="badge ${rColors[w.rarity]}">${w.rarity}</span>
+      <span class="pet-name">${w.name}${equipped}</span>
+      <span class="pet-detail">${w.id}</span>
+      <button class="btn btn-danger btn-sm" onclick="removeWeapon(${i})">✕</button>
+    </div>`
+  }).join('')
+  document.getElementById('weapon-equipped').textContent = _equippedWeaponId
+    ? (weapons.find(w => w.id === _equippedWeaponId) || {}).name || _equippedWeaponId
+    : '无'
+}
+
+function renderWeaponSelect() {
+  const sel = document.getElementById('weapon-add-select')
+  const weapons = _meta.ALL_WEAPONS || []
+  const owned = new Set(_weaponCollection)
+  sel.innerHTML = weapons.filter(w => !owned.has(w.id)).map(w =>
+    `<option value="${w.id}">[${w.rarity}] ${w.name}</option>`
+  ).join('')
+}
+
+function addWeapon() {
+  const sel = document.getElementById('weapon-add-select')
+  const wid = sel.value
+  if (!wid) return toast('请选择法宝', false)
+  if (_weaponCollection.includes(wid)) return toast('已拥有该法宝', false)
+  _weaponCollection.push(wid)
+  renderWeaponList()
+  renderWeaponSelect()
+}
+
+function removeWeapon(idx) {
+  const removed = _weaponCollection.splice(idx, 1)[0]
+  if (removed === _equippedWeaponId) _equippedWeaponId = null
+  renderWeaponList()
+  renderWeaponSelect()
+}
+
+function toggleRandomWeaponForm() {
+  document.getElementById('random-weapon-form').classList.toggle('hidden')
+}
+
+function doRandomWeapons() {
+  const count = +document.getElementById('random-weapon-count').value || 5
+  const rarity = document.getElementById('random-weapon-rarity').value
+  const weapons = _meta.ALL_WEAPONS || []
+  let pool = rarity === 'all' ? weapons : weapons.filter(w => w.rarity === rarity)
+  if (!pool.length) return toast('该品质无可用法宝', false)
+
+  const owned = new Set(_weaponCollection)
+  let added = 0
+  for (let i = 0; i < count; i++) {
+    const available = pool.filter(w => !owned.has(w.id))
+    if (!available.length) break
+    const w = available[Math.floor(Math.random() * available.length)]
+    _weaponCollection.push(w.id)
+    owned.add(w.id)
+    added++
+  }
+  renderWeaponList()
+  renderWeaponSelect()
+  document.getElementById('random-weapon-form').classList.add('hidden')
+  toast(`已添加 ${added} 件法宝${added < count ? `（${pool.length}件可选已用尽）` : ''}`)
+}
+
+function saveWeapons() {
+  savePatch({ weaponCollection: _weaponCollection, equippedWeaponId: _equippedWeaponId }, '法宝')
+}
+
+function doBatchWeapons() {
+  const input = document.getElementById('weapon-batch-ids').value.trim()
+  if (!input) return toast('请输入法宝ID列表', false)
+  const ids = input.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean)
+  const weapons = _meta.ALL_WEAPONS || []
+  const validIds = new Set(weapons.map(w => w.id))
+  const owned = new Set(_weaponCollection)
+  let added = 0, skipped = 0, invalid = 0
+  for (const wid of ids) {
+    if (!validIds.has(wid)) { invalid++; continue }
+    if (owned.has(wid)) { skipped++; continue }
+    _weaponCollection.push(wid)
+    owned.add(wid)
+    added++
+  }
+  renderWeaponList()
+  renderWeaponSelect()
+  let msg = `批量添加完成：新增 ${added} 件`
+  if (skipped) msg += `，已拥有跳过 ${skipped} 件`
+  if (invalid) msg += `，无效ID ${invalid} 个`
+  toast(msg)
+}
+
 function renderStageEditor() {
   const el = document.getElementById('stage-editor')
   let html = ''
@@ -422,6 +563,8 @@ async function savePatch(patch, label) {
     if (fresh.ok) {
       _player = fresh.data
       _petPool = [...(_player.petPool || [])]
+      _weaponCollection = [...(_player.weaponCollection || [])]
+      _equippedWeaponId = _player.equippedWeaponId || null
       _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
       renderPlayer()
     }
@@ -500,6 +643,8 @@ async function saveRawJson() {
       if (fresh.ok) {
         _player = fresh.data
         _petPool = [...(_player.petPool || [])]
+        _weaponCollection = [...(_player.weaponCollection || [])]
+        _equippedWeaponId = _player.equippedWeaponId || null
         _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
         renderPlayer()
       }

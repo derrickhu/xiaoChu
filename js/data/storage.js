@@ -18,8 +18,15 @@ const { DATA_VERSION } = require('./giftConfig')
 
 const LOCAL_KEY = 'wxtower_v1'
 
+/** GM 时间偏移（毫秒），GM 每"加一天"就 +86400000 */
+let _gmTimeOffsetMs = 0
+
+/** 获取当前时间（含 GM 偏移） */
+function gmNow() { return Date.now() + _gmTimeOffsetMs }
+
 /** 本地日历 YYYY-MM-DD（签到/每日任务等，避免 UTC 与玩家所在地跨日不一致） */
-function localDateKey(d = new Date()) {
+function localDateKey(d) {
+  if (!d) d = new Date(gmNow())
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -862,7 +869,7 @@ class Storage {
     const { CONSECUTIVE_CYCLE_DAYS } = require('./giftConfig')
     const sign = this._d.loginSign
     const today = localDateKey()
-    const yesterday = localDateKey(new Date(Date.now() - 86400000))
+    const yesterday = localDateKey(new Date(gmNow() - 86400000))
     const current = sign.consecutiveDay || 0
 
     // 预览：如果今天签到，连续天数会变成几
@@ -967,6 +974,10 @@ class Storage {
     return granted
   }
 
+  grantRewardBundle(rewards) {
+    return this._grantLoginRewardBundle(rewards)
+  }
+
   claimLoginReward() {
     if (!this.canSignToday) return null
     this._ensureLoginSign()
@@ -995,14 +1006,12 @@ class Storage {
 
     // ── 连续登录处理 ──
     const today = localDateKey()
-    const yesterday = localDateKey(new Date(Date.now() - 86400000))
+    const yesterday = localDateKey(new Date(gmNow() - 86400000))
     let prevConsec = sign.consecutiveDay || 0
     if (sign.lastDate === yesterday) {
-      // 昨天签过到 → 连续+1（超过7天循环归1）
+      // 昨天签过 → 连续+1（超过7天循环归1）
       prevConsec = prevConsec >= CONSECUTIVE_CYCLE_DAYS ? 1 : prevConsec + 1
-    } else if (sign.lastDate === today) {
-      // 今天已签（理论上不会到这里，因为 canSignToday 已判断）
-    } else {
+    } else if (sign.lastDate !== today) {
       // 断签了 → 重新从第1天开始
       prevConsec = 1
     }
@@ -1024,6 +1033,7 @@ class Storage {
     if (!Object.keys(sign.pendingDoubleRewards).length) sign.pendingDoubleRewards = null
     sign.doubleClaimedDate = ''
     sign.cycleDays = LOGIN_CYCLE_DAYS
+    this._d._updateTime = gmNow()
     this._save()
 
     return {
@@ -1072,10 +1082,9 @@ class Storage {
     const milestone = LOGIN_MILESTONE_PETS.find(m => m.day === day)
     if (!milestone) return { success: false, message: '里程碑不存在' }
 
-    // 检查进度是否达到
-    const progressDays = this.canSignToday
-      ? (sign.totalSignDays || 0) % 30
-      : (sign.day || 0)
+    // 检查进度是否达到（累计进度最多到30天，不再循环）
+    const { LOGIN_CYCLE_DAYS } = require('./giftConfig')
+    const progressDays = Math.min(LOGIN_CYCLE_DAYS, sign.totalSignDays || 0)
     if (progressDays < day) return { success: false, message: '签到天数未达到' }
 
     // 检查是否已领取
@@ -1158,10 +1167,7 @@ class Storage {
     if ((p.tasks[taskId] || 0) < task.condition.count) return false
     p.claimed[taskId] = true
     const r = getScaledDailyTaskReward(task, this.currentChapter)
-    if (r.soulStone) this.addSoulStone(r.soulStone)
-    if (r.fragment) this.addRandomFragments(r.fragment)
-    if (r.awakenStone) this.addAwakenStone(r.awakenStone)
-    if (r.stamina) this.addBonusStamina(r.stamina)
+    this.grantRewardBundle(r)
     this._save()
     return true
   }
@@ -1175,9 +1181,7 @@ class Storage {
     if (!allDone) return false
     p.allClaimed = true
     const r = getScaledDailyAllBonus(this.currentChapter)
-    if (r.soulStone) this.addSoulStone(r.soulStone)
-    if (r.fragment) this.addRandomFragments(r.fragment)
-    if (r.stamina) this.addBonusStamina(r.stamina)
+    this.grantRewardBundle(r)
     this._save()
     return true
   }
@@ -2035,8 +2039,8 @@ class Storage {
         }
         // 确保 cultivation 字段完整（防止迁移失败或字段缺失）
         this._ensureCultivationFields()
-        // 二测删档检测
-        this._checkDataVersion()
+        // 二测删档检测（已废弃，防止老用户客户端残留 dataVersion 导致误清档）
+        // this._checkDataVersion()
       } else {
         this._d = defaultPersist()
         _freshPersistDataVersion(this._d)
@@ -2111,18 +2115,35 @@ class Storage {
 
   // ===== GM 调试方法（仅白名单用户可调用）=====
 
-  /** GM：重置今日签到状态（让 canSignToday 变为 true，同时清除广告次数） */
-  gmResetSignToday() {
+  /** GM：推进虚拟日期 N 天，不改签到状态；用于测试连续签到/每日重置 */
+  gmAdvanceDay(days = 1) {
     if (!isCurrentUserGM()) return
+    const step = Math.max(1, Number(days) || 1)
+    _gmTimeOffsetMs += step * 86400000
     this._ensureLoginSign()
-    this._d.loginSign.lastDate = ''
     this._d.loginSign.pendingDoubleRewards = null
     this._d.loginSign.doubleClaimedDate = ''
     this._d.loginSign.consecutiveClaimedDate = ''
-    // 同时清除签到翻倍广告次数，方便完整测试签到→翻倍流程
     if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
       delete this._d.adWatchLog.signDouble
     }
+    this._d._updateTime = gmNow()
+    this._save()
+  }
+
+  /** GM：仅重置今日签到状态（同一天内重新测试，不推进时间） */
+  gmResetSignToday() {
+    if (!isCurrentUserGM()) return
+    this._ensureLoginSign()
+    const sign = this._d.loginSign
+    sign.lastDate = ''
+    sign.pendingDoubleRewards = null
+    sign.doubleClaimedDate = ''
+    sign.consecutiveClaimedDate = ''
+    if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
+      delete this._d.adWatchLog.signDouble
+    }
+    this._d._updateTime = gmNow()
     this._save()
   }
 
@@ -2173,7 +2194,10 @@ class Storage {
   _save() {
     try {
       P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
-      cloudSync.debounceSyncToCloud(this._d)
+      // GM 时间偏移期间跳过云同步，防止云端旧数据覆盖本地
+      if (_gmTimeOffsetMs === 0) {
+        cloudSync.debounceSyncToCloud(this._d)
+      }
       if (this._eventBus) this._eventBus.emit('data:save')
     } catch(e) {
       console.warn('Storage save error:', e)
