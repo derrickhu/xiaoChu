@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵宠消消塔 — 玩家数据管理</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f5f0e8; color: #3e2723; min-height: 100vh; }
+.header { background: linear-gradient(135deg, #5d4037, #795548); color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 20px; }
+.header small { opacity: 0.7; }
+.container { max-width: 960px; margin: 0 auto; padding: 16px; }
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-bar input { flex: 1; padding: 10px 14px; border: 2px solid #bcaaa4; border-radius: 8px; font-size: 15px; background: #fff; outline: none; }
+.search-bar input:focus { border-color: #795548; }
+.search-bar button { padding: 10px 20px; background: #795548; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; white-space: nowrap; }
+.search-bar button:hover { background: #5d4037; }
+.card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card h2 { font-size: 16px; color: #5d4037; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #efebe9; }
+.field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.field-label { min-width: 100px; font-size: 13px; color: #8d6e63; font-weight: 500; }
+.field-value { font-size: 14px; font-weight: 600; }
+input[type="number"], input[type="text"], select { padding: 6px 10px; border: 1px solid #d7ccc8; border-radius: 6px; font-size: 14px; background: #fafafa; }
+input[type="number"] { width: 80px; }
+select { min-width: 120px; }
+.btn { padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.btn-primary { background: #795548; color: #fff; }
+.btn-primary:hover { background: #5d4037; }
+.btn-success { background: #4caf50; color: #fff; }
+.btn-success:hover { background: #388e3c; }
+.btn-danger { background: #ef5350; color: #fff; }
+.btn-danger:hover { background: #c62828; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-ssr { background: #fff3e0; color: #e65100; }
+.badge-sr { background: #f3e5f5; color: #7b1fa2; }
+.badge-r { background: #e8f5e9; color: #2e7d32; }
+.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.pet-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: #fafaf6; border-radius: 8px; border: 1px solid #efebe9; }
+.pet-item .pet-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.pet-item .pet-detail { font-size: 12px; color: #5d4037; background: #f5f0e8; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.pet-item .btn-danger { padding: 2px 6px; font-size: 11px; margin-left: auto; flex-shrink: 0; }
+.stage-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 8px; }
+.stage-cell { text-align: center; padding: 6px 2px; border-radius: 6px; font-size: 11px; cursor: pointer; border: 1px solid #efebe9; }
+.stage-cell.cleared { background: #c8e6c9; border-color: #81c784; }
+.stage-cell.not-cleared { background: #fafafa; }
+.stage-cell:hover { opacity: 0.8; }
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px; z-index: 999; animation: fadeIn 0.3s; }
+.toast-ok { background: #4caf50; }
+.toast-err { background: #ef5350; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; } }
+.hidden { display: none; }
+.section-actions { display: flex; gap: 8px; margin-top: 12px; }
+#editor { display: none; }
+.add-pet-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #d7ccc8; }
+.rating-selector { display: flex; gap: 2px; }
+.rating-selector span { cursor: pointer; font-size: 16px; padding: 2px 4px; border-radius: 4px; }
+.rating-selector span.active-s { background: #fff9c4; }
+.rating-selector span.active-a { background: #e1f5fe; }
+.rating-selector span.active-b { background: #fce4ec; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎮 灵宠消消塔 — 玩家数据管理</h1>
+  <small>查询/修改云端玩家数据</small>
+</div>
+
+<div class="container">
+  <div class="search-bar">
+    <input id="openidInput" type="text" placeholder="输入玩家 OpenID（如 oEnZR3XFkSkBvflm37cinC3qYSCY）">
+    <button onclick="loadPlayer()">🔍 查询</button>
+  </div>
+
+  <div id="editor">
+    <!-- 基础信息 -->
+    <div class="card">
+      <h2>📋 基础信息</h2>
+      <div class="field-row"><span class="field-label">OpenID</span><span class="field-value" id="info-openid"></span></div>
+      <div class="field-row"><span class="field-label">存档版本</span><span class="field-value" id="info-version"></span></div>
+      <div class="field-row"><span class="field-label">最后活跃</span><span class="field-value" id="info-lastActive"></span></div>
+    </div>
+
+    <!-- 修炼/人物 -->
+    <div class="card">
+      <h2>🧘 修炼系统</h2>
+      <div class="field-row">
+        <span class="field-label">人物等级</span>
+        <input type="number" id="cult-level" min="1" max="60">
+        <span class="field-label">修炼点</span>
+        <input type="number" id="cult-sp" min="0">
+        <span class="field-label">当前经验</span>
+        <input type="number" id="cult-exp" min="0">
+        <span class="field-label">累计经验</span>
+        <input type="number" id="cult-totalExp" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">体魄</span><input type="number" id="cult-body" min="0" max="20">
+        <span class="field-label">灵力</span><input type="number" id="cult-spirit" min="0" max="15">
+        <span class="field-label">悟性</span><input type="number" id="cult-wisdom" min="0" max="5">
+        <span class="field-label">根骨</span><input type="number" id="cult-defense" min="0" max="10">
+        <span class="field-label">神识</span><input type="number" id="cult-sense" min="0" max="8">
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveCultivation()">💾 保存修炼</button>
+      </div>
+    </div>
+
+    <!-- 资源 -->
+    <div class="card">
+      <h2>💎 资源</h2>
+      <div class="field-row">
+        <span class="field-label">灵石</span><input type="number" id="res-soulStone" min="0">
+        <span class="field-label">觉醒石</span><input type="number" id="res-awakenStone" min="0">
+        <span class="field-label">体力</span><input type="number" id="res-stamina" min="0">
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveResources()">💾 保存资源</button>
+      </div>
+    </div>
+
+    <!-- 通天塔 -->
+    <div class="card">
+      <h2>🗼 通天塔</h2>
+      <div class="field-row">
+        <span class="field-label">最高层数</span><input type="number" id="tower-bestFloor" min="0" max="30">
+        <span class="field-label">总挑战次数</span><input type="number" id="tower-totalRuns" min="0">
+        <span class="field-label">最高连击</span><input type="number" id="tower-maxCombo" min="0">
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveTower()">💾 保存通天塔</button>
+      </div>
+    </div>
+
+    <!-- 关卡进度 -->
+    <div class="card">
+      <h2>🏯 秘境关卡</h2>
+      <p style="font-size:12px;color:#8d6e63;margin-bottom:8px;">点击关卡可切换通关状态和评级（灰=未通/B→蓝=A→金=S）</p>
+      <div id="stage-editor"></div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveStages()">💾 保存关卡</button>
+        <button class="btn btn-success btn-sm" onclick="setAllStages('S')">全部S通关</button>
+        <button class="btn btn-danger btn-sm" onclick="setAllStages(null)">全部清除</button>
+      </div>
+    </div>
+
+    <!-- 灵宠池 -->
+    <div class="card">
+      <h2>🐾 灵宠池</h2>
+      <div class="pet-grid" id="pet-pool-list"></div>
+      <div class="add-pet-form">
+        <select id="add-pet-select"></select>
+        <span class="field-label" style="min-width:auto;">等级</span>
+        <input type="number" id="add-pet-level" value="1" min="1" max="60" style="width:60px;">
+        <span class="field-label" style="min-width:auto;">★</span>
+        <select id="add-pet-star"><option value="1">★1</option><option value="2">★2</option><option value="3">★3</option><option value="4">★4</option><option value="5">★5</option></select>
+        <span class="field-label" style="min-width:auto;">碎片</span>
+        <input type="number" id="add-pet-frag" value="0" min="0" style="width:60px;">
+        <button class="btn btn-success btn-sm" onclick="addPet()">➕ 添加</button>
+        <button class="btn btn-primary btn-sm" onclick="addRandomPets()">🎲 随机发放</button>
+      </div>
+      <div class="add-pet-form hidden" id="random-pet-form">
+        <span class="field-label" style="min-width:auto;">数量</span>
+        <input type="number" id="random-pet-count" value="5" min="1" max="100" style="width:60px;">
+        <span class="field-label" style="min-width:auto;">等级</span>
+        <input type="number" id="random-pet-minlv" value="1" min="1" max="60" style="width:50px;" placeholder="最低">
+        <span>~</span>
+        <input type="number" id="random-pet-maxlv" value="20" min="1" max="60" style="width:50px;" placeholder="最高">
+        <span class="field-label" style="min-width:auto;">星级</span>
+        <input type="number" id="random-pet-minstar" value="1" min="1" max="5" style="width:50px;" placeholder="最低">
+        <span>~</span>
+        <input type="number" id="random-pet-maxstar" value="3" min="1" max="5" style="width:50px;" placeholder="最高">
+        <button class="btn btn-success btn-sm" onclick="doRandomPets()">确定生成</button>
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="savePetPool()">💾 保存灵宠池</button>
+      </div>
+    </div>
+
+    <!-- 签到 -->
+    <div class="card">
+      <h2>📅 签到系统</h2>
+      <div class="field-row">
+        <span class="field-label">累计签到天数</span><input type="number" id="sign-total" min="0">
+        <span class="field-label">连续签到</span><input type="number" id="sign-consec" min="0" max="7">
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="saveSign()">💾 保存签到</button>
+      </div>
+    </div>
+
+    <!-- 原始JSON -->
+    <div class="card">
+      <h2>📝 原始 JSON 编辑</h2>
+      <p style="font-size:12px;color:#8d6e63;margin-bottom:8px;">高级操作：直接编辑完整 playerData JSON。谨慎使用！</p>
+      <textarea id="raw-json" style="width:100%;height:300px;font-family:monospace;font-size:12px;border:1px solid #d7ccc8;border-radius:6px;padding:8px;"></textarea>
+      <div class="section-actions">
+        <button class="btn btn-danger" onclick="saveRawJson()">⚠ 覆盖保存整个 JSON</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = ''
+let _player = null
+let _meta = null
+let _petPool = []
+let _stageRecord = {}
+
+async function api(path, opts) {
+  const res = await fetch(API + path, opts)
+  return res.json()
+}
+
+async function loadMeta() {
+  if (_meta) return _meta
+  const r = await api('/api/meta')
+  if (r.ok) _meta = r.data
+  return _meta
+}
+
+function toast(msg, ok = true) {
+  const d = document.createElement('div')
+  d.className = `toast ${ok ? 'toast-ok' : 'toast-err'}`
+  d.textContent = msg
+  document.body.appendChild(d)
+  setTimeout(() => d.remove(), 3000)
+}
+
+async function loadPlayer() {
+  const openid = document.getElementById('openidInput').value.trim()
+  if (!openid) return toast('请输入 OpenID', false)
+  await loadMeta()
+  const r = await api(`/api/player?openid=${encodeURIComponent(openid)}`)
+  if (!r.ok) return toast(r.error || '查询失败', false)
+  _player = r.data
+  _petPool = [...(_player.petPool || [])]
+  _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
+  renderPlayer()
+  document.getElementById('editor').style.display = 'block'
+  toast('加载成功')
+}
+
+function renderPlayer() {
+  const p = _player
+  document.getElementById('info-openid').textContent = p._openid || ''
+  document.getElementById('info-version').textContent = `v${p._version || '?'}`
+  document.getElementById('info-lastActive').textContent = p.lastActiveDate || '--'
+
+  // 修炼
+  const cult = p.cultivation || {}
+  document.getElementById('cult-level').value = cult.level || 1
+  document.getElementById('cult-sp').value = cult.skillPoints || 0
+  document.getElementById('cult-exp').value = cult.exp || 0
+  document.getElementById('cult-totalExp').value = cult.totalExpEarned || 0
+  const lvs = cult.levels || {}
+  for (const k of ['body','spirit','wisdom','defense','sense']) {
+    document.getElementById(`cult-${k}`).value = lvs[k] || 0
+  }
+
+  // 资源
+  document.getElementById('res-soulStone').value = p.soulStone || 0
+  document.getElementById('res-awakenStone').value = p.awakenStone || 0
+  document.getElementById('res-stamina').value = (p.stamina && p.stamina.current) || 0
+
+  // 通天塔
+  document.getElementById('tower-bestFloor').value = p.bestFloor || 0
+  document.getElementById('tower-totalRuns').value = p.totalRuns || 0
+  document.getElementById('tower-maxCombo').value = (p.stats && p.stats.maxCombo) || 0
+
+  // 签到
+  const sign = p.loginSign || {}
+  document.getElementById('sign-total').value = sign.totalSignDays || 0
+  document.getElementById('sign-consec').value = sign.consecutiveDay || 0
+
+  renderPetPool()
+  renderStageEditor()
+  renderPetSelect()
+
+  // 原始JSON
+  document.getElementById('raw-json').value = JSON.stringify(p, null, 2)
+}
+
+function renderPetPool() {
+  const el = document.getElementById('pet-pool-list')
+  if (!_petPool.length) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">暂无灵宠</p>'; return }
+  const rColors = { SSR: 'badge-ssr', SR: 'badge-sr', R: 'badge-r' }
+  const attrCn = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
+  el.innerHTML = _petPool.map((p, i) => {
+    const m = _meta.ALL_PETS.find(x => x.id === p.id) || {}
+    const rarity = m.rarity || 'R'
+    const name = m.name || p.id
+    const attr = attrCn[p.attr] || p.attr || ''
+    return `<div class="pet-item">
+      <span class="badge ${rColors[rarity]}">${rarity}</span>
+      <span class="pet-name">${attr}·${name}</span>
+      <span class="pet-detail">★${p.star||1} Lv.${p.level||1} 碎${p.fragments||0}</span>
+      <button class="btn btn-danger btn-sm" onclick="removePet(${i})">✕</button>
+    </div>`
+  }).join('')
+}
+
+function renderPetSelect() {
+  const sel = document.getElementById('add-pet-select')
+  const owned = new Set(_petPool.map(p => p.id))
+  const attrCn = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
+  sel.innerHTML = _meta.ALL_PETS.filter(p => !owned.has(p.id)).map(p =>
+    `<option value="${p.id}">[${p.rarity}] ${p.attrCn}·${p.name}</option>`
+  ).join('')
+}
+
+function addPet() {
+  const id = document.getElementById('add-pet-select').value
+  if (!id) return toast('没有可添加的宠物了', false)
+  const m = _meta.ALL_PETS.find(x => x.id === id)
+  _petPool.push({
+    id, attr: m.attr, star: +document.getElementById('add-pet-star').value,
+    level: +document.getElementById('add-pet-level').value,
+    fragments: +document.getElementById('add-pet-frag').value,
+    source: 'admin', obtainedAt: Date.now(),
+  })
+  renderPetPool()
+  renderPetSelect()
+}
+
+function removePet(idx) {
+  _petPool.splice(idx, 1)
+  renderPetPool()
+  renderPetSelect()
+}
+
+function addRandomPets() {
+  document.getElementById('random-pet-form').classList.toggle('hidden')
+}
+
+function doRandomPets() {
+  const count = +document.getElementById('random-pet-count').value
+  const minLv = +document.getElementById('random-pet-minlv').value
+  const maxLv = +document.getElementById('random-pet-maxlv').value
+  const minStar = +document.getElementById('random-pet-minstar').value
+  const maxStar = +document.getElementById('random-pet-maxstar').value
+  const owned = new Set(_petPool.map(p => p.id))
+  const available = _meta.ALL_PETS.filter(p => !owned.has(p.id))
+  const toAdd = Math.min(count, available.length)
+  // 随机打乱
+  for (let i = available.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [available[i], available[j]] = [available[j], available[i]]
+  }
+  for (let i = 0; i < toAdd; i++) {
+    const m = available[i]
+    const lv = Math.floor(Math.random() * (maxLv - minLv + 1)) + minLv
+    const star = Math.floor(Math.random() * (maxStar - minStar + 1)) + minStar
+    _petPool.push({
+      id: m.id, attr: m.attr, star, level: lv, fragments: 0,
+      source: 'admin', obtainedAt: Date.now(),
+    })
+  }
+  renderPetPool()
+  renderPetSelect()
+  document.getElementById('random-pet-form').classList.add('hidden')
+  toast(`已添加 ${toAdd} 只随机灵宠`)
+}
+
+function renderStageEditor() {
+  const el = document.getElementById('stage-editor')
+  let html = ''
+  for (const ch of _meta.CHAPTERS) {
+    html += `<div style="margin-bottom:8px;"><strong style="font-size:13px;">第${ch.id}章 ${ch.name}</strong><div class="stage-grid">`
+    for (let ord = 1; ord <= 8; ord++) {
+      const sid = `stage_${ch.id}_${ord}`
+      const rec = _stageRecord[sid]
+      const cleared = rec && rec.cleared
+      const rating = (rec && rec.bestRating) || ''
+      const colors = { S: '#ffd54f', A: '#81d4fa', B: '#e0e0e0' }
+      const bg = cleared ? (colors[rating] || '#c8e6c9') : '#fafafa'
+      html += `<div class="stage-cell" style="background:${bg}" onclick="toggleStage('${sid}')">${ch.id}-${ord}<br><small>${rating || '--'}</small></div>`
+    }
+    html += '</div></div>'
+  }
+  el.innerHTML = html
+}
+
+function toggleStage(sid) {
+  const rec = _stageRecord[sid]
+  if (!rec || !rec.cleared) {
+    _stageRecord[sid] = { cleared: true, bestRating: 'B', clearCount: 1, starsClaimed: [true, false, false] }
+  } else if (rec.bestRating === 'B') {
+    rec.bestRating = 'A'; rec.starsClaimed = [true, true, false]
+  } else if (rec.bestRating === 'A') {
+    rec.bestRating = 'S'; rec.starsClaimed = [true, true, true]
+  } else {
+    delete _stageRecord[sid]
+  }
+  renderStageEditor()
+}
+
+function setAllStages(rating) {
+  if (!rating) { _stageRecord = {}; renderStageEditor(); return }
+  for (const ch of _meta.CHAPTERS) {
+    for (let ord = 1; ord <= 8; ord++) {
+      const sid = `stage_${ch.id}_${ord}`
+      _stageRecord[sid] = { cleared: true, bestRating: rating, clearCount: 1, starsClaimed: [true, rating !== 'B', rating === 'S'] }
+    }
+  }
+  renderStageEditor()
+}
+
+// ===== 保存操作 =====
+async function savePatch(patch, label) {
+  const openid = _player._openid
+  console.log(`[savePatch] ${label}`, Object.keys(patch))
+  const r = await api('/api/player', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openid, patch }) })
+  console.log(`[savePatch] response:`, r)
+  if (r.ok) {
+    toast(`${label} 保存成功`)
+    // 重新拉取最新数据，刷新所有区域（包括原始JSON）
+    const fresh = await api(`/api/player?openid=${encodeURIComponent(openid)}`)
+    if (fresh.ok) {
+      _player = fresh.data
+      _petPool = [...(_player.petPool || [])]
+      _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
+      renderPlayer()
+    }
+  } else {
+    toast(r.error || '保存失败', false)
+  }
+}
+
+async function saveCultivation() {
+  await savePatch({
+    cultivation: {
+      level: +document.getElementById('cult-level').value,
+      exp: +document.getElementById('cult-exp').value,
+      totalExpEarned: +document.getElementById('cult-totalExp').value,
+      skillPoints: +document.getElementById('cult-sp').value,
+      levels: {
+        body: +document.getElementById('cult-body').value,
+        spirit: +document.getElementById('cult-spirit').value,
+        wisdom: +document.getElementById('cult-wisdom').value,
+        defense: +document.getElementById('cult-defense').value,
+        sense: +document.getElementById('cult-sense').value,
+      },
+      realmBreakSeen: _player.cultivation?.realmBreakSeen || 0,
+    }
+  }, '修炼')
+}
+
+async function saveResources() {
+  const stamina = _player.stamina || {}
+  await savePatch({
+    soulStone: +document.getElementById('res-soulStone').value,
+    awakenStone: +document.getElementById('res-awakenStone').value,
+    stamina: { current: +document.getElementById('res-stamina').value, max: stamina.max || 100, lastRecoverTime: Date.now() },
+  }, '资源')
+}
+
+async function saveTower() {
+  const stats = _player.stats || {}
+  await savePatch({
+    bestFloor: +document.getElementById('tower-bestFloor').value,
+    totalRuns: +document.getElementById('tower-totalRuns').value,
+    stats: { ...stats, maxCombo: +document.getElementById('tower-maxCombo').value },
+  }, '通天塔')
+}
+
+async function saveStages() { await savePatch({ stageClearRecord: _stageRecord }, '关卡进度') }
+
+async function savePetPool() { await savePatch({ petPool: _petPool }, '灵宠池') }
+
+async function saveSign() {
+  const sign = _player.loginSign || {}
+  const total = +document.getElementById('sign-total').value
+  await savePatch({
+    loginSign: {
+      ...sign,
+      totalSignDays: total,
+      day: total > 0 ? ((total - 1) % 30) + 1 : 0,
+      isNewbie: total < 30,
+      consecutiveDay: +document.getElementById('sign-consec').value,
+    }
+  }, '签到')
+}
+
+async function saveRawJson() {
+  if (!confirm('确定要用原始 JSON 覆盖整个玩家数据？此操作不可撤销！')) return
+  try {
+    const data = JSON.parse(document.getElementById('raw-json').value)
+    const openid = _player._openid
+    delete data._id; delete data._openid
+    const r = await api('/api/player/replace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openid, data }) })
+    console.log('[saveRawJson] response:', r)
+    if (r.ok) {
+      toast('JSON 覆盖保存成功，已同步到云端')
+      // 重新拉取刷新
+      const fresh = await api(`/api/player?openid=${encodeURIComponent(openid)}`)
+      if (fresh.ok) {
+        _player = fresh.data
+        _petPool = [...(_player.petPool || [])]
+        _stageRecord = JSON.parse(JSON.stringify(_player.stageClearRecord || {}))
+        renderPlayer()
+      }
+    } else {
+      toast(r.error || '保存失败', false)
+    }
+  } catch (e) { toast('JSON 格式错误: ' + e.message, false) }
+}
+
+// 初始化
+loadMeta()
+</script>
+</body>
+</html>

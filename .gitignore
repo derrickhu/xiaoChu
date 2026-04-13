@@ -47,6 +47,10 @@ tools/analysis/data/
 tools/analysis/output/
 tools/analysis/.env
 
+# 数据库备份（每日自动导出）
+tools/backup/data/
+tools/backup/backup.log
+
 # CDN 上传脚本临时文件与密钥
 scripts/.cdn_manifest.json
 scripts/cdn_manifest_for_upload.json
