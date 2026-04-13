@@ -15,10 +15,25 @@ const { getCurrentSeason, getSeasonSSRPet, getSeasonSRPet, getTowerEventCountdow
 const { getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { ATTR_COLOR } = require('../data/tower')
 const { isCurrentUserGM } = require('../data/gmConfig')
+const { DAILY_TASKS, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
 
 const MODE_CFG = {
-  tower: { name: '通天塔', img: 'assets/ui/tower_rogue.png', icon: '⚔', switchKey: 'stage' },
-  stage: { name: '灵兽秘境', img: 'assets/ui/gate_stage.png', icon: '🏯', switchKey: 'tower' },
+  tower: {
+    name: '通天塔',
+    entryLabel: '通天塔',
+    img: 'assets/ui/tower_rogue.png',
+    icon: '⚔',
+    entryIcon: 'assets/ui/tower_entry_icon_v1.png',
+    switchKey: 'stage'
+  },
+  stage: {
+    name: '灵兽秘境',
+    entryLabel: '秘境',
+    img: 'assets/ui/gate_stage.png',
+    icon: '🏯',
+    entryIcon: 'assets/ui/gate_stage.png',
+    switchKey: 'tower'
+  },
 }
 
 // ===== ZONE 1: 顶栏（游戏标题Logo，位于状态栏下方）=====
@@ -990,93 +1005,180 @@ function _modeSwitchBtnY(L, S, btnH) {
   return tabY + tabH / 2 - btnH / 2
 }
 
+function _rightEntryGeometry(top, S) {
+  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
+  const ringSz = btnW - 8 * S
+  return {
+    top,
+    btnW,
+    btnH: ringSz,
+    bottom: top + ringSz,
+    ringSz,
+    ringInsetX: (btnW - ringSz) / 2,
+    labelYRatio: 0.816,
+    iconCenterYRatio: 0.445,
+  }
+}
+
 /** 签到入口几何（drawDailySignBtn 使用） */
 function _dailySignBtnGeometry(safeTop, S) {
-  const padTop = 2 * S
-  const iconSz = TITLE_HOME.dailySignIconPt * S
-  const labelGap = 4 * S
-  const labelH = TITLE_HOME.dailySignLabelPt * S
-  const btnH = padTop + iconSz + labelGap + labelH + 4 * S
   const top = safeTop + TITLE_HOME.dailySignTopBelowSafePt * S
-  return { top, btnH, bottom: top + btnH, padTop, iconSz, labelGap, labelH }
+  return _rightEntryGeometry(top, S)
+}
+
+function _gameClubBtnGeometry(safeTop, S) {
+  const sign = _dailySignBtnGeometry(safeTop, S)
+  const top = sign.bottom + TITLE_HOME.gameClubGapBelowDailyPt * S
+  return _rightEntryGeometry(top, S)
 }
 
 /** 每日任务入口：与签到同宽，紧贴游戏圈下方 */
 function _dailyTaskBtnGeometry(safeTop, S) {
-  const sign = _dailySignBtnGeometry(safeTop, S)
-  const padTop = 2 * S
-  const iconSz = TITLE_HOME.dailySignIconPt * S
-  const labelGap = 4 * S
-  const labelH = TITLE_HOME.dailySignLabelPt * S
-  const btnH = padTop + iconSz + labelGap + labelH + 4 * S
-  const gcTop = sign.bottom + TITLE_HOME.gameClubGapBelowDailyPt * S
-  const gameClubIconBottom = gcTop + padTop + iconSz
-  const top = gameClubIconBottom + TITLE_HOME.dailyTaskGapBelowGameClubPt * S
-  return { top, btnH, bottom: top + btnH, padTop, iconSz, labelGap, labelH }
+  const gameClub = _gameClubBtnGeometry(safeTop, S)
+  const top = gameClub.bottom + TITLE_HOME.dailyTaskGapBelowGameClubPt * S
+  return _rightEntryGeometry(top, S)
 }
 
-// ===== 左侧模式切换浮钮（与中央难度 Tab 同行对齐，贴左屏） =====
+function _modeSwitchEntryGeometry(safeTop, S) {
+  const task = _dailyTaskBtnGeometry(safeTop, S)
+  const top = task.bottom + 6 * S
+  return _rightEntryGeometry(top, S)
+}
+
+const RIGHT_ENTRY_ICON_UNIFORM_RATIO = 0.46
+
+function _drawRightEntryButton(c, R, opts) {
+  const S = opts.S
+  const ringX = opts.x + opts.ringInsetX
+  const ringY = opts.y
+  const ringSz = opts.ringSz
+  const centerX = ringX + ringSz / 2
+  const iconCY = ringY + ringSz * (opts.iconCenterYRatio != null ? opts.iconCenterYRatio : 0.43)
+  const labelY = ringY + ringSz * (opts.labelYRatio != null ? opts.labelYRatio : 0.802)
+  const ringImg = R.getImg('assets/ui/icon_entry_ring_v1.png')
+
+  c.save()
+  c.shadowColor = 'rgba(92,62,28,0.18)'
+  c.shadowBlur = 6 * S
+  c.shadowOffsetY = 1.6 * S
+  if (ringImg && ringImg.width > 0) {
+    c.drawImage(ringImg, ringX, ringY, ringSz, ringSz)
+  } else {
+    c.fillStyle = 'rgba(245,233,208,0.96)'
+    c.beginPath()
+    c.arc(centerX, ringY + ringSz / 2, ringSz * 0.48, 0, Math.PI * 2)
+    c.fill()
+    c.strokeStyle = 'rgba(186,144,76,0.78)'
+    c.lineWidth = 1.4 * S
+    c.stroke()
+  }
+  c.restore()
+
+  const shouldDrawInnerPlate = opts.drawInnerPlate !== false
+  const innerR = ringSz * 0.235
+  if (shouldDrawInnerPlate) {
+    const innerBg = c.createLinearGradient(centerX, iconCY - innerR, centerX, iconCY + innerR)
+    innerBg.addColorStop(0, opts.hasBadge ? 'rgba(255,251,242,0.98)' : 'rgba(250,246,238,0.94)')
+    innerBg.addColorStop(1, opts.hasBadge ? 'rgba(244,224,182,0.78)' : 'rgba(233,224,204,0.82)')
+    c.save()
+    c.beginPath()
+    c.arc(centerX, iconCY, innerR, 0, Math.PI * 2)
+    c.closePath()
+    c.fillStyle = innerBg
+    c.fill()
+    c.strokeStyle = opts.hasBadge ? 'rgba(214,161,53,0.34)' : 'rgba(173,143,97,0.24)'
+    c.lineWidth = 0.9 * S
+    c.stroke()
+    c.restore()
+  }
+
+  const iconImg = opts.iconPath ? R.getImg(opts.iconPath) : null
+  if (iconImg && iconImg.width > 0) {
+    const maxW = ringSz * (opts.maxWRatio != null ? opts.maxWRatio : (opts.wideIcon ? 0.54 : 0.52))
+    const maxH = ringSz * (opts.maxHRatio != null ? opts.maxHRatio : (opts.wideIcon ? 0.21 : 0.52))
+    const scale = Math.min(maxW / iconImg.width, maxH / iconImg.height)
+    const drawW = Math.max(1, iconImg.width * scale)
+    const drawH = Math.max(1, iconImg.height * scale)
+    c.save()
+    c.shadowColor = 'rgba(64,38,10,0.14)'
+    c.shadowBlur = 3 * S
+    c.drawImage(
+      iconImg,
+      centerX - drawW / 2,
+      iconCY - drawH / 2 + (opts.iconOffsetY || 0),
+      drawW,
+      drawH
+    )
+    c.restore()
+  } else if (opts.fallbackText) {
+    c.save()
+    c.font = `bold ${ringSz * 0.26}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillStyle = opts.fallbackColor || '#8A5A1E'
+    c.fillText(opts.fallbackText, centerX, iconCY + 0.2 * S)
+    c.restore()
+  }
+
+  c.save()
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.font = `bold ${Math.max(9.6 * S, TITLE_HOME.dailySignLabelPt * S)}px "PingFang SC",sans-serif`
+  c.lineWidth = 2.1 * S
+  c.strokeStyle = 'rgba(252,246,236,0.95)'
+  c.fillStyle = opts.labelColor || '#7C5220'
+  c.strokeText(opts.label, centerX, labelY)
+  c.fillText(opts.label, centerX, labelY)
+  if (opts.hasBadge) {
+    c.fillStyle = '#FF4D4F'
+    c.beginPath()
+    c.arc(ringX + ringSz - 6 * S, ringY + 8 * S, 4.8 * S, 0, Math.PI * 2)
+    c.fill()
+    c.strokeStyle = 'rgba(255,248,240,0.96)'
+    c.lineWidth = 1 * S
+    c.stroke()
+  }
+  c.restore()
+
+  return {
+    nativeRect: [
+      centerX - ringSz * 0.27,
+      iconCY - ringSz * 0.27,
+      ringSz * 0.54,
+      ringSz * 0.54,
+    ],
+  }
+}
+
+// ===== 模式切换入口（与右侧任务列统一圆框样式） =====
 function drawModeSwitchBtn(g) {
-  const { ctx, R, W, S } = V
-  const L = getLayout()
+  const { ctx, R, W, S, safeTop } = V
   const mode = g.titleMode || 'tower'
   const targetMode = MODE_CFG[mode].switchKey
   const targetCfg = MODE_CFG[targetMode]
+  const geo = _modeSwitchEntryGeometry(safeTop, S)
+  const bx = W - geo.btnW - 8 * S
+  const by = geo.top
 
-  const iconSize = TITLE_HOME.modeSwitchIconPt * S
-  const labelSize = TITLE_HOME.modeSwitchLabelPt * S
-  const vGap = 2 * S
-  const btnW = iconSize + TITLE_HOME.modeSwitchBtnExtraWPt * S
-  const btnH = iconSize + vGap + labelSize + 5 * S
+  _drawRightEntryButton(ctx, R, {
+    x: bx,
+    y: by,
+    S,
+    ringSz: geo.ringSz,
+    ringInsetX: geo.ringInsetX,
+    labelYRatio: geo.labelYRatio,
+    iconCenterYRatio: 0.445,
+    label: targetCfg.entryLabel || targetCfg.name,
+    iconPath: targetCfg.entryIcon,
+    drawInnerPlate: false,
+    maxWRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    maxHRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    iconOffsetY: targetMode === 'tower' ? -0.7 * S : -0.45 * S,
+    fallbackText: targetCfg.icon,
+    fallbackColor: '#8A5A1E',
+  })
 
-  const btnX = TITLE_HOME.modeSwitchLeftMarginPt * S
-  const btnY = _modeSwitchBtnY(L, S, btnH)
-  const icx = btnX + btnW / 2
-  const icy = btnY + 3 * S + iconSize / 2
-
-  ctx.save()
-
-  // 半透明胶囊背景（左侧贴屏，右侧圆角）
-  const bgR = btnW / 2
-  ctx.beginPath()
-  ctx.moveTo(btnX, btnY)
-  ctx.lineTo(btnX + btnW - bgR, btnY)
-  ctx.quadraticCurveTo(btnX + btnW, btnY, btnX + btnW, btnY + bgR)
-  ctx.lineTo(btnX + btnW, btnY + btnH - bgR)
-  ctx.quadraticCurveTo(btnX + btnW, btnY + btnH, btnX + btnW - bgR, btnY + btnH)
-  ctx.lineTo(btnX, btnY + btnH)
-  ctx.closePath()
-  ctx.fillStyle = 'rgba(255,245,220,0.82)'; ctx.fill()
-  ctx.strokeStyle = 'rgba(200,165,60,0.7)'; ctx.lineWidth = 1.5 * S; ctx.stroke()
-
-  // 切换图标
-  const btnImg = R.getImg('assets/ui/btn_mode_switch.png')
-  if (btnImg && btnImg.width > 0) {
-    const drawSz = iconSize * 0.62
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.3)'
-    ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1.5 * S
-    ctx.drawImage(btnImg, icx - drawSz / 2, icy - drawSz / 2, drawSz, drawSz)
-    ctx.restore()
-  } else {
-    ctx.fillStyle = 'rgba(160,110,30,0.9)'
-    ctx.font = `${iconSize * 0.5}px sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('⇆', icx, icy)
-  }
-
-  // 文字标签
-  const labelY2 = icy + iconSize / 2 + vGap + labelSize * 0.5
-  ctx.fillStyle = '#7a5520'
-  ctx.strokeStyle = 'rgba(255,245,220,0.8)'
-  ctx.lineWidth = 2 * S
-  ctx.font = `bold ${labelSize}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.strokeText(targetCfg.name, icx, labelY2)
-  ctx.fillText(targetCfg.name, icx, labelY2)
-
-  g._modeSwitchRect = [btnX, btnY, btnW, btnH]
-  ctx.restore()
+  g._modeSwitchRect = [bx, by, geo.btnW, geo.btnH]
 }
 
 // ===== 右下角侧边栏复访入口（抖音专属） =====
@@ -1341,116 +1443,368 @@ function drawMorePanel(g) {
   ctx.restore()
 }
 
+function _fitSingleLineText(c, text, maxW) {
+  if (!text) return ''
+  if (c.measureText(text).width <= maxW) return text
+  let trimmed = text
+  while (trimmed.length > 1 && c.measureText(`${trimmed}…`).width > maxW) {
+    trimmed = trimmed.slice(0, -1)
+  }
+  return `${trimmed}…`
+}
+
+function _getTaskRewardPreviewSlots(reward) {
+  const slots = []
+  if (!reward) return slots
+  if (reward.soulStone) slots.push({ tex: 'assets/ui/icon_soul_stone.png', amount: `×${reward.soulStone}` })
+  if (reward.stamina) slots.push({ tex: 'assets/ui/icon_stamina.png', amount: `×${reward.stamina}` })
+  if (reward.awakenStone) slots.push({ tex: 'assets/ui/icon_awaken_stone.png', amount: `×${reward.awakenStone}` })
+  if (reward.fragment) slots.push({ tex: 'assets/ui/frame_fragment.png', amount: `×${reward.fragment}` })
+  return slots.slice(0, 2)
+}
+
+function _getHomeDailyTaskTracker(g) {
+  const prog = g.storage.dailyTaskProgress
+  const chapter = g.storage.currentChapter
+  const total = DAILY_TASKS.length
+  let completedCount = 0
+  let claimableTask = null
+  let activeTask = null
+
+  DAILY_TASKS.forEach((task) => {
+    const cur = prog.tasks[task.id] || 0
+    const need = task.condition.count
+    const done = cur >= need
+    const claimed = !!prog.claimed[task.id]
+    if (done) completedCount++
+    if (done && !claimed && !claimableTask) {
+      claimableTask = { task, reward: getScaledDailyTaskReward(task, chapter) }
+    }
+    if (!done && !activeTask) {
+      activeTask = {
+        task,
+        cur: Math.min(cur, need),
+        need,
+        ratio: need > 0 ? Math.max(0, Math.min(1, cur / need)) : 0,
+        reward: getScaledDailyTaskReward(task, chapter),
+      }
+    }
+  })
+
+  const allTaskRewardsClaimed = DAILY_TASKS.every(task => !!prog.claimed[task.id])
+  const allBonusClaimed = !!prog.allClaimed
+  let canDoubleBonus = false
+  if (allBonusClaimed && !g._dailyTaskDoubled) {
+    const AdManager = require('../adManager')
+    canDoubleBonus = AdManager.canShow('dailyTaskBonus')
+  }
+
+  const overallText = `${Math.min(completedCount, total)}/${total}`
+  if (canDoubleBonus) {
+    return {
+      badge: '翻倍',
+      title: '奖励还能翻倍再领',
+      subtitle: '看广告再领一整份完整奖励',
+      progress: 1,
+      progressText: '再领一份',
+      reward: getScaledDailyAllBonus(chapter),
+      tone: 'ready',
+      pulse: true,
+      overallText,
+      entryAction: 'tasks',
+      focusSection: 'allBonus',
+    }
+  }
+  if (allTaskRewardsClaimed && !allBonusClaimed) {
+    return {
+      badge: '完成',
+      title: '全部奖励可领取',
+      subtitle: '前往任务页领取',
+      progress: 1,
+      progressText: '已解锁',
+      reward: getScaledDailyAllBonus(chapter),
+      tone: 'ready',
+      pulse: true,
+      overallText,
+      entryAction: 'tasks',
+      focusSection: 'allBonus',
+    }
+  }
+  if (claimableTask) {
+    return {
+      badge: '完成',
+      title: claimableTask.task.name,
+      subtitle: '前往任务页领取',
+      progress: 1,
+      progressText: '点击领取',
+      reward: claimableTask.reward,
+      tone: 'ready',
+      pulse: true,
+      overallText,
+      entryAction: 'tasks',
+      focusTaskId: claimableTask.task.id,
+    }
+  }
+  if (activeTask) {
+    const condType = activeTask.task && activeTask.task.condition ? activeTask.task.condition.type : ''
+    const targetMode = condType === 'towerRun'
+      ? 'tower'
+      : ((condType === 'stageBattle' || condType === 'anyBattle') ? 'stage' : null)
+    return {
+      badge: '进行中',
+      title: '今日任务',
+      subtitle: activeTask.task.name,
+      progress: activeTask.ratio,
+      progressText: `${activeTask.cur}/${activeTask.need}`,
+      reward: activeTask.reward,
+      tone: 'pending',
+      pulse: false,
+      overallText,
+      entryAction: targetMode ? 'mode' : 'tasks',
+      targetMode,
+      focusTaskId: activeTask.task.id,
+    }
+  }
+  return {
+    badge: '完成',
+    title: '今日任务已清空',
+    subtitle: '明日再来继续修行',
+    progress: 1,
+    progressText: '已完成',
+    reward: getScaledDailyAllBonus(chapter),
+    tone: 'claimed',
+    pulse: false,
+    overallText: `${total}/${total}`,
+    entryAction: 'tasks',
+    focusSection: 'allBonus',
+  }
+}
+
+function _drawHomeDailyTaskRewardPreview(c, R, reward, x, y, w, h, S, tone) {
+  const slots = _getTaskRewardPreviewSlots(reward)
+  if (!slots.length) return
+  const iconSz = 14 * S
+  const rowH = 16 * S
+  const startY = y + (h - rowH * slots.length) / 2
+  const textColor = tone === 'claimed' ? '#7D8C78' : (tone === 'ready' ? '#9C6B00' : '#7B5A28')
+
+  c.save()
+  c.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'middle'
+  c.fillStyle = textColor
+
+  slots.forEach((slot, idx) => {
+    const rowY = startY + idx * rowH
+    const img = R.getImg(slot.tex)
+    if (img && img.width > 0) {
+      c.drawImage(img, x, rowY - iconSz / 2, iconSz, iconSz)
+    }
+    const txt = _fitSingleLineText(c, slot.amount, w - iconSz - 2 * S)
+    c.fillText(txt, x + iconSz + 2 * S, rowY + 0.4 * S)
+  })
+  c.restore()
+}
+
+function drawHomeDailyTaskTracker(g) {
+  const { ctx: c, R, W, S } = V
+  const tracker = _getHomeDailyTaskTracker(g)
+  const actionable = tracker.tone === 'ready'
+  const doneTone = tracker.tone === 'claimed'
+  const gateRect = g._stageGateRect || null
+  const cardW = Math.min(92 * S, W * 0.255)
+  const cardH = 35 * S
+  const rad = 9 * S
+  const fallbackX = 8 * S
+  const fallbackY = (getLayout().bottomBarY || (V.H - 72 * S)) - cardH - 2 * S
+  const x = gateRect
+    ? Math.max(6 * S, gateRect[0] - cardW - 11 * S)
+    : fallbackX
+  const y = gateRect
+    ? Math.max(90 * S, gateRect[1] - 19 * S)
+    : fallbackY
+  const barX = x + 8 * S
+  const barY = y + cardH - 6 * S
+  const barW = cardW - 16 * S
+  const barH = 3.2 * S
+  const arrowCX = x + cardW - 10 * S
+  const arrowCY = y + cardH / 2 + 0.2 * S
+  const mainText = actionable ? tracker.title : (tracker.subtitle || tracker.title)
+
+  g._homeDailyTaskRect = [x, y, cardW, cardH]
+  g._homeDailyTaskTarget = {
+    action: tracker.entryAction || 'tasks',
+    mode: tracker.targetMode || null,
+    taskId: tracker.focusTaskId || null,
+    section: tracker.focusSection || null,
+  }
+
+  c.save()
+  if (tracker.pulse) {
+    const pulse = 0.28 + 0.18 * Math.sin((g.af || 0) * 0.08)
+    c.save()
+    c.globalAlpha = pulse
+    c.strokeStyle = actionable ? 'rgba(255,217,112,0.94)' : 'rgba(255,255,255,0.72)'
+    c.lineWidth = 2.4 * S
+    c.shadowColor = actionable ? 'rgba(255,188,69,0.65)' : 'rgba(255,255,255,0.3)'
+    c.shadowBlur = 8 * S
+    R.rr(x - 1.3 * S, y - 1.3 * S, cardW + 2.6 * S, cardH + 2.6 * S, rad + 1.3 * S)
+    c.stroke()
+    c.restore()
+  }
+
+  c.save()
+  c.shadowColor = actionable ? 'rgba(186,134,36,0.16)' : 'rgba(96,72,36,0.1)'
+  c.shadowBlur = 6 * S
+  c.shadowOffsetY = 1.2 * S
+  const bgGrad = c.createLinearGradient(x, y, x, y + cardH)
+  if (doneTone) {
+    bgGrad.addColorStop(0, 'rgba(242,251,239,0.98)')
+    bgGrad.addColorStop(1, 'rgba(225,241,220,0.94)')
+  } else if (actionable) {
+    bgGrad.addColorStop(0, 'rgba(255,249,225,0.99)')
+    bgGrad.addColorStop(1, 'rgba(249,226,162,0.96)')
+  } else {
+    bgGrad.addColorStop(0, 'rgba(252,247,235,0.97)')
+    bgGrad.addColorStop(1, 'rgba(241,229,204,0.94)')
+  }
+  c.fillStyle = bgGrad
+  R.rr(x, y, cardW, cardH, rad)
+  c.fill()
+  c.restore()
+
+  c.strokeStyle = doneTone ? 'rgba(104,173,109,0.34)' : actionable ? 'rgba(214,156,28,0.4)' : 'rgba(164,126,66,0.3)'
+  c.lineWidth = 1 * S
+  R.rr(x, y, cardW, cardH, rad)
+  c.stroke()
+
+  c.fillStyle = doneTone ? 'rgba(100,186,105,0.8)' : actionable ? 'rgba(235,174,45,0.96)' : 'rgba(205,157,86,0.84)'
+  R.rr(x + 5 * S, y + 6 * S, 3 * S, cardH - 12 * S, 1.5 * S)
+  c.fill()
+
+  c.font = `bold ${6.8 * S}px "PingFang SC",sans-serif`
+  const badgeW = Math.max(24 * S, c.measureText(tracker.badge).width + 9 * S)
+  const badgeH = 11.5 * S
+  const badgeX = x + 9 * S
+  const badgeY = y + 4.5 * S
+  c.fillStyle = doneTone ? 'rgba(224,242,227,0.98)' : actionable ? 'rgba(255,242,201,0.98)' : 'rgba(246,235,211,0.96)'
+  R.rr(badgeX, badgeY, badgeW, badgeH, badgeH / 2)
+  c.fill()
+  c.fillStyle = doneTone ? '#2F7B40' : actionable ? '#9C5400' : '#8A5A1E'
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText(tracker.badge, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.1 * S)
+
+  c.textAlign = 'left'
+  c.fillStyle = actionable ? '#7B3500' : doneTone ? '#2D5C33' : '#59340B'
+  c.font = `bold ${8.1 * S}px "PingFang SC",sans-serif`
+  c.shadowColor = 'rgba(255,255,255,0.36)'
+  c.shadowBlur = 1.5 * S
+  c.fillText(_fitSingleLineText(c, mainText, cardW - 34 * S), x + 10 * S, y + 19.5 * S)
+  c.shadowBlur = 0
+
+  c.fillStyle = 'rgba(90,60,20,0.13)'
+  R.rr(barX, barY, barW, barH, barH / 2)
+  c.fill()
+  c.fillStyle = doneTone ? '#6CC07B' : actionable ? '#F0B83A' : '#D59F4B'
+  R.rr(barX, barY, Math.max(barH, barW * tracker.progress), barH, barH / 2)
+  c.fill()
+
+  c.strokeStyle = actionable ? '#B87418' : doneTone ? '#5C9765' : '#9A6A33'
+  c.lineWidth = 1.8 * S
+  c.lineCap = 'round'
+  c.lineJoin = 'round'
+  c.beginPath()
+  c.moveTo(arrowCX - 3.2 * S, arrowCY - 3.6 * S)
+  c.lineTo(arrowCX + 0.4 * S, arrowCY)
+  c.lineTo(arrowCX - 3.2 * S, arrowCY + 3.6 * S)
+  c.stroke()
+  c.restore()
+}
+
 // ===== 每日签到入口 =====
 function drawDailySignBtn(g) {
   const { ctx: c, R, W, S, safeTop } = V
   const hasBadge = g.storage.hasSignInEntryBadge
-  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
   const geo = _dailySignBtnGeometry(safeTop, S)
-  const padTop = geo.padTop
-  const iconSz = geo.iconSz
-  const labelGap = geo.labelGap
-  const btnH = geo.btnH
-  const labelHPx = geo.labelH != null ? geo.labelH : TITLE_HOME.dailySignLabelPt * S
-  const bx = W - btnW - 8 * S
+  const bx = W - geo.btnW - 8 * S
   const by = geo.top
 
-  c.save()
-  const iconImg = R.getImg('assets/ui/daily_sign_icon.png')
-  const iconX = bx + (btnW - iconSz) / 2
-  const iconY = by + padTop
-  if (iconImg && iconImg.width > 0) {
-    c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
-  } else {
-    c.fillStyle = hasBadge ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.1)'
-    R.rr(bx, by, btnW, iconSz + padTop * 2, 8 * S); c.fill()
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.font = `${22*S}px sans-serif`
-    c.fillStyle = '#FFD700'
-    c.fillText('📅', bx + btnW / 2, iconY + iconSz / 2)
-  }
-  const labelY = iconY + iconSz + labelGap + labelHPx * 0.5
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.font = `bold ${labelHPx}px "PingFang SC",sans-serif`
-  c.lineWidth = 2.5 * S
-  c.strokeStyle = 'rgba(45,25,10,0.82)'
-  c.fillStyle = hasBadge ? '#FFECB0' : 'rgba(210,200,190,0.95)'
-  c.strokeText('签到', bx + btnW / 2, labelY)
-  c.fillText('签到', bx + btnW / 2, labelY)
+  _drawRightEntryButton(c, R, {
+    x: bx,
+    y: by,
+    S,
+    ringSz: geo.ringSz,
+    ringInsetX: geo.ringInsetX,
+    labelYRatio: geo.labelYRatio,
+    iconCenterYRatio: geo.iconCenterYRatio,
+    label: '签到',
+    iconPath: 'assets/ui/daily_sign_icon.png',
+    maxWRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    maxHRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    hasBadge,
+    fallbackText: '签',
+    fallbackColor: '#A96D1F',
+  })
 
-  if (hasBadge) {
-    c.fillStyle = '#FF4444'; c.beginPath(); c.arc(bx + btnW - 1 * S, by + 5 * S, 5 * S, 0, Math.PI * 2); c.fill()
-  }
-  c.restore()
-  g._dailySignBtnRect = [bx, by, btnW, btnH]
+  g._dailySignBtnRect = [bx, by, geo.btnW, geo.btnH]
 }
 
 // ===== 每日任务入口（独立弹窗）=====
 function drawDailyTaskBtn(g) {
   const { ctx: c, R, W, S, safeTop } = V
   const hasBadge = g.storage.hasDailyTaskEntryBadge
-  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
   const geo = _dailyTaskBtnGeometry(safeTop, S)
-  const padTop = geo.padTop
-  const iconSz = geo.iconSz
-  const labelGap = geo.labelGap
-  const btnH = geo.btnH
-  const labelHPx = geo.labelH != null ? geo.labelH : TITLE_HOME.dailySignLabelPt * S
-  const bx = W - btnW - 8 * S
+  const bx = W - geo.btnW - 8 * S
   const by = geo.top
 
-  c.save()
-  const taskImgPath = TITLE_HOME.dailyTaskBtnImage || 'assets/ui/daily_task_icon.png'
-  const iconImg = R.getImg(taskImgPath)
-  const iconX = bx + (btnW - iconSz) / 2
-  const iconY = by + padTop
-  if (iconImg && iconImg.width > 0) {
-    c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
-  } else {
-    c.fillStyle = hasBadge ? 'rgba(255,215,0,0.22)' : 'rgba(255,255,255,0.1)'
-    R.rr(bx, by, btnW, iconSz + padTop * 2, 8 * S); c.fill()
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.font = `${22*S}px sans-serif`
-    c.fillStyle = '#7ecbff'
-    c.fillText('📋', bx + btnW / 2, iconY + iconSz / 2)
-  }
-  const labelY = iconY + iconSz + labelGap + labelHPx * 0.5
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.font = `bold ${labelHPx}px "PingFang SC",sans-serif`
-  c.lineWidth = 2.5 * S
-  c.strokeStyle = 'rgba(45,25,10,0.82)'
-  c.fillStyle = hasBadge ? '#FFECB0' : 'rgba(210,200,190,0.95)'
-  c.strokeText('任务', bx + btnW / 2, labelY)
-  c.fillText('任务', bx + btnW / 2, labelY)
-  if (hasBadge) {
-    c.fillStyle = '#FF4444'; c.beginPath(); c.arc(bx + btnW - 1 * S, by + 5 * S, 5 * S, 0, Math.PI * 2); c.fill()
-  }
-  c.restore()
-  g._dailyTaskBtnRect = [bx, by, btnW, btnH]
+  _drawRightEntryButton(c, R, {
+    x: bx,
+    y: by,
+    S,
+    ringSz: geo.ringSz,
+    ringInsetX: geo.ringInsetX,
+    labelYRatio: geo.labelYRatio,
+    iconCenterYRatio: geo.iconCenterYRatio,
+    label: '任务',
+    iconPath: TITLE_HOME.dailyTaskBtnImage || 'assets/ui/daily_task_icon.png',
+    maxWRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    maxHRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    hasBadge,
+    fallbackText: '任务',
+    fallbackColor: '#7C5220',
+  })
+
+  g._dailyTaskBtnRect = [bx, by, geo.btnW, geo.btnH]
 }
 
-// ===== 游戏圈入口（与签到同列：方形区 + 微信原生 GameClubButton type=image 盖在图标格上；文案做在贴图内） =====
+// ===== 游戏圈入口（与签到同列：统一圆框样式；微信原生按钮仅覆盖圆框中部） =====
 function drawGameClubBtn(g) {
-  const { W, S, safeTop } = V
-  const geo = _dailySignBtnGeometry(safeTop, S)
-  const btnW = TITLE_HOME.dailySignBtnWidthPt * S
-  const bx = W - btnW - 8 * S
-  const padTop = 2 * S
-  const iconSz = TITLE_HOME.dailySignIconPt * S
-  const gcTop = geo.bottom + TITLE_HOME.gameClubGapBelowDailyPt * S
-  const iconX = bx + (btnW - iconSz) / 2
-  const iconY = gcTop + padTop
-  g._gameClubBtnRect = [iconX, iconY, iconSz, iconSz]
+  const { ctx: c, R, W, S, safeTop } = V
+  const geo = _gameClubBtnGeometry(safeTop, S)
+  const bx = W - geo.btnW - 8 * S
+  const by = geo.top
 
-  if (TITLE_HOME.gameClubOpenlink) {
-    const { ctx: c, R } = V
-    c.save()
-    const iconImg = R.getImg(TITLE_HOME.gameClubBtnImage)
-    if (iconImg && iconImg.width > 0) {
-      c.drawImage(iconImg, iconX, iconY, iconSz, iconSz)
-    }
-    c.restore()
-  }
+  const entry = _drawRightEntryButton(c, R, {
+    x: bx,
+    y: by,
+    S,
+    ringSz: geo.ringSz,
+    ringInsetX: geo.ringInsetX,
+    labelYRatio: geo.labelYRatio,
+    iconCenterYRatio: geo.iconCenterYRatio,
+    label: '游戏圈',
+    iconPath: TITLE_HOME.gameClubBtnImage,
+    drawInnerPlate: false,
+    maxWRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    maxHRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
+    iconOffsetY: -0.25 * S,
+    fallbackText: '圈',
+    fallbackColor: '#8A5A1E',
+  })
+
+  g._gameClubBtnRect = [bx, by, geo.btnW, geo.btnH]
+  g._gameClubNativeRect = entry && entry.nativeRect ? entry.nativeRect : g._gameClubBtnRect
 }
 
 // ===== 主入口 =====
@@ -1474,6 +1828,7 @@ function rTitle(g) {
     const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
     _drawTowerEventBanner(g, ctx, R, W, S, L, progressMidY)
   }
+  drawHomeDailyTaskTracker(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)

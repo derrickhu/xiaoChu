@@ -137,7 +137,7 @@ const TITLE_HOME = {
   /** 每日任务入口图标（与 daily_sign_icon 同列；缺图时用 Canvas 占位） */
   dailyTaskBtnImage: 'assets/ui/daily_task_icon.png',
   /** 微信 createGameClubButton type=image（1:1，内容等比装进方图） */
-  gameClubBtnImage: 'assets/ui/game_club_entry.png',
+  gameClubBtnImage: 'assets/ui/game_club_entry_icon_v1.png',
   /**
    * MP 后台 → 游戏能力地图 → 游戏圈 → 基础设置 / 帖子「游戏内跳转」中的 openlink。
    * 填写后首页游戏圈改为 Canvas 点击 + wx.createPageManager 打开，无原生按钮按下灰底；

@@ -85,7 +85,7 @@ function updateGameClubBtn(g, dpr) {
     && !g._confirmDialog && !g._adRewardPopup
     && P.isWeChat
   if (!shouldShow) { destroyGameClubBtn(g); return }
-  const rect = g._gameClubBtnRect
+  const rect = g._gameClubNativeRect || g._gameClubBtnRect
   if (!rect) { destroyGameClubBtn(g); return }
   const css = _gameClubNativeStyle(rect, dpr)
   if (!g._gameClubBtn) {
@@ -94,7 +94,7 @@ function updateGameClubBtn(g, dpr) {
     setTimeout(() => {
       _gameClubBtnDelay = false
       if (g.scene !== 'title' || g._gameClubBtn) return
-      const r = g._gameClubBtnRect
+      const r = g._gameClubNativeRect || g._gameClubBtnRect
       if (!r) return
       try {
         const imageStyle = _gameClubNativeStyle(r, dpr)
