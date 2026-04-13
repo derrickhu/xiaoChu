@@ -5,10 +5,31 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 
+// GM 黑名单：这些 openid 的提交操作一律拦截，只允许查询
+const GM_OPENIDS = [
+  'oEnZR3VWQoOEG0U9fhgFCatXLsY4',  // dk
+]
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const openid = wxContext.OPENID
   const { action } = event
+
+  // GM 拦截：提交类操作直接返回成功但不写入
+  const isSubmitAction = ['submit', 'submitStage', 'submitAndGetAll', 'submitDexCombo'].includes(action)
+  if (isSubmitAction && GM_OPENIDS.includes(openid)) {
+    console.log(`[Ranking] GM ${openid} 提交被拦截, action=${action}`)
+    // submitAndGetAll 需要返回查询结果，转为 getAll
+    if (action === 'submitAndGetAll') {
+      event.action = 'getAll'
+      return exports.main(event, context)
+    }
+    // submitStage 转为 getStage
+    if (action === 'submitStage') {
+      return { code: 0, msg: 'GM跳过提交' }
+    }
+    return { code: 0, msg: 'GM跳过提交' }
+  }
 
   // ===== 提交/更新分数（通关时调用）=====
   if (action === 'submit') {
