@@ -12,6 +12,8 @@ const {
   LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,
   LOGIN_WEEKLY_RATIO,
+  CONSECUTIVE_CYCLE_DAYS,
+  CONSECUTIVE_LOGIN_REWARDS,
   DAILY_TASKS, DAILY_ALL_COMPLETE_BONUS,
   SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS,
   INVITE_REWARD, INVITE_MAX_COUNT,
@@ -156,6 +158,15 @@ function getScaledDailyAllBonus(chapter) {
 
 // 分享/邀请/回归/补偿数值已迁移至 balance/economy.js
 
+/**
+ * 获取连续登录第 N 天的奖励（1-7循环）
+ * @param {number} consecutiveDay 1-7
+ */
+function getConsecutiveLoginReward(consecutiveDay) {
+  const idx = ((consecutiveDay - 1) % CONSECUTIVE_CYCLE_DAYS)
+  return CONSECUTIVE_LOGIN_REWARDS[idx] || CONSECUTIVE_LOGIN_REWARDS[0]
+}
+
 const DATA_VERSION = 3
 
 module.exports = {
@@ -193,5 +204,8 @@ module.exports = {
   COMEBACK_THRESHOLD_MS,
   COMEBACK_REWARD,
   WIPE_COMPENSATION,
+  CONSECUTIVE_CYCLE_DAYS,
+  CONSECUTIVE_LOGIN_REWARDS,
+  getConsecutiveLoginReward,
   DATA_VERSION,
 }

@@ -179,8 +179,8 @@ const CHECKIN_HUAHUA = {
   actionAreaHDesign: 160,
   /** 操作区与卡片区垂直间距 */
   actionGapDesign: 20,
-  /** CheckInPanel._refresh ESTIMATED_H（标题区+里程碑+分页卡片+双按钮留白） */
-  estimatedContentHDesign: 1040,
+  /** CheckInPanel._refresh ESTIMATED_H（标题区+里程碑+分页卡片+连续登录+双按钮留白） */
+  estimatedContentHDesign: 1200,
   milestoneMaxDays: 30,
   milestoneThresholds: [7, 15, 22, 30],
   titleBanner: 'assets/ui/checkin_huahua/checkin_title_banner.png',

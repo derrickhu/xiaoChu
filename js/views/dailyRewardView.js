@@ -8,6 +8,8 @@ const { CHECKIN_HUAHUA } = require('../data/constants')
 const {
   LOGIN_CYCLE_DAYS,
   LOGIN_MILESTONE_PETS,
+  CONSECUTIVE_CYCLE_DAYS,
+  getConsecutiveLoginReward,
   DAILY_TASKS,
   getLoginMilestoneReward,
   getLoginPageData,
@@ -973,6 +975,103 @@ function rDailySign(g) {
     y = milestoneY + finaleBonusH + 18 * u
   }
 
+  // ── 7天连续登录循环区 ──
+  const consecState = g.storage.consecutiveLoginState
+  const consecCurrent = canSign ? consecState.previewDay : (consecState.currentDay || 0)
+  const consecCycleDays = consecState.cycleDays || CONSECUTIVE_CYCLE_DAYS
+
+  _drawStageTag(c, W / 2 - 72 * u, y + 2 * u, 144 * u, 24 * u, `连续登录 (${consecCurrent}/${consecCycleDays})`, u)
+  y += 34 * u
+
+  // 绘制7个小卡片（一行7列，紧凑布局）
+  const consecGap = 6 * u
+  const consecCellW = Math.floor((cardAreaW - consecGap * 6) / 7)
+  const consecCellH = 78 * u
+  const consecGridTop = y
+
+  for (let di = 0; di < consecCycleDays; di++) {
+    const dayNum = di + 1
+    const consecReward = getConsecutiveLoginReward(dayNum)
+    const cx = cardAreaX + di * (consecCellW + consecGap)
+    const cy = consecGridTop
+
+    // 判断状态
+    const isDone = !canSign && dayNum <= (consecState.currentDay || 0)
+    const isPreview = canSign && dayNum === consecState.previewDay
+    const isFuture = canSign ? dayNum > consecState.previewDay : dayNum > (consecState.currentDay || 0)
+
+    // 背景
+    const texKey = isDone ? Hcfg.cardSigned : isPreview ? Hcfg.cardToday : Hcfg.cardFuture
+    const cardImg = R.getImg(texKey)
+    const crr = 8 * u
+    if (cardImg && cardImg.width > 0) {
+      c.drawImage(cardImg, cx, cy, consecCellW, consecCellH)
+    } else {
+      c.fillStyle = isDone ? 'rgba(46,125,50,0.4)' : isPreview ? 'rgba(93,64,55,0.4)' : 'rgba(55,71,79,0.35)'
+      _rr(c, cx, cy, consecCellW, consecCellH, crr)
+      c.fill()
+    }
+
+    // 标题「第N天」
+    c.font = `bold ${10 * u}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'top'
+    c.lineWidth = 2 * u
+    c.strokeStyle = 'rgba(62,39,35,0.9)'
+    c.strokeText(`第${dayNum}天`, cx + consecCellW / 2, cy + 4 * u)
+    c.fillStyle = '#FFFFFF'
+    c.fillText(`第${dayNum}天`, cx + consecCellW / 2, cy + 4 * u)
+
+    // 奖励图标（灵石+体力双行显示）
+    const rewards = consecReward ? consecReward.rewards : {}
+    const iconSz = 18 * u
+    const centerX = cx + consecCellW / 2
+    let iy = cy + 20 * u
+
+    if (rewards.soulStone) {
+      const ssImg = R.getImg('assets/ui/icon_soul_stone.png')
+      if (ssImg && ssImg.width > 0) {
+        c.save()
+        c.globalAlpha = isDone ? 0.4 : 1
+        c.drawImage(ssImg, centerX - iconSz / 2, iy, iconSz, iconSz)
+        c.restore()
+      }
+      c.font = `bold ${8 * u}px "PingFang SC",sans-serif`
+      c.fillStyle = isDone ? '#AAAAAA' : '#3E2723'
+      c.textAlign = 'center'
+      c.textBaseline = 'top'
+      c.fillText(`${rewards.soulStone}`, centerX, iy + iconSz + 1 * u)
+      iy += iconSz + 10 * u
+    }
+    if (rewards.stamina) {
+      const stImg = R.getImg('assets/ui/icon_stamina.png')
+      if (stImg && stImg.width > 0) {
+        c.save()
+        c.globalAlpha = isDone ? 0.4 : 1
+        c.drawImage(stImg, centerX - iconSz * 0.4, iy, iconSz * 0.8, iconSz * 0.8)
+        c.restore()
+      }
+      c.font = `bold ${7 * u}px "PingFang SC",sans-serif`
+      c.fillStyle = isDone ? '#AAAAAA' : '#3E2723'
+      c.textAlign = 'center'
+      c.textBaseline = 'top'
+      c.fillText(`+${rewards.stamina}`, centerX, iy + iconSz * 0.8 + 1 * u)
+    }
+
+    // 已领取对勾
+    if (isDone) {
+      c.fillStyle = 'rgba(27,94,32,0.18)'
+      _rr(c, cx, cy, consecCellW, consecCellH, crr)
+      c.fill()
+      c.fillStyle = '#66BB6A'
+      c.font = `bold ${18 * u}px sans-serif`
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.fillText('√', cx + consecCellW / 2, cy + consecCellH / 2)
+    }
+  }
+  y = consecGridTop + consecCellH + 14 * u
+
   // ── 单按钮：签到 → 看广告翻倍 → 全部领完 ──
   const doubleState = g.storage.loginRewardDoubleState
   const adAvailable = AdManager.canShow('signDouble')
@@ -1246,9 +1345,10 @@ function tDailySign(g, x, y, type) {
       MusicMgr.playReward && MusicMgr.playReward()
       const rewardText = _rewardText(result.rewards)
       const milestoneText = result.milestoneRewards ? _rewardText(result.milestoneRewards) : ''
-      const msg = milestoneText
-        ? `签到第${result.day}天：${rewardText} · 30天达成：${milestoneText}`
-        : `签到第${result.day}天：${rewardText}`
+      const consecText = result.consecutiveRewards ? _rewardText(result.consecutiveRewards) : ''
+      let msg = `签到第${result.day}天：${rewardText}`
+      if (consecText) msg += ` · 连续第${result.consecutiveDay}天：${consecText}`
+      if (milestoneText) msg += ` · 30天达成：${milestoneText}`
       g._toast && g._toast(msg)
       if (typeof g.markDirty === 'function') g.markDirty()
       else g._dirty = true

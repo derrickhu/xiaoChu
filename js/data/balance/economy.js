@@ -180,6 +180,20 @@ const LOGIN_REWARDS = [
 ]
 const LOGIN_WEEKLY_RATIO = 0.6
 
+// ===== 7天连续登录循环奖励 =====
+// 每天额外 +20 体力；灵石从第1天到第7天递增，循环不重置（7天一轮）
+// 连续签到中断则 consecutiveDay 归零，重新计算
+const CONSECUTIVE_CYCLE_DAYS = 7
+const CONSECUTIVE_LOGIN_REWARDS = [
+  { day: 1, rewards: { soulStone: 40,  stamina: 20 } },
+  { day: 2, rewards: { soulStone: 50,  stamina: 20 } },
+  { day: 3, rewards: { soulStone: 60,  stamina: 20 } },
+  { day: 4, rewards: { soulStone: 70,  stamina: 20 } },
+  { day: 5, rewards: { soulStone: 80,  stamina: 20 } },
+  { day: 6, rewards: { soulStone: 100, stamina: 20 } },
+  { day: 7, rewards: { soulStone: 130, stamina: 20 } },
+]
+
 // ===== 每日任务 =====
 const DAILY_TASKS = [
   { id: 'battle_1',    name: '秘境战斗1场',  condition: { type: 'stageBattle', count: 1 }, reward: { soulStone: 20 } },
@@ -314,6 +328,8 @@ module.exports = {
   LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,
   LOGIN_WEEKLY_RATIO,
+  CONSECUTIVE_CYCLE_DAYS,
+  CONSECUTIVE_LOGIN_REWARDS,
   DAILY_TASKS,
   DAILY_ALL_COMPLETE_BONUS,
   SHARE_DAILY_MAX,

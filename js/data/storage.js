@@ -97,6 +97,8 @@ function defaultPersist() {
       pendingDoubleRewards: null, // 当日可翻倍资源快照
       doubleClaimedDate: '',   // 当日是否已完成翻倍领取
       cycleDays: 30,           // 当前签到轮次天数，用于兼容旧存档
+      consecutiveDay: 0,       // 7天连续登录当前进度 (1-7)，0=未开始
+      consecutiveClaimedDate: '', // 连续登录今日已领取日期
     },
     // 每日任务
     dailyTaskProgress: {
@@ -810,11 +812,15 @@ class Storage {
         doubleClaimedDate: '',
         cycleDays: LOGIN_CYCLE_DAYS,
         milestonePetClaimed: [],
+        consecutiveDay: 0,
+        consecutiveClaimedDate: '',
       }
       return
     }
     const sign = this._d.loginSign
     if (!Array.isArray(sign.milestonePetClaimed)) sign.milestonePetClaimed = []
+    if (sign.consecutiveDay == null) sign.consecutiveDay = 0
+    if (typeof sign.consecutiveClaimedDate !== 'string') sign.consecutiveClaimedDate = ''
     const legacyDay = Math.max(0, Number(sign.day) || 0)
     const total = Math.max(0, Number(sign.totalSignDays) || legacyDay)
     sign.totalSignDays = total
@@ -848,6 +854,33 @@ class Storage {
   get canSignToday() {
     this._ensureLoginSign()
     return this._d.loginSign.lastDate !== localDateKey()
+  }
+
+  /** 获取连续登录状态：当前连续天数、今天签到后会是第几天 */
+  get consecutiveLoginState() {
+    this._ensureLoginSign()
+    const { CONSECUTIVE_CYCLE_DAYS } = require('./giftConfig')
+    const sign = this._d.loginSign
+    const today = localDateKey()
+    const yesterday = localDateKey(new Date(Date.now() - 86400000))
+    const current = sign.consecutiveDay || 0
+
+    // 预览：如果今天签到，连续天数会变成几
+    let preview = current
+    if (this.canSignToday) {
+      if (sign.lastDate === yesterday) {
+        preview = current >= CONSECUTIVE_CYCLE_DAYS ? 1 : current + 1
+      } else {
+        preview = 1
+      }
+    }
+
+    return {
+      currentDay: current,
+      previewDay: preview,
+      cycleDays: CONSECUTIVE_CYCLE_DAYS,
+      claimedToday: sign.consecutiveClaimedDate === today,
+    }
   }
 
   get loginRewardDoubleState() {
@@ -940,12 +973,14 @@ class Storage {
     const sign = this._d.loginSign
     const {
       LOGIN_CYCLE_DAYS,
+      CONSECUTIVE_CYCLE_DAYS,
       cloneLoginRewardRewards,
       getDoubleableLoginRewards,
       getLoginMilestoneReward,
       getLoginPageIndex,
       getLoginRewardRatio,
       getScaledLoginRewardByDay,
+      getConsecutiveLoginReward,
     } = require('./giftConfig')
     const claimIsNewbie = (sign.totalSignDays || 0) < LOGIN_CYCLE_DAYS
     const claimDay = ((sign.totalSignDays || 0) % LOGIN_CYCLE_DAYS) + 1
@@ -958,8 +993,31 @@ class Storage {
       milestoneRewards = this._grantLoginRewardBundle(getLoginMilestoneReward(claimIsNewbie))
     }
 
+    // ── 连续登录处理 ──
+    const today = localDateKey()
+    const yesterday = localDateKey(new Date(Date.now() - 86400000))
+    let prevConsec = sign.consecutiveDay || 0
+    if (sign.lastDate === yesterday) {
+      // 昨天签过到 → 连续+1（超过7天循环归1）
+      prevConsec = prevConsec >= CONSECUTIVE_CYCLE_DAYS ? 1 : prevConsec + 1
+    } else if (sign.lastDate === today) {
+      // 今天已签（理论上不会到这里，因为 canSignToday 已判断）
+    } else {
+      // 断签了 → 重新从第1天开始
+      prevConsec = 1
+    }
+    sign.consecutiveDay = prevConsec
+
+    // 自动发放连续登录奖励
+    const consecReward = getConsecutiveLoginReward(prevConsec)
+    let consecutiveGranted = null
+    if (consecReward && consecReward.rewards) {
+      consecutiveGranted = this._grantLoginRewardBundle(consecReward.rewards)
+      sign.consecutiveClaimedDate = today
+    }
+
     sign.day = claimDay
-    sign.lastDate = localDateKey()
+    sign.lastDate = today
     sign.totalSignDays = (sign.totalSignDays || 0) + 1
     sign.isNewbie = sign.totalSignDays < LOGIN_CYCLE_DAYS
     sign.pendingDoubleRewards = cloneLoginRewardRewards(getDoubleableLoginRewards(scaled.rewards))
@@ -978,6 +1036,8 @@ class Storage {
       milestoneRewards,
       doubleableRewards: sign.pendingDoubleRewards ? cloneLoginRewardRewards(sign.pendingDoubleRewards) : null,
       canDouble: !!(sign.pendingDoubleRewards && Object.keys(sign.pendingDoubleRewards).length),
+      consecutiveDay: prevConsec,
+      consecutiveRewards: consecutiveGranted,
     }
   }
 
@@ -2058,6 +2118,7 @@ class Storage {
     this._d.loginSign.lastDate = ''
     this._d.loginSign.pendingDoubleRewards = null
     this._d.loginSign.doubleClaimedDate = ''
+    this._d.loginSign.consecutiveClaimedDate = ''
     // 同时清除签到翻倍广告次数，方便完整测试签到→翻倍流程
     if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
       delete this._d.adWatchLog.signDouble
@@ -2092,6 +2153,8 @@ class Storage {
     sign.lastDate = ''
     sign.pendingDoubleRewards = null
     sign.doubleClaimedDate = ''
+    sign.consecutiveDay = 0
+    sign.consecutiveClaimedDate = ''
     // 模拟换天：广告次数也一并清除
     if (this._d.adWatchLog && this._d.adWatchLog.signDouble) {
       delete this._d.adWatchLog.signDouble
