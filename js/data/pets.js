@@ -505,6 +505,13 @@ function getPetById(id) {
   return null
 }
 
+/** 局外池条目在筛选/UI 上使用的属性：以图鉴定义为准，避免仅存档里 attr 与 id 不一致时编队筛选与图鉴不一致 */
+function getPoolEntryAttr(poolEntry) {
+  if (!poolEntry || !poolEntry.id) return (poolEntry && poolEntry.attr) || 'metal'
+  const def = getPetById(poolEntry.id)
+  return (def && def.attr) || poolEntry.attr || 'metal'
+}
+
 // 随机获取一只指定属性的宠物
 function randomPetByAttr(attr) {
   const pool = PETS[attr]
@@ -765,6 +772,7 @@ module.exports = {
   getPetsByAttr,
   getAllPets,
   getPetById,
+  getPoolEntryAttr,
   randomPetByAttr,
   randomPet,
   randomPetFromPool,

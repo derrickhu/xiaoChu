@@ -8,7 +8,7 @@
 const V = require('./env')
 const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY } = require('../data/tower')
-const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill } = require('../data/pets')
+const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill, getPoolEntryAttr } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getStageById, getEffectiveStageTeamMin, getEnemyPortraitPath } = require('../data/stages')
 const { STAMINA_COST } = require('../data/constants')
@@ -509,7 +509,7 @@ function rStageTeam(g) {
 
   const pool = g.storage.petPool || []
   const filter = g._stageTeamFilter || 'all'
-  const filtered = filter === 'all' ? pool : pool.filter(p => p.attr === filter)
+  const filtered = filter === 'all' ? pool : pool.filter(p => getPoolEntryAttr(p) === filter)
   // 按攻击力降序排列
   const sorted = filtered.slice().sort((a, b) => getPoolPetAtk(b) - getPoolPetAtk(a))
 
@@ -539,7 +539,8 @@ function rStageTeam(g) {
     const pet = getPetById(pp.id)
     if (!pet) continue
     const isSelected = selected.includes(pp.id)
-    const pAttrColor = ATTR_COLOR[pp.attr]
+    const cardAttr = getPoolEntryAttr(pp)
+    const pAttrColor = ATTR_COLOR[cardAttr]
     const atk = getPoolPetAtk(pp)
     // ── 卡片底图（与灵宠池一致） ──
     const cardBg = R.getImg('assets/ui/pet_card_bg.png')
@@ -560,7 +561,7 @@ function rStageTeam(g) {
     }
 
     // 属性珠子（左上角，小尺寸）
-    const orbPath = `assets/orbs/orb_${pp.attr || 'metal'}.png`
+    const orbPath = `assets/orbs/orb_${cardAttr}.png`
     const orbImg = R.getImg(orbPath)
     if (orbImg && orbImg.width > 0) {
       const orbSz = 12 * S

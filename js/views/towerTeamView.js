@@ -5,7 +5,7 @@
 const V = require('./env')
 const P = require('../platform')
 const { ATTR_COLOR } = require('../data/tower')
-const { getPetById, getPetAvatarPath } = require('../data/pets')
+const { getPetById, getPetAvatarPath, getPoolEntryAttr } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
@@ -386,7 +386,7 @@ function rTowerTeam(g) {
 
   const pool = g.storage.petPool || []
   const filter = g._towerTeamFilter || 'all'
-  const filtered = filter === 'all' ? pool : pool.filter(p => p.attr === filter)
+  const filtered = filter === 'all' ? pool : pool.filter(p => getPoolEntryAttr(p) === filter)
   const sorted = filtered.slice().sort((a, b) => getPoolPetAtk(b) - getPoolPetAtk(a))
 
   _rects.petCardRects = []
@@ -414,7 +414,8 @@ function rTowerTeam(g) {
     const pet = getPetById(pp.id)
     if (!pet) continue
     const isSelected = selected.includes(pp.id)
-    const pAttrColor = ATTR_COLOR[pp.attr]
+    const cardAttr = getPoolEntryAttr(pp)
+    const pAttrColor = ATTR_COLOR[cardAttr]
     const atk = getPoolPetAtk(pp)
 
     const cardBg = R.getImg('assets/ui/pet_card_bg.png')
@@ -434,7 +435,7 @@ function rTowerTeam(g) {
     }
 
     // 属性珠
-    const orbPath = `assets/orbs/orb_${pp.attr || 'metal'}.png`
+    const orbPath = `assets/orbs/orb_${cardAttr}.png`
     const orbImg = R.getImg(orbPath)
     if (orbImg && orbImg.width > 0) {
       c.drawImage(orbImg, cardX + 4*S, cardY + 4*S, 12 * S, 12 * S)
