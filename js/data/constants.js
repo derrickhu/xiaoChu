@@ -222,6 +222,9 @@ const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
 const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
 
+/** Canvas 图片 LRU 缓存上限：须大于「图鉴·全部」可能单帧触达的头像路径数（约百只×png/jpg 两路 + UI），否则真机会频繁淘汰未解码完的图片而长期灰块 */
+const RENDER_IMG_CACHE_MAX = 320
+
 // ===== 灵兽图鉴页 (DEX) =====
 // 须与 screens.rDex 中 drawPageTitle、bottomBar.drawPageTitle(bgH=48×S) 一致，避免统计行与 name_bg 重叠
 const DEX_LAYOUT = {
@@ -316,6 +319,7 @@ module.exports = {
   DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
   WEAPON_ACQUIRE_HINT_UNOWNED,
+  RENDER_IMG_CACHE_MAX,
   DEX_LAYOUT,
   getDexContentTop,
 }

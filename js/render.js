@@ -3,6 +3,7 @@
  * 纯Canvas 2D，支持图片缓存、动画、粒子
  */
 const P = require('./platform')
+const { RENDER_IMG_CACHE_MAX } = require('./data/constants')
 const { ATTR_COLOR, ATTR_NAME, BEAD_ATTR_COLOR, BEAD_ATTR_NAME } = require('./data/tower')
 const Particles = require('./engine/particles')
 const FXComposer = require('./engine/effectComposer')
@@ -32,7 +33,7 @@ class Render {
     this._imgCache = {}
     this._imgAccess = {}   // path → 最后访问帧号，用于 LRU 淘汰
     this._imgFrame = 0     // 全局帧计数器（每次 getImg 时递增）
-    this._IMG_CACHE_MAX = 120 // 缓存上限，超出后淘汰最久未用的
+    this._IMG_CACHE_MAX = RENDER_IMG_CACHE_MAX
     this._gradCache = {}
     this._gradCacheSize = 0
     // 背景星点

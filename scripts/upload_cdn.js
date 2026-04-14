@@ -270,6 +270,25 @@ async function main() {
   console.log(`  新增/更新: ${toUpload.length}`)
   console.log(`  删除: ${toDelete.length}`)
   console.log(`  跳过: ${skipped}`)
+
+  function formatSize(bytes) {
+    if (!bytes) return '0 B'
+    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${bytes} B`
+  }
+
+  if (toUpload.length > 0) {
+    console.log('  待上传:')
+    for (const rp of [...toUpload].sort()) {
+      const sz = localManifest[rp]?.size || 0
+      console.log(`    • ${rp} (${formatSize(sz)})`)
+    }
+  }
+  if (toDelete.length > 0) {
+    console.log('  待云端删除:')
+    for (const rp of [...toDelete].sort()) console.log(`    • ${rp}`)
+  }
   console.log('')
 
   if (toUpload.length === 0 && toDelete.length === 0) {
@@ -284,19 +303,18 @@ async function main() {
   const tasks = toUpload.map(rp => {
     const fileInfo = allFiles.find(f => f.remote === rp)
     const cloudPath = CDN_FILE_PREFIX + '/' + rp
-    return () => uploadOneFile(token, fileInfo.local, cloudPath)
+    return async () => {
+      try {
+        await uploadOneFile(token, fileInfo.local, cloudPath)
+        console.log(`  [+] 已上传 ${rp}`)
+      } catch (e) {
+        console.error(`  [x] 失败 ${rp}: ${e.message?.split('\n')[0]}`)
+        throw e
+      }
+    }
   })
 
-  const { done: uploaded, failed } = await runWithConcurrency(tasks, CONCURRENCY, (done, fail, err) => {
-    if (err) {
-      const idx = done + fail
-      console.error(`  ✗ [${idx}/${toUpload.length}] ${toUpload[idx - 1]} - ${err.message?.split('\n')[0]}`)
-    }
-    if ((done + fail) % 20 === 0 || done + fail === toUpload.length) {
-      const pct = (((done + fail) / toUpload.length) * 100).toFixed(0)
-      process.stdout.write(`\r  [${pct}%] ${done} 成功 / ${fail} 失败 / ${toUpload.length} 总计`)
-    }
-  })
+  const { done: uploaded, failed } = await runWithConcurrency(tasks, CONCURRENCY, () => {})
   console.log('')
 
   // 6. 删除已移除的文件
@@ -306,7 +324,8 @@ async function main() {
     try {
       const url = `https://api.weixin.qq.com/tcb/batchdeletefile?access_token=${token}`
       await httpsRequest(url, { env: ENV_ID, fileid_list: fileIdList })
-      console.log('  清理完成')
+      console.log('  清理完成:')
+      for (const rp of [...toDelete].sort()) console.log(`    • 已删 ${rp}`)
     } catch (e) {
       console.error('  清理失败:', e.message)
     }

@@ -77,15 +77,21 @@ const DEX_AD_SLOTS = {
  */
 function getDexProgress(petPool) {
   const pool = petPool || []
-  const discovered = []
-  const collected = []
-  const mastered = []
+  const discovered = new Set()
+  const collected = new Set()
+  const mastered = new Set()
   for (const p of pool) {
-    discovered.push(p.id)
-    if ((p.star || 1) >= DEX_COLLECT_STAR) collected.push(p.id)
-    if ((p.star || 1) >= MAX_STAR) mastered.push(p.id)
+    const id = p.id
+    if (!id) continue
+    discovered.add(id)
+    if ((p.star || 1) >= DEX_COLLECT_STAR) collected.add(id)
+    if ((p.star || 1) >= MAX_STAR) mastered.add(id)
   }
-  return { discovered, collected, mastered }
+  return {
+    discovered: [...discovered],
+    collected: [...collected],
+    mastered: [...mastered],
+  }
 }
 
 /**

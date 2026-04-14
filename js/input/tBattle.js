@@ -30,8 +30,13 @@ function _handleBoardDrag(g, type, x, y) {
   } else if (type === 'move' && g.dragging) {
     g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))
     g.dragCurY = Math.max(by, Math.min(by + ROWS * cs, y))
-    const c = Math.floor((x - bx) / cs), r = Math.floor((y - by) / cs)
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed) && tutorial.canSwapTo(g, r, c)) {
+    // 与绘制位置一致：用钳制后的触点算格子，避免在网格外「空滑」绕过交换；并限制为四邻格，防止钳制后出现远距离一步交换
+    let c = Math.floor((g.dragCurX - bx) / cs)
+    let r = Math.floor((g.dragCurY - by) / cs)
+    c = Math.max(0, Math.min(COLS - 1, c))
+    r = Math.max(0, Math.min(ROWS - 1, r))
+    const orthoAdjacent = Math.abs(r - g.dragR) + Math.abs(c - g.dragC) === 1
+    if (orthoAdjacent && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed) && tutorial.canSwapTo(g, r, c)) {
       const or = g.dragR, oc = g.dragC
       const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
       g.swapAnim = { r1: or, c1: oc, r2: r, c2: c, t: 0, dur: 6 }

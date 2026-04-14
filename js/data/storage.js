@@ -312,7 +312,7 @@ class Storage {
           bestFloorWeapon: this.stats.bestFloorWeapon,
           bestTotalTurns: this.stats.bestTotalTurns || 0,
           stageTotalStars: this.getStageTotalStars(),
-          stageClearCount: this.getStageClearCount(),
+          stageClearCount: this.getClearedNormalStageDistinctCount(),
           stageEliteClearCount: this.getStageEliteClearCount(),
           farthestChapter: this.getFarthestChapter(),
           farthestNormalChapter: farN ? farN.chapter : 0,
@@ -1276,6 +1276,7 @@ class Storage {
     return (this._d.stageClearRecord && this._d.stageClearRecord[stageId] && this._d.stageClearRecord[stageId].bestRating) || null
   }
 
+  /** 指定关卡累计通关次数（重复刷关每次 +1） */
   getStageClearCount(stageId) {
     return (this._d.stageClearRecord && this._d.stageClearRecord[stageId] && this._d.stageClearRecord[stageId].clearCount) || 0
   }
@@ -1346,7 +1347,8 @@ class Storage {
     return total
   }
 
-  getStageClearCount() {
+  /** 已至少通关过的普通关数量（每关最多计 1，不含精英关） */
+  getClearedNormalStageDistinctCount() {
     const rec = this._d.stageClearRecord || {}
     let count = 0
     for (const id of Object.keys(rec)) {

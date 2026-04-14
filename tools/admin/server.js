@@ -3,6 +3,7 @@
  * 通过微信 HTTP API 读写云数据库 playerData 集合
  *
  * 用法: node server.js
+ * 常驻: ./admin-daemon.sh start （同目录，日志 .admin-server.log）
  * 访问: http://localhost:3200
  */
 'use strict'

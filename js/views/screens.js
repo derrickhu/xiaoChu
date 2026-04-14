@@ -1131,7 +1131,7 @@ function _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab) 
       farthestNormalOrder: myN ? myN.order : 0,
       farthestEliteChapter: myE ? myE.chapter : 0,
       farthestEliteOrder: myE ? myE.order : 0,
-      clearCount: g.storage.getStageClearCount(),
+      clearCount: g.storage.getClearedNormalStageDistinctCount(),
       farthestChapter: g.storage.getFarthestChapter(),
     }), W - padX - 12*S, myBarY + 42*S)
   } else if (tab === 'tower') {
@@ -2074,11 +2074,11 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
   g._dexCellRects = []
 
   const filterAttrs = g._dexTab === 'all' ? DEX_ATTRS : [g._dexTab]
+  const attrProgress = getDexProgressByAttr(g.storage.petPool)
 
   for (const attr of filterAttrs) {
     const pets = PETS[attr]
     const ac = ATTR_COLOR[attr]
-    const attrProgress = getDexProgressByAttr(g.storage.petPool)
     const ap = attrProgress[attr]
 
     ctx.fillStyle = ac.main; ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
@@ -2093,6 +2093,8 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
         const pet = pets[idx]
         const cx = padX + c * (cellW + cellGap)
         const cy = y + r * (cellH + cellGap)
+        // 屏外格子不绘制、不触发 getImg，避免「全部」Tab 单帧登记过多纹理导致 LRU 与真机解码跟不上
+        if (cy + cellH < contentTop || cy > contentBottom) continue
         const tier = getPetDexTier(pet.id, g.storage.petPool)
         const tc = _TIER_COLORS[tier]
         const imgPad = 3 * S

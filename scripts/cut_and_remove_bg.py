@@ -4,8 +4,9 @@ from rembg import remove, new_session
 from PIL import Image
 
 # Paths
+# 合图仅作流水线输入，不放 assets/ui（避免进小游戏包体）；微信工程已 ignore tools/
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHEET_PATH = os.path.join(BASE_DIR, "assets/ui/resource_icons_sheet.png")
+SHEET_PATH = os.path.join(BASE_DIR, "tools", "asset_sources", "resource_icons_sheet.png")
 OUTPUT_DIR = os.path.join(BASE_DIR, "assets/ui")
 
 # Output icon paths (left=灵石, center=体力, right=觉醒石)
