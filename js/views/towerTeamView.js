@@ -7,8 +7,9 @@ const P = require('../platform')
 const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { getWeaponById } = require('../data/weapons')
+const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
+const { drawCornerRarityBadge } = require('./rarityBadge')
 const { TOWER_DAILY } = require('../data/economyConfig')
 
 const FILTERS = [
@@ -51,8 +52,8 @@ const _rects = {
   weaponCardRects: [],
   weaponPreviewEquipRect: null,
   weaponPreviewBackRect: null,
-  unequipBtnRect: null,
   weaponPickerRect: null,
+  weaponPickerGridRect: null,
   filterRects: [],
   petCardRects: [],
   startBtnRect: null,
@@ -66,7 +67,7 @@ let _touchStartX = 0
 let _scrolling = false
 let _holdStartTime = 0
 let _holdTarget = null
-
+let _weaponPickerTouchInGrid = false
 let _framePetMap = null
 function _getFramePetMap(R) {
   if (!_framePetMap) {
@@ -532,12 +533,21 @@ function _wrapWeaponDescLines(c, text, maxW, fontPx) {
   return lines
 }
 
-// ===== 法宝选择浮层 =====
+// ===== 法宝选择浮层（四列网格 + 底部说明，与原先一致）=====
 function _drawWeaponPicker(g, c, R, S, W, H) {
   c.fillStyle = 'rgba(0,0,0,0.6)'
   c.fillRect(0, 0, W, H)
 
-  const previewId = g._weaponPickerPreviewId
+  const collection = g.storage.weaponCollection || []
+  let previewId = g._weaponPickerPreviewId
+  if (collection.length > 0 && (!previewId || collection.indexOf(previewId) < 0)) {
+    previewId = getDefaultWeaponPickerPreviewId(g.storage)
+    g._weaponPickerPreviewId = previewId
+  } else if (collection.length === 0) {
+    previewId = null
+    g._weaponPickerPreviewId = null
+  }
+
   const detailH = previewId ? 118 * S : 0
   const pw = W * 0.88
   const ph = H * 0.5 + detailH
@@ -548,20 +558,20 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
   _rects.weaponCardRects = []
   _rects.weaponPreviewEquipRect = null
   _rects.weaponPreviewBackRect = null
+  _rects.weaponPickerGridRect = null
 
   c.fillStyle = 'rgba(30,22,14,0.95)'
-  R.rr(px, py, pw, ph, 12*S); c.fill()
-  c.strokeStyle = 'rgba(200,168,80,0.4)'; c.lineWidth = 1.5*S
-  R.rr(px, py, pw, ph, 12*S); c.stroke()
+  R.rr(px, py, pw, ph, 12 * S); c.fill()
+  c.strokeStyle = 'rgba(200,168,80,0.4)'; c.lineWidth = 1.5 * S
+  R.rr(px, py, pw, ph, 12 * S); c.stroke()
 
-  c.fillStyle = '#F5E6C8'; c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#F5E6C8'; c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('选择法宝', W / 2, py + 20*S)
+  c.fillText('选择法宝', W / 2, py + 20 * S)
 
-  c.fillStyle = '#a89868'; c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.fillText('点击法宝查看完整效果，下方确认后再装备', W / 2, py + 34*S)
+  c.fillStyle = '#a89868'; c.font = `${9 * S}px "PingFang SC",sans-serif`
+  c.fillText('点击法宝查看完整效果，下方确认后再装备', W / 2, py + 34 * S)
 
-  const collection = g.storage.weaponCollection || []
   const eqId = g.storage.equippedWeaponId
   const cols = 4
   const iconGap = 8 * S
@@ -571,63 +581,78 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
   let wy = py + 46 * S
   const gridBottom = py + ph - pad - detailH - 6 * S
 
-  if (eqId) {
-    const ubtnW = 80*S, ubtnH = 28*S
-    const ubtnX = px + (pw - ubtnW) / 2
-    c.fillStyle = 'rgba(180,80,80,0.3)'
-    R.rr(ubtnX, wy, ubtnW, ubtnH, 6*S); c.fill()
-    c.strokeStyle = 'rgba(255,120,120,0.5)'; c.lineWidth = 1*S
-    R.rr(ubtnX, wy, ubtnW, ubtnH, 6*S); c.stroke()
-    c.fillStyle = '#ff9999'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  if (collection.length === 0) {
+    c.fillStyle = '#888'; c.font = `${12 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('卸下法宝', ubtnX + ubtnW / 2, wy + ubtnH / 2)
-    _rects.unequipBtnRect = [ubtnX, wy, ubtnW, ubtnH]
-    wy += ubtnH + 10 * S
+    c.fillText('暂无法宝，通关关卡可获得', W / 2, wy + 40 * S)
   } else {
-    _rects.unequipBtnRect = null
-  }
+    const rowStride = iconSz + textH + iconGap
+    const numRows = Math.ceil(collection.length / cols)
+    const totalGridH = (numRows - 1) * rowStride + iconSz + textH
+    const gridViewportH = gridBottom - wy
+    const maxScrollPick = Math.max(0, totalGridH - gridViewportH)
+    let scrollPick = g._weaponPickerScroll || 0
+    if (scrollPick > 0) scrollPick = 0
+    if (scrollPick < -maxScrollPick) scrollPick = -maxScrollPick
+    g._weaponPickerScroll = scrollPick
 
-  for (let i = 0; i < collection.length; i++) {
-    const col = i % cols
-    const row = Math.floor(i / cols)
-    const wx = px + pad + col * (iconSz + iconGap)
-    const cardY = wy + row * (iconSz + textH + iconGap)
-    if (cardY > gridBottom) break
-    if (cardY + iconSz + textH > gridBottom) continue
+    _rects.weaponPickerGridRect = [px + pad - 2 * S, wy, innerW + 4 * S, Math.max(0, gridViewportH)]
 
-    const wpn = getWeaponById(collection[i])
-    if (!wpn) continue
+    c.save()
+    c.beginPath()
+    c.rect(px + pad - 2 * S, wy, innerW + 4 * S, gridViewportH)
+    c.clip()
 
-    const isEquipped = wpn.id === eqId
-    const isPreview = wpn.id === previewId
-    c.fillStyle = isPreview ? 'rgba(200,180,100,0.25)' : isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
-    c.fillRect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
+    for (let i = 0; i < collection.length; i++) {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const wx = px + pad + col * (iconSz + iconGap)
+      const cardY = wy + row * rowStride + scrollPick
 
-    R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), wx + 1, cardY + 1, iconSz - 2, iconSz - 2, { radius: 4 * S })
+      const wpn = getWeaponById(collection[i])
+      if (!wpn) continue
 
-    R.drawWeaponFrame(wx, cardY, iconSz)
+      const isEquipped = wpn.id === eqId
+      const isPreview = wpn.id === previewId
+      c.fillStyle = isPreview ? 'rgba(200,180,100,0.25)' : isEquipped ? 'rgba(255,215,0,0.15)' : 'rgba(30,25,18,0.85)'
+      c.fillRect(wx + 1, cardY + 1, iconSz - 2, iconSz - 2)
 
-    if (isEquipped) {
-      c.save()
-      c.shadowColor = 'rgba(255,215,0,0.6)'; c.shadowBlur = 6*S
-      c.strokeStyle = '#ffd700'; c.lineWidth = 2*S
-      c.strokeRect(wx, cardY, iconSz, iconSz)
-      c.restore()
-      c.fillStyle = 'rgba(0,0,0,0.6)'
-      R.rr(wx + iconSz/2 - 14*S, cardY + 2*S, 28*S, 12*S, 3*S); c.fill()
-      c.fillStyle = '#ffd700'; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('装备中', wx + iconSz / 2, cardY + 8*S)
+      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), wx + 1, cardY + 1, iconSz - 2, iconSz - 2, { radius: 4 * S })
+
+      R.drawWeaponFrame(wx, cardY, iconSz)
+
+      if (isEquipped) {
+        c.save()
+        c.shadowColor = 'rgba(255,215,0,0.6)'; c.shadowBlur = 6 * S
+        c.strokeStyle = '#ffd700'; c.lineWidth = 2 * S
+        c.strokeRect(wx, cardY, iconSz, iconSz)
+        c.restore()
+        const eqBarH = 12 * S
+        c.fillStyle = 'rgba(0,0,0,0.6)'
+        R.rr(wx + 1, cardY + iconSz - eqBarH - 1, iconSz - 2, eqBarH, 3 * S); c.fill()
+        c.fillStyle = '#ffd700'; c.font = `bold ${7 * S}px "PingFang SC",sans-serif`
+        c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillText('装备中', wx + iconSz / 2, cardY + iconSz - eqBarH / 2 - 1)
+      }
+
+      const rarityKey = getWeaponRarity(wpn.id) || 'R'
+      drawCornerRarityBadge(c, R, S, wx + 3 * S, cardY + (isEquipped ? 14 * S : 3 * S), rarityKey, wpn.attr, {
+        minWidth: 18 * S,
+        height: 10 * S,
+        fontSize: 6.4 * S,
+        radius: 2.6 * S,
+      })
+
+      c.fillStyle = '#ddd'; c.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'; c.textBaseline = 'top'
+      const wName = wpn.name.length > 4 ? wpn.name.slice(0, 4) + '…' : wpn.name
+      c.fillText(wName, wx + iconSz / 2, cardY + iconSz + 3 * S)
+      c.fillStyle = '#8a7a58'; c.font = `${7 * S}px "PingFang SC",sans-serif`
+      c.fillText('点选看说明', wx + iconSz / 2, cardY + iconSz + 14 * S)
+
+      _rects.weaponCardRects.push({ weaponId: wpn.id, rect: [wx, cardY, iconSz, iconSz + textH] })
     }
-
-    c.fillStyle = '#ddd'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'top'
-    const wName = wpn.name.length > 4 ? wpn.name.slice(0, 4) + '…' : wpn.name
-    c.fillText(wName, wx + iconSz / 2, cardY + iconSz + 3*S)
-    c.fillStyle = '#8a7a58'; c.font = `${7*S}px "PingFang SC",sans-serif`
-    c.fillText('点选看说明', wx + iconSz / 2, cardY + iconSz + 14*S)
-
-    _rects.weaponCardRects.push({ weaponId: wpn.id, rect: [wx, cardY, iconSz, iconSz + textH] })
+    c.restore()
   }
 
   if (previewId) {
@@ -637,7 +662,7 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
     c.beginPath(); c.moveTo(px + pad, dTop); c.lineTo(px + pw - pad, dTop); c.stroke()
 
     if (pwpn) {
-      c.fillStyle = '#F5E6C8'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+      c.fillStyle = '#F5E6C8'; c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
       c.textAlign = 'left'; c.textBaseline = 'top'
       c.fillText(`法宝·${pwpn.name}`, px + pad, dTop + 6 * S)
 
@@ -646,42 +671,47 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
       const descLines = _wrapWeaponDescLines(c, pwpn.desc || '', descMaxW, descFont)
       c.fillStyle = '#c9c2b0'; c.font = `${descFont}px "PingFang SC",sans-serif`
       let ly = dTop + 24 * S
-      for (let li = 0; li < Math.min(descLines.length, 3); li++) {
+      const maxLines = 3
+      for (let li = 0; li < Math.min(descLines.length, maxLines); li++) {
         c.fillText(descLines[li], px + pad, ly)
         ly += descFont + 3 * S
+      }
+      if (descLines.length > maxLines) {
+        c.fillStyle = '#888'; c.font = `${9 * S}px "PingFang SC",sans-serif`
+        c.fillText('…', px + pad, ly)
       }
 
       const btnH = 30 * S
       const btnY = py + ph - pad - btnH - 4 * S
-      const btnGap2 = 10 * S
-      const btnW2 = (pw - pad * 2 - btnGap2) / 2
+      const btnGap = 10 * S
+      const btnW = (pw - pad * 2 - btnGap) / 2
       const bx1 = px + pad
-      const bx2 = bx1 + btnW2 + btnGap2
+      const bx2 = bx1 + btnW + btnGap
 
       c.fillStyle = 'rgba(60,55,48,0.9)'
-      R.rr(bx1, btnY, btnW2, btnH, 6*S); c.fill()
-      c.strokeStyle = 'rgba(180,160,120,0.5)'; c.lineWidth = 1*S
-      R.rr(bx1, btnY, btnW2, btnH, 6*S); c.stroke()
-      c.fillStyle = '#ccc'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      R.rr(bx1, btnY, btnW, btnH, 6 * S); c.fill()
+      c.strokeStyle = 'rgba(180,160,120,0.5)'; c.lineWidth = 1 * S
+      R.rr(bx1, btnY, btnW, btnH, 6 * S); c.stroke()
+      c.fillStyle = '#ccc'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('返回', bx1 + btnW2 / 2, btnY + btnH / 2)
-      _rects.weaponPreviewBackRect = [bx1, btnY, btnW2, btnH]
+      c.fillText('返回', bx1 + btnW / 2, btnY + btnH / 2)
+      _rects.weaponPreviewBackRect = [bx1, btnY, btnW, btnH]
 
       const already = pwpn.id === eqId
       if (already) {
         c.fillStyle = 'rgba(80,75,70,0.85)'
-        R.rr(bx2, btnY, btnW2, btnH, 6*S); c.fill()
-        c.fillStyle = '#888'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        c.fillText('已装备', bx2 + btnW2 / 2, btnY + btnH / 2)
+        R.rr(bx2, btnY, btnW, btnH, 6 * S); c.fill()
+        c.fillStyle = '#888'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+        c.fillText('已装备', bx2 + btnW / 2, btnY + btnH / 2)
       } else {
         c.fillStyle = 'rgba(100,140,80,0.45)'
-        R.rr(bx2, btnY, btnW2, btnH, 6*S); c.fill()
-        c.strokeStyle = 'rgba(160,220,120,0.5)'; c.lineWidth = 1*S
-        R.rr(bx2, btnY, btnW2, btnH, 6*S); c.stroke()
-        c.fillStyle = '#d4ffc4'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-        c.fillText('装备此法宝', bx2 + btnW2 / 2, btnY + btnH / 2)
+        R.rr(bx2, btnY, btnW, btnH, 6 * S); c.fill()
+        c.strokeStyle = 'rgba(160,220,120,0.5)'; c.lineWidth = 1 * S
+        R.rr(bx2, btnY, btnW, btnH, 6 * S); c.stroke()
+        c.fillStyle = '#d4ffc4'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+        c.fillText('装备此法宝', bx2 + btnW / 2, btnY + btnH / 2)
       }
-      _rects.weaponPreviewEquipRect = [bx2, btnY, btnW2, btnH]
+      _rects.weaponPreviewEquipRect = [bx2, btnY, btnW, btnH]
     }
   }
 
@@ -694,6 +724,7 @@ function tTowerTeam(g, x, y, type) {
     _touchStartY = y; _touchLastY = y; _touchStartX = x; _scrolling = false
     _holdStartTime = Date.now()
     _holdTarget = null
+    _weaponPickerTouchInGrid = !!(g._showWeaponPicker && _rects.weaponPickerGridRect && g._hitRect(x, y, ..._rects.weaponPickerGridRect))
     for (const item of _rects.petCardRects) {
       if (g._hitRect(x, y, ...item.rect)) {
         _holdTarget = { petId: item.petId }
@@ -708,6 +739,12 @@ function tTowerTeam(g, x, y, type) {
       _scrolling = true
       _holdTarget = null
     }
+    if (g._showWeaponPicker) {
+      if (_weaponPickerTouchInGrid && _scrolling) {
+        g._weaponPickerScroll = (g._weaponPickerScroll || 0) + dy
+      }
+      return
+    }
     if (_scrolling) _scrollY += dy
     return
   }
@@ -719,11 +756,15 @@ function tTowerTeam(g, x, y, type) {
     const prevId = g._weaponPickerPreviewId
     if (prevId) {
       if (_rects.weaponPreviewBackRect && g._hitRect(x, y, ..._rects.weaponPreviewBackRect)) {
-        g._weaponPickerPreviewId = null; return
+        g._weaponPickerPreviewId = null
+        g._showWeaponPicker = false
+        return
       }
       if (_rects.weaponPreviewEquipRect && g._hitRect(x, y, ..._rects.weaponPreviewEquipRect)) {
         if (g.storage.equippedWeaponId === prevId) {
-          g._weaponPickerPreviewId = null; return
+          g._weaponPickerPreviewId = null
+          g._showWeaponPicker = false
+          return
         }
         g.storage.equipWeapon(prevId)
         g._weaponPickerPreviewId = null
@@ -731,15 +772,10 @@ function tTowerTeam(g, x, y, type) {
         return
       }
     }
-    if (_rects.unequipBtnRect && g._hitRect(x, y, ..._rects.unequipBtnRect)) {
-      g.storage.unequipWeapon()
-      g._weaponPickerPreviewId = null
-      g._showWeaponPicker = false
-      return
-    }
     for (const item of _rects.weaponCardRects) {
       if (g._hitRect(x, y, ...item.rect)) {
-        g._weaponPickerPreviewId = item.weaponId; return
+        g._weaponPickerPreviewId = item.weaponId
+        return
       }
     }
     if (_rects.weaponPickerRect && !g._hitRect(x, y, ..._rects.weaponPickerRect)) {
@@ -802,7 +838,8 @@ function tTowerTeam(g, x, y, type) {
 
   // 法宝槽
   if (_rects.weaponSlotRect && g._hitRect(x, y, ..._rects.weaponSlotRect)) {
-    g._weaponPickerPreviewId = null
+    g._weaponPickerPreviewId = getDefaultWeaponPickerPreviewId(g.storage)
+    g._weaponPickerScroll = 0
     g._showWeaponPicker = true
     return
   }

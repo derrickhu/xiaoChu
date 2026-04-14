@@ -7,6 +7,7 @@ const P = require('./platform')
 const AssetLoader = require('./data/assetLoader')
 const { Render, TH } = require('./render')
 const Storage = require('./data/storage')
+const { getDefaultWeaponPickerPreviewId } = require('./data/weapons')
 // tower 数据由各子模块自行引入
 const MusicMgr = require('./runtime/music')
 const TinyEmitter = require('./libs/tinyemitter')
@@ -470,9 +471,18 @@ class Main {
     if (old === name) return
     this._dirty = true
     this.scene = name
-    if (name === 'stageTeam') {
+    if (name === 'stageTeam' || name === 'towerTeam') {
       this._showWeaponPicker = false
       this._weaponPickerPreviewId = null
+      this._weaponPickerScroll = 0
+      if (name === 'stageTeam' && this._autoOpenWeaponPickerOnStageTeam) {
+        this._autoOpenWeaponPickerOnStageTeam = false
+        const def = getDefaultWeaponPickerPreviewId(this.storage)
+        if (def) {
+          this._weaponPickerPreviewId = def
+          this._showWeaponPicker = true
+        }
+      }
     }
 
     // --- 场景切换时资源清理 ---

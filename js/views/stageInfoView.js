@@ -657,6 +657,7 @@ function tStageInfo(g, x, y, type) {
       g._stageTeamSelected = savedTeam.slice()
       g._stageTeamFilter = 'all'
       P.showGameToast('请先装备一件法宝后再开始战斗')
+      g._autoOpenWeaponPickerOnStageTeam = true
       g.setScene('stageTeam')
       return
     }

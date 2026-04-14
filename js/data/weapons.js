@@ -145,6 +145,15 @@ function getWeaponById(id) {
   return WEAPONS.find(w => w.id === id) || null
 }
 
+/** 编队/浮层默认选中：已装备且仍在背包则该项，否则背包第一件 */
+function getDefaultWeaponPickerPreviewId(storage) {
+  const coll = storage.weaponCollection || []
+  if (coll.length === 0) return null
+  const eq = storage.equippedWeaponId
+  if (eq && coll.indexOf(eq) >= 0) return eq
+  return coll[0]
+}
+
 // 随机获取一件法宝（可传入排除ID集合）
 function randomWeapon(excludeIds) {
   if (excludeIds && excludeIds.size > 0) {
@@ -176,6 +185,7 @@ module.exports = {
   TOWER_ONLY_WEAPONS,
   getAllWeapons,
   getWeaponById,
+  getDefaultWeaponPickerPreviewId,
   getWeaponRarity,
   getWeaponsByRarity,
   getStageWeaponPool,
