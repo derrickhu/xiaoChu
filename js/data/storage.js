@@ -1558,6 +1558,7 @@ class Storage {
     const pool = this._d.petPool || []
     if (!pool.find(p => p.id === petId)) return false
     dispatch.slots.push({ petId, startTime: Date.now() })
+    this.addDailyTaskProgress('idle_collect', 1)
     this._save()
     return true
   }
@@ -1611,7 +1612,6 @@ class Storage {
       this._d.soulStone = (this._d.soulStone || 0) + totalSoulStone
     }
     dispatch.lastCollect = now
-    this.addDailyTaskProgress('idle_collect', 1)
     this._save()
     return { totalFragments, totalSoulStone, details }
   }

@@ -53,6 +53,14 @@ function _handleHomeDailyTaskClick(g) {
   const target = g._homeDailyTaskTarget || null
   const action = target && target.action ? target.action : 'tasks'
   g._showDailySign = false
+  if (action === 'share') {
+    const { shareGame } = require('../share')
+    g._showDailyTasks = false
+    g._dailyTaskFocusId = null
+    g._dailyTaskFocusSection = null
+    shareGame(g)
+    return
+  }
   if (action === 'mode' && target && target.mode) {
     g._showDailyTasks = false
     g._dailyTaskFocusId = null

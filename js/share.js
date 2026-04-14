@@ -21,16 +21,27 @@ function shareStats(storage) {
   P.shareAppMessage({ title: titleFn(d), imageUrl: cfg.imageUrl })
 }
 
+function _recordShareReward(g) {
+  if (g && g.storage && g.storage.recordShare) {
+    const rewarded = g.storage.recordShare()
+    if (rewarded && g._toast) g._toast('分享奖励：体力+10')
+    g._dirty = true
+  }
+}
+
+function shareGame(g) {
+  if (!g || !g.storage) return
+  P.shareAppMessage(getShareData(g.storage))
+  _recordShareReward(g)
+}
+
 function doShare(g, sceneKey, data) {
   const cfg = SHARE_SCENES[sceneKey]
   if (!cfg) return
   const title = cfg.titleFn ? cfg.titleFn(data || {}) : ''
   const query = data && data.inviterId ? `inviter=${data.inviterId}` : ''
   P.shareAppMessage({ title, imageUrl: cfg.imageUrl, query })
-  if (g && g.storage && g.storage.recordShare) {
-    const rewarded = g.storage.recordShare()
-    if (rewarded && g._toast) g._toast('分享奖励：体力+10')
-  }
+  _recordShareReward(g)
 }
 
-module.exports = { getShareData, shareStats, doShare }
+module.exports = { getShareData, shareStats, shareGame, doShare }

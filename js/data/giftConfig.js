@@ -133,6 +133,7 @@ function getScaledDailyTaskReward(task, chapter) {
   if (task.reward.fragment) r.fragment = Math.max(1, Math.round(task.reward.fragment * scale))
   if (task.reward.awakenStone) r.awakenStone = Math.max(1, Math.round(task.reward.awakenStone * scale))
   if (task.reward.stamina) r.stamina = Math.round(task.reward.stamina * scale)
+  if (task.reward.staminaFixed) r.stamina = (r.stamina || 0) + task.reward.staminaFixed
   if (chapter >= DAILY_TASK_AWAKEN.threshold && task.reward.soulStone >= DAILY_TASK_AWAKEN.minSoulStone) {
     r.awakenStone = (r.awakenStone || 0) + Math.max(1, Math.floor((chapter - DAILY_TASK_AWAKEN.threshold + 1) * DAILY_TASK_AWAKEN.coeff))
   }

@@ -1550,6 +1550,9 @@ function _getHomeDailyTaskTracker(g) {
     const targetMode = condType === 'towerRun'
       ? 'tower'
       : ((condType === 'stageBattle' || condType === 'anyBattle') ? 'stage' : null)
+    const entryAction = condType === 'share'
+      ? 'share'
+      : (targetMode ? 'mode' : 'tasks')
     return {
       badge: '进行中',
       title: '今日任务',
@@ -1560,7 +1563,7 @@ function _getHomeDailyTaskTracker(g) {
       tone: 'pending',
       pulse: false,
       overallText,
-      entryAction: targetMode ? 'mode' : 'tasks',
+      entryAction,
       targetMode,
       focusTaskId: activeTask.task.id,
     }
