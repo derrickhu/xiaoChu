@@ -5,8 +5,8 @@
 const V = require('./env')
 const P = require('../platform')
 const { ATTR_COLOR } = require('../data/tower')
-const { getPetById, getPetAvatarPath, getPoolEntryAttr } = require('../data/pets')
-const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { getPetById, getPetAvatarPath, getPoolEntryAttr, getPetRarity } = require('../data/pets')
+const { getPoolPetAtk, comparePoolPetsFormationOrder } = require('../data/petPoolConfig')
 const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
@@ -387,7 +387,7 @@ function rTowerTeam(g) {
   const pool = g.storage.petPool || []
   const filter = g._towerTeamFilter || 'all'
   const filtered = filter === 'all' ? pool : pool.filter(p => getPoolEntryAttr(p) === filter)
-  const sorted = filtered.slice().sort((a, b) => getPoolPetAtk(b) - getPoolPetAtk(a))
+  const sorted = filtered.slice().sort((a, b) => comparePoolPetsFormationOrder(a, b))
 
   _rects.petCardRects = []
   const cols = 5
@@ -439,6 +439,15 @@ function rTowerTeam(g) {
     const orbImg = R.getImg(orbPath)
     if (orbImg && orbImg.width > 0) {
       c.drawImage(orbImg, cardX + 4*S, cardY + 4*S, 12 * S, 12 * S)
+    }
+
+    const petRarity = getPetRarity(pp.id)
+    if (petRarity) {
+      drawCornerRarityBadge(c, R, S, 0, cardY + 4 * S, petRarity, cardAttr, {
+        alignRight: cardX + cw - 4 * S,
+        fontSize: 7 * S,
+        height: 11 * S,
+      })
     }
 
     // 头像

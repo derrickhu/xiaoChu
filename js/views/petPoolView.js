@@ -7,6 +7,7 @@ const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetRarity, getPetAvatarPath } = require('../data/pets')
 const { getPoolPetAtk, canLevelUp, canStarUp } = require('../data/petPoolConfig')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
+const { rarityVisualForAttr } = require('../data/rewardVisual')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
@@ -426,15 +427,18 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.fillStyle = '#fff'
   c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
 
-  // 品质徽标（左上角）
-  const badgeText = rv.label
+  // 品质徽标（左上角，与 rarityBadge 同源浅色底）
+  const rvBadge = rarityVisualForAttr(rarity, poolPet.attr || 'metal')
+  const badgeText = rvBadge.label
   c.save()
   c.font = `bold ${10 * S}px sans-serif`
   const tw = c.measureText(badgeText).width
   const bw = tw + 6 * S, bh = 14 * S
-  c.fillStyle = rv.badgeBg
+  c.fillStyle = rvBadge.badgeBg
   R.rr(x + 2 * S, y + 2 * S, bw, bh, 3 * S); c.fill()
-  c.fillStyle = rv.badgeColor
+  c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
+  R.rr(x + 2 * S, y + 2 * S, bw, bh, 3 * S); c.stroke()
+  c.fillStyle = rvBadge.badgeColor
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(badgeText, x + 5 * S, y + 4 * S)
   c.restore()
@@ -533,16 +537,18 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.fillText(`${fragCount}/${cost}`, x + w / 2, barY2 + barH2 + 3 * S)
 
-  // 品质徽标（左上角，全不透明）
   c.globalAlpha = 1
-  const gBadgeText = rv.label
+  const rvGBadge = rarityVisualForAttr(rarity, basePet.attr || 'metal')
+  const gBadgeText = rvGBadge.label
   c.save()
   c.font = `bold ${10 * S}px sans-serif`
   const gTw = c.measureText(gBadgeText).width
   const gBw = gTw + 6 * S, gBh = 14 * S
-  c.fillStyle = rv.badgeBg
+  c.fillStyle = rvGBadge.badgeBg
   R.rr(x + 2 * S, y + 2 * S, gBw, gBh, 3 * S); c.fill()
-  c.fillStyle = rv.badgeColor
+  c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
+  R.rr(x + 2 * S, y + 2 * S, gBw, gBh, 3 * S); c.stroke()
+  c.fillStyle = rvGBadge.badgeColor
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(gBadgeText, x + 5 * S, y + 4 * S)
   c.restore()

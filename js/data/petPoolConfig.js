@@ -55,6 +55,24 @@ const FRAGMENT_TO_EXP = POOL_FRAGMENT_TO_EXP
  * @param {object} poolPet - 灵宠池中的宠物记录 { id, level, star, attr, ... }
  * @param {object} [dexBuffs] - 图鉴里程碑加成 { all: {atkPct}, metal: {atkPct}, ... }
  */
+/** 编队/列表默认排序：品质 SSR > SR > R（与 getPetRarity 一致） */
+const FORMATION_RARITY_RANK = { SSR: 3, SR: 2, R: 1 }
+
+/**
+ * 编队页灵宠列表排序：高星级 > 高品质 > 高面板攻击（与 getPoolPetAtk 一致，可传入图鉴加成）
+ * @param {object} a @param {object} b - petPool 条目
+ * @param {object} [dexBuffs] - 同 getPoolPetAtk
+ */
+function comparePoolPetsFormationOrder(a, b, dexBuffs) {
+  const sa = a.star || 1
+  const sb = b.star || 1
+  if (sb !== sa) return sb - sa
+  const ra = FORMATION_RARITY_RANK[getPetRarity(a.id)] || 0
+  const rb = FORMATION_RARITY_RANK[getPetRarity(b.id)] || 0
+  if (rb !== ra) return rb - ra
+  return getPoolPetAtk(b, dexBuffs) - getPoolPetAtk(a, dexBuffs)
+}
+
 function getPoolPetAtk(poolPet, dexBuffs) {
   const basePet = getPetById(poolPet.id)
   if (!basePet) return 0
@@ -162,7 +180,8 @@ module.exports = {
   POOL_STAR_AWAKEN_COST,
   POOL_STAR_LV_CAP,
   FRAGMENT_TO_EXP,
-  getPoolPetAtk,
+   getPoolPetAtk,
+  comparePoolPetsFormationOrder,
   getPoolPetMaxLv,
   getPoolPetMaxStar,
   canLevelUp,

@@ -19,6 +19,17 @@ function rgbaFromHex(hex, a) {
   return `rgba(${r},${g},${b},${a})`
 }
 
+/** 角标底色：深底 + 向属性主色偏一点，比纯 ac.bg 略活、比浅半透明更易读字 */
+function badgeBgForAttr(ac) {
+  const A = hexToRgb(ac.bg)
+  const B = hexToRgb(ac.main)
+  const t = 0.38
+  const r = Math.round(A.r + (B.r - A.r) * t)
+  const g = Math.round(A.g + (B.g - A.g) * t)
+  const b = Math.round(A.b + (B.b - A.b) * t)
+  return `rgba(${r},${g},${b},0.92)`
+}
+
 /**
  * @param {'R'|'SR'|'SSR'} rarityKey
  * @param {keyof typeof ATTR_COLOR} attrKey
@@ -27,14 +38,15 @@ function rarityVisualForAttr(rarityKey, attrKey) {
   const base = RARITY_VISUAL[rarityKey] || RARITY_VISUAL.R
   const ac = ATTR_COLOR[attrKey] || ATTR_COLOR.metal
   const { r, g, b } = hexToRgb(ac.main)
+  const lt = ac.lt || ac.main
   return {
     label: base.label,
     name: base.name,
     borderColor: ac.main,
     bgGradient: [ac.bg, ac.dk || ac.bg],
     glowColor: `rgba(${r},${g},${b},0.45)`,
-    badgeColor: ac.lt || ac.main,
-    badgeBg: ac.bg,
+    badgeColor: lt,
+    badgeBg: badgeBgForAttr(ac),
     hasParticles: !!base.hasParticles,
   }
 }

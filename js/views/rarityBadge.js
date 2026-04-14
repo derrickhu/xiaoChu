@@ -12,19 +12,23 @@ function drawCornerRarityBadge(c, R, S, x, y, rarityKey, attrKey, options) {
   const w = _badgeWidth(label, S, opt.minWidth || 20 * S)
   const h = opt.height || 12 * S
   const r = opt.radius || 3 * S
+  let bx = x
+  let by = y
+  if (typeof opt.alignRight === 'number') bx = opt.alignRight - w
+  if (typeof opt.alignBottom === 'number') by = opt.alignBottom - h
   c.save()
   c.fillStyle = rv.badgeBg
-  R.rr(x, y, w, h, r)
+  R.rr(bx, by, w, h, r)
   c.fill()
-  c.strokeStyle = opt.strokeStyle || 'rgba(255,248,225,0.35)'
+  c.strokeStyle = opt.strokeStyle || 'rgba(255,248,225,0.4)'
   c.lineWidth = opt.lineWidth || 0.8 * S
-  R.rr(x, y, w, h, r)
+  R.rr(bx, by, w, h, r)
   c.stroke()
   c.fillStyle = rv.badgeColor
   c.font = `bold ${(opt.fontSize || 7.2 * S)}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(label, x + w / 2, y + h / 2)
+  c.fillText(label, bx + w / 2, by + h / 2)
   c.restore()
 }
 

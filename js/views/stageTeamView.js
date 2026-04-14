@@ -8,8 +8,8 @@
 const V = require('./env')
 const P = require('../platform')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY } = require('../data/tower')
-const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill, getPoolEntryAttr } = require('../data/pets')
-const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { getPetById, getPetAvatarPath, getPetSkillDesc, petHasSkill, getPoolEntryAttr, getPetRarity } = require('../data/pets')
+const { getPoolPetAtk, comparePoolPetsFormationOrder } = require('../data/petPoolConfig')
 const { getStageById, getEffectiveStageTeamMin, getEnemyPortraitPath } = require('../data/stages')
 const { STAMINA_COST } = require('../data/constants')
 const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
@@ -27,6 +27,14 @@ const FILTERS = [
 
 /** 编队不足时槽位/卡片引导描边的闪烁周期（与 needPickWeapon 一致） */
 const TEAM_GUIDE_PULSE_PERIOD = 420
+
+/** 编队页怪物信息卡：内边距、多行间距与行高（× env.S），避免双 Boss 时名字与弱点行挤叠 */
+const STAGE_TEAM_ENEMY_CARD_PAD = 10
+const STAGE_TEAM_ENEMY_ROW_GAP = 6
+const STAGE_TEAM_ENEMY_ROW_H_SINGLE = 54
+const STAGE_TEAM_ENEMY_ROW_H_MULTI = 46
+const STAGE_TEAM_ENEMY_NAME_Y_IN_ROW = 11
+const STAGE_TEAM_ENEMY_WEAK_Y_IN_ROW = 28
 
 /** 灵宠池里是否还有未编入当前队伍的灵宠 */
 function _hasUnpickedPetsInPool(g, selectedIds) {
@@ -144,8 +152,12 @@ function rStageTeam(g) {
       for (const e of (w.enemies || [])) if (e) allEnemies.push(e)
     }
     if (allEnemies.length > 0) {
-      const cardPad = 10 * S
-      const cardH = allEnemies.length > 1 ? 72 * S : 64 * S
+      const cardPad = STAGE_TEAM_ENEMY_CARD_PAD * S
+      const rowGap = allEnemies.length > 1 ? STAGE_TEAM_ENEMY_ROW_GAP * S : 0
+      const rowBodyH =
+        (allEnemies.length === 1 ? STAGE_TEAM_ENEMY_ROW_H_SINGLE : STAGE_TEAM_ENEMY_ROW_H_MULTI) * S
+      const cardH =
+        cardPad + allEnemies.length * rowBodyH + Math.max(0, allEnemies.length - 1) * rowGap
       const cardX = 8 * S, cardW = W - 16 * S
       c.fillStyle = 'rgba(30,22,14,0.75)'
       R.rr(cardX, cy, cardW, cardH, 10 * S); c.fill()
@@ -156,15 +168,14 @@ function rStageTeam(g) {
         c.fillStyle = 'rgba(180,50,50,0.2)'; R.rr(cardX, cy, cardW, cardH, 10 * S); c.fill()
       }
 
-      const perEnemyH = (cardH - cardPad) / allEnemies.length
       for (let ei = 0; ei < allEnemies.length; ei++) {
         const e = allEnemies[ei]
-        const ey = cy + cardPad / 2 + ei * perEnemyH
+        const ey = cy + cardPad / 2 + ei * (rowBodyH + rowGap)
         const ac = ATTR_COLOR[e.attr]
 
-        const avatarSz = Math.min(perEnemyH - 4 * S, 46 * S)
+        const avatarSz = Math.min(rowBodyH - 8 * S, 46 * S)
         const avatarX = cardX + cardPad
-        const avatarY = ey + (perEnemyH - avatarSz) / 2
+        const avatarY = ey + (rowBodyH - avatarSz) / 2
         c.fillStyle = ac ? ac.bg : '#1a1a2e'
         R.rr(avatarX, avatarY, avatarSz, avatarSz, 6 * S); c.fill()
         const ePath = e.avatar ? `assets/${e.avatar}.png` : null
@@ -176,40 +187,63 @@ function rStageTeam(g) {
         }
 
         const infoX = avatarX + avatarSz + 10 * S
-        let infoY = avatarY + avatarSz * 0.32
+        const nameLineY = ey + STAGE_TEAM_ENEMY_NAME_Y_IN_ROW * S
         c.textAlign = 'left'; c.textBaseline = 'middle'
-        c.fillStyle = '#FFF2D0'; c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-        const eName = e.isBoss ? (e.name) : e.name
-        c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2 * S
-        c.strokeText(eName, infoX, infoY)
-        c.fillText(eName, infoX, infoY)
-
-        c.fillStyle = ac ? ac.main : '#ccc'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+        const nameFont = `bold ${12 * S}px "PingFang SC",sans-serif`
+        const attrFont = `bold ${10 * S}px "PingFang SC",sans-serif`
+        const eName = e.name
         const attrLabel = (ATTR_NAME[e.attr] || '') + '属性'
-        c.strokeText(attrLabel, infoX + c.measureText(eName).width + 8 * S, infoY)
-        c.fillText(attrLabel, infoX + c.measureText(eName).width + 8 * S, infoY)
+        const nameAttrGap = 10 * S
+        c.font = attrFont
+        const attrLabelW = c.measureText(attrLabel).width
+        const bossTagReserve = e.isBoss ? 36 * S + 14 * S : 10 * S
+        const lineRight = cardX + cardW - cardPad - bossTagReserve
+        const maxNameW = Math.max(8 * S, lineRight - infoX - nameAttrGap - attrLabelW)
 
-        infoY = avatarY + avatarSz * 0.72
+        c.font = nameFont
+        let lineName = eName
+        if (lineName && c.measureText(lineName).width > maxNameW) {
+          const ell = '…'
+          let cut = lineName
+          while (cut.length > 0 && c.measureText(cut + ell).width > maxNameW) {
+            cut = cut.slice(0, -1)
+          }
+          lineName = cut.length > 0 ? cut + ell : ell
+        }
+        const nameW = c.measureText(lineName).width
+
+        c.fillStyle = '#FFF2D0'
+        c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2 * S
+        c.strokeText(lineName, infoX, nameLineY)
+        c.fillText(lineName, infoX, nameLineY)
+
+        const attrX = infoX + nameW + nameAttrGap
+        c.fillStyle = ac ? ac.main : '#ccc'; c.font = attrFont
+        c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.5 * S
+        c.strokeText(attrLabel, attrX, nameLineY)
+        c.fillText(attrLabel, attrX, nameLineY)
+
+        const weakLineY = ey + STAGE_TEAM_ENEMY_WEAK_Y_IN_ROW * S
         const orbR = 7 * S
         let bx = infoX
         const weakAttr = COUNTER_BY[e.attr]
         if (weakAttr) {
           c.fillStyle = 'rgba(220,200,160,0.85)'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
           c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
-          c.strokeText('弱点:', bx, infoY)
-          c.fillText('弱点:', bx, infoY)
+          c.strokeText('弱点:', bx, weakLineY)
+          c.fillText('弱点:', bx, weakLineY)
           bx += c.measureText('弱点:').width + 4 * S
-          R.drawBead(bx + orbR, infoY, orbR, weakAttr, 0)
-          bx += orbR * 2 + 12 * S
+          R.drawBead(bx + orbR, weakLineY, orbR, weakAttr, 0)
+          bx += orbR * 2 + 14 * S
         }
         const resistAttr = COUNTER_MAP[e.attr]
         if (resistAttr) {
           c.fillStyle = 'rgba(190,175,145,0.7)'; c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
           c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 2 * S
-          c.strokeText('抵抗:', bx, infoY)
-          c.fillText('抵抗:', bx, infoY)
+          c.strokeText('抵抗:', bx, weakLineY)
+          c.fillText('抵抗:', bx, weakLineY)
           bx += c.measureText('抵抗:').width + 4 * S
-          R.drawBead(bx + orbR, infoY, orbR, resistAttr, 0)
+          R.drawBead(bx + orbR, weakLineY, orbR, resistAttr, 0)
         }
 
         if (e.isBoss) {
@@ -510,8 +544,8 @@ function rStageTeam(g) {
   const pool = g.storage.petPool || []
   const filter = g._stageTeamFilter || 'all'
   const filtered = filter === 'all' ? pool : pool.filter(p => getPoolEntryAttr(p) === filter)
-  // 按攻击力降序排列
-  const sorted = filtered.slice().sort((a, b) => getPoolPetAtk(b) - getPoolPetAtk(a))
+  // 默认：高星级 > 高品质(SSR/SR/R) > 高攻击力
+  const sorted = filtered.slice().sort((a, b) => comparePoolPetsFormationOrder(a, b))
 
   _rects.petCardRects = []
   const cols = 5
@@ -566,6 +600,16 @@ function rStageTeam(g) {
     if (orbImg && orbImg.width > 0) {
       const orbSz = 12 * S
       c.drawImage(orbImg, cx + 4*S, cardY + 4*S, orbSz, orbSz)
+    }
+
+    // 品质角标（右上，避开左上角属性珠；与灵宠池同源样式）
+    const petRarity = getPetRarity(pp.id)
+    if (petRarity) {
+      drawCornerRarityBadge(c, R, S, 0, cardY + 4 * S, petRarity, cardAttr, {
+        alignRight: cx + cw - 4 * S,
+        fontSize: 7 * S,
+        height: 11 * S,
+      })
     }
 
     // 头像（正常裁剪，不溢出）

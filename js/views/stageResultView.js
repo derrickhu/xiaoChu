@@ -156,14 +156,14 @@ function _drawRarityDiamondBadge(c, S, cx, cy, rv, tag) {
   c.lineTo(0, r)
   c.lineTo(-r * 0.92, 0)
   c.closePath()
-  c.shadowColor = rv.glowColor || 'rgba(180,100,255,0.55)'
-  c.shadowBlur = 10 * S
-  c.fillStyle = rv.badgeBg || 'rgba(80,30,120,0.9)'
+  c.shadowColor = rv.glowColor || 'rgba(180,100,255,0.35)'
+  c.shadowBlur = 8 * S
+  c.fillStyle = rv.badgeBg || 'rgba(80,30,120,0.5)'
   c.fill()
+  c.shadowBlur = 0
   c.strokeStyle = rv.borderColor
   c.lineWidth = 1.2 * S
   c.stroke()
-  c.shadowBlur = 0
   c.fillStyle = rv.badgeColor
   c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
@@ -1261,6 +1261,8 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
     const badgeY = iconY + 1 * S
     c.fillStyle = rv.badgeBg
     R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.fill()
+    c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.85 * S
+    R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.stroke()
     c.fillStyle = rv.badgeColor; c.font = `bold ${7 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
@@ -1290,6 +1292,8 @@ function _drawNewDropTile(c, R, S, left, cy, tileW, reward, g, at, subDelay) {
     const badgeY = iconY + 1 * S
     c.fillStyle = rv.badgeBg
     R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.fill()
+    c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.85 * S
+    R.rr(badgeX, badgeY, badgeW, badgeH, 2 * S); c.stroke()
     c.fillStyle = rv.badgeColor; c.font = `bold ${7 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
@@ -1668,7 +1672,6 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
     R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 7 * S, shadow: attrColor, shadowBlur: 8, strokeStyle: attrColor, strokeWidth: 2 })
   }
 
-  // 品质徽标（描边/底色跟属性）
   const rv2 = rarityVisualForAttr(getPetRarity(reward.petId), attr)
   const badgeW = rv2.label.length * 8 * S + 6 * S
   const badgeH = 13 * S
@@ -1676,6 +1679,8 @@ function _drawPetRowEnhanced(c, R, S, x, cy, innerW, reward, at, rowDelay) {
   const badgeY = iconY - 2 * S
   c.fillStyle = rv2.badgeBg
   R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.fill()
+  c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
+  R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.stroke()
   c.fillStyle = rv2.badgeColor; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText(rv2.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
@@ -1717,7 +1722,6 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
     const avatarPath = getPetAvatarPath({ ...pet, star })
     R.drawCoverImg(R.getImg(avatarPath), iconX, iconY, iconSz, iconSz, { radius: 5 * S, strokeStyle: attrColor, strokeWidth: 1.5 })
 
-    // 品质徽标（左上角，R/SR/SSR）
     const rv = rarityVisualForAttr(getPetRarity(reward.petId), attr)
     const badgeW = rv.label.length * 7 * S + 4 * S
     const badgeH = 11 * S
@@ -1725,6 +1729,8 @@ function _drawFragmentRowEnhanced(c, R, S, x, cy, innerW, reward, g) {
     const badgeY = iconY - 1 * S
     c.fillStyle = rv.badgeBg
     R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.fill()
+    c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.85 * S
+    R.rr(badgeX, badgeY, badgeW, badgeH, 3 * S); c.stroke()
     c.fillStyle = rv.badgeColor; c.font = `bold ${7*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(rv.label, badgeX + badgeW / 2, badgeY + badgeH / 2)
