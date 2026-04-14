@@ -1464,6 +1464,7 @@ function _getTaskRewardPreviewSlots(reward) {
 }
 
 function _getHomeDailyTaskTracker(g) {
+  g.storage.syncDailyAllBonusAdFlagFromAdLog()
   const prog = g.storage.dailyTaskProgress
   const chapter = g.storage.currentChapter
   const total = DAILY_TASKS.length
@@ -1493,8 +1494,9 @@ function _getHomeDailyTaskTracker(g) {
 
   const allTaskRewardsClaimed = DAILY_TASKS.every(task => !!prog.claimed[task.id])
   const allBonusClaimed = !!prog.allClaimed
+  const allBonusAdDone = !!prog.allBonusAdClaimed
   let canDoubleBonus = false
-  if (allBonusClaimed && !g._dailyTaskDoubled) {
+  if (allBonusClaimed && !allBonusAdDone) {
     const AdManager = require('../adManager')
     canDoubleBonus = AdManager.canShow('dailyTaskBonus')
   }

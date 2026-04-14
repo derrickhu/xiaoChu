@@ -1083,6 +1083,7 @@ function rDailySign(g) {
 
 function rDailyTasks(g) {
   if (!g._showDailyTasks) return
+  g.storage.syncDailyAllBonusAdFlagFromAdLog()
   const { ctx: c, R, W, H, S } = V
 
   c.save()
@@ -1214,20 +1215,31 @@ function rDailyTasks(g) {
   cy += 2 * S
   const allDone = DAILY_TASKS.every(t => prog.claimed[t.id])
   const allClaimed = prog.allClaimed
+  const allBonusAdDone = !!prog.allBonusAdClaimed
   const allBonus = getScaledDailyAllBonus(_ch)
   const focusAllBonus = g._dailyTaskFocusSection === 'allBonus'
-  const canDoubleBonus = allClaimed && !g._dailyTaskDoubled && AdManager.canShow('dailyTaskBonus')
-  const bonusActionW = allDone && !allClaimed ? 70 * S : (canDoubleBonus ? 86 * S : 0)
+  const canDoubleBonus = allClaimed && !allBonusAdDone && AdManager.canShow('dailyTaskBonus')
+  const bonusActionW = allDone && !allClaimed ? 70 * S : (canDoubleBonus ? 98 * S : 0)
   const bonusHasRightBtn = bonusActionW > 0
 
   let bonusBadgeText = '全部完成可领'
   let bonusSubtitle = '完成全部任务后领右侧奖励'
   if (allDone && !allClaimed) {
     bonusBadgeText = '奖励已解锁'
-    bonusSubtitle = '全部完成，点右侧领取'
+    bonusSubtitle = '先点右侧领取，再看广告可再领一整份'
   } else if (canDoubleBonus) {
     bonusBadgeText = '可翻倍再领'
-    bonusSubtitle = '看广告再领一整份奖励'
+    bonusSubtitle = '看广告或分享成功可再领一整份奖励'
+  } else if (allClaimed && !allBonusAdDone) {
+    const lim = AdManager.getDailyLimit('dailyTaskBonus')
+    const used = AdManager.getTodayCount('dailyTaskBonus')
+    if (lim > 0 && used >= lim) {
+      bonusBadgeText = '今日翻倍已结束'
+      bonusSubtitle = '今日次数已用完，请明日再来'
+    } else {
+      bonusBadgeText = '翻倍暂不可用'
+      bonusSubtitle = '激励视频未配置或未就绪，请稍后再试'
+    }
   } else if (allClaimed) {
     bonusBadgeText = '全部奖励领完'
     bonusSubtitle = '今日奖励已全部领完'
@@ -1267,7 +1279,7 @@ function rDailyTasks(g) {
   const bonusTitleX = innerL + 14 * S
   let actionBtnOuterLeft = innerL + innerW - 8 * S
   if (allDone && !allClaimed) actionBtnOuterLeft = innerL + innerW - 62 * S - 8 * S
-  else if (canDoubleBonus) actionBtnOuterLeft = innerL + innerW - 82 * S - 8 * S
+  else if (canDoubleBonus) actionBtnOuterLeft = innerL + innerW - 90 * S - 8 * S
   const chipRightGap = 6 * S
   const bonusRewardCenterX = innerL + innerW - bonusActionW - bonusRewardW / 2 - 12 * S
   const chipAnchorX = bonusHasRightBtn ? (actionBtnOuterLeft - chipRightGap) : bonusRewardCenterX
@@ -1378,10 +1390,10 @@ function rDailyTasks(g) {
     R.drawDialogBtn(abX, abY, abW, abH, '领取', 'confirm')
     _taskRects.allBonusBtnRect = [abX, abY, abW, abH]
   } else if (canDoubleBonus) {
-    const adW = 82 * S, adH = 24 * S
+    const adW = 90 * S, adH = 24 * S
     const adX = innerL + innerW - adW - 8 * S
     const adY = chipCy - adH / 2
-    R.drawDialogBtn(adX, adY, adW, adH, '翻倍再领', 'adReward')
+    R.drawDialogBtn(adX, adY, adW, adH, '看广告翻倍', 'adReward')
     _taskRects.allBonusAdRect = [adX, adY, adW, adH]
   }
 
@@ -1548,7 +1560,7 @@ function tDailyTasks(g, x, y, type) {
       onRewarded: () => {
         const bonus = getScaledDailyAllBonus(_tch)
         const granted = g.storage.grantRewardBundle(bonus)
-        g._dailyTaskDoubled = true
+        g.storage.markDailyAllBonusAdClaimed()
         MusicMgr.playReward && MusicMgr.playReward()
         g._toast && g._toast(`翻倍奖励到账：${_rewardText(granted)}`)
         g._dirty = true

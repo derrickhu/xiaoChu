@@ -15,7 +15,7 @@ let _inited = false
 const _adReady = {}
 let _adShowFailed = false
 
-function _today() {
+function _deviceCalendarDay() {
   const d = new Date()
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -23,12 +23,24 @@ function _today() {
   return `${y}-${m}-${day}`
 }
 
+/** 与 storage 签到/任务同日（含 GM 偏移）；避免「任务已是新游戏日、广告仍按设备日计次」导致误隐藏翻倍按钮 */
+function _calendarDay() {
+  if (_storage && typeof _storage.getCalendarDateKey === 'function') {
+    try {
+      const k = _storage.getCalendarDateKey()
+      if (k && typeof k === 'string') return k
+    } catch (e) { /* ignore */ }
+  }
+  return _deviceCalendarDay()
+}
+
 function _getLog(slotId) {
   if (!_storage) return { date: '', count: 0 }
   const d = _storage._d
   if (!d.adWatchLog) d.adWatchLog = {}
   const entry = d.adWatchLog[slotId]
-  if (!entry || entry.date !== _today()) return { date: _today(), count: 0 }
+  const day = _calendarDay()
+  if (!entry || entry.date !== day) return { date: day, count: 0 }
   return entry
 }
 
@@ -36,7 +48,7 @@ function _incLog(slotId) {
   if (!_storage) return
   const d = _storage._d
   if (!d.adWatchLog) d.adWatchLog = {}
-  const today = _today()
+  const today = _calendarDay()
   if (!d.adWatchLog[slotId] || d.adWatchLog[slotId].date !== today) {
     d.adWatchLog[slotId] = { date: today, count: 0 }
   }

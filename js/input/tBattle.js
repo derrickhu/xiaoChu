@@ -30,14 +30,33 @@ function _handleBoardDrag(g, type, x, y) {
   } else if (type === 'move' && g.dragging) {
     g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))
     g.dragCurY = Math.max(by, Math.min(by + ROWS * cs, y))
-    // 与绘制位置一致：用钳制后的触点算格子，避免在网格外「空滑」绕过交换；并限制为四邻格，防止钳制后出现远距离一步交换
-    let c = Math.floor((g.dragCurX - bx) / cs)
-    let r = Math.floor((g.dragCurY - by) / cs)
-    c = Math.max(0, Math.min(COLS - 1, c))
-    r = Math.max(0, Math.min(ROWS - 1, r))
-    const orthoAdjacent = Math.abs(r - g.dragR) + Math.abs(c - g.dragC) === 1
-    if (orthoAdjacent && (r !== g.dragR || c !== g.dragC) && !(g.board[r][c] && g.board[r][c].sealed) && tutorial.canSwapTo(g, r, c)) {
-      const or = g.dragR, oc = g.dragC
+    // 触点只在「当前格 + 四正交邻格」中选最近中心：避免整盘 floor 在格缝抖动导致交换误判；与钳制后绘制仍一致
+    const dr = g.dragR, dc = g.dragC
+    const px = g.dragCurX, py = g.dragCurY
+    let r = dr, c = dc
+    let bestD = (px - (bx + (dc + 0.5) * cs)) ** 2 + (py - (by + (dr + 0.5) * cs)) ** 2
+    const neigh = [[dr - 1, dc], [dr + 1, dc], [dr, dc - 1], [dr, dc + 1]]
+    for (let i = 0; i < neigh.length; i++) {
+      const nr = neigh[i][0], nc = neigh[i][1]
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue
+      const mx = bx + (nc + 0.5) * cs, my = by + (nr + 0.5) * cs
+      const d = (px - mx) ** 2 + (py - my) ** 2
+      if (d < bestD) {
+        bestD = d
+        r = nr
+        c = nc
+      }
+    }
+    const orthoAdjacent = Math.abs(r - dr) + Math.abs(c - dc) === 1
+    const targetCell = g.board[r] && g.board[r][c]
+    if (
+      !g.swapAnim &&
+      orthoAdjacent &&
+      targetCell &&
+      !targetCell.sealed &&
+      tutorial.canSwapTo(g, r, c)
+    ) {
+      const or = dr, oc = dc
       const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
       g.swapAnim = { r1: or, c1: oc, r2: r, c2: c, t: 0, dur: 6 }
       g.dragR = r; g.dragC = c

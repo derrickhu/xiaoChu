@@ -112,7 +112,8 @@ function defaultPersist() {
       date: '',
       tasks: {},               // { taskId: currentCount }
       claimed: {},             // { taskId: true }
-      allClaimed: false,
+      allClaimed: false,       // 是否已领「全部任务完成」基础奖励
+      allBonusAdClaimed: false, // 是否已领当日「全部任务」广告翻倍奖励（与 adWatchLog.dailyTaskBonus 一致）
     },
     // 分享追踪
     shareTracking: {
@@ -1120,11 +1121,33 @@ class Storage {
   _ensureDailyTask() {
     const today = localDateKey()
     if (!this._d.dailyTaskProgress || this._d.dailyTaskProgress.date !== today) {
-      this._d.dailyTaskProgress = { date: today, tasks: {}, claimed: {}, allClaimed: false }
+      this._d.dailyTaskProgress = {
+        date: today, tasks: {}, claimed: {}, allClaimed: false, allBonusAdClaimed: false,
+      }
     }
   }
 
   get dailyTaskProgress() { this._ensureDailyTask(); return this._d.dailyTaskProgress }
+
+  /** 与签到/每日任务一致的日历日 YYYY-MM-DD（含 GM 时间偏移）；广告频控须与此对齐 */
+  getCalendarDateKey() {
+    return localDateKey()
+  }
+
+  /**
+   * 若广告日志显示当日「全部任务翻倍」次数已用尽，补写 allBonusAdClaimed（修复旧版未落档或日历不一致）
+   */
+  syncDailyAllBonusAdFlagFromAdLog() {
+    this._ensureDailyTask()
+    const p = this._d.dailyTaskProgress
+    if (!p.allClaimed || p.allBonusAdClaimed) return
+    const AdManager = require('../adManager')
+    const lim = AdManager.getDailyLimit('dailyTaskBonus')
+    if (lim > 0 && AdManager.getTodayCount('dailyTaskBonus') >= lim) {
+      p.allBonusAdClaimed = true
+      this._save()
+    }
+  }
 
   /** 首页「每日签到」入口红点 */
   get hasSignInEntryBadge() {
@@ -1142,6 +1165,12 @@ class Storage {
     }
     const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
     if (allDone && !p.allClaimed) return true
+    if (allDone && p.allClaimed && !p.allBonusAdClaimed) {
+      this.syncDailyAllBonusAdFlagFromAdLog()
+      if (p.allBonusAdClaimed) return false
+      const AdManager = require('../adManager')
+      if (AdManager.canShow('dailyTaskBonus')) return true
+    }
     return false
   }
 
@@ -1184,6 +1213,13 @@ class Storage {
     this.grantRewardBundle(r)
     this._save()
     return true
+  }
+
+  /** 标记当日「全部任务完成奖励」已通过广告/分享翻倍领取（防重复、供首页追踪与 UI） */
+  markDailyAllBonusAdClaimed() {
+    this._ensureDailyTask()
+    this._d.dailyTaskProgress.allBonusAdClaimed = true
+    this._save()
   }
 
   // ===== 分享追踪 =====

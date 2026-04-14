@@ -14,6 +14,7 @@ const {
   resolveSkillDamage,
   commitSkillDamage,
   emitFloat,
+  emitShake,
   emitCast,
   emitPetSkillIntro,
 } = require('./battle/index')
@@ -76,7 +77,6 @@ function _pickRandomCells(g, count, targetAttr) {
 function _applyResolvedPetSkillDamage(g, result) {
   if (!result || !result.handled) return { enemyKilled: false, result }
   const entries = result.entries || []
-
   if (result.type === 'single') {
     entries.forEach(item => {
       emitFloat(g, 'petSkillDmg', { dmg: item.dmg, color: item.color, petIdx: item.petIdx, attr: item.attr })
@@ -91,7 +91,19 @@ function _applyResolvedPetSkillDamage(g, result) {
     })
   }
 
-  return commitSkillDamage(g, result)
+  const hpBefore = (g.enemy && g.enemy.hp) || 0
+  const out = commitSkillDamage(g, result)
+  // 附加：Boss 区「总伤」大飘字 + 与消珠非暴击相同的震屏（multiHit 在 commit 内已有更强 shake，避免叠两次）
+  if (result.hasTarget && result.totalDmg > 0 && hpBefore > 0) {
+    const dealt = Math.min(result.totalDmg, hpBefore)
+    if (dealt > 0) {
+      const attr = result.attackAttr
+      const color = (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || V.TH.accent
+      emitFloat(g, 'enemyTotal', { dmg: dealt, color, isCrit: false })
+      if (!result.shake) emitShake(g, { t: 8, i: 4 })
+    }
+  }
+  return out
 }
 
 function triggerPetSkill(g, pet, idx) {
