@@ -150,6 +150,9 @@ function initState(g) {
   g.showTitleStartDialog = false  // 首页开始/继续确认弹窗
   g._showDailySign = false        // 首页每日签到弹窗
   g._showDailyTasks = false       // 首页每日任务弹窗
+  g._dailyAllBonusChipLayout = null // 任务窗「全部完成奖励」芯片布局（供飞效取坐标）
+  g._dailyTaskChipLayouts = {}      // taskId -> layout，可领取行每帧更新
+  g._rewardChipFlyAnim = null       // { t0, duration, source, items }见 rewardChipFlyAnim.js
   g._showGMPanel = false          // GM调试面板弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
   g.titleMode = 'stage'           // 首页当前展示的模式：'tower' | 'stage'

@@ -213,6 +213,9 @@ const STAGE_FORMATION_MIN_PETS = 3
 /** 局内「攻略」按钮顶边距 = safeTop + 此项×S，避开微信小游戏/小程序右上角胶囊菜单 */
 const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 
+/** 每日任务弹窗：面板顶边不低于 safeTop + 此项×S，整体下移避免关闭钮与微信胶囊重叠 */
+const DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT = 52
+
 /** 新手教学赠送宠物 ID：金/木/水/土 4 只；秘境 1-1 首通另奖 f1，一同凑齐五行。与通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
 
@@ -310,6 +313,7 @@ module.exports = {
   CHECKIN_HUAHUA,
   STAGE_FORMATION_MIN_PETS,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
+  DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
   WEAPON_ACQUIRE_HINT_UNOWNED,
   DEX_LAYOUT,

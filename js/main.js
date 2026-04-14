@@ -47,6 +47,7 @@ const TweenMgr = require('./engine/tween')
 const Particles = require('./engine/particles')
 const stageMgr = require('./engine/stageManager')
 const AdManager = require('./adManager')
+const { getRewardChipFlyAnimEndMs } = require('./views/rewardChipFlyAnim')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
 const canvas = GameGlobal.__mainCanvas || P.createCanvas()
@@ -461,6 +462,11 @@ class Main {
       this.storage.fetchRanking(this.rankTab, true)
     }
     guideOverlay.update()
+    if (this.scene === 'title' && this._rewardChipFlyAnim) {
+      const a = this._rewardChipFlyAnim
+      if (Date.now() - a.t0 > getRewardChipFlyAnimEndMs(a)) this._rewardChipFlyAnim = null
+      else this._dirty = true
+    }
     wxBtns.updateAuthBtn(this, dpr)
     wxBtns.updateFeedbackBtn(this, dpr)
     wxBtns.updateGameClubBtn(this, dpr)
@@ -540,7 +546,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive()) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0

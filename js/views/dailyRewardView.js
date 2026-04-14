@@ -4,7 +4,7 @@
  */
 const V = require('./env')
 const { drawPanel, drawDivider } = require('./uiComponents')
-const { CHECKIN_HUAHUA } = require('../data/constants')
+const { CHECKIN_HUAHUA, DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT } = require('../data/constants')
 const {
   LOGIN_CYCLE_DAYS,
   LOGIN_MILESTONE_PETS,
@@ -22,6 +22,14 @@ const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
 const { linesFromRewards } = require('./adRewardPopup')
 const Particles = require('../engine/particles')
+const {
+  getRewardSlots,
+  layoutRewardSlotChips,
+  drawRewardSlotChips,
+  shouldSkipStaticRewardChips,
+  startRewardChipFlyAnim,
+  drawRewardChipFlyLayer,
+} = require('./rewardChipFlyAnim')
 const _signRects = { closeBtnRect: null, signBtnRect: null, signAdRect: null, milestonePetRects: [] }
 const _taskRects = { closeBtnRect: null, taskBtnRects: [], allBonusBtnRect: null, allBonusAdRect: null }
 
@@ -359,109 +367,6 @@ function _primaryRewardVisual(rewards) {
   return { kind: 'empty', mainText: '', subLine: '' }
 }
 
-function _getRewardSlots(rewards) {
-  const slots = []
-  if (!rewards) return slots
-  if (rewards.soulStone) {
-    slots.push({ tex: 'assets/ui/icon_soul_stone.png', line: `×${rewards.soulStone}`, subLine: '灵石' })
-  }
-  if (rewards.stamina) {
-    slots.push({ tex: 'assets/ui/icon_stamina.png', line: `×${rewards.stamina}`, subLine: '体力' })
-  }
-  if (rewards.awakenStone) {
-    slots.push({ tex: 'assets/ui/icon_awaken_stone.png', line: `×${rewards.awakenStone}`, subLine: '觉醒石' })
-  }
-  if (rewards.fragment) {
-    slots.push({ tex: 'assets/ui/frame_fragment.png', line: `×${rewards.fragment}`, subLine: '随机碎片' })
-  }
-  if (rewards.petId) {
-    const pet = getPetById(rewards.petId)
-    slots.push({ tex: pet ? getPetAvatarPath({ ...pet, star: 1 }) : CHECKIN_HUAHUA.specialPetIcon, line: 'SSR', subLine: pet ? pet.name : '灵宠' })
-  }
-  const fragReward = rewards.petDuplicateFragment || rewards.petFragment
-  if (fragReward && fragReward.petId) {
-    const pet = getPetById(fragReward.petId)
-    slots.push({
-      tex: pet ? getPetAvatarPath({ ...pet, star: 1 }) : CHECKIN_HUAHUA.specialPetIcon,
-      line: `×${fragReward.count || 0}`,
-      subLine: `${pet ? pet.name : '灵宠'}碎片`,
-    })
-  }
-  return slots.slice(0, 3)
-}
-
-function _drawRewardSlotChips(c, R, rewards, anchorX, cy, maxW, u, opts) {
-  const cfg = Object.assign({
-    align: 'left',
-    state: 'pending',
-    maxSlots: 3,
-    iconSz: 16 * u,
-    chipH: 20 * u,
-    gap: 6 * u,
-    fontSize: 9 * u,
-  }, opts || {})
-  const slots = _getRewardSlots(rewards).slice(0, cfg.maxSlots)
-  if (!slots.length) return 0
-
-  let chipFill = 'rgba(255,250,240,0.94)'
-  let chipStroke = 'rgba(175,135,48,0.18)'
-  let textColor = '#7B5E2B'
-  let iconAlpha = 1
-  if (cfg.state === 'ready') {
-    chipFill = 'rgba(255,246,214,0.98)'
-    chipStroke = 'rgba(206,163,42,0.30)'
-    textColor = '#9C6B00'
-  } else if (cfg.state === 'claimed') {
-    chipFill = 'rgba(243,246,240,0.98)'
-    chipStroke = 'rgba(113,170,110,0.18)'
-    textColor = '#8A9485'
-    iconAlpha = 0.55
-  }
-
-  c.save()
-  c.font = `bold ${cfg.fontSize}px "PingFang SC",sans-serif`
-  const widths = slots.map(slot => Math.max(40 * u, cfg.iconSz + 14 * u + c.measureText(slot.line).width))
-  const totalW = widths.reduce((sum, w) => sum + w, 0) + cfg.gap * (slots.length - 1)
-  let startX = anchorX
-  if (cfg.align === 'center') startX = anchorX - totalW / 2
-  else if (cfg.align === 'right') startX = anchorX - totalW
-
-  if (typeof maxW === 'number' && totalW > maxW && cfg.align === 'center') {
-    startX = anchorX - maxW / 2
-  }
-
-  let cursorX = startX
-  slots.forEach((slot, idx) => {
-    const chipW = widths[idx]
-    const chipY = cy - cfg.chipH / 2
-    c.fillStyle = chipFill
-    _rr(c, cursorX, chipY, chipW, cfg.chipH, cfg.chipH / 2)
-    c.fill()
-    c.strokeStyle = chipStroke
-    c.lineWidth = Math.max(0.5, 0.8 * u)
-    _rr(c, cursorX, chipY, chipW, cfg.chipH, cfg.chipH / 2)
-    c.stroke()
-
-    const img = R.getImg(slot.tex)
-    const iconX = cursorX + 3 * u
-    const iconY = cy - cfg.iconSz / 2
-    if (img && img.width > 0) {
-      c.save()
-      c.globalAlpha = iconAlpha
-      c.drawImage(img, iconX, iconY, cfg.iconSz, cfg.iconSz)
-      c.restore()
-    }
-
-    c.fillStyle = textColor
-    c.textAlign = 'left'
-    c.textBaseline = 'middle'
-    c.fillText(slot.line, iconX + cfg.iconSz + 4 * u, cy + 0.3 * u)
-    cursorX += chipW + cfg.gap
-  })
-  c.restore()
-  return totalW
-}
-
 function _drawTaskStatusPill(c, x, cy, text, tone, u) {
   let fill = 'rgba(233,223,201,0.78)'
   let stroke = 'rgba(176,150,122,0.20)'
@@ -714,7 +619,7 @@ function _drawHuahuaRewardIconInCard(c, R, icx, icy, iconSz, vis, dayDone) {
 }
 
 function _drawHuahuaWideSlots(c, R, rewards, x, y, w, h, dayDone, u) {
-  const slots = _getRewardSlots(rewards)
+  const slots = getRewardSlots(rewards)
   if (!slots.length) return
   const a = dayDone ? 0.38 : 1
   const n = slots.length
@@ -747,7 +652,7 @@ function _drawHuahuaWideSlots(c, R, rewards, x, y, w, h, dayDone, u) {
 }
 
 function _drawHuahuaCompactDualRewardIcons(c, R, rewards, x, y, w, h, dayDone, u) {
-  const slots = _getRewardSlots(rewards).slice(0, 2)
+  const slots = getRewardSlots(rewards).slice(0, 2)
   if (slots.length < 2) return false
   const a = dayDone ? 0.38 : 1
   const iconSz = 28 * u
@@ -813,7 +718,7 @@ function _drawHuahuaDayCard(c, R, opts, u) {
   c.fillStyle = '#FFFFFF'
   c.fillText(titleText, x + w / 2, titleY)
 
-  const showWideRewards = !!(highlight && rewards && _getRewardSlots(rewards).length)
+  const showWideRewards = !!(highlight && rewards && getRewardSlots(rewards).length)
   const showCompactDualIcons = !!(!highlight && rewards && rewards.soulStone && rewards.stamina)
   const contentCY = y + h / 2 + 10 * u
   const icx = x + w / 2
@@ -1184,8 +1089,15 @@ function rDailyTasks(g) {
   c.fillStyle = 'rgba(0,0,0,0.55)'
   c.fillRect(0, 0, W, H)
 
-  const pw = W * 0.9, ph = H * 0.84
-  const px = (W - pw) / 2, py = (H - ph) / 2 - 6 * S
+  const pw = W * 0.9
+  let ph = H * 0.84
+  const px = (W - pw) / 2
+  const safe = V.safeTop || 0
+  const minPy = safe + DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT * S
+  const bottomMargin = 12 * S
+  let py = (H - ph) / 2 - 6 * S
+  if (py < minPy) py = minPy
+  if (py + ph > H - bottomMargin) ph = H - bottomMargin - py
   const pad = 16 * S
   const ribbonH = 44 * S
   const panelResult = drawPanel(c, S, px, py, pw, ph, { ribbonH })
@@ -1213,6 +1125,7 @@ function rDailyTasks(g) {
   const prog = g.storage.dailyTaskProgress
   const _ch = g.storage.currentChapter
   _taskRects.taskBtnRects = []
+  g._dailyTaskChipLayouts = {}
 
   for (const task of DAILY_TASKS) {
     const cur = prog.tasks[task.id] || 0
@@ -1264,15 +1177,22 @@ function rDailyTasks(g) {
     const statusText = claimed ? '已领取' : (done ? '已完成，可领取' : `进度 ${Math.min(cur, need)}/${need}`)
     _drawTaskStatusPill(c, titleX, cy + rowH * 0.73, statusText, rowState, S)
 
-    _drawRewardSlotChips(c, R, reward, rewardCenterX, cy + rowH / 2, rewardW, S, {
+    const taskChipOpts = {
       align: 'center',
-      state: rowState,
       maxSlots: 2,
       iconSz: 15 * S,
       chipH: 20 * S,
       gap: 6 * S,
       fontSize: 8.8 * S,
-    })
+    }
+    const rowChipCy = cy + rowH / 2
+    if (done && !claimed) {
+      g._dailyTaskChipLayouts[task.id] = layoutRewardSlotChips(c, reward, rewardCenterX, rowChipCy, rewardW, S, taskChipOpts)
+    }
+    const skipRowChips = claimed && shouldSkipStaticRewardChips(g, { type: 'dailyTask', taskId: task.id })
+    if (!skipRowChips) {
+      drawRewardSlotChips(c, R, reward, rewardCenterX, rowChipCy, rewardW, S, { ...taskChipOpts, state: rowState })
+    }
 
     if (done && !claimed) {
       const tbW = 50 * S, tbH = 24 * S
@@ -1295,15 +1215,10 @@ function rDailyTasks(g) {
   const allDone = DAILY_TASKS.every(t => prog.claimed[t.id])
   const allClaimed = prog.allClaimed
   const allBonus = getScaledDailyAllBonus(_ch)
-  const bonusH = 56 * S
-  const bonusY = cy
   const focusAllBonus = g._dailyTaskFocusSection === 'allBonus'
   const canDoubleBonus = allClaimed && !g._dailyTaskDoubled && AdManager.canShow('dailyTaskBonus')
   const bonusActionW = allDone && !allClaimed ? 70 * S : (canDoubleBonus ? 86 * S : 0)
-  const bonusRewardW = 148 * S
-  const bonusRewardCenterX = innerL + innerW - bonusActionW - bonusRewardW / 2 - 12 * S
-  const bonusTitleX = innerL + 14 * S
-  const bonusState = canDoubleBonus ? 'ready' : (allClaimed ? 'claimed' : (allDone ? 'ready' : 'pending'))
+  const bonusHasRightBtn = bonusActionW > 0
 
   let bonusBadgeText = '全部完成可领'
   let bonusSubtitle = '完成全部任务后领右侧奖励'
@@ -1317,6 +1232,54 @@ function rDailyTasks(g) {
     bonusBadgeText = '全部奖励领完'
     bonusSubtitle = '今日奖励已全部领完'
   }
+
+  // 左侧：徽章 → 主标题 → 副标题纵向排布（原先固定 y 与徽章高度重叠）
+  const bonusPadT = 11 * S
+  const bonusPadB = 11 * S
+  const bonusGapBadgeTitle = 7 * S
+  const bonusGapTitleSub = 5 * S
+  const allBonusBadgeH = 18 * S
+  const allBonusTitleFs = 11.5 * S
+  const allBonusSubFs = 8.4 * S
+  c.save()
+  c.font = `bold ${8.8 * S}px "PingFang SC",sans-serif`
+  const badgeW = Math.max(58 * S, c.measureText(bonusBadgeText).width + 16 * S)
+  c.restore()
+  const titleLineH = Math.ceil(allBonusTitleFs * 1.22)
+  const subLineH = Math.ceil(allBonusSubFs * 1.28)
+  const allBonusChipH = 20 * S
+  const allBonusChipRowGap = 10 * S
+  const textStackH =
+    bonusPadT +
+    allBonusBadgeH +
+    bonusGapBadgeTitle +
+    titleLineH +
+    bonusGapTitleSub +
+    subLineH +
+    allBonusChipRowGap +
+    allBonusChipH +
+    bonusPadB
+  const bonusHMin = bonusHasRightBtn ? 92 * S : 72 * S
+  const bonusH = Math.max(textStackH, bonusHMin)
+
+  const bonusY = cy
+  const bonusRewardW = 148 * S
+  const bonusTitleX = innerL + 14 * S
+  let actionBtnOuterLeft = innerL + innerW - 8 * S
+  if (allDone && !allClaimed) actionBtnOuterLeft = innerL + innerW - 62 * S - 8 * S
+  else if (canDoubleBonus) actionBtnOuterLeft = innerL + innerW - 82 * S - 8 * S
+  const chipRightGap = 6 * S
+  const bonusRewardCenterX = innerL + innerW - bonusActionW - bonusRewardW / 2 - 12 * S
+  const chipAnchorX = bonusHasRightBtn ? (actionBtnOuterLeft - chipRightGap) : bonusRewardCenterX
+  const bonusState = canDoubleBonus ? 'ready' : (allClaimed ? 'claimed' : (allDone ? 'ready' : 'pending'))
+
+  let yText = bonusY + bonusPadT
+  const badgeY = yText
+  yText += allBonusBadgeH + bonusGapBadgeTitle
+  const titleTopY = yText
+  yText += titleLineH + bonusGapTitleSub
+  const subtitleTopY = yText
+  const chipCy = subtitleTopY + subLineH + allBonusChipRowGap + allBonusChipH / 2
 
   _taskRects.allBonusBtnRect = null
   _taskRects.allBonusAdRect = null
@@ -1346,57 +1309,83 @@ function rDailyTasks(g) {
   _rr(c, innerL + 6 * S, bonusY + 8 * S, 5 * S, bonusH - 16 * S, 2.5 * S)
   c.fill()
 
+  const badgeX = bonusTitleX
   c.save()
   c.font = `bold ${8.8 * S}px "PingFang SC",sans-serif`
-  const badgeH = 18 * S
-  const badgeW = Math.max(58 * S, c.measureText(bonusBadgeText).width + 16 * S)
-  const badgeX = bonusTitleX
-  const badgeY = bonusY + 7 * S
   c.fillStyle = allClaimed && !canDoubleBonus ? 'rgba(223,241,226,0.98)' : 'rgba(255,244,209,0.98)'
-  _rr(c, badgeX, badgeY, badgeW, badgeH, badgeH / 2)
+  _rr(c, badgeX, badgeY, badgeW, allBonusBadgeH, allBonusBadgeH / 2)
   c.fill()
   c.strokeStyle = allClaimed && !canDoubleBonus ? 'rgba(96,171,101,0.24)' : 'rgba(214,170,53,0.28)'
   c.lineWidth = 0.8 * S
-  _rr(c, badgeX, badgeY, badgeW, badgeH, badgeH / 2)
+  _rr(c, badgeX, badgeY, badgeW, allBonusBadgeH, allBonusBadgeH / 2)
   c.stroke()
   c.fillStyle = allClaimed && !canDoubleBonus ? '#4C8D59' : '#9C6B00'
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(bonusBadgeText, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.2 * S)
+  c.fillText(bonusBadgeText, badgeX + badgeW / 2, badgeY + allBonusBadgeH / 2 + 0.2 * S)
   c.restore()
 
   c.textAlign = 'left'
-  c.textBaseline = 'middle'
+  c.textBaseline = 'top'
   c.fillStyle = '#4A3820'
-  c.font = `bold ${11.5 * S}px "PingFang SC",sans-serif`
-  c.fillText('全部任务完成奖励', bonusTitleX, bonusY + 30 * S)
+  c.font = `bold ${allBonusTitleFs}px "PingFang SC",sans-serif`
+  c.fillText('全部任务完成奖励', bonusTitleX, titleTopY)
   c.fillStyle = allClaimed && !canDoubleBonus ? '#6E9A72' : '#9A7B55'
-  c.font = `${8.4 * S}px "PingFang SC",sans-serif`
-  c.fillText(bonusSubtitle, bonusTitleX, bonusY + 45 * S)
+  c.font = `${allBonusSubFs}px "PingFang SC",sans-serif`
+  c.fillText(bonusSubtitle, bonusTitleX, subtitleTopY)
 
-  _drawRewardSlotChips(c, R, allBonus, bonusRewardCenterX, bonusY + bonusH / 2, bonusRewardW, S, {
-    align: 'center',
-    state: bonusState,
+  let effChipAnchorX = chipAnchorX
+  if (bonusHasRightBtn) {
+    c.save()
+    const slots = getRewardSlots(allBonus).slice(0, 3)
+    let chipTotalW = 0
+    if (slots.length) {
+      const iconSz = 15 * S
+      const gap = 5 * S
+      const fs = 8.6 * S
+      c.font = `bold ${fs}px "PingFang SC",sans-serif`
+      const widths = slots.map(slot => Math.max(40 * S, iconSz + 14 * S + c.measureText(slot.line).width))
+      chipTotalW = widths.reduce((s, w) => s + w, 0) + gap * (slots.length - 1)
+    }
+    c.restore()
+    const chipMinStartX = innerL + 12 * S
+    const maxChipRight = actionBtnOuterLeft - chipRightGap
+    const needAnchor = chipMinStartX + chipTotalW
+    effChipAnchorX = Math.min(maxChipRight, Math.max(chipAnchorX, needAnchor))
+  }
+
+  const chipDrawOpts = {
+    align: bonusHasRightBtn ? 'right' : 'center',
     maxSlots: 3,
     iconSz: 15 * S,
     chipH: 20 * S,
     gap: 5 * S,
     fontSize: 8.6 * S,
-  })
+  }
+  if (allDone && !allClaimed) {
+    g._dailyAllBonusChipLayout = layoutRewardSlotChips(c, allBonus, effChipAnchorX, chipCy, bonusRewardW, S, chipDrawOpts)
+  }
+
+  const skipBonusChips = allClaimed && shouldSkipStaticRewardChips(g, { type: 'dailyAllBonus' })
+  if (!skipBonusChips) {
+    drawRewardSlotChips(c, R, allBonus, effChipAnchorX, chipCy, bonusRewardW, S, { ...chipDrawOpts, state: bonusState })
+  }
 
   if (allDone && !allClaimed) {
     const abW = 62 * S, abH = 24 * S
     const abX = innerL + innerW - abW - 8 * S
-    const abY = bonusY + (bonusH - abH) / 2
+    const abY = chipCy - abH / 2
     R.drawDialogBtn(abX, abY, abW, abH, '领取', 'confirm')
     _taskRects.allBonusBtnRect = [abX, abY, abW, abH]
   } else if (canDoubleBonus) {
     const adW = 82 * S, adH = 24 * S
     const adX = innerL + innerW - adW - 8 * S
-    const adY = bonusY + (bonusH - adH) / 2
+    const adY = chipCy - adH / 2
     R.drawDialogBtn(adX, adY, adW, adH, '翻倍再领', 'adReward')
     _taskRects.allBonusAdRect = [adX, adY, adW, adH]
   }
+
+  drawRewardChipFlyLayer(c, R, g, S)
 
   c.restore()
 }
@@ -1525,21 +1514,29 @@ function tDailyTasks(g, x, y, type) {
   const _tch = g.storage.currentChapter
   for (const tb of _taskRects.taskBtnRects) {
     if (g._hitRect(x, y, ...tb.rect)) {
+      const layout = g._dailyTaskChipLayouts && g._dailyTaskChipLayouts[tb.id]
       const ok = g.storage.claimDailyTask(tb.id)
       if (ok) {
         MusicMgr.playReward && MusicMgr.playReward()
         const task = DAILY_TASKS.find(t => t.id === tb.id)
         if (task) g._toast && g._toast(`${task.name}：${_rewardText(getScaledDailyTaskReward(task, _tch))}`)
+        if (layout && layout.entries && layout.entries.length) {
+          startRewardChipFlyAnim(g, layout.entries, { type: 'dailyTask', taskId: tb.id })
+        }
       }
       return true
     }
   }
 
   if (_taskRects.allBonusBtnRect && g._hitRect(x, y, ..._taskRects.allBonusBtnRect)) {
+    const layout = g._dailyAllBonusChipLayout
     const ok = g.storage.claimDailyAllBonus()
     if (ok) {
       MusicMgr.playReward && MusicMgr.playReward()
       g._toast && g._toast(`全部任务完成奖励：${_rewardText(getScaledDailyAllBonus(_tch))}`)
+      if (layout && layout.entries && layout.entries.length) {
+        startRewardChipFlyAnim(g, layout.entries, { type: 'dailyAllBonus' })
+      }
     }
     return true
   }
