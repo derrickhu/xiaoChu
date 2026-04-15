@@ -282,8 +282,8 @@ function tTitle(g, type, x, y) {
     g.showSidebarPanel = true; return
   }
 
-  // ⑥b 每日签到
-  if (g._dailySignBtnRect && g._hitRect(x, y, ...g._dailySignBtnRect)) {
+  // ⑥b 每日签到（新手未通 1-1 时隐藏，避免干扰引导）
+  if (g._dailySignBtnRect && g.storage.isStageCleared('stage_1_1') && g._hitRect(x, y, ...g._dailySignBtnRect)) {
     g._showDailyTasks = false
     g._showDailySign = true
     g._dailyTaskFocusId = null
@@ -292,15 +292,15 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ⑥b1 首页任务追踪卡
-  if (g._homeDailyTaskRect && g._hitRect(x, y, ...g._homeDailyTaskRect)) {
+  // ⑥b1 首页任务追踪卡（新手未通 1-1 时不响应）
+  if (g._homeDailyTaskRect && g.storage.isStageCleared('stage_1_1') && g._hitRect(x, y, ...g._homeDailyTaskRect)) {
     _handleHomeDailyTaskClick(g)
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }
 
-  // ⑥b2 每日任务
-  if (g._dailyTaskBtnRect && g._hitRect(x, y, ...g._dailyTaskBtnRect)) {
+  // ⑥b2 每日任务（新手未通 1-1 时不响应）
+  if (g._dailyTaskBtnRect && g.storage.isStageCleared('stage_1_1') && g._hitRect(x, y, ...g._dailyTaskBtnRect)) {
     g._showDailySign = false
     g._showDailyTasks = true
     g._dailyTaskFocusId = null

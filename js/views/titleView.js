@@ -1822,9 +1822,13 @@ function rTitle(g) {
   drawBottomBar(g)
   drawAvatarWidget(g)
   drawStaminaBar(g)
-  drawDailySignBtn(g)
-  drawGameClubBtn(g)
-  drawDailyTaskBtn(g)
+  // 新手尚未通关 1-1 时隐藏签到/任务入口，避免干扰引导流程
+  const showDailyEntries = g.storage.isStageCleared('stage_1_1')
+  if (showDailyEntries) {
+    drawDailySignBtn(g)
+    drawGameClubBtn(g)
+    drawDailyTaskBtn(g)
+  }
   if ((g.titleMode || 'tower') === 'tower') {
     const { ctx, R, W, S } = V
     const L = getLayout()
@@ -1833,7 +1837,7 @@ function rTitle(g) {
     const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
     _drawTowerEventBanner(g, ctx, R, W, S, L, progressMidY)
   }
-  drawHomeDailyTaskTracker(g)
+  if (showDailyEntries) drawHomeDailyTaskTracker(g)
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)
