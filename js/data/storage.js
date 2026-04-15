@@ -2248,7 +2248,9 @@ class Storage {
         localKey: LOCAL_KEY,
         currentVersion: CURRENT_VERSION,
         runMigrations,
+        storage: this,
         onSyncDone: () => this._onCloudSyncDone(),
+        onPlatformGifts: (list) => this._onPlatformGifts(list),
       })
     } catch (e) {
       console.warn('[Storage] Cloud init error:', e && (e.message || e))
@@ -2262,6 +2264,24 @@ class Storage {
    * 云同步首次拉取完成后的回调
    * 修复：清除缓存后重进，云端数据证明是老玩家时补写 introDone/tutorialDone
    */
+  /**
+   * 微信平台礼包领取后回调
+   * grantedList: [{ giftTypeId, granted: { soulStone, ... } }, ...]
+   */
+  _onPlatformGifts(grantedList) {
+    if (!grantedList || grantedList.length === 0) return
+    // 合并所有奖励用于展示
+    const total = {}
+    for (const item of grantedList) {
+      for (const [k, v] of Object.entries(item.granted || {})) {
+        if (typeof v === 'number') total[k] = (total[k] || 0) + v
+      }
+    }
+    console.log('[Storage] 平台礼包已发放', total)
+    this._pendingPlatformGiftRewards = total
+    this._save()
+  }
+
   _onCloudSyncDone() {
     const hasProgress = this.hasPersistentProgress()
     if (!hasProgress) return

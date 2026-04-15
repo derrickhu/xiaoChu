@@ -385,6 +385,25 @@ class Main {
         complete: (res) => { if (res && res.confirm) this.storage.clearWipeNotice() },
       })
     }
+    // 微信平台礼包到账提示（仅在 title 场景弹一次）
+    if (this.scene === 'title' && this.storage._pendingPlatformGiftRewards && !this._platformGiftShown) {
+      this._platformGiftShown = true
+      const r = this.storage._pendingPlatformGiftRewards
+      this.storage._pendingPlatformGiftRewards = null
+      const lines = []
+      if (r.soulStone) lines.push(`· 灵石 ×${r.soulStone}`)
+      if (r.awakenStone) lines.push(`· 觉醒石 ×${r.awakenStone}`)
+      if (r.stamina) lines.push(`· 体力 ×${r.stamina}`)
+      if (r.fragment) lines.push(`· 碎片 ×${r.fragment}`)
+      if (lines.length > 0) {
+        P.showModal({
+          title: '收到微信礼包',
+          content: '恭喜获得以下奖励：\n\n' + lines.join('\n'),
+          showCancel: false,
+          confirmText: '太好了',
+        })
+      }
+    }
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {
       const pg = this._pendingGuide

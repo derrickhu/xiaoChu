@@ -29,6 +29,7 @@ let _syncRetryTimer = null
 let _syncing = false
 let _syncPending = false
 let _onSyncDone = null
+let _onPlatformGifts = null
 
 // init 时传入的引用和配置
 let _dataRef = null
@@ -141,6 +142,38 @@ async function _syncFromCloud() {
       }
     }
   } catch(e) { console.warn('Sync from cloud error:', e) }
+}
+
+// ===== 拉取并发放微信平台礼包（通过云函数，避免客户端权限问题） =====
+async function _claimPendingGifts(storage) {
+  if (!P.isWeChat || !_cloudReady || !_openid) return
+  try {
+    // 通过云函数查询，不受集合权限限制
+    const queryRes = await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'queryPending' } })
+    const gifts = (queryRes.result && queryRes.result.gifts) || []
+    if (gifts.length === 0) return
+
+    const grantedList = []
+    const grantedIds = []
+    for (const gift of gifts) {
+      if (!gift.rewards || typeof gift.rewards !== 'object') continue
+      const granted = storage.grantRewardBundle(gift.rewards)
+      grantedList.push({ giftTypeId: gift.giftTypeId, granted })
+      grantedIds.push(gift._id)
+    }
+
+    // 通过云函数批量标记已领取
+    if (grantedIds.length > 0) {
+      await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: grantedIds } })
+    }
+
+    console.log('[CloudSync] 平台礼包已发放', grantedList.length, '笔')
+    if (_onPlatformGifts && grantedList.length > 0) {
+      _onPlatformGifts(grantedList)
+    }
+  } catch (e) {
+    console.warn('[CloudSync] 拉取平台礼包失败', e)
+  }
 }
 
 // ===== 推送到云端 =====
@@ -257,6 +290,7 @@ async function init(persistData, opts) {
   _currentVersion = opts.currentVersion
   _runMigrations = opts.runMigrations
   _onSyncDone = opts.onSyncDone || null
+  _onPlatformGifts = opts.onPlatformGifts || null
 
   if (P.isDouyin) {
     try {
@@ -288,6 +322,11 @@ async function init(persistData, opts) {
 
   if (_cloudReady && P.isWeChat && _openid) await _syncFromCloud()
   if (_cloudReady && P.isDouyin) await _syncFromCloud()
+
+  // 微信端：拉取平台礼包（需要 opts.storage 传入 Storage 实例）
+  if (_cloudReady && P.isWeChat && _openid && opts.storage) {
+    await _claimPendingGifts(opts.storage)
+  }
 
   // 通知外部：云同步初始化（含首次拉取合并）完成
   if (_onSyncDone) _onSyncDone()
