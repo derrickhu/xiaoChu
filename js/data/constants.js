@@ -216,8 +216,8 @@ const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 /** 每日任务弹窗：面板顶边不低于 safeTop + 此项×S，整体下移避免关闭钮与微信胶囊重叠 */
 const DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT = 52
 
-/** 新手教学赠送宠物 ID：金/木/水/土 4 只；秘境 1-1 首通另奖 f1，一同凑齐五行。与通天塔教学共用 */
-const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1']
+/** 新手教学赠送宠物 ID：五行各一只，入池即 ★2（让新手立即体验技能）。与通天塔教学共用 */
+const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1', 'f1']
 
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
 const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'

@@ -319,11 +319,14 @@ function settleStage(g) {
 
   // ---- 基础奖励（首通 + 周回） ----
   const rewards = []
-  // 新手 1-1：先入池教学宠物，再发首通配置奖励（展示顺序：伙伴 → 首通灵宠 f1 等）
+  // 新手 1-1：先入池教学宠物（★2，让新手立即体验技能），再发首通配置奖励
   if (g._isNewbieStage && isFirstClear) {
     NEWBIE_PET_IDS.forEach(petId => {
       const added = g.storage.addToPetPool(petId, 'stage')
-      if (added) rewards.push({ type: 'pet', petId })
+      if (added) {
+        g.storage.setPoolPetStar(petId, 2)
+        rewards.push({ type: 'pet', petId })
+      }
     })
   }
   if (isFirstClear && stage.rewards.firstClear) {

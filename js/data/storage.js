@@ -603,6 +603,15 @@ class Storage {
     return true
   }
 
+  /** 直接设置宠物星级（仅用于新手入池等特殊场景） */
+  setPoolPetStar(petId, star) {
+    const entry = (this._d.petPool || []).find(p => p.id === petId)
+    if (!entry) return false
+    entry.star = star
+    this._save()
+    return true
+  }
+
   /** 增加碎片（特定宠物） */
   addFragments(petId, count) {
     const entry = (this._d.petPool || []).find(p => p.id === petId)

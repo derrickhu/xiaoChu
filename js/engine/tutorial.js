@@ -486,9 +486,12 @@ function finish(g) {
   // 标记教学已完成
   try { P.setStorageSync('tutorialDone', true) } catch(e) {}
 
-  // 与秘境 1-1 首通一致：将新手教学宠加入持久化灵宠池
+  // 与秘境 1-1 首通一致：将新手教学宠加入持久化灵宠池（★2，让新手立即体验技能）
   if (g.storage.petPoolCount === 0) {
-    NEWBIE_PET_IDS.forEach(id => g.storage.addToPetPool(id, 'tutorial'))
+    NEWBIE_PET_IDS.forEach(id => {
+      g.storage.addToPetPool(id, 'tutorial')
+      g.storage.setPoolPetStar(id, 2)
+    })
   }
 
   // 重新正式开始（从第1层）
