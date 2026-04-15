@@ -8,6 +8,7 @@ const _ = db.command
 // GM 黑名单：这些 openid 的提交操作一律拦截，只允许查询
 const GM_OPENIDS = [
   'oEnZR3VWQoOEG0U9fhgFCatXLsY4',  // dk
+  'oEnZR3f8CpsDLsQ30705CumlkpuM',  // rosa
 ]
 
 exports.main = async (event, context) => {
