@@ -1,16 +1,31 @@
 /**
  * 首次进入战斗：珠子攻击机制说明弹窗
+ * 新手教学 / 首关转珠引导进行时不再弹出，避免与 battleNewbieGuide 遮挡冲突
  */
 const V = require('../env')
+const tutorial = require('../../engine/tutorial')
 const { drawDialog, drawTipRow, drawDivider } = require('../uiComponents')
 
 // ===== 首次珠子攻击提示 =====
 const ORB_TIP_FLAG = 'orb_attack_tip'
 
+/** 秘境 1-2、1-3 仍有章节引导链，首次珠子说明与引导重复，延后到后续关卡再提示 */
+const ORB_TIP_SKIP_STAGE_IDS = new Set(['stage_1_2', 'stage_1_3'])
+
+function suppressOrbAttackTipContext(g) {
+  if (tutorial.isActive() || g._isNewbieStage) return true
+  if (g._stageId && ORB_TIP_SKIP_STAGE_IDS.has(g._stageId)) return true
+  return false
+}
+
 function initOrbAttackTip(g) {
   if (g._orbTipChecked) return
+  if (g.storage && g.storage.isGuideShown(ORB_TIP_FLAG)) {
+    g._orbTipChecked = true
+    return
+  }
+  if (suppressOrbAttackTipContext(g)) return
   g._orbTipChecked = true
-  if (g.storage && g.storage.isGuideShown(ORB_TIP_FLAG)) return
   // 延迟几帧再弹出，让玩家先看到棋盘
   g._orbTipDelay = 30
 }
@@ -49,4 +64,9 @@ function drawOrbAttackTip(g) {
   })
 }
 
-module.exports = { ORB_TIP_FLAG, initOrbAttackTip, drawOrbAttackTip }
+module.exports = {
+  ORB_TIP_FLAG,
+  initOrbAttackTip,
+  drawOrbAttackTip,
+  suppressOrbAttackTipContext,
+}

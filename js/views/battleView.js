@@ -8,7 +8,7 @@ const tutorial = require('../engine/tutorial')
 
 const { getBattleLayout } = require('./battle/battleLayout')
 const { drawBattleEnemyArea } = require('./battle/battleEnemyView')
-const { initOrbAttackTip, drawOrbAttackTip } = require('./battle/battleOrbTipView')
+const { initOrbAttackTip, drawOrbAttackTip, suppressOrbAttackTipContext } = require('./battle/battleOrbTipView')
 const { drawPetSkillWave, drawSkillFlash, drawSkillPreviewPopup } = require('./battle/battleSkillVfxView')
 const { drawCombo } = require('./battle/battleComboView')
 const { drawHelpButton, drawBattleHelpPanel } = require('./battle/battleHelpView')
@@ -29,6 +29,10 @@ function rBattle(g) {
   const exitBtnSize = 32 * S
 
   initOrbAttackTip(g)
+  if (suppressOrbAttackTipContext(g)) {
+    g._orbTipDelay = 0
+    g._showOrbAttackTip = false
+  }
   if (g._orbTipDelay > 0) {
     g._orbTipDelay--
     if (g._orbTipDelay === 0) g._showOrbAttackTip = true
