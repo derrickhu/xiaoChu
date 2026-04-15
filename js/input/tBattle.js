@@ -10,6 +10,11 @@ const runMgr = require('../engine/runManager')
 const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
 const { HELP_PAGE_COUNT } = require('../views/battleView')
+const { SWAP_ANIM_FRAMES, SWAP_LOGIC_LOCK_FRAMES } = require('../data/battleConfig')
+
+function _swapLogicLocked(g) {
+  return g.swapAnim && g.swapAnim.t < SWAP_LOGIC_LOCK_FRAMES
+}
 
 // 棋盘拖珠处理（教学和普通模式共用）
 function _handleBoardDrag(g, type, x, y) {
@@ -50,7 +55,7 @@ function _handleBoardDrag(g, type, x, y) {
     const orthoAdjacent = Math.abs(r - dr) + Math.abs(c - dc) === 1
     const targetCell = g.board[r] && g.board[r][c]
     if (
-      !g.swapAnim &&
+      !_swapLogicLocked(g) &&
       orthoAdjacent &&
       targetCell &&
       !targetCell.sealed &&
@@ -58,7 +63,7 @@ function _handleBoardDrag(g, type, x, y) {
     ) {
       const or = dr, oc = dc
       const tmp = g.board[or][oc]; g.board[or][oc] = g.board[r][c]; g.board[r][c] = tmp
-      g.swapAnim = { r1: or, c1: oc, r2: r, c2: c, t: 0, dur: 6 }
+      g.swapAnim = { r1: or, c1: oc, r2: r, c2: c, t: 0, dur: SWAP_ANIM_FRAMES }
       g.dragR = r; g.dragC = c
       MusicMgr.playSwap()
     }
