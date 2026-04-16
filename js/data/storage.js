@@ -747,7 +747,6 @@ class Storage {
   }
 
   consumeStamina(amount) {
-    if (isCurrentUserGM()) return true
     this._recoverStamina()
     if (this._d.stamina.current < amount) return false
     this._d.stamina.current -= amount

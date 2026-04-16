@@ -181,8 +181,8 @@ function rGMPanel(g) {
   c.textAlign = 'left'
   c.textBaseline = 'top'
   c.fillText(`⚡ 体力: ${g.storage.currentStamina}/${g.storage.maxStamina}`, innerL, cy + 4 * u)
-  const staminaRect = _drawBtn(c, resBtnX, cy, resBtnW, btnH, '回满体力', '#2E7D32', u)
-  _rects.btns.push({ id: 'refill_stamina', rect: staminaRect })
+  const staminaRect = _drawBtn(c, resBtnX, cy, resBtnW, btnH, '体力+100', '#2E7D32', u)
+  _rects.btns.push({ id: 'add_stamina_100', rect: staminaRect })
   cy += btnH + 8 * u
 
   // ── 觉醒石 ──
@@ -267,9 +267,9 @@ function _handleBtn(g, id) {
       st.addSoulStone(1000)
       P.showGameToast(`灵石+1000 → ${st.soulStone}`)
       break
-    case 'refill_stamina':
-      st.gmRefillStamina()
-      P.showGameToast(`体力已回满 → ${st.currentStamina}`)
+    case 'add_stamina_100':
+      st.addBonusStamina(100)
+      P.showGameToast(`体力+100 → ${st.currentStamina}`)
       break
     case 'add_awaken':
       st.addAwakenStone(10)
