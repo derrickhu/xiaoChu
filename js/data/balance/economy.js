@@ -65,7 +65,7 @@ const IDLE_CFG = {
 
 // ===== 章节通关宝箱 =====
 const CHAPTER_CLEAR_REWARDS = {
-  1:  { soulStone: 50,  fragment: 3 },
+  1:  { soulStone: 50,  fragment: 3, stamina: 50 },
   2:  { soulStone: 60,  fragment: 4 },
   3:  { soulStone: 80,  fragment: 5 },
   4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },

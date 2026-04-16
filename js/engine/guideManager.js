@@ -136,6 +136,7 @@ const GUIDE_DEFS = {
     steps: [
       { text: '恭喜通关第 1 章！通天塔挑战已解锁！', position: 'center' },
       { text: '通天塔是无尽闯关挑战\n看看你能爬到多高！', position: 'center' },
+      { text: '通天塔不消耗体力，每天可免费挑战 3 次\n体力不够时也能来这里战斗！', position: 'center' },
     ],
   },
   // 灵宠池首次进入引导

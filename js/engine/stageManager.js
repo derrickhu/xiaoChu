@@ -17,7 +17,7 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
-const { NEWBIE_PET_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT } = require('../data/constants')
+const { NEWBIE_PET_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT, FIRST_CLEAR_STAMINA_BONUS } = require('../data/constants')
 const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
@@ -434,6 +434,10 @@ function settleStage(g) {
   // 记录通关（更新 bestRating 等）
   g.storage.recordStageClear(g._stageId, rating, isFirstClear)
 
+  // ---- 首通里程碑体力赠送 ----
+  const firstClearStamina = isFirstClear ? (FIRST_CLEAR_STAMINA_BONUS[g._stageId] || 0) : 0
+  if (firstClearStamina > 0) g.storage.addBonusStamina(firstClearStamina)
+
   // ---- 章节通关宝箱检查 ----
   let chapterClearReward = null
   if (isFirstClear) {
@@ -446,6 +450,7 @@ function settleStage(g) {
       if (cr) {
         if (cr.soulStone) g.storage.addSoulStone(cr.soulStone)
         if (cr.awakenStone) g.storage.addAwakenStone(cr.awakenStone)
+        if (cr.stamina) g.storage.addBonusStamina(cr.stamina)
         if (cr.fragment) {
           const target = pickFragmentTarget(g, 'all')
           if (target) g.storage.addFragments(target, cr.fragment)
@@ -477,6 +482,7 @@ function settleStage(g) {
     starBonusAwakenStone: starAwakenStone,
     starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
     chapterClearReward,
+    firstClearStamina,
     isBossStage: stage.order === 8,
     totalFragCount,
     duplicateWeaponSoulStone,

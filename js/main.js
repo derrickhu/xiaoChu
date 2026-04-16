@@ -144,24 +144,38 @@ class Main {
           const comeback = this.storage.checkComeback()
           if (comeback) P.showGameToast('欢迎回来！体力已回满，灵石+300')
         }
-        // 从秘境结算返回首页 + 体力耗尽 + 本次会话未弹过 → 明日预告
-        if (oldScene === 'stageResult' && !this._nextDayPreviewShown
+        // 从秘境结算返回首页 + 体力耗尽 → 引导通天塔或明日预告
+        if (oldScene === 'stageResult'
             && this.storage.currentStamina <= 0
             && this.storage.isStageCleared('stage_1_3')) {
-          this._nextDayPreviewShown = true
-          // 自动派遣空闲灵宠（让"明天回来收菜"有实感）
-          const slots = this.storage.idleDispatch.slots || []
-          if (slots.length === 0 && this.storage.petPool.length > 0) {
-            const dispatched = this.storage.petPool.slice(0, 3)
-            dispatched.forEach(p => this.storage.idleAssign(p.id))
-          }
-          this._confirmDialog = {
-            title: '今日冒险结束',
-            content: '灵宠已派遣修行中，明天回来收取碎片奖励！\n\n明日签到还有灵石和体力等你领取~',
-            confirmText: '知道了',
-            cancelText: null,
-            onConfirm: () => {},
-            timer: 0,
+          const towerAvail = this.storage.isStageCleared('stage_1_8')
+                             && this.storage.canStartTowerRunFree()
+          if (towerAvail && !this._towerHintShown) {
+            // 通天塔还有免费次数 → 引导去打塔
+            this._towerHintShown = true
+            this._confirmDialog = {
+              title: '体力不足',
+              content: '秘境体力暂时耗尽，但通天塔不消耗体力！\n\n去挑战通天塔，继续战斗吧！',
+              confirmText: '去挑战',
+              cancelText: '稍后再说',
+              onConfirm: () => { this.titleMode = 'tower' },
+              timer: 0,
+            }
+          } else if (!this._nextDayPreviewShown && !towerAvail) {
+            // 通天塔也没次数了 → 明日预告
+            this._nextDayPreviewShown = true
+            const slots = this.storage.idleDispatch.slots || []
+            if (slots.length === 0 && this.storage.petPool.length > 0) {
+              this.storage.petPool.slice(0, 3).forEach(p => this.storage.idleAssign(p.id))
+            }
+            this._confirmDialog = {
+              title: '今日冒险结束',
+              content: '灵宠已派遣修行中，明天回来收取碎片奖励！\n\n明日签到还有灵石和体力等你领取~',
+              confirmText: '知道了',
+              cancelText: null,
+              onConfirm: () => {},
+              timer: 0,
+            }
           }
         }
       }

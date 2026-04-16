@@ -219,8 +219,17 @@ const DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT = 52
 /** 新手教学赠送宠物 ID：五行各一只，入池即 ★2（让新手立即体验技能）。与通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1', 'f1']
 
-/** 新手前 3 关免体力（通关/失败均不扣），保证连续推关体验 */
-const NEWBIE_FREE_STAMINA_STAGES = ['stage_1_1', 'stage_1_2', 'stage_1_3']
+/** 新手第 1 章全 8 关免体力（通关/失败均不扣），保证首日充足游玩时间 */
+const NEWBIE_FREE_STAMINA_STAGES = [
+  'stage_1_1', 'stage_1_2', 'stage_1_3', 'stage_1_4',
+  'stage_1_5', 'stage_1_6', 'stage_1_7', 'stage_1_8',
+]
+
+/** 首通里程碑体力赠送（关卡ID → 赠送体力），让新手在关键节点获得额外推关动力 */
+const FIRST_CLEAR_STAMINA_BONUS = {
+  'stage_1_3': 30,
+  'stage_1_8': 50,
+}
 
 /** 新手免费续命次数（前 N 次战斗失败免费复活，降低挫败流失） */
 const NEWBIE_FREE_REVIVE_COUNT = 5
@@ -340,6 +349,7 @@ module.exports = {
   NEWBIE_PET_IDS,
   NEWBIE_FREE_STAMINA_STAGES,
   NEWBIE_FREE_REVIVE_COUNT,
+  FIRST_CLEAR_STAMINA_BONUS,
   NEWBIE_BEAD_ATTR_LIMIT,
   WEAPON_ACQUIRE_HINT_UNOWNED,
   RENDER_IMG_CACHE_MAX,
