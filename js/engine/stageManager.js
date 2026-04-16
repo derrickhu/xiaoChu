@@ -17,7 +17,7 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
-const { NEWBIE_PET_IDS } = require('../data/constants')
+const { NEWBIE_PET_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT } = require('../data/constants')
 const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
@@ -146,6 +146,7 @@ function startStage(g, stageId, teamPetIds) {
   g._runKillExp = 0
 
   g._isNewbieStage = false
+  g._stageBeadAttrLimit = NEWBIE_BEAD_ATTR_LIMIT[stageId] || 0
 
   // 加载第一波敌人
   loadWave(g, 0)
@@ -238,12 +239,14 @@ function startStageNewbie(g, stageId) {
   }
 
   g._isNewbieStage = true
+  g._stageBeadAttrLimit = NEWBIE_BEAD_ATTR_LIMIT[stageId] || 0
   initBoard(g)
   g.bState = 'playerTurn'
 
-  // 设置新手宠物介绍卡（战前全屏遮罩，点击翻页后触发简化教学）
-  g._newbiePetIntro = { petIds: NEWBIE_PET_IDS.slice(), alpha: 0, page: 0, timer: 0 }
-  g._pendingStageTutorial = true
+  // 跳过宠物介绍卡，直接进入简化教学
+  g._pendingStageTutorial = false
+  const tut = require('./tutorial')
+  if (tut.startStageTutorial) tut.startStageTutorial(g)
 
   g.setScene('battle')
   g.floor = 1
@@ -301,8 +304,10 @@ function settleStage(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
 
-  // 胜利扣体力
-  g.storage.consumeStamina(g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST)
+  // 新手前 3 关免体力
+  if (!NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)) {
+    g.storage.consumeStamina(g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST)
+  }
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
@@ -493,9 +498,11 @@ function settleStageDefeat(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
 
-  // 失败扣体力（可看广告退还）
+  // 失败扣体力（新手前 3 关免扣；其余可看广告退还）
   const staminaCost = g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST
-  g.storage.consumeStamina(staminaCost)
+  if (!NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)) {
+    g.storage.consumeStamina(staminaCost)
+  }
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 

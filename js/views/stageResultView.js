@@ -59,31 +59,22 @@ function rStageResult(g) {
     _victoryRewardViewport = null
   }
 
-  // 首次进入结算页时，检测是否需要触发新手宠物庆祝（1-1 / 1-2 / 1-3 首通均触发）
-  if (at === 1 && !result._celebrateTriggered && result.victory && result.isFirstClear
-      && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2' || result.stageId === 'stage_1_3')) {
-    result._celebrateTriggered = true
-    const petRewards = result.rewards ? result.rewards.filter(r => r.type === 'pet') : []
-    let celebrateIds = petRewards.map(r => r.petId).filter(Boolean)
-    // 首通灵宠已在池时会变成碎片，rewards 里可能没有 type:pet —— 仍从关卡配置取展示用宠，保证庆祝/总览/首页引导链不断
-    if (celebrateIds.length === 0) {
-      const st = getStageById(result.stageId)
-      if (st && st.rewards && st.rewards.firstClear) {
-        celebrateIds = st.rewards.firstClear.filter(r => r.type === 'pet' && r.petId).map(r => r.petId)
+  // 1-1 / 1-2 首通：静默入池，跳过逐个庆祝和总览卡，直接显示结算让玩家"下一关"
+  // 1-3 首通：跳过逐个庆祝，直接集中展示全部灵宠（5 只 + 法宝）
+  if (at === 1 && !result._celebrateTriggered && result.victory && result.isFirstClear) {
+    if (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2') {
+      result._celebrateTriggered = true
+      // 1-1 通关后标记引导已完成，兼容后续检查
+      if (result.stageId === 'stage_1_1') {
+        g.storage.markGuideShown('newbie_stage_continue')
       }
-    }
-    const weaponCelebrateIds = (result.rewards || [])
-      .filter(r => r.type === 'weapon' && r.weaponId && r.isNew)
-      .map(r => r.weaponId)
-    const queue = []
-    celebrateIds.forEach(id => queue.push({ kind: 'pet', id }))
-    weaponCelebrateIds.forEach(id => queue.push({ kind: 'weapon', id }))
-    if (queue.length > 0) {
-      g._newbiePetCelebrate = {
-        queue,
-        currentIdx: 0,
-        alpha: 0, timer: 0,
-      }
+    } else if (result.stageId === 'stage_1_3') {
+      result._celebrateTriggered = true
+      const allPetIds = g.storage.petPool.map(p => p.id)
+      const weaponIds = (result.rewards || [])
+        .filter(r => r.type === 'weapon' && r.weaponId && r.isNew)
+        .map(r => r.weaponId)
+      g._newbieTeamOverview = { pets: allPetIds, weapons: weaponIds, alpha: 0, timer: 0 }
     }
   }
 
@@ -235,6 +226,9 @@ function _isFinalBossStageResult(result) {
 
 function _victoryHeadline(result) {
   if (_isFinalBossStageResult(result)) return result.isFirstClear ? '终章通关' : '终章凯旋'
+  if (result.isFirstClear && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {
+    return '完美通关！'
+  }
   return '关卡通关'
 }
 
@@ -1614,8 +1608,10 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   const nextId = getNextStageId(result.stageId)
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
-  const rightLabel = hasNext ? '下一关' : '再次挑战'
-  R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, 'confirm')
+  const isNewbieContinuous = result.victory && result.isFirstClear
+    && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')
+  const rightLabel = isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战')
+  R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, isNewbieContinuous ? 'gold' : 'confirm')
   _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY - scroll, btnW, btnH]
 
   // 首通分享按钮
@@ -2154,27 +2150,13 @@ function tStageResult(g, x, y, type) {
     return
   }
 
-  // 新手队伍总览卡：首通直达灵宠页/主页，渐进式引导
+  // 新手队伍总览卡（仅 1-3 首通触发：集中展示 5 只灵宠后引导养成）
   if (g._newbieTeamOverview) {
     g._newbieTeamOverview = null
-    if (result && result.victory && result.isFirstClear) {
-      if (result.stageId === 'stage_1_1') {
-        g.storage.markGuideShown('newbie_stage_continue')
-        g.setScene('petPool')
-        return
-      }
-      if (result.stageId === 'stage_1_2') {
-        g._pendingGuide = 'newbie_continue_1_3'
-        g._stageIdxInitialized = false
-        g.setScene('title')
-        return
-      }
-      if (result.stageId === 'stage_1_3') {
-        g._pendingGuide = 'newbie_team_ready'
-        g._stageIdxInitialized = false
-        g.setScene('title')
-        return
-      }
+    if (result && result.victory && result.isFirstClear && result.stageId === 'stage_1_3') {
+      g._stageIdxInitialized = false
+      g.setScene('petPool')
+      return
     }
     _animTimer = 0
     g._dirty = true
@@ -2329,6 +2311,18 @@ function tStageResult(g, x, y, type) {
   }
 
   if (_rects.nextBtnRect && g._hitRect(x, y, ..._rects.nextBtnRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    // 新手前 2 关首通：直接进入下一关战斗，不经过选关/编队
+    if (result.victory && result.isFirstClear
+        && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {
+      const nextId = getNextStageId(result.stageId)
+      if (nextId) {
+        const stageMgr = require('../engine/stageManager')
+        const teamIds = g.storage.petPool.map(p => p.id)
+        stageMgr.startStage(g, nextId, teamIds)
+        return
+      }
+    }
     if (_firstClearGuide) {
       g._pendingGuide = _firstClearGuide
       g.setScene('title')
@@ -2345,16 +2339,13 @@ function tStageResult(g, x, y, type) {
         g.setScene('stageInfo')
       }
     }
-    MusicMgr.playClick && MusicMgr.playClick()
     return
   }
 }
 
-// 1-1 / 1-2 / 1-3 首通胜利时，返回首页并触发对应后续引导
+// 1-3 首通胜利时，返回首页并触发养成引导（1-1/1-2 由结算页直接进下一关，无需引导）
 function _getFirstClearGuide(result) {
   if (!result || !result.victory || !result.isFirstClear) return null
-  if (result.stageId === 'stage_1_1') return 'newbie_stage_continue'
-  if (result.stageId === 'stage_1_2') return 'newbie_continue_1_2'
   if (result.stageId === 'stage_1_3') return 'newbie_team_ready'
   return null
 }

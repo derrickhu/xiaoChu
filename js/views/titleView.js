@@ -1152,6 +1152,11 @@ function _drawRightEntryButton(c, R, opts) {
 
 // ===== 模式切换入口（与右侧任务列统一圆框样式） =====
 function drawModeSwitchBtn(g) {
+  // 第 1 章通关前隐藏通天塔入口
+  if (!g.storage.isStageCleared('stage_1_8')) {
+    g._modeSwitchRect = null
+    return
+  }
   const { ctx, R, W, S, safeTop } = V
   const mode = g.titleMode || 'tower'
   const targetMode = MODE_CFG[mode].switchKey

@@ -48,6 +48,7 @@ const Particles = require('./engine/particles')
 const stageMgr = require('./engine/stageManager')
 const AdManager = require('./adManager')
 const { getRewardChipFlyAnimEndMs } = require('./views/rewardChipFlyAnim')
+const memoryDebug = require('./runtime/memoryDebug')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
 const canvas = GameGlobal.__mainCanvas || P.createCanvas()
@@ -89,11 +90,10 @@ class Main {
     // 云同步恢复老玩家数据时，跳过新手漫画/教学（修复清除缓存后重进的问题）
     this.events.on('cloud:veteranRestored', () => {
       const inNewbieBattle = this.scene === 'battle'
-        && (tutorial.isActive() || this._isNewbieStage || this._pendingStageTutorial || !!this._newbiePetIntro)
+        && (tutorial.isActive() || this._isNewbieStage || this._pendingStageTutorial)
 
       this._pendingGuide = null
       this._pendingStageTutorial = false
-      this._newbiePetIntro = null
       this._newbiePetCelebrate = null
       this._newbieTeamOverview = null
       this._isNewbieStage = false
@@ -119,7 +119,14 @@ class Main {
 
     this.events.on('scene:change', (newScene, oldScene) => {
       if (newScene === 'petPool') {
-        guideMgr.trigger(this, 'pet_pool_intro')
+        // 1-3 首通后进灵宠池：触发养成引导（跳过通用灵宠池介绍）
+        if (!this.storage.isGuideShown('newbie_grow_intro')
+            && this.storage.isStageCleared('stage_1_3')) {
+          guideMgr.trigger(this, 'newbie_grow_intro')
+          this.storage.markGuideShown('pet_pool_intro')
+        } else {
+          guideMgr.trigger(this, 'pet_pool_intro')
+        }
         // 从派遣返回灵宠池时引导继续战斗
         if (oldScene === 'idle' && this.storage.isGuideShown('pet_pool_intro')) {
           guideMgr.trigger(this, 'newbie_after_dispatch')
@@ -137,6 +144,26 @@ class Main {
           const comeback = this.storage.checkComeback()
           if (comeback) P.showGameToast('欢迎回来！体力已回满，灵石+300')
         }
+        // 从秘境结算返回首页 + 体力耗尽 + 本次会话未弹过 → 明日预告
+        if (oldScene === 'stageResult' && !this._nextDayPreviewShown
+            && this.storage.currentStamina <= 0
+            && this.storage.isStageCleared('stage_1_3')) {
+          this._nextDayPreviewShown = true
+          // 自动派遣空闲灵宠（让"明天回来收菜"有实感）
+          const slots = this.storage.idleDispatch.slots || []
+          if (slots.length === 0 && this.storage.petPool.length > 0) {
+            const dispatched = this.storage.petPool.slice(0, 3)
+            dispatched.forEach(p => this.storage.idleAssign(p.id))
+          }
+          this._confirmDialog = {
+            title: '今日冒险结束',
+            content: '灵宠已派遣修行中，明天回来收取碎片奖励！\n\n明日签到还有灵石和体力等你领取~',
+            confirmText: '知道了',
+            cancelText: null,
+            onConfirm: () => {},
+            timer: 0,
+          }
+        }
       }
 
       // 从灵宠池/修炼返回主页时触发后续引导
@@ -151,7 +178,17 @@ class Main {
           this._stageIdxInitialized = false
           this._pendingGuide = 'newbie_continue_1_3'
         }
-        // 五行集齐后从修炼返回 → 新手引导完成
+        // 养成引导完成后 → 引导修炼
+        else if (this.storage.isGuideShown('newbie_grow_intro')
+                 && !this.storage.isGuideShown('newbie_team_ready')) {
+          guideMgr.trigger(this, 'newbie_team_ready')
+        }
+        // 第 1 章通关 → 解锁通天塔引导
+        else if (this.storage.isStageCleared('stage_1_8')
+                 && !this.storage.isGuideShown('tower_unlock')) {
+          guideMgr.trigger(this, 'tower_unlock')
+        }
+        // 修炼引导完成后 → 新手引导结束
         else if (this.storage.isGuideShown('newbie_team_ready')) {
           guideMgr.trigger(this, 'newbie_after_cult')
         }
@@ -339,6 +376,7 @@ class Main {
 
   // ===== 更新 =====
   update() {
+    memoryDebug.maybeStart(this, R)
     TweenMgr.updateTweens(this.dt)
     Particles.update()
     anim.updateAnimations(this)
@@ -619,9 +657,6 @@ class Main {
     if (tutorial.isActive() && this.scene === 'battle') {
       battleView.drawTutorialOverlay(this)
     }
-    if (this._newbiePetIntro) {
-      eventView.drawNewbiePetIntro(this)
-    }
     if (this._petObtainedPopup) {
       eventView.drawPetObtainedPopup(this, this._petObtainedPopup)
     }
@@ -779,6 +814,7 @@ class Main {
   }
   _onDefeat() { runMgr.onDefeat(this, W, H) }
   _doAdRevive() { runMgr.doAdRevive(this, W, H) }
+  _doFreeRevive() { runMgr.doFreeRevive(this, W, H) }
 
   // ===== 宠物技能与奖励（被 touchHandlers / eventView 调用）=====
   _triggerPetSkill(pet, idx) { skillEngine.triggerPetSkill(this, pet, idx) }

@@ -219,11 +219,31 @@ const DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT = 52
 /** 新手教学赠送宠物 ID：五行各一只，入池即 ★2（让新手立即体验技能）。与通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1', 'f1']
 
+/** 新手前 3 关免体力（通关/失败均不扣），保证连续推关体验 */
+const NEWBIE_FREE_STAMINA_STAGES = ['stage_1_1', 'stage_1_2', 'stage_1_3']
+
+/** 新手免费续命次数（前 N 次战斗失败免费复活，降低挫败流失） */
+const NEWBIE_FREE_REVIVE_COUNT = 5
+
+/** 新手关卡珠色限制：值为允许的攻击属性种数（心珠始终保留），降低认知负担 */
+const NEWBIE_BEAD_ATTR_LIMIT = {
+  'stage_1_1': 3,
+  'stage_1_2': 4,
+}
+
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
 const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
 
 /** Canvas 图片 LRU 缓存上限：须大于「图鉴·全部」可能单帧触达的头像路径数（约百只×png/jpg 两路 + UI），否则真机会频繁淘汰未解码完的图片而长期灰块 */
 const RENDER_IMG_CACHE_MAX = 320
+
+// ===== 内存调试（上架保持 MEMORY_DEBUG=false 即无任何监听与定时器）=====
+/** false：零开销，可进生产包；true：注册 onMemoryWarning + 可选周期快照（见下） */
+const MEMORY_DEBUG = false
+/** true 且 MEMORY_DEBUG 时：仅 GM 启用，普通玩家不注册监听 */
+const MEMORY_DEBUG_ONLY_GM = true
+/** 周期快照间隔（ms）；0 表示不打周期日志，仅系统内存告警时打一条 */
+const MEMORY_DEBUG_INTERVAL_MS = 30000
 
 // ===== 灵兽图鉴页 (DEX) =====
 // 须与 screens.rDex 中 drawPageTitle、bottomBar.drawPageTitle(bgH=48×S) 一致，避免统计行与 name_bg 重叠
@@ -318,8 +338,14 @@ module.exports = {
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
+  NEWBIE_FREE_STAMINA_STAGES,
+  NEWBIE_FREE_REVIVE_COUNT,
+  NEWBIE_BEAD_ATTR_LIMIT,
   WEAPON_ACQUIRE_HINT_UNOWNED,
   RENDER_IMG_CACHE_MAX,
+  MEMORY_DEBUG,
+  MEMORY_DEBUG_ONLY_GM,
+  MEMORY_DEBUG_INTERVAL_MS,
   DEX_LAYOUT,
   getDexContentTop,
 }

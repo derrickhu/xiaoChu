@@ -81,26 +81,6 @@ function _handleBoardDrag(g, type, x, y) {
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
-  // === 新手宠物介绍卡拦截（两页后进入棋盘教学） ===
-  if (g._newbiePetIntro) {
-    if (type === 'end') {
-      if ((g._newbiePetIntro.page || 0) < 1) {
-        g._newbiePetIntro.page = 1
-        g._newbiePetIntro.timer = 0
-        g._newbiePetIntro.alpha = 0
-      } else {
-        g._newbiePetIntro = null
-        // 介绍卡结束后触发简化版转珠教学
-        if (g._pendingStageTutorial) {
-          g._pendingStageTutorial = false
-          const tut = require('../engine/tutorial')
-          if (tut.startStageTutorial) tut.startStageTutorial(g)
-        }
-      }
-      g._dirty = true
-    }
-    return
-  }
   // === 教学系统拦截 ===
   if (tutorial.isActive()) {
     if (tutorial.isSummary()) {
@@ -131,16 +111,6 @@ function tBattle(g, type, x, y) {
   // === 教学引导 play 阶段：只允许路径拖珠，屏蔽所有其他交互 ===
   if (tutorial.isActive() && tutorial.isGuideActive()) {
     _handleBoardDrag(g, type, x, y)
-    return
-  }
-  // === 珠子攻击提示拦截 ===
-  if (g._showOrbAttackTip) {
-    if (type === 'end') {
-      g._showOrbAttackTip = false
-      g._orbTipTimer = 0
-      if (g.storage) g.storage.markGuideShown('orb_attack_tip')
-      g._dirty = true
-    }
     return
   }
   // === 帮助面板拦截 ===
@@ -218,7 +188,7 @@ function tBattle(g, type, x, y) {
   }
   // 帮助按钮
   if (type === 'end' && g._helpBtnRect && g._hitRect(x, y, ...g._helpBtnRect)
-      && g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'adReviveOffer') {
+      && g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'freeReviveOffer' && g.bState !== 'adReviveOffer') {
     g._showBattleHelp = true; g._battleHelpPage = 0; g._dirty = true; return
   }
   // 胜利：秘境/通天塔均由 drawVictoryOverlay 自动等死亡动画后切场景，无需触摸
@@ -237,6 +207,12 @@ function tBattle(g, type, x, y) {
       return
     }
     if (g._defeatBtnRect && g._hitRect(x,y,...g._defeatBtnRect)) { if (g.enemy && g.enemy.isBoss) MusicMgr.resumeNormalBgm(); g._endRun(); return }
+  }
+  // 新手免费续命
+  if (g.bState === 'freeReviveOffer' && type === 'end') {
+    if (g._freeReviveBtnRect && g._hitRect(x, y, ...g._freeReviveBtnRect)) { g._doFreeRevive(); return }
+    if (g._freeReviveSkipRect && g._hitRect(x, y, ...g._freeReviveSkipRect)) { g.bState = 'defeat'; return }
+    return
   }
   // 广告复活
   if (g.bState === 'adReviveOffer' && type === 'end') {

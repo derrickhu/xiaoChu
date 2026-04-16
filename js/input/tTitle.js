@@ -347,7 +347,11 @@ function tTitle(g, type, x, y) {
         return
       }
       case 3:
-        // 与左侧「通天塔/灵兽秘境」浮钮相同：切换大厅模式
+        // 第 1 章通关前锁定秘境模式，通天塔不可切换
+        if (!g.storage.isStageCleared('stage_1_8')) {
+          P.showGameToast('通关第 1 章解锁通天塔')
+          return
+        }
         g.titleMode = (g.titleMode || 'tower') === 'tower' ? 'stage' : 'tower'
         return
       case 4: {

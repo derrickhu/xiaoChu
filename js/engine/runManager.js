@@ -553,8 +553,13 @@ function resumeRun(g) {
 }
 
 function onDefeat(g, W, H) {
-  // 固定关卡：直接进入失败状态，不触发复活机制
+  // 固定关卡：新手有免费续命机会，否则直接失败
   if (g.battleMode === 'stage') {
+    const { NEWBIE_FREE_REVIVE_COUNT } = require('../data/constants')
+    if (g.storage.getNewbieRevivesUsed() < NEWBIE_FREE_REVIVE_COUNT) {
+      g.bState = 'freeReviveOffer'
+      return
+    }
     g.bState = 'defeat'
     return
   }
@@ -616,6 +621,16 @@ function adReviveCallback(g, W, H) {
   g.heroShield = 0
   g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
   g.skillEffects.push({ x:W*0.5, y:H*0.5, text:'浴火重生！', color:'#ffd700', t:0, alpha:1 })
+  MusicMgr.playRevive()
+  g.bState = 'playerTurn'; g.dragTimer = 0
+}
+
+// 新手免费续命（秘境关卡）
+function doFreeRevive(g, W, H) {
+  g.storage.useNewbieRevive()
+  g.heroHp = Math.round(g.heroMaxHp * 0.5)
+  g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
+  g.skillEffects.push({ x: W * 0.5, y: H * 0.5, text: '续战！', color: '#ffd700', t: 0, alpha: 1 })
   MusicMgr.playRevive()
   g.bState = 'playerTurn'; g.dragTimer = 0
 }
@@ -743,6 +758,7 @@ module.exports = {
   onDefeat: _safeRun(onDefeat),
   doAdRevive: _safeRun(doAdRevive),
   adReviveCallback: _safeRun(adReviveCallback),
+  doFreeRevive: _safeRun(doFreeRevive),
   obtainItemReset, obtainItemHeal, useItemReset, useItemHeal,
   gmSkipBattle: _safeRun(gmSkipBattle),
   claimTowerFloorMilestones: _safeRun(claimTowerFloorMilestones),

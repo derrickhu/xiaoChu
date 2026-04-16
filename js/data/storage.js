@@ -755,6 +755,17 @@ class Storage {
     return true
   }
 
+  /** 已使用的新手免费续命次数 */
+  getNewbieRevivesUsed() {
+    return this._d.newbieRevivesUsed || 0
+  }
+
+  /** 消耗一次新手免费续命 */
+  useNewbieRevive() {
+    this._d.newbieRevivesUsed = (this._d.newbieRevivesUsed || 0) + 1
+    this._save()
+  }
+
   /** 下一点体力恢复的剩余秒数 */
   get staminaRecoverSec() {
     const s = this._d.stamina

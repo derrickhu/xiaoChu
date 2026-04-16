@@ -83,6 +83,8 @@ const platform = {
   login:                  (opts) => base.login(opts),
   onShow:                 typeof base.onShow === 'function' ? (cb) => base.onShow(cb) : _noop,
   onHide:                 typeof base.onHide === 'function' ? (cb) => base.onHide(cb) : _noop,
+  /** 微信基础库内存告警（抖音等平台无则空实现） */
+  onMemoryWarning:        typeof base.onMemoryWarning === 'function' ? (cb) => base.onMemoryWarning(cb) : _noop,
   checkScene:             typeof base.checkScene === 'function' ? (opts) => base.checkScene(opts) : (opts) => { if (opts && opts.fail) opts.fail() },
   navigateToScene:        typeof base.navigateToScene === 'function' ? (opts) => base.navigateToScene(opts) : (opts) => { if (opts && opts.fail) opts.fail({ errMsg: 'not supported' }) },
 

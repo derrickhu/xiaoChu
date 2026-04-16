@@ -405,7 +405,7 @@ function update(g) {
   }
   if (_phase === 'intro') {
     _introTimer++
-    if (_introTimer > 90) {
+    if (_introTimer > 30) {
       _phase = 'play'
     }
   }

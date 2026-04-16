@@ -211,8 +211,38 @@ function drawAdReviveOverlay(g) {
   g._adReviveSkipRect = [skipX, skipY, skipW, skipH]
 }
 
+function drawFreeReviveOverlay(g) {
+  const { ctx, R, TH, W, H, S } = V
+  const { NEWBIE_FREE_REVIVE_COUNT } = require('../../data/constants')
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H)
+
+  const panelW = W * 0.78, panelH = 160 * S
+  const panelX = (W - panelW) / 2, panelY = (H - panelH) / 2
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#D4A030'; ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('差一点就赢了！', W * 0.5, panelY + 38 * S)
+
+  const remaining = NEWBIE_FREE_REVIVE_COUNT - g.storage.getNewbieRevivesUsed()
+  ctx.fillStyle = '#6B5B50'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  ctx.fillText(`回复 50% 生命继续战斗（剩余 ${remaining} 次）`, W * 0.5, panelY + 62 * S)
+
+  const btnW = panelW * 0.7, btnH = 40 * S
+  const btnX = (W - btnW) / 2, btnY = panelY + 78 * S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '免费续战！', 'gold')
+  g._freeReviveBtnRect = [btnX, btnY, btnW, btnH]
+
+  const skipY = btnY + btnH + 8 * S
+  ctx.fillStyle = 'rgba(100,80,60,0.55)'; ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('放弃', W * 0.5, skipY + 6 * S)
+  const skipW = 60 * S, skipH = 20 * S
+  g._freeReviveSkipRect = [(W - skipW) / 2, skipY - 4 * S, skipW, skipH]
+}
+
 module.exports = {
   drawVictoryOverlay,
   drawDefeatOverlay,
   drawAdReviveOverlay,
+  drawFreeReviveOverlay,
 }

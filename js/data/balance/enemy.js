@@ -127,8 +127,19 @@ const STAGE_MIN_GROWTH_RATE = { hp: 1.03, atk: 1.02, def: 1.01 }
 // 守关小怪血量折扣
 const STAGE_MINION_HP_RATIO = 0.6
 
-// 新手模式敌人覆写
-const NEWBIE_ENEMY_OVERRIDE = { hp: 80, atk: 4, def: 0 }
+// 新手模式敌人覆写（HP 35 确保 1-2 回合内击杀，给新手"必赢"体验）
+const NEWBIE_ENEMY_OVERRIDE = { hp: 35, atk: 4, def: 0 }
+
+/**
+ * 第 1 章 HP 手动曲线：覆盖全局递增逻辑，实现新手友好的节奏波动
+ * 1-1~1-3 新手保护区 → 1-4 首个小挑战 → 1-5 养成检查点
+ * → 1-6 节奏缓冲 → 1-7 回升 → 1-8 Boss 高峰
+ */
+const CH1_HP_CURVE = {
+  1: 180, 2: 160, 3: 190,
+  4: 230, 5: 280,
+  6: 220, 7: 320, 8: 500,
+}
 
 module.exports = {
   MONSTER_TIERS,
@@ -143,4 +154,5 @@ module.exports = {
   STAGE_MIN_GROWTH_RATE,
   STAGE_MINION_HP_RATIO,
   NEWBIE_ENEMY_OVERRIDE,
+  CH1_HP_CURVE,
 }

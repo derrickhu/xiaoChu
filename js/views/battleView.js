@@ -8,7 +8,7 @@ const tutorial = require('../engine/tutorial')
 
 const { getBattleLayout } = require('./battle/battleLayout')
 const { drawBattleEnemyArea } = require('./battle/battleEnemyView')
-const { initOrbAttackTip, drawOrbAttackTip, suppressOrbAttackTipContext } = require('./battle/battleOrbTipView')
+const { initOrbAttackTip } = require('./battle/battleOrbTipView')
 const { drawPetSkillWave, drawSkillFlash, drawSkillPreviewPopup } = require('./battle/battleSkillVfxView')
 const { drawCombo } = require('./battle/battleComboView')
 const { drawHelpButton, drawBattleHelpPanel } = require('./battle/battleHelpView')
@@ -16,7 +16,7 @@ const { drawBattleUIControls, drawExpFloats } = require('./battle/battleUIContro
 const { drawBoard, drawWaveTransition, drawDragTimer, drawEnemyTurnBanner, drawAttrCoverageBar } = require('./battle/battleBoardView')
 const { drawNewbieFingerGuide, drawNewbieHint, drawNewbieComboBanner } = require('./battle/battleNewbieGuide')
 const { drawTeamBar, drawPetSlotFloats, drawBuffIcons, drawBuffIconsLabeled, drawRunBuffIcons } = require('./battle/battleTeamBarView')
-const { drawVictoryOverlay, drawDefeatOverlay, drawAdReviveOverlay } = require('./battle/battleVictoryView')
+const { drawVictoryOverlay, drawDefeatOverlay, drawAdReviveOverlay, drawFreeReviveOverlay } = require('./battle/battleVictoryView')
 const { drawRewardDetailOverlay, drawItemMenu } = require('./battle/battleRewardDetailView')
 const { drawTutorialOverlay } = require('./battle/battleTutorialView')
 
@@ -29,14 +29,6 @@ function rBattle(g) {
   const exitBtnSize = 32 * S
 
   initOrbAttackTip(g)
-  if (suppressOrbAttackTipContext(g)) {
-    g._orbTipDelay = 0
-    g._showOrbAttackTip = false
-  }
-  if (g._orbTipDelay > 0) {
-    g._orbTipDelay--
-    if (g._orbTipDelay === 0) g._showOrbAttackTip = true
-  }
 
   if (g.enemy) drawBattleEnemyArea(g, eAreaTop, eAreaBottom)
   drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, drawBuffIconsLabeled)
@@ -80,6 +72,7 @@ function rBattle(g) {
   if (g.bState === 'waveTransition') drawWaveTransition(g)
   if (g.bState === 'victory' && !tutorial.isActive()) drawVictoryOverlay(g)
   if (g.bState === 'defeat') drawDefeatOverlay(g)
+  if (g.bState === 'freeReviveOffer') drawFreeReviveOverlay(g)
   if (g.bState === 'adReviveOffer') drawAdReviveOverlay(g)
   if (g.showEnemyDetail) g._drawEnemyDetailDialog()
   if (g.showExitDialog) g._drawExitDialog()
@@ -90,10 +83,9 @@ function rBattle(g) {
   if (g._showItemMenu) drawItemMenu(g)
   if (g._rewardDetailShow) drawRewardDetailOverlay(g)
 
-  if (g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'adReviveOffer') {
+  if (g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'freeReviveOffer' && g.bState !== 'adReviveOffer') {
     drawHelpButton(g, safeTop)
   }
-  if (g._showOrbAttackTip) drawOrbAttackTip(g)
   if (g._showBattleHelp) drawBattleHelpPanel(g)
 }
 

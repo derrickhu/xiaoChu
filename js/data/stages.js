@@ -8,7 +8,7 @@ const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAMINA_COST } = require('./balance/economy')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
-const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO } = require('./balance/enemy')
+const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE } = require('./balance/enemy')
 const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
@@ -194,10 +194,16 @@ function buildAllStages() {
       }
       runMax = { hp: bossHp, atk: bossAtk, def: bossDef }
 
+      // 第 1 章手动曲线：覆盖 HP 实现新手友好的难度波动（不影响 runMax 以免扰动后续章节）
+      let stageHp = bossHp
+      if (ch === 1 && CH1_HP_CURVE[ord]) {
+        stageHp = CH1_HP_CURVE[ord]
+      }
+
       const normalEnemy = {
         name: enemyData.name,
         attr: enemyData.attr,
-        hp: bossHp,
+        hp: stageHp,
         atk: bossAtk,
         def: bossDef,
         skills: [...enemyData.skills],

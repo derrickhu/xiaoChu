@@ -112,16 +112,30 @@ const GUIDE_DEFS = {
       { text: '继续挑战下一关\n击败更强的敌人，收集新灵宠！', position: 'center' },
     ],
   },
+  // 1-3 通关后进灵宠池：引导养成首触
+  newbie_grow_intro: {
+    steps: [
+      { text: '恭喜通关！你获得了 5 只 ★2 灵宠！', position: 'center' },
+      { text: '点击灵宠查看详情\n消耗灵石升级，攻击力立刻提升！', position: 'center' },
+    ],
+  },
   newbie_team_ready: {
     steps: [
-      { text: '灵山三章试炼完成！你的队伍已初具规模', position: 'center' },
-      { text: '点击「修炼」消耗经验强化属性\n战斗会更加轻松', position: 'bottom', highlightId: 'nav_cult' },
+      { text: '灵宠已就绪！', position: 'center' },
+      { text: '点击「修炼」消耗经验强化体质\n提升血量、护盾和转珠时间', position: 'bottom', highlightId: 'nav_cult' },
     ],
   },
   // 从修炼返回主页后触发
   newbie_after_cult: {
     steps: [
       { text: '新手引导完成！你已掌握所有核心玩法\n接下来尽情探索秘境，不断强化阵容吧！', position: 'center' },
+    ],
+  },
+  // 第 1 章通关后解锁通天塔
+  tower_unlock: {
+    steps: [
+      { text: '恭喜通关第 1 章！通天塔挑战已解锁！', position: 'center' },
+      { text: '通天塔是无尽闯关挑战\n看看你能爬到多高！', position: 'center' },
     ],
   },
   // 灵宠池首次进入引导

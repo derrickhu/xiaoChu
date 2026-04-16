@@ -84,6 +84,30 @@ function _applyNewbieBias(g, weights) {
   g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] = NEWBIE_PET_ATTR_WEIGHT })
 }
 
+// 新手前几关珠色限制：只保留 N 种攻击属性（优先保留克制色），心珠不受影响
+function _applyStageBeadLimit(g, weights) {
+  const limit = g._stageBeadAttrLimit
+  if (!limit || limit >= 5) return
+  const attackAttrs = ['metal', 'wood', 'earth', 'water', 'fire']
+  const enemyAttr = g.enemy && g.enemy.attr
+  const counterAttr = enemyAttr
+    ? Object.keys(COUNTER_MAP).find(k => COUNTER_MAP[k] === enemyAttr)
+    : null
+  const keep = new Set()
+  if (counterAttr) keep.add(counterAttr)
+  for (const p of (g.pets || [])) {
+    if (keep.size >= limit) break
+    if (attackAttrs.includes(p.attr)) keep.add(p.attr)
+  }
+  for (const a of attackAttrs) {
+    if (keep.size >= limit) break
+    keep.add(a)
+  }
+  for (const a of attackAttrs) {
+    if (!keep.has(a)) weights[a] = 0
+  }
+}
+
 function initBoard(g) {
   const { ROWS, COLS } = V
   const weights = getBeadWeights(g.enemy ? g.enemy.attr : null, g.weapon)
@@ -92,6 +116,7 @@ function initBoard(g) {
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= GOOD_BEADS_WEIGHT })
   }
   _applyNewbieBias(g, weights)
+  _applyStageBeadLimit(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
   g.board = []
   for (let r = 0; r < ROWS; r++) {
@@ -125,6 +150,7 @@ function fillBoard(g) {
     g.pets.forEach(p => { if (weights[p.attr] !== undefined) weights[p.attr] *= GOOD_BEADS_WEIGHT })
   }
   _applyNewbieBias(g, weights)
+  _applyStageBeadLimit(g, weights)
   const pool = []; for (const [attr, w] of Object.entries(weights)) { for (let i = 0; i < Math.round(w*10); i++) pool.push(attr) }
   // 记录每列最大掉落距离（用于瀑布错开延迟）
   let maxDrop = 0

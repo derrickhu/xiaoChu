@@ -176,6 +176,15 @@ class Render {
     this._keepPaths = new Set(paths)
   }
 
+  /** 内存调试：当前图片/渐变缓存规模（仅统计，不参与游戏逻辑） */
+  getImageCacheDebugStats() {
+    return {
+      imgCount: Object.keys(this._imgCache || {}).length,
+      imgMax: this._IMG_CACHE_MAX,
+      gradCount: this._gradCacheSize || 0,
+    }
+  }
+
   /**
    * 清理非关键图片缓存（场景切换时调用，避免内存无限增长）
    * @param {string[]} [keepPaths] - 额外保留的路径，与 _keepPaths 合并
