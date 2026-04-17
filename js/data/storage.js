@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 18
+const CURRENT_VERSION = 19
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -270,6 +270,13 @@ const migrations = {
   // v17→v18：万能碎片（可用于任意灵宠升星的通用材料）
   17: (d) => {
     if (d.universalFragment == null) d.universalFragment = 0
+  },
+  // v18→v19：新手冒险者礼包收敛为"只给真新手"——已通过 2-1 的存档静默标记已领，
+  // 避免中后期老玩家突然弹出"新手礼包"造成违和
+  18: (d) => {
+    if (!d.guideFlags) d.guideFlags = {}
+    const cleared = d.stageClearRecord && d.stageClearRecord['stage_2_1'] && d.stageClearRecord['stage_2_1'].cleared
+    if (cleared) d.guideFlags.newbie_gift_claimed = true
   },
 }
 

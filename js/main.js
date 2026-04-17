@@ -209,7 +209,10 @@ class Main {
       // 其余条件满足的在下一次返回主页时依次出现，避免叠加压迫感。
       if (newScene === 'title') {
         // 【最高优】新手冒险者礼包：1-1 首通后首次回到主页弹出
+        // 新手窗口限制：仅在未通过 2-1（即仍在第 1 章范围）时才弹出，
+        // 避免老玩家回归/跨版本存档在中后期突然看到"新手礼包"造成违和
         const shouldShowNewbieGift = this.storage.isStageCleared('stage_1_1')
+          && !this.storage.isStageCleared('stage_2_1')
           && !this.storage.isGuideShown('newbie_gift_claimed')
           && !this._newbieGift
         if (shouldShowNewbieGift) {
