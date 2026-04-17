@@ -15,9 +15,10 @@ const {
 } = require('./balance/economy')
 
 const CURRENCY = {
-  soulStone:   { name: '灵石',   icon: 'icon_soul_stone',   desc: '宠物升级的通用货币' },
-  awakenStone: { name: '觉醒石', icon: 'icon_awaken_stone', desc: '★4/★5突破的稀缺材料' },
-  fragment:    { name: '碎片',   icon: 'icon_fragment',     desc: '宠物升星的专属材料' },
+  soulStone:        { name: '灵石',     icon: 'icon_soul_stone',      desc: '宠物升级的通用货币' },
+  awakenStone:      { name: '觉醒石',   icon: 'icon_awaken_stone',    desc: '★4/★5突破的稀缺材料' },
+  fragment:         { name: '碎片',     icon: 'icon_fragment',        desc: '宠物升星的专属材料' },
+  universalFragment:{ name: '万能碎片', icon: 'icon_universal_frag',  desc: '可用于任意灵宠的升星材料' },
 }
 
 const RARITY_VISUAL = {

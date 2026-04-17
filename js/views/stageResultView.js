@@ -769,6 +769,24 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   c.fillStyle = 'rgba(90,70,40,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
   _strokeText(c, `总回合数：${result.totalTurns}`, W * 0.5, starY + starSize / 2 + 38 * S, 'rgba(255,255,255,0.4)', 2 * S)
 
+  // 操作评分：最高 Combo + 挑战完成
+  let skillLineY = starY + starSize / 2 + 52 * S
+  if (result.maxCombo >= 2) {
+    const { getComboMul } = require('../engine/battle/damageFormula')
+    const mul = getComboMul(result.maxCombo)
+    c.fillStyle = '#ffcc80'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    _strokeText(c, `最高连击：${result.maxCombo}（伤害 x${mul.toFixed(1)}）`, W * 0.5, skillLineY, 'rgba(255,255,255,0.3)', 2 * S)
+    skillLineY += 15 * S
+  }
+  if (result.challengeDesc) {
+    const cColor = result.challengeDone ? '#a5d6a7' : 'rgba(180,150,100,0.7)'
+    const cIcon = result.challengeDone ? '✓' : '✗'
+    const cExtra = result.challengeRewardSS > 0 ? `  灵石+${result.challengeRewardSS}` : ''
+    c.fillStyle = cColor; c.font = `${10*S}px "PingFang SC",sans-serif`
+    _strokeText(c, `${cIcon} 挑战：${result.challengeDesc}${result.challengeDone ? cExtra : '  未完成'}`, W * 0.5, skillLineY, 'rgba(255,255,255,0.3)', 2 * S)
+    skillLineY += 15 * S
+  }
+
   // 星级结算加成已反映在下方灵石/碎片等总额中，此处只作提示，不再单独列数字，避免与面板重复
   const hasStarSettleBonus =
     (result.starBonusSoulStone > 0 || result.starBonusAwakenStone > 0 || result.starBonusFragments > 0)
@@ -1475,6 +1493,17 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
       ? (hasChapterClear ? '本关灵石（含法宝熔炼）' : '灵石（含法宝熔炼）')
       : (hasChapterClear ? '本关灵石' : '灵石')
     _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, '#5577AA', '#3366AA')
+    c.restore()
+    cy += 32 * S
+    rowIdx++
+  }
+
+  // === 首通里程碑灵石 ===
+  if (result.firstClearSoulStone > 0) {
+    const msDelay = 15 + rowIdx * 6
+    const msAlpha = Math.min(1, Math.max(0, (at - msDelay) / 12))
+    c.save(); c.globalAlpha *= msAlpha
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '首通灵石奖励', `+${result.firstClearSoulStone}`, '#C87830', '#B86830')
     c.restore()
     cy += 32 * S
     rowIdx++

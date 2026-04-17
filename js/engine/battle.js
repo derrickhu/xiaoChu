@@ -221,6 +221,25 @@ function startNextElimAnim(g) {
   g._runElimExp = (g._runElimExp || 0) + elimExp
   // 移除combo断链：所有消除都计入combo（大幅提升爽感）
   g.combo++
+  if (g.combo > (g._maxCombo || 0)) g._maxCombo = g.combo
+  // 技巧挑战追踪：combo / 4连 / 5连 / 心珠
+  if (g._mechanicFocus && !g._challengeDone) {
+    const ch = g._mechanicFocus.challenge
+    if (ch) {
+      if (ch.type === 'combo' && g.combo >= ch.threshold) { g._challengeProgress = g.combo; g._challengeDone = true }
+      if (ch.type === 'elim4' && count === 4) { g._challengeProgress++; if (g._challengeProgress >= ch.threshold) g._challengeDone = true }
+      if (ch.type === 'elim5' && count >= 5) { g._challengeProgress++; if (g._challengeProgress >= ch.threshold) g._challengeDone = true }
+      if (ch.type === 'heartHeal' && attr === 'heart') { g._challengeProgress++; if (g._challengeProgress >= ch.threshold) g._challengeDone = true }
+    }
+  }
+  // 技巧首次触发飘字
+  if (g._mechanicFocus && !g._mechanicTriggered) {
+    const f = g._mechanicFocus.focus
+    if (f === 'combo' && g.combo >= 2) { g._mechanicTriggered = true; emitNotice(g, { x:W*0.5, y:g.boardY+30*S, text:g._mechanicFocus.battleTip, color:'#ffd700', scale:1.8, _initScale:1.8 }) }
+    if (f === 'elim4' && count === 4) { g._mechanicTriggered = true; emitNotice(g, { x:W*0.5, y:g.boardY+30*S, text:g._mechanicFocus.battleTip, color:'#00e5ff', scale:1.8, _initScale:1.8 }) }
+    if (f === 'elim5' && count >= 5) { g._mechanicTriggered = true; emitNotice(g, { x:W*0.5, y:g.boardY+30*S, text:g._mechanicFocus.battleTip, color:'#ff4081', scale:1.8, _initScale:1.8 }) }
+    if (f === 'heartHeal' && attr === 'heart') { g._mechanicTriggered = true; emitNotice(g, { x:W*0.5, y:g.boardY+30*S, text:g._mechanicFocus.battleTip, color:'#88ff88', scale:1.8, _initScale:1.8 }) }
+  }
   // 新手首关：每次达成 combo 里程碑时弹庆祝横幅（逐级升级）
   if (g._isNewbieStage && g.combo >= 2) {
     var _cb = g.combo
@@ -545,6 +564,14 @@ function enterPetAtkShow(g) {
       emitFlash(g, 'counter', { color: cac ? cac.main : '#ffd700', timer: 10 })
       emitShake(g, { t: 8, i: 5, mode: 'max' })
       MusicMgr.playComboMilestone(5)
+      // 技巧追踪：克制
+      if (g._mechanicFocus && !g._challengeDone && g._mechanicFocus.challenge && g._mechanicFocus.challenge.type === 'counter') {
+        g._challengeProgress++
+        if (g._challengeProgress >= g._mechanicFocus.challenge.threshold) g._challengeDone = true
+      }
+      if (g._mechanicFocus && !g._mechanicTriggered && g._mechanicFocus.focus === 'counter') {
+        g._mechanicTriggered = true
+      }
     } else if (item.isCountered) {
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'抵抗...', color:'#888888', scale:1.4, _initScale:1.4 })
     } else if (item.dmg <= 0) {
@@ -792,7 +819,7 @@ function onPlayerTurnStart(g) {
 // ===== 回合结算 =====
 function settle(g) {
   g.heroBuffs = g.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
-  g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
+  // enemyBuffs 在 enemyTurn 末尾递减，确保本回合施加的眩晕等能在下次敌方行动时生效
   g.pets.forEach((p, idx) => {
     if (!petHasSkill(p)) return  // ★1无技能，不处理CD
     if (p.currentCd > 0) {
@@ -857,6 +884,7 @@ function enemyTurn(g) {
     })
     if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
+    g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
     return
@@ -955,6 +983,8 @@ function enemyTurn(g) {
   })
   if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
+  // 敌方回合结束后递减 enemyBuffs（确保本回合施加的眩晕等已生效后才消耗）
+  g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
   g.turnCount++
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
 }

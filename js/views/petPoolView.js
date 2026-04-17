@@ -108,6 +108,38 @@ function rPetPool(g) {
 
     // 图标压在胶囊上方
     c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
+
+    // 万能碎片胶囊（紧跟灵石右侧）
+    const uniCount = g.storage.universalFragment || 0
+    const uniIcon = R.getImg('assets/ui/icon_universal_frag.png')
+    if (uniIcon && uniIcon.width > 0) {
+      const uIconSz = iconSz
+      const uIconX = capX + capW + 10 * S
+      const uIconY = iconY
+      const uTxtX = uIconX + uIconSz + 4 * S
+      c.font = `bold ${14*S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      const uTxtW = c.measureText(`${uniCount}`).width
+      const uCapX = uIconX + uIconSz * 0.38
+      const uCapW = uTxtX + uTxtW + padX - uCapX
+      const uCapY = centerY - capH / 2
+      c.save()
+      c.beginPath()
+      c.moveTo(uCapX + capR, uCapY); c.lineTo(uCapX + uCapW - capR, uCapY)
+      c.quadraticCurveTo(uCapX + uCapW, uCapY, uCapX + uCapW, uCapY + capR)
+      c.lineTo(uCapX + uCapW, uCapY + capH - capR)
+      c.quadraticCurveTo(uCapX + uCapW, uCapY + capH, uCapX + uCapW - capR, uCapY + capH)
+      c.lineTo(uCapX + capR, uCapY + capH)
+      c.quadraticCurveTo(uCapX, uCapY + capH, uCapX, uCapY + capH - capR)
+      c.lineTo(uCapX, uCapY + capR)
+      c.quadraticCurveTo(uCapX, uCapY, uCapX + capR, uCapY)
+      c.closePath()
+      c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
+      c.restore()
+      c.fillStyle = '#fff'
+      c.fillText(`${uniCount}`, uTxtX, centerY)
+      c.drawImage(uniIcon, uIconX, uIconY, uIconSz, uIconSz)
+    }
   }
 
   c.restore()
@@ -515,11 +547,38 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.fillStyle = 'rgba(200,200,220,0.8)'
   c.fillText(displayName, x + w / 2, nameY)
 
-  // 碎片进度条
+  // 右上角「收集中」角标
+  const tagText = '收集中'
+  c.save()
+  c.font = `bold ${8.5*S}px "PingFang SC",sans-serif`
+  const tagTW = c.measureText(tagText).width
+  const tagPadX = 5 * S
+  const tagW = tagTW + tagPadX * 2
+  const tagH = 13 * S
+  const tagX = x + w - tagW - 4 * S
+  const tagY = y + 4 * S
+  c.fillStyle = 'rgba(80,130,180,0.85)'
+  R.rr(tagX, tagY, tagW, tagH, tagH / 2); c.fill()
+  c.strokeStyle = 'rgba(180,210,240,0.9)'
+  c.lineWidth = 1 * S
+  R.rr(tagX, tagY, tagW, tagH, tagH / 2); c.stroke()
+  c.fillStyle = '#fff'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(tagText, tagX + tagW / 2, tagY + tagH / 2 + 0.5 * S)
+  c.restore()
+
+  // 进度条副文字
   const barW = w * 0.7
   const barH2 = 8 * S
   const barX = x + (w - barW) / 2
-  const barY2 = nameY + 16 * S
+  const subTipY = nameY + 16 * S
+  c.fillStyle = 'rgba(200,200,220,0.75)'
+  c.font = `${8*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  c.fillText('集齐可召唤入队', x + w / 2, subTipY)
+
+  // 碎片进度条
+  const barY2 = subTipY + 10 * S
   const progress = Math.min(1, fragCount / cost)
   c.fillStyle = 'rgba(0,0,0,0.3)'
   R.rr(barX, barY2, barW, barH2, barH2 / 2); c.fill()

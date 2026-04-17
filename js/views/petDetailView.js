@@ -12,6 +12,7 @@ const { getPoolPetAtk, getPoolPetMaxLv, getPoolPetMaxStar, petExpToNextLevel, PO
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
+const { POOL_STAR_LV_CAP } = require('../data/petPoolConfig')
 
 /** 已拥有详情页头像占屏宽比例（rPetDetail 翻页箭头垂直位置须与此一致；无头像框时可略大） */
 const PET_DETAIL_AVATAR_FRAC = 0.38
@@ -25,7 +26,11 @@ const _rects = {
   summonBtnRect: null,
   leftArrowRect: null,
   rightArrowRect: null,
+  roadmapRowRects: [],    // [{ star, rect: [x,y,w,h] }]
 }
+
+// 当前展开的成长路线星级（0 表示全收起，1-5 表示该星级展开）
+let _expandedRoadmapStar = 0
 
 // 长按升级
 let _longPressTimer = null
@@ -88,6 +93,98 @@ function _getStarUpBenefitLines(petId, poolPet, basePet, nextStar) {
     lines.push(`上限 Lv.${nextMax}`)
   }
   return lines
+}
+
+/** 构建展开态的详细行（每行 { text, color }） */
+function _buildExpandedRoadmapLines(row, petId, basePet, poolPet) {
+  const lines = []
+  const star = row.star
+  // 攻击力
+  if (poolPet) {
+    const atkStar = getPoolPetAtk({ ...poolPet, star })
+    lines.push({ text: `攻击力 ${atkStar}（倍率 ×${row.atkMul}）`, color: '#5A3A15' })
+  } else {
+    lines.push({ text: `攻击倍率 ×${row.atkMul}`, color: '#5A3A15' })
+  }
+  // 技能详情
+  if (star === 1) {
+    lines.push({ text: '未解锁技能（仅普通攻击）', color: 'rgba(90,70,40,0.7)' })
+  } else if (star === 2 && basePet.skill) {
+    const skillName = basePet.skill.name
+    const sd = getPetSkillBaseDesc(basePet)
+    const cdVal = basePet.cd != null ? basePet.cd : (basePet.skill && basePet.skill.cd)
+    lines.push({ text: `技能「${skillName}」`, color: '#2E6B8B' })
+    if (sd) lines.push({ text: sd, color: '#5A4530' })
+    if (cdVal != null) lines.push({ text: `冷却 ${cdVal} 回合`, color: 'rgba(90,70,40,0.75)' })
+  } else if (star === 3) {
+    const s3 = getStar3Override(petId)
+    if (s3 && s3.desc) {
+      lines.push({ text: `★3 强化：${s3.desc}`, color: '#2E6B8B' })
+      if (s3.cd != null) lines.push({ text: `冷却 ${s3.cd} 回合`, color: 'rgba(90,70,40,0.75)' })
+    } else {
+      lines.push({ text: '攻击提升（无技能变化）', color: 'rgba(90,70,40,0.7)' })
+    }
+  } else if (star === 4) {
+    const p = getStar4Passive(petId)
+    if (p) {
+      lines.push({ text: `★4 被动「${p.name}」`, color: '#8B2E2E' })
+      lines.push({ text: p.desc, color: '#5A4530' })
+    } else {
+      lines.push({ text: '攻击提升（无被动）', color: 'rgba(90,70,40,0.7)' })
+    }
+  } else if (star === 5) {
+    const s5 = getStar5Override(petId)
+    if (s5 && s5.desc) {
+      lines.push({ text: `★5 终极：${s5.desc}`, color: '#B84E2E' })
+      if (s5.cd != null) lines.push({ text: `冷却 ${s5.cd} 回合`, color: 'rgba(90,70,40,0.75)' })
+    } else {
+      lines.push({ text: '攻击飞跃（无技能变化）', color: 'rgba(90,70,40,0.7)' })
+    }
+  }
+  // 等级上限
+  const lvCap = require('../data/petPoolConfig').POOL_STAR_LV_CAP[star] || 0
+  if (lvCap > 0) {
+    lines.push({ text: `等级上限 Lv.${lvCap}`, color: 'rgba(90,70,40,0.75)' })
+  }
+  // 升星需求
+  if (row.fragCost > 0) {
+    const parts = [`等级≥${row.lvReq}`, `碎片×${row.fragCost}（可用万能碎片补齐）`]
+    if (row.awakenCost > 0) parts.push(`觉醒石×${row.awakenCost}`)
+    lines.push({ text: `升星条件：${parts.join('，')}`, color: 'rgba(90,70,40,0.75)' })
+  }
+  return lines
+}
+
+/** 构建 ★1→★5 的完整成长路线数据 */
+function _buildGrowthRoadmap(petId, basePet) {
+  const rows = []
+  for (let star = 1; star <= 5; star++) {
+    const sv = STAR_VISUAL[star] || {}
+    const atkMul = POOL_STAR_ATK_MUL[star] || 1
+    const fragCost = POOL_STAR_FRAG_COST[star] || 0
+    const lvReq = POOL_STAR_LV_REQ[star] || 0
+    const awakenCost = POOL_STAR_AWAKEN_COST[star] || 0
+    const lvCap = POOL_STAR_LV_CAP[star] || 40
+    const unlocks = []
+    if (star === 1) unlocks.push('基础形态')
+    if (star === 2 && basePet.skill) unlocks.push(`技能「${basePet.skill.name}」`)
+    if (star === 3) {
+      const s3 = getStar3Override(petId)
+      unlocks.push(s3 ? '技能强化' : '攻击提升')
+    }
+    if (star === 4) {
+      const p = getStar4Passive(petId)
+      if (p) unlocks.push(`被动「${p.name}」`)
+      unlocks.push(`上限Lv.${lvCap}`)
+    }
+    if (star === 5) {
+      const s5 = getStar5Override(petId)
+      unlocks.push(s5 ? '终极强化' : '攻击飞跃')
+      unlocks.push(`上限Lv.${lvCap}`)
+    }
+    rows.push({ star, name: sv.name || '', atkMul, fragCost, lvReq, awakenCost, unlocks })
+  }
+  return rows
 }
 
 // ===== 主渲染 =====
@@ -764,10 +861,22 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += 8 * S
 
-  // ── 技能 ──
+  // ── 技能（升星解锁时金色高亮） ──
+  const skillSectionY = cy
   const fakePet = { ...basePet, star: poolPet.star }
   const hasSkill = petHasSkill(fakePet)
   const lineSkill = 14 * S
+  if (g._petSkillUnlockGlow > 0) {
+    const gp = g._petSkillUnlockGlow / 30
+    c.save()
+    c.shadowColor = `rgba(255,200,50,${gp * 0.6})`
+    c.shadowBlur = 16 * S * gp
+    c.fillStyle = `rgba(255,215,0,${gp * 0.12})`
+    R.rr(indent - 6 * S, cy - 4 * S, contentW + 12 * S, 80 * S, 8 * S)
+    c.fill()
+    c.restore()
+    g._petSkillUnlockGlow--
+  }
   c.fillStyle = '#5A4530'
   c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
@@ -850,8 +959,11 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   if (nextStar <= maxStar) {
     const lvReq = POOL_STAR_LV_REQ[nextStar]
     const fragCost = POOL_STAR_FRAG_COST[nextStar]
+    const uniOwn = g.storage.universalFragment || 0
+    const petOwn = poolPet.fragments || 0
     const lvOk = poolPet.level >= lvReq
-    const fragOk = poolPet.fragments >= fragCost
+    const fragOk = petOwn + uniOwn >= fragCost
+    const uniNeeded = Math.max(0, fragCost - petOwn)
 
     c.fillStyle = '#5A4530'
     c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
@@ -875,7 +987,11 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     cy += 14 * S
 
     c.fillStyle = fragOk ? '#2E8B2E' : '#CC3333'
-    c.fillText(`碎片 ${poolPet.fragments}/${fragCost}`, indent, cy)
+    let fragLine = `碎片 ${petOwn}/${fragCost}`
+    if (petOwn < fragCost) {
+      fragLine += `（万能 ${Math.min(uniOwn, uniNeeded)}/${uniNeeded}）`
+    }
+    c.fillText(fragLine, indent, cy)
     cy += 14 * S
 
     const awakenCost = POOL_STAR_AWAKEN_COST[nextStar] || 0
@@ -887,46 +1003,12 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
       cy += 14 * S
     }
 
-    const benefitLines = _getStarUpBenefitLines(petId, poolPet, basePet, nextStar)
-    if (benefitLines.length > 0) {
-      c.fillStyle = '#5A4530'
-      c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('升星获得', indent, cy)
-      cy += 13 * S
-      c.fillStyle = 'rgba(70,55,35,0.92)'
-      c.font = `${11 * S}px "PingFang SC",sans-serif`
-      const lineBen = 14 * S
-      for (let bi = 0; bi < benefitLines.length; bi++) {
-        const bl = wrapTextDraw(c, benefitLines[bi], indent, cy, contentW, lineBen)
-        cy += Math.max(1, bl) * lineBen + 3 * S
-      }
-      cy += 4 * S
-    }
-
     const canStarUp = lvOk && fragOk && awakenOk
     const sBtnW = Math.min(contentW, rightEdge - indent)
     const sBtnX = indent
     _drawBtn(c, R, S, sBtnX, cy, sBtnW, starBtnH, '升星', canStarUp, '#FFD700', fBtnPanel, canStarUp)
     if (isCurrentPet) _rects.starUpBtnRect = [sBtnX, cy, sBtnW, starBtnH]
     cy += starBtnH + 6 * S
-
-    if (poolPet.fragments > 0) {
-      drawSeparator(c, indent, cy, rightEdge, '180,140,60')
-      cy += 7 * S
-      const dBtnW = Math.min(contentW, rightEdge - indent)
-      _drawBtn(c, R, S, indent, cy, dBtnW, starBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtnPanel)
-      if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, starBtnH]
-      cy += starBtnH + 4 * S
-      c.fillStyle = 'rgba(100,88,72,0.82)'
-      c.font = `${10 * S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('碎片→灵石', indent, cy)
-      cy += 11 * S
-      c.fillStyle = '#CC3333'
-      c.font = `${10 * S}px "PingFang SC",sans-serif`
-      c.fillText('分解不可撤回', indent, cy)
-    }
   } else {
     c.fillStyle = '#B8860B'
     c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
@@ -935,26 +1017,161 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     for (let i = 0; i < maxStar; i++) fullStarStr += '★'
     c.fillText(`满星 ${fullStarStr}`, indent, cy)
     cy += 16 * S
+  }
+
+  // ── 成长路线图（★1→★5 全星级一览）──
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+  cy += 8 * S
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('成长路线', indent, cy)
+  cy += 18 * S
+
+  const roadmap = _buildGrowthRoadmap(petId, basePet)
+  const baseRowH = 28 * S
+  const starDotR = 5 * S
+  const lineX = indent + starDotR   // 时间线 x 坐标
+  const textStartX = lineX + 16 * S // 文字起始 x
+  const contentRight = rightEdge
+
+  if (isCurrentPet) _rects.roadmapRowRects = []
+
+  let roadmapCursorY = cy
+  for (let ri = 0; ri < roadmap.length; ri++) {
+    const row = roadmap[ri]
+    const isReached = curStar >= row.star
+    const isNext = curStar + 1 === row.star
+    const isExpanded = _expandedRoadmapStar === row.star
+
+    // 计算该行高度（展开时动态增加）
+    let rowH = baseRowH
+    const expandedLines = isExpanded ? _buildExpandedRoadmapLines(row, petId, basePet, poolPet) : null
+    if (isExpanded) {
+      rowH = baseRowH + expandedLines.length * 13 * S + 8 * S
+    } else if (isNext && row.fragCost > 0) {
+      rowH = baseRowH + 12 * S
+    }
+
+    const rowY = roadmapCursorY
+
+    // 整行命中区域（用于点击展开/收起）
+    if (isCurrentPet) {
+      _rects.roadmapRowRects.push({ star: row.star, rect: [indent, rowY, contentRight - indent, rowH] })
+    }
+
+    // 时间线竖线（从当前节点到下一节点）
+    if (ri < roadmap.length - 1) {
+      c.strokeStyle = isReached ? 'rgba(232,184,32,0.5)' : 'rgba(160,140,100,0.25)'
+      c.lineWidth = 1.5 * S
+      c.beginPath()
+      c.moveTo(lineX, rowY + starDotR * 2)
+      c.lineTo(lineX, rowY + rowH)
+      c.stroke()
+    }
+
+    // 节点圆点
+    c.beginPath()
+    c.arc(lineX, rowY + starDotR, starDotR, 0, Math.PI * 2)
+    if (isReached) {
+      c.fillStyle = '#E8B820'
+      c.fill()
+    } else if (isNext) {
+      c.fillStyle = 'rgba(232,184,32,0.4)'
+      c.fill()
+      c.strokeStyle = '#E8B820'
+      c.lineWidth = 1.5 * S
+      c.stroke()
+    } else {
+      c.fillStyle = 'rgba(160,140,100,0.25)'
+      c.fill()
+    }
+
+    // 展开态底色
+    if (isExpanded) {
+      c.fillStyle = 'rgba(232,184,32,0.07)'
+      R.rr(textStartX - 6 * S, rowY - 2 * S, contentRight - textStartX + 4 * S, rowH - 2 * S, 4 * S)
+      c.fill()
+    }
+
+    // 星级标签
+    const labelColor = isReached ? '#C9A227' : (isNext ? '#8B7535' : 'rgba(120,100,70,0.6)')
+    c.fillStyle = labelColor
+    c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillText(`★${row.star} ${row.name}`, textStartX, rowY + starDotR)
+
+    // 攻击倍率
+    const mulX = textStartX + 58 * S
+    c.fillStyle = isReached ? '#CC6600' : 'rgba(130,100,50,0.6)'
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillText(`×${row.atkMul}`, mulX, rowY + starDotR)
+
+    // 解锁内容概述（仅收起态）
+    if (!isExpanded) {
+      const unlockX = mulX + 28 * S
+      const unlockText = row.unlocks.join(' / ')
+      c.fillStyle = isReached ? '#2E8B2E' : (isNext ? '#5A4530' : 'rgba(90,70,40,0.55)')
+      c.font = `${10 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'
+      const maxUnlockW = contentRight - unlockX - 12 * S  // 留出三角指示器空间
+      let displayText = unlockText
+      if (c.measureText(displayText).width > maxUnlockW) {
+        while (displayText.length > 0 && c.measureText(displayText + '…').width > maxUnlockW) {
+          displayText = displayText.slice(0, -1)
+        }
+        displayText += '…'
+      }
+      c.fillText(displayText, unlockX, rowY + starDotR)
+    }
+
+    // 三角指示器（▶ 收起 / ▼ 展开）
+    c.fillStyle = 'rgba(120,100,70,0.55)'
+    c.font = `${9 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'right'; c.textBaseline = 'middle'
+    c.fillText(isExpanded ? '▼' : '▶', contentRight - 4 * S, rowY + starDotR)
+
+    // 展开态详情
+    if (isExpanded) {
+      let ly = rowY + baseRowH - 4 * S
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.font = `${10.5 * S}px "PingFang SC",sans-serif`
+      for (const line of expandedLines) {
+        c.fillStyle = line.color || '#5A4530'
+        c.fillText(line.text, textStartX, ly)
+        ly += 13 * S
+      }
+    } else if (isNext && row.fragCost > 0) {
+      // 下一星：简略需求提示
+      const reqY = rowY + starDotR + 10 * S
+      c.fillStyle = 'rgba(90,70,40,0.55)'
+      c.font = `${9 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      const reqParts = [`Lv.${row.lvReq}`, `碎×${row.fragCost}`]
+      if (row.awakenCost > 0) reqParts.push(`觉×${row.awakenCost}`)
+      c.fillText(reqParts.join('  '), textStartX, reqY)
+    }
+
+    roadmapCursorY += rowH
+  }
+  cy = roadmapCursorY + 6 * S
+
+  // ── 分解 ──
+  if (poolPet.fragments > 0) {
+    drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+    cy += 7 * S
     c.fillStyle = 'rgba(90,70,40,0.78)'
     c.font = `${11 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
     c.fillText(`碎片 ${poolPet.fragments}`, indent, cy)
     cy += 14 * S
-    if (poolPet.fragments > 0) {
-      drawSeparator(c, indent, cy, rightEdge, '180,140,60')
-      cy += 7 * S
-      const dBtnW = Math.min(contentW, rightEdge - indent)
-      _drawBtn(c, R, S, indent, cy, dBtnW, starBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtnPanel)
-      if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, starBtnH]
-      cy += starBtnH + 4 * S
-      c.fillStyle = 'rgba(100,88,72,0.82)'
-      c.font = `${10 * S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.fillText('碎片→灵石', indent, cy)
-      cy += 12 * S
-      c.fillStyle = '#CC3333'
-      c.font = `${10 * S}px "PingFang SC",sans-serif`
-      c.fillText('分解不可撤回', indent, cy)
-    }
+    const dBtnW = Math.min(contentW, rightEdge - indent)
+    _drawBtn(c, R, S, indent, cy, dBtnW, starBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtnPanel)
+    if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, starBtnH]
+    cy += starBtnH + 4 * S
+    c.fillStyle = '#CC3333'
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillText('分解不可撤回', indent, cy)
   }
 }
 
@@ -1115,6 +1332,17 @@ function tPetDetail(g, x, y, type) {
       _doDecompose(g)
       return
     }
+
+    // 成长路线图行点击（展开/收起）
+    if (_rects.roadmapRowRects && _rects.roadmapRowRects.length > 0) {
+      for (const item of _rects.roadmapRowRects) {
+        if (g._hitRect(x, y, ...item.rect)) {
+          _expandedRoadmapStar = (_expandedRoadmapStar === item.star) ? 0 : item.star
+          MusicMgr.playClick && MusicMgr.playClick()
+          return
+        }
+      }
+    }
   }
 }
 
@@ -1128,6 +1356,7 @@ function _navigatePet(g, delta) {
   // delta > 0 = 下一个 = 当前页向左滑出, direction = -1
   // delta < 0 = 上一个 = 当前页向右滑出, direction = 1
   _slideAnim = { from: g._petDetailId, to: pool[newIdx].id, progress: 0, duration: 12, direction: delta > 0 ? -1 : 1 }
+  _expandedRoadmapStar = 0  // 切换宠物时收起成长路线展开
   MusicMgr.playClick && MusicMgr.playClick()
 }
 
@@ -1148,15 +1377,25 @@ function _doLevelUp(g) {
 function _doStarUp(g) {
   const petId = g._petDetailId
   if (!petId) return
+  const prevStar = (g.storage.getPoolPet(petId) || {}).star || 1
   const result = g.storage.upgradePoolPetStar(petId)
   if (result.ok) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
     g._pendingShareScene = { scene: 'petStarUp', data: { petName: (require('../data/pets').getPetById(petId) || {}).name || petId, star: result.newStar } }
+    // ★1 → ★2 首次解锁技能：显示技能名称提示 + 技能区高亮
+    if (prevStar === 1 && result.newStar === 2) {
+      const basePet = require('../data/pets').getPetById(petId)
+      const skillName = basePet && basePet.skill ? basePet.skill.name : ''
+      if (skillName && P.showGameToast) {
+        P.showGameToast(`技能「${skillName}」已解锁！`)
+      }
+      g._petSkillUnlockGlow = 30  // 30帧金色高亮动画
+    }
   } else {
     const msgMap = {
       max_star: '已达当前灵宠最高星级',
       level_low: `等级需达到 ${result.required} 级`,
-      fragments_low: `碎片不足，需要 ${result.required}`,
+      fragments_low: `碎片不足（含万能），需要 ${result.required}`,
       awaken_stone_low: `觉醒石不足，需要 ${result.required}`,
       not_found: '灵宠数据异常',
     }

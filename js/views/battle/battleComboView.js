@@ -442,6 +442,7 @@ function drawComboVFX(g) {
 // ===== Combo显示（分发函数） =====
 function drawCombo(g, cellSize, boardTop) {
   const { ctx, R, TH, W, H, S, COLS, ROWS } = V
+  const { getComboMul } = require('../../engine/battle/damageFormula')
   const allowComboText = g.combo >= 2
     && (g.bState === 'elimAnim' || g.bState === 'dropping' || g.bState === 'preAttack' || g.bState === 'petAtkShow')
 
@@ -485,6 +486,18 @@ function drawCombo(g, cellSize, boardTop) {
 
     drawComboMainText(cs)
     drawComboMilestone(cs)
+    // 倍率标签
+    if (g.combo >= 2) {
+      const mul = getComboMul(g.combo)
+      const mulText = `x${mul.toFixed(1)}`
+      ctx.font = `bold ${baseSz * 0.42}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+      const mulY = comboCy + baseSz * 0.62
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3 * S
+      ctx.strokeText(mulText, comboCx, mulY)
+      ctx.fillStyle = '#ffe082'
+      ctx.fillText(mulText, comboCx, mulY)
+    }
 
     ctx.restore()
   }

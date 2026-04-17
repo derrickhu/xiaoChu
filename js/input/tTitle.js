@@ -131,6 +131,13 @@ function tTitle(g, type, x, y) {
       MusicMgr.playClick && MusicMgr.playClick()
       return
     }
+    if (rects.helpTour && g._hitRect(x, y, ...rects.helpTour)) {
+      g.showMorePanel = false
+      const helpTourView = require('../views/helpTourView')
+      helpTourView.show(g)
+      MusicMgr.playClick && MusicMgr.playClick()
+      return
+    }
     return
   }
 
@@ -253,6 +260,12 @@ function tTitle(g, type, x, y) {
       const _list = getBrowsableStages(g.storage.stageClearRecord, g._stageDifficulty || 'normal')
       if (g._selectedStageIdx < _list.length - 1) { g._selectedStageIdx++; return }
     }
+  }
+
+  // ④b 通天塔「?」重置规则提示
+  if (!isStageMode && g._towerHelpRect && g._hitRect(x, y, ...g._towerHelpRect)) {
+    P.showGameToast('每日 0 点刷新免费次数与奖励')
+    return
   }
 
   // ⑤ 开始按钮
@@ -406,6 +419,8 @@ function _handleStageStart(g) {
     const stageMgr = require('../engine/stageManager')
     const teamIds = g.storage.petPool.map(p => p.id)
     stageMgr.startStage(g, stage.id, teamIds)
+    // 延用 1-1 新手盘面：棋盘高亮、属性珠权重倾斜、手指引导
+    g._isNewbieStage = true
     return
   }
 

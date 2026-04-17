@@ -16,7 +16,7 @@ const { PETS, getPetById, petHasSkill } = require('../data/pets')
 const { HERO_BASE_HP } = require('../data/balance/combat')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
-const { NEWBIE_PET_IDS } = require('../data/constants')
+const { NEWBIE_PET_IDS, NEWBIE_2STAR_IDS } = require('../data/constants')
 
 // 教学专用固定5只宠物（每属性取第一只基础宠物，保证五行齐全）
 function _makeTutorialPets() {
@@ -140,7 +140,7 @@ const STEPS = [
     // 多回合：回合1教克制高伤，回合2教被克减伤
     rounds: [
       {
-        // 回合1：消金珠打木怪 → 金克木 2.5x
+        // 回合1：消金珠打木怪 → 金克木高伤
         board: [
           ['m','s','e','f','w','s'],
           ['e','m','m','w','f','e'],
@@ -149,7 +149,7 @@ const STEPS = [
           ['f','w','s','e','e','s'],
         ],
         guide: { fromR:2, fromC:3, toR:1, toC:3, path:[[2,3],[1,3]] },
-        goalText: '金克木 → 伤害×2.5！优先用克制属性攻击！',
+        goalText: '金克木 → 伤害×1.6！优先用克制属性攻击！',
         msg: [
           { text:'把金珠向上拖，用金属性攻击木属性敌人！', timing:'start' },
           { text:'金克木，超高伤害！记住五行相克关系！', timing:'afterElim' },
@@ -182,12 +182,12 @@ const STEPS = [
           '金克木·木克土·土克水',
           '水克火·火克金，循环相生相克。',
         ],
-        note: '克制属性伤害×2.5，被克×0.5！',
+        note: '克制属性伤害×1.6，被克×0.5！',
         icon: '克',
       },
     ],
     msg: [
-      { text:'对手是木属性！金克木，伤害x2.5！', timing:'start' },
+      { text:'对手是木属性！金克木，伤害×1.6！', timing:'start' },
     ],
   },
   {
@@ -486,11 +486,11 @@ function finish(g) {
   // 标记教学已完成
   try { P.setStorageSync('tutorialDone', true) } catch(e) {}
 
-  // 与秘境 1-1 首通一致：将新手教学宠加入持久化灵宠池（★2，让新手立即体验技能）
+  // 与秘境 1-1 首通一致：仅 NEWBIE_2STAR_IDS 为 ★2，其余 ★1
   if (g.storage.petPoolCount === 0) {
     NEWBIE_PET_IDS.forEach(id => {
       g.storage.addToPetPool(id, 'tutorial')
-      g.storage.setPoolPetStar(id, 2)
+      if (NEWBIE_2STAR_IDS.includes(id)) g.storage.setPoolPetStar(id, 2)
     })
   }
 

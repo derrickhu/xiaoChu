@@ -55,7 +55,7 @@ const GUIDE_DEFS = {
   },
   petPool_unlock: {
     steps: [
-      { text: '恭喜！首只三星灵宠已永久加入——灵宠池与图鉴同时解锁！', position: 'bottom', highlightId: 'nav_pet' },
+      { text: '恭喜！首只二星灵宠已永久加入——灵宠池与图鉴同时解锁！', position: 'bottom', highlightId: 'nav_pet' },
       { text: '灵宠池：在这里培养你的永久伙伴，强化后可用于灵兽秘境等玩法。', position: 'center', highlightId: 'nav_pet' },
       { text: '图鉴：记录你遇到过的每只灵宠，解锁图鉴可带宠出战！', position: 'bottom', highlightId: 'nav_dex' },
     ],
@@ -90,7 +90,7 @@ const GUIDE_DEFS = {
   },
   newbie_stage_continue: {
     steps: [
-      { text: '恭喜首通！新的灵宠伙伴已加入你的队伍\n五行阵容也已初具雏形', position: 'center' },
+      { text: '恭喜首通！新的灵宠伙伴已加入你的队伍', position: 'center' },
       { text: '点击「灵宠」查看你的队伍\n在这里可以培养和强化灵宠', position: 'bottom', highlightId: 'nav_pet' },
     ],
   },
@@ -106,17 +106,25 @@ const GUIDE_DEFS = {
       { text: '最后一关试炼！击败碧潮鲸\n巩固技巧，完成本章挑战', position: 'bottom' },
     ],
   },
-  // 旧版兼容保留
-  newbie_after_pets: {
-    steps: [
-      { text: '继续挑战下一关\n击败更强的敌人，收集新灵宠！', position: 'center' },
-    ],
-  },
   // 1-3 通关后进灵宠池：引导养成首触
   newbie_grow_intro: {
     steps: [
-      { text: '恭喜通关！你获得了 5 只 ★2 灵宠！', position: 'center' },
-      { text: '点击灵宠查看详情\n消耗灵石升级，攻击力立刻提升！', position: 'center' },
+      { text: '恭喜通关！去看看你的灵宠队伍吧', position: 'center' },
+      { text: '消耗灵石升级灵宠\n提升等级可解锁升星功能！', position: 'center' },
+    ],
+  },
+  // 碎片够但等级不够：提示先升级
+  starup_level_hint: {
+    steps: [
+      { text: '有灵宠的碎片已够升星\n继续投入灵石升到 10 级即可升星解锁技能！', position: 'center' },
+      { text: '点击「灵宠」查看详情并升级', position: 'bottom', highlightId: 'nav_pet' },
+    ],
+  },
+  // 碎片和等级都够：引导升星
+  starup_intro: {
+    steps: [
+      { text: '灵宠已达到升星条件！\n升星后将解锁强力技能', position: 'center' },
+      { text: '点击「灵宠」查看详情并升星', position: 'bottom', highlightId: 'nav_pet' },
     ],
   },
   newbie_team_ready: {
@@ -125,10 +133,19 @@ const GUIDE_DEFS = {
       { text: '点击「修炼」消耗经验强化体质\n提升血量、护盾和转珠时间', position: 'bottom', highlightId: 'nav_cult' },
     ],
   },
-  // 从修炼返回主页后触发
+  // 第 1 章通关后触发：养成总引导（综合引导升级、升星、修炼的作用）
+  chapter1_grow_summary: {
+    steps: [
+      { text: '恭喜完成第 1 章全部关卡！\n后续挑战需要更强的灵宠阵容', position: 'center' },
+      { text: '升级：消耗灵石提升等级\n等级越高攻击力越强', position: 'center' },
+      { text: '升星：满足等级+碎片条件即可升星\n★2 解锁技能 / ★3 技能强化 / ★4 获得被动', position: 'center' },
+      { text: '去灵宠详情页查看完整成长路线\n规划你的强化目标吧！', position: 'bottom', highlightId: 'nav_pet' },
+    ],
+  },
+  // 第 1 章通关 + 养成总引导 + 通天塔解锁后触发
   newbie_after_cult: {
     steps: [
-      { text: '新手引导完成！你已掌握所有核心玩法\n接下来尽情探索秘境，不断强化阵容吧！', position: 'center' },
+      { text: '新手引导完成！\n前方还有更多秘境和强敌等着你\n继续强化阵容，挑战更高的塔层吧！', position: 'center' },
     ],
   },
   // 第 1 章通关后解锁通天塔
@@ -137,6 +154,19 @@ const GUIDE_DEFS = {
       { text: '恭喜通关第 1 章！通天塔挑战已解锁！', position: 'center' },
       { text: '通天塔是无尽闯关挑战\n看看你能爬到多高！', position: 'center' },
       { text: '通天塔不消耗体力，每天可免费挑战 3 次\n体力不够时也能来这里战斗！', position: 'center' },
+      { text: '每日 0 点刷新免费次数与奖励\n记得每天来挑战领取塔券！', position: 'center' },
+    ],
+  },
+  // 每日任务 / 签到入口首次说明
+  daily_entry_intro: {
+    steps: [
+      { text: '每日任务与签到：免费的每日奖励\n记得每天回来领取灵石、体力和碎片！', position: 'center' },
+    ],
+  },
+  // 派遣首次有可领奖励提示
+  idle_collect_hint: {
+    steps: [
+      { text: '派遣有奖励可领！\n进入「灵宠」点击派遣槽位收取', position: 'bottom', highlightId: 'nav_pet' },
     ],
   },
   // 灵宠池首次进入引导
@@ -228,14 +258,17 @@ function getFadeAlpha() {
   return _fadeAlpha
 }
 
+/**
+ * 结束当前引导条目并标记已展示，但保留队列中其他待展示项
+ * 目的：不同场景切换时误关引导，不应让尚未触发过的引导被误标记
+ */
 function dismiss(g) {
   if (!_currentGuide) return
   g.storage.markGuideShown(_currentGuide.id)
-  // 队列中待展示的指引也一并标记为已展示，避免dismiss后重复触发
-  _queue.forEach(item => g.storage.markGuideShown(item.id))
   _currentGuide = null
   _stepIdx = 0
-  _queue = []
+  _fadeAlpha = 0
+  _dequeue(g)
 }
 
 module.exports = {

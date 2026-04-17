@@ -11,9 +11,9 @@ const { isCurrentUserGM } = require('./gmConfig')
 const { DATA_VERSION } = require('./giftConfig')
 /**
  * 存储管理 — 灵宠消消塔
- * Roguelike：无局外养成，死亡即重开
- * 仅持久化：最高层数记录 + 统计 + 设置
+ * 当前架构：秘境推关 + 通天塔挑战 + 灵宠池 + 修炼 + 法宝 + 签到 / 每日任务
  * 本地缓存 + 云数据库双重存储（微信用 wx.cloud，抖音用 HTTP API）
+ * 持久化内容：关卡通关记录、灵宠池、资源（灵石/觉醒石/碎片/万能碎片/体力）、修炼数据、统计、设置等
  */
 
 const LOCAL_KEY = 'wxtower_v1'
@@ -34,7 +34,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 17
+const CURRENT_VERSION = 18
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -131,6 +131,8 @@ function defaultPersist() {
       seasonIndex: -1,         // 当前赛季序号（-1 表示从未初始化）
       claimed: [],             // 已领取的里程碑层数: [5, 10, ...]
     },
+    // 万能碎片：可用于任意灵宠升星的通用材料
+    universalFragment: 0,
     // 回归 / 删档（与 giftConfig.DATA_VERSION 对齐见 _load / resetAll 收尾赋值；此处 0 供「缺字段的旧存档」merge 后仍走 _checkDataVersion）
     lastActiveDate: '',
     dataVersion: 0,
@@ -262,6 +264,10 @@ const migrations = {
   // v16→v17：通天塔活动赛季
   16: (d) => {
     if (!d.towerEvent) d.towerEvent = { seasonIndex: -1, claimed: [] }
+  },
+  // v17→v18：万能碎片（可用于任意灵宠升星的通用材料）
+  17: (d) => {
+    if (d.universalFragment == null) d.universalFragment = 0
   },
 }
 
@@ -622,18 +628,19 @@ class Storage {
   }
 
   /**
-   * 分解碎片为经验（1碎片 = FRAGMENT_TO_EXP 宠物经验）
-   * @returns {number} 获得的经验量，0表示失败
+   * 分解碎片为灵石（1 碎片 = FRAGMENT_TO_EXP 灵石）
+   * 名称保留 FRAGMENT_TO_EXP 是历史遗留：原为"经验"，现存档里全部导向灵石资源池
+   * @returns {number} 获得的灵石量，0 表示失败
    */
   decomposeFragments(petId, count) {
     const { FRAGMENT_TO_EXP } = require('./petPoolConfig')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry || entry.fragments < count || count <= 0) return 0
     entry.fragments -= count
-    const expGained = count * FRAGMENT_TO_EXP
-    this._d.soulStone = (this._d.soulStone || 0) + expGained
+    const soulGained = count * FRAGMENT_TO_EXP
+    this._d.soulStone = (this._d.soulStone || 0) + soulGained
     this._save()
-    return expGained
+    return soulGained
   }
 
   /** 增加灵石 */
@@ -661,6 +668,26 @@ class Storage {
 
   /** 读取觉醒石数量 */
   get awakenStone() { return this._d.awakenStone || 0 }
+
+  // ===== 万能碎片（可用于任意灵宠升星的通用材料） =====
+
+  get universalFragment() { return this._d.universalFragment || 0 }
+
+  /** 增加万能碎片 */
+  addUniversalFragment(amount) {
+    if (!amount || amount <= 0) return
+    this._d.universalFragment = (this._d.universalFragment || 0) + amount
+    this._save()
+  }
+
+  /** 消耗万能碎片，返回是否成功 */
+  consumeUniversalFragment(amount) {
+    if (amount <= 0) return false
+    if ((this._d.universalFragment || 0) < amount) return false
+    this._d.universalFragment -= amount
+    this._save()
+    return true
+  }
 
   /**
    * 从灵石池投入经验给指定宠物，返回升级次数
@@ -700,6 +727,7 @@ class Storage {
 
   /**
    * 升星（消耗碎片，需满足等级门槛）
+   * 专属碎片不足时，自动用万能碎片补齐
    */
   upgradePoolPetStar(petId) {
     const { POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_AWAKEN_COST, getPoolPetMaxStar } = require('./petPoolConfig')
@@ -711,16 +739,25 @@ class Storage {
     const lvReq = POOL_STAR_LV_REQ[nextStar]
     if (entry.level < lvReq) return { ok: false, reason: 'level_low', required: lvReq }
     const fragCost = POOL_STAR_FRAG_COST[nextStar]
-    if (entry.fragments < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
+    const petOwn = entry.fragments || 0
+    const uniOwn = this._d.universalFragment || 0
+    if (petOwn + uniOwn < fragCost) return { ok: false, reason: 'fragments_low', required: fragCost }
     const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
     if (awakenCost > 0 && (this._d.awakenStone || 0) < awakenCost) {
       return { ok: false, reason: 'awaken_stone_low', required: awakenCost }
     }
-    entry.fragments -= fragCost
+    let usedUniversal = 0
+    if (petOwn >= fragCost) {
+      entry.fragments -= fragCost
+    } else {
+      usedUniversal = fragCost - petOwn
+      entry.fragments = 0
+      this._d.universalFragment = uniOwn - usedUniversal
+    }
     if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
     this._save()
-    return { ok: true, newStar: nextStar }
+    return { ok: true, newStar: nextStar, usedUniversal }
   }
 
   /** 获取灵宠池中指定宠物 */
@@ -2154,6 +2191,7 @@ class Storage {
     if (!this._d.petPool) this._d.petPool = []
     if (this._d.soulStone == null) this._d.soulStone = 0
     if (this._d.awakenStone == null) this._d.awakenStone = 0
+    if (this._d.universalFragment == null) this._d.universalFragment = 0
     if (!this._d.stamina) this._d.stamina = { current: STAMINA_INITIAL, max: STAMINA_INITIAL, lastRecoverTime: Date.now() }
     // Phase 3 字段补全
     if (!this._d.stageClearRecord) this._d.stageClearRecord = {}

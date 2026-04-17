@@ -752,7 +752,23 @@ function drawStartBtn(g) {
     ctx.fillStyle = canRun ? 'rgba(80,50,20,0.7)' : 'rgba(180,60,40,0.8)'
     ctx.font = `${10*S}px "PingFang SC",sans-serif`
     ctx.textBaseline = 'middle'
-    ctx.fillText(dailyText, W / 2, btnY - 10 * S)
+    ctx.textAlign = 'center'
+    const dailyTextY = btnY - 10 * S
+    ctx.fillText(dailyText, W / 2, dailyTextY)
+
+    // 小「?」图标：点击弹 toast 说明重置时间
+    const dailyTextW = ctx.measureText(dailyText).width
+    const qR = 7 * S
+    const qX = W / 2 + dailyTextW / 2 + qR + 4 * S
+    const qY = dailyTextY
+    ctx.beginPath()
+    ctx.arc(qX, qY, qR, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(100,80,40,0.6)'; ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
+    ctx.fillText('?', qX, qY + 0.5 * S)
+    g._towerHelpRect = [qX - qR, qY - qR, qR * 2, qR * 2]
 
     // 进度文字
     let progressText = ''
@@ -1332,7 +1348,7 @@ function drawMorePanel(g) {
   ctx.fillRect(0, 0, W, H)
 
   const _isGM = isCurrentUserGM()
-  const panelH = (244 + (_isGM ? 44 : 0)) * S + L.safeBottom
+  const panelH = (288 + (_isGM ? 44 : 0)) * S + L.safeBottom
   const panelY = H - panelH
   const rad = 16 * S
 
@@ -1356,6 +1372,7 @@ function drawMorePanel(g) {
     { key: 'sfx',      label: '音效',     toggle: g.storage.settings.sfxOn },
     { key: 'bgm',      label: '背景音乐', toggle: g.storage.settings.bgmOn },
     { key: 'bgmVol',   label: '音乐音量', slider: true, value: g.storage.settings.bgmVolume != null ? g.storage.settings.bgmVolume : 50 },
+    { key: 'helpTour', label: '功能导览', toggle: null },
     { key: 'feedback', label: '意见反馈', toggle: null },
   ]
   if (_isGM) items.push({ key: 'gm', label: 'GM调试面板', toggle: null, gmStyle: true })

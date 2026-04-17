@@ -216,8 +216,10 @@ const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 /** 每日任务弹窗：面板顶边不低于 safeTop + 此项×S，整体下移避免关闭钮与微信胶囊重叠 */
 const DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT = 52
 
-/** 新手教学赠送宠物 ID：五行各一只，入池即 ★2（让新手立即体验技能）。与通天塔教学共用 */
+/** 新手教学赠送宠物 ID：五行各一只。与通天塔教学共用 */
 const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1', 'f1']
+/** 其中以 ★2 入池的宠物（有技能）；其余以 ★1 入池（无技能，需升星解锁） */
+const NEWBIE_2STAR_IDS = ['f1', 'w1']
 
 /** 新手第 1 章全 8 关免体力（通关/失败均不扣），保证首日充足游玩时间 */
 const NEWBIE_FREE_STAMINA_STAGES = [
@@ -231,6 +233,21 @@ const FIRST_CLEAR_STAMINA_BONUS = {
   'stage_1_8': 50,
 }
 
+/** 首通里程碑灵石赠送（关卡ID → 赠送灵石），保证新手有足够灵石升级宠物 */
+const FIRST_CLEAR_SOULSTONE_BONUS = {
+  'stage_1_1': 200,
+  'stage_1_3': 300,
+  'stage_1_5': 300,
+  'stage_1_8': 400,
+}
+
+/** 新手冒险者礼包内容（教学结束后一次性领取） */
+const NEWBIE_GIFT_REWARDS = {
+  soulStone: 600,
+  universalFragment: 10,
+  stamina: 50,
+}
+
 /** 新手免费续命次数（前 N 次战斗失败免费复活，降低挫败流失） */
 const NEWBIE_FREE_REVIVE_COUNT = 5
 
@@ -238,6 +255,56 @@ const NEWBIE_FREE_REVIVE_COUNT = 5
 const NEWBIE_BEAD_ATTR_LIMIT = {
   'stage_1_1': 3,
   'stage_1_2': 4,
+}
+
+/**
+ * 第 1 章关卡技巧聚焦配置：每关教一个技巧 + 可选挑战目标
+ * focus: 技巧类型标识    openTip: 开场提示文案
+ * battleTip: 首次触发时的战中飘字
+ * challenge: { type, threshold, rewardSoulStone, desc } 挑战目标
+ */
+const STAGE_MECHANIC_FOCUS = {
+  stage_1_2: {
+    focus: 'heartHeal',
+    openTip: '心珠可以回血，受伤时试试消除它！',
+    battleTip: '心珠回血！',
+    challenge: { type: 'heartHeal', threshold: 1, rewardSoulStone: 10, desc: '消除心珠回血 1 次' },
+  },
+  stage_1_3: {
+    focus: 'counter',
+    openTip: '克制属性伤害翻倍！注意敌人的弱点',
+    battleTip: '克制命中！伤害 x1.6',
+    challenge: { type: 'counter', threshold: 1, rewardSoulStone: 10, desc: '触发克制攻击 1 次' },
+  },
+  stage_1_4: {
+    focus: 'combo',
+    openTip: '一次拖珠消除多组 = Combo！伤害翻倍！',
+    battleTip: 'Combo！伤害倍增！',
+    challenge: { type: 'combo', threshold: 2, rewardSoulStone: 15, desc: '达成 2 连击以上' },
+  },
+  stage_1_5: {
+    focus: 'petSkill',
+    openTip: '宠物技能已就绪！上滑宠物头像释放！',
+    battleTip: '技能释放成功！',
+    challenge: { type: 'petSkill', threshold: 1, rewardSoulStone: 15, desc: '使用宠物技能 1 次' },
+  },
+  stage_1_6: {
+    focus: 'elim4',
+    openTip: '4 颗成排消除 = 1.5 倍伤害！试试排列更多',
+    battleTip: '4 连消！x1.5 伤害',
+    challenge: { type: 'elim4', threshold: 1, rewardSoulStone: 15, desc: '达成 4 连消除 1 次' },
+  },
+  stage_1_7: {
+    focus: 'elim5',
+    openTip: '5 颗成排 = 2 倍伤害 + 敌人眩晕！',
+    battleTip: '5 连消！x2 伤害 + 眩晕！',
+    challenge: { type: 'elim5', threshold: 1, rewardSoulStone: 20, desc: '达成 5 连消除 1 次' },
+  },
+  stage_1_8: {
+    focus: 'boss',
+    openTip: 'Boss 战！用上你学到的一切！',
+    challenge: { type: 'sRating', threshold: 1, rewardSoulStone: 30, desc: 'S 评级通关' },
+  },
 }
 
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
@@ -347,10 +414,14 @@ module.exports = {
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
+  NEWBIE_2STAR_IDS,
   NEWBIE_FREE_STAMINA_STAGES,
   NEWBIE_FREE_REVIVE_COUNT,
   FIRST_CLEAR_STAMINA_BONUS,
+  FIRST_CLEAR_SOULSTONE_BONUS,
+  NEWBIE_GIFT_REWARDS,
   NEWBIE_BEAD_ATTR_LIMIT,
+  STAGE_MECHANIC_FOCUS,
   WEAPON_ACQUIRE_HINT_UNOWNED,
   RENDER_IMG_CACHE_MAX,
   MEMORY_DEBUG,

@@ -109,8 +109,17 @@ function _applyResolvedPetSkillDamage(g, result) {
 function triggerPetSkill(g, pet, idx) {
   const { S, W, H } = V
   const baseSk = pet.skill; if (!baseSk) return
-  // ★1无技能，需要★2+才能使用
   if (!petHasSkill(pet)) return
+  // 技巧追踪：宠物技能
+  if (g._mechanicFocus && !g._challengeDone && g._mechanicFocus.challenge && g._mechanicFocus.challenge.type === 'petSkill') {
+    g._challengeProgress++
+    if (g._challengeProgress >= g._mechanicFocus.challenge.threshold) g._challengeDone = true
+  }
+  if (g._mechanicFocus && !g._mechanicTriggered && g._mechanicFocus.focus === 'petSkill') {
+    g._mechanicTriggered = true
+    const { emitNotice } = require('./battle/fxEmitter')
+    emitNotice(g, { x:W*0.5, y:H*0.4, text:g._mechanicFocus.battleTip, color:'#ffab40', scale:1.8, _initScale:1.8 })
+  }
   // ★3强化：合并覆写数据到技能对象
   const star = pet.star || 1
   const override = (star >= 3) ? getStar3Override(pet.id) : null

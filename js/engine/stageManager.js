@@ -17,7 +17,7 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
-const { NEWBIE_PET_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT, FIRST_CLEAR_STAMINA_BONUS } = require('../data/constants')
+const { NEWBIE_PET_IDS, NEWBIE_2STAR_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT, FIRST_CLEAR_STAMINA_BONUS, FIRST_CLEAR_SOULSTONE_BONUS, STAGE_MECHANIC_FOCUS } = require('../data/constants')
 const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
@@ -148,11 +148,26 @@ function startStage(g, stageId, teamPetIds) {
   g._isNewbieStage = false
   g._stageBeadAttrLimit = NEWBIE_BEAD_ATTR_LIMIT[stageId] || 0
 
+  // 技巧聚焦 & 挑战目标（第 1 章）
+  const mf = STAGE_MECHANIC_FOCUS[stageId]
+  g._mechanicFocus = mf || null
+  g._mechanicTriggered = false
+  g._challengeDone = false
+  g._challengeProgress = 0
+  g._maxCombo = 0
+  g._stageRatingS = stage.rating ? stage.rating.s : 0
+
   // 加载第一波敌人
   loadWave(g, 0)
 
   // 初始化棋盘
   initBoard(g)
+
+  // 技巧聚焦开场提示
+  if (mf && mf.openTip) {
+    g._mechanicOpenTip = { text: mf.openTip, timer: 0 }
+  }
+
   g.bState = 'playerTurn'
   g.setScene('battle')
   g.floor = 1
@@ -240,6 +255,12 @@ function startStageNewbie(g, stageId) {
 
   g._isNewbieStage = true
   g._stageBeadAttrLimit = NEWBIE_BEAD_ATTR_LIMIT[stageId] || 0
+  g._mechanicFocus = null
+  g._mechanicTriggered = false
+  g._challengeDone = false
+  g._challengeProgress = 0
+  g._maxCombo = 0
+  g._stageRatingS = 0
   initBoard(g)
   g.bState = 'playerTurn'
 
@@ -324,13 +345,17 @@ function settleStage(g) {
 
   // ---- 基础奖励（首通 + 周回） ----
   const rewards = []
-  // 新手 1-1：先入池教学宠物（★2，让新手立即体验技能），再发首通配置奖励
+  // 新手 1-1：入池教学宠物；仅 NEWBIE_2STAR_IDS 为 ★2（有技能），其余 ★1（需升星解锁技能）
   if (g._isNewbieStage && isFirstClear) {
     NEWBIE_PET_IDS.forEach(petId => {
       const added = g.storage.addToPetPool(petId, 'stage')
       if (added) {
-        g.storage.setPoolPetStar(petId, 2)
+        if (NEWBIE_2STAR_IDS.includes(petId)) g.storage.setPoolPetStar(petId, 2)
         rewards.push({ type: 'pet', petId })
+        // 合并 toast 队列：回首页时统一提示
+        if (!g._newbiePetsObtained) g._newbiePetsObtained = []
+        const petBase = getPetById(petId)
+        if (petBase) g._newbiePetsObtained.push(petBase.name)
       }
     })
   }
@@ -343,7 +368,18 @@ function settleStage(g) {
   // 第一章前 3 关首通掉法宝时自动装备：1-1 后天机镜要出现在 1-2 战场左侧栏（跳过编队的新手流程）
   if (isFirstClear && g.battleMode === 'stage' && stage.chapter === 1 && stage.order <= 3) {
     const wNew = rewards.find(r => r.type === 'weapon' && r.weaponId && r.isNew)
-    if (wNew) g.storage.equipWeapon(wNew.weaponId)
+    if (wNew) {
+      g.storage.equipWeapon(wNew.weaponId)
+      // 首次获得法宝：toast 提示 + 触发 weapon_equip 引导
+      if (!g.storage.isGuideShown('weapon_equip')) {
+        const P = require('../platform')
+        const wInfo = getWeaponById(wNew.weaponId)
+        const wName = (wInfo && wInfo.name) || '法宝'
+        if (P.showGameToast) P.showGameToast(`获得法宝「${wName}」，已自动装备`)
+        // 引导等结算关闭后再触发，挂到 pendingGuide
+        g._pendingGuide = 'weapon_equip'
+      }
+    }
   }
 
   const fragRange = stage.rewards.repeatClear.fragments
@@ -438,6 +474,10 @@ function settleStage(g) {
   const firstClearStamina = isFirstClear ? (FIRST_CLEAR_STAMINA_BONUS[g._stageId] || 0) : 0
   if (firstClearStamina > 0) g.storage.addBonusStamina(firstClearStamina)
 
+  // ---- 首通里程碑灵石赠送 ----
+  const firstClearSS = isFirstClear ? (FIRST_CLEAR_SOULSTONE_BONUS[g._stageId] || 0) : 0
+  if (firstClearSS > 0) g.storage.addSoulStone(firstClearSS)
+
   // ---- 章节通关宝箱检查 ----
   let chapterClearReward = null
   if (isFirstClear) {
@@ -464,6 +504,17 @@ function settleStage(g) {
   // 碎片奖励总计（供广告翻倍使用）
   const totalFragCount = rewards.filter(r => r.type === 'fragment' && !r.fromStar).reduce((s, r) => s + (r.count || 0), 0)
 
+  // S 评级挑战（结算时判定）
+  if (g._mechanicFocus && g._mechanicFocus.challenge && g._mechanicFocus.challenge.type === 'sRating' && rating === 'S') {
+    g._challengeDone = true
+  }
+  // 挑战奖励发放
+  let challengeRewardSS = 0
+  if (g._challengeDone && g._mechanicFocus && g._mechanicFocus.challenge && g._mechanicFocus.challenge.rewardSoulStone) {
+    challengeRewardSS = g._mechanicFocus.challenge.rewardSoulStone
+    g.storage.addSoulStone(challengeRewardSS)
+  }
+
   g._stageResult = {
     stageId: g._stageId,
     stageName: stage.name,
@@ -474,7 +525,7 @@ function settleStage(g) {
     cultExp: rawTotal,
     cultLevelUps,
     cultPrevLevel: prevLevel,
-    soulStone,
+    soulStone: soulStone + challengeRewardSS,
     totalTurns: g._stageTotalTurns,
     victory: true,
     newStars,
@@ -483,9 +534,14 @@ function settleStage(g) {
     starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
     chapterClearReward,
     firstClearStamina,
+    firstClearSoulStone: firstClearSS,
     isBossStage: stage.order === 8,
     totalFragCount,
     duplicateWeaponSoulStone,
+    maxCombo: g._maxCombo || 0,
+    challengeDone: !!(g._challengeDone),
+    challengeDesc: (g._mechanicFocus && g._mechanicFocus.challenge) ? g._mechanicFocus.challenge.desc : null,
+    challengeRewardSS,
   }
 
   if (g.storage.userAuthorized) {
@@ -585,6 +641,16 @@ function pickFragmentTarget(g, poolScope) {
  * 解析首通奖励中的随机目标
  */
 function resolveReward(g, reward) {
+  const _maybeTrackNewbiePet = (petId) => {
+    // 仅在新手流程（第 1 章前 3 关）记录入池宠物名，供首页合并 toast
+    if (!g.storage.isStageCleared('stage_1_3')) {
+      if (!g._newbiePetsObtained) g._newbiePetsObtained = []
+      const petBase = getPetById(petId)
+      if (petBase && !g._newbiePetsObtained.includes(petBase.name)) {
+        g._newbiePetsObtained.push(petBase.name)
+      }
+    }
+  }
   if (reward.type === 'pet') {
     const petId = reward.petId
     const inPool = g.storage.petPool.find(p => p.id === petId)
@@ -594,6 +660,7 @@ function resolveReward(g, reward) {
       return { type: 'fragment', petId, count: fragCount, wasPet: true }
     }
     g.storage.addToPetPool(petId, 'stage')
+    _maybeTrackNewbiePet(petId)
     return { type: 'pet', petId }
   }
   if (reward.type === 'randomPet') {
@@ -606,6 +673,7 @@ function resolveReward(g, reward) {
       return { type: 'fragment', petId, count: fragCount, wasPet: true }
     }
     g.storage.addToPetPool(petId, 'stage')
+    _maybeTrackNewbiePet(petId)
     return { type: 'pet', petId }
   }
   if (reward.type === 'weapon') {
