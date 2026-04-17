@@ -51,9 +51,29 @@ const LING = {
     petLevelUpBig(petName, levels) {
       return `主人，${petName || '它'}一口气升了 ${levels} 级！`
     },
-    /** 境界突破（在全屏仪式之后出场） */
+    /** 大境界突破（在全屏仪式之后出场，或兜底路径） */
     realmBreak(realmName) {
       return `恭喜主人晋入「${realmName}」！道行大涨～`
+    },
+    /**
+     * 修炼普通升级（每 1 Lv 都可能触发；结算页金光行用）
+     *   用一个 Lv%5 的简单取模轮换 5 句，保持陪伴感又不单调
+     */
+    cultLvUp(prevLv, currLv, skillPts) {
+      const phrases = [
+        `修炼又精进啦～Lv.${prevLv} → Lv.${currLv}`,
+        `主人感悟更深了～Lv.${currLv} 到手`,
+        `道行再涨 Lv.${currLv}，主人加油！`,
+        `小灵感觉到灵气更强啦～Lv.${currLv}`,
+        `主人又磨出一层功夫～Lv.${currLv}`,
+      ]
+      const pick = phrases[(currLv || 0) % phrases.length]
+      if (skillPts > 0) return `${pick}  +${skillPts} 修炼点`
+      return pick
+    },
+    /** 小阶跨档（同大境界内，例如 感气·二重 → 感气·三重） */
+    cultSubRealmUp(realmFullName) {
+      return `突破·${realmFullName}！主人又更进一层～`
     },
     /** 首通普通关卡 */
     stageFirstClear(stageName) {
@@ -80,6 +100,30 @@ const LING = {
     /** 每日任务全清 */
     dailyAllDone() {
       return '主人今日功课全部做完啦～了不起！'
+    },
+    /** 首次获得灵宠（通常在 1-1 首通后） */
+    firstPet(petName) {
+      return `主人，${petName || '它'}愿意陪着你啦～我们以后就是一家啦！`
+    },
+    /** 首次 S 评价（一生一次的大里程碑） */
+    firstS(stageName) {
+      return stageName
+        ? `主人太厉害啦～「${stageName}」拿到了 S 评价！`
+        : '主人居然打出了 S 评价！快给自己点个赞～'
+    },
+    /** 章节圆满（任意章通关） */
+    chapterComplete(chapterName) {
+      return chapterName
+        ? `「${chapterName}」圆满结卷～下一卷的故事等主人翻开！`
+        : '一章圆满～下一卷继续我们的故事！'
+    },
+    /** 邀请好友反奖到账 */
+    inviteReward(granted) {
+      const count = (granted && granted.count) || 0
+      const stone = (granted && granted.soulStone) || 0
+      if (count <= 0) return ''
+      if (count === 1) return `有好友因主人而来～ 灵石 +${stone}！`
+      return `${count} 位好友因主人而来～ 灵石 +${stone}！`
     },
   },
 

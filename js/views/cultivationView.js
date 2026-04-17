@@ -10,7 +10,7 @@ const { drawPanel, drawRibbonIcon, drawLingCard, wrapText } = require('./uiCompo
 const { LING } = require('../data/lingIdentity')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
-  effectValue, usedPoints, currentRealm, nextRealm,
+  effectValue, usedPoints, currentRealm, nextRealm, getRealmByLv,
 } = require('../data/cultivationConfig')
 const MusicMgr = require('../runtime/music')
 const { drawBottomBar, getLayout, drawPageTitle } = require('./bottomBar')
@@ -117,8 +117,8 @@ function rCultivation(g) {
 
   drawPageTitle(c, R, W, S, W * 0.5, topY + topH * 0.5, '修炼洞府')
 
-  // 境界 + 等级
-  const realm = currentRealm(cult.level)
+  // 境界 + 等级（A1：展示 "感气·三重 Lv.3" 格式；凡人不带重字样）
+  const realmInfo = getRealmByLv(cult.level)
   const infoY = topY + topH + 4*S
 
   c.save()
@@ -126,7 +126,7 @@ function rCultivation(g) {
   c.fillStyle = '#8B6914'
   c.font = `bold ${16*S}px "PingFang SC",sans-serif`
   c.shadowColor = 'rgba(212,168,67,0.3)'; c.shadowBlur = 6*S
-  c.fillText(`「${realm.name}」 Lv.${cult.level}`, W * 0.5, infoY + 12*S)
+  c.fillText(`「${realmInfo.fullName}」 Lv.${cult.level}`, W * 0.5, infoY + 12*S)
   c.shadowBlur = 0
   c.restore()
 
@@ -197,18 +197,27 @@ function rCultivation(g) {
     c.font = `${11*S}px "PingFang SC",sans-serif`
     c.fillText('修炼点：0（升级后获得）', W * 0.5, ptsY + 8*S)
   }
-  // 下次境界突破提示
-  const nr = nextRealm(cult.level)
-  if (nr) {
+  // 下次突破提示：优先显示"下一重"（同大境界内的小阶，近在眼前），
+  //   否则才显示"下一大境界"（较远）。这样玩家每升 1 Lv 都能看到进度。
+  let nextHintText = ''
+  if (cult.level < MAX_LEVEL) {
+    const nextInfo = getRealmByLv(cult.level + 1)
+    if (nextInfo.realmId !== realmInfo.realmId) {
+      nextHintText = `下次境界突破：Lv.${nextInfo.minLv}「${nextInfo.realmName}」`
+    } else if (!nextInfo.isMortal && nextInfo.subStage > realmInfo.subStage) {
+      nextHintText = `下一小阶突破：Lv.${cult.level + 1}「${nextInfo.fullName}」`
+    }
+  }
+  if (nextHintText) {
     c.fillStyle = '#9a8a6a'
     c.font = `${10*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(`下次境界突破：Lv.${nr.minLv}「${nr.name}」`, W * 0.5, ptsY + 22*S)
+    c.fillText(nextHintText, W * 0.5, ptsY + 22*S)
   }
   c.restore()
 
   // 放射型星盘
-  const chartTop = ptsY + (nr ? 34 : 20)*S
+  const chartTop = ptsY + (nextHintText ? 34 : 20)*S
   const chartBottom = H - 30*S
   const chartCenterX = W * 0.5
   const chartCenterY = chartTop + (chartBottom - chartTop) * 0.38
@@ -370,21 +379,21 @@ function _riRR(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-// ===== 境界突破检查 =====
+// ===== 境界突破兜底检查 =====
+//   正常路径下境界跨档已在 stageManager/runManager 的 addCultExp 之后
+//   通过 tierCeremony/结算页金光行做过即时反馈。这里只兜底：
+//     · 经验表下调导致 _tryCultLevelUp 补升出的跨档
+//     · 未来如有不经战斗结算的经验奖励，补一次 lingCheer
 function checkRealmBreak(g) {
-  // 先尝试补升（经验表下调后旧存档可能有溢出经验未消化）
   g.storage._tryCultLevelUp()
-  const cult = g.storage.cultivation
-  const realm = currentRealm(cult.level)
-  const { REALMS } = require('../data/cultivationConfig')
-  const realmIdx = REALMS.indexOf(realm)
-  if (realmIdx > cult.realmBreakSeen) {
-    cult.realmBreakSeen = realmIdx
-    g.storage._save()
-    _state.realmBreakAnim = { name: realm.name, timer: 0, duration: 90 }
+  const up = g.storage.checkCultRealmUp()
+  if (up) {
+    _state.realmBreakAnim = { name: up.curr.fullName, timer: 0, duration: 90 }
     MusicMgr.playLevelUp()
-    // 境界突破：全屏仪式完成后由小灵横条补一句祝贺，把"仪式感"和"陪伴感"串起来
-    lingCheer.show(LING.cheer.realmBreak(realm.name), { tone: 'epic', duration: 2600 })
+    const cheerText = (up.kind === 'major')
+      ? ((LING.cheer && LING.cheer.realmBreak && LING.cheer.realmBreak(up.curr.realmName)) || `恭喜主人突破${up.curr.realmName}！`)
+      : `恭喜主人进阶${up.curr.fullName}～`
+    lingCheer.show(cheerText, { tone: 'epic', duration: 2600 })
   }
   // 首次进入修炼页：展示玩法介绍卡
   if (!g.storage.isGuideShown('cult_intro')) {

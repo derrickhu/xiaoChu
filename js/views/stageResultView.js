@@ -9,7 +9,7 @@ const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
-const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
+const { MAX_LEVEL, expToNextLevel, currentRealm, getRealmByLv } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
 const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
@@ -17,9 +17,11 @@ const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
 const { drawCelebrationBackdrop, drawLingHeader } = require('./uiComponents')
 const { LING } = require('../data/lingIdentity')
+const { drawCultLvUpRow: _drawCultLvUpRow, drawCultSubRealmUpRow: _drawCultSubRealmUpRow } = require('./cultFeedbackUi')
 const C = require('./uiColors')
 const lingCheer = require('./lingCheer')
 const buttonFx = require('./buttonFx')
+const shareHooks = require('../data/shareHooks')
 
 const _rects = {
   backBtnRect: null,
@@ -72,6 +74,53 @@ function rStageResult(g) {
       ? LING.cheer.stageFirstClearBoss()
       : LING.cheer.stageFirstClear(stageName)
     lingCheer.show(msg, { tone: 'epic', duration: 2400 })
+  }
+
+  // 情绪峰值：首通 / 首宠 / 首 S → 触发炫耀卡弹窗（shareHooks 内部幂等）
+  //   1-1 首通优先按"首宠"触发（最情绪），其它关按"首通"触发
+  //   任一关 S 评价追加 firstSRating（一生一次；已弹过会被 shareCelebrate 自动吞）
+  if (at === 1 && !result._shareCelebrated && result.victory && result.isFirstClear) {
+    result._shareCelebrated = true
+    const stage = getStageById(result.stageId)
+    const stageName = (stage && stage.name) || ''
+    const isFinalBoss = !!(stage && stage.chapter === 12 && stage.order === 8)
+    const isElite = !!(stage && stage.difficulty === 'elite')
+    const turns = result.turns || result.turnCount || 0
+    if (result.stageId === 'stage_1_1') {
+      const firstPet = (g.storage.petPool || [])[0]
+      const petMeta = firstPet ? getPetById(firstPet.id) : null
+      const petName = (petMeta && petMeta.name) || '灵宠'
+      shareHooks.onFirstPet(g, { petName })
+    } else {
+      shareHooks.onStageFirstClear(g, {
+        stageId: result.stageId, stageName,
+        rating: result.rating, isFinalBoss, isElite, turns,
+      })
+    }
+    if (result.rating === 'S') {
+      shareHooks.onFirstSRating(g, { stageId: result.stageId, stageName, turns })
+    }
+    // 章节圆满：本关附带 chapterClearReward 说明这章已全数通关
+    if (result.chapterClearReward && stage && stage.chapter) {
+      const { CHAPTERS } = require('../data/stages')
+      const ch = CHAPTERS.find(c => c.id === stage.chapter)
+      shareHooks.onChapterComplete(g, {
+        chapterId: `ch_${stage.chapter}`,
+        chapterName: (ch && ch.name) || `第${stage.chapter}章`,
+      })
+    }
+  }
+
+  // 境界晋升（A1 重构后）：由 stageManager 的 addCultExp 已记录 result.cultRealmUp
+  //   · 大境界跨档（major）在结算页入场首帧弹全屏仪式
+  //   · 小阶跨档（minor）在结算页中以金光行形式展示（见 _drawRealmMinorUpLine）
+  if (at === 1 && !result._tierCeremonyChecked && result.victory) {
+    result._tierCeremonyChecked = true
+    const up = result.cultRealmUp
+    if (up && up.kind === 'major') {
+      const tierCeremony = require('./tierCeremony')
+      tierCeremony.trigger(g, up.prev, up.curr)
+    }
   }
 
   // 1-1 / 1-2 首通：静默入池，跳过逐个庆祝和总览卡，直接显示结算让玩家"下一关"
@@ -903,6 +952,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   if (result.cultExp > 0) {
     contentH += 28 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
+    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') contentH += 18 * S
     contentH += 24 * S
   }
 
@@ -1114,11 +1164,14 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${result.cultExp}`, C.cultExpLabel, C.cultExpValue)
     cy += 22 * S
     if (result.cultLevelUps > 0) {
-      c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
       const cult = g.storage.cultivation
-      c.fillText(`升级！Lv.${result.cultPrevLevel} → Lv.${cult.level}  获得 ${result.cultLevelUps} 修炼点`, W / 2, cy + 4 * S)
+      _drawCultLvUpRow(c, R, S, W / 2, cy, result.cultPrevLevel, cult.level, result.cultLevelUps)
       cy += 16 * S
+    }
+    // 小阶跨档金光行（A1：感气·二重 → 感气·三重 等）
+    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') {
+      _drawCultSubRealmUpRow(c, R, S, W / 2, cy, result.cultRealmUp.curr.fullName)
+      cy += 18 * S
     }
     const cult = g.storage.cultivation
     const barX = px + pad, barW = innerW, barH = 7 * S
@@ -1135,7 +1188,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
         R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
       }
       c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${currentRealm(cult.level).name}`, px + pw - pad, cy + barH + 9 * S)
+      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     }
     cy += barH + 18 * S
   }
@@ -1366,6 +1419,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
   if (result.cultExp > 0) {
     contentH += 28 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
+    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') contentH += 18 * S
     contentH += 26 * S
   }
   contentH += 24 * S
@@ -1537,14 +1591,14 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 22 * S
 
     if (result.cultLevelUps > 0) {
-      c.save()
-      c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.shadowColor = 'rgba(200,150,0,0.4)'; c.shadowBlur = 6 * S
       const cult = g.storage.cultivation
-      c.fillText(`升级！Lv.${result.cultPrevLevel} → Lv.${cult.level}  获得 ${result.cultLevelUps} 修炼点`, W / 2, cy + 4 * S)
-      c.restore()
+      _drawCultLvUpRow(c, R, S, W / 2, cy, result.cultPrevLevel, cult.level, result.cultLevelUps)
       cy += 16 * S
+    }
+    // 小阶跨档金光行（胜利面板版）
+    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') {
+      _drawCultSubRealmUpRow(c, R, S, W / 2, cy, result.cultRealmUp.curr.fullName)
+      cy += 18 * S
     }
 
     const cult = g.storage.cultivation
@@ -1562,14 +1616,14 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
         R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
       }
       c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${currentRealm(cult.level).name}`, px + pw - pad, cy + barH + 9 * S)
+      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     } else {
       const barGrad = c.createLinearGradient(barX, cy, barX + barW, cy)
       barGrad.addColorStop(0, '#D4A843'); barGrad.addColorStop(1, '#F0C860')
       c.fillStyle = barGrad
       R.rr(barX, cy, barW, barH, barH / 2); c.fill()
       c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level} 已满级  ${currentRealm(cult.level).name}`, px + pw - pad, cy + barH + 9 * S)
+      c.fillText(`Lv.${cult.level} 已满级  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     }
     cy += barH + 20 * S
     rowIdx++

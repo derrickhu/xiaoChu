@@ -44,8 +44,11 @@ const helpTourView = require('./views/helpTourView')
 const gameToast = require('./views/gameToast')
 const floatText = require('./views/floatText')
 const lingCheer = require('./views/lingCheer')
+const inviteSync = require('./data/inviteSync')
 const buttonFx = require('./views/buttonFx')
 const numberTween = require('./views/numberTween')
+const shareCelebrate = require('./views/shareCelebrate')
+const tierCeremony = require('./views/tierCeremony')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -403,8 +406,12 @@ class Main {
     requestAnimationFrame(loop)
 
     // 注册分享能力（平台适配）
+    //   好友分享：onShareAppMessage 返回被动分享数据
+    //   朋友圈分享：onShareTimeline（微信独占，抖音 noop）返回朋友圈数据
+    //   showShareMenu 同时开启好友 + 朋友圈入口，withShareTicket 便于群聊票据
     P.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
     P.onShareAppMessage(() => share.getShareData(this.storage))
+    P.onShareTimeline(() => share.getShareTimelineData(this.storage))
 
     this._criticalImages = [
       'assets/backgrounds/loading_bg.jpg',
@@ -537,6 +544,17 @@ class Main {
         } else {
           this.setScene('title'); MusicMgr.playBgm()
         }
+        // 云端就绪后异步同步邀请数据：新人上报 + 老玩家拉反奖
+        //   奖励回执用 lingCheer 弹出，强化"邀请好友真的有回报"的情绪感知
+        inviteSync.syncOnce(this.storage, (granted) => {
+          if (!granted || !granted.count) return
+          const { LING } = require('./data/lingIdentity')
+          const avatar = (LING && LING.avatar) || null
+          const tpl = (LING && LING.cheer && LING.cheer.inviteReward) || null
+          const msg = tpl ? tpl(granted) : `你的 ${granted.count} 位好友已加入修仙！灵石 +${granted.soulStone}`
+          lingCheer.show(msg, { tone: 'epic', avatar })
+          this._dirty = true
+        })
       }
     }
     if (this.scene === 'intro') {
@@ -647,7 +665,8 @@ class Main {
     anim.updateHpAnims(this)
     anim.updateSkillPreview(this)
     if (this.scene === 'ranking' && this.af % 7200 === 0) {
-      this.storage.fetchRanking(this.rankTab, true)
+      const fetchTab = (this.rankTab === 'tower' && this.rankTowerPeriod === 'weekly') ? 'towerWeekly' : this.rankTab
+      this.storage.fetchRanking(fetchTab, true)
     }
     guideOverlay.update()
     if (this.scene === 'title' && this._rewardChipFlyAnim) {
@@ -697,6 +716,19 @@ class Main {
       if (old === 'battle' || old === 'stageResult') {
         this._stageIdxInitialized = false
       }
+      // 修炼小阶跨档：在结算/塔内已埋下 g._pendingRealmLingCheer，回主菜单时小灵横条说一句
+      //   · 大境界跨档已用 tierCeremony 全屏处理过了，这里只处理 minor
+      //   · 一次性消费，避免反复播放
+      if (this._pendingRealmLingCheer) {
+        try {
+          const lingCheer = require('./views/lingCheer')
+          const { LING } = require('./data/lingIdentity')
+          const msg = (LING.cheer && LING.cheer.cultSubRealmUp && LING.cheer.cultSubRealmUp(this._pendingRealmLingCheer))
+            || `突破·${this._pendingRealmLingCheer}～`
+          lingCheer.show(msg, { tone: 'warm', duration: 2400 })
+        } catch (_e) { /* 渲染失败不影响主流程 */ }
+        this._pendingRealmLingCheer = null
+      }
     }
     if (name === 'battle') {
       this._preloadBattleAssets()
@@ -734,7 +766,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive()) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive() && !shareCelebrate.isActive() && !tierCeremony.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -813,6 +845,10 @@ class Main {
     if (this._helpTour) helpTourView.draw(this)
     if (this._confirmDialog) drawConfirmDialog(this)
     if (this._adRewardPopup) drawAdRewardPopup(this)
+    // 炫耀卡弹窗：情绪峰值后的主动分享引导，放在所有弹窗的最上层
+    if (shareCelebrate.isActive()) shareCelebrate.draw()
+    // 段位晋升仪式：比 shareCelebrate 更上层（身份变化比战绩炫耀更高级别）
+    if (tierCeremony.isActive()) tierCeremony.draw()
 
     // 万能碎片胶囊脉冲高亮：新手礼包关闭后引导玩家注意顶栏新增的资源
     if (this._uniFragPulse && this._uniFragPillRect) {
@@ -851,6 +887,9 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    // 炫耀卡弹窗：优先级最高，激活时拦截一切触摸（"请玩家先回应分享引导"）
+    if (tierCeremony.isActive() && tierCeremony.handleTouch(type, x, y)) return
+    if (shareCelebrate.isActive() && shareCelebrate.handleTouch(type, x, y)) return
     if (handleAdRewardPopupTouch(this, x, y, type)) return
     if (this._newbieGift && newbieGiftView.onTouch(this, x, y, type)) return
     if (this._helpTour && helpTourView.onTouch(this, x, y, type)) return

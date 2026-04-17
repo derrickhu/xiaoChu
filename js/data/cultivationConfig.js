@@ -62,6 +62,68 @@ function nextRealm(level) {
   return null
 }
 
+// ===== 重阶命名（一重 ~ 二十重）=====
+//   ≤20 查表；超出的小概率档位兜底走"N 重"字符串（如"二十一重"）
+//   为什么不再用"初期/中期/后期/圆满"：细粒度不够，玩家会觉得"怎么没进度"
+const _SUBSTAGE_NAMES = [
+  '一重', '二重', '三重', '四重', '五重', '六重', '七重', '八重', '九重', '十重',
+  '十一重', '十二重', '十三重', '十四重', '十五重', '十六重', '十七重', '十八重', '十九重', '二十重',
+]
+function _subStageName(idx) {
+  if (idx < 0) return ''
+  if (idx < _SUBSTAGE_NAMES.length) return _SUBSTAGE_NAMES[idx]
+  return `${idx + 1}重`
+}
+
+/**
+ * 给定修炼等级，返回完整境界信息。
+ *   · realmId / realmName  大境界（id 持久化稳定、name 显示用）
+ *   · subStage             重阶索引（0 起，凡人恒为 0）
+ *   · subStageName         重阶显示名（"一重".."二十重"）
+ *   · isMortal             是否凡人（凡人不显示重阶）
+ *   · fullName             组合名："感气·三重" / "凡人"
+ * 未达到任何境界（防御性）返回凡人
+ */
+function getRealmByLv(level) {
+  const lv = Math.max(0, Math.floor(level || 0))
+  const realm = currentRealm(lv)
+  const isMortal = realm.id === 'mortal'
+  const subStage = isMortal ? 0 : Math.max(0, lv - realm.minLv)
+  const subStageName = isMortal ? '' : _subStageName(subStage)
+  const fullName = isMortal ? realm.name : `${realm.name}·${subStageName}`
+  return {
+    realmId: realm.id,
+    realmName: realm.name,
+    subStage,
+    subStageName,
+    isMortal,
+    fullName,
+    minLv: realm.minLv,
+    maxLv: realm.maxLv,
+    stages: realm.stages,
+    motto: realm.motto || '',
+    color: realm.color || '#9DA3AD',
+    accent: realm.accent || '#3A3F48',
+  }
+}
+
+/**
+ * 判断从 prevLv → currLv 是否发生了"境界跨档"。
+ *   返回：
+ *     null                    没变化
+ *     { kind:'minor', prev, curr }   仅小阶跨档（同一大境界内重数 +1 及以上）
+ *     { kind:'major', prev, curr }   大境界跨档（realmId 变了）
+ *   prev/curr 都是 getRealmByLv 结构
+ */
+function diffRealmUp(prevLv, currLv) {
+  if (currLv <= prevLv) return null
+  const prev = getRealmByLv(prevLv)
+  const curr = getRealmByLv(currLv)
+  if (prev.realmId !== curr.realmId) return { kind: 'major', prev, curr }
+  if (curr.subStage > prev.subStage) return { kind: 'minor', prev, curr }
+  return null
+}
+
 /**
  * 击杀经验公式（统一数值，battle.js / touchHandlers.js 共用）
  * @param {object} enemy - 包含 isBoss, isElite 标记
@@ -79,5 +141,6 @@ module.exports = {
   CULT_CONFIG, CULT_KEYS, TOTAL_POINTS_NEEDED,
   effectValue, usedPoints,
   REALMS, currentRealm, nextRealm,
+  getRealmByLv, diffRealmUp,
   killExpBase,
 }

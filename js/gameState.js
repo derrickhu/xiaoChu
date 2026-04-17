@@ -162,6 +162,8 @@ function initState(g) {
   // ===== 排行榜（与 screens._RANK_TABS key 一致：stage/tower/dex/combo）=====
   g.rankTab = 'stage'
   g.rankScrollY = 0
+  // 通天塔榜次级周期：'weekly'=本周（每周清零，低阶玩家也有名次感）| 'all'=总榜（历史最佳）
+  g.rankTowerPeriod = 'weekly'
 
   // ===== Phase 2：灵宠池 =====
   g._petPoolEntryPopup = null   // 入池庆祝弹窗 { petId }

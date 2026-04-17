@@ -5,6 +5,13 @@
 const V = require('../views/env')
 const { getDexContentTop } = require('../data/constants')
 const { hitTestRankingTab } = require('../views/rankingTabHit')
+
+// 计算通天塔周榜/总榜的真实 fetchTab（与 screens._resolveFetchTab 等价）
+// 不 require screens，避免 touchHandlers ↔ screens 循环依赖
+function _towerFetchTab(g) {
+  if (g.rankTab === 'tower' && g.rankTowerPeriod === 'weekly') return 'towerWeekly'
+  return g.rankTab
+}
 const MusicMgr = require('../runtime/music')
 
 const tTitle = require('./tTitle')
@@ -189,7 +196,9 @@ function tRanking(g, type, x, y) {
     let tab = g.rankTab || 'stage'
     if (tab === 'all') tab = 'tower'
     const listMap = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
-    const list = g.storage[listMap[tab]] || []
+    let listKey = listMap[tab]
+    if (tab === 'tower' && g.rankTowerPeriod === 'weekly') listKey = 'rankAllWeeklyList'
+    const list = g.storage[listKey] || []
     const rowH = 64*S
     const maxScroll = 0
     const minScroll = -Math.max(0, list.length * rowH - (H - 70*S - safeTop - 130*S))
@@ -198,14 +207,32 @@ function tRanking(g, type, x, y) {
   }
   if (type !== 'end') return
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.setScene('title'); return }
-  if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) { g.storage.fetchRanking(g.rankTab, true); return }
+  if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) {
+    g.storage.fetchRanking(_towerFetchTab(g), true)
+    return
+  }
+  // 通天塔周榜/总榜子 Tab 命中：先于主 tab 判断，命中区间更小
+  if (g._rankPeriodTabRects && g.rankTab === 'tower') {
+    for (const k of Object.keys(g._rankPeriodTabRects)) {
+      const r = g._rankPeriodTabRects[k]
+      if (r && g._hitRect(x, y, ...r)) {
+        if (g.rankTowerPeriod !== k) {
+          g.rankTowerPeriod = k
+          g.rankScrollY = 0
+          g._dirty = true
+          g.storage.fetchRanking(_towerFetchTab(g))
+        }
+        return
+      }
+    }
+  }
   const tabHit = hitTestRankingTab(x, y)
   if (tabHit) {
     if (g.rankTab !== tabHit) {
       g.rankTab = tabHit
       g.rankScrollY = 0
       g._dirty = true
-      g.storage.fetchRanking(tabHit)
+      g.storage.fetchRanking(_towerFetchTab(g))
     }
     return
   }

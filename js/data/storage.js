@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 20
+const CURRENT_VERSION = 21
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -135,6 +135,11 @@ function defaultPersist() {
     },
     // 万能碎片：可用于任意灵宠升星的通用材料
     universalFragment: 0,
+    // 修炼境界：持久化"最近已通知到 UI 的大境界 id + 重阶"，用于判定晋升
+    //   由 checkCultRealmUp() 比较 cultLv → getRealmByLv() 得到最新境界后更新
+    //   只升不降：如果玩家通过 GM 或数据异常回退了 cultLv，不会触发"降级"
+    lastCultRealmId: 'mortal',
+    lastCultSubStage: 0,
     // 回归 / 删档（与 giftConfig.DATA_VERSION 对齐见 _load / resetAll 收尾赋值；此处 0 供「缺字段的旧存档」merge 后仍走 _checkDataVersion）
     lastActiveDate: '',
     dataVersion: 0,
@@ -283,6 +288,17 @@ const migrations = {
   19: (d) => {
     const cleared = d.stageClearRecord && d.stageClearRecord['stage_2_1'] && d.stageClearRecord['stage_2_1'].cleared
     if (cleared) d.newbieRevivesUsed = 9999
+  },
+  // v20→v21：修炼境界系统（A1 重构）
+  //   旧字段 rankTierId 废弃；新增 lastCultRealmId / lastCultSubStage
+  //   老玩家已经有 cultivation.level，为避免"首次启动就弹晋升仪式"，
+  //   把 last* 对齐到当前境界（静默升段，不播动画）
+  20: (d) => {
+    const { getRealmByLv } = require('./cultivationConfig')
+    const lv = (d.cultivation && d.cultivation.level) || 0
+    const info = getRealmByLv(lv)
+    if (d.lastCultRealmId == null) d.lastCultRealmId = info.realmId
+    if (d.lastCultSubStage == null) d.lastCultSubStage = info.subStage
   },
 }
 
@@ -1343,27 +1359,93 @@ class Storage {
     if (!this._d.shareTracking || this._d.shareTracking.date !== today) {
       this._d.shareTracking = { date: today, rewardCount: this._d.shareTracking ? 0 : 0, firstEverDone: (this._d.shareTracking && this._d.shareTracking.firstEverDone) || false }
     }
+    // 场景奖励标记（首次触发永久记录，防止 sceneOnce 场景被反复领奖）
+    if (!this._d.shareSceneFlags) this._d.shareSceneFlags = {}
   }
 
   get shareTracking() { this._ensureShareTracking(); return this._d.shareTracking }
 
-  recordShare() {
+  /**
+   * 记录一次分享并按规则发奖
+   * @param {string} [sceneKey] 分享场景 key（对应 SHARE_SCENES）；未传则走老逻辑
+   * @param {object} [opts] { mode: 'friend'|'timeline' }
+   * @returns {object|null} 发奖详情 { stamina, soulStone, fragment }，无奖则 null
+   *
+   * 奖励规则（叠加）：
+   *   1. 每日基础奖：每天前 SHARE_DAILY_MAX 次给 SHARE_PER_REWARD.stamina（老逻辑保留）
+   *   2. 首次分享奖：一生一次 SHARE_FIRST_EVER_BONUS.soulStone（老逻辑保留）
+   *   3. 场景奖：SHARE_SCENES[sceneKey].reward；sceneOnce=true 时全生涯只发一次
+   * 通过 shareSceneFlags[sceneKey] = true 标记已领
+   */
+  recordShare(sceneKey, opts) {
     this._ensureShareTracking()
     const st = this._d.shareTracking
-    const { SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS } = require('./giftConfig')
-    let rewarded = false
+    const {
+      SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS, SHARE_SCENE_COOLDOWN_MS,
+    } = require('./giftConfig')
+    const result = { stamina: 0, soulStone: 0, fragment: 0 }
+
     if (st.rewardCount < SHARE_DAILY_MAX) {
       st.rewardCount++
-      if (SHARE_PER_REWARD.stamina) this.noticeStaminaOverflow(this.addBonusStamina(SHARE_PER_REWARD.stamina))
-      rewarded = true
+      if (SHARE_PER_REWARD.stamina) {
+        this.noticeStaminaOverflow(this.addBonusStamina(SHARE_PER_REWARD.stamina))
+        result.stamina += SHARE_PER_REWARD.stamina
+      }
     }
     if (!st.firstEverDone) {
       st.firstEverDone = true
-      if (SHARE_FIRST_EVER_BONUS.soulStone) this.addSoulStone(SHARE_FIRST_EVER_BONUS.soulStone)
+      if (SHARE_FIRST_EVER_BONUS.soulStone) {
+        this.addSoulStone(SHARE_FIRST_EVER_BONUS.soulStone)
+        result.soulStone += SHARE_FIRST_EVER_BONUS.soulStone
+      }
     }
+
+    // 场景差异化奖励（首通/首S/升星/章通关/塔新高 等情绪峰值场景）
+    //   反作弊：
+    //     - sceneOnce=true   ：一生一次，直接以 sceneKey 为键，truthy 即锁
+    //     - sceneOnce=false  ：24h 冷却（SHARE_SCENE_COOLDOWN_MS），存储时间戳
+    //                           同一场景 24h 内重复分享不再发场景奖，防刷
+    //   兼容：旧存档里 shareSceneFlags 的 value 可能是 true（bool），
+    //        视作"刚领过"，按冷却期内处理。
+    if (sceneKey) {
+      let cfg = null
+      try {
+        const { SHARE_SCENES } = require('./shareConfig')
+        cfg = SHARE_SCENES[sceneKey] || null
+      } catch (_e) { cfg = null }
+      if (cfg && cfg.reward) {
+        const sceneOnce = !!cfg.sceneOnce
+        const now = Date.now()
+        const flagKey = sceneKey
+        const prev = this._d.shareSceneFlags[flagKey]
+        let allowed = false
+        if (!prev) {
+          allowed = true
+        } else if (!sceneOnce) {
+          const prevTs = (typeof prev === 'number') ? prev : now
+          if (now - prevTs >= SHARE_SCENE_COOLDOWN_MS) allowed = true
+        }
+        if (allowed) {
+          this._d.shareSceneFlags[flagKey] = now
+          const r = cfg.reward
+          if (r.stamina) {
+            this.noticeStaminaOverflow(this.addBonusStamina(r.stamina))
+            result.stamina += r.stamina
+          }
+          if (r.soulStone) { this.addSoulStone(r.soulStone); result.soulStone += r.soulStone }
+          if (r.fragment) { this.addUniversalFragment(r.fragment); result.fragment += r.fragment }
+        }
+      }
+    }
+
     this.addDailyTaskProgress('share_1', 1)
     this._save()
-    return rewarded
+
+    // 使 opts 参数可用（预留给后续埋点 / 朋友圈奖励差异化），当前不使用
+    void opts
+
+    const hasReward = result.stamina > 0 || result.soulStone > 0 || result.fragment > 0
+    return hasReward ? result : null
   }
 
   // ===== 回归检测 =====
@@ -1389,15 +1471,49 @@ class Storage {
 
   // ===== 邀请系统 =====
 
+  /**
+   * 新玩家处理邀请 inviter
+   *   1. 本地发 INVITE_REWARD.soulStone 给新玩家（保留老逻辑）
+   *   2. 记录 inviterId 到 _d.pendingInviteReport，由 main.js 异步上报云端
+   *      （不在 storage 里直接 callFunction，保持 storage 不依赖平台层）
+   */
   processInvite(inviterId) {
     if (!inviterId) return false
     if (this._d.invitedBy) return false
     const { INVITE_REWARD } = require('./giftConfig')
     this._d.invitedBy = inviterId
     if (INVITE_REWARD.soulStone) this.addSoulStone(INVITE_REWARD.soulStone)
+    // 标记待上报：由 cloudSync / main.js 调 share 云函数 recordInvite
+    this._d.pendingInviteReport = inviterId
     this._save()
     return true
   }
+
+  // ===== 邀请方（老玩家）收到被邀请成功的反奖 =====
+  //   当 share 云函数 claimInvites 返回 count > 0 时，客户端调用此方法入账
+  //   每人发 INVITE_REWARD.soulStone；上限由 INVITE_MAX_COUNT 控制
+  grantInviterReward(newInviteCount) {
+    if (!newInviteCount || newInviteCount <= 0) return null
+    const { INVITE_REWARD, INVITE_MAX_COUNT } = require('./giftConfig')
+    const current = this._d.inviteGrantedCount || 0
+    const allowed = Math.max(0, Math.min(newInviteCount, (INVITE_MAX_COUNT || 10) - current))
+    if (allowed <= 0) return null
+    this._d.inviteGrantedCount = current + allowed
+    const soulStone = (INVITE_REWARD.soulStone || 0) * allowed
+    if (soulStone) this.addSoulStone(soulStone)
+    this._save()
+    return { count: allowed, soulStone }
+  }
+
+  // 访问器：供 main.js 判断是否需要上报 / 已领取计数
+  getPendingInviteReport() { return this._d.pendingInviteReport || null }
+  clearPendingInviteReport() {
+    if (this._d.pendingInviteReport) {
+      this._d.pendingInviteReport = null
+      this._save()
+    }
+  }
+  get inviteGrantedCount() { return this._d.inviteGrantedCount || 0 }
 
   // ===== 固定关卡记录 =====
 
@@ -2135,6 +2251,9 @@ class Storage {
 
   get rankAllList() { return this._ranking.rankAllList }
   set rankAllList(v) { this._ranking.rankAllList = v }
+  get rankAllWeeklyList() { return this._ranking.rankAllWeeklyList }
+  set rankAllWeeklyList(v) { this._ranking.rankAllWeeklyList = v }
+  get rankAllWeeklyPeriodKey() { return this._ranking.rankAllWeeklyPeriodKey }
   get rankDexList() { return this._ranking.rankDexList }
   set rankDexList(v) { this._ranking.rankDexList = v }
   get rankComboList() { return this._ranking.rankComboList }
@@ -2145,6 +2264,8 @@ class Storage {
   set rankStageMyRank(v) { this._ranking.rankStageMyRank = v }
   get rankAllMyRank() { return this._ranking.rankAllMyRank }
   set rankAllMyRank(v) { this._ranking.rankAllMyRank = v }
+  get rankAllWeeklyMyRank() { return this._ranking.rankAllWeeklyMyRank }
+  set rankAllWeeklyMyRank(v) { this._ranking.rankAllWeeklyMyRank = v }
   get rankDexMyRank() { return this._ranking.rankDexMyRank }
   set rankDexMyRank(v) { this._ranking.rankDexMyRank = v }
   get rankComboMyRank() { return this._ranking.rankComboMyRank }
@@ -2157,6 +2278,96 @@ class Storage {
   set rankLastFetch(v) { this._ranking.rankLastFetch = v }
   get rankLastFetchTab() { return this._ranking.rankLastFetchTab }
   set rankLastFetchTab(v) { this._ranking.rankLastFetchTab = v }
+
+  // ==== 名次反馈：由 RankingService 写入，UI 层消费一次（consumeRankingFeedback）====
+  get pendingRankingFeedback() { return this._ranking.pendingFeedback }
+  consumeRankingFeedback() {
+    const fb = this._ranking.pendingFeedback
+    this._ranking.pendingFeedback = null
+    return fb
+  }
+  // ==== 修炼境界系统（A1 重构后） ====
+
+  /** 当前修炼等级（便捷访问） */
+  get cultLv() { return (this._d.cultivation && this._d.cultivation.level) || 0 }
+
+  /** 当前境界完整信息（{ realmId, realmName, subStage, subStageName, fullName, ... }） */
+  getCultRealmInfo() {
+    const { getRealmByLv } = require('./cultivationConfig')
+    return getRealmByLv(this.cultLv)
+  }
+
+  /**
+   * 检查"自上次通知以来"是否发生了境界跨档。
+   *   · 调用时机：任何会让 cultLv 变化的地方，例如 addCultExp 升级后
+   *   · 比较规则：cultLv → 当前境界 vs 持久化的 lastCultRealmId / lastCultSubStage
+   *   · 返回：
+   *       { kind:'major', prev, curr }  大境界跨档（触发全屏仪式）
+   *       { kind:'minor', prev, curr }  同大境界内重阶推进（走结算行/lingCheer）
+   *       null                          未变化
+   *   · 只升不降：若 cultLv 回退（GM 等异常），不会向下通知
+   *   · 幂等：连续调用只在 cultLv 真正变化时才返回非 null
+   */
+  checkCultRealmUp() {
+    const { getRealmByLv, REALMS } = require('./cultivationConfig')
+    const curr = getRealmByLv(this.cultLv)
+    // 便于 tierCeremony 读取 name/color/accent 等老字段
+    curr.name = curr.realmName
+    const prevId = (this._d.lastCultRealmId) || 'mortal'
+    const prevSubStage = this._d.lastCultSubStage || 0
+    const prevIdx = REALMS.findIndex(r => r.id === prevId)
+    const currIdx = REALMS.findIndex(r => r.id === curr.realmId)
+
+    // 构造 prev 时以"旧大境界的起点 Lv"为基准查 realm，再覆盖成 prev 的重阶
+    const _buildPrev = () => {
+      const prevRealm = REALMS[Math.max(0, prevIdx)] || REALMS[0]
+      const baseInfo = getRealmByLv(prevRealm.minLv + prevSubStage)
+      baseInfo.name = baseInfo.realmName
+      return baseInfo
+    }
+
+    let up = null
+    if (currIdx > prevIdx) {
+      up = { kind: 'major', prev: _buildPrev(), curr }
+    } else if (currIdx === prevIdx && curr.subStage > prevSubStage) {
+      up = { kind: 'minor', prev: _buildPrev(), curr }
+    }
+
+    if (up) {
+      this._d.lastCultRealmId = curr.realmId
+      this._d.lastCultSubStage = curr.subStage
+      this._save()
+      // 埋点：realm_up 只在真正跨档时触发一次；静默迁移（migration）不走这条路径
+      try {
+        const analytics = require('./analytics')
+        analytics.track('realm_up', {
+          kind: up.kind,
+          from: up.prev.realmId,
+          fromSub: up.prev.subStage,
+          to: curr.realmId,
+          toSub: curr.subStage,
+          cultLv: this.cultLv,
+        })
+      } catch (_e) { /* 埋点失败不影响业务 */ }
+    }
+    return up
+  }
+
+
+  /** 里程碑"首次进入 Top10/Top3/Top1"去重，跨 session 持久化 */
+  hasRankMilestone(tab, level) {
+    const bag = (this._d && this._d.rankMilestones) || {}
+    return !!(bag[tab] && bag[tab][level])
+  }
+  markRankMilestone(tab, level) {
+    if (!this._d) return
+    if (!this._d.rankMilestones) this._d.rankMilestones = {}
+    if (!this._d.rankMilestones[tab]) this._d.rankMilestones[tab] = {}
+    if (this._d.rankMilestones[tab][level]) return false
+    this._d.rankMilestones[tab][level] = Date.now()
+    this._save()
+    return true
+  }
 
   submitScore(floor, pets, weapon, totalTurns) {
     return this._ranking.submitScore(floor, pets, weapon, totalTurns)

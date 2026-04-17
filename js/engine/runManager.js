@@ -259,6 +259,12 @@ function settleExp(g) {
   const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * cfg.cultExp.failRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
+  // 境界跨档（A1 重构）：在通天塔结算里记录一次，供结算页和主菜单 lingCheer 消费
+  g._lastRunRealmUp = levelUps > 0 ? g.storage.checkCultRealmUp() : null
+  // 小阶跨档：回主菜单时小灵横条再提一次（大境界走全屏 tierCeremony 不重复）
+  if (g._lastRunRealmUp && g._lastRunRealmUp.kind === 'minor') {
+    g._pendingRealmLingCheer = g._lastRunRealmUp.curr.fullName
+  }
 
   const combatDetail = { elimExp: g._runElimExp || 0, comboExp: g._runComboExp || 0, killExp: g._runKillExp || 0 }
   const rawCombat = combatDetail.elimExp + combatDetail.comboExp + combatDetail.killExp
@@ -429,6 +435,8 @@ function settleAll(g) {
 function endRun(g) {
   MusicMgr.stopBossBgm()
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+  // 记录旧纪录用于判断新高：updateBestFloor 内部只更新不返回，这里先比对
+  const prevBestFloor = g.storage.bestFloor || 0
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
   g.storage._d.totalRuns++
   if (!g._towerRunRecorded) {
@@ -454,6 +462,19 @@ function endRun(g) {
     MusicMgr.playLevelUp()
   } else {
     MusicMgr.playGameOver()
+  }
+  // 通天塔新高：情绪峰值炫耀触发（仅在真的刷新纪录 + 非第 1 层时）
+  //   放在 setScene 前，让 shareCelebrate 在 gameover 底板之上正常弹出
+  if (finalFloor > prevBestFloor && finalFloor > 1) {
+    const shareHooks = require('../data/shareHooks')
+    shareHooks.onTowerNewBest(g, { floor: finalFloor, turns: g.cleared ? g.runTotalTurns : 0 })
+  }
+  // 境界晋升（A1 重构后）：由 _settleRun 中的 addCultExp 已经检查过
+  //   g._lastRunRealmUp = { kind, prev, curr } | null
+  //   这里只负责：如果是大境界跨档，弹全屏仪式（小阶的走结算页金光行）
+  if (g._lastRunRealmUp && g._lastRunRealmUp.kind === 'major') {
+    const tierCeremony = require('../views/tierCeremony')
+    tierCeremony.trigger(g, g._lastRunRealmUp.prev, g._lastRunRealmUp.curr)
   }
   g.setScene('gameover')
   if (g.events) g.events.emit('run:end', { cleared: g.cleared, floor: finalFloor })

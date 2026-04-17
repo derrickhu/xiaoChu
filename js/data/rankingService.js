@@ -21,18 +21,68 @@ class RankingService {
 
     this.rankStageList = []
     this.rankAllList = []
+    this.rankAllWeeklyList = []
     this.rankDexList = []
     this.rankComboList = []
     this.rankStageMyRank = -1
     this.rankAllMyRank = -1
+    this.rankAllWeeklyMyRank = -1
     this.rankDexMyRank = -1
     this.rankComboMyRank = -1
+    // 周榜期号：云端返回 periodKey（形如 "2026-W16"），UI 需要时展示
+    this.rankAllWeeklyPeriodKey = ''
     this._rankLoading = false
     this.rankLoadingMsg = ''
     this.rankLastFetch = 0
     this.rankLastFetchTab = ''
     this._rankFetchSeq = 0
     this._rankInflight = 0
+
+    // ==== D3 名次对比反馈：内存态保存上次拉到的 myRank（按 tab 区分），用于产生"上升/下降/进前 10"提示 ====
+    // key = 'stage' | 'tower' | 'towerWeekly' | 'dex' | 'combo'
+    this._prevRankByTab = Object.create(null)
+    // 等待消费的反馈，由 UI 层（rRanking）读一次并清零
+    this.pendingFeedback = null
+  }
+
+  /**
+   * 纯函数：根据上一次名次 prev 与本次 curr 生成反馈事件列表
+   *   - firstTime：之前没上过榜（prev<=0 或 null）
+   *   - up / down：名次变化（>0 上升）
+   *   - top1 / top3 / top10：当前所在段（和 up/down 叠加）
+   */
+  /**
+   * fetchRanking / fetchRankingCombined 成功后统一调用，计算并落到 pendingFeedback。
+   * 过滤规则：
+   *   - 名次未变 → 无反馈
+   *   - 仅 firstTime 且 prev==null（session 从未拉过此 tab）→ 不打扰
+   *   - 其余事件保留，供 UI 消费
+   */
+  _emitFeedback(tab, curr) {
+    const prev = this._prevRankByTab[tab]
+    this._prevRankByTab[tab] = curr
+    const fb = this._computeFeedback(tab, prev, curr)
+    if (!fb || !fb.events.length) return
+    if (fb.events.length === 1 && fb.events[0] === 'firstTime' && prev == null) return
+    this.pendingFeedback = fb
+  }
+
+  _computeFeedback(tab, prev, curr) {
+    if (!curr || curr <= 0) return null
+    // 名次没变 → 无反馈（避免反复刷新时重复触发）
+    if (prev != null && prev === curr) return null
+    const fb = { tab, curr, prev: prev || -1, delta: 0, events: [] }
+    if (prev == null || prev <= 0) {
+      fb.events.push('firstTime')
+    } else {
+      fb.delta = prev - curr
+      if (fb.delta > 0) fb.events.push('up')
+      else if (fb.delta < 0) fb.events.push('down')
+    }
+    if (curr === 1) fb.events.push('top1')
+    else if (curr <= 3) fb.events.push('top3')
+    else if (curr <= 10) fb.events.push('top10')
+    return fb
   }
 
   get rankLoading() { return this._rankLoading }
@@ -53,6 +103,7 @@ class RankingService {
       return api.submitRanking({ action, ...rest })
     }
     if (action === 'getAll') return api.getRankingList('all')
+    if (action === 'getAllWeekly') return api.getRankingList('allWeekly')
     if (action === 'getStage') return api.getRankingList('stage')
     if (action === 'getDex') return api.getRankingList('dex')
     if (action === 'getCombo') return api.getRankingList('combo')
@@ -165,7 +216,7 @@ class RankingService {
       }
     }
     const now = Date.now()
-    const listMap = { stage: 'rankStageList', tower: 'rankAllList', all: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
+    const listMap = { stage: 'rankStageList', tower: 'rankAllList', all: 'rankAllList', towerWeekly: 'rankAllWeeklyList', dex: 'rankDexList', combo: 'rankComboList' }
     const listKey = listMap[tab] || 'rankStageList'
     if (!force && now - this.rankLastFetch < RANK_CACHE_TTL_MS && this.rankLastFetchTab === tab && this[listKey].length > 0) {
       console.log('[Ranking] 命中缓存, 跳过拉取:', tab)
@@ -177,7 +228,7 @@ class RankingService {
     this.rankLoadingMsg = '拉取排行中...'
     const t0 = Date.now()
     try {
-      const actionMap = { stage: 'getStage', tower: 'getAll', all: 'getAll', dex: 'getDex', combo: 'getCombo' }
+      const actionMap = { stage: 'getStage', tower: 'getAll', all: 'getAll', towerWeekly: 'getAllWeekly', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getStage'
       console.log('[Ranking] 开始拉取:', action)
       const result = await this._callRanking({ action })
@@ -195,8 +246,13 @@ class RankingService {
         this[listKey] = result.list || []
         const rankKey = listKey.replace('List', 'MyRank')
         this[rankKey] = result.myRank || -1
+        // 周榜回传 periodKey，供 UI 展示"2026-W16 进行中"
+        if (tab === 'towerWeekly' && result.periodKey) {
+          this.rankAllWeeklyPeriodKey = result.periodKey
+        }
         this.rankLastFetch = Date.now()
         this.rankLastFetchTab = tab
+        this._emitFeedback(tab, result.myRank || -1)
       } else {
         console.warn('[Ranking] 返回错误:', result)
       }
@@ -250,6 +306,7 @@ class RankingService {
           this.rankLastFetch = Date.now()
           this.rankLastFetchTab = 'stage'
           console.log('[Ranking] 秘境榜获取到', this.rankStageList.length, '条记录')
+          this._emitFeedback('stage', this.rankStageMyRank)
         }
       } else {
         const ctx = this._getContext()
@@ -282,6 +339,7 @@ class RankingService {
           this.rankLastFetch = Date.now()
           this.rankLastFetchTab = 'tower'
           console.log('[Ranking] 通天塔获取到', this.rankAllList.length, '条记录')
+          this._emitFeedback('tower', this.rankAllMyRank)
         }
       }
     } catch(e) {

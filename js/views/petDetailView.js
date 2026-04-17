@@ -17,6 +17,7 @@ const buttonFx = require('./buttonFx')
 const numberTween = require('./numberTween')
 const { drawPrimaryButton } = require('./uiComponents')
 const { LING } = require('../data/lingIdentity')
+const shareHooks = require('../data/shareHooks')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { POOL_STAR_LV_CAP } = require('../data/petPoolConfig')
 
@@ -1532,14 +1533,16 @@ function _doStarUp(g) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
     const basePet = require('../data/pets').getPetById(petId)
     const petName = (basePet && basePet.name) || petId
-    g._pendingShareScene = { scene: 'petStarUp', data: { petName, star: result.newStar } }
 
-    // 升星是每只宠物的重要里程碑：小灵必须露脸庆贺
-    const isMax = result.newStar >= 5
-    const cheerMsg = isMax
-      ? LING.cheer.petStarMax(petName)
-      : LING.cheer.petStarUp(petName, result.newStar)
-    lingCheer.show(cheerMsg, { tone: 'epic', duration: 2200 })
+    // 升星是每只宠物的重要里程碑：
+    //   · 3★ / 5★ 为情绪峰值 → 走 shareHooks 统一（lingCheer + 炫耀卡）
+    //   · 2★ / 4★ 仅顶部 lingCheer 夸一句，不弹炫耀卡
+    const isMilestone = result.newStar === 3 || result.newStar === 5
+    if (isMilestone) {
+      shareHooks.onPetStarUp(g, { pet: { petId, name: petName }, star: result.newStar })
+    } else {
+      lingCheer.show(LING.cheer.petStarUp(petName, result.newStar), { tone: 'epic', duration: 2200 })
+    }
 
     // ★1 → ★2 首次解锁技能：显示技能名称提示 + 技能区高亮
     if (prevStar === 1 && result.newStar === 2) {

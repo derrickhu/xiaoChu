@@ -429,7 +429,7 @@ function _goComputeContentH(g, S) {
 }
 
 function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
-  const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
+  const { MAX_LEVEL, expToNextLevel, getRealmByLv } = require('../data/cultivationConfig')
   const { getPetById } = require('../data/pets')
   const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
   const AdManager = require('../adManager')
@@ -549,12 +549,15 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
     const levelUps = sr ? sr.cultExp.levelUps : (g._lastRunLevelUps || 0)
     if (levelUps > 0) {
       const prev = sr ? sr.cultExp.prevLevel : (g._lastRunPrevLevel || 0)
-      c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'
-      c.save(); c.shadowColor = 'rgba(200,150,0,0.4)'; c.shadowBlur = 6 * S
-      c.fillText(`升级！Lv.${prev} → Lv.${cult.level}  获得 ${levelUps} 修炼点`, W * 0.5, cy + 6 * S)
-      c.restore()
+      const { drawCultLvUpRow, drawCultSubRealmUpRow } = require('./cultFeedbackUi')
+      drawCultLvUpRow(c, R, S, W * 0.5, cy + 2 * S, prev, cult.level, levelUps)
       cy += 20 * S
+      // 通天塔结算：小阶跨档金光行（大境界已走全屏仪式）
+      const realmUp = g._lastRunRealmUp
+      if (realmUp && realmUp.kind === 'minor') {
+        drawCultSubRealmUpRow(c, R, S, W * 0.5, cy, realmUp.curr.fullName)
+        cy += 20 * S
+      }
     }
 
     const barX = px + pad, barW = innerW, barH = 7 * S
@@ -571,14 +574,14 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
         R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
       }
       c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${currentRealm(cult.level).name}`, px + pw - pad, cy + barH + 9 * S)
+      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     } else {
       const barGrad = c.createLinearGradient(barX, cy, barX + barW, cy)
       barGrad.addColorStop(0, '#D4A843'); barGrad.addColorStop(1, '#F0C860')
       c.fillStyle = barGrad
       R.rr(barX, cy, barW, barH, barH / 2); c.fill()
       c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level} 已满级  ${currentRealm(cult.level).name}`, px + pw - pad, cy + barH + 9 * S)
+      c.fillText(`Lv.${cult.level} 已满级  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     }
     cy += 24 * S
   }
@@ -822,6 +825,85 @@ const _RANK_TABS = [
 const _RANK_LIST_MAP = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
 const _RANK_MY_MAP   = { stage: 'rankStageMyRank', tower: 'rankAllMyRank', dex: 'rankDexMyRank', combo: 'rankComboMyRank' }
 
+// 通天塔周期子 Tab（仅 rankTab==='tower' 时显示）
+const _RANK_TOWER_PERIODS = [
+  { key: 'weekly', label: '本周' },
+  { key: 'all', label: '总榜' },
+]
+
+/**
+ * 计算通天塔榜 list/myRank 实际读取的 storage 字段
+ * 周榜时改读 rankAllWeeklyList / rankAllWeeklyMyRank
+ */
+function _resolveRankKeys(g, tab) {
+  if (tab === 'tower' && g.rankTowerPeriod === 'weekly') {
+    return { listKey: 'rankAllWeeklyList', myKey: 'rankAllWeeklyMyRank' }
+  }
+  return { listKey: _RANK_LIST_MAP[tab], myKey: _RANK_MY_MAP[tab] }
+}
+
+/** 对应 fetchRanking(tab) 的 tab 名：通天塔周榜走 'towerWeekly' */
+function _resolveFetchTab(g, tab) {
+  if (tab === 'tower' && g.rankTowerPeriod === 'weekly') return 'towerWeekly'
+  return tab
+}
+
+/** 榜单 tab 的人读标签（UI 展示 & 语音文案） */
+const _RANK_TAB_LABEL = {
+  stage: '秘境榜',
+  tower: '通天塔总榜',
+  towerWeekly: '通天塔周榜',
+  dex: '图鉴榜',
+  combo: '连击榜',
+}
+
+/**
+ * D3：把 RankingService 算出的 feedback 落到 UI（lingCheer 头条 / gameToast 短提示）
+ * 优先级：里程碑（首次 top1/3/10）→ 飞升（≥5 位）→ 普通上升 → 首次上榜。下降不打扰。
+ */
+function _applyRankingFeedback(g, fb) {
+  if (!fb || !fb.events || !fb.events.length) return
+  const storage = g.storage
+  const lingCheer = require('./lingCheer')
+  const gameToast = require('./gameToast')
+  const { LING } = require('../data/lingIdentity')
+  const tabLabel = _RANK_TAB_LABEL[fb.tab] || '榜单'
+  const avatar = (LING && LING.avatar) || null
+
+  // 1. 里程碑（一生首次达成 top1/3/10）走 lingCheer + 持久去重
+  const milestones = [
+    { level: 'top1', hit: fb.events.includes('top1'), text: `登顶${tabLabel}！第 1 名！` },
+    { level: 'top3', hit: fb.events.includes('top3'), text: `${tabLabel} · 冲进前三！第 ${fb.curr} 名` },
+    { level: 'top10', hit: fb.events.includes('top10'), text: `${tabLabel} · 跻身前十！第 ${fb.curr} 名` },
+  ]
+  for (const m of milestones) {
+    if (!m.hit) continue
+    if (storage.hasRankMilestone(fb.tab, m.level)) continue
+    if (storage.markRankMilestone(fb.tab, m.level)) {
+      lingCheer.show(m.text, { tone: 'epic', avatar, duration: 2600 })
+      return
+    }
+  }
+
+  // 2. 大幅上升（≥5）也给一次 lingCheer，玩家会有冲榜爽感
+  if (fb.delta >= 5) {
+    lingCheer.show(`${tabLabel} · 飞升 ${fb.delta} 位 → 第 ${fb.curr} 名`, { tone: 'info', avatar, duration: 2200 })
+    return
+  }
+
+  // 3. 普通上升 → 小 toast
+  if (fb.delta > 0) {
+    gameToast.show(`${tabLabel} · ↑ ${fb.delta} 位 · 第 ${fb.curr} 名`, { type: 'achievement', duration: 1800 })
+    return
+  }
+
+  // 4. 首次上榜 → 小 toast（温和）
+  if (fb.events.includes('firstTime')) {
+    gameToast.show(`${tabLabel} · 首次上榜 · 第 ${fb.curr} 名`, { type: 'achievement', duration: 1800 })
+  }
+  // 下降不提示
+}
+
 function rRanking(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   R.drawHomeBg(g.af)
@@ -830,6 +912,12 @@ function rRanking(g) {
   const padX = 12*S
   let tab = g.rankTab || 'stage'
   if (tab === 'all' || !_RANK_LIST_MAP[tab]) { tab = 'tower'; g.rankTab = 'tower' }
+
+  // D3：名次对比反馈消费一次（进入/刷新/切 tab 后 fetchRanking 会写入 pendingFeedback）
+  if (g.storage.pendingRankingFeedback) {
+    const fb = g.storage.consumeRankingFeedback()
+    _applyRankingFeedback(g, fb)
+  }
 
   drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + 40 * S, '排行榜')
 
@@ -872,14 +960,54 @@ function rRanking(g) {
     g._rankTabRects[t.key] = [tx, tabY, singleTabW, tabH]
   })
 
+  // ── 通天塔子 Tab：本周 / 总榜（仅 tower 有）──
+  const showPeriodTabs = tab === 'tower'
+  const subTabH = 22 * S
+  const subTabY = tabY + tabH + 6 * S
+  g._rankPeriodTabRects = {}
+  if (showPeriodTabs) {
+    const period = g.rankTowerPeriod || 'weekly'
+    const subTotalW = W - padX * 2
+    const subGap = 4 * S
+    const subSingleW = (subTotalW - subGap) / _RANK_TOWER_PERIODS.length * 0.48  // 两个胶囊靠左，留空给期号
+    _RANK_TOWER_PERIODS.forEach((pt, i) => {
+      const stx = padX + i * (subSingleW + subGap)
+      const isActive = period === pt.key
+      ctx.save()
+      ctx.fillStyle = isActive ? 'rgba(200,158,60,0.9)' : 'rgba(200,158,60,0.12)'
+      R.rr(stx, subTabY, subSingleW, subTabH, subTabH * 0.5); ctx.fill()
+      ctx.strokeStyle = isActive ? 'rgba(160,110,20,0.55)' : 'rgba(200,158,60,0.3)'
+      ctx.lineWidth = 1 * S
+      R.rr(stx, subTabY, subSingleW, subTabH, subTabH * 0.5); ctx.stroke()
+      ctx.fillStyle = isActive ? '#fff7d6' : '#6B5B40'
+      ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(pt.label, stx + subSingleW * 0.5, subTabY + subTabH * 0.5)
+      ctx.restore()
+      g._rankPeriodTabRects[pt.key] = [stx, subTabY, subSingleW, subTabH]
+    })
+    // 右侧期号提示（周榜显示 "2026-W16 周榜进行中"）
+    if (period === 'weekly') {
+      const pk = g.storage.rankAllWeeklyPeriodKey || ''
+      const label = pk ? `${pk} 周榜进行中` : '本周榜进行中'
+      ctx.save()
+      ctx.fillStyle = '#8B7060'
+      ctx.font = `${9 * S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'
+      ctx.fillText(label, W - padX, subTabY + subTabH * 0.5)
+      ctx.restore()
+    }
+  }
+
   // ── 列表区域 ──
-  const listTop = tabY + tabH + 8*S
+  const listTop = (showPeriodTabs ? subTabY + subTabH : tabY + tabH) + 8 * S
   const myBarH = 52*S
   const listBottom = H - myBarH - 16*S
   const rowH = 64*S
 
-  const list = g.storage[_RANK_LIST_MAP[tab]] || []
-  const myRank = g.storage[_RANK_MY_MAP[tab]] || -1
+  const { listKey, myKey } = _resolveRankKeys(g, tab)
+  const list = g.storage[listKey] || []
+  const myRank = g.storage[myKey] || -1
 
   // 列表面板背景
   const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
@@ -2632,4 +2760,5 @@ module.exports = {
   drawBackBtn, drawNewRunConfirm, rDex,
   hitTestRankingTab,
   _goScroll,
+  _resolveFetchTab,
 }

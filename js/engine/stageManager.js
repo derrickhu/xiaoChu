@@ -412,6 +412,12 @@ function settleStage(g) {
   const rawTotal = (g.runExp || 0) + clearBonus
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
+  // 境界跨档检查（紧随 addCultExp；结算 UI 消费 cultRealmUp 做即时反馈）
+  const cultRealmUp = cultLevelUps > 0 ? g.storage.checkCultRealmUp() : null
+  // 小阶跨档：回主菜单时由小灵横条再提一次（大境界走全屏 tierCeremony 不重复）
+  if (cultRealmUp && cultRealmUp.kind === 'minor') {
+    g._pendingRealmLingCheer = cultRealmUp.curr.fullName
+  }
 
   // 灵石（周回 + 首通基础）
   const baseSoulStone = stage.rewards.repeatClear.soulStone || 0
@@ -537,6 +543,7 @@ function settleStage(g) {
     cultExp: rawTotal,
     cultLevelUps,
     cultPrevLevel: prevLevel,
+    cultRealmUp,
     soulStone: soulStone + challengeRewardSS,
     totalTurns: g._stageTotalTurns,
     victory: true,
@@ -586,6 +593,10 @@ function settleStageDefeat(g) {
   const rawTotal = Math.floor(((g.runExp || 0) + baseExp) * STAGE_SETTLE.defeatExpRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
+  const cultRealmUp = cultLevelUps > 0 ? g.storage.checkCultRealmUp() : null
+  if (cultRealmUp && cultRealmUp.kind === 'minor') {
+    g._pendingRealmLingCheer = cultRealmUp.curr.fullName
+  }
 
   const baseSoulStone = stage.rewards.repeatClear.soulStone || 0
   const soulStone = Math.floor(baseSoulStone * STAGE_SETTLE.defeatSSRatio)
@@ -600,6 +611,7 @@ function settleStageDefeat(g) {
     cultExp: rawTotal,
     cultLevelUps,
     cultPrevLevel: prevLevel,
+    cultRealmUp,
     soulStone,
     totalTurns: g._stageTotalTurns,
     victory: false,

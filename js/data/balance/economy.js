@@ -216,6 +216,8 @@ const DAILY_ALL_COMPLETE_BONUS = { soulStone: 14, stamina: 20 }
 const SHARE_DAILY_MAX = 3
 const SHARE_PER_REWARD = { stamina: 10 }
 const SHARE_FIRST_EVER_BONUS = { soulStone: 100 }
+// 场景分享（非 sceneOnce）冷却时长：同一场景 24h 内只奖励一次，避免刷分享奖
+const SHARE_SCENE_COOLDOWN_MS = 24 * 3600 * 1000
 const INVITE_REWARD = { soulStone: 200 }
 const INVITE_MAX_COUNT = 10
 
@@ -344,6 +346,7 @@ module.exports = {
   SHARE_DAILY_MAX,
   SHARE_PER_REWARD,
   SHARE_FIRST_EVER_BONUS,
+  SHARE_SCENE_COOLDOWN_MS,
   INVITE_REWARD,
   INVITE_MAX_COUNT,
   COMEBACK_THRESHOLD_MS,

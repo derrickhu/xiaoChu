@@ -40,6 +40,7 @@ const MODE_CFG = {
 function drawTopBar(g) {
   const { ctx, R, W, S, safeTop } = V
   const logoImg = R.getImg('assets/ui/title_logo.png')
+  let logoBottomY = safeTop + 48 * S + 48 * S + TITLE_LOGO.gapBelowStatusPt * S
   if (logoImg && logoImg.width > 0) {
     const statusBarBottom = safeTop + 48 * S + 48 * S
     const logoH = TITLE_LOGO.heightPt * S
@@ -50,7 +51,51 @@ function drawTopBar(g) {
     ctx.globalAlpha = 1
     ctx.drawImage(logoImg, logoX, logoY, logoW, logoH)
     ctx.restore()
+    logoBottomY = logoY + logoH
   }
+  // D4：段位徽章（在 logo 正下方居中），点击不响应，仅作为身份标识
+  _drawTitleTierBadge(g, ctx, W, S, logoBottomY + 2 * S)
+}
+
+// ===== 首页境界徽章：胶囊底 + 境界色 + 文字"境界·XX·N 重" =====
+//   数据源：修炼等级 → getRealmByLv（A1 重构，境界和修炼 Lv 一一绑定）
+//   凡人期只显示"境界·凡人"，没有"重"字样；其他境界显示 "境界·感气·三重"
+function _drawTitleTierBadge(g, ctx, W, S, topY) {
+  const info = g.storage.getCultRealmInfo && g.storage.getCultRealmInfo()
+  if (!info) return
+  const label = `境界·${info.fullName}`
+  ctx.save()
+  ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  const padX = 12 * S
+  const tw = ctx.measureText(label).width
+  const boxW = tw + padX * 2
+  const boxH = 22 * S
+  const boxX = (W - boxW) / 2
+  const boxY = topY
+  // 背景渐变
+  const grad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH)
+  grad.addColorStop(0, info.color)
+  grad.addColorStop(1, info.accent)
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.moveTo(boxX + boxH / 2, boxY)
+  ctx.lineTo(boxX + boxW - boxH / 2, boxY)
+  ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + boxH / 2)
+  ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - boxH / 2, boxY + boxH)
+  ctx.lineTo(boxX + boxH / 2, boxY + boxH)
+  ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH / 2)
+  ctx.quadraticCurveTo(boxX, boxY, boxX + boxH / 2, boxY)
+  ctx.closePath()
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,240,180,0.55)'
+  ctx.lineWidth = 1 * S
+  ctx.stroke()
+  // 文字
+  ctx.fillStyle = '#FFF8DC'
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 2 * S
+  ctx.fillText(label, boxX + boxW / 2, boxY + boxH / 2 + 0.5 * S)
+  ctx.restore()
 }
 
 // ===== 秘境内嵌选关：获取当前展示的关卡数据 =====

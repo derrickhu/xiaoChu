@@ -1,9 +1,26 @@
 // 云函数：排行榜（提交分数 + 查询排行）
-// 支持4种排行：秘境榜(stage)、通天塔(all)、图鉴榜(dex)、连击榜(combo)
+// 支持4种排行：秘境榜(stage)、通天塔(all + allWeekly)、图鉴榜(dex)、连击榜(combo)
+//
+// 周榜（rankAllWeekly）说明：
+//   - periodKey = ISO 周字符串 "YYYY-Www"（如 "2026-W16"）
+//   - 每周每用户只保留当周最佳一条（uid + periodKey 复合去重）
+//   - 提交总榜时双写一条周榜；周榜查询走 getAllWeekly
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+
+// ===== ISO 周计算：UTC 下的 ISO-8601 周号（周一为一周起点） =====
+function _currentPeriodKey(dateOverride) {
+  const d = new Date(dateOverride || Date.now())
+  // ISO 周算法：把日期 shift 到 周四，取其所在年份的第几周
+  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const dayNum = (tmp.getUTCDay() + 6) % 7  // 周一=0 周日=6
+  tmp.setUTCDate(tmp.getUTCDate() - dayNum + 3)
+  const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4))
+  const weekNum = 1 + Math.round(((tmp - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7)
+  return `${tmp.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`
+}
 
 // GM 黑名单：这些 openid 的提交操作一律拦截，只允许查询
 const GM_OPENIDS = [
@@ -89,6 +106,7 @@ exports.main = async (event, context) => {
       }
 
       await _updateDexCombo(openid, nickName, avatarUrl, petDexCount, maxCombo, masteredCount, collectedCount)
+      await _upsertWeekly(openid, baseRecord)
 
       console.log('[submit] 完成, 总耗时', Date.now() - t0, 'ms')
       return { code: 0, msg: '提交成功', ms: Date.now() - t0 }
@@ -202,6 +220,7 @@ exports.main = async (event, context) => {
         debug.submitMs = Date.now() - t0
 
         await _updateDexCombo(openid, nickName || '修士', avatarUrl || '', petDexCount, maxCombo, masteredCount, collectedCount)
+        await _upsertWeekly(openid, baseRecord)
         debug.dexComboMs = Date.now() - t0
       }
 
@@ -421,7 +440,107 @@ exports.main = async (event, context) => {
     }
   }
 
+  // ===== 查询通天塔周榜（本周进度） =====
+  //   与 getAll 逻辑一致，但限定 periodKey = 本周，一个用户每周只保留当周最佳
+  if (action === 'getAllWeekly') {
+    const debug = {}
+    const t0 = Date.now()
+    const periodKey = event.periodKey || _currentPeriodKey()
+    debug.periodKey = periodKey
+    try {
+      const getRes = await db.collection('rankAllWeekly')
+        .where({ periodKey })
+        .orderBy('floor', 'desc')
+        .limit(100)
+        .get()
+      debug.getCount = getRes.data.length
+      debug.fetchMs = Date.now() - t0
+
+      const records = getRes.data
+      if (records.length === 0) {
+        debug.totalMs = Date.now() - t0
+        return { code: 0, list: [], myRank: -1, periodKey, debug }
+      }
+
+      const deduped = _deduplicateByOpenid(records, _rankAllComparator)
+      const list = deduped.slice(0, 50)
+
+      let myRank = -1
+      const idx = deduped.findIndex(r => (r._openid === openid || r.uid === openid))
+      if (idx >= 0) {
+        myRank = idx + 1
+        debug.myFoundIn = 'cache'
+      } else {
+        const myRes = await db.collection('rankAllWeekly').where(_.and([
+          { periodKey },
+          _.or([{ uid: openid }, { _openid: openid }]),
+        ])).get()
+        if (myRes.data.length > 0) {
+          const my = myRes.data.sort((a, b) => _isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns) ? -1 : 1)[0]
+          const [higherFloor, sameFloorBetter] = await Promise.all([
+            db.collection('rankAllWeekly').where({ periodKey, floor: _.gt(my.floor) }).count(),
+            my.totalTurns > 0
+              ? db.collection('rankAllWeekly').where({
+                  periodKey,
+                  floor: _.eq(my.floor),
+                  totalTurns: _.gt(0).and(_.lt(my.totalTurns))
+                }).count()
+              : Promise.resolve({ total: 0 })
+          ])
+          myRank = higherFloor.total + sameFloorBetter.total + 1
+          debug.myFoundIn = 'query'
+        }
+      }
+      debug.totalMs = Date.now() - t0
+      return { code: 0, list, myRank, periodKey, debug }
+    } catch (e) {
+      debug.totalMs = Date.now() - t0
+      return { code: -1, msg: e.message, list: [], periodKey, debug }
+    }
+  }
+
   return { code: -1, msg: '未知操作' }
+}
+
+// 周榜 upsert：每周每用户一条，落后不覆盖核心成绩但更新昵称/头像
+async function _upsertWeekly(openid, baseRecord) {
+  if (!baseRecord || !baseRecord.floor || baseRecord.floor <= 0) return
+  const periodKey = _currentPeriodKey()
+  const weeklyRecord = { ...baseRecord, periodKey }
+  try {
+    const existing = await db.collection('rankAllWeekly').where(_.and([
+      { periodKey },
+      _.or([{ _openid: openid }, { uid: openid }]),
+    ])).get()
+    if (existing.data.length > 1) {
+      // 去重：同周同用户多条，保留最佳
+      const sorted = existing.data.sort((a, b) => _isBetterScore(a.floor, a.totalTurns, b.floor, b.totalTurns) ? -1 : 1)
+      for (let i = 1; i < sorted.length; i++) {
+        await db.collection('rankAllWeekly').doc(sorted[i]._id).remove()
+      }
+      const old = sorted[0]
+      if (_isBetterScore(weeklyRecord.floor, weeklyRecord.totalTurns, old.floor, old.totalTurns)) {
+        await db.collection('rankAllWeekly').doc(old._id).update({ data: weeklyRecord })
+      } else {
+        await db.collection('rankAllWeekly').doc(old._id).update({
+          data: { nickName: weeklyRecord.nickName, avatarUrl: weeklyRecord.avatarUrl }
+        })
+      }
+    } else if (existing.data.length === 1) {
+      const old = existing.data[0]
+      if (_isBetterScore(weeklyRecord.floor, weeklyRecord.totalTurns, old.floor, old.totalTurns)) {
+        await db.collection('rankAllWeekly').doc(old._id).update({ data: weeklyRecord })
+      } else {
+        await db.collection('rankAllWeekly').doc(old._id).update({
+          data: { nickName: weeklyRecord.nickName, avatarUrl: weeklyRecord.avatarUrl }
+        })
+      }
+    } else {
+      await db.collection('rankAllWeekly').add({ data: weeklyRecord })
+    }
+  } catch (e) {
+    console.warn('[_upsertWeekly] 失败:', e.message || e)
+  }
 }
 
 // 速通榜排序比较器

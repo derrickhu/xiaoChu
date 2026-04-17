@@ -92,6 +92,17 @@ const platform = {
   shareAppMessage:  (opts) => base.shareAppMessage(opts),
   showShareMenu:    (opts) => base.showShareMenu(opts),
   onShareAppMessage:(cb)   => base.onShareAppMessage(cb),
+  // 朋友圈分享（微信独有，抖音无对应能力静默 noop）
+  //   - shareTimeline：调起朋友圈分享面板；微信基础库 ≥ 2.11.3 支持
+  //   - onShareTimeline：朋友圈被动分享回调注册
+  shareTimeline: isWeChat && typeof base.shareTimeline === 'function'
+    ? (opts) => base.shareTimeline(opts)
+    : _noop,
+  onShareTimeline: isWeChat && typeof base.onShareTimeline === 'function'
+    ? (cb) => base.onShareTimeline(cb)
+    : _noop,
+  // 朋友圈能力探测（UI 用来决定"发朋友圈"按钮是否显示）
+  hasShareTimeline: isWeChat && typeof base.shareTimeline === 'function',
 
   // ========== 第三层：平台独占，降级处理 ==========
 
@@ -116,6 +127,23 @@ const platform = {
 
   // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
   cloud: isWeChat ? base.cloud : _mockCloud,
+
+  // ========== 数据埋点 ==========
+  //   - 优先走 wx.reportEvent（微信自定义分析，需后台预先注册事件 ID）
+  //   - 其次走 wx.reportAnalytics（老接口，兼容）
+  //   - 都没有时静默（console.debug 供调试）
+  reportEvent: (eventId, params) => {
+    try {
+      if (typeof base.reportEvent === 'function') {
+        base.reportEvent(eventId, params || {})
+        return
+      }
+      if (typeof base.reportAnalytics === 'function') {
+        base.reportAnalytics(eventId, params || {})
+        return
+      }
+    } catch (_e) { /* ignore，埋点失败不影响业务 */ }
+  },
 
   // ========== 广告能力 ==========
 
