@@ -663,11 +663,11 @@ function tStageInfo(g, x, y, type) {
     }
     if (g.storage.currentStamina < (stage.staminaCost ?? STAMINA_COST)) {
       const AdManager = require('../adManager')
-      if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足')
+      if (!AdManager.openStaminaRecoveryConfirm(g)) P.showGameToast('体力不足', { type: 'warn' })
       return
     }
     if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(g._selectedStageId, stage.dailyLimit)) {
-      P.showGameToast('今日挑战次数已用完')
+      P.showGameToast('今日挑战次数已用完', { type: 'warn' })
       return
     }
     const stageMgr = require('../engine/stageManager')

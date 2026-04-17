@@ -38,7 +38,7 @@ function _checkTowerDailyLimit(g) {
     })
     return false
   }
-  P.showGameToast('今日挑战次数已用完，明日刷新')
+  P.showGameToast('今日挑战次数已用完，明日刷新', { type: 'warn' })
   return false
 }
 
@@ -278,7 +278,7 @@ function tTitle(g, type, x, y) {
     const minPool = STAGE_FORMATION_MIN_PETS
     const cur = g.storage.petPoolCount
     if (cur < minPool) {
-      P.showGameToast(`挑战通天塔需灵宠池至少 ${minPool} 只（当前 ${cur} 只）`)
+      P.showGameToast(`挑战通天塔需灵宠池至少 ${minPool} 只（当前 ${cur} 只）`, { type: 'warn' })
       return
     }
     g.showNewRunConfirm = false
@@ -362,7 +362,7 @@ function tTitle(g, type, x, y) {
       case 3:
         // 第 1 章通关前锁定秘境模式，通天塔不可切换
         if (!g.storage.isStageCleared('stage_1_8')) {
-          P.showGameToast('通关第 1 章解锁通天塔')
+          P.showGameToast('通关第 1 章解锁通天塔', { type: 'warn' })
           return
         }
         g.titleMode = (g.titleMode || 'tower') === 'tower' ? 'stage' : 'tower'
@@ -386,7 +386,7 @@ function _handleStageStart(g) {
   const list = getBrowsableStages(g.storage.stageClearRecord, g._stageDifficulty || 'normal')
   const entry = list[g._selectedStageIdx]
   if (!entry || !entry.unlocked) {
-    P.showGameToast('该关卡尚未解锁')
+    P.showGameToast('该关卡尚未解锁', { type: 'warn' })
     return
   }
 
@@ -400,7 +400,7 @@ function _handleStageStart(g) {
       if (!AdManager.openStaminaRecoveryConfirm(g)) {
         const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
         const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
-        P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+        P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`, { type: 'warn' })
       }
       return
     }
@@ -430,7 +430,7 @@ function _handleStageStart(g) {
     if (!AdManager.openStaminaRecoveryConfirm(g)) {
       const { STAMINA_RECOVER_INTERVAL_MS } = require('../data/constants')
       const minutesPerPoint = Math.round(STAMINA_RECOVER_INTERVAL_MS / 60000)
-      P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`)
+      P.showGameToast(`体力不足，${minutesPerPoint}分钟恢复1点`, { type: 'warn' })
     }
     return
   }

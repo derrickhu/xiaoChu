@@ -307,19 +307,29 @@ function _drawFlyParticles(d, c, R, S, W, H) {
   d.flyParticles = d.flyParticles.filter(fp => fp.age < FLY_DURATION)
 }
 
-function _spawnFlyParticles(d, S, W, H) {
-  const targetY = 20 * S  // 屏幕顶部资源栏位置
+function _spawnFlyParticles(d, S, W, H, g) {
+  // 尝试取主页顶栏每个资源胶囊的位置作为飞入终点（视觉上资源"落"到真实胶囊上）
+  // 失败时退化为屏幕顶部均匀分布
+  const iconToRect = {
+    'assets/ui/icon_soul_stone.png': g && g._soulStonePillRect,
+    'assets/ui/icon_stamina.png': g && g._staminaPillRect,
+    'assets/ui/icon_universal_frag.png': g && g._uniFragPillRect,
+  }
+  const defaultTY = 20 * S
   d.items.forEach((item, i) => {
     const src = _getItemCenterPos(d, i, S, W, H)
+    const rect = iconToRect[item.icon]
+    const tx0 = rect ? rect[0] + rect[2] / 2 : W * (0.3 + i * 0.2)
+    const ty0 = rect ? rect[1] + rect[3] / 2 : defaultTY
     // 每项生成 3 个粒子，轻微散开
     for (let j = 0; j < 3; j++) {
       d.flyParticles.push({
         icon: item.icon,
         sx: src.x + (j - 1) * 12 * S,
         sy: src.y,
-        tx: W * (0.3 + i * 0.2) + (j - 1) * 8 * S,  // 散布到顶部不同位置
-        ty: targetY,
-        age: -(i * FLY_STAGGER + j * 3),  // 负值表示延迟帧
+        tx: tx0 + (j - 1) * 8 * S,
+        ty: ty0,
+        age: -(i * FLY_STAGGER + j * 3),
       })
     }
   })
@@ -340,7 +350,7 @@ function onTouch(g, x, y, type) {
       d.phase = 'claimed'
       d.claimTimer = 0
       const { S, W, H } = V
-      _spawnFlyParticles(d, S, W, H)
+      _spawnFlyParticles(d, S, W, H, g)
       return true
     }
   }
@@ -360,7 +370,8 @@ function _claimRewards(g) {
   if (r.stamina) g.storage.addBonusStamina(r.stamina)
   if (r.universalFragment) g.storage.addUniversalFragment(r.universalFragment)
   g.storage.markGuideShown('newbie_gift_claimed')
-  g._pendingResourceHint = { show: true, timer: 0 }
+  // 礼包关闭后，主页万能碎片胶囊脉冲高亮一次，告诉玩家资源去了哪
+  g._uniFragPulse = { timer: 0 }
 }
 
 module.exports = { show, draw, onTouch }

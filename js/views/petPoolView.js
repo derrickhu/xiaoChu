@@ -109,7 +109,7 @@ function rPetPool(g) {
     // 图标压在胶囊上方
     c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
 
-    // 万能碎片胶囊（紧跟灵石右侧）
+    // 万能碎片胶囊（紧跟灵石右侧，=0 时半透明占位，建立认知）
     const uniCount = g.storage.universalFragment || 0
     const uniIcon = R.getImg('assets/ui/icon_universal_frag.png')
     if (uniIcon && uniIcon.width > 0) {
@@ -124,6 +124,7 @@ function rPetPool(g) {
       const uCapW = uTxtX + uTxtW + padX - uCapX
       const uCapY = centerY - capH / 2
       c.save()
+      if (uniCount === 0) c.globalAlpha = 0.45
       c.beginPath()
       c.moveTo(uCapX + capR, uCapY); c.lineTo(uCapX + uCapW - capR, uCapY)
       c.quadraticCurveTo(uCapX + uCapW, uCapY, uCapX + uCapW, uCapY + capR)
@@ -135,10 +136,10 @@ function rPetPool(g) {
       c.quadraticCurveTo(uCapX, uCapY, uCapX + capR, uCapY)
       c.closePath()
       c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
-      c.restore()
       c.fillStyle = '#fff'
       c.fillText(`${uniCount}`, uTxtX, centerY)
       c.drawImage(uniIcon, uIconX, uIconY, uIconSz, uIconSz)
+      c.restore()
     }
   }
 

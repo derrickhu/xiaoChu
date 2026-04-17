@@ -59,3 +59,15 @@ scripts/.cdn_manifest.json
 scripts/cdn_manifest_for_upload.json
 scripts/_tmp_manifest.json
 scripts/.cdn_secret
+
+# 图片原稿（AI 生成/高分辨率大图）不进包体
+# 统一存于仓库外：/Users/huyi/dk_proj/game_assets/xiaochu/assets/ui/sources/
+# 详见 .cursor/rules/image-assets.mdc
+assets/**/*_source.png
+assets/**/*_source.jpg
+assets/**/*_source.jpeg
+assets/**/*_source.webp
+assets/**/*_raw.png
+assets/**/*_raw.jpg
+assets/**/*_raw.jpeg
+assets/**/*_raw.webp

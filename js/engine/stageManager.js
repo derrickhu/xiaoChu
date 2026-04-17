@@ -375,7 +375,7 @@ function settleStage(g) {
         const P = require('../platform')
         const wInfo = getWeaponById(wNew.weaponId)
         const wName = (wInfo && wInfo.name) || '法宝'
-        if (P.showGameToast) P.showGameToast(`获得法宝「${wName}」，已自动装备`)
+        if (P.showGameToast) P.showGameToast(`获得法宝「${wName}」，已自动装备`, { type: 'achievement' })
         // 引导等结算关闭后再触发，挂到 pendingGuide
         g._pendingGuide = 'weapon_equip'
       }

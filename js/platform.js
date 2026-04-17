@@ -157,13 +157,30 @@ const platform = {
   },
 
   /**
-   * 统一游戏内 Toast 提醒（简洁半透明遮罩 + 白字）
-   * 所有场景的短提示统一使用此方法，保持风格一致
+   * 统一游戏内 Toast 提醒
+   * - 画布就绪时：走自绘组件（游戏风格，支持 text/resource/warn/achievement）
+   * - 否则：降级到原生 wx.showToast（启动早期 / 非游戏上下文使用）
    * @param {string} msg - 提示文字
-   * @param {number} [duration=2000] - 显示时长(ms)
+   * @param {number|object} [durationOrOpts]
+   *   - 传数字：兼容旧签名，仅设置 duration (ms)
+   *   - 传对象：{ type, icon, duration }
+   *     type: 'text'(默认) | 'resource' | 'warn' | 'achievement'
    */
-  showGameToast(msg, duration) {
-    base.showToast({ title: msg, icon: 'none', duration: duration || 2000 })
+  showGameToast(msg, durationOrOpts) {
+    let opts = {}
+    if (typeof durationOrOpts === 'number') opts = { duration: durationOrOpts }
+    else if (durationOrOpts && typeof durationOrOpts === 'object') opts = durationOrOpts
+
+    try {
+      const env = require('./views/env')
+      if (env && env.ctx && env.W && env.H) {
+        const gameToast = require('./views/gameToast')
+        gameToast.show(msg, opts)
+        return
+      }
+    } catch (_e) { /* ignore，降级原生 */ }
+
+    base.showToast({ title: msg, icon: 'none', duration: opts.duration || 2000 })
   },
 }
 

@@ -1,22 +1,61 @@
 ---
-description: 图片资源 — 改图不改原图；切图/抠图/压缩等导出到新文件，不覆盖生成原稿
+description: 图片资源 — 原稿放外部资产仓，不占包体；改图不改原图
 globs: "**/*.{png,jpg,jpeg,webp,gif,svg,py,mdc}"
 alwaysApply: true
 ---
 
-# 图片资源：改图不改原图
+# 图片资源：改图不改原图 · 原稿不进包体
 
-## 原则
+## 核心原则
 
-- **原稿**（AI 生成、手绘导出、摄影等）只作为**只读输入**，保留完整文件名与内容，供重做切图或换风格时复用。
-- **切图、抠图、去底、缩放、压缩、调色** 等后处理结果必须写入**另一路径**（如 `*_game.png`、`*_ui.png` 或与原稿并列的约定名），**禁止**用处理结果覆盖原稿。
-- 游戏内引用、CDN、打包清单只指向**最终交付图**；原稿可不进包体，但须留在仓库或约定目录供维护。
+- **原稿**（AI 生成、手绘导出、摄影、PSD 切图原图等）只作为**只读输入**，保留完整文件名与内容，供重做切图或换风格时复用。
+- **原稿不进小程序包体**，统一存放于仓库外的资产仓：
+  - UI 原图：`/Users/huyi/dk_proj/game_assets/xiaochu/assets/ui/sources/`
+  - 其他分类（宠物、法宝、场景等）按需扩展 `game_assets/xiaochu/assets/<类别>/sources/`
+- **切图、抠图、去底、缩放、压缩、调色** 等后处理结果写入小程序仓 `assets/` 下的**交付路径**，**禁止**用处理结果覆盖原稿。
+- 游戏内 `R.getImg(...)` 引用、CDN 清单、打包脚本只指向小程序仓内的交付图。
 
-## 本项目约定（示例）
+## 命名与存放约定
 
-- 每日任务入口：`assets/ui/daily_task_icon_source.png` 为原稿；`assets/ui/daily_task_icon.png` 为 BiRefNet 抠图 + 居中交付图（`process_daily_task_icon_transparent.py`）。
-- 每日签到入口：`assets/ui/daily_sign_icon_source.png` 为原稿（大画布留白）；`assets/ui/daily_sign_icon.png` 为按 alpha 裁外围后居中 1024²（`normalize_ui_icon_canvas.py`），与任务图同槽绘制时主体占比接近。
+| 类型 | 路径 | 命名示例 |
+|---|---|---|
+| 原稿（仓外） | `game_assets/xiaochu/assets/ui/sources/` | `icon_universal_frag_source.png` |
+| 交付图（仓内） | `xiao_chu/assets/ui/` | `icon_universal_frag.png` |
+| 变体（仓内） | `xiao_chu/assets/ui/` | `icon_universal_frag_dim.png` |
 
-## 脚本
+带 `_source` / `_raw` 后缀的文件：
+- **小程序仓 `.gitignore` 已排除**（`assets/**/*_source.*` 等）
+- 严禁用 `git add -f` 强制加入
 
-- 后处理脚本默认：**读** `*_source`（或参数指定原稿），**写** 交付路径，不把原稿当输出默认值。
+## 工作流
+
+1. **生成原稿**：AI 生图 / 手绘导出 → 直接写入 `game_assets/xiaochu/assets/ui/sources/xxx_source.png`
+2. **后处理脚本**：读 `game_assets/.../xxx_source.png`，写小程序仓 `assets/ui/xxx.png`
+3. **提交**：
+   - 小程序仓只跟踪交付图
+   - `game_assets/` 是独立 git 仓，原稿在该仓单独版本管理
+
+## 压缩 / 处理脚本示例
+
+`xiao_chu/scripts/compress_ui_icon.py` 统一工具：
+```bash
+python3 scripts/compress_ui_icon.py \
+  /Users/huyi/dk_proj/game_assets/xiaochu/assets/ui/sources/icon_universal_frag_source.png \
+  assets/ui/icon_universal_frag.png \
+  256
+```
+
+`xiao_chu/scripts/process_daily_task_icon_transparent.py`、`normalize_ui_icon_canvas.py` 等后处理脚本同理：默认 **读外部 sources**，**写仓内交付路径**，不把原稿当输出默认值。
+
+## 示例（当前已生效）
+
+- 每日任务入口：原稿待迁移至 sources/；交付图 `assets/ui/daily_task_icon.png`
+- 每日签到入口：原稿待迁移至 sources/；交付图 `assets/ui/daily_sign_icon.png`
+- 万能碎片图标：原稿 `game_assets/xiaochu/assets/ui/sources/icon_universal_frag_source.png`；交付图 `assets/ui/icon_universal_frag.png`
+- 新手礼包插图：原稿 `game_assets/xiaochu/assets/ui/sources/newbie_gift_icon_source.png`；交付图 `assets/ui/newbie_gift_icon.png`
+
+## 特别注意
+
+- 交付图必须经**压缩**后再入库（单张建议 ≤ 200K，UI 图标建议 ≤ 60K）
+- 若交付图尺寸超标，优先走压缩脚本调小分辨率，而不是直接提交大图
+- PSD / AI 源文件（`.psd`, `.ai`, `.sketch`）一律只放 `game_assets/` 资产仓

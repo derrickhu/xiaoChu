@@ -476,12 +476,12 @@ function tStageSelect(g, x, y, type) {
         const stage = getStageById(item.stageId)
         if (stage) {
           if (stage.dailyLimit > 0 && !g.storage.canChallengeStage(item.stageId, stage.dailyLimit)) {
-            P.showGameToast(`今日挑战次数已用完（${stage.dailyLimit}/${stage.dailyLimit}）`)
+            P.showGameToast(`今日挑战次数已用完（${stage.dailyLimit}/${stage.dailyLimit}）`, { type: 'warn' })
             return
           }
           const need = stage.staminaCost ?? STAMINA_COST
           if (g.storage.currentStamina < need) {
-            P.showGameToast(`体力不足（需要${need}，当前${g.storage.currentStamina}）`)
+            P.showGameToast(`体力不足（需要${need}，当前${g.storage.currentStamina}）`, { type: 'warn' })
             return
           }
         }

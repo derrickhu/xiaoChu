@@ -621,7 +621,8 @@ function drawAvatarWidget(g) {
   const pillGap = 6 * S
   const pillCY = rowY + iconSz * 0.5
 
-  function _drawPill(px, text, iconPath) {
+  // dim=true 时整体半透明（用于资源为 0 时的占位，帮助新玩家建立认知）
+  function _drawPill(px, text, iconPath, dim) {
     ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     const tw = ctx.measureText(text).width
@@ -630,6 +631,7 @@ function drawAvatarWidget(g) {
     const py = pillCY - pillH / 2
 
     ctx.save()
+    if (dim) ctx.globalAlpha = 0.45
     ctx.beginPath()
     R.rr(px, py, pillW, pillH, pillR)
     ctx.fillStyle = 'rgba(0,0,0,0.42)'; ctx.fill()
@@ -648,20 +650,32 @@ function drawAvatarWidget(g) {
 
   const soulStone = g.storage.soulStone || 0
   const ssPillW = _drawPill(rightX, String(soulStone), 'assets/ui/icon_soul_stone.png')
+  g._soulStonePillRect = [rightX, pillCY - pillH / 2, ssPillW, pillH]
 
   const stamina = g.storage.currentStamina
   const maxSt = g.storage.maxStamina
   const stText = `${stamina}/${maxSt}`
-  const stPillW = _drawPill(rightX + ssPillW + pillGap, stText, 'assets/ui/icon_stamina.png')
+  const stPillX = rightX + ssPillW + pillGap
+  const stPillW = _drawPill(stPillX, stText, 'assets/ui/icon_stamina.png')
+  g._staminaPillRect = [stPillX, pillCY - pillH / 2, stPillW, pillH]
 
   const awakenStone = g.storage.awakenStone || 0
-  const asPillW = _drawPill(rightX + ssPillW + pillGap + stPillW + pillGap, String(awakenStone), 'assets/ui/icon_awaken_stone.png')
+  const asPillX = stPillX + stPillW + pillGap
+  const asPillW = _drawPill(asPillX, String(awakenStone), 'assets/ui/icon_awaken_stone.png', awakenStone === 0)
 
-  // ── 经验条（灵石/体力/觉醒石下方）──
+  // ── 万能碎片胶囊（=0 时半透明占位，帮助新玩家认识此资源）──
+  const uniFrag = g.storage.universalFragment || 0
+  const ufPillX = asPillX + asPillW + pillGap
+  const ufPillW = _drawPill(ufPillX, String(uniFrag), 'assets/ui/icon_universal_frag.png', uniFrag === 0)
+
+  // 记录万能碎片胶囊位置，供新手礼包飞入终点 / 脉冲高亮使用
+  g._uniFragPillRect = [ufPillX, pillCY - pillH / 2, ufPillW, pillH]
+
+  // ── 经验条（灵石/体力/觉醒石/万能碎片下方）──
   const expBarY = pillCY + pillH / 2 + 4 * S
   const expBarH = 7 * S
   const expBarX = rightX
-  const expBarW = ssPillW + pillGap + stPillW + pillGap + asPillW
+  const expBarW = ssPillW + pillGap + stPillW + pillGap + asPillW + pillGap + ufPillW
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)'
   R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()

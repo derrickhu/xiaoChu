@@ -1387,7 +1387,7 @@ function _doStarUp(g) {
       const basePet = require('../data/pets').getPetById(petId)
       const skillName = basePet && basePet.skill ? basePet.skill.name : ''
       if (skillName && P.showGameToast) {
-        P.showGameToast(`技能「${skillName}」已解锁！`)
+        P.showGameToast(`技能「${skillName}」已解锁！`, { type: 'achievement' })
       }
       g._petSkillUnlockGlow = 30  // 30帧金色高亮动画
     }

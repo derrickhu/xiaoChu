@@ -41,6 +41,7 @@ const { drawConfirmDialog, handleConfirmDialogTouch } = require('./views/uiCompo
 const { drawAdRewardPopup, handleAdRewardPopupTouch } = require('./views/adRewardPopup')
 const newbieGiftView = require('./views/newbieGiftView')
 const helpTourView = require('./views/helpTourView')
+const gameToast = require('./views/gameToast')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -148,7 +149,7 @@ class Main {
         if (!this._comebackChecked) {
           this._comebackChecked = true
           const comeback = this.storage.checkComeback()
-          if (comeback) P.showGameToast('欢迎回来！体力已回满，灵石+300')
+          if (comeback) P.showGameToast('欢迎回来！体力已回满，灵石+300', { type: 'resource', icon: 'assets/ui/icon_soul_stone.png' })
         }
         // 从秘境结算返回首页 + 体力耗尽 → 引导通天塔或明日预告
         if (oldScene === 'stageResult'
@@ -203,88 +204,114 @@ class Main {
         }
       }
 
-      // 新手冒险者礼包：1-1 首通后首次回到主页弹出
-      if (newScene === 'title'
-          && this.storage.isStageCleared('stage_1_1')
+      // === 主页进入：强提示优先级编排 ===
+      // 原则：同一次 scene:change 只触发一条"强打断"（礼包弹窗 / toast / 引导），
+      // 其余条件满足的在下一次返回主页时依次出现，避免叠加压迫感。
+      if (newScene === 'title') {
+        // 【最高优】新手冒险者礼包：1-1 首通后首次回到主页弹出
+        const shouldShowNewbieGift = this.storage.isStageCleared('stage_1_1')
           && !this.storage.isGuideShown('newbie_gift_claimed')
-          && !this._newbieGift) {
-        newbieGiftView.show(this)
-      }
+          && !this._newbieGift
+        if (shouldShowNewbieGift) {
+          newbieGiftView.show(this)
+          // 礼包弹出时不触发其它 toast / 引导，避免视觉冲突
+          // 合并 toast 队列保留，待礼包关闭后由 newbieGiftView 关闭回调 / 下一次主页进入展示
+        } else if (!this._newbieGift && !this._pendingGuide) {
+          // 没有礼包弹窗时才放出其他强提示
+          let slotTaken = false
 
-      // 新手关首通合并 toast：1-1/1-2 静默入池的宠物名一次性提示
-      if (newScene === 'title' && Array.isArray(this._newbiePetsObtained) && this._newbiePetsObtained.length > 0) {
-        const names = this._newbiePetsObtained.slice(0, 5).join('、')
-        const extra = this._newbiePetsObtained.length > 5 ? ` 等 ${this._newbiePetsObtained.length} 只` : ''
-        if (P.showGameToast) P.showGameToast(`新灵宠「${names}」${extra}已加入灵宠池`)
-        this._newbiePetsObtained = []
-      }
+          // 【P1】新手关首通合并 toast（资源型：新灵宠已入池）
+          if (Array.isArray(this._newbiePetsObtained) && this._newbiePetsObtained.length > 0) {
+            const names = this._newbiePetsObtained.slice(0, 5).join('、')
+            const extra = this._newbiePetsObtained.length > 5 ? ` 等 ${this._newbiePetsObtained.length} 只` : ''
+            if (P.showGameToast) P.showGameToast(`新灵宠「${names}」${extra}已加入灵宠池`, { type: 'resource' })
+            this._newbiePetsObtained = []
+            slotTaken = true
+          }
 
-      // 每日任务 / 签到首次引导：1-1 已通关即触发（入口可见时）
-      if (newScene === 'title'
-          && this.storage.isStageCleared('stage_1_1')
-          && !this.storage.isGuideShown('daily_entry_intro')
-          && !this._newbieGift) {
-        guideMgr.trigger(this, 'daily_entry_intro')
-      }
-
-      // 派遣首次有可领奖励提示
-      if (newScene === 'title'
-          && !this.storage.isGuideShown('idle_collect_hint')
-          && this.storage.isStageCleared('stage_1_3')) {
-        const slots = (this.storage.idleDispatch && this.storage.idleDispatch.slots) || []
-        const lastCollect = (this.storage.idleDispatch && this.storage.idleDispatch.lastCollect) || 0
-        const hasReward = slots.length > 0 && (Date.now() - lastCollect > 4 * 60 * 60 * 1000)
-        if (hasReward) guideMgr.trigger(this, 'idle_collect_hint')
-      }
-
-      // 从灵宠池/修炼返回主页时触发后续引导
-      if (newScene === 'title' && !this._pendingGuide && !this._newbieGift) {
-        // 1-1 已通、1-2 未通 → 引导继续 1-2（需等开始按钮渲染后触发）
-        if (this.storage.isGuideShown('newbie_stage_continue') && !this.storage.isStageCleared('stage_1_2')) {
-          this._stageIdxInitialized = false
-          this._pendingGuide = 'newbie_continue_1_2'
-        }
-        // 1-2 已通、1-3 未通 → 引导继续 1-3
-        else if (this.storage.isStageCleared('stage_1_2') && !this.storage.isStageCleared('stage_1_3')) {
-          this._stageIdxInitialized = false
-          this._pendingGuide = 'newbie_continue_1_3'
-        }
-        // 养成引导完成后 → 引导修炼
-        else if (this.storage.isGuideShown('newbie_grow_intro')
-                 && !this.storage.isGuideShown('newbie_team_ready')) {
-          guideMgr.trigger(this, 'newbie_team_ready')
-        }
-        // 升星引导（碎片够 + 等级够 → 引导升星；碎片够但等级不够 → 提示先升级）
-        else if (!this.storage.isGuideShown('starup_intro')) {
-          const pool1 = this.storage.petPool.filter(p => p.star === 1)
-          const ready = pool1.find(p => p.fragments >= 8 && p.level >= 10)
-          if (ready) {
-            guideMgr.trigger(this, 'starup_intro')
-          } else if (!this.storage.isGuideShown('starup_level_hint')) {
-            const fragReady = pool1.find(p => p.fragments >= 8 && p.level < 10)
-            if (fragReady) {
-              guideMgr.trigger(this, 'starup_level_hint')
+          // 【P2】主引导链：每次最多触发 1 条
+          if (!slotTaken) {
+            // 1-1 已通、1-2 未通 → 引导继续 1-2（需等开始按钮渲染后触发）
+            if (this.storage.isGuideShown('newbie_stage_continue') && !this.storage.isStageCleared('stage_1_2')) {
+              this._stageIdxInitialized = false
+              this._pendingGuide = 'newbie_continue_1_2'
+              slotTaken = true
+            }
+            // 1-2 已通、1-3 未通 → 引导继续 1-3
+            else if (this.storage.isStageCleared('stage_1_2') && !this.storage.isStageCleared('stage_1_3')) {
+              this._stageIdxInitialized = false
+              this._pendingGuide = 'newbie_continue_1_3'
+              slotTaken = true
+            }
+            // 养成引导完成后 → 引导修炼
+            else if (this.storage.isGuideShown('newbie_grow_intro')
+                     && !this.storage.isGuideShown('newbie_team_ready')) {
+              guideMgr.trigger(this, 'newbie_team_ready')
+              slotTaken = true
+            }
+            // 升星引导
+            else if (!this.storage.isGuideShown('starup_intro')) {
+              const pool1 = this.storage.petPool.filter(p => p.star === 1)
+              const ready = pool1.find(p => p.fragments >= 8 && p.level >= 10)
+              if (ready) {
+                guideMgr.trigger(this, 'starup_intro')
+                slotTaken = true
+              } else if (!this.storage.isGuideShown('starup_level_hint')) {
+                const fragReady = pool1.find(p => p.fragments >= 8 && p.level < 10)
+                if (fragReady) {
+                  guideMgr.trigger(this, 'starup_level_hint')
+                  slotTaken = true
+                }
+              }
+            }
+            // 第 1 章通关 → 养成总引导
+            else if (this.storage.isStageCleared('stage_1_8')
+                     && !this.storage.isGuideShown('chapter1_grow_summary')) {
+              guideMgr.trigger(this, 'chapter1_grow_summary')
+              slotTaken = true
+            }
+            // 解锁通天塔引导
+            else if (this.storage.isStageCleared('stage_1_8')
+                     && this.storage.isGuideShown('chapter1_grow_summary')
+                     && !this.storage.isGuideShown('tower_unlock')) {
+              guideMgr.trigger(this, 'tower_unlock')
+              slotTaken = true
+            }
+            // 新手引导结束
+            else if (this.storage.isStageCleared('stage_1_8')
+                     && this.storage.isGuideShown('chapter1_grow_summary')
+                     && this.storage.isGuideShown('tower_unlock')
+                     && this.storage.isGuideShown('newbie_team_ready')
+                     && !this.storage.isGuideShown('newbie_after_cult')) {
+              guideMgr.trigger(this, 'newbie_after_cult')
+              slotTaken = true
             }
           }
-        }
-        // 第 1 章通关 → 养成总引导（升级/升星/修炼的综合介绍）
-        else if (this.storage.isStageCleared('stage_1_8')
-                 && !this.storage.isGuideShown('chapter1_grow_summary')) {
-          guideMgr.trigger(this, 'chapter1_grow_summary')
-        }
-        // 养成总引导完成 → 解锁通天塔引导
-        else if (this.storage.isStageCleared('stage_1_8')
-                 && this.storage.isGuideShown('chapter1_grow_summary')
-                 && !this.storage.isGuideShown('tower_unlock')) {
-          guideMgr.trigger(this, 'tower_unlock')
-        }
-        // 第 1 章通关 + 养成总引导 + 通天塔引导完成 → 新手引导结束
-        else if (this.storage.isStageCleared('stage_1_8')
-                 && this.storage.isGuideShown('chapter1_grow_summary')
-                 && this.storage.isGuideShown('tower_unlock')
-                 && this.storage.isGuideShown('newbie_team_ready')
-                 && !this.storage.isGuideShown('newbie_after_cult')) {
-          guideMgr.trigger(this, 'newbie_after_cult')
+
+          // 【P3】信息型引导：没有主引导时才触发（互相之间也只出一条）
+          if (!slotTaken) {
+            // 每日任务 / 签到首次引导：延后到 1-3 通关后，避免新手礼包刚出来就推新概念
+            if (this.storage.isStageCleared('stage_1_3')
+                && !this.storage.isGuideShown('daily_entry_intro')) {
+              guideMgr.trigger(this, 'daily_entry_intro')
+              slotTaken = true
+            }
+            // 派遣有奖励可领：需有派遣槽 + 累计时长达单次奖励周期（非伪触发）
+            else if (this.storage.isStageCleared('stage_1_3')
+                     && !this.storage.isGuideShown('idle_collect_hint')) {
+              const dispatch = this.storage.idleDispatch || {}
+              const slots = dispatch.slots || []
+              const PAYOUT_MS = 2 * 60 * 60 * 1000  // 2 小时一个完整奖励周期
+              const hasRealReward = slots.some(s => {
+                const startT = s && (s.startTime || s.assignedAt || 0)
+                return startT > 0 && (Date.now() - startT) >= PAYOUT_MS
+              })
+              if (hasRealReward) {
+                guideMgr.trigger(this, 'idle_collect_hint')
+                slotTaken = true
+              }
+            }
+          }
         }
       }
     })
@@ -699,7 +726,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -766,45 +793,39 @@ class Main {
       dialogs.drawFragmentPopup(this)
     }
     guideOverlay.draw(this)
+    // Toast 在引导之上、在礼包/确认框之下，保证对话框可遮盖（避免视觉冲突）
+    gameToast.draw()
     if (this._newbieGift) newbieGiftView.draw(this)
     if (this._helpTour) helpTourView.draw(this)
     if (this._confirmDialog) drawConfirmDialog(this)
     if (this._adRewardPopup) drawAdRewardPopup(this)
 
-    // 新手礼包领取后 2 秒资源用途说明
-    if (this._pendingResourceHint && this._pendingResourceHint.show) {
-      this._pendingResourceHint.timer++
-      // 延迟 20 帧（等飞入动画完成）后展示 2 秒（约 120 帧），总共存活 140 帧
-      const totalLife = 20 + 120
-      const t = this._pendingResourceHint.timer
-      if (t > 20 && t < totalLife) {
-        const fadeIn = Math.min((t - 20) / 10, 1)
-        const fadeOut = t > totalLife - 15 ? Math.max(0, (totalLife - t) / 15) : 1
-        const alpha = fadeIn * fadeOut
-        ctx.save()
-        ctx.globalAlpha = alpha
-        const txt = '灵石→升级  ·  碎片→升星  ·  万能碎片→任意升星  ·  体力→秘境'
-        ctx.font = `${11 * S}px "PingFang SC",sans-serif`
-        const tw = ctx.measureText(txt).width
-        const padX = 12 * S
-        const boxW = tw + padX * 2
-        const boxH = 26 * S
-        const boxX = (W - boxW) / 2
-        const boxY = H - boxH - 40 * S
-        ctx.fillStyle = 'rgba(0,0,0,0.72)'
-        R.rr(boxX, boxY, boxW, boxH, 12 * S); ctx.fill()
-        ctx.strokeStyle = 'rgba(232,184,32,0.55)'
-        ctx.lineWidth = 1 * S
-        R.rr(boxX, boxY, boxW, boxH, 12 * S); ctx.stroke()
-        ctx.fillStyle = '#fff'
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText(txt, W / 2, boxY + boxH / 2)
-        ctx.restore()
+    // 万能碎片胶囊脉冲高亮：新手礼包关闭后引导玩家注意顶栏新增的资源
+    if (this._uniFragPulse && this._uniFragPillRect) {
+      this._uniFragPulse.timer++
+      const t = this._uniFragPulse.timer
+      const life = 80 // 约 1.3s，展示 2 次脉冲
+      if (t < life) {
+        const [rx, ry, rw, rh] = this._uniFragPillRect
+        // 两次脉冲叠加（不同相位）
+        const p1 = (t % 40) / 40
+        const p2 = ((t + 20) % 40) / 40
+        const drawRing = (p) => {
+          const spread = 10 * S * p
+          const alpha = (1 - p) * 0.6
+          ctx.save()
+          ctx.globalAlpha = alpha
+          ctx.strokeStyle = '#E8B820'
+          ctx.lineWidth = 2 * S
+          R.rr(rx - spread, ry - spread, rw + spread * 2, rh + spread * 2, (rh + spread * 2) / 2)
+          ctx.stroke()
+          ctx.restore()
+        }
+        drawRing(p1)
+        drawRing(p2)
         this._dirty = true
-      } else if (t >= totalLife) {
-        this._pendingResourceHint = null
       } else {
-        this._dirty = true
+        this._uniFragPulse = null
       }
     }
     ctx.restore()
