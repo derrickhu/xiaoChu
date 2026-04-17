@@ -17,6 +17,7 @@ const { HERO_BASE_HP } = require('../data/balance/combat')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { NEWBIE_PET_IDS, NEWBIE_2STAR_IDS } = require('../data/constants')
+const { LING } = require('../data/lingIdentity')
 
 // 教学专用固定5只宠物（每属性取第一只基础宠物，保证五行齐全）
 function _makeTutorialPets() {
@@ -38,24 +39,24 @@ const STEPS = [
     title: '转珠基础',
     storyCards: [
       {
-        heading: '五行灵宠，助我战！',
+        heading: '五行灵宠，随主人同往！',
+        subLabel: '第 1 课 · 序幕',
         lines: [
-          '我在修仙世界遭遇了凶险妖兽……',
-          '危急之间，五只灵宠降临守护！',
-          '金·木·水·火·土，五行之力齐聚！',
+          '主人，前方有凶险妖兽现身——',
+          '别慌！小灵已唤来五位灵宠守护你：',
+          '金·木·水·火·土，五行之力齐聚于身！',
         ],
-        note: '灵宠们正等待我的召唤——',
-        icon: '灵',
+        note: '灵宠们正等着主人下令哦～',
       },
       {
         heading: '消珠即攻击！',
+        subLabel: '第 1 课 · 转珠',
         lines: [
-          '棋盘上布满五色能量珠，',
-          '消除三颗同色灵珠，',
-          '对应属性的灵宠就会发起攻击！',
+          '棋盘上布满了五色能量珠，',
+          '主人只要连成三颗同色珠，',
+          '对应灵宠就会替主人出手啦！',
         ],
-        note: '尽量多消除，让灵宠们全力出击！',
-        icon: '珠',
+        note: '小灵偷偷说：多消一组，灵宠就更来劲哦～',
       },
     ],
     board: [
@@ -119,15 +120,15 @@ const STEPS = [
     enemy: { name:'训练木偶', attr:'earth', hp:200, maxHp:200, atk:30, def:0, skills:[], avatar:'enemies/tower/mon_e_1', _tutorial:true, _tutorAtk:true },
     storyCards: [
       {
-        heading: '凶兽反扑！',
+        heading: '凶兽反扑，需要 Combo！',
+        subLabel: '第 2 课 · 连击与回血',
         lines: [
-          '妖兽远比想象中顽强，',
-          '一击不足以制敌！',
-          '多消灵珠引发连击Combo，',
-          '才能压制强敌！',
+          '主人，这妖兽比我预想还要硬朗，',
+          '单一次打击怕是不够的。',
+          '多消几组灵珠触发 Combo 连击，',
+          '才能压着它打哦～',
         ],
-        note: '受伤时消除粉色心珠可回血',
-        icon: '击',
+        note: '受伤了就找粉色心珠——小灵给你续命！',
       },
     ],
     msg: [
@@ -176,14 +177,14 @@ const STEPS = [
     enemy: { name:'木灵花妖', attr:'wood', hp:200, maxHp:200, atk:0, def:0, skills:[], avatar:'enemies/tower/mon_w_1', _tutorial:true },
     storyCards: [
       {
-        heading: '木灵花妖挡道！',
+        heading: '木灵花妖挡路～',
+        subLabel: '第 3 课 · 五行相克',
         lines: [
-          '修仙之道，五行相克是核心法则！',
-          '金克木·木克土·土克水',
-          '水克火·火克金，循环相生相克。',
+          '主人，修仙世界里五行相克是个大学问：',
+          '金克木 · 木克土 · 土克水，',
+          '水克火 · 火克金，循环相生相克。',
         ],
-        note: '克制属性伤害×1.6，被克×0.5！',
-        icon: '克',
+        note: '克制属性伤害×1.6，被克只剩×0.5！',
       },
     ],
     msg: [
@@ -205,13 +206,13 @@ const STEPS = [
     storyCards: [
       {
         heading: '灵宠蓄势待发！',
+        subLabel: '第 4 课 · 灵宠技能',
         lines: [
-          '傀儡坚韧，单靠消珠难以速胜。',
-          '灵宠在战斗中不断积蓄能量，',
-          '能量充满时即可释放强力技能！',
+          '主人，这傀儡皮糙肉厚，光消珠不够看；',
+          '不过小灵发现——灵宠会在战斗里蓄能，',
+          '能量满了就能放大招！',
         ],
-        note: '从灵宠头像向上滑动，释放大招！',
-        icon: '技',
+        note: '从灵宠头像向上滑动一下，让它们爆发吧！',
       },
     ],
     msg: [
@@ -404,10 +405,10 @@ function update(g) {
     _storyAlpha = Math.min(1, _storyAlpha + 0.04)
   }
   if (_phase === 'intro') {
-    _introTimer++
-    if (_introTimer > 30) {
-      _phase = 'play'
-    }
+    // 只推进到 30 帧用于 alpha 淡入，不再自动切 play：
+    // 以前这里 > 30 就切 play，会导致新手进 1-1 时介绍卡"秒弹秒消失"，
+    // 现在等玩家主动 onIntroTap 才切走，保证他们有足够时间看文案
+    if (_introTimer < 60) _introTimer++
   }
   // 检测胜利后的步骤切换
   if (g.bState === 'victory') {
@@ -419,14 +420,20 @@ function update(g) {
 // 故事卡翻页（preIntro 阶段）
 function onStoryCardTap(g) {
   if (_phase !== 'preIntro') return false
-  const step = STEPS[_step]
-  const cards = (step && step.storyCards) || []
+  // stageMode（秘境简化教学）从 _stageOverrideData 取卡，翻完直接进 play；
+  // 普通教学关从 STEPS[_step] 取卡，翻完进入 intro（"第 X 课"小标题黑底卡）。
+  const cards = _stageMode
+    ? ((_stageOverrideData && _stageOverrideData.storyCards) || [])
+    : ((STEPS[_step] && STEPS[_step].storyCards) || [])
   _storyPage++
   _storyAlpha = 0
   if (_storyPage >= cards.length) {
-    // 所有故事卡看完，进入 intro 阶段
-    _phase = 'intro'
-    _introTimer = 0
+    if (_stageMode) {
+      _phase = 'play'
+    } else {
+      _phase = 'intro'
+      _introTimer = 0
+    }
   }
   return true
 }
@@ -644,9 +651,9 @@ function getGuideData() {
       victoryTimer: _victoryMsgTimer,
       isSummary: false,
       roundTransitTimer: 0,
-      storyCards: [],
-      storyPage: 0,
-      storyAlpha: 0,
+      storyCards: rd.storyCards || [],
+      storyPage: _storyPage,
+      storyAlpha: _storyAlpha,
     }
   }
 
@@ -707,14 +714,14 @@ function startStageTutorial(g) {
     }
   }
 
-  // 教学状态设为 intro → 自动切 play
-  _phase = 'intro'
-  _introTimer = 0
   _msgIdx = 0; _msgTimer = 0; _arrowTimer = 0
   _afterElimShown = false; _guideDone = false; _victoryMsgTimer = 0
   _storyPage = 0; _storyAlpha = 0
 
   _stageMode = true
+  // 1-1 首次入场：用小灵讲堂卡（drawLingCard）代替老版"第1课"黑底卡，
+  // 文案全部走 LING.teach.stageCards.stage_1_1，保持和其它新手气泡一致的身份/画风。
+  const teach11 = (LING.teach && LING.teach.stageCards && LING.teach.stageCards.stage_1_1) || null
   _stageOverrideData = {
     guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
     msg: [
@@ -722,7 +729,17 @@ function startStageTutorial(g) {
       { text: '灵珠消除，金锋灵猫发动攻击！', timing: 'afterElim' },
     ],
     title: '转珠攻击',
+    storyCards: teach11 ? [{
+      heading: teach11.title,
+      subLabel: teach11.subLabel,
+      lines: teach11.lines,
+      note: teach11.note,
+    }] : [],
   }
+
+  // 若有讲解卡则先走 preIntro（讲完再进 play）；无卡才直接 intro
+  _phase = (_stageOverrideData.storyCards.length > 0) ? 'preIntro' : 'intro'
+  _introTimer = 0
 
   g.bState = 'playerTurn'
   g._dirty = true

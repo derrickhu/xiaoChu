@@ -154,6 +154,8 @@ function startStage(g, stageId, teamPetIds) {
   g._mechanicTriggered = false
   g._challengeDone = false
   g._challengeProgress = 0
+  g._challengeDoneAnimT = null
+  g._challengeDoneJustFired = false
   g._maxCombo = 0
   g._stageRatingS = stage.rating ? stage.rating.s : 0
 
@@ -163,9 +165,17 @@ function startStage(g, stageId, teamPetIds) {
   // 初始化棋盘
   initBoard(g)
 
-  // 技巧聚焦开场提示
-  if (mf && mf.openTip) {
-    g._mechanicOpenTip = { text: mf.openTip, timer: 0 }
+  // 技巧聚焦开场提示：分两级
+  //   L1 · 阻塞讲解卡（小灵讲堂）：1-2 / 1-3 首通前的新机制，等玩家主动点击确认
+  //   L2 · 非阻塞横条（_mechanicOpenTip）：1-4 ~ 1-8，自动淡出，不打断节奏
+  // 首通后两者都不再弹，避免老玩家被反复提示。
+  const teachCards = require('../data/lingIdentity').LING.teach.stageCards
+  const cardCfg = teachCards[stageId]
+  const isFirstClear = !g.storage.isStageCleared(stageId)
+  if (cardCfg && isFirstClear) {
+    g._stageIntroCard = { stageId, animT: 0, armed: false }
+  } else if (mf && mf.openTip && isFirstClear) {
+    g._mechanicOpenTip = { stageId, timer: 0 }
   }
 
   g.bState = 'playerTurn'
@@ -259,6 +269,8 @@ function startStageNewbie(g, stageId) {
   g._mechanicTriggered = false
   g._challengeDone = false
   g._challengeProgress = 0
+  g._challengeDoneAnimT = null
+  g._challengeDoneJustFired = false
   g._maxCombo = 0
   g._stageRatingS = 0
   initBoard(g)

@@ -8,7 +8,8 @@ const { getPetAvatarPath, MAX_STAR, PETS, getPetSkillDesc, getPetLore, getStar3O
 const { RARITY_VISUAL } = require('../data/economyConfig')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
-const { drawPanel, drawRibbonIcon, drawCelebrationBackdrop, drawRewardRow, drawBuffCard } = require('./uiComponents')
+const { drawPanel, drawRibbonIcon, drawCelebrationBackdrop, drawRewardRow, drawBuffCard, drawLingCard, wrapText } = require('./uiComponents')
+const { LING } = require('../data/lingIdentity')
 const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR_LABEL, TOTAL_PET_COUNT,
   ELEM_MILESTONES, TOTAL_MILESTONES, RARITY_MILESTONES,
   hasUnclaimedMilestones } = require('../data/dexConfig')
@@ -2516,27 +2517,27 @@ function _drawHighlightedLines(ctx, lines, x, startY, lineH, fontSize, S) {
   })
 }
 
-// ===== 图鉴首次介绍卡（更新文案） =====
+// ===== 图鉴首次介绍卡（小灵讲解口吻） =====
 const _DEX_INTRO_CARDS = [
   {
-    icon: '鉴',
-    heading: '灵兽图鉴',
+    subLabel: '第 1/2 课 · 灵兽图鉴',
+    title: '灵兽图鉴是什么',
     lines: [
-      '灵宠入池即「发现」，升至★3即「收录」，',
-      '★5满星即「精通」—— 解锁背景故事！',
-      '图鉴记录你收集的每一只灵兽。',
+      '主人～ 灵兽入池就算「发现」，',
+      '把它升到★3 就算「收录」，',
+      '★5 满星即「精通」，还能解锁背景故事！',
     ],
-    note: '☆ 收集更多灵兽，解锁永久属性加成！',
+    note: '☆ 主人收的灵兽越多，永久属性加成越丰厚',
   },
   {
-    icon: '碑',
-    heading: '里程碑奖励',
+    subLabel: '第 2/2 课 · 里程碑',
+    title: '里程碑奖励',
     lines: [
-      '按属性、总量、稀有度三个维度收集，',
-      '达成里程碑可领取永久全队加成！',
-      '切换到「里程碑」标签查看详情。',
+      '小灵按属性、总量、稀有度三条路帮主人记账；',
+      '达成里程碑就能领到全队永久加成~',
+      '到「里程碑」标签里瞧瞧目标吧！',
     ],
-    note: '✦ ATK/HP/DEF 永久提升，越收集越强！',
+    note: '✦ ATK / HP / DEF 永久提升，越收集越强',
   },
 ]
 
@@ -2546,7 +2547,7 @@ function _drawDexIntro(g) {
   const card = _DEX_INTRO_CARDS[page]
   if (!card) return
 
-  g._dexIntroAlpha = Math.min(1, (g._dexIntroAlpha || 0) + 0.05)
+  g._dexIntroAlpha = Math.min(1, (g._dexIntroAlpha || 0) + 0.08)
   g._dirty = true
   const alpha = g._dexIntroAlpha
   const af = g.af || 0
@@ -2555,57 +2556,39 @@ function _drawDexIntro(g) {
   ctx.globalAlpha = alpha * 0.72; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = alpha
 
-  const pw = W * 0.88, ph = 360 * S
-  const px = (W - pw) / 2, py = (H - ph) / 2 - 10 * S
-  const ribbonH = 56 * S
-
-  const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH })
-  drawRibbonIcon(ctx, S, px, ribbonCY, card.icon)
-
-  ctx.fillStyle = '#3a1a00'
-  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
-
-  const sepY = py + ribbonH + 14 * S
-  const sepLX = px + 24 * S, sepRX = px + pw - 24 * S, sepMX = W / 2
-  ctx.strokeStyle = 'rgba(160,120,40,0.3)'; ctx.lineWidth = 1 * S
-  ctx.beginPath(); ctx.moveTo(sepLX, sepY); ctx.lineTo(sepMX - 10 * S, sepY); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(sepMX + 10 * S, sepY); ctx.lineTo(sepRX, sepY); ctx.stroke()
-  ctx.save()
-  ctx.translate(sepMX, sepY); ctx.rotate(Math.PI / 4)
-  ctx.fillStyle = 'rgba(200,158,60,0.7)'; ctx.fillRect(-4 * S, -4 * S, 8 * S, 8 * S)
-  ctx.restore()
-
-  const cTop = sepY + 18 * S, lineH = 34 * S
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
-  ;(card.lines || []).forEach((line, i) => {
-    ctx.font = `${14 * S}px "PingFang SC",sans-serif`; ctx.fillStyle = '#4a3820'
-    ctx.fillText(line, W / 2, cTop + i * lineH)
+  const pw = Math.min(W - 32 * S, 360 * S)
+  const bodyFs = 14 * S
+  const lineH = 26 * S
+  const textMaxW = pw - 40 * S
+  ctx.font = `${bodyFs}px "PingFang SC",sans-serif`
+  const lines = []
+  ;(card.lines || []).forEach(line => {
+    wrapText(ctx, line, textMaxW).forEach(l => lines.push(l))
   })
+  const headerH = 50 * S
+  const titleH = 46 * S
+  const bodyH = lines.length * lineH
+  const noteH = card.note ? 30 * S : 0
+  const footerH = 46 * S
+  const ph = headerH + titleH + bodyH + noteH + footerH
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2 - 10 * S
 
-  if (card.note) {
-    const noteY = cTop + (card.lines || []).length * lineH + 14 * S
-    ctx.fillStyle = '#b06010'; ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
-    ctx.fillText(card.note, W / 2, noteY)
-  }
-
-  const dotAreaY = py + ph - 44 * S
-  const total = _DEX_INTRO_CARDS.length, dotR = 4 * S, dotGap = 14 * S
-  const dotsStartX = W / 2 - ((total - 1) * dotGap) / 2
-  ctx.textBaseline = 'alphabetic'
-  for (let i = 0; i < total; i++) {
-    const dx = dotsStartX + i * dotGap
-    ctx.beginPath(); ctx.arc(dx, dotAreaY, dotR, 0, Math.PI * 2)
-    ctx.fillStyle = i === page ? '#c07820' : 'rgba(160,120,40,0.3)'; ctx.fill()
-  }
-
-  const hintPulse = 0.55 + 0.45 * Math.sin(af * 0.1)
-  ctx.globalAlpha = alpha * hintPulse
-  ctx.font = `${10 * S}px "PingFang SC",sans-serif`
-  ctx.fillStyle = '#8a6030'; ctx.textAlign = 'center'
-  ctx.fillText(page >= total - 1 ? '点击进入图鉴 ›' : '点击继续 ›', W / 2, py + ph - 16 * S)
+  drawLingCard(ctx, S, px, py, pw, ph, {
+    avatarImg: R.getImg(LING.avatar),
+    speaker: LING.speaker,
+    subLabel: card.subLabel,
+    title: card.title,
+    lines,
+    note: card.note,
+    fontSizeBody: bodyFs,
+    lineH,
+    pageIdx: page,
+    totalPages: _DEX_INTRO_CARDS.length,
+    continueText: page >= _DEX_INTRO_CARDS.length - 1 ? '点击进入图鉴 ›' : '点击继续 ›',
+    animT: alpha,
+    pulseT: af * 0.1,
+  })
 
   ctx.restore()
 }

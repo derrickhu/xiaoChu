@@ -15,7 +15,11 @@ const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stage
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
-const { drawCelebrationBackdrop } = require('./uiComponents')
+const { drawCelebrationBackdrop, drawLingHeader } = require('./uiComponents')
+const { LING } = require('../data/lingIdentity')
+const C = require('./uiColors')
+const lingCheer = require('./lingCheer')
+const buttonFx = require('./buttonFx')
 
 const _rects = {
   backBtnRect: null,
@@ -57,6 +61,17 @@ function rStageResult(g) {
   if (!result.victory) {
     _victoryRewardScrollMax = 0
     _victoryRewardViewport = null
+  }
+
+  // 首通庆贺横条：在结算页首帧由小灵露脸夸一句（不打断逐个庆祝 / 全屏总览）
+  if (at === 1 && !result._lingCheered && result.victory && result.isFirstClear) {
+    result._lingCheered = true
+    const stage = getStageById(result.stageId)
+    const stageName = (stage && stage.name) || ''
+    const msg = _isFinalBossStageResult(result)
+      ? LING.cheer.stageFirstClearBoss()
+      : LING.cheer.stageFirstClear(stageName)
+    lingCheer.show(msg, { tone: 'epic', duration: 2400 })
   }
 
   // 1-1 / 1-2 首通：静默入池，跳过逐个庆祝和总览卡，直接显示结算让玩家"下一关"
@@ -779,12 +794,13 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
     skillLineY += 15 * S
   }
   if (result.challengeDesc) {
-    const cColor = result.challengeDone ? '#a5d6a7' : 'rgba(180,150,100,0.7)'
+    // 使用 uiColors 的成功绿 / 警告金棕，避免原 #a5d6a7 在亮底上对比不足的问题
+    const cColor = result.challengeDone ? C.success : C.warn
     const cIcon = result.challengeDone ? '✓' : '✗'
     const cExtra = result.challengeRewardSS > 0 ? `  灵石+${result.challengeRewardSS}` : ''
-    c.fillStyle = cColor; c.font = `${10*S}px "PingFang SC",sans-serif`
-    _strokeText(c, `${cIcon} 挑战：${result.challengeDesc}${result.challengeDone ? cExtra : '  未完成'}`, W * 0.5, skillLineY, 'rgba(255,255,255,0.3)', 2 * S)
-    skillLineY += 15 * S
+    c.fillStyle = cColor; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    _strokeText(c, `${cIcon} 挑战：${result.challengeDesc}${result.challengeDone ? cExtra : '  未完成'}`, W * 0.5, skillLineY, 'rgba(0,0,0,0.18)', 2.2 * S)
+    skillLineY += 16 * S
   }
 
   // 星级结算加成已反映在下方灵石/碎片等总额中，此处只作提示，不再单独列数字，避免与面板重复
@@ -1027,12 +1043,14 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 12 * S
   }
 
-  // ── 区块2：变强建议 ──
+  // ── 区块2：变强建议（小灵点评） ──
   if (tips.length > 0) {
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    c.fillStyle = '#6B6040'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText('如何变强', px + pad, cy + 6 * S)
-    cy += 24 * S
+    const lingHdr = drawLingHeader(c, S, px + pad, cy, {
+      avatarImg: R.getImg(LING.avatar),
+      title: '小灵支招 · 如何变强',
+      subtitle: '主人别灰心，下面这些照着练就行啦～',
+    })
+    cy += lingHdr.height + 8 * S
 
     _rects.tipRects = []
     for (let i = 0; i < tips.length; i++) {
@@ -1089,11 +1107,11 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   // ── 保底奖励（灵石/经验）──
   if (result.soulStone > 0) {
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${result.soulStone}`, '#5577AA', '#3366AA')
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '灵石', `+${result.soulStone}`, C.soulLabel, C.soulValue)
     cy += 28 * S
   }
   if (result.cultExp > 0) {
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${result.cultExp}`, '#8B7355', '#B8860B')
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${result.cultExp}`, C.cultExpLabel, C.cultExpValue)
     cy += 22 * S
     if (result.cultLevelUps > 0) {
       c.fillStyle = '#D4A030'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
@@ -1492,7 +1510,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     const ssLabel = result.duplicateWeaponSoulStone > 0
       ? (hasChapterClear ? '本关灵石（含法宝熔炼）' : '灵石（含法宝熔炼）')
       : (hasChapterClear ? '本关灵石' : '灵石')
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, '#5577AA', '#3366AA')
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', ssLabel, `+${result.soulStone}`, C.soulLabel, C.soulValue)
     c.restore()
     cy += 32 * S
     rowIdx++
@@ -1503,7 +1521,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     const msDelay = 15 + rowIdx * 6
     const msAlpha = Math.min(1, Math.max(0, (at - msDelay) / 12))
     c.save(); c.globalAlpha *= msAlpha
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '首通灵石奖励', `+${result.firstClearSoulStone}`, '#C87830', '#B86830')
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_soul_stone', '首通灵石奖励', `+${result.firstClearSoulStone}`, C.soulAccent, C.soulAccent)
     c.restore()
     cy += 32 * S
     rowIdx++
@@ -1514,7 +1532,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     const expDelay = 15 + rowIdx * 6
     const expAlpha = Math.min(1, Math.max(0, (at - expDelay) / 12))
     c.save(); c.globalAlpha *= expAlpha
-    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${result.cultExp}`, '#8B7355', '#B8860B')
+    _drawExpRow(c, R, S, px + pad, cy, innerW, 'icon_cult_exp', '修炼经验', `+${result.cultExp}`, C.cultExpLabel, C.cultExpValue)
     c.restore()
     cy += 22 * S
 
@@ -2341,6 +2359,8 @@ function tStageResult(g, x, y, type) {
 
   if (_rects.nextBtnRect && g._hitRect(x, y, ..._rects.nextBtnRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
+    // 主推 CTA：金光爆点 —— 让"再次挑战 / 下一关"那一下有打击感
+    buttonFx.trigger(_rects.nextBtnRect.slice(), 'upgrade')
     // 新手前 2 关首通：直接进入下一关战斗，不经过选关/编队
     if (result.victory && result.isFirstClear
         && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {

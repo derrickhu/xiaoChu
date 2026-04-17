@@ -30,10 +30,10 @@ function _checkTowerDailyLimit(g) {
         lines: [{ icon: 'nav_battle', label: '通天塔', amount: '+1 次' }],
       },
       onSkipped: function () {
-        P.showGameToast('需完整观看广告')
+        P.showGameToast('需完整观看广告', { type: 'warn' })
       },
       onError: function () {
-        P.showGameToast('广告加载失败，请稍后重试')
+        P.showGameToast('广告加载失败，请稍后重试', { type: 'warn' })
       },
     })
     return false
@@ -327,7 +327,7 @@ function tTitle(g, type, x, y) {
     && g._hitRect(x, y, ...g._gameClubBtnRect)) {
     P.openGameClubPage(TITLE_HOME.gameClubOpenlink).catch((e) => {
       console.warn('[GameClub] PageManager', e)
-      P.showGameToast('无法打开游戏圈，请稍后重试')
+      P.showGameToast('无法打开游戏圈，请稍后重试', { type: 'warn' })
     })
     MusicMgr.playClick && MusicMgr.playClick()
     return
@@ -406,7 +406,7 @@ function _handleStageStart(g) {
     }
     const stageMgr = require('../engine/stageManager')
     if (!stageMgr.startStageNewbie(g, stage.id)) {
-      P.showGameToast('开始关卡失败')
+      P.showGameToast('开始关卡失败', { type: 'warn' })
     }
     return
   }

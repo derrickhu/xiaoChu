@@ -814,7 +814,7 @@ function tTowerTeam(g, x, y, type) {
   if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
     const wCol = g.storage.weaponCollection || []
     if (wCol.length > 0 && !g.storage.equippedWeaponId) {
-      P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再出发')
+      P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再出发', { type: 'warn' })
       return
     }
     const sel = _ensureSelected(g)
@@ -881,7 +881,7 @@ function tTowerTeam(g, x, y, type) {
       if (selected.length < MAX_TEAM) {
         selected.push(item.petId)
       } else {
-        P.showGameToast('编队已满（最多5只）')
+        P.showGameToast('编队已满（最多5只）', { type: 'warn' })
       }
       return
     }

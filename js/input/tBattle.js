@@ -9,7 +9,7 @@ const guideMgr = require('../engine/guideManager')
 const runMgr = require('../engine/runManager')
 const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
-const { HELP_PAGE_COUNT } = require('../views/battleView')
+const { HELP_PAGE_COUNT, dismissStageIntroCard } = require('../views/battleView')
 const { SWAP_ANIM_FRAMES, SWAP_LOGIC_LOCK_FRAMES } = require('../data/battleConfig')
 
 function _swapLogicLocked(g) {
@@ -81,6 +81,11 @@ function _handleBoardDrag(g, type, x, y) {
 
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
+  // === 小灵讲堂阻塞卡拦截（1-2/1-3 首通）：最高优先级，遮挡所有其它交互 ===
+  if (g._stageIntroCard) {
+    if (type === 'end') dismissStageIntroCard(g)
+    return
+  }
   // === 教学系统拦截 ===
   if (tutorial.isActive()) {
     if (tutorial.isSummary()) {

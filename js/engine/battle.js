@@ -1324,7 +1324,7 @@ function _safeBattle(fn) {
         g.elimAnimCells = null
         try {
           var P = require('../platform')
-          P.showGameToast('战斗异常已恢复，请继续')
+          P.showGameToast('战斗异常已恢复，请继续', { type: 'warn' })
         } catch (_) {}
       }
     }

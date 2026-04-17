@@ -5,7 +5,8 @@ const V = require('../env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../../data/tower')
 const { petHasSkill, getPetSkillDesc } = require('../../data/pets')
 const tutorial = require('../../engine/tutorial')
-const { drawPanel, drawRibbonIcon } = require('../uiComponents')
+const { drawPanel, drawRibbonIcon, drawLingCard, wrapText } = require('../uiComponents')
+const { LING } = require('../../data/lingIdentity')
 
 // ===== 教学引导覆盖层 =====
 function drawTutorialOverlay(g) {
@@ -14,110 +15,97 @@ function drawTutorialOverlay(g) {
   const data = tutorial.getGuideData()
   if (!data) return
 
-  // ---- 总结页 ----
+  // ---- 总结页（小灵口吻 · drawLingCard）----
   if (data.isSummary) {
+    ctx.save()
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H)
-    const panelW = W * 0.82, panelH = 285*S
-    const panelX = (W - panelW) / 2, panelY = (H - panelH) / 2
-    R.drawInfoPanel(panelX, panelY, panelW, panelH)
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#C07000'; ctx.font = `bold ${16*S}px "PingFang SC",sans-serif`
-    ctx.fillText('修仙要诀', W*0.5, panelY + 36*S)
+    ctx.globalAlpha = 1
 
-    const tips = [
-      '① 按住拖动灵珠，沿途交换排列三连消除',
-      '② Combo越多，伤害越高',
-      '③ 克制x2.5伤害，被克x0.5伤害',
-      '④ 上划释放宠物技能',
-      '⑤ 粉色心珠可回复生命',
-      '⑥ 法宝自动生效，给你额外的战斗优势',
+    const lines = [
+      '① 按住拖动灵珠，沿路一路交换三连消除',
+      '② Combo 越多，伤害越高',
+      '③ 克制 ×1.6 伤害，被克只有 ×0.5',
+      '④ 从灵宠头像向上划，放大招！',
+      '⑤ 粉色心珠是主人的生命线',
+      '⑥ 法宝默默生效，给主人加 Buff',
     ]
-    ctx.fillStyle = '#3D2B1F'; ctx.font = `${11*S}px "PingFang SC",sans-serif`
-    tips.forEach((t, i) => {
-      ctx.fillText(t, W*0.5, panelY + 66*S + i * 24*S)
+    const pw = Math.min(W - 32 * S, 360 * S)
+    const bodyFs = 12.5 * S
+    const lineH = 24 * S
+    const headerH = 50 * S
+    const titleH = 46 * S
+    const bodyH = lines.length * lineH
+    const noteH = 30 * S
+    const footerH = 40 * S
+    const ph = headerH + titleH + bodyH + noteH + footerH
+    const px = (W - pw) / 2
+    const py = (H - ph) / 2
+
+    drawLingCard(ctx, S, px, py, pw, ph, {
+      avatarImg: R.getImg(LING.avatar),
+      speaker: LING.speaker,
+      subLabel: '教学总结 · 小灵的笔记',
+      title: '修仙要诀 · 小灵速记',
+      lines,
+      note: '大道已明，小灵陪主人开始通天之旅～',
+      fontSizeBody: bodyFs,
+      lineH,
+      pageIdx: 0,
+      totalPages: 1,
+      continueText: '点击屏幕继续 ›',
+      animT: 1,
+      pulseT: g.af * 0.08,
     })
-
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-    const pulse = 0.6 + 0.4 * Math.sin(g.af * 0.08)
-    ctx.globalAlpha = pulse
-    ctx.fillText('大道已明，开始通天之旅！', W*0.5, panelY + panelH - 30*S)
-    ctx.globalAlpha = 1.0
-
-    ctx.fillStyle = '#8B7B70'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText('点击屏幕继续', W*0.5, panelY + panelH - 10*S)
+    ctx.restore()
     return
   }
 
-  // ---- preIntro阶段：代入式故事卡 ----
+  // ---- preIntro阶段：代入式故事卡（小灵讲解 · drawLingCard） ----
   if (data.phase === 'preIntro') {
     const card = data.storyCards[data.storyPage]
     if (!card) return
     const alpha = data.storyAlpha
     ctx.save()
-    // 全屏暗底
     ctx.globalAlpha = alpha * 0.75
     ctx.fillStyle = '#0a0814'
     ctx.fillRect(0, 0, W, H)
-
-    // 面板
-    const pw = W * 0.86, ph = 300 * S
-    const px = (W - pw) / 2, py = (H - ph) / 2 - 20 * S
     ctx.globalAlpha = alpha
-    const _ribbonH = 44 * S
 
-    const { ribbonCY } = drawPanel(ctx, S, px, py, pw, ph, { ribbonH: _ribbonH })
-    drawRibbonIcon(ctx, S, px, ribbonCY, card.icon || '★')
-
-    // 标题
-    ctx.fillStyle = '#3a1a00'
-    ctx.font = `bold ${15 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(card.heading, W / 2 + 12 * S, ribbonCY)
-
-    // 正文行
-    const lineH = 28 * S
-    const textStartY = py + _ribbonH + 28 * S
-    ctx.fillStyle = '#4a3820'
-    ctx.font = `${13 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ;(card.lines || []).forEach((line, i) => {
-      ctx.fillText(line, W / 2, textStartY + i * lineH)
+    const bodyFs = 13.5 * S
+    const lineH = 25 * S
+    const pw = Math.min(W - 32 * S, 360 * S)
+    const textMaxW = pw - 40 * S
+    ctx.font = `${bodyFs}px "PingFang SC",sans-serif`
+    const wrapped = []
+    ;(card.lines || []).forEach(line => {
+      wrapText(ctx, line, textMaxW).forEach(l => wrapped.push(l))
     })
+    const headerH = 50 * S
+    const titleH = 46 * S
+    const bodyH = wrapped.length * lineH
+    const noteH = card.note ? 30 * S : 0
+    const footerH = 46 * S
+    const ph = headerH + titleH + bodyH + noteH + footerH
+    const px = (W - pw) / 2
+    const py = (H - ph) / 2 - 10 * S
 
-    // 备注行
-    if (card.note) {
-      const noteY = textStartY + (card.lines || []).length * lineH + 16 * S
-      ctx.fillStyle = '#b06010'
-      ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-      ctx.fillText(card.note, W / 2, noteY)
-    }
-
-    // 翻页进度点
     const total = data.storyCards.length
-    if (total > 1) {
-      const dotR = 4 * S, dotGap = 14 * S
-      const dotsW = total * dotGap
-      const dotsX = W / 2 - dotsW / 2 + dotGap / 2
-      const dotsY = py + ph - 38 * S
-      for (let i = 0; i < total; i++) {
-        ctx.beginPath()
-        ctx.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-        ctx.fillStyle = i === data.storyPage ? '#c07820' : 'rgba(160,120,40,0.3)'
-        ctx.fill()
-      }
-    }
-
-    // 点击继续提示
-    const pulse = 0.5 + 0.5 * Math.sin(g.af * 0.1)
-    ctx.globalAlpha = alpha * (0.5 + 0.4 * pulse)
-    ctx.fillStyle = '#8a6030'
-    ctx.font = `${10 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
     const isLast = data.storyPage >= total - 1
-    ctx.fillText(isLast ? '点击进入战斗' : '点击继续', W / 2, py + ph - 16 * S)
+    drawLingCard(ctx, S, px, py, pw, ph, {
+      avatarImg: R.getImg(LING.avatar),
+      speaker: LING.speaker,
+      subLabel: card.subLabel,
+      title: card.heading,
+      lines: wrapped,
+      note: card.note,
+      fontSizeBody: bodyFs,
+      lineH,
+      pageIdx: data.storyPage,
+      totalPages: total,
+      continueText: isLast ? '点击进入战斗 ›' : '点击继续 ›',
+      animT: alpha,
+      pulseT: g.af * 0.1,
+    })
 
     ctx.restore()
     return

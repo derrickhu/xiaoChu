@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 19
+const CURRENT_VERSION = 20
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -277,6 +277,12 @@ const migrations = {
     if (!d.guideFlags) d.guideFlags = {}
     const cleared = d.stageClearRecord && d.stageClearRecord['stage_2_1'] && d.stageClearRecord['stage_2_1'].cleared
     if (cleared) d.guideFlags.newbie_gift_claimed = true
+  },
+  // v19→v20：新手免费续命收敛为"只给真新手"——已通过 2-1 的存档将已用次数置满，
+  // 避免老玩家在后续章节失败时突然弹"半血续战"造成关卡难度感知失衡
+  19: (d) => {
+    const cleared = d.stageClearRecord && d.stageClearRecord['stage_2_1'] && d.stageClearRecord['stage_2_1'].cleared
+    if (cleared) d.newbieRevivesUsed = 9999
   },
 }
 
@@ -809,6 +815,16 @@ class Storage {
   useNewbieRevive() {
     this._d.newbieRevivesUsed = (this._d.newbieRevivesUsed || 0) + 1
     this._save()
+  }
+
+  /**
+   * 是否仍处于"新手阶段"：2-1 尚未通关。
+   *
+   * 所有"只给真新手"的宽松机制（新手免费续命、新手礼包弹窗等）
+   * 统一走这个闸口，避免判据散落到多处导致下次再给老玩家误发福利。
+   */
+  isNewbiePhase() {
+    return !this.isStageCleared('stage_2_1')
   }
 
   /** 下一点体力恢复的剩余秒数 */

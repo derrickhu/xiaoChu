@@ -4,6 +4,8 @@
  */
 const V = require('./env')
 const { NEWBIE_GIFT_REWARDS } = require('../data/constants')
+const { LING } = require('../data/lingIdentity')
+const buttonFx = require('./buttonFx')
 
 const ANIM_SCROLL_DUR = 18
 const ANIM_ITEM_DELAY = 8
@@ -57,7 +59,7 @@ function _getItemCenterPos(d, i, S, W, H) {
   const bannerH = 32 * S
   const bannerY = iconY + iconSz + 4 * S
   const subtitleY = bannerY + bannerH + 14 * S
-  const itemStartY = subtitleY + 28 * S
+  const itemStartY = subtitleY + 38 * S
   const itemH = 52 * S
   const itemW = scrollW * 0.7
   const itemX = (W - itemW) / 2
@@ -134,14 +136,40 @@ function draw(g) {
     c.textBaseline = 'middle'
     c.fillText('冒险者礼包', W / 2, bannerY + bannerH * 0.48)
 
-    // 副文案
+    // 副文案 —— 小灵欢迎语（左侧小头像 + 右侧两行软糯文字）
     const subtitleY = bannerY + bannerH + 14 * S
-    c.fillStyle = 'rgba(90,60,30,0.75)'
+    const avatarImg = R.getImg(LING.avatar)
+    const ar = 12 * S
+    // 整体两行文字块高 ~32*S；头像置中对齐
+    const line1 = '主人～ 我是小灵，以后就由我陪着你啦！'
+    const line2 = '先收下这份见面礼，踏上修仙之路吧～'
+    // 文字放中间显示，头像画在第一行左侧
     c.font = `${11 * S}px "PingFang SC",sans-serif`
-    c.fillText('欢迎来到灵兽世界！这份礼物助你踏上修仙之路', W / 2, subtitleY)
+    const line1W = c.measureText(line1).width
+    const avatarCY = subtitleY + 2 * S
+    if (avatarImg && avatarImg.width > 0) {
+      const avatarCX = (W - line1W) / 2 - ar - 6 * S
+      c.save()
+      c.beginPath(); c.arc(avatarCX, avatarCY, ar, 0, Math.PI * 2)
+      c.fillStyle = '#fffdf3'; c.fill()
+      c.clip()
+      c.drawImage(avatarImg, avatarCX - ar, avatarCY - ar, ar * 2, ar * 2)
+      c.restore()
+      c.save()
+      c.strokeStyle = 'rgba(200,160,60,0.9)'
+      c.lineWidth = 1.5 * S
+      c.beginPath(); c.arc(avatarCX, avatarCY, ar, 0, Math.PI * 2); c.stroke()
+      c.restore()
+    }
+    c.fillStyle = 'rgba(90,60,30,0.85)'
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(line1, W / 2, subtitleY)
+    c.fillStyle = 'rgba(120,85,40,0.75)'
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillText(line2, W / 2, subtitleY + 15 * S)
 
-    // 奖励项
-    const itemStartY = subtitleY + 28 * S
+    // 奖励项（欢迎语两行后再往下留白，避免与第二行挤到一起）
+    const itemStartY = subtitleY + 38 * S
     const itemH = 52 * S
     const itemW = scrollW * 0.7
     const itemX = (W - itemW) / 2
@@ -346,6 +374,7 @@ function onTouch(g, x, y, type) {
     const [bx, by, bw, bh] = d._btnRect
     if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
       _claimRewards(g)
+      buttonFx.trigger(d._btnRect.slice(), 'starUp')  // 礼包是里程碑级反馈
       d.claimed = true
       d.phase = 'claimed'
       d.claimTimer = 0

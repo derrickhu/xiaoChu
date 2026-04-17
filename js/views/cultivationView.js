@@ -6,7 +6,8 @@
  */
 const V = require('./env')
 const P = require('../platform')
-const { drawPanel, drawRibbonIcon } = require('./uiComponents')
+const { drawPanel, drawRibbonIcon, drawLingCard, wrapText } = require('./uiComponents')
+const { LING } = require('../data/lingIdentity')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
   effectValue, usedPoints, currentRealm, nextRealm,
@@ -14,6 +15,8 @@ const {
 const MusicMgr = require('../runtime/music')
 const { drawBottomBar, getLayout, drawPageTitle } = require('./bottomBar')
 const Draw = require('./cultivationDraw')
+const floatText = require('./floatText')
+const lingCheer = require('./lingCheer')
 
 // 可选角色形象列表
 // avatar 为 fallback 头像（打坐图加载失败时使用），暂统一用已有资源占位
@@ -45,27 +48,28 @@ const _state = {
   cultIntro: null,         // { page: 0|1, alpha: 0~1 } 首次进入介绍卡
 }
 
-// ===== 修炼介绍卡内容 =====
+// ===== 修炼介绍卡内容（小灵讲解口吻） =====
 const _CULT_INTRO_CARDS = [
   {
-    icon: '炼',
-    heading: '什么是修炼？',
+    subLabel: '第 1/2 课 · 什么是修炼',
+    title: '修炼是你自己的道行',
     lines: [
-      '修炼积累的是你自身的道行——',
-      '通天塔、灵兽秘境、所有挑战',
-      '都会为你积累修炼经验！',
+      '主人～ 修炼积攒的是你自身的道行，',
+      '不管是通天塔、灵兽秘境还是别的挑战，',
+      '每一局都会为你积累修炼经验哦！',
     ],
     note: '☆ 胜负皆有收获，每一局都在成长',
   },
   {
-    icon: '悟',
-    heading: '修炼与通天塔的关系',
+    subLabel: '第 2/2 课 · 修炼与通天塔',
+    title: '修炼和通天塔的关系',
     lines: [
-      '通天塔中修炼全无，只能靠自身实力。',
-      '但修炼加成在灵兽秘境中完全生效——',
-      '体、灵、悟、根、识，五维强化！',
+      '通天塔里是"修炼全无"的考验，',
+      '只能靠主人自己的基本功；',
+      '但修炼加成在灵兽秘境里可是全开的——',
+      '体、灵、悟、根、识，五维齐飞！',
     ],
-    note: '✦ 打好修炼基础，解锁灵兽秘境后将大显神威',
+    note: '✦ 先把修炼打扎实，小灵陪你征服秘境～',
   },
 ]
 
@@ -297,78 +301,57 @@ function rCultivation(g) {
   }
 }
 
-// ===== 修炼介绍卡渲染 =====
+// ===== 修炼介绍卡渲染（小灵讲解 · 卷轴 drawLingCard 版）=====
 function _drawCultIntro(c, R, g, W, H, S) {
   const intro = _state.cultIntro
   if (!intro) return
-  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.04)
+  intro.alpha = Math.min(1, (intro.alpha || 0) + 0.08)
   g._dirty = true
 
   const card = _CULT_INTRO_CARDS[intro.page]
   if (!card) return
 
   c.save()
+  // 背后暗遮罩
   c.globalAlpha = intro.alpha * 0.72
   c.fillStyle = '#000'
   c.fillRect(0, 0, W, H)
   c.globalAlpha = intro.alpha
 
-  const pw = W * 0.86, ph = 310 * S
-  const px = (W - pw) / 2, py = (H - ph) / 2 - 16 * S
-  const ribbonH = 44 * S
-
-  const { ribbonCY } = drawPanel(c, S, px, py, pw, ph, { ribbonH })
-  drawRibbonIcon(c, S, px, ribbonCY, card.icon)
-
-  // 标题（深棕色）
-  c.fillStyle = '#3a1a00'
-  c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText(card.heading, W / 2 + 14 * S, ribbonCY)
-
-  // 正文（深棕灰）
-  const lineH = 30 * S
-  const textStartY = py + ribbonH + 28 * S
-  c.fillStyle = '#4a3820'
-  c.font = `${13 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'alphabetic'
-  ;(card.lines || []).forEach((line, i) => {
-    c.fillText(line, W / 2, textStartY + i * lineH)
+  // 根据文本行数动态估算卡高（wrap 后）
+  const pw = Math.min(W - 32 * S, 360 * S)
+  const bodyFs = 14 * S
+  const lineH = 26 * S
+  const textMaxW = pw - 40 * S
+  c.font = `${bodyFs}px "PingFang SC",sans-serif`
+  const lines = []
+  ;(card.lines || []).forEach(line => {
+    wrapText(c, line, textMaxW).forEach(l => lines.push(l))
   })
+  const headerH = 50 * S   // 头像 + 分隔线
+  const titleH = 46 * S
+  const bodyH = lines.length * lineH
+  const noteH = card.note ? 30 * S : 0
+  const footerH = 46 * S
+  const ph = headerH + titleH + bodyH + noteH + footerH
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2 - 10 * S
 
-  // 备注
-  if (card.note) {
-    const noteY = textStartY + (card.lines || []).length * lineH + 14 * S
-    c.fillStyle = '#b06010'
-    c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'
-    c.textBaseline = 'alphabetic'
-    c.fillText(card.note, W / 2, noteY)
-  }
-
-  // 进度点
-  const total = _CULT_INTRO_CARDS.length
-  const dotR = 4 * S, dotGap = 14 * S
-  const dotsX = W / 2 - (total * dotGap) / 2 + dotGap / 2
-  const dotsY = py + ph - 38 * S
-  c.textBaseline = 'alphabetic'
-  for (let i = 0; i < total; i++) {
-    c.beginPath()
-    c.arc(dotsX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
-    c.fillStyle = i === intro.page ? '#c07820' : 'rgba(160,120,40,0.3)'
-    c.fill()
-  }
-
-  // 点击继续提示
-  const pulse = 0.5 + 0.4 * Math.sin(_state.animFrame * 0.1)
-  c.globalAlpha = intro.alpha * (0.45 + 0.45 * pulse)
-  c.fillStyle = '#8a6030'
-  c.font = `${10 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  const isLast = intro.page >= total - 1
-  c.fillText(isLast ? '点击进入修炼' : '点击继续', W / 2, py + ph - 16 * S)
+  drawLingCard(c, S, px, py, pw, ph, {
+    avatarImg: V.R.getImg(LING.avatar),
+    speaker: LING.speaker,
+    subLabel: card.subLabel,
+    title: card.title,
+    lines,
+    note: card.note,
+    fontSizeBody: bodyFs,
+    lineH,
+    pageIdx: intro.page,
+    totalPages: _CULT_INTRO_CARDS.length,
+    continueText: intro.page >= _CULT_INTRO_CARDS.length - 1 ? '点击进入修炼 ›' : '点击继续 ›',
+    animT: intro.alpha,
+    pulseT: _state.animFrame * 0.1,
+  })
 
   c.restore()
 }
@@ -400,6 +383,8 @@ function checkRealmBreak(g) {
     g.storage._save()
     _state.realmBreakAnim = { name: realm.name, timer: 0, duration: 90 }
     MusicMgr.playLevelUp()
+    // 境界突破：全屏仪式完成后由小灵横条补一句祝贺，把"仪式感"和"陪伴感"串起来
+    lingCheer.show(LING.cheer.realmBreak(realm.name), { tone: 'epic', duration: 2600 })
   }
   // 首次进入修炼页：展示玩法介绍卡
   if (!g.storage.isGuideShown('cult_intro')) {
@@ -472,13 +457,27 @@ function tCultivation(g, x, y, type) {
     }
     // 确认升级按钮
     if (_rects.detailBtnRect && Draw.hitRect(x, y, _rects.detailBtnRect)) {
-      const actual = g.storage.upgradeCultivation(_state.selectedNode, _state.upgradeAmount)
+      const nodeKey = _state.selectedNode
+      const actual = g.storage.upgradeCultivation(nodeKey, _state.upgradeAmount)
       if (actual > 0) {
         MusicMgr.playLevelUp()
-        _state.upgradeFlash = { key: _state.selectedNode, timer: 20 }
+        _state.upgradeFlash = { key: nodeKey, timer: 20 }
+        // 按钮爆点（金光 + 金星）+ 飘字，让玩家立刻看到"这次投入换回来了什么"
+        const buttonFx = require('./buttonFx')
+        buttonFx.trigger(_rects.detailBtnRect, 'upgrade')
+        const cfg = CULT_CONFIG[nodeKey]
+        if (cfg) {
+          const delta = +(actual * cfg.perLv).toFixed(2)
+          const btn = _rects.detailBtnRect
+          if (btn) {
+            const [bx, by, bw, bh] = btn
+            floatText.spawn(bx + bw / 2, by + bh / 2, `${cfg.name} +${delta}`, {
+              color: '#FFE080', size: 16, dy: -10,
+            })
+          }
+        }
         checkRealmBreak(g)
         const cult = g.storage.cultivation
-        const cfg = CULT_CONFIG[_state.selectedNode]
         if (cult.skillPoints <= 0 || cult.levels[_state.selectedNode] >= cfg.maxLv) {
           _state.selectedNode = null
           _state.upgradeAmount = 1

@@ -212,7 +212,7 @@ const AdManager = {
       return
     }
     if (!this.canShow(slotId)) {
-      P.showGameToast('今日观看次数已用完，明日再来')
+      P.showGameToast('今日观看次数已用完，明日再来', { type: 'warn' })
       if (callbacks.onSkipped) callbacks.onSkipped()
       return
     }
@@ -259,7 +259,7 @@ const AdManager = {
         if (shouldFallback) {
           _doShareFallback(slotId, callbacks)
         } else {
-          P.showGameToast('广告加载失败，请稍后再试')
+          P.showGameToast('广告加载失败，请稍后再试', { type: 'warn' })
           if (callbacks.onError) callbacks.onError(err)
         }
       })

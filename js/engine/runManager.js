@@ -553,10 +553,12 @@ function resumeRun(g) {
 }
 
 function onDefeat(g, W, H) {
-  // 固定关卡：新手有免费续命机会，否则直接失败
+  // 固定关卡：仅"新手阶段"（2-1 未通）玩家享有免费续命，
+  // 老玩家在后续章节失败时直接进入失败结算，避免体验失衡。
   if (g.battleMode === 'stage') {
     const { NEWBIE_FREE_REVIVE_COUNT } = require('../data/constants')
-    if (g.storage.getNewbieRevivesUsed() < NEWBIE_FREE_REVIVE_COUNT) {
+    if (g.storage.isNewbiePhase()
+        && g.storage.getNewbieRevivesUsed() < NEWBIE_FREE_REVIVE_COUNT) {
       g.bState = 'freeReviveOffer'
       return
     }
@@ -737,7 +739,7 @@ function _safeRun(fn) {
       console.error('[RunManager] ' + fn.name + ' error:', e)
       if (g && typeof g === 'object' && typeof g.setScene === 'function') {
         try {
-          P.showGameToast('运行异常，已返回首页')
+          P.showGameToast('运行异常，已返回首页', { type: 'warn' })
           g.setScene('title')
         } catch (_) {}
       }

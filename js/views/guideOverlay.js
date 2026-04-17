@@ -1,13 +1,37 @@
 /**
  * 统一指引 UI 覆盖层
- * 气泡文字 + 可选高亮描边 + 点击继续（无全屏遮罩）
+ * "仙宠 · 小灵"卷轴气泡 + 可选高亮描边 + 指向按钮的尾巴 + 点击继续
+ * (气泡组件见 uiComponents.drawGuideBubble)
  */
 const V = require('./env')
 const guide = require('../engine/guideManager')
-const { drawPanel, wrapText } = require('./uiComponents')
+const { wrapText, drawGuideBubble } = require('./uiComponents')
+const { LING } = require('../data/lingIdentity')
+
+// 默认说话人 + 头像（step 里可通过 speaker / avatar 覆盖）
+const DEFAULT_SPEAKER = LING.speaker
+const DEFAULT_AVATAR = LING.avatar
+
+// 入场展开进度（从当前 step 开始计）
+let _lastStepKey = null
+let _enterT = 0
 
 function update() {
   guide.updateFade()
+  // 入场展开推进（6 帧展开完，后续稳定在 1）
+  const info = guide.getCurrent()
+  if (info) {
+    const key = `${info.flag || ''}#${info.stepIdx}`
+    if (key !== _lastStepKey) {
+      _lastStepKey = key
+      _enterT = 0
+    } else if (_enterT < 1) {
+      _enterT = Math.min(1, _enterT + 1 / 6)
+    }
+  } else {
+    _lastStepKey = null
+    _enterT = 0
+  }
 }
 
 // 解析高亮区域：优先使用 trigger 传入的 highlight，其次按 highlightId 查全局命名矩形
@@ -82,22 +106,32 @@ function draw(g) {
 /** @param {object|null} hl 高亮矩形 { x,y,w,h } @param {{ bottom: number|null }} geom 输出气泡底边 Y */
 function _drawBubble(c, W, H, S, info, hl, geom) {
   const text = info.text
-  const fontSize = 15 * S
+  const fontSize = 14.5 * S
+  const lineH = fontSize * 1.55
   c.font = `bold ${fontSize}px "PingFang SC","Microsoft YaHei",sans-serif`
 
-  const maxWidth = W - 80 * S
-  const lines = wrapText(c, text, maxWidth)
-  const lineH = fontSize * 1.5
-  const padX = 24 * S, padY = 18 * S
-  const bubbleW = Math.min(maxWidth + padX * 2, W - 30 * S)
-  const bubbleH = padY + lines.length * lineH + padY
+  // 头像占左侧，正文可用宽度相应减少
+  const speaker = info.speaker || DEFAULT_SPEAKER
+  const avatarPath = info.avatar || DEFAULT_AVATAR
+  const avatarImg = V.R.getImg(avatarPath)
+  const hasAvatar = avatarImg && avatarImg.width > 0
 
+  const bubbleW = Math.min(W - 30 * S, W - 30 * S) // 左右各留 15*S
+  const avatarBoxW = hasAvatar ? (14 * S + 72 * S + 12 * S) : 20 * S
+  const textMaxW = bubbleW - avatarBoxW - 20 * S
+  const lines = wrapText(c, text, textMaxW)
+  const speakerH = speaker ? 22 * S : 0
+  const textBlockH = lines.length * lineH
+  const padTopBottom = speaker ? 12 * S : 14 * S
+  const bubbleH = Math.max(80 * S, padTopBottom * 2 + speakerH + textBlockH)
+
+  // 气泡 Y 位置（带"位于高亮上方但避免顶到导航/返回"的现有逻辑）
   let bubbleY
   if (info.position === 'top') {
     bubbleY = V.safeTop + 60 * S
   } else if (info.position === 'bottom') {
     if (hl && typeof hl.y === 'number' && typeof hl.h === 'number') {
-      const gap = 16 * S
+      const gap = 22 * S  // 给尾巴留空间
       const minY = V.safeTop + 52 * S
       const yAboveBtn = hl.y - bubbleH - gap
       if (yAboveBtn >= minY) {
@@ -108,7 +142,7 @@ function _drawBubble(c, W, H, S, info, hl, geom) {
         bubbleY = yAboveBtn
       }
     } else {
-      bubbleY = H - bubbleH - 100 * S
+      bubbleY = H - bubbleH - 110 * S
     }
   } else {
     bubbleY = (H - bubbleH) / 2
@@ -117,15 +151,20 @@ function _drawBubble(c, W, H, S, info, hl, geom) {
 
   if (geom) geom.bottom = bubbleY + bubbleH
 
-  drawPanel(c, S, bubbleX, bubbleY, bubbleW, bubbleH, { radius: 14 * S })
+  // 尾巴目标：position=bottom 且有 highlight 时，指向按钮中心上沿
+  const tailTo = (info.position === 'bottom' && hl && info.pointToHighlight !== false)
+    ? { x: hl.x + hl.w / 2, y: hl.y }
+    : null
 
-  // 文字
-  c.fillStyle = '#3a1a00'
-  c.textAlign = 'center'
-  const textStartY = bubbleY + padY + fontSize * 0.85
-  for (let i = 0; i < lines.length; i++) {
-    c.fillText(lines[i], W / 2, textStartY + i * lineH)
-  }
+  drawGuideBubble(c, S, bubbleX, bubbleY, bubbleW, bubbleH, {
+    avatarImg: hasAvatar ? avatarImg : null,
+    speaker,
+    lines,
+    fontSize,
+    lineH,
+    tailTo,
+    animT: _enterT,
+  })
 }
 
 function onTouch(g, type) {

@@ -42,6 +42,10 @@ const { drawAdRewardPopup, handleAdRewardPopupTouch } = require('./views/adRewar
 const newbieGiftView = require('./views/newbieGiftView')
 const helpTourView = require('./views/helpTourView')
 const gameToast = require('./views/gameToast')
+const floatText = require('./views/floatText')
+const lingCheer = require('./views/lingCheer')
+const buttonFx = require('./views/buttonFx')
+const numberTween = require('./views/numberTween')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -391,7 +395,7 @@ class Main {
           console.error('[GameLoop] 连续异常，回退到首页')
           this._loopErrorCount = 0
           try { this.setScene('title') } catch (_) {}
-          try { P.showGameToast('游戏遇到问题，已返回首页') } catch (_) {}
+          try { P.showGameToast('游戏遇到问题，已返回首页', { type: 'warn' }) } catch (_) {}
         }
       }
       requestAnimationFrame(loop)
@@ -435,6 +439,7 @@ class Main {
       'assets/ui/daily_task_icon.png',
       'assets/ui/newbie_gift_icon.png',
       'assets/ui/icon_universal_frag.png',
+      'assets/ui/guide_xiaoling.png',
       // 签到弹窗（花华 CheckIn 贴图）
       'assets/ui/checkin_huahua/checkin_title_banner.png',
       'assets/ui/checkin_huahua/checkin_milestone_panel.png',
@@ -729,7 +734,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive()) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -796,8 +801,14 @@ class Main {
       dialogs.drawFragmentPopup(this)
     }
     guideOverlay.draw(this)
+    // 按钮爆点粒子（金光/金星/金环）在引导之上、飘字之下，强化"点击那一下"
+    buttonFx.draw()
+    // 飘字在按钮爆点之上、toast 之下，点一次升一级就要看得到数字
+    floatText.draw()
     // Toast 在引导之上、在礼包/确认框之下，保证对话框可遮盖（避免视觉冲突）
     gameToast.draw()
+    // 小灵庆贺横条：比 toast 更"角色化"的情感反馈，位置在顶部，不抢 toast 的底部位
+    lingCheer.draw()
     if (this._newbieGift) newbieGiftView.draw(this)
     if (this._helpTour) helpTourView.draw(this)
     if (this._confirmDialog) drawConfirmDialog(this)

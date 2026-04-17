@@ -6,6 +6,8 @@ const V = require('./env')
 const {
   CULT_CONFIG, CULT_KEYS, effectValue,
 } = require('../data/cultivationConfig')
+const { drawPrimaryButton } = require('./uiComponents')
+const buttonFx = require('./buttonFx')
 
 // 节点主题色和图标（与 cultivationView.js 共用）
 const NODE_STYLES = {
@@ -822,42 +824,27 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
 
   curY = ctrlY + ctrlH + 8*S
 
-  // ===== 确认按钮 =====
+  // ===== 确认按钮（统一 primaryButton · 金色 CTA）=====
   const btnW = panelW - pad * 2
-  const btnH = 36*S
+  const btnH = 40*S
   const btnX = panelX + pad
   const btnY = panelY + panelH - pad - btnH
 
-  c.save()
-  if (canUpgrade) {
-    const btnG = c.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
-    btnG.addColorStop(0, '#D4A843')
-    btnG.addColorStop(1, '#A07830')
-    c.fillStyle = btnG
-    c.shadowColor = 'rgba(212,168,67,0.4)'
-    c.shadowBlur = 6*S
-  } else if (isMax) {
-    c.fillStyle = 'rgba(180,170,150,0.4)'
-  } else {
-    c.fillStyle = 'rgba(180,170,150,0.3)'
-  }
-  roundRect(c, btnX, btnY, btnW, btnH, 8*S)
-  c.fill()
-  c.shadowBlur = 0
+  const btnText = isMax ? '已满级'
+    : canUpgrade ? '修  炼'
+    : '修炼点不足'
+  const btnSub = !isMax && canUpgrade ? `消耗 ${amt} 修炼点` : null
+  const btnRect = [btnX, btnY, btnW, btnH]
+  drawPrimaryButton(c, S, btnX, btnY, btnW, btnH, {
+    text: btnText,
+    subText: btnSub,
+    style: canUpgrade ? 'gold' : 'ghost',
+    enabled: canUpgrade,
+    glow: canUpgrade,
+    flashT: buttonFx.getFlashT(btnRect),
+  })
 
-  c.fillStyle = canUpgrade ? '#fff' : '#999'
-  c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  if (isMax) {
-    c.fillText('已满级', btnX + btnW/2, btnY + btnH/2)
-  } else if (canUpgrade) {
-    c.fillText(`修炼（消耗 ${amt} 修炼点）`, btnX + btnW/2, btnY + btnH/2)
-  } else {
-    c.fillText('修炼点不足', btnX + btnW/2, btnY + btnH/2)
-  }
-  c.restore()
-
-  rects.detailBtnRect = canUpgrade ? [btnX, btnY, btnW, btnH] : null
+  rects.detailBtnRect = canUpgrade ? btnRect : null
   rects.detailPanelRect = [panelX, panelY, panelW, panelH]
 }
 

@@ -981,7 +981,7 @@ function tStageTeam(g, x, y, type) {
   if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
     const wCol = g.storage.weaponCollection || []
     if (wCol.length > 0 && !g.storage.equippedWeaponId) {
-      P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再开始战斗')
+      P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再开始战斗', { type: 'warn' })
       return
     }
     const maxSlots = stage.teamSize.max
@@ -1049,7 +1049,7 @@ function tStageTeam(g, x, y, type) {
       if (selected.length < stage.teamSize.max) {
         selected.push(item.petId)
       } else {
-        P.showGameToast('编队已满')
+        P.showGameToast('编队已满', { type: 'warn' })
       }
       return
     }

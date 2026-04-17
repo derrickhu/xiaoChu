@@ -11,6 +11,12 @@ const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAv
 const { getPoolPetAtk, getPoolPetMaxLv, getPoolPetMaxStar, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
+const floatText = require('./floatText')
+const lingCheer = require('./lingCheer')
+const buttonFx = require('./buttonFx')
+const numberTween = require('./numberTween')
+const { drawPrimaryButton } = require('./uiComponents')
+const { LING } = require('../data/lingIdentity')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { POOL_STAR_LV_CAP } = require('../data/petPoolConfig')
 
@@ -27,7 +33,19 @@ const _rects = {
   leftArrowRect: null,
   rightArrowRect: null,
   roadmapRowRects: [],    // [{ star, rect: [x,y,w,h] }]
+  // 面板滚动：内容区可能因为成长路线展开而超出卡片高度，
+  // 这里记录面板边界 + 当前滚动偏移，供内容 clip/translate 与触摸命中换算使用
+  panelRect: null,        // [x, y, w, h] 卡片内容可视区（不含滚动条）
+  panelContentH: 0,       // 内容总高度（展开态下可能 > 面板高）
 }
+
+// 面板滚动状态（模块级：切换宠物时 reset）
+let _panelScrollY = 0
+let _panelMaxScrollY = 0
+let _panelDragging = false
+let _panelDragStartY = 0
+let _panelDragStartScroll = 0
+let _panelDragMaxDelta = 0
 
 // 当前展开的成长路线星级（0 表示全收起，1-5 表示该星级展开）
 let _expandedRoadmapStar = 0
@@ -53,6 +71,9 @@ function _easeOut(t) {
 
 const { drawSeparator, wrapTextDraw, getFilteredPool } = uiUtils
 const _getFilteredPool = getFilteredPool
+
+// 当前按下的按钮 id（用于渲染按下态）
+let _pressedBtnId = null
 
 function _getCurrentIndex(g) {
   const pool = _getFilteredPool(g)
@@ -188,11 +209,18 @@ function _buildGrowthRoadmap(petId, basePet) {
 }
 
 // ===== 主渲染 =====
+let _lastShownPetId = null
 function rPetDetail(g) {
   const { ctx: c, R, W, H, S, safeTop } = V
   const petId = g._petDetailId
   const _returnScene = g._petDetailReturnScene || 'petPool'
   if (!petId) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
+  // 切换宠物时重置滚动（通过 _navigatePet 切换已在其中处理，这里覆盖"直接从别处跳进来"的场景）
+  if (petId !== _lastShownPetId) {
+    _panelScrollY = 0
+    _expandedRoadmapStar = 0
+    _lastShownPetId = petId
+  }
 
   const isUnowned = !!g._petDetailUnowned
   const poolPet = isUnowned ? null : g.storage.getPoolPet(petId)
@@ -564,11 +592,19 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillText(fragStr, textRight, cy + (barH3 - fragFs) * 0.15)
   cy += barH3 + 16 * S
 
-  // 召唤按钮
-  const sBtnW = 100 * S, sBtnH = 34 * S
+  // 召唤按钮（未解锁宠物：milestone 风，强调"获得新伙伴"）
+  const sBtnW = 120 * S, sBtnH = 38 * S
   const sBtnX = indent
-  _drawBtn(c, R, S, sBtnX, cy, sBtnW, sBtnH, canSummon ? '召唤灵宠' : '碎片不足', canSummon, '#9b7aff', 13 * S)
-  _rects.summonBtnRect = [sBtnX, cy, sBtnW, sBtnH]
+  const sRect = [sBtnX, cy, sBtnW, sBtnH]
+  drawPrimaryButton(c, S, sBtnX, cy, sBtnW, sBtnH, {
+    text: canSummon ? '召唤灵宠' : '碎片不足',
+    style: canSummon ? 'milestone' : 'ghost',
+    enabled: canSummon,
+    pressed: _pressedBtnId === 'summon',
+    glow: canSummon,
+    flashT: buttonFx.getFlashT(sRect),
+  })
+  _rects.summonBtnRect = sRect
 }
 
 // ===== 绘制单个宠物详情页 =====
@@ -785,10 +821,19 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   const rightEdge = cardX + cardW - padX
   const contentW = rightEdge - indent
   const innerTop = cardTop + padY
+  const panelInnerH = cardH - padY * 2
 
   const fBtnPanel = 12 * S
   const lvBarH = 12 * S
   const starBtnH = 27 * S
+
+  // 记录面板可视区（触摸换算用），clip + 按滚动偏移平移
+  if (isCurrentPet) {
+    _rects.panelRect = [cardX, cardTop, cardW, cardH]
+  }
+  c.save()
+  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.clip()
+  c.translate(0, -_panelScrollY)
 
   cy = innerTop
 
@@ -826,37 +871,54 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.textAlign = 'right'
     c.fillText('满级', rightEdge, cy + 1 * S)
     if (isCurrentPet) _rects.levelUpBtnRect = null
+    cy += 19 * S
+    c.fillStyle = 'rgba(90,70,40,0.78)'
+    c.font = `${11 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    c.fillText(`灵石 ${expPool}`, indent, cy)
+    cy += 14 * S
   } else {
-    c.fillText(`Lv.${poolPet.level}`, indent, cy)
-    const barX = indent + 44 * S
-    const barW = Math.max(32 * S, contentW - 44 * S - 70 * S)
-    const barY = cy + 2 * S
+    // 左侧 Lv 文本：支持数值 tween（升级瞬间数字滚动），看得到"从 11 跳到 12"
+    const lvKey = 'pet.level.' + petId
+    const lvDisplay = numberTween.intText(lvKey, poolPet.level)
+    c.fillText(`Lv.${lvDisplay}`, indent, cy)
+    // 升级按钮用 primaryButton（金色 CTA），尺寸变大：高 36*S、双行显示"升级"+"灵石 X/Y"
+    const btnWLv = 92 * S
+    const btnHLv = 36 * S
+    const btnXLv = rightEdge - btnWLv
+    const btnYLv = cy - 8 * S
+    const canLvUp = expPool >= nextLvExp
+    const lvBtnRect = [btnXLv, btnYLv, btnWLv, btnHLv]
+    drawPrimaryButton(c, S, btnXLv, btnYLv, btnWLv, btnHLv, {
+      text: '升 级',
+      subText: `灵石 ${expPool}/${nextLvExp}`,
+      style: 'gold',
+      enabled: canLvUp,
+      pressed: _pressedBtnId === 'levelUp',
+      glow: canLvUp,
+      flashT: buttonFx.getFlashT(lvBtnRect),
+    })
+    if (isCurrentPet) _rects.levelUpBtnRect = lvBtnRect
+
+    // 中间灵石经验进度条：紧跟在等级下方，独占一行，避免与大按钮挤撞
+    cy += 22 * S
+    const barX = indent
+    const barW = rightEdge - indent - btnWLv - 10 * S
+    const barY = cy - 4 * S
     const lvProgress = Math.min(1, expPool / Math.max(1, nextLvExp))
     c.fillStyle = 'rgba(0,0,0,0.12)'
     R.rr(barX, barY, barW, lvBarH, lvBarH / 2); c.fill()
     if (lvProgress > 0) {
       const fillGrad = c.createLinearGradient(barX, barY, barX + barW * lvProgress, barY)
-      fillGrad.addColorStop(0, '#5CB8FF')
-      fillGrad.addColorStop(1, '#3A8ADF')
+      fillGrad.addColorStop(0, '#ffcc60')
+      fillGrad.addColorStop(1, '#e89020')
       c.fillStyle = fillGrad
       R.rr(barX, barY, barW * lvProgress, lvBarH, lvBarH / 2); c.fill()
     }
-    c.strokeStyle = 'rgba(100,180,255,0.4)'; c.lineWidth = 1 * S
+    c.strokeStyle = 'rgba(200,150,50,0.55)'; c.lineWidth = 1 * S
     R.rr(barX, barY, barW, lvBarH, lvBarH / 2); c.stroke()
-    const btnWLv = 64 * S
-    const btnHLv = 22 * S
-    const btnXLv = rightEdge - btnWLv
-    const btnYLv = cy - 1 * S
-    const canLvUp = expPool >= nextLvExp
-    _drawBtn(c, R, S, btnXLv, btnYLv, btnWLv, btnHLv, '升级', canLvUp, '#5CB8FF', fBtnPanel, canLvUp)
-    if (isCurrentPet) _rects.levelUpBtnRect = [btnXLv, btnYLv, btnWLv, btnHLv]
+    cy += 12 * S
   }
-  cy += 19 * S
-  c.fillStyle = 'rgba(90,70,40,0.78)'
-  c.font = `${11 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(isMaxLv ? `灵石 ${expPool}` : `灵石 ${expPool}/${nextLvExp}`, indent, cy)
-  cy += 14 * S
 
   drawSeparator(c, indent, cy, rightEdge, '180,140,60')
   cy += 8 * S
@@ -1006,9 +1068,18 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     const canStarUp = lvOk && fragOk && awakenOk
     const sBtnW = Math.min(contentW, rightEdge - indent)
     const sBtnX = indent
-    _drawBtn(c, R, S, sBtnX, cy, sBtnW, starBtnH, '升星', canStarUp, '#FFD700', fBtnPanel, canStarUp)
-    if (isCurrentPet) _rects.starUpBtnRect = [sBtnX, cy, sBtnW, starBtnH]
-    cy += starBtnH + 6 * S
+    const sBtnH = Math.max(starBtnH, 32 * S)
+    const sBtnRect = [sBtnX, cy, sBtnW, sBtnH]
+    drawPrimaryButton(c, S, sBtnX, cy, sBtnW, sBtnH, {
+      text: `升  星  →  ★${nextStar}`,
+      style: 'milestone',
+      enabled: canStarUp,
+      pressed: _pressedBtnId === 'starUp',
+      glow: canStarUp,
+      flashT: buttonFx.getFlashT(sBtnRect),
+    })
+    if (isCurrentPet) _rects.starUpBtnRect = sBtnRect
+    cy += sBtnH + 6 * S
   } else {
     c.fillStyle = '#B8860B'
     c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
@@ -1166,50 +1237,62 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
     c.fillText(`碎片 ${poolPet.fragments}`, indent, cy)
     cy += 14 * S
     const dBtnW = Math.min(contentW, rightEdge - indent)
-    _drawBtn(c, R, S, indent, cy, dBtnW, starBtnH, `分解1碎→${FRAGMENT_TO_EXP}灵石`, true, '#B8A0E0', fBtnPanel)
-    if (isCurrentPet) _rects.decomposeBtnRect = [indent, cy, dBtnW, starBtnH]
-    cy += starBtnH + 4 * S
+    const dBtnH = Math.max(starBtnH, 30 * S)
+    const dBtnRect = [indent, cy, dBtnW, dBtnH]
+    drawPrimaryButton(c, S, indent, cy, dBtnW, dBtnH, {
+      text: `分 解  1 碎 → ${FRAGMENT_TO_EXP} 灵石`,
+      style: 'silver',
+      enabled: true,
+      pressed: _pressedBtnId === 'decompose',
+      flashT: buttonFx.getFlashT(dBtnRect),
+    })
+    if (isCurrentPet) _rects.decomposeBtnRect = dBtnRect
+    cy += dBtnH + 4 * S
     c.fillStyle = '#CC3333'
     c.font = `${10 * S}px "PingFang SC",sans-serif`
     c.fillText('分解不可撤回', indent, cy)
+    cy += 14 * S
+  }
+
+  // === 内容测量：记录内容总高度、更新滚动上限 ===
+  const contentBottomY = cy + padY
+  const contentTotalH = Math.max(panelInnerH, contentBottomY - cardTop)
+  if (isCurrentPet) {
+    _rects.panelContentH = contentTotalH
+    _panelMaxScrollY = Math.max(0, contentTotalH - cardH)
+    if (_panelScrollY > _panelMaxScrollY) _panelScrollY = _panelMaxScrollY
+    if (_panelScrollY < 0) _panelScrollY = 0
+  }
+
+  c.restore()
+
+  // === 滚动条（内容超长才出现）===
+  if (isCurrentPet && _panelMaxScrollY > 0) {
+    const barW = 3 * S
+    const barTrackH = cardH - 8 * S
+    const barTrackY = cardTop + 4 * S
+    const barH = Math.max(28 * S, barTrackH * cardH / contentTotalH)
+    const barRatio = _panelScrollY / _panelMaxScrollY
+    const barY = barTrackY + barRatio * (barTrackH - barH)
+    const barX = cardX + cardW - barW - 3 * S
+    c.save()
+    c.globalAlpha = 0.55
+    c.fillStyle = '#9A7A40'
+    R.rr(barX, barY, barW, barH, barW / 2); c.fill()
+    c.restore()
   }
 }
 
-// ===== 按钮 =====
-function _drawBtn(c, R, S, x, y, w, h, text, enabled, color, fontSize, glow) {
-  const fs = fontSize || (10 * S)
-  const r = 6 * S
-  if (enabled) {
-    // 呼吸发光（glow=true 时）
-    if (glow) {
-      const pulse = 0.25 + 0.25 * Math.sin(Date.now() * 0.004)
-      c.save()
-      c.shadowColor = color
-      c.shadowBlur = 10 * S * pulse
-      c.strokeStyle = color
-      c.lineWidth = 2.5 * S
-      c.globalAlpha = 0.5 + pulse
-      R.rr(x - 1 * S, y - 1 * S, w + 2 * S, h + 2 * S, r + 1 * S); c.stroke()
-      c.restore()
-    }
-    const grad = c.createLinearGradient(x, y, x, y + h)
-    grad.addColorStop(0, color + '30')
-    grad.addColorStop(1, color + '18')
-    c.fillStyle = grad
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = color; c.lineWidth = 1.5 * S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = color
-  } else {
-    c.fillStyle = 'rgba(80,80,80,0.12)'
-    R.rr(x, y, w, h, r); c.fill()
-    c.strokeStyle = 'rgba(120,120,120,0.4)'; c.lineWidth = 1 * S
-    R.rr(x, y, w, h, r); c.stroke()
-    c.fillStyle = '#999'
-  }
-  c.font = `bold ${fs}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(text, x + w / 2, y + h / 2)
+// 面板内点位 y 需要加上 scrollY 才能命中"内容坐标系"中的 rect
+function _inPanel(x, y) {
+  const r = _rects.panelRect
+  if (!r) return false
+  return x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]
+}
+function _hitInsidePanel(g, x, y, rect) {
+  if (!rect) return false
+  // rect 是内容坐标系（未减去 scrollY），需把触摸点加上 scrollY 再比对
+  return g._hitRect(x, y + _panelScrollY, ...rect)
 }
 
 // ===== 触摸处理 =====
@@ -1222,14 +1305,30 @@ function tPetDetail(g, x, y, type) {
     _swipeDeltaX = 0
     _swiping = false
     _swipeStartTime = Date.now()
+    // 面板内记录拖拽起点，用于垂直滚动
+    if (_inPanel(x, y)) {
+      _panelDragging = true
+      _panelDragStartY = y
+      _panelDragStartScroll = _panelScrollY
+      _panelDragMaxDelta = 0
+    }
 
-    // 长按升级检测
-    if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
+    // 长按升级检测（用内容坐标系）
+    if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) {
       _longPressTimer = setTimeout(() => {
         _longPressActive = true
         _longPressLoop(g)
       }, 400)
     }
+
+    // 按下态标记（点击面板内按钮/返回按钮时立即给出视觉反馈）
+    if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) _pressedBtnId = 'levelUp'
+    else if (_hitInsidePanel(g, x, y, _rects.starUpBtnRect)) _pressedBtnId = 'starUp'
+    else if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) _pressedBtnId = 'decompose'
+    else if (_hitInsidePanel(g, x, y, _rects.summonBtnRect)) _pressedBtnId = 'summon'
+    else if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) _pressedBtnId = 'back'
+    else _pressedBtnId = null
+    if (_pressedBtnId) g._dirty = true
     return
   }
 
@@ -1240,21 +1339,44 @@ function tPetDetail(g, x, y, type) {
     if (!_swiping && Math.abs(dx) > 8 * S && Math.abs(dx) > Math.abs(dy) * 1.2) {
       _swiping = true
       _cancelLongPress()
+      _panelDragging = false  // 横向滑动取消竖向滚动
+    }
+    // 面板内纵向拖拽 → 滚动内容
+    if (_panelDragging && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 4 * S) {
+      _cancelLongPress()
+      _panelScrollY = _panelDragStartScroll - dy
+      if (_panelScrollY < 0) _panelScrollY = 0
+      if (_panelScrollY > _panelMaxScrollY) _panelScrollY = _panelMaxScrollY
+      _panelDragMaxDelta = Math.max(_panelDragMaxDelta, Math.abs(dy))
+      g._dirty = true
     }
     if (_swiping) {
       _swipeDeltaX = dx
     }
     if (Math.abs(dx) > 3 * S || Math.abs(dy) > 3 * S) {
       _cancelLongPress()
+      if (_pressedBtnId) { _pressedBtnId = null; g._dirty = true }
     }
     return
   }
 
   if (type === 'end') {
     _cancelLongPress()
+    const _hadPressed = _pressedBtnId != null
+    _pressedBtnId = null
+    if (_hadPressed) g._dirty = true
+
+    // 面板滚动若发生了有效位移，抑制掉这次点击（避免滑动时误触面板内按钮）
+    const didScroll = _panelDragging && _panelDragMaxDelta > 6 * S
+    _panelDragging = false
+    _panelDragMaxDelta = 0
+    if (didScroll) {
+      _swiping = false; _swipeDeltaX = 0
+      return
+    }
 
     // 召唤按钮（未拥有宠物）— 优先检测，避免被 _swiping 误拦截
-    if (_rects.summonBtnRect && g._petDetailUnowned && g._hitRect(x, y, ..._rects.summonBtnRect)) {
+    if (_rects.summonBtnRect && g._petDetailUnowned && _hitInsidePanel(g, x, y, _rects.summonBtnRect)) {
       _swiping = false
       _swipeDeltaX = 0
       const result = g.storage.summonPet(g._petDetailId)
@@ -1316,27 +1438,27 @@ function tPetDetail(g, x, y, type) {
     }
 
     // 升级
-    if (_rects.levelUpBtnRect && g._hitRect(x, y, ..._rects.levelUpBtnRect)) {
+    if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) {
       _doLevelUp(g)
       return
     }
 
     // 升星
-    if (_rects.starUpBtnRect && g._hitRect(x, y, ..._rects.starUpBtnRect)) {
+    if (_hitInsidePanel(g, x, y, _rects.starUpBtnRect)) {
       _doStarUp(g)
       return
     }
 
     // 分解
-    if (_rects.decomposeBtnRect && g._hitRect(x, y, ..._rects.decomposeBtnRect)) {
+    if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) {
       _doDecompose(g)
       return
     }
 
-    // 成长路线图行点击（展开/收起）
+    // 成长路线图行点击（展开/收起）— 面板内，需用内容坐标系命中
     if (_rects.roadmapRowRects && _rects.roadmapRowRects.length > 0) {
       for (const item of _rects.roadmapRowRects) {
-        if (g._hitRect(x, y, ...item.rect)) {
+        if (_hitInsidePanel(g, x, y, item.rect)) {
           _expandedRoadmapStar = (_expandedRoadmapStar === item.star) ? 0 : item.star
           MusicMgr.playClick && MusicMgr.playClick()
           return
@@ -1357,39 +1479,89 @@ function _navigatePet(g, delta) {
   // delta < 0 = 上一个 = 当前页向右滑出, direction = 1
   _slideAnim = { from: g._petDetailId, to: pool[newIdx].id, progress: 0, duration: 12, direction: delta > 0 ? -1 : 1 }
   _expandedRoadmapStar = 0  // 切换宠物时收起成长路线展开
+  _panelScrollY = 0          // 切换宠物时重置面板滚动
   MusicMgr.playClick && MusicMgr.playClick()
 }
 
 function _doLevelUp(g) {
   const petId = g._petDetailId
   if (!petId) return
-  const poolPet = g.storage.getPoolPet(petId)
-  if (!poolPet) return
+  const poolPetBefore = g.storage.getPoolPet(petId)
+  if (!poolPetBefore) return
   const rarity = getPetRarity(petId)
-  const needed = petExpToNextLevel(poolPet.level, rarity)
+  const needed = petExpToNextLevel(poolPetBefore.level, rarity)
   if ((g.storage.soulStone || 0) < needed) return
+  const prevLv = poolPetBefore.level
+  const prevAtk = getPoolPetAtk(poolPetBefore)
   const ups = g.storage.investSoulStone(petId, needed)
   if (ups > 0) {
     MusicMgr.playLevelUp && MusicMgr.playLevelUp()
+    const poolPetAfter = g.storage.getPoolPet(petId)
+    const newLv = poolPetAfter ? poolPetAfter.level : prevLv + ups
+    const atkDelta = poolPetAfter ? (getPoolPetAtk(poolPetAfter) - prevAtk) : 0
+
+    // 1) 按钮爆点（金光 + 金星）—— 点击那一下的"打击感"
+    if (_rects.levelUpBtnRect) buttonFx.trigger(_toScreenRect(_rects.levelUpBtnRect), 'upgrade')
+    // 2) 左侧 Lv 数字滚动动画 180ms
+    numberTween.tween('pet.level.' + petId, prevLv, newLv, 180)
+    // 3) 按钮上方飘字（错开时间，避免两条叠成一排）
+    _spawnBtnFloat(_rects.levelUpBtnRect, `Lv +${ups}`, {
+      color: '#FFE080', size: 17, dy: -12,
+    })
+    if (atkDelta > 0) {
+      _spawnBtnFloat(_rects.levelUpBtnRect, `攻击 +${atkDelta}`, {
+        color: '#FF9866', size: 14, dy: 8, delay: 280,
+      })
+    }
+    // 4) 连升 5 级以上，加一条小灵庆贺，强化"成长感"
+    if (ups >= 5) {
+      const petName = (getPetById(petId) || {}).name || ''
+      lingCheer.show(LING.cheer.petLevelUpBig(petName, ups), { tone: 'info' })
+    }
   }
 }
 
 function _doStarUp(g) {
   const petId = g._petDetailId
   if (!petId) return
-  const prevStar = (g.storage.getPoolPet(petId) || {}).star || 1
+  const poolPetBefore = g.storage.getPoolPet(petId)
+  const prevStar = (poolPetBefore || {}).star || 1
+  const prevAtk = poolPetBefore ? getPoolPetAtk(poolPetBefore) : 0
   const result = g.storage.upgradePoolPetStar(petId)
   if (result.ok) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
-    g._pendingShareScene = { scene: 'petStarUp', data: { petName: (require('../data/pets').getPetById(petId) || {}).name || petId, star: result.newStar } }
+    const basePet = require('../data/pets').getPetById(petId)
+    const petName = (basePet && basePet.name) || petId
+    g._pendingShareScene = { scene: 'petStarUp', data: { petName, star: result.newStar } }
+
+    // 升星是每只宠物的重要里程碑：小灵必须露脸庆贺
+    const isMax = result.newStar >= 5
+    const cheerMsg = isMax
+      ? LING.cheer.petStarMax(petName)
+      : LING.cheer.petStarUp(petName, result.newStar)
+    lingCheer.show(cheerMsg, { tone: 'epic', duration: 2200 })
+
     // ★1 → ★2 首次解锁技能：显示技能名称提示 + 技能区高亮
     if (prevStar === 1 && result.newStar === 2) {
-      const basePet = require('../data/pets').getPetById(petId)
       const skillName = basePet && basePet.skill ? basePet.skill.name : ''
       if (skillName && P.showGameToast) {
         P.showGameToast(`技能「${skillName}」已解锁！`, { type: 'achievement' })
       }
       g._petSkillUnlockGlow = 30  // 30帧金色高亮动画
+    }
+
+    // 按钮爆点（金紫星光 + 金环扩散）—— 里程碑级别反馈
+    if (_rects.starUpBtnRect) buttonFx.trigger(_toScreenRect(_rects.starUpBtnRect), 'starUp')
+    // 按钮上方飘"★N"与攻击增量，错开时间
+    _spawnBtnFloat(_rects.starUpBtnRect, `★${result.newStar}`, {
+      color: '#FFD060', size: 20, bold: true, dy: -12,
+    })
+    const poolPetAfter = g.storage.getPoolPet(petId)
+    const atkDelta = poolPetAfter ? (getPoolPetAtk(poolPetAfter) - prevAtk) : 0
+    if (atkDelta > 0) {
+      _spawnBtnFloat(_rects.starUpBtnRect, `攻击 +${atkDelta}`, {
+        color: '#FF9866', size: 14, dy: 10, delay: 350,
+      })
     }
   } else {
     const msgMap = {
@@ -1410,7 +1582,38 @@ function _doDecompose(g) {
   const gained = g.storage.decomposeFragments(petId, 1)
   if (gained > 0) {
     MusicMgr.playReward && MusicMgr.playReward()
+    if (_rects.decomposeBtnRect) buttonFx.trigger(_toScreenRect(_rects.decomposeBtnRect), 'reward')
+    _spawnBtnFloat(_rects.decomposeBtnRect, `+${gained} 万能碎片`, {
+      color: '#E8C070', size: 14, dy: -10,
+    })
   }
+}
+
+/**
+ * 在按钮位置冒一条飘字。rect 为内容坐标系（含 panel 滚动偏移），
+ * 这里换算成屏幕坐标再投给 floatText；dy 生效为"起飞 y 偏移"，
+ * delay 用于串联多条飘字（避免第一条/第二条重叠成一坨）。
+ */
+function _spawnBtnFloat(rect, text, opts) {
+  if (!rect || !text) return
+  const [x, y, w, h] = rect
+  const cx = x + w / 2
+  const cy = y + h / 2 - _panelScrollY
+  const o = opts || {}
+  floatText.spawn(cx, cy, text, {
+    color: o.color,
+    size: o.size,
+    bold: o.bold,
+    dx: o.dx || 0,
+    dy: o.dy || 0,
+    delay: o.delay || 0,
+  })
+}
+
+/** 把内容坐标系 rect（含滚动偏移）换算成屏幕坐标 rect，供 buttonFx 使用 */
+function _toScreenRect(rect) {
+  if (!rect) return null
+  return [rect[0], rect[1] - _panelScrollY, rect[2], rect[3]]
 }
 
 function _longPressLoop(g) {

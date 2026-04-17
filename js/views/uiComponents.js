@@ -779,8 +779,871 @@ function drawBuffCard(c, R, S, x, y, w, h, rw, isSelected) {
   c.fillText('全队永久生效', textX, y + h * 0.84)
 }
 
+/**
+ * drawLingCard — 模态讲解卡（小灵主讲 · 多页翻页 · 卷轴底板）
+ *
+ * 与 drawGuideBubble 视觉同源（纸底/金边/纸纹/两端卷轴），但用于**全屏模态讲解**：
+ *   - 左上角圆头像 + 说话人名 + 副标签（"第 1/2 课" 之类）
+ *   - 居中大标题 + 金线下划线
+ *   - 左对齐正文行（对话式，不再全部居中）
+ *   - 可选金棕色备注行
+ *   - 底部分页点 + "点击继续 ›" 呼吸高亮
+ *
+ * 调用方负责画背后的全屏暗遮罩；本函数只画卡本体。
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x,y,w,h  卡片位置 + 尺寸
+ * @param {object} opts
+ *   avatarImg   HTMLImageElement | null   左上头像
+ *   speaker     string                     说话人（如 '仙宠 · 小灵'）
+ *   subLabel    string | null              说话人后的副标签（'第 1/2 课'、'战前要诀'）
+ *   title       string                     大标题
+ *   lines       string[]                   正文行（由调用方 wrap 后传入）
+ *   note        string | null              金棕色备注行
+ *   fontSizeBody number                     正文字号
+ *   lineH       number                     行高
+ *   pageIdx     number                     当前页（0-based）
+ *   totalPages  number                     总页数（<=1 时不画分页点）
+ *   continueText string                    底部呼吸文字（默认"点击继续 ›"）
+ *   animT       0..1                       入场 scaleY 动画
+ *   pulseT      number                     呼吸相位（调用方传 g.af * 0.1 即可）
+ */
+function drawLingCard(c, S, x, y, w, h, opts) {
+  opts = opts || {}
+  const animT = opts.animT != null ? opts.animT : 1
+  const lines = opts.lines || []
+  const bodyFs = opts.fontSizeBody || 14 * S
+  const lineH = opts.lineH || 28 * S
+  const radius = 14 * S
+
+  // 入场：轻微 scaleY（卷轴从上下拉开感）+ alpha
+  c.save()
+  const cx = x + w / 2
+  const cy = y + h / 2
+  c.translate(cx, cy)
+  c.scale(1, 0.6 + 0.4 * animT)
+  c.globalAlpha *= animT
+  c.translate(-cx, -cy)
+
+  // 卷轴底 + 两端滚轴（复用 _drawScrollBody / _drawScrollRollers）
+  _drawScrollBody(c, S, x, y, w, h, radius)
+  _drawScrollRollers(c, S, x, y, w, h)
+
+  // ---- 左上：头像 + 说话人 + 副标签 ----
+  const padL = 16 * S
+  const padR = 16 * S
+  const padT = 12 * S
+  let headerCY = y + padT + 18 * S
+  let textLeft = x + padL
+
+  const hasAvatar = opts.avatarImg && opts.avatarImg.width > 0
+  if (hasAvatar) {
+    const ar = 22 * S
+    const acx = x + padL + ar
+    const acy = headerCY
+    _drawAvatarBadge(c, S, acx, acy, ar, opts.avatarImg)
+    textLeft = acx + ar + 10 * S
+  }
+
+  if (opts.speaker) {
+    c.save()
+    c.fillStyle = 'rgba(155,110,30,0.95)'
+    c.font = `${11 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillText(opts.speaker, textLeft, headerCY - 6 * S)
+    if (opts.subLabel) {
+      c.fillStyle = 'rgba(130,95,40,0.7)'
+      c.font = `${10 * S}px "PingFang SC",sans-serif`
+      c.fillText(opts.subLabel, textLeft, headerCY + 8 * S)
+    }
+    c.restore()
+  }
+
+  // 分隔线
+  const sepY = y + padT + 38 * S
+  c.save()
+  const sepGrad = c.createLinearGradient(x, 0, x + w, 0)
+  sepGrad.addColorStop(0, 'rgba(170,130,45,0.0)')
+  sepGrad.addColorStop(0.15, 'rgba(200,160,60,0.55)')
+  sepGrad.addColorStop(0.85, 'rgba(200,160,60,0.55)')
+  sepGrad.addColorStop(1, 'rgba(170,130,45,0.0)')
+  c.strokeStyle = sepGrad
+  c.lineWidth = 1 * S
+  c.beginPath()
+  c.moveTo(x + padL, sepY)
+  c.lineTo(x + w - padR, sepY)
+  c.stroke()
+  c.restore()
+
+  // ---- 大标题（居中） ----
+  const titleY = sepY + 24 * S
+  if (opts.title) {
+    c.save()
+    c.fillStyle = '#3a1a00'
+    c.font = `bold ${17 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.shadowColor = 'rgba(255,255,255,0.7)'; c.shadowBlur = 2 * S
+    c.fillText(opts.title, x + w / 2, titleY)
+    c.restore()
+  }
+
+  // ---- 正文行（左对齐，对话式） ----
+  const bodyStartY = (opts.title ? (titleY + 26 * S) : (sepY + 18 * S))
+  c.save()
+  c.fillStyle = '#4a3820'
+  c.font = `${bodyFs}px "PingFang SC","Microsoft YaHei",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  for (let i = 0; i < lines.length; i++) {
+    c.fillText(lines[i], x + padL + 6 * S, bodyStartY + i * lineH)
+  }
+  c.restore()
+
+  // ---- 备注行 ----
+  let noteBottomY = bodyStartY + lines.length * lineH
+  if (opts.note) {
+    noteBottomY += 12 * S
+    c.save()
+    c.fillStyle = '#b06010'
+    c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'top'
+    c.fillText(opts.note, x + w / 2, noteBottomY)
+    c.restore()
+    noteBottomY += 18 * S
+  }
+
+  // ---- 底部：分页点 + 点击继续 ----
+  const bottomY = y + h - 14 * S
+  const total = opts.totalPages || 1
+  if (total > 1) {
+    const dotR = 4 * S, dotGap = 14 * S
+    const dotsStartX = x + w / 2 - ((total - 1) * dotGap) / 2
+    const dotsY = bottomY - 22 * S
+    const pageIdx = opts.pageIdx || 0
+    for (let i = 0; i < total; i++) {
+      c.beginPath()
+      c.arc(dotsStartX + i * dotGap, dotsY, dotR, 0, Math.PI * 2)
+      c.fillStyle = i === pageIdx ? '#c07820' : 'rgba(160,120,40,0.3)'
+      c.fill()
+    }
+  }
+
+  const continueText = opts.continueText || '点击继续 ›'
+  const pulse = 0.55 + 0.45 * Math.sin((opts.pulseT || 0))
+  c.save()
+  c.globalAlpha *= (0.55 + 0.4 * pulse)
+  c.fillStyle = '#8a6030'
+  c.font = `${11 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic'
+  c.fillText(continueText, x + w / 2, bottomY)
+  c.restore()
+
+  c.restore()
+}
+
+/**
+ * drawLingHeader — 小尺寸"小灵点评"标题栏
+ *
+ * 用于模块内小区块（如失败页"如何变强"标题左侧）：
+ *   [Ⓒ] 如何变强              ← 主标题（深棕色 bold 11*S）
+ *        主人别灰心，...       ← 副标题（金棕色 9.5*S，可选）
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x,y       左上基点
+ * @param {object} opts
+ *   avatarImg  HTMLImageElement | null
+ *   title      string
+ *   subtitle   string | null
+ *   titleColor string         默认 '#6B6040'
+ * @returns {{ height: number, rightEdge: number }}  绘制完成后的高度与末尾 X
+ */
+function drawLingHeader(c, S, x, y, opts) {
+  opts = opts || {}
+  const ar = 13 * S
+  let cursorX = x
+  if (opts.avatarImg && opts.avatarImg.width > 0) {
+    _drawAvatarBadge(c, S, x + ar, y + ar, ar, opts.avatarImg)
+    cursorX = x + ar * 2 + 8 * S
+  }
+  c.save()
+  c.fillStyle = opts.titleColor || '#6B6040'
+  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  const titleY = opts.subtitle ? (y + ar - 6 * S) : (y + ar)
+  c.fillText(opts.title || '', cursorX, titleY)
+  if (opts.subtitle) {
+    c.fillStyle = 'rgba(140,100,40,0.85)'
+    c.font = `${9.5 * S}px "PingFang SC",sans-serif`
+    c.fillText(opts.subtitle, cursorX, titleY + 14 * S)
+  }
+  c.restore()
+  const h = ar * 2 + 2 * S
+  return { height: h, rightEdge: cursorX }
+}
+
+/**
+ * drawGuideBubble — 新手引导气泡（竹简卷轴 · 左侧头像 · 可选尾巴指向高亮按钮）
+ *
+ * 与通用 drawPanel 的区别：
+ *   - 专门为"有人在和玩家说话"设计：左侧圆形头像 + 头像金边 + 右上小标题（说话人）
+ *   - 面板左右两端绘制「卷轴圆柱」装饰（代替老版四角菱形）
+ *   - 纸底叠一层极淡斜纹纸纹（createPattern 动态生成，无额外资源）
+ *   - 支持底部尾巴指向任意点（通常是被高亮的按钮中心）
+ *   - 支持入场"展开"动画 animT: 0→1 面板从中心向两端拉开
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x  气泡左上
+ * @param {number} y
+ * @param {number} w
+ * @param {number} h
+ * @param {object} opts
+ *   opts.avatarImg   HTMLImageElement | null
+ *   opts.speaker     string  右上角说话人（如 '仙宠 · 小灵'），空则不画
+ *   opts.lines       string[] 正文行（由调用方 wrapText 后传入）
+ *   opts.fontSize    number   正文字号（px）
+ *   opts.lineH       number   行高
+ *   opts.tailTo      {x,y} | null  尾巴指向的屏幕坐标，null 不画
+ *   opts.animT       0..1     入场展开进度
+ *   opts.R           渲染器（可选，用于共享 rr / 图片 tint）
+ */
+function drawGuideBubble(c, S, x, y, w, h, opts) {
+  opts = opts || {}
+  const animT = opts.animT != null ? opts.animT : 1
+  const lines = opts.lines || []
+  const fontSize = opts.fontSize || 15 * S
+  const lineH = opts.lineH || fontSize * 1.5
+  const radius = 14 * S
+
+  // 入场展开：水平从中心往两端拉开（scaleX）
+  c.save()
+  const cx = x + w / 2
+  const cy = y + h / 2
+  c.translate(cx, cy)
+  c.scale(animT, 1)
+  c.globalAlpha *= animT
+  c.translate(-cx, -cy)
+
+  // ---- 卷轴底板 ----
+  _drawScrollBody(c, S, x, y, w, h, radius)
+
+  // ---- 左右两端卷轴圆柱 ----
+  _drawScrollRollers(c, S, x, y, w, h)
+
+  // ---- 左侧头像 ----
+  const avatarPad = 14 * S
+  const avatarR = Math.min(36 * S, (h - avatarPad * 2) / 2)
+  const avatarCx = x + avatarPad + avatarR
+  const avatarCy = y + h / 2
+  const hasAvatar = opts.avatarImg && opts.avatarImg.width > 0
+  if (hasAvatar) {
+    _drawAvatarBadge(c, S, avatarCx, avatarCy, avatarR, opts.avatarImg)
+  }
+
+  // ---- 说话人小标签（右上角） + 分隔线 ----
+  const contentLeft = hasAvatar ? (avatarCx + avatarR + 12 * S) : (x + 20 * S)
+  const contentRight = x + w - 20 * S
+  const contentW = contentRight - contentLeft
+  const textTop = y + (opts.speaker ? 10 * S : 14 * S)
+
+  if (opts.speaker) {
+    c.save()
+    c.fillStyle = 'rgba(155,110,30,0.9)'
+    c.font = `${11 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    c.fillText(opts.speaker, contentLeft, textTop)
+    // 说话人下的细金线
+    c.strokeStyle = 'rgba(180,140,60,0.35)'
+    c.lineWidth = 0.8 * S
+    c.beginPath()
+    c.moveTo(contentLeft, textTop + 15 * S)
+    c.lineTo(contentRight, textTop + 15 * S)
+    c.stroke()
+    c.restore()
+  }
+
+  // ---- 正文 ----
+  const textStartY = opts.speaker ? (textTop + 22 * S) : textTop
+  c.save()
+  c.fillStyle = '#3a1a00'
+  c.font = `bold ${fontSize}px "PingFang SC","Microsoft YaHei",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.shadowColor = 'rgba(255,255,255,0.6)'
+  c.shadowBlur = 2 * S
+  for (let i = 0; i < lines.length; i++) {
+    c.fillText(lines[i], contentLeft, textStartY + i * lineH)
+  }
+  c.restore()
+
+  c.restore()  // scaleX 动画 restore
+
+  // ---- 尾巴（不跟随 scaleX 动画，等气泡完全展开后浮现）----
+  if (animT >= 0.95 && opts.tailTo) {
+    _drawTail(c, S, x, y, w, h, opts.tailTo, (animT - 0.95) / 0.05)
+  }
+}
+
+/** 卷轴主体：米黄纸底 + 双边 + 上下横向金线 + 纸纹颗粒 */
+function _drawScrollBody(c, S, x, y, w, h, radius) {
+  c.save()
+  c.shadowColor = 'rgba(40,20,0,0.35)'
+  c.shadowBlur = 16 * S
+  c.shadowOffsetX = 0
+  c.shadowOffsetY = 4 * S
+  const bg = c.createLinearGradient(x, y, x, y + h)
+  bg.addColorStop(0, '#fffdf1')
+  bg.addColorStop(0.5, '#f6ecd0')
+  bg.addColorStop(1, '#ecddb4')
+  _rr(c, x, y, w, h, radius)
+  c.fillStyle = bg
+  c.fill()
+  c.restore()
+
+  // 纸纹（极淡的 45° 斜线）
+  c.save()
+  _rr(c, x, y, w, h, radius)
+  c.clip()
+  c.globalAlpha = 0.08
+  c.strokeStyle = '#8a6a2a'
+  c.lineWidth = 0.5 * S
+  const step = 5 * S
+  for (let i = -h; i < w + h; i += step) {
+    c.beginPath()
+    c.moveTo(x + i, y)
+    c.lineTo(x + i + h, y + h)
+    c.stroke()
+  }
+  c.restore()
+
+  // 外金边（单道细）+ 内高光边
+  _rr(c, x, y, w, h, radius)
+  c.strokeStyle = 'rgba(170,130,45,0.75)'
+  c.lineWidth = 1.5 * S
+  c.stroke()
+  const ins = 2.5 * S
+  _rr(c, x + ins, y + ins, w - ins * 2, h - ins * 2, Math.max(2, radius - ins))
+  c.strokeStyle = 'rgba(255,240,190,0.5)'
+  c.lineWidth = 0.8 * S
+  c.stroke()
+
+  // 顶底两道金线（卷轴"竹简"横线意象）
+  c.save()
+  const grad = c.createLinearGradient(x, 0, x + w, 0)
+  grad.addColorStop(0, 'rgba(170,130,45,0.0)')
+  grad.addColorStop(0.2, 'rgba(200,160,60,0.85)')
+  grad.addColorStop(0.8, 'rgba(200,160,60,0.85)')
+  grad.addColorStop(1, 'rgba(170,130,45,0.0)')
+  c.strokeStyle = grad
+  c.lineWidth = 1 * S
+  c.beginPath(); c.moveTo(x + 20 * S, y + 6 * S); c.lineTo(x + w - 20 * S, y + 6 * S); c.stroke()
+  c.beginPath(); c.moveTo(x + 20 * S, y + h - 6 * S); c.lineTo(x + w - 20 * S, y + h - 6 * S); c.stroke()
+  c.restore()
+}
+
+/** 左右两端卷轴圆柱（立式金色圆柱，顶底带深褐盖） */
+function _drawScrollRollers(c, S, x, y, w, h) {
+  const rollerW = 10 * S
+  const rollerH = h + 12 * S
+  const rollerY = y - 6 * S
+  const ends = [x - rollerW * 0.5, x + w - rollerW * 0.5]
+  for (const rx of ends) {
+    c.save()
+    // 阴影
+    c.shadowColor = 'rgba(40,20,0,0.35)'
+    c.shadowBlur = 4 * S
+    c.shadowOffsetX = 0
+    c.shadowOffsetY = 2 * S
+    // 圆柱主体（金属渐变）
+    const g = c.createLinearGradient(rx, 0, rx + rollerW, 0)
+    g.addColorStop(0,    'rgba(140,100,30,1)')
+    g.addColorStop(0.35, 'rgba(220,180,80,1)')
+    g.addColorStop(0.55, 'rgba(245,215,140,1)')
+    g.addColorStop(0.75, 'rgba(210,170,70,1)')
+    g.addColorStop(1,    'rgba(130,90,25,1)')
+    c.fillStyle = g
+    _rr(c, rx, rollerY, rollerW, rollerH, rollerW * 0.5)
+    c.fill()
+    c.restore()
+
+    // 顶底深褐盖
+    c.save()
+    c.fillStyle = 'rgba(78,48,12,0.95)'
+    const capH = 4 * S
+    _rr(c, rx - 1 * S, rollerY, rollerW + 2 * S, capH, capH * 0.5)
+    c.fill()
+    _rr(c, rx - 1 * S, rollerY + rollerH - capH, rollerW + 2 * S, capH, capH * 0.5)
+    c.fill()
+    c.restore()
+  }
+}
+
+/** 左侧圆形头像徽章：圆形裁剪 + 金边 + 下沉阴影 */
+function _drawAvatarBadge(c, S, cx, cy, r, img) {
+  // 外发光金晕
+  c.save()
+  const aura = c.createRadialGradient(cx, cy, r * 0.3, cx, cy, r + 6 * S)
+  aura.addColorStop(0, 'rgba(255,220,130,0.0)')
+  aura.addColorStop(0.7, 'rgba(255,220,130,0.0)')
+  aura.addColorStop(1, 'rgba(255,220,130,0.35)')
+  c.fillStyle = aura
+  c.beginPath(); c.arc(cx, cy, r + 6 * S, 0, Math.PI * 2); c.fill()
+  c.restore()
+
+  // 圆底（防透明洞感）
+  c.save()
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2)
+  c.fillStyle = '#fffdf3'; c.fill()
+  c.clip()
+  c.drawImage(img, cx - r, cy - r, r * 2, r * 2)
+  c.restore()
+
+  // 金边
+  c.save()
+  c.strokeStyle = 'rgba(200,160,60,0.9)'
+  c.lineWidth = 2 * S
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke()
+  // 内高光圈
+  c.strokeStyle = 'rgba(255,240,190,0.55)'
+  c.lineWidth = 0.8 * S
+  c.beginPath(); c.arc(cx, cy, r - 2 * S, 0, Math.PI * 2); c.stroke()
+  c.restore()
+}
+
+/** 气泡底部指向 tailTo 的小三角 + 虚线牵引 */
+function _drawTail(c, S, x, y, w, h, tailTo, t) {
+  const bubbleBottom = y + h
+  const bubbleCenterX = x + w / 2
+  // 三角的尖端在气泡底边正中偏 tailTo 一点
+  const tipX = bubbleCenterX + Math.max(-w * 0.25, Math.min(w * 0.25, (tailTo.x - bubbleCenterX) * 0.3))
+  const triHalf = 9 * S
+  const triH = 10 * S
+  c.save()
+  c.globalAlpha *= t
+  // 三角底色（与气泡主底一致）
+  c.beginPath()
+  c.moveTo(tipX - triHalf, bubbleBottom - 1)
+  c.lineTo(tipX + triHalf, bubbleBottom - 1)
+  c.lineTo(tipX, bubbleBottom + triH)
+  c.closePath()
+  c.fillStyle = '#f2e4b8'
+  c.fill()
+  // 三角金边
+  c.strokeStyle = 'rgba(170,130,45,0.75)'
+  c.lineWidth = 1.2 * S
+  c.beginPath()
+  c.moveTo(tipX - triHalf, bubbleBottom)
+  c.lineTo(tipX, bubbleBottom + triH)
+  c.lineTo(tipX + triHalf, bubbleBottom)
+  c.stroke()
+
+  // 虚线牵引（从三角尖到目标点）
+  const endX = tailTo.x
+  const endY = tailTo.y - 6 * S
+  if (endY > bubbleBottom + triH + 4 * S) {
+    c.setLineDash([3 * S, 3 * S])
+    c.strokeStyle = 'rgba(200,160,60,0.55)'
+    c.lineWidth = 1 * S
+    c.beginPath()
+    c.moveTo(tipX, bubbleBottom + triH)
+    c.lineTo(endX, endY)
+    c.stroke()
+    c.setLineDash([])
+  }
+  c.restore()
+}
+
+/**
+ * drawPressOverlay — 统一的按钮"按下态"反馈
+ *
+ * 各 View 自行画按钮底色（保持原有样式），按下态只需在最上层叠一个深色蒙版即可。
+ * View 维护一个 `_pressedId`（字符串）标记当前按下的按钮 id，
+ * 绘制时把 id 传给本函数：是当前按下 id 就绘制蒙版。
+ *
+ * 用法：
+ *   drawPressOverlay(c, R, rect, S, isPressed)
+ */
+function drawPressOverlay(c, R, rect, S, isPressed) {
+  if (!isPressed || !rect) return
+  const [x, y, w, h] = rect
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.18)'
+  if (R && R.rr) {
+    R.rr(x, y, w, h, 6 * S)
+    c.fill()
+  } else {
+    c.fillRect(x, y, w, h)
+  }
+  c.restore()
+}
+
+/**
+ * registerTouchRect / dispatchTouchRect — 声明式触摸命中框（可选接入）
+ *
+ * 帮助 View 用同一套方式注册矩形 + 处理器，避免一串 if-else 错位。
+ * View 持有一个 `_touchMap = {}`，渲染时：
+ *   registerTouchRect(_touchMap, 'backBtn', rect, () => { ... })
+ * onTouch end 时：
+ *   if (dispatchTouchRect(_touchMap, x, y, g._hitRect)) return
+ *
+ * 已存在的 View 不强制迁移，仅为新代码提供规范。
+ */
+function registerTouchRect(map, id, rect, handler) {
+  if (!map || !id || !rect || !handler) return
+  map[id] = { rect, handler }
+}
+function dispatchTouchRect(map, x, y, hitTest) {
+  if (!map) return false
+  for (const id of Object.keys(map)) {
+    const entry = map[id]
+    if (!entry || !entry.rect) continue
+    if (hitTest(x, y, ...entry.rect)) {
+      entry.handler()
+      return true
+    }
+  }
+  return false
+}
+function clearTouchRects(map) {
+  if (!map) return
+  for (const k of Object.keys(map)) delete map[k]
+}
+
+/**
+ * drawScrollablePanel — 可滚动内容容器
+ *
+ * 用法：
+ *   const { scrollY, contentH } = drawScrollablePanel(
+ *     ctx, S, { x, y, w, h }, state, (ctx, innerW) => {
+ *       // 在此绘制内容，y 从 0 开始；返回绘制完的实际高度
+ *       return totalHeight
+ *     },
+ *     { paddingX, paddingY, showScrollBar }
+ *   )
+ *
+ * state 必须是一个可持久化对象 { scrollY: 0, maxScrollY: 0, dragging: bool, dragStartY, dragStartScrollY }
+ * View 应创建一份 state 并在宠物/tab 切换时 reset。
+ *
+ * 触摸：View 在 onTouch 里分发到 handleScrollablePanelTouch(state, rect, x, y, type) 即可。
+ */
+function drawScrollablePanel(c, S, rect, state, drawContent, opts) {
+  opts = opts || {}
+  const padX = opts.paddingX != null ? opts.paddingX : 0
+  const padY = opts.paddingY != null ? opts.paddingY : 0
+  const showBar = opts.showScrollBar !== false
+  const { x, y, w, h } = rect
+
+  // clip 到面板矩形
+  c.save()
+  c.beginPath()
+  c.rect(x, y, w, h)
+  c.clip()
+
+  const innerX = x + padX
+  const innerY = y + padY
+  const innerW = w - padX * 2
+  const innerH = h - padY * 2
+
+  c.save()
+  c.translate(innerX, innerY - (state.scrollY || 0))
+  const contentH = drawContent(c, innerW, innerH) || 0
+  c.restore()
+
+  // 更新滚动范围（向上对齐）
+  state.maxScrollY = Math.max(0, contentH - innerH)
+  if (state.scrollY > state.maxScrollY) state.scrollY = state.maxScrollY
+  if (state.scrollY < 0) state.scrollY = 0
+
+  // 滚动条（右侧 3px，内容超长才出现）
+  if (showBar && state.maxScrollY > 0) {
+    const barW = 3 * S
+    const barTrackH = innerH
+    const barH = Math.max(24 * S, barTrackH * innerH / contentH)
+    const barRatio = state.scrollY / state.maxScrollY
+    const barY = innerY + barRatio * (barTrackH - barH)
+    const barX = x + w - barW - 2 * S
+    c.save()
+    c.globalAlpha = 0.55
+    c.fillStyle = '#9A7A40'
+    _rrFallback(c, barX, barY, barW, barH, barW / 2)
+    c.fill()
+    c.restore()
+  }
+
+  c.restore()
+  return { scrollY: state.scrollY, contentH, maxScrollY: state.maxScrollY }
+}
+
+function _rrFallback(c, x, y, w, h, r) {
+  c.beginPath()
+  c.moveTo(x + r, y)
+  c.arcTo(x + w, y,     x + w, y + h, r)
+  c.arcTo(x + w, y + h, x,     y + h, r)
+  c.arcTo(x,     y + h, x,     y,     r)
+  c.arcTo(x,     y,     x + w, y,     r)
+  c.closePath()
+}
+
+/**
+ * 处理可滚动面板的触摸：
+ *   返回 true 表示触摸被消费（View 不需再向下派发）
+ */
+function handleScrollablePanelTouch(state, rect, x, y, type) {
+  const { x: rx, y: ry, w: rw, h: rh } = rect
+  const inside = x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
+  if (type === 'start') {
+    if (!inside) return false
+    state.dragging = true
+    state.dragStartY = y
+    state.dragStartScrollY = state.scrollY || 0
+    state._dragDelta = 0
+    return false  // 触摸开始不消费，让下层 View 判断点击
+  }
+  if (type === 'move' && state.dragging) {
+    const dy = y - state.dragStartY
+    state._dragDelta = Math.max(state._dragDelta || 0, Math.abs(dy))
+    state.scrollY = state.dragStartScrollY - dy
+    if (state.scrollY < 0) state.scrollY = 0
+    if (state.maxScrollY && state.scrollY > state.maxScrollY) state.scrollY = state.maxScrollY
+    // 滑动幅度超过阈值时消费后续事件，避免被当作点击
+    return (state._dragDelta || 0) > 6
+  }
+  if (type === 'end' || type === 'cancel') {
+    const wasDragging = state.dragging && (state._dragDelta || 0) > 6
+    state.dragging = false
+    state._dragDelta = 0
+    return wasDragging
+  }
+  return false
+}
+
+/** 创建默认滚动状态对象 */
+function createScrollState() {
+  return { scrollY: 0, maxScrollY: 0, dragging: false, dragStartY: 0, dragStartScrollY: 0, _dragDelta: 0 }
+}
+
+// ===== 统一 CTA/次级/危险/虚按钮 drawPrimaryButton =====
+/**
+ * 全站通用「功能性按钮」—— 金棕卷轴调性、多 style、多状态
+ *
+ * 为什么单独抽出来：
+ *   - 原来每个页面（pet/修炼/签到/商城…）都写自己的 _drawBtn，色号/圆角/字号不统一；
+ *     改 UI 时要改 N 处。
+ *   - 这里统一一处：视觉语言与 drawLingCard / drawGuideBubble 对齐，金色 CTA / 里程碑金紫 /
+ *     次级银 / 危险红 / ghost 虚线，五种即可覆盖全部业务。
+ *
+ * 调用：
+ *   const { drawPrimaryButton } = require('./uiComponents')
+ *   drawPrimaryButton(ctx, S, x, y, w, h, {
+ *     text: '升级', subText: '611/132 灵石',
+ *     style: 'gold', enabled: true, pressed: false, glow: true, flashT: 0,
+ *   })
+ *
+ * 响应交互的方式：
+ *   调用方负责点击命中与 pressed 状态（touchstart=true / end=false），
+ *   flashT 由 buttonFx 驱动（0 → 1 → 0 一个往返）。
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} S
+ * @param {number} x,y,w,h
+ * @param {object} opts
+ *   text       主文案（必填）
+ *   subText    副文字（可选，下方小字，如"611/132 灵石"）
+ *   style      'gold' | 'milestone' | 'silver' | 'danger' | 'ghost' (默认 'gold')
+ *   enabled    默认 true；false 时绘制禁用态（灰色 + alpha）
+ *   pressed    默认 false；true 时整体下压 + 底色变暗（按压反馈）
+ *   glow       默认 false；true 时金边呼吸（用于"可升级"引导）
+ *   flashT     0~1，默认 0；成功后瞬间金白高光（buttonFx 驱动）
+ *   fontSize   主文字字号（默认根据按钮高度自动）
+ *   subFontSize  副文字字号（默认 10*S）
+ */
+function drawPrimaryButton(c, S, x, y, w, h, opts) {
+  opts = opts || {}
+  const text = opts.text || ''
+  const subText = opts.subText || ''
+  const style = opts.style || 'gold'
+  const enabled = opts.enabled !== false
+  const pressed = !!opts.pressed && enabled
+  const glow = !!opts.glow && enabled
+  const flashT = enabled ? Math.max(0, Math.min(1, opts.flashT || 0)) : 0
+  const radius = opts.radius != null ? opts.radius : 8 * S
+
+  // 按下态整体下压 2*S（视觉"被按进去"）
+  const dy = pressed ? 2 * S : 0
+  const bx = x, by = y + dy, bw = w, bh = h - dy
+
+  // 色板：每 style 一套"顶色 / 底色 / 字色 / 边色"
+  // —— 调性：gold=正向 CTA；milestone=金+紫渐变里程碑；silver=次级；danger=破坏；ghost=弱回绕
+  const P = _btnPalette(style)
+
+  c.save()
+
+  // 呼吸金边（glow）：先画一层柔和外发光，让"可升级"按钮主动吸引视线
+  if (glow) {
+    const pulse = 0.35 + 0.35 * Math.sin(Date.now() * 0.004)
+    c.save()
+    c.shadowColor = P.glow
+    c.shadowBlur = (8 + 6 * pulse) * S
+    c.strokeStyle = P.glow
+    c.globalAlpha = 0.55 + 0.35 * pulse
+    c.lineWidth = 2 * S
+    _rr(c, bx - 1 * S, by - 1 * S, bw + 2 * S, bh + 2 * S, radius + 1 * S); c.stroke()
+    c.restore()
+  }
+
+  // 底：渐变（ghost 无底）
+  if (style !== 'ghost') {
+    const grad = c.createLinearGradient(bx, by, bx, by + bh)
+    grad.addColorStop(0, pressed ? P.topDark : P.top)
+    grad.addColorStop(0.55, pressed ? P.midDark : P.mid)
+    grad.addColorStop(1, pressed ? P.bottomDark : P.bottom)
+    c.fillStyle = enabled ? grad : P.disabledBg
+    _rr(c, bx, by, bw, bh, radius); c.fill()
+  } else {
+    // ghost：半透纸白
+    c.fillStyle = enabled ? 'rgba(255,248,228,0.35)' : 'rgba(200,195,180,0.2)'
+    _rr(c, bx, by, bw, bh, radius); c.fill()
+  }
+
+  // 顶部高光条（内侧 1px 亮金线，让按钮立体）
+  if (style !== 'ghost' && enabled) {
+    const hiGrad = c.createLinearGradient(bx, by, bx, by + bh * 0.4)
+    hiGrad.addColorStop(0, 'rgba(255,255,220,0.45)')
+    hiGrad.addColorStop(1, 'rgba(255,255,220,0)')
+    c.fillStyle = hiGrad
+    _rr(c, bx + 1 * S, by + 1 * S, bw - 2 * S, bh * 0.4, radius * 0.7); c.fill()
+  }
+
+  // 内阴影（pressed 时强化"压下去"的感觉）
+  if (pressed) {
+    c.save()
+    c.globalAlpha = 0.35
+    c.fillStyle = '#000'
+    _rr(c, bx, by, bw, 3 * S, radius); c.fill()
+    c.restore()
+  }
+
+  // 边框（双层：外金边 + 内暗线）
+  if (style === 'ghost') {
+    // 虚线金边
+    c.strokeStyle = enabled ? P.border : 'rgba(150,135,95,0.5)'
+    c.lineWidth = 1.2 * S
+    c.setLineDash([4 * S, 3 * S])
+    _rr(c, bx, by, bw, bh, radius); c.stroke()
+    c.setLineDash([])
+  } else {
+    c.strokeStyle = enabled ? P.border : 'rgba(140,130,110,0.5)'
+    c.lineWidth = 1.5 * S
+    _rr(c, bx, by, bw, bh, radius); c.stroke()
+    // 内侧暗线（1*S），加边厚度感
+    if (enabled) {
+      c.strokeStyle = P.borderInner
+      c.lineWidth = 0.8 * S
+      _rr(c, bx + 1.5 * S, by + 1.5 * S, bw - 3 * S, bh - 3 * S, Math.max(2 * S, radius - 1.5 * S))
+      c.stroke()
+    }
+  }
+
+  // flashT 高光（成功闪光），叠在文字之前
+  if (flashT > 0) {
+    c.save()
+    c.globalAlpha = flashT * 0.6
+    c.fillStyle = '#fff8d8'
+    _rr(c, bx, by, bw, bh, radius); c.fill()
+    c.restore()
+  }
+
+  // 主文字（副文字在则主文字上移 6*S，副文字下移 9*S；否则主文字居中）
+  const hasSub = subText && subText.length > 0
+  const fs = opts.fontSize || Math.max(11 * S, Math.min(16 * S, bh * 0.44))
+  c.fillStyle = enabled ? P.text : '#888'
+  c.font = `bold ${fs}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  // 字描边（金棕 1px，让金底白字/深底金字更锐利）
+  if (enabled && P.textStroke) {
+    c.save()
+    c.lineWidth = 2 * S
+    c.strokeStyle = P.textStroke
+    c.strokeText(text, bx + bw / 2, by + (hasSub ? bh * 0.38 : bh / 2))
+    c.restore()
+  }
+  c.fillText(text, bx + bw / 2, by + (hasSub ? bh * 0.38 : bh / 2))
+
+  if (hasSub) {
+    const sfs = opts.subFontSize || 10 * S
+    c.fillStyle = enabled ? P.subText : '#888'
+    c.font = `${sfs}px "PingFang SC",sans-serif`
+    c.fillText(subText, bx + bw / 2, by + bh * 0.72)
+  }
+
+  c.restore()
+}
+
+// 按钮调色板：集中在一处，外观升级只改这里一处即可影响全站
+function _btnPalette(style) {
+  switch (style) {
+    case 'milestone':  // 升星/突破 · 金+紫渐变
+      return {
+        top: '#ffe090', mid: '#f0a2e0', bottom: '#6a3a8a',
+        topDark: '#d8b870', midDark: '#b080b0', bottomDark: '#4a2070',
+        text: '#fff8e0', textStroke: 'rgba(70,20,90,0.6)',
+        subText: 'rgba(255,240,220,0.8)',
+        border: '#c89028', borderInner: 'rgba(80,30,100,0.5)',
+        glow: '#e0a0ff',
+        disabledBg: 'rgba(120,100,120,0.22)',
+      }
+    case 'silver':  // 分解/确认
+      return {
+        top: '#f0ead4', mid: '#d9d1b8', bottom: '#9a907a',
+        topDark: '#d4ccb0', midDark: '#b8ae94', bottomDark: '#7a7058',
+        text: '#3a2800', textStroke: 'rgba(255,248,220,0.45)',
+        subText: 'rgba(58,40,0,0.7)',
+        border: '#9a8858', borderInner: 'rgba(80,60,20,0.3)',
+        glow: '#ffe8a8',
+        disabledBg: 'rgba(120,115,100,0.22)',
+      }
+    case 'danger':  // 删除/重置
+      return {
+        top: '#d95566', mid: '#b8303f', bottom: '#7a1d25',
+        topDark: '#b8404e', midDark: '#9a2430', bottomDark: '#5a1018',
+        text: '#fff8e0', textStroke: 'rgba(70,10,15,0.6)',
+        subText: 'rgba(255,240,220,0.8)',
+        border: '#8a2530', borderInner: 'rgba(40,0,5,0.4)',
+        glow: '#ff8080',
+        disabledBg: 'rgba(120,80,85,0.22)',
+      }
+    case 'ghost':  // 取消/返回 · 透底虚线
+      return {
+        top: 'transparent', mid: 'transparent', bottom: 'transparent',
+        topDark: 'transparent', midDark: 'transparent', bottomDark: 'transparent',
+        text: '#5a3000', textStroke: null,
+        subText: 'rgba(90,48,0,0.7)',
+        border: '#b8801a', borderInner: null,
+        glow: '#ffd060',
+        disabledBg: 'transparent',
+      }
+    case 'gold':
+    default:  // 升级/领取/确认 · CTA 金
+      return {
+        top: '#ffe0a0', mid: '#f0b060', bottom: '#b88018',
+        topDark: '#d8b870', midDark: '#c08040', bottomDark: '#8a5a0a',
+        text: '#3a1a00', textStroke: 'rgba(255,245,200,0.55)',
+        subText: 'rgba(58,26,0,0.75)',
+        border: '#b8801a', borderInner: 'rgba(90,48,0,0.35)',
+        glow: '#ffd060',
+        disabledBg: 'rgba(120,110,90,0.22)',
+      }
+  }
+}
+
 module.exports = {
   drawPanel, drawRibbonIcon, wrapText, drawDialog, drawTipRow, drawDivider,
   drawConfirmDialog, handleConfirmDialogTouch,
   drawCelebrationBackdrop, drawRewardRow, drawBuffCard,
+  drawScrollablePanel, handleScrollablePanelTouch, createScrollState,
+  drawPressOverlay,
+  registerTouchRect, dispatchTouchRect, clearTouchRects,
+  drawGuideBubble,
+  drawLingCard, drawLingHeader,
+  drawPrimaryButton,
 }

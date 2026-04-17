@@ -9,6 +9,8 @@ const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { IDLE_MAX_SLOTS, IDLE_FRAG_INTERVAL, IDLE_MAX_ACCUMULATE, calcIdleReward } = require('../data/petPoolConfig')
 const { drawBottomBar, getLayout: getTitleLayout } = require('./bottomBar')
 const guideMgr = require('../engine/guideManager')
+const lingCheer = require('./lingCheer')
+const { LING } = require('../data/lingIdentity')
 
 const _rects = {
   backBtnRect: null,
@@ -220,20 +222,8 @@ function rIdle(g) {
   _rects.collectBtnRect = hasReward ? [btnX, btnY, btnW, btnH] : null
   c.restore()
 
-  // 收取结果提示
-  if (g._idleCollectResult) {
-    const res = g._idleCollectResult
-    const tipY = btnY + btnH + 16 * S
-    c.save()
-    c.fillStyle = 'rgba(20,15,40,0.8)'
-    const tipW = W * 0.7, tipH = 40 * S
-    R.rr((W - tipW) / 2, tipY, tipW, tipH, 8 * S); c.fill()
-    c.fillStyle = '#ffe8a0'
-    c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText(`碎片 +${res.totalFragments}  灵石 +${res.totalSoulStone}`, W / 2, tipY + tipH / 2)
-    c.restore()
-  }
+  // 收取结果提示已升级为顶部的小灵庆贺横条（见 tIdle 中触发）
+  // 这里不再本地绘制；之前的"碎片 +XX 灵石 +XX"窄条反馈太冷，统一走 lingCheer
 
   // 宠物选择弹窗
   if (_showPicker >= 0) {
@@ -417,6 +407,11 @@ function tIdle(g, type, x, y) {
     if (result) {
       g._idleCollectResult = result
       setTimeout(() => { g._idleCollectResult = null }, 3000)
+      // 小灵顶条报喜：带数值的情感反馈，比底部冷色窄条更像"有人帮你收回来的"
+      lingCheer.show(
+        LING.cheer.idleCollect(result.totalFragments, result.totalSoulStone),
+        { tone: 'info', duration: 2200 },
+      )
     }
     return
   }

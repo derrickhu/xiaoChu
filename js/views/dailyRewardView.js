@@ -22,6 +22,7 @@ const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
 const { linesFromRewards } = require('./adRewardPopup')
 const Particles = require('../engine/particles')
+const buttonFx = require('./buttonFx')
 const {
   getRewardSlots,
   layoutRewardSlotChips,
@@ -1465,17 +1466,19 @@ function tDailySign(g, x, y, type) {
         const claimed = g.storage._d.loginSign && g.storage._d.loginSign.milestonePetClaimed
           && g.storage._d.loginSign.milestonePetClaimed.includes(mp.day)
         if (claimed) {
-          P.showGameToast('该里程碑奖励已领取')
+          P.showGameToast('该里程碑奖励已领取', { type: 'warn' })
         } else {
-          P.showGameToast(`累计签到${mp.day}天后可领取`)
+          P.showGameToast(`累计签到${mp.day}天后可领取`, { type: 'warn' })
         }
       }
       return true
     }
   }  if (_signRects.signBtnRect && g._hitRect(x, y, ..._signRects.signBtnRect)) {
+    const signRect = _signRects.signBtnRect.slice()
     const result = g.storage.claimLoginReward()
     if (result) {
       MusicMgr.playReward && MusicMgr.playReward()
+      buttonFx.trigger(signRect, 'upgrade')
       const rewardText = _rewardText(result.rewards)
       const milestoneText = result.milestoneRewards ? _rewardText(result.milestoneRewards) : ''
       const consecText = result.consecutiveRewards ? _rewardText(result.consecutiveRewards) : ''
@@ -1527,9 +1530,11 @@ function tDailyTasks(g, x, y, type) {
   for (const tb of _taskRects.taskBtnRects) {
     if (g._hitRect(x, y, ...tb.rect)) {
       const layout = g._dailyTaskChipLayouts && g._dailyTaskChipLayouts[tb.id]
+      const taskRect = tb.rect.slice()
       const ok = g.storage.claimDailyTask(tb.id)
       if (ok) {
         MusicMgr.playReward && MusicMgr.playReward()
+        buttonFx.trigger(taskRect, 'reward')
         const task = DAILY_TASKS.find(t => t.id === tb.id)
         if (task) g._toast && g._toast(`${task.name}：${_rewardText(getScaledDailyTaskReward(task, _tch))}`)
         if (layout && layout.entries && layout.entries.length) {
@@ -1542,9 +1547,11 @@ function tDailyTasks(g, x, y, type) {
 
   if (_taskRects.allBonusBtnRect && g._hitRect(x, y, ..._taskRects.allBonusBtnRect)) {
     const layout = g._dailyAllBonusChipLayout
+    const allBonusRect = _taskRects.allBonusBtnRect.slice()
     const ok = g.storage.claimDailyAllBonus()
     if (ok) {
       MusicMgr.playReward && MusicMgr.playReward()
+      buttonFx.trigger(allBonusRect, 'upgrade')
       g._toast && g._toast(`全部任务完成奖励：${_rewardText(getScaledDailyAllBonus(_tch))}`)
       if (layout && layout.entries && layout.entries.length) {
         startRewardChipFlyAnim(g, layout.entries, { type: 'dailyAllBonus' })

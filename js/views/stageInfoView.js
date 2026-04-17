@@ -656,7 +656,7 @@ function tStageInfo(g, x, y, type) {
     if (wCol.length > 0 && !g.storage.equippedWeaponId) {
       g._stageTeamSelected = savedTeam.slice()
       g._stageTeamFilter = 'all'
-      P.showGameToast('请先装备一件法宝后再开始战斗')
+      P.showGameToast('请先装备一件法宝后再开始战斗', { type: 'warn' })
       g._autoOpenWeaponPickerOnStageTeam = true
       g.setScene('stageTeam')
       return
