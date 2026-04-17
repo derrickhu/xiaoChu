@@ -7,6 +7,7 @@
 
 const {
   STAMINA_RECOVER_INTERVAL_MS, STAMINA_INITIAL, STAMINA_SIDEBAR_REWARD, STAMINA_COST,
+  STAMINA_SOFT_CAP_BUFFER, STAMINA_OVERFLOW_SOUL_RATIO,
   TOWER_BASE_EVENT_WEIGHTS, TOWER_SHOP_DISPLAY_COUNT, TOWER_SHOP_FREE_COUNT, TOWER_SHOP_HP_COST_PCT,
 } = require('./balance/economy')
 
@@ -227,10 +228,12 @@ const NEWBIE_FREE_STAMINA_STAGES = [
   'stage_1_5', 'stage_1_6', 'stage_1_7', 'stage_1_8',
 ]
 
-/** 首通里程碑体力赠送（关卡ID → 赠送体力），让新手在关键节点获得额外推关动力 */
+/** 首通里程碑体力赠送（关卡ID → 赠送体力），让新手在关键节点获得额外推关动力
+ *  注：第 1 章关卡全免体力，里程碑体力只用于"让第二天有 1~2h 爽玩时间"，
+ *  不需要给出夸张的数字，否则会叠加成 300+ 的滞留库存。 */
 const FIRST_CLEAR_STAMINA_BONUS = {
   'stage_1_3': 30,
-  'stage_1_8': 50,
+  'stage_1_8': 30,
 }
 
 /** 首通里程碑灵石赠送（关卡ID → 赠送灵石），保证新手有足够灵石升级宠物 */
@@ -241,11 +244,12 @@ const FIRST_CLEAR_SOULSTONE_BONUS = {
   'stage_1_8': 400,
 }
 
-/** 新手冒险者礼包内容（教学结束后一次性领取） */
+/** 新手冒险者礼包内容（教学结束后一次性领取）
+ *  注：第 1 章关卡全免体力 + 首通里程碑已提供充足体力，礼包不再重复发体力，
+ *  等价替换为 250 灵石（1 体力 ≈ 5 灵石的软顶折算比），聚焦"升级推关"的成长资源。 */
 const NEWBIE_GIFT_REWARDS = {
-  soulStone: 600,
+  soulStone: 850,
   universalFragment: 10,
-  stamina: 50,
 }
 
 /** 新手免费续命次数（前 N 次战斗失败免费复活，降低挫败流失） */
@@ -351,6 +355,8 @@ module.exports = {
   STAMINA_INITIAL,
   STAMINA_SIDEBAR_REWARD,
   STAMINA_COST,
+  STAMINA_SOFT_CAP_BUFFER,
+  STAMINA_OVERFLOW_SOUL_RATIO,
   // CLOUD
   CLOUD_SYNC_BASE_DELAY_MS,
   CLOUD_SYNC_MAX_BACKOFF_MS,

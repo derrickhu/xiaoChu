@@ -8,6 +8,11 @@ const STAMINA_RECOVER_INTERVAL_MS = 3 * 60 * 1000
 const STAMINA_INITIAL = 100
 const STAMINA_SIDEBAR_REWARD = 30
 const STAMINA_COST = 10
+// 体力软顶：current > maxStamina + STAMINA_SOFT_CAP_BUFFER 时，
+// 继续收到的 bonus 体力按 STAMINA_OVERFLOW_SOUL_RATIO 折算为灵石，
+// 避免第一天新手关全免 + 多处发放叠加导致"330/104"式滞留。
+const STAMINA_SOFT_CAP_BUFFER = 50
+const STAMINA_OVERFLOW_SOUL_RATIO = 5
 
 // ===== 通天塔：事件权重 / 商店参数 =====
 const TOWER_BASE_EVENT_WEIGHTS = {
@@ -64,8 +69,10 @@ const IDLE_CFG = {
 }
 
 // ===== 章节通关宝箱 =====
+// 注：第 1 章关卡全免体力，宝箱的体力奖励刻意克制（避免与新手礼包/首通里程碑重复堆积），
+// 把正反馈权重转移到灵石/碎片这些直接推动成长的货币上
 const CHAPTER_CLEAR_REWARDS = {
-  1:  { soulStone: 50,  fragment: 3, stamina: 50 },
+  1:  { soulStone: 80,  fragment: 3, stamina: 20 },
   2:  { soulStone: 60,  fragment: 4 },
   3:  { soulStone: 80,  fragment: 5 },
   4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },
@@ -307,6 +314,8 @@ module.exports = {
   STAMINA_INITIAL,
   STAMINA_SIDEBAR_REWARD,
   STAMINA_COST,
+  STAMINA_SOFT_CAP_BUFFER,
+  STAMINA_OVERFLOW_SOUL_RATIO,
   TOWER_BASE_EVENT_WEIGHTS,
   TOWER_SHOP_DISPLAY_COUNT,
   TOWER_SHOP_FREE_COUNT,

@@ -6,6 +6,8 @@ const {
   STAMINA_RECOVER_INTERVAL_MS,
   STAMINA_INITIAL,
   STAMINA_SIDEBAR_REWARD,
+  STAMINA_SOFT_CAP_BUFFER,
+  STAMINA_OVERFLOW_SOUL_RATIO,
 } = require('./constants')
 const { isCurrentUserGM } = require('./gmConfig')
 const { DATA_VERSION } = require('./giftConfig')
@@ -838,13 +840,45 @@ class Storage {
     }
   }
 
-  /** 签到、任务、广告等奖励体力：可超过 cultivation 决定的体力上限 */
+  /** 签到、任务、广告等奖励体力：可超过 cultivation 决定的体力上限，
+   *  但设有"软顶"（maxStamina + STAMINA_SOFT_CAP_BUFFER）：
+   *  超过软顶的部分按 STAMINA_OVERFLOW_SOUL_RATIO 折算为灵石，
+   *  避免新手期多源头叠加体力导致 300+ 滞留观感。
+   *  返回 { stamina, convertedSoul, convertedFrom }，调用方可用于提示。 */
   addBonusStamina(amount) {
     const n = Math.floor(Number(amount) || 0)
-    if (n <= 0) return
+    if (n <= 0) return { stamina: 0, convertedSoul: 0, convertedFrom: 0 }
     this._recoverStamina()
-    this._d.stamina.current += n
+    const softCap = this.maxStamina + STAMINA_SOFT_CAP_BUFFER
+    const cur = this._d.stamina.current
+    let accepted = n
+    let overflow = 0
+    if (cur >= softCap) {
+      accepted = 0
+      overflow = n
+    } else if (cur + n > softCap) {
+      accepted = softCap - cur
+      overflow = n - accepted
+    }
+    if (accepted > 0) this._d.stamina.current = cur + accepted
+    let convertedSoul = 0
+    if (overflow > 0) {
+      convertedSoul = overflow * STAMINA_OVERFLOW_SOUL_RATIO
+      this._d.soulStone = (this._d.soulStone || 0) + convertedSoul
+    }
     this._save()
+    return { stamina: accepted, convertedSoul, convertedFrom: overflow }
+  }
+
+  /** 体力溢出折算后的统一提示：由收体力的调用方把 addBonusStamina 返回值传进来，
+   *  本函数只在真的发生折算时弹一次 toast，避免每处都写 if 判断。 */
+  noticeStaminaOverflow(result) {
+    if (!result || !result.convertedSoul) return
+    const soul = result.convertedSoul
+    const from = result.convertedFrom
+    try {
+      P.showGameToast(`体力已充裕，${from}点体力转为灵石×${soul}`, { type: 'resource', icon: 'assets/ui/icon_soul_stone.png' })
+    } catch (_) {}
   }
 
   // ===== 侧边栏复访奖励（抖音必接） =====
@@ -998,7 +1032,8 @@ class Storage {
       granted.awakenStone = rewards.awakenStone
     }
     if (rewards.stamina) {
-      this.addBonusStamina(rewards.stamina)
+      const r = this.addBonusStamina(rewards.stamina)
+      this.noticeStaminaOverflow(r)
       granted.stamina = rewards.stamina
     }
     if (rewards.fragment) {
@@ -1296,7 +1331,7 @@ class Storage {
     let rewarded = false
     if (st.rewardCount < SHARE_DAILY_MAX) {
       st.rewardCount++
-      if (SHARE_PER_REWARD.stamina) this.addBonusStamina(SHARE_PER_REWARD.stamina)
+      if (SHARE_PER_REWARD.stamina) this.noticeStaminaOverflow(this.addBonusStamina(SHARE_PER_REWARD.stamina))
       rewarded = true
     }
     if (!st.firstEverDone) {

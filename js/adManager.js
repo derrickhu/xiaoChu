@@ -177,7 +177,7 @@ const AdManager = {
       onConfirm: () => {
         this.showRewardedVideo('staminaRecovery', {
           onRewarded: () => {
-            g.storage.addBonusStamina(staminaAmount)
+            g.storage.noticeStaminaOverflow(g.storage.addBonusStamina(staminaAmount))
             g._dirty = true
           },
           fallbackToShare: true,

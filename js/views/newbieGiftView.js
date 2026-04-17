@@ -367,7 +367,7 @@ function onTouch(g, x, y, type) {
 function _claimRewards(g) {
   const r = NEWBIE_GIFT_REWARDS
   if (r.soulStone) g.storage.addSoulStone(r.soulStone)
-  if (r.stamina) g.storage.addBonusStamina(r.stamina)
+  if (r.stamina) g.storage.noticeStaminaOverflow(g.storage.addBonusStamina(r.stamina))
   if (r.universalFragment) g.storage.addUniversalFragment(r.universalFragment)
   g.storage.markGuideShown('newbie_gift_claimed')
   // 礼包关闭后，主页万能碎片胶囊脉冲高亮一次，告诉玩家资源去了哪

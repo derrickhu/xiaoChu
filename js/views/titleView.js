@@ -622,7 +622,8 @@ function drawAvatarWidget(g) {
   const pillCY = rowY + iconSz * 0.5
 
   // dim=true 时整体半透明（用于资源为 0 时的占位，帮助新玩家建立认知）
-  function _drawPill(px, text, iconPath, dim) {
+  // rich=true 时用金色高光描边（用于体力超出 maxStamina 的"充裕"态，暗示继续消耗）
+  function _drawPill(px, text, iconPath, dim, rich) {
     ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     const tw = ctx.measureText(text).width
@@ -634,14 +635,22 @@ function drawAvatarWidget(g) {
     if (dim) ctx.globalAlpha = 0.45
     ctx.beginPath()
     R.rr(px, py, pillW, pillH, pillR)
-    ctx.fillStyle = 'rgba(0,0,0,0.42)'; ctx.fill()
-    ctx.strokeStyle = 'rgba(200,180,120,0.25)'; ctx.lineWidth = 0.6 * S; ctx.stroke()
+    ctx.fillStyle = rich ? 'rgba(60,36,0,0.55)' : 'rgba(0,0,0,0.42)'
+    ctx.fill()
+    if (rich) {
+      ctx.strokeStyle = 'rgba(255,210,110,0.85)'
+      ctx.lineWidth = 1.1 * S
+    } else {
+      ctx.strokeStyle = 'rgba(200,180,120,0.25)'
+      ctx.lineWidth = 0.6 * S
+    }
+    ctx.stroke()
 
     const ic = R.getImg(iconPath)
     if (ic && ic.width > 0) {
       ctx.drawImage(ic, px + 2 * S, pillCY - pillIconSz / 2, pillIconSz, pillIconSz)
     }
-    ctx.fillStyle = '#fff'
+    ctx.fillStyle = rich ? '#ffe9a8' : '#fff'
     ctx.fillText(text, px + pillIconSz + innerPad, pillCY)
     ctx.restore()
 
@@ -656,7 +665,9 @@ function drawAvatarWidget(g) {
   const maxSt = g.storage.maxStamina
   const stText = `${stamina}/${maxSt}`
   const stPillX = rightX + ssPillW + pillGap
-  const stPillW = _drawPill(stPillX, stText, 'assets/ui/icon_stamina.png')
+  // 体力超出自然上限时用"充裕"样式，提示玩家尽快消耗（软顶触发前的柔性引导）
+  const stRich = stamina > maxSt
+  const stPillW = _drawPill(stPillX, stText, 'assets/ui/icon_stamina.png', false, stRich)
   g._staminaPillRect = [stPillX, pillCY - pillH / 2, stPillW, pillH]
 
   const awakenStone = g.storage.awakenStone || 0

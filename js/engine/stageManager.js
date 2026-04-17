@@ -472,7 +472,7 @@ function settleStage(g) {
 
   // ---- 首通里程碑体力赠送 ----
   const firstClearStamina = isFirstClear ? (FIRST_CLEAR_STAMINA_BONUS[g._stageId] || 0) : 0
-  if (firstClearStamina > 0) g.storage.addBonusStamina(firstClearStamina)
+  if (firstClearStamina > 0) g.storage.noticeStaminaOverflow(g.storage.addBonusStamina(firstClearStamina))
 
   // ---- 首通里程碑灵石赠送 ----
   const firstClearSS = isFirstClear ? (FIRST_CLEAR_SOULSTONE_BONUS[g._stageId] || 0) : 0
@@ -490,7 +490,7 @@ function settleStage(g) {
       if (cr) {
         if (cr.soulStone) g.storage.addSoulStone(cr.soulStone)
         if (cr.awakenStone) g.storage.addAwakenStone(cr.awakenStone)
-        if (cr.stamina) g.storage.addBonusStamina(cr.stamina)
+        if (cr.stamina) g.storage.noticeStaminaOverflow(g.storage.addBonusStamina(cr.stamina))
         if (cr.fragment) {
           const target = pickFragmentTarget(g, 'all')
           if (target) g.storage.addFragments(target, cr.fragment)
