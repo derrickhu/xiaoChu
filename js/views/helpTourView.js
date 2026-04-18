@@ -5,10 +5,13 @@
  */
 const V = require('./env')
 
+// 注意：icon 路径必须指向 assets/ui 下实际存在的 PNG，bottomBar.js 里没有为
+// 秘境/塔/灵宠/修炼单独准备 nav_stage / nav_tower / nav_pet / nav_cult，
+// 直接复用 bottomBar 已装载的同义图，避免 ENOENT 打断加载。
 const PAGES = [
   {
     title: '灵兽秘境',
-    icon: 'assets/ui/nav_stage.png',
+    icon: 'assets/ui/nav_battle.png',
     lines: [
       '章节式推关玩法，是主要成长途径',
       '首通获得固定奖励：灵宠/碎片/灵石/法宝',
@@ -18,7 +21,7 @@ const PAGES = [
   },
   {
     title: '通天塔',
-    icon: 'assets/ui/nav_tower.png',
+    icon: 'assets/ui/tower_rogue.png',
     lines: [
       '无尽挑战玩法，考验阵容深度',
       '不消耗体力！每日 3 次免费挑战',
@@ -28,7 +31,7 @@ const PAGES = [
   },
   {
     title: '灵宠池',
-    icon: 'assets/ui/nav_pet.png',
+    icon: 'assets/ui/nav_icons.png',
     lines: [
       '你收集到的所有灵宠都在这里',
       '消耗灵石 → 升级 → 提升攻击力',
@@ -38,7 +41,7 @@ const PAGES = [
   },
   {
     title: '修炼',
-    icon: 'assets/ui/nav_cult.png',
+    icon: 'assets/ui/nav_hero.png',
     lines: [
       '主角属性强化：体质 / 灵力 / 悟性等',
       '获得修炼点 → 加点强化全局属性',

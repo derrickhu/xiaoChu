@@ -1473,7 +1473,11 @@ function _drawNewDropsRow(c, R, S, x, cy, innerW, items, g, at, rowDelay) {
   }
 }
 
-function _computeVictoryRewardContentHeight(result, S, pad) {
+// 奖励滚动区高度（不含底部操作区：看广告翻倍 + 返回/下一关 + 分享胶囊）
+//   · 底部操作区独立绘制、钉在面板底部，不随滚动裁剪
+//   · 看广告翻倍按钮也放固定区，避免滚动没拉到底直接看不到（Boss 关关键转化入口）
+//   · 这里新增 firstClearSoulStone 分支的高度计入，修正原先预留不足导致"最后一行被按钮盖住"的残留问题
+function _computeVictoryScrollContentHeight(result, S, pad) {
   const dropRewards = _victoryDropRewardsForDisplay(result)
   const hasRewards = dropRewards.length > 0
   const hasChapterClear = !!result.chapterClearReward
@@ -1487,6 +1491,7 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
   }
   if (hasChapterClear) contentH += 10 * S + 28 * S
   if (result.soulStone > 0) contentH += 32 * S
+  if (result.firstClearSoulStone > 0) contentH += 32 * S
   if (result.cultExp > 0) {
     contentH += 28 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
@@ -1494,11 +1499,77 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
     contentH += 26 * S
   }
   contentH += 24 * S
-  if (result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble')) contentH += 44 * S
-  contentH += pad + 48 * S
-  // 主动分享小图标挂在底部按钮右下外侧，预留一行空间
-  contentH += 40 * S
   return contentH
+}
+
+// Boss 关"看广告翻倍"是否处于可点状态（用于固定操作区预留空间）
+function _hasAdDoubleBtn(result) {
+  return !!(result && result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble'))
+}
+
+// 固定操作区高度：
+//   · 基础：4*S 顶距 + 38*S 按钮行 + 8*S 间距 + 36*S 分享胶囊 + pad 底距 = 86*S + pad
+//   · Boss 关可看广告：上方再加 36*S 按钮 + 8*S 间距
+//   · Boss 关已翻倍：上方加 22*S 提示条 + 4*S 间距
+function _victoryActionsHeight(result, S, pad) {
+  let h = 4 * S + 38 * S + 8 * S + 36 * S + pad
+  if (_hasAdDoubleBtn(result)) h += 36 * S + 8 * S
+  else if (result && result.adDoubled) h += 22 * S + 4 * S
+  return h
+}
+
+// 看广告翻倍按钮内部绘制：借用 adReward 金色底板，自己绘制"▶ 看广告翻倍 + 图标奖励"
+//   · 纯文字"灵石+64 碎片+8"玩家要识别多半拍，图标化后一眼能扫到
+function _drawAdDoubleRewardBtn(c, R, S, x, y, w, h, result) {
+  R.drawDialogBtn(x, y, w, h, '', 'adReward')
+
+  const ss = result.soulStone || 0
+  const frag = result.totalFragCount || 0
+
+  const labelFont = `bold ${Math.min(12 * S, h * 0.36)}px "PingFang SC",sans-serif`
+  const valFont = `bold ${Math.min(12 * S, h * 0.36)}px "PingFang SC",sans-serif`
+  const iconSz = Math.min(16 * S, h * 0.55)
+  const iconTextGap = 3 * S
+  const segGap = 8 * S
+  const label = '▶ 看广告翻倍'
+
+  c.save()
+  c.textBaseline = 'middle'
+  c.textAlign = 'left'
+
+  c.font = labelFont
+  const labelW = c.measureText(label).width
+
+  c.font = valFont
+  const segs = []
+  if (ss > 0) segs.push({ icon: 'assets/ui/icon_soul_stone.png', text: '+' + ss, textW: c.measureText('+' + ss).width })
+  if (frag > 0) segs.push({ icon: 'assets/ui/icon_universal_frag.png', text: '+' + frag, textW: c.measureText('+' + frag).width })
+
+  const segsW = segs.reduce((acc, s) => acc + segGap + iconSz + iconTextGap + s.textW, 0)
+  const totalW = labelW + segsW
+
+  let cx = x + (w - totalW) / 2
+  const cy = y + h * 0.5
+
+  c.fillStyle = '#4A2020'
+  c.shadowColor = 'rgba(255,255,255,0.3)'
+  c.shadowBlur = 1 * S
+  c.font = labelFont
+  c.fillText(label, cx, cy)
+  c.shadowBlur = 0
+  cx += labelW
+
+  for (const seg of segs) {
+    cx += segGap
+    const img = R.getImg(seg.icon)
+    if (img && img.width > 0) c.drawImage(img, cx, cy - iconSz / 2, iconSz, iconSz)
+    cx += iconSz + iconTextGap
+    c.fillStyle = '#4A2020'
+    c.font = valFont
+    c.fillText(seg.text, cx, cy)
+    cx += seg.textW
+  }
+  c.restore()
 }
 
 // ===== 胜利奖励面板（增强版：大图标 + 分区高亮 + 入场动画；过长时可滑动） =====
@@ -1513,27 +1584,31 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   const hasRewards = dropRewards.length > 0
   const hasChapterClear = !!result.chapterClearReward
 
-  const contentH = _computeVictoryRewardContentHeight(result, S, pad)
+  // 奖励明细走滚动区；看广告翻倍 + 返回/下一关 + 分享胶囊钉在面板底，不随滚动裁剪，保证始终可见可点
+  const scrollContentH = _computeVictoryScrollContentHeight(result, S, pad)
+  const actionsH = _victoryActionsHeight(result, S, pad)
   const marginBottom = 10 * S
   const screenBottom = H - marginBottom
-  let viewportH = contentH
+
+  let scrollViewportH = scrollContentH
   let scrollMax = 0
-  if (panelTop + contentH > screenBottom) {
-    const avail = Math.max(0, screenBottom - panelTop)
-    viewportH = Math.min(contentH, Math.max(100 * S, avail))
-    scrollMax = Math.max(0, contentH - viewportH)
+  if (panelTop + scrollContentH + actionsH > screenBottom) {
+    const avail = Math.max(0, screenBottom - panelTop - actionsH)
+    scrollViewportH = Math.max(100 * S, avail)
+    scrollMax = Math.max(0, scrollContentH - scrollViewportH)
   }
   if (_victoryRewardScroll > scrollMax) _victoryRewardScroll = scrollMax
   if (_victoryRewardScroll < 0) _victoryRewardScroll = 0
   const scroll = _victoryRewardScroll
 
   _victoryRewardScrollMax = scrollMax
-  _victoryRewardViewport = scrollMax > 0 ? [px, panelTop, pw, viewportH] : null
+  _victoryRewardViewport = scrollMax > 0 ? [px, panelTop, pw, scrollViewportH] : null
 
-  R.drawInfoPanel(px, panelTop, pw, viewportH)
+  const totalPanelH = scrollViewportH + actionsH
+  R.drawInfoPanel(px, panelTop, pw, totalPanelH)
 
   c.save()
-  R.rr(px, panelTop, pw, viewportH, panelRad)
+  R.rr(px, panelTop, pw, scrollViewportH, panelRad)
   c.clip()
   c.translate(0, -scroll)
 
@@ -1748,36 +1823,39 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   }
   cy += 24 * S
 
-  // === Boss 关看广告奖励翻倍（与失败结算「退还体力」同款金黄按钮 adReward） ===
-  if (result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble')) {
+  c.restore()
+
+  // === 固定操作区（不随滚动裁剪，钉在面板底部）===
+  //   · Boss 关"看广告翻倍"放在最上方：常驻可点，不再被滚动遮住；奖励改用图标，识别更快
+  //   · 返回 / 下一关 放在中间一行
+  //   · 分享胶囊挂在下一关右下外缘，常驻可点
+  //   · shareCelebrate 正在展示时分享胶囊内部会自动隐藏，避免主被动入口并存打架
+  //   · 首通胜利时分享胶囊带呼吸发光，把"情绪高点"引流到主动分享
+  let actionsCy = panelTop + scrollViewportH
+
+  if (_hasAdDoubleBtn(result)) {
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
-    const adBtnX = (W - adBtnW) / 2, adBtnY = cy
-    const bonusSS = result.soulStone || 0
-    const bonusFrag = result.totalFragCount || 0
-    let label = '▶ 看广告 奖励翻倍'
-    if (bonusSS > 0 && bonusFrag > 0) label = `▶ 看广告 灵石+${bonusSS} 碎片+${bonusFrag}`
-    else if (bonusSS > 0) label = `▶ 看广告 灵石+${bonusSS}`
-    R.drawDialogBtn(adBtnX, adBtnY, adBtnW, adBtnH, label, 'adReward')
-    _rects.adDoubleBtnRect = [adBtnX, adBtnY - scroll, adBtnW, adBtnH]
-    cy += 44 * S
+    const adBtnX = (W - adBtnW) / 2, adBtnY = actionsCy
+    _drawAdDoubleRewardBtn(c, R, S, adBtnX, adBtnY, adBtnW, adBtnH, result)
+    _rects.adDoubleBtnRect = [adBtnX, adBtnY, adBtnW, adBtnH]
+    actionsCy += adBtnH + 8 * S
   } else if (result.adDoubled) {
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillStyle = '#60A060'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText('✓ 奖励已翻倍', W / 2, cy + 10 * S)
+    c.fillStyle = '#60A060'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    c.fillText('✓ 奖励已翻倍', W / 2, actionsCy + 11 * S)
     _rects.adDoubleBtnRect = null
-    cy += 28 * S
+    actionsCy += 22 * S + 4 * S
   } else {
     _rects.adDoubleBtnRect = null
   }
 
-  // === 底部按钮 ===
   const btnH = 38 * S
   const btnGap = 12 * S
   const btnW = (innerW - btnGap) / 2
-  const btnY = cy + 4 * S
+  const btnY = actionsCy + 4 * S
 
   R.drawDialogBtn(px + pad, btnY, btnW, btnH, '返回', 'cancel')
-  _rects.backBtnRect = [px + pad, btnY - scroll, btnW, btnH]
+  _rects.backBtnRect = [px + pad, btnY, btnW, btnH]
 
   const nextId = getNextStageId(result.stageId)
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
@@ -1785,21 +1863,16 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')
   const rightLabel = isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战')
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, isNewbieContinuous ? 'gold' : 'confirm')
-  _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY - scroll, btnW, btnH]
+  _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY, btnW, btnH]
 
-  // 主动分享小图标（右下角常驻，胜利/失败/首通/重玩都显示）
-  //   · 与返回按钮同一行，贴面板右下外缘
-  //   · shareCelebrate 正在展示时隐藏，避免主被动入口并存打架
-  //   · 首通胜利时带呼吸发光，把"情绪高点"引流到主动分享
-  _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, scroll, true)
-
-  c.restore()
+  // 分享胶囊：已在 clip 外绘制，scroll 传 0 即可
+  _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, 0, true)
 
   if (scrollMax > 0) {
     const trackX = px + pw - 5 * S
     const trackY = panelTop + 8 * S
-    const trackH = viewportH - 16 * S
-    const thumbH = Math.max(22 * S, (viewportH / contentH) * trackH)
+    const trackH = scrollViewportH - 16 * S
+    const thumbH = Math.max(22 * S, (scrollViewportH / scrollContentH) * trackH)
     const thumbTravel = Math.max(0, trackH - thumbH)
     const thumbY = trackY + (scrollMax > 0 ? (scroll / scrollMax) * thumbTravel : 0)
     c.fillStyle = 'rgba(90,70,50,0.2)'
