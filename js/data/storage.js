@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 21
+const CURRENT_VERSION = 22
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -58,6 +58,7 @@ function defaultPersist() {
     },
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表（兼容旧版）
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
+    petPoolSeen: [], // 灵宠池：已在池页面查看过详情的宠物ID列表（用于"NEW"角标）
     dexMilestonesClaimed: [],  // 图鉴里程碑：已领取的里程碑ID列表
     dexMilestonesAdRewardClaimed: [],  // 图鉴里程碑：已领过广告额外一份货币奖励的里程碑ID
     cultivation: {
@@ -300,6 +301,16 @@ const migrations = {
     if (d.lastCultRealmId == null) d.lastCultRealmId = info.realmId
     if (d.lastCultSubStage == null) d.lastCultSubStage = info.subStage
   },
+  // v21→v22：灵宠池 NEW 角标
+  //   新增 petPoolSeen 字段；把老玩家现有灵宠池里的宠物全部视为"已看过"，
+  //   避免升级后老玩家一进池就一堆 NEW 困扰。
+  21: (d) => {
+    if (!Array.isArray(d.petPoolSeen)) d.petPoolSeen = []
+    const pool = d.petPool || []
+    for (const p of pool) {
+      if (p && p.id && !d.petPoolSeen.includes(p.id)) d.petPoolSeen.push(p.id)
+    }
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -458,6 +469,29 @@ class Storage {
       this._d.petDexSeen.push(petId)
       this._save()
     }
+  }
+
+  // 灵宠池 NEW 角标：进入池内详情页即视为"已看过"
+  get petPoolSeen() { return this._d.petPoolSeen || [] }
+  isPetNewInPool(petId) {
+    if (!petId) return false
+    const pool = this._d.petPool || []
+    if (!pool.some(p => p.id === petId)) return false
+    const seen = this._d.petPoolSeen || []
+    return !seen.includes(petId)
+  }
+  hasNewPetInPool() {
+    const pool = this._d.petPool || []
+    const seen = this._d.petPoolSeen || []
+    return pool.some(p => !seen.includes(p.id))
+  }
+  markPetPoolSeen(petId) {
+    if (!petId) return false
+    if (!this._d.petPoolSeen) this._d.petPoolSeen = []
+    if (this._d.petPoolSeen.includes(petId)) return false
+    this._d.petPoolSeen.push(petId)
+    this._save()
+    return true
   }
 
   // ===== 图鉴里程碑系统 =====
@@ -1356,85 +1390,60 @@ class Storage {
 
   /**
    * 记录一次分享并按规则发奖
-   * @param {string} [sceneKey] 分享场景 key（对应 SHARE_SCENES）；未传则走老逻辑
+   * @param {string} [sceneKey] 分享场景 key（对应 SHARE_SCENES）；未传则只结算 daily / firstEver
    * @param {object} [opts] { mode: 'friend'|'timeline' }
    * @returns {object|null} 发奖详情 { stamina, soulStone, fragment }，无奖则 null
    *
-   * 奖励规则（叠加）：
-   *   1. 每日基础奖：每天前 SHARE_DAILY_MAX 次给 SHARE_PER_REWARD.stamina（老逻辑保留）
-   *   2. 首次分享奖：一生一次 SHARE_FIRST_EVER_BONUS.soulStone（老逻辑保留）
-   *   3. 场景奖：SHARE_SCENES[sceneKey].reward；sceneOnce=true 时全生涯只发一次
-   * 通过 shareSceneFlags[sceneKey] = true 标记已领
+   * 口径与 shareRewardCalc.computeShareReward 完全一致 —— 预览与入账共用一个事实源。
+   * 这里只负责：
+   *   1) 从 computeShareReward 拿到 parts 明细（已决定每部分发多少）
+   *   2) 把 flag / counter / 资源实际落到存档
+   *   3) 聚合 merged 作为返回值，供调用方展示 toast / 飞行动画
    */
   recordShare(sceneKey, opts) {
     this._ensureShareTracking()
+    const { computeShareReward } = require('./shareRewardCalc')
+    const calc = computeShareReward(this, sceneKey)
+    const { parts, meta, merged } = calc
     const st = this._d.shareTracking
-    const {
-      SHARE_DAILY_MAX, SHARE_PER_REWARD, SHARE_FIRST_EVER_BONUS, SHARE_SCENE_COOLDOWN_MS,
-    } = require('./giftConfig')
-    const result = { stamina: 0, soulStone: 0, fragment: 0 }
 
-    if (st.rewardCount < SHARE_DAILY_MAX) {
-      st.rewardCount++
-      if (SHARE_PER_REWARD.stamina) {
-        this.noticeStaminaOverflow(this.addBonusStamina(SHARE_PER_REWARD.stamina))
-        result.stamina += SHARE_PER_REWARD.stamina
+    // 每日基础奖：只在 allowed 时增加 rewardCount，与 computeShareReward 的判定对齐
+    if (meta.dailyAllowed) {
+      st.rewardCount = (st.rewardCount || 0) + 1
+      if (parts.daily.stamina) {
+        this.noticeStaminaOverflow(this.addBonusStamina(parts.daily.stamina))
       }
+      if (parts.daily.soulStone) this.addSoulStone(parts.daily.soulStone)
+      if (parts.daily.fragment)  this.addUniversalFragment(parts.daily.fragment)
     }
-    if (!st.firstEverDone) {
+
+    // 首次永久奖：入账并翻 firstEverDone
+    if (meta.firstEverAllowed) {
       st.firstEverDone = true
-      if (SHARE_FIRST_EVER_BONUS.soulStone) {
-        this.addSoulStone(SHARE_FIRST_EVER_BONUS.soulStone)
-        result.soulStone += SHARE_FIRST_EVER_BONUS.soulStone
+      if (parts.firstEver.stamina) {
+        this.noticeStaminaOverflow(this.addBonusStamina(parts.firstEver.stamina))
       }
+      if (parts.firstEver.soulStone) this.addSoulStone(parts.firstEver.soulStone)
+      if (parts.firstEver.fragment)  this.addUniversalFragment(parts.firstEver.fragment)
     }
 
-    // 场景差异化奖励（首通/首S/升星/章通关/塔新高 等情绪峰值场景）
-    //   反作弊：
-    //     - sceneOnce=true   ：一生一次，直接以 sceneKey 为键，truthy 即锁
-    //     - sceneOnce=false  ：24h 冷却（SHARE_SCENE_COOLDOWN_MS），存储时间戳
-    //                           同一场景 24h 内重复分享不再发场景奖，防刷
-    //   兼容：旧存档里 shareSceneFlags 的 value 可能是 true（bool），
-    //        视作"刚领过"，按冷却期内处理。
-    if (sceneKey) {
-      let cfg = null
-      try {
-        const { SHARE_SCENES } = require('./shareConfig')
-        cfg = SHARE_SCENES[sceneKey] || null
-      } catch (_e) { cfg = null }
-      if (cfg && cfg.reward) {
-        const sceneOnce = !!cfg.sceneOnce
-        const now = Date.now()
-        const flagKey = sceneKey
-        const prev = this._d.shareSceneFlags[flagKey]
-        let allowed = false
-        if (!prev) {
-          allowed = true
-        } else if (!sceneOnce) {
-          const prevTs = (typeof prev === 'number') ? prev : now
-          if (now - prevTs >= SHARE_SCENE_COOLDOWN_MS) allowed = true
-        }
-        if (allowed) {
-          this._d.shareSceneFlags[flagKey] = now
-          const r = cfg.reward
-          if (r.stamina) {
-            this.noticeStaminaOverflow(this.addBonusStamina(r.stamina))
-            result.stamina += r.stamina
-          }
-          if (r.soulStone) { this.addSoulStone(r.soulStone); result.soulStone += r.soulStone }
-          if (r.fragment) { this.addUniversalFragment(r.fragment); result.fragment += r.fragment }
-        }
+    // 场景奖：入账并写 flag（sceneOnce / 24h 冷却的封禁都由 computeShareReward 决定允许与否）
+    if (meta.sceneAllowed && sceneKey) {
+      this._d.shareSceneFlags[sceneKey] = Date.now()
+      if (parts.scene.stamina) {
+        this.noticeStaminaOverflow(this.addBonusStamina(parts.scene.stamina))
       }
+      if (parts.scene.soulStone) this.addSoulStone(parts.scene.soulStone)
+      if (parts.scene.fragment)  this.addUniversalFragment(parts.scene.fragment)
     }
 
     this.addDailyTaskProgress('share_1', 1)
     this._save()
 
-    // 使 opts 参数可用（预留给后续埋点 / 朋友圈奖励差异化），当前不使用
-    void opts
+    void opts // 预留埋点/朋友圈差异化
 
-    const hasReward = result.stamina > 0 || result.soulStone > 0 || result.fragment > 0
-    return hasReward ? result : null
+    const hasReward = merged.stamina > 0 || merged.soulStone > 0 || merged.fragment > 0
+    return hasReward ? merged : null
   }
 
   // ===== 回归检测 =====

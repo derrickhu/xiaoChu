@@ -215,7 +215,10 @@ const DAILY_ALL_COMPLETE_BONUS = { soulStone: 14, stamina: 20 }
 
 // ===== 分享/邀请 =====
 const SHARE_DAILY_MAX = 3
-const SHARE_PER_REWARD = { stamina: 10 }
+// 每日基础奖：原先每次分享 +10 体力，与"新手体力本身就送得多"重叠、且预览 chip 里不展示，造成"弹窗数额对不上预览"。
+// 现统一为空结构，分享奖励改由 SHARE_SCENES 场景奖 + SHARE_FIRST_EVER_BONUS 首次永久奖组成，
+// 预览 chip 与实际入账一一对齐。保留字段以便未来扩展其他"每日基础资源"。
+const SHARE_PER_REWARD = {}
 const SHARE_FIRST_EVER_BONUS = { soulStone: 100 }
 // 场景分享（非 sceneOnce）冷却时长：同一场景 24h 内只奖励一次，避免刷分享奖
 const SHARE_SCENE_COOLDOWN_MS = 24 * 3600 * 1000

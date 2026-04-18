@@ -28,6 +28,7 @@ const shareCard = require('./shareCard')
 const analytics = require('../data/analytics')
 const P = require('../platform')
 const { drawRewardSlotChips, getShareRewardSlots } = require('./rewardChipFlyAnim')
+const { previewShareReward } = require('../data/shareRewardCalc')
 
 // ===== 时序常量（ms） =====
 const DELAY_BEFORE_SHOW = 1800   // 情绪 buffer：爽劲散开后再弹
@@ -195,9 +196,13 @@ function draw() {
   const previewW = panelW - 24 * S
   const previewH = previewW * 0.8   // 5:4 比
   const titleH = 36 * S
-  const cfgForH = SHARE_SCENES[state.sceneKey]
-  const hasRewardChipRow = !!(cfgForH && cfgForH.reward && getShareRewardSlots(cfgForH.reward).length)
-  const metaH = 56 * S + (hasRewardChipRow ? 22 * S : 0)
+  // 预览奖励 chip 与实际入账对齐：直接用 previewShareReward 的合并值来判是否有 chip 行
+  // 这样首次永久 100 灵石 / 场景奖 都会被显示；没有奖励时面板自动收缩。
+  const previewRewardsForH = state.g && state.g.storage
+    ? previewShareReward(state.g.storage, state.sceneKey)
+    : null
+  const hasRewardChipRow = !!(previewRewardsForH && getShareRewardSlots(previewRewardsForH).length)
+  const metaH = 38 * S + (hasRewardChipRow ? 34 * S : 0)
   const btnH = 46 * S
   const btnGap = 10 * S
   const innerPad = 12 * S
@@ -283,9 +288,11 @@ function draw() {
   _rr(ctx, previewX, previewY, previewW, previewH, 10 * S)
   ctx.stroke()
 
-  // ---- 奖励提示（在预览下方）：图标芯片 + 文案，与首页任务奖励条一致 ----
-  const cfg = SHARE_SCENES[state.sceneKey]
-  const shareSlots = cfg && cfg.reward ? getShareRewardSlots(cfg.reward) : []
+  // ---- 奖励提示（在预览下方）：预览 chip = 实际入账的合并结果，保证"所见即所得" ----
+  const rewardsForPreview = state.g && state.g.storage
+    ? previewShareReward(state.g.storage, state.sceneKey)
+    : null
+  const shareSlots = rewardsForPreview ? getShareRewardSlots(rewardsForPreview) : []
   const metaY = previewY + previewH + 14 * S
   if (shareSlots.length) {
     const R = V.R
@@ -299,16 +306,10 @@ function draw() {
       fontSize: 10.5 * S,
     })
   }
-  // 日常分享奖励说明（灰字）
-  ctx.fillStyle = '#8a8098'
-  ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  const dailyY = metaY + (shareSlots.length ? 42 : 18) * S
-  ctx.fillText('每日分享另得体力奖励', panelX + panelW / 2, dailyY)
 
   // ---- 按钮 ----
   const btnUnlocked = state.phase === 'ready'
-  const btnY = dailyY + 28 * S
+  const btnY = metaY + (shareSlots.length ? 42 : 18) * S
   const btnGapX = 10 * S
   const hasTimeline = P.hasShareTimeline
   const btnCount = hasTimeline ? 2 : 1
