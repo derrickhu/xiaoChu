@@ -667,7 +667,7 @@ function drawAvatarWidget(g) {
   const pillCY = rowY + iconSz * 0.5
 
   // dim=true 时整体半透明（用于资源为 0 时的占位，帮助新玩家建立认知）
-  // rich=true 时用金色高光描边（用于体力超出 maxStamina 的"充裕"态，暗示继续消耗）
+  // rich=true 时用金色高光描边（用于体力超出 maxStamina 的"充裕"态，暗示可尽情消耗存货）
   function _drawPill(px, text, iconPath, dim, rich) {
     ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
@@ -710,7 +710,7 @@ function drawAvatarWidget(g) {
   const maxSt = g.storage.maxStamina
   const stText = `${stamina}/${maxSt}`
   const stPillX = rightX + ssPillW + pillGap
-  // 体力超出自然上限时用"充裕"样式，提示玩家尽快消耗（软顶触发前的柔性引导）
+  // 体力超出自然上限（领取奖励堆积）时用金色"充裕"样式，暗示玩家尽情去消耗存货
   const stRich = stamina > maxSt
   const stPillW = _drawPill(stPillX, stText, 'assets/ui/icon_stamina.png', false, stRich)
   g._staminaPillRect = [stPillX, pillCY - pillH / 2, stPillW, pillH]

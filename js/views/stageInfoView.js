@@ -102,7 +102,10 @@ function rStageInfo(g) {
 
   // 体力显示（图标 + 胶囊背景 + 数值，与灵宠池灵石栏风格一致）
   const stIcon = R.getImg('assets/ui/icon_stamina.png')
-  const stTxt = `${g.storage.currentStamina}/${g.storage.maxStamina}`
+  const curStamina = g.storage.currentStamina
+  const maxStamina = g.storage.maxStamina
+  const stOverflow = curStamina > maxStamina  // 领取奖励后可能超过 maxStamina，此时切金色"充裕"态
+  const stTxt = `${curStamina}/${maxStamina}`
   if (stIcon && stIcon.width > 0) {
     const iconSz = 32 * S
     const iconX = btnX + btnSz + 8 * S
@@ -127,9 +130,14 @@ function rStageInfo(g) {
     c.lineTo(capX, capY + capR)
     c.quadraticCurveTo(capX, capY, capX + capR, capY)
     c.closePath()
-    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
+    c.fillStyle = stOverflow ? 'rgba(60,40,10,0.65)' : 'rgba(0,0,0,0.45)'; c.fill()
+    if (stOverflow) {
+      c.strokeStyle = 'rgba(255,210,80,0.85)'
+      c.lineWidth = 1.2 * S
+      c.stroke()
+    }
 
-    c.fillStyle = '#fff'
+    c.fillStyle = stOverflow ? '#ffd860' : '#fff'
     c.fillText(stTxt, txtX, topCenterY)
 
     c.drawImage(stIcon, iconX, iconY, iconSz, iconSz)

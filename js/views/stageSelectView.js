@@ -56,7 +56,10 @@ function rStageSelect(g) {
   _rects.backBtnRect = [btnX, backBtnY, btnSz, btnSz]
 
   const stIcon = R.getImg('assets/ui/icon_stamina.png')
-  const stTxt = `${g.storage.currentStamina}/${g.storage.maxStamina}`
+  const curStamina = g.storage.currentStamina
+  const maxStamina = g.storage.maxStamina
+  const stOverflow = curStamina > maxStamina  // 领取奖励后可能超过 maxStamina，此时切金色提示"充裕"态
+  const stTxt = `${curStamina}/${maxStamina}`
   if (stIcon && stIcon.width > 0) {
     const iconSz = 32 * S
     const iconX = btnX + btnSz + 8 * S
@@ -80,8 +83,14 @@ function rStageSelect(g) {
     c.lineTo(capX, capY + capR)
     c.quadraticCurveTo(capX, capY, capX + capR, capY)
     c.closePath()
-    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
-    c.fillStyle = '#fff'
+    c.fillStyle = stOverflow ? 'rgba(60,40,10,0.65)' : 'rgba(0,0,0,0.45)'; c.fill()
+    if (stOverflow) {
+      // 溢出态：金色描边暗示"体力充裕，可尽情消耗"
+      c.strokeStyle = 'rgba(255,210,80,0.85)'
+      c.lineWidth = 1.2 * S
+      c.stroke()
+    }
+    c.fillStyle = stOverflow ? '#ffd860' : '#fff'
     c.fillText(stTxt, txtX, topCenterY)
     c.drawImage(stIcon, iconX, iconY, iconSz, iconSz)
     // 恢复说明（胶囊右侧）

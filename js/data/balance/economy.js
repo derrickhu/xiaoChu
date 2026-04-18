@@ -8,9 +8,10 @@ const STAMINA_RECOVER_INTERVAL_MS = 3 * 60 * 1000
 const STAMINA_INITIAL = 100
 const STAMINA_SIDEBAR_REWARD = 30
 const STAMINA_COST = 10
-// 体力软顶：current > maxStamina + STAMINA_SOFT_CAP_BUFFER 时，
-// 继续收到的 bonus 体力按 STAMINA_OVERFLOW_SOUL_RATIO 折算为灵石，
-// 避免第一天新手关全免 + 多处发放叠加导致"330/104"式滞留。
+// 体力软顶折灵石：**已停用**（玩家领取的体力现已完全不限上限，直接入账）
+// 保留常量仅为兼容老存档迁移与可能的回滚；当前运行时路径不再读取
+//   自然恢复依旧受 maxStamina 限制（见 storage._recoverStamina）
+//   奖励领取无上限（见 storage.addBonusStamina）
 const STAMINA_SOFT_CAP_BUFFER = 50
 const STAMINA_OVERFLOW_SOUL_RATIO = 5
 
