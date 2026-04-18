@@ -376,38 +376,70 @@ const _NEWBIE_HINTS = [
   'Combo 越高伤害加成越大，试试挑战高连击！',
 ]
 
-function _drawNewbieHint(g, boardTop, padX) {
+// 新手浮动提示条 —— 统一为与 _drawChallengeCapsule 一致的"金棕胶囊"样式
+// 位置规则（与战斗视图的"任务胶囊"同一水平带，保证不遮玩家血条/棋盘）：
+//   · 有 challenge 胶囊的关（1-2 / 1-3）：新手 hint 放在 challenge 胶囊【上方一层】，居中
+//   · 无 challenge 胶囊的关（1-1）：新手 hint 直接占用"挑战胶囊"那一层位置
+// 纵向分层而不是横向错位，是因为两条文本宽度相加常常会超过屏幕宽；上下错开最稳。
+function _drawNewbieHint(g, eAreaBottom, W) {
   if (!g._isNewbieStage || g.bState !== 'playerTurn') return
   const turn = g.turnCount || 0
 
-  const { ctx, W, S } = V
+  const { ctx, S } = V
   const text = _NEWBIE_HINTS[turn % _NEWBIE_HINTS.length]
-  const barH = 28 * S
-  const barY = boardTop - barH - 6 * S
 
+  const fs = 11 * S
   ctx.save()
-  ctx.globalAlpha = 0.88
-  ctx.fillStyle = 'rgba(50,30,10,0.75)'
-  const rad = 8 * S
-  ctx.beginPath()
-  ctx.moveTo(padX + rad, barY)
-  ctx.lineTo(W - padX - rad, barY)
-  ctx.quadraticCurveTo(W - padX, barY, W - padX, barY + rad)
-  ctx.lineTo(W - padX, barY + barH - rad)
-  ctx.quadraticCurveTo(W - padX, barY + barH, W - padX - rad, barY + barH)
-  ctx.lineTo(padX + rad, barY + barH)
-  ctx.quadraticCurveTo(padX, barY + barH, padX, barY + barH - rad)
-  ctx.lineTo(padX, barY + rad)
-  ctx.quadraticCurveTo(padX, barY, padX + rad, barY)
-  ctx.closePath()
+  ctx.font = `bold ${fs}px "PingFang SC",sans-serif`
+  const textW = ctx.measureText(text).width
+  const padH = 12 * S
+  const capH = 22 * S
+  const capW = Math.min(W - 20 * S, textW + padH * 2)
+  const capX = (W - capW) / 2
+
+  // 与 _drawChallengeCapsule 保持同一坐标锚点（敌人 HP 条顶部 = eAreaBottom - 26*S）
+  const enemyHpTopY = eAreaBottom - 26 * S
+  const challengeCapH = 22 * S
+  const hasChallenge = !!(g._mechanicFocus && g._mechanicFocus.challenge)
+  const capY = hasChallenge
+    ? enemyHpTopY - challengeCapH - 4 * S - capH    // 上层：避开 challenge 胶囊
+    : enemyHpTopY - capH - 2 * S                     // 底层：无 challenge 时直接占原位
+
+  // 金棕渐变底 + 金边（与 challenge 胶囊视觉同一 DNA）
+  const grad = ctx.createLinearGradient(capX, capY, capX, capY + capH)
+  grad.addColorStop(0, 'rgba(72,50,18,0.88)')
+  grad.addColorStop(1, 'rgba(45,30,10,0.88)')
+  ctx.fillStyle = grad
+  _rrPath(ctx, capX, capY, capW, capH, capH / 2)
   ctx.fill()
 
-  ctx.globalAlpha = 1
-  ctx.fillStyle = '#ffe9a0'
-  ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(text, W / 2, barY + barH / 2)
+  ctx.strokeStyle = 'rgba(220,180,80,0.9)'
+  ctx.lineWidth = 1.3 * S
+  _rrPath(ctx, capX, capY, capW, capH, capH / 2)
+  ctx.stroke()
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 2.5 * S
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'
+  ctx.strokeText(text, capX + capW / 2, capY + capH / 2)
+  ctx.fillStyle = '#ffe082'
+  ctx.fillText(text, capX + capW / 2, capY + capH / 2)
   ctx.restore()
+}
+
+// 本地圆角矩形路径（battleView._rrPath 未导出，这里重复一份，和 uiComponents._rr 语义一致）
+function _rrPath(c, x, y, w, h, r) {
+  c.beginPath()
+  c.moveTo(x + r, y); c.lineTo(x + w - r, y)
+  c.quadraticCurveTo(x + w, y, x + w, y + r)
+  c.lineTo(x + w, y + h - r)
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  c.lineTo(x + r, y + h)
+  c.quadraticCurveTo(x, y + h, x, y + h - r)
+  c.lineTo(x, y + r)
+  c.quadraticCurveTo(x, y, x + r, y)
+  c.closePath()
 }
 
 // ===== 新手 Combo 庆祝横幅（分级激情提示） =====

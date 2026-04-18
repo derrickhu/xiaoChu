@@ -40,7 +40,7 @@ function rBattle(g) {
   R.drawHp(padX, hpBarY, W - padX*2, hpBarH, g.heroHp, g.heroMaxHp, '#d4607a', g._heroHpLoss, true, '#4dcc4d', g.heroShield, g._heroHpGain, g.af)
   drawAttrCoverageBar(g, hpBarY + hpBarH + 1 * S, boardTop, padX)
   drawPetSlotFloats(g)
-  if (g._isNewbieStage) drawNewbieHint(g, boardTop, padX)
+  if (g._isNewbieStage) drawNewbieHint(g, eAreaBottom, W)
   drawBoard(g)
   if (g._isNewbieStage) drawNewbieFingerGuide(g, cellSize, boardPad, boardTop)
   g.elimFloats.forEach(f => R.drawElimFloat(f))
