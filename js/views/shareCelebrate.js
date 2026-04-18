@@ -36,7 +36,15 @@ const EXIT_DUR = 220
 
 // ===== 状态 =====
 let _state = null
-// _state = { phase, elapsed, sceneKey, data, cardPath, g, rects }
+// _state = { phase, elapsed, sceneKey, data, cardPath, cardStatus, fallbackPath, g, rects }
+// cardStatus: 'loading' | 'ready' | 'failed'
+//   · loading → 画"炫耀卡合成中..."
+//   · ready   → 画 cardPath 合成图
+//   · failed  → 画 fallbackPath（静态底图 cardTemplate.jpg），右下角"默认样式"小角标
+// 兜底时序：
+//   · shareCard.generateCard 内置 4s 硬超时，超时算失败
+//   · 本弹窗再加一层 4.5s 安全兜底：万一上游 promise 意外丢失回调，
+//     兜底定时器也能把 cardStatus 从 loading 推到 failed
 
 // ===== 圆角矩形 =====
 function _rr(c, x, y, w, h, r) {
@@ -75,22 +83,43 @@ function trigger(g, sceneKey, data) {
   const cfg = SHARE_SCENES[sceneKey]
   if (!cfg) return false
 
+  const fallbackPath = shareCard.getCardTemplatePath(sceneKey) || cfg.imageUrl || null
+
   _state = {
     phase: 'pending',
     elapsed: 0,
     sceneKey,
     data: data || {},
     cardPath: null,
+    cardStatus: 'loading',
+    fallbackPath,
     g,
     rects: {},
   }
 
-  // 异步合成炫耀卡 tempPath（失败则 cardPath = null，走静态图）
+  // 异步合成动态炫耀卡
+  //   · 成功 → cardStatus = 'ready'，预览区画合成图
+  //   · 失败（含返回 null / 超时 / 抛错）→ cardStatus = 'failed'，预览区降级为 fallbackPath 静态底图
+  //   关键：任何分支都要显式写入 cardStatus，否则会永远卡在"loading"
   shareCard.generateCard(g.storage, sceneKey, data).then((tempPath) => {
-    if (_state && _state.sceneKey === sceneKey) {
+    if (!_state || _state.sceneKey !== sceneKey) return
+    if (tempPath) {
       _state.cardPath = tempPath
+      _state.cardStatus = 'ready'
+    } else {
+      _state.cardStatus = 'failed'
     }
-  }).catch(() => {})
+  }).catch(() => {
+    if (_state && _state.sceneKey === sceneKey) _state.cardStatus = 'failed'
+  })
+
+  // 保险兜底：若上游 promise 因基础库异常完全没回调，4.5s 后强制 failed
+  //   比 shareCard 内部 4s 超时再多 500ms，避免两个定时器抢跑
+  setTimeout(() => {
+    if (_state && _state.sceneKey === sceneKey && _state.cardStatus === 'loading') {
+      _state.cardStatus = 'failed'
+    }
+  }, 4500)
 
   analytics.track('share_card_shown', { scene: sceneKey })
   return true
@@ -213,17 +242,25 @@ function draw() {
   ctx.save()
   _rr(ctx, previewX, previewY, previewW, previewH, 10 * S)
   ctx.clip()
-  const img = _ensurePreviewImg(state.cardPath)
-  if (img && img.width > 0) {
-    ctx.drawImage(img, previewX, previewY, previewW, previewH)
+  // 三态分支：ready → 合成图；failed → 底图降级；loading → 占位文字
+  if (state.cardStatus === 'ready') {
+    const img = _ensurePreviewImg(state.cardPath)
+    if (img && img.width > 0) {
+      ctx.drawImage(img, previewX, previewY, previewW, previewH)
+    } else {
+      // 合成图句柄还在解码，短暂显示占位（通常 1-2 帧后就会补上）
+      _drawLoadingPlaceholder(ctx, S, previewX, previewY, previewW, previewH)
+    }
+  } else if (state.cardStatus === 'failed') {
+    // 降级：直接画静态底图（底图本身就是一张完整的分享封面）
+    const img = _ensurePreviewImg(state.fallbackPath)
+    if (img && img.width > 0) {
+      ctx.drawImage(img, previewX, previewY, previewW, previewH)
+    } else {
+      _drawLoadingPlaceholder(ctx, S, previewX, previewY, previewW, previewH, '使用默认卡面分享')
+    }
   } else {
-    // 占位：说明正在合成
-    ctx.fillStyle = '#1a1330'
-    ctx.fillRect(previewX, previewY, previewW, previewH)
-    ctx.fillStyle = '#b8a070'
-    ctx.font = `${13 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('炫耀卡合成中...', previewX + previewW / 2, previewY + previewH / 2)
+    _drawLoadingPlaceholder(ctx, S, previewX, previewY, previewW, previewH)
   }
   ctx.restore()
 
@@ -285,6 +322,16 @@ function draw() {
   state.rects.btnDismiss = [panelX + panelW / 2 - 50 * S, dismissY - 12 * S, 100 * S, 26 * S]
 
   ctx.restore()
+}
+
+// ===== 预览占位 =====
+function _drawLoadingPlaceholder(ctx, S, x, y, w, h, text) {
+  ctx.fillStyle = '#1a1330'
+  ctx.fillRect(x, y, w, h)
+  ctx.fillStyle = '#b8a070'
+  ctx.font = `${13 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(text || '炫耀卡合成中...', x + w / 2, y + h / 2)
 }
 
 // ===== 简化版按钮（不依赖 drawPrimaryButton，独立自绘保证可移植） =====

@@ -97,6 +97,12 @@ function dealDmgToHero(g, dmg) {
   if (result.actualDamage > 0) {
     g._heroHpLoss = { fromPct: oldPct, timer: 0 }
     emitFloat(g, 'heroDmg', { dmg: result.actualDamage })
+    // 逆风翻盘追踪：每次扣血后记录血量最低点（用于结算时判断是否是残血翻盘）
+    //   注意：只记 heroDied=false 的状态（死了也无所谓，这里取 min 即可）
+    const ratio = g.heroMaxHp > 0 ? g.heroHp / g.heroMaxHp : 1
+    if (typeof g._heroMinHpRatio !== 'number' || ratio < g._heroMinHpRatio) {
+      g._heroMinHpRatio = ratio
+    }
   }
   return result
 }

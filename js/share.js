@@ -15,6 +15,37 @@ const cloudSync = require('./data/cloudSync')
 const analytics = require('./data/analytics')
 const { SHARE_SCENES } = require('./data/shareConfig')
 
+// ===== Pending 主动分享（解决"onShareAppMessage 覆盖 shareAppMessage 参数"的平台坑） =====
+//
+// 微信小游戏分享在 iOS + 部分 Android 版本上存在一个坑：
+//   即使 wx.shareAppMessage({ imageUrl, title, query }) 主动传了图，
+//   微信转发面板最终使用的仍是 wx.onShareAppMessage(cb) 回调里返回的数据，
+//   导致"点击我们的'发给好友'按钮分享动态炫耀卡 → 实际发出去的却是 passive 静态图"。
+//
+// 解决方案：shareCore 在主动分享的同时，写入一个 pending 槽位；
+// onShareAppMessage / onShareTimeline 回调优先读 pending，没有才回落到 passive 默认数据。
+//
+// 超时清理（PENDING_TTL_MS）：防止玩家取消分享后 pending 残留，污染后续被动分享。
+// 15s 足以覆盖绝大多数转发面板交互，超时就让被动分享回落到通用文案。
+const PENDING_TTL_MS = 15000
+let _pendingShare = null  // { scene, data, mode, title, imageUrl, query, expireAt }
+
+function _setPendingShare(scene, data, mode, title, imageUrl, query) {
+  _pendingShare = {
+    scene, data, mode, title, imageUrl, query,
+    expireAt: Date.now() + PENDING_TTL_MS,
+  }
+}
+
+function _getPendingShare() {
+  if (!_pendingShare) return null
+  if (Date.now() > _pendingShare.expireAt) { _pendingShare = null; return null }
+  return _pendingShare
+}
+
+// 供测试/热更用
+function clearPendingShare() { _pendingShare = null }
+
 // ===== 内部：邀请 query 拼装 =====
 //   为什么从 cloudSync 取 openid：邀请链的"源头"需要稳定 ID，
 //   cloudSync 在 app 启动时会尝试 callFunction getOpenid 并缓存。
@@ -27,10 +58,22 @@ function _buildQuery(extraQuery) {
   return parts.join('&')
 }
 
-// ===== 内部：场景图选择（优先动态卡 tempPath，回落静态图） =====
+// ===== 内部：场景图选择 =====
+//
+// 【关键约束 · 必读】
+// 微信小游戏 wx.shareAppMessage 的 imageUrl 在**体验版 / 正式版**上不支持 wxfile:// 临时路径
+// （开发者工具和真机开发版支持，但线上一律静默失败、回落到默认分享图 / 游戏截屏）。
+// 因此 shareCard 合成出来的 tempFilePath **不能用于最终分享**，否则线上玩家看到的永远是错图。
+//
+// 当前策略（"方案 B · 静态底图 + 动态文案"）：
+//   · imageUrl：固定用包内静态底图（各场景 cardTemplate 对应 assets/share/card_base/*.jpg）
+//   · title  ：动态文案，带玩家昵称/战绩/境界 → 炫耀感由标题承担（行业主流做法）
+//   · 弹窗预览：仍用动态合成图（让玩家看到"这是我的"），但不参与最终分享
+//
+// 日后若要走真动态图分享，必须经云存储上传换取 https CDN URL，才能绕开这个限制。
 function _resolveImage(cfg, data) {
-  // data.cardTempPath 由 shareCard 合成后注入；无则用配置里的 imageUrl
-  if (data && data.cardTempPath) return data.cardTempPath
+  // 优先使用场景配置的炫耀卡静态底图（审核可过、线上稳定）
+  if (cfg.cardTemplate) return `assets/share/card_base/${cfg.cardTemplate}.jpg`
   // stats/passive 等多状态场景支持"已通关"变体
   if (cfg.imageUrlCleared && data && data.isCleared) return cfg.imageUrlCleared
   return cfg.imageUrl || 'assets/share/share_default.jpg'
@@ -64,7 +107,13 @@ function _recordShareReward(g, sceneKey, mode) {
 }
 
 // ===== 被动分享数据（onShareAppMessage 用） =====
+//   · 优先读 pending（主动分享刚发起的场景数据 / 动态卡 tempPath）
+//   · 无 pending 时回落 passive 默认静态图
 function getShareData(storage) {
+  const pending = _getPendingShare()
+  if (pending && pending.mode !== 'timeline') {
+    return { title: pending.title, imageUrl: pending.imageUrl, query: pending.query }
+  }
   const cfg = SHARE_SCENES.passive
   const st = storage.stats
   const floor = storage.bestFloor
@@ -79,7 +128,12 @@ function getShareData(storage) {
 
 // ===== 被动分享数据（onShareTimeline 用） =====
 //   朋友圈没有 query 字段（微信不支持），只有 title + imageUrl + query(部分基础库)
+//   同样先读 pending（mode === 'timeline'）
 function getShareTimelineData(storage) {
+  const pending = _getPendingShare()
+  if (pending && pending.mode === 'timeline') {
+    return { title: pending.title, imageUrl: pending.imageUrl, query: pending.query }
+  }
   const cfg = SHARE_SCENES.passive
   const st = storage.stats
   const floor = storage.bestFloor
@@ -105,6 +159,11 @@ function shareCore(g, sceneKey, data, opts) {
   const imageUrl = _resolveImage(cfg, data)
   const query = _buildQuery(opts && opts.extraQuery)
 
+  // 写 pending 槽位：微信若在转发面板期间回调 onShareAppMessage/onShareTimeline，
+  // 回调会返回这同一份数据（含动态炫耀卡 tempPath），避免被 passive 默认图覆盖
+  const fallbackMode = (mode === 'timeline' && !P.hasShareTimeline) ? 'friend' : mode
+  _setPendingShare(sceneKey, data, fallbackMode, title, imageUrl, query)
+
   if (mode === 'timeline') {
     // 朋友圈；不支持的平台（抖音 / 低版本微信）自动回落到好友分享
     if (P.hasShareTimeline) {
@@ -129,6 +188,7 @@ function shareCore(g, sceneKey, data, opts) {
 function shareGame(g) {
   if (!g || !g.storage) return
   const data = getShareData(g.storage)
+  _setPendingShare('passive', null, 'friend', data.title, data.imageUrl, data.query)
   P.shareAppMessage({ title: data.title, imageUrl: data.imageUrl, query: data.query })
   _recordShareReward(g, 'passive', 'friend')
 }
@@ -140,7 +200,11 @@ function shareStats(storage) {
   const st = storage.stats
   const d = { floor: storage.bestFloor, dex: (storage.petPool || []).length, combo: st.maxCombo }
   const titleFn = cfg.titles[Math.floor(Math.random() * cfg.titles.length)]
-  P.shareAppMessage({ title: titleFn(d), imageUrl: cfg.imageUrl, query: _buildQuery() })
+  const title = titleFn(d)
+  const imageUrl = cfg.imageUrl
+  const query = _buildQuery()
+  _setPendingShare('stats', null, 'friend', title, imageUrl, query)
+  P.shareAppMessage({ title, imageUrl, query })
   // 注意：此接口没有 g 上下文，奖励入账依赖外部（或升级调用方传 g 换 shareCore）
 }
 
@@ -162,4 +226,6 @@ module.exports = {
   shareGame,
   shareStats,
   doShare,
+  // 测试/热更钩子
+  clearPendingShare,
 }

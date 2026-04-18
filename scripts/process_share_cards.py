@@ -36,6 +36,15 @@ SCENES = [
     "tower_new_best",
 ]
 
+# 各场景预处理（在 cover 填充前，对原稿做的一次"初剪"）。
+#   crop_bottom_ratio: 丢弃原稿下方 N%（0~1）。主要给 first_s 这类下方本就是灰色
+#                      / 文字留白的老原稿用，避免灰色被 cover 方式保留下来。
+#   crop_top_ratio   : 同上，丢弃原稿顶部 N%。
+# 不填则不做预处理，直接 cover 到 750×600。
+SCENE_PRECROPS = {
+    "first_s": {"crop_bottom_ratio": 0.42},
+}
+
 
 def process(scene: str) -> None:
     src = os.path.join(SOURCES_DIR, f"{scene}_source.png")
@@ -46,6 +55,17 @@ def process(scene: str) -> None:
 
     img = Image.open(src).convert("RGB")
     w, h = img.size
+
+    precrop = SCENE_PRECROPS.get(scene)
+    if precrop:
+        top_ratio = float(precrop.get("crop_top_ratio", 0))
+        bot_ratio = float(precrop.get("crop_bottom_ratio", 0))
+        top_px = int(round(h * top_ratio))
+        bot_px = int(round(h * (1 - bot_ratio)))
+        if bot_px > top_px:
+            img = img.crop((0, top_px, w, bot_px))
+            w, h = img.size
+            print(f"  [{scene}] pre-crop → {w}x{h} (top={top_px} bot={bot_px})")
 
     # 按 cover 方式填充 750x600：先等比放大到最小覆盖，再居中裁剪
     target_ratio = TARGET_W / TARGET_H

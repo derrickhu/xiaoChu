@@ -98,6 +98,28 @@ const SHARE_SCENES = {
     reward: { soulStone: 50 },
   },
 
+  // ========== 情绪峰值：逆风翻盘（战斗中血量 ≤10% 胜利） ==========
+  // 底图：短期复用 first_s.jpg（"高手时刻"质感相近），后续可换专属逆风底图
+  comebackWin: {
+    titleFn: (d) => `${d.hpPct}% 残血翻盘「${d.stageName}」！手心全是汗，快来看我怎么赢的`,
+    timelineTitleFn: (d) => `残血${d.hpPct}%翻盘「${d.stageName}」，灵宠消消塔真刺激`,
+    imageUrl: 'assets/share/share_default.jpg',
+    useCard: true,
+    cardTemplate: 'first_s',
+    reward: { soulStone: 30 },
+  },
+
+  // ========== 情绪峰值：境界大跨档（感气 → 炼气 等） ==========
+  // 底图：短期复用 chapter_complete.jpg（"里程碑"质感相近），后续可换专属境界底图
+  realmUp: {
+    titleFn: (d) => `修为精进！我已晋入「${d.currName}」境，一起来修仙`,
+    timelineTitleFn: (d) => `${d.prevName} → ${d.currName}，修仙之路又迈一档`,
+    imageUrl: 'assets/share/share_cover.jpg',
+    useCard: true,
+    cardTemplate: 'chapter_complete',
+    reward: { soulStone: 50 },
+  },
+
   // ========== 情绪峰值：通天塔新高 ==========
   towerNewBest: {
     titleFn: (d) => `通天塔新纪录！第${d.floor}层，来挑战我的记录`,

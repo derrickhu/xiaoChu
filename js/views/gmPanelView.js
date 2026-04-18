@@ -61,7 +61,7 @@ function rGMPanel(g) {
 
   // 面板尺寸（宽度占屏 92%，高度自适应）
   const pw = W * 0.92
-  const ph = Math.min(440 * u, H - 80 * u)
+  const ph = Math.min(490 * u, H - 80 * u)
   const px = (W - pw) / 2
   const py = (H - ph) / 2
 
@@ -195,6 +195,17 @@ function rGMPanel(g) {
   _rects.btns.push({ id: 'add_awaken', rect: awakenRect })
   cy += btnH + 12 * u
 
+  // ── 炫耀 / 境界 flag 调试（真机重放 tierCeremony / 炫耀卡必备） ──
+  c.fillStyle = '#B0BEC5'
+  c.font = `${13 * u}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'top'
+  const realmInfo = g.storage.getCultRealmInfo()
+  c.fillText(`🏆 flag: ${g.storage._d.lastCultRealmId || 'mortal'} · ${realmInfo.fullName}`, innerL, cy + 4 * u)
+  const celebrateRect = _drawBtn(c, resBtnX, cy, resBtnW, btnH, '清炫耀flag', '#00838F', u)
+  _rects.btns.push({ id: 'reset_celebrate', rect: celebrateRect })
+  cy += btnH + 12 * u
+
   // ── 翻倍状态信息 ──
   const doubleState = g.storage.loginRewardDoubleState
   c.fillStyle = '#78909C'
@@ -274,6 +285,10 @@ function _handleBtn(g, id) {
     case 'add_awaken':
       st.addAwakenStone(10)
       P.showGameToast(`觉醒石+10 → ${st.awakenStone}`)
+      break
+    case 'reset_celebrate':
+      st.gmResetCelebrateFlags()
+      P.showGameToast('✅ 已清炫耀/境界 flag，下次跨档可重弹', { type: 'achievement' })
       break
   }
 }

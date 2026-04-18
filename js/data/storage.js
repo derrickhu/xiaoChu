@@ -2555,6 +2555,20 @@ class Storage {
     this._save()
   }
 
+  /**
+   * GM：重置所有"情绪峰值弹窗 flag" + "境界仪式 flag"，方便真机调试时重放 tierCeremony / 炫耀卡
+   *   · celebrateFlags      —— shareHooks 的一生一次 / 每关一次幂等标记（firstPet / firstSRating / stageFirstClear_* 等）
+   *   · lastCultRealmId/Sub —— storage.checkCultRealmUp 的进度 flag，清零后下次跨档就会按当前 cultLv 重新判 major/minor
+   *   注：cultivation.level 不动；玩家自己决定是否配合 GM 改经验回退测试
+   */
+  gmResetCelebrateFlags() {
+    if (!isCurrentUserGM()) return
+    this._d.celebrateFlags = {}
+    this._d.lastCultRealmId = 'mortal'
+    this._d.lastCultSubStage = 0
+    this._save()
+  }
+
   _save() {
     try {
       P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))

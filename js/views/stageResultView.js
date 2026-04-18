@@ -76,9 +76,17 @@ function rStageResult(g) {
     lingCheer.show(msg, { tone: 'epic', duration: 2400 })
   }
 
-  // 情绪峰值：首通 / 首宠 / 首 S → 触发炫耀卡弹窗（shareHooks 内部幂等）
-  //   1-1 首通优先按"首宠"触发（最情绪），其它关按"首通"触发
-  //   任一关 S 评价追加 firstSRating（一生一次；已弹过会被 shareCelebrate 自动吞）
+  // 情绪峰值：首通 / 首宠 / 首 S / 逆风翻盘 → 触发炫耀卡弹窗（shareHooks 内部幂等 + 静默名单）
+  //
+  // 【触发时机的节奏设计（方向 A+B）】
+  //   1-1 首通：静默（教学关，玩家还没形成"我在玩一个游戏"的认知，炫耀阈值太低）
+  //   1-2 首通：静默（继续让玩家沉浸熟悉节奏）
+  //   1-3 首通：弹 firstPet（此时玩家刚看完 _newbieTeamOverview 首队总览，情绪峰值最高）
+  //   1-4 起 ：按关弹 stageFirstClear
+  //   任一关 S：firstSRating（但 1-1/1-2 的 S 不点燃"一生一次"，避免浪费在低含金量事件）
+  //   任一关"血量 <=10% 翻盘胜利"：弹 comebackWin（1-1/1-2 同样静默）
+  //   章节圆满：chapterComplete 不受新手静默限制（里程碑事件罕见）
+  //   具体静默名单在 shareHooks 内部收口，这里只负责"把语义事件报出去"
   if (at === 1 && !result._shareCelebrated && result.victory && result.isFirstClear) {
     result._shareCelebrated = true
     const stage = getStageById(result.stageId)
@@ -86,7 +94,9 @@ function rStageResult(g) {
     const isFinalBoss = !!(stage && stage.chapter === 12 && stage.order === 8)
     const isElite = !!(stage && stage.difficulty === 'elite')
     const turns = result.turns || result.turnCount || 0
-    if (result.stageId === 'stage_1_1') {
+    // 1-3 首通 = 首支队伍成型 → 用 firstPet 承接（队伍成员取当前 petPool）
+    //   原 1-1 首宠方案情绪值过低，已迁移到 1-3
+    if (result.stageId === 'stage_1_3') {
       const firstPet = (g.storage.petPool || [])[0]
       const petMeta = firstPet ? getPetById(firstPet.id) : null
       const petName = (petMeta && petMeta.name) || '灵宠'
@@ -107,6 +117,22 @@ function rStageResult(g) {
       shareHooks.onChapterComplete(g, {
         chapterId: `ch_${stage.chapter}`,
         chapterName: (ch && ch.name) || `第${stage.chapter}章`,
+      })
+    }
+  }
+
+  // 逆风翻盘：任意胜利（不必首通）且战斗中最低血量 ≤ 10%
+  //   与 firstPet/stageFirstClear 互斥由 shareCelebrate._state 幂等保证（已有其他弹窗则让位）
+  if (at === 1 && !result._comebackChecked && result.victory) {
+    result._comebackChecked = true
+    const minRatio = typeof result.heroMinHpRatio === 'number' ? result.heroMinHpRatio : 1
+    if (minRatio > 0 && minRatio <= 0.10) {
+      const stage = getStageById(result.stageId)
+      const stageName = (stage && stage.name) || ''
+      shareHooks.onComebackWin(g, {
+        stageId: result.stageId,
+        stageName,
+        hpPct: Math.round(minRatio * 100),
       })
     }
   }

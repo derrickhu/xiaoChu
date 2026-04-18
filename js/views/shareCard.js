@@ -140,6 +140,20 @@ function _canvasToTemp(canvas) {
   })
 }
 
+// ===== 超时包装：真机上 _loadImage / toTempFilePath 偶发挂起不 resolve =====
+// 没有超时时，上游 shareCelebrate 弹窗会永远停留在"炫耀卡合成中..."。
+// 给 generateCard 一个硬超时（默认 4000ms），超时按失败处理，让上游降级展示底图。
+function _withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    let settled = false
+    const t = setTimeout(() => { if (!settled) { settled = true; resolve(fallback) } }, ms)
+    promise.then(
+      (v) => { if (!settled) { settled = true; clearTimeout(t); resolve(v) } },
+      () => { if (!settled) { settled = true; clearTimeout(t); resolve(fallback) } },
+    )
+  })
+}
+
 /**
  * 合成一张炫耀卡
  * @param {object} storage - 用于取 userInfo.nickName / avatarUrl
@@ -148,6 +162,10 @@ function _canvasToTemp(canvas) {
  * @returns {Promise<string|null>} tempFilePath 或 null（回落静态图）
  */
 async function generateCard(storage, sceneKey, data) {
+  return _withTimeout(_generateCardInner(storage, sceneKey, data), 4000, null)
+}
+
+async function _generateCardInner(storage, sceneKey, data) {
   const cfg = SHARE_SCENES[sceneKey]
   if (!cfg || !cfg.useCard || !cfg.cardTemplate) return null
   if (!P.createOffscreenCanvas) return null
@@ -157,13 +175,14 @@ async function generateCard(storage, sceneKey, data) {
   const txt = textFn(data || {})
 
   // 并行预加载：底图 + 小灵头像 + 用户头像
+  // 每张图自带 3000ms 超时，避免任一张卡住就拖垮整张卡（头像/底图任一挂起都不会让 Promise.all 吊死）
   const ui = (storage && storage.userInfo) || {}
   const [bgImg, lingImg, avatarImg] = await Promise.all([
-    _loadImage(`${BASE_DIR}${cfg.cardTemplate}.jpg`),
-    _loadImage(LING && LING.avatar),
-    _loadImage(ui.avatarUrl),
+    _withTimeout(_loadImage(`${BASE_DIR}${cfg.cardTemplate}.jpg`), 3000, null),
+    _withTimeout(_loadImage(LING && LING.avatar), 3000, null),
+    _withTimeout(_loadImage(ui.avatarUrl), 3000, null),
   ])
-  if (!bgImg) return null // 底图缺失 → 回落静态图
+  if (!bgImg) return null
 
   let canvas
   try {
@@ -246,4 +265,11 @@ async function generateCard(storage, sceneKey, data) {
 // 清理缓存（主要是测试/热更用）
 function clearCache() { _imgCache.clear() }
 
-module.exports = { generateCard, clearCache, CARD_W, CARD_H }
+// 供 shareCelebrate 在动态合成失败时做降级预览：返回该场景的静态底图路径
+function getCardTemplatePath(sceneKey) {
+  const cfg = SHARE_SCENES[sceneKey]
+  if (!cfg || !cfg.cardTemplate) return null
+  return `${BASE_DIR}${cfg.cardTemplate}.jpg`
+}
+
+module.exports = { generateCard, clearCache, getCardTemplatePath, CARD_W, CARD_H }

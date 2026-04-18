@@ -225,7 +225,23 @@ function handleTouch(type, x, y) {
   if (type !== 'end') return true
   const r = _state.rects.continueBtn
   if (r && x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) {
+    // 顺带触发境界大跨档的炫耀卡（shareCelebrate 内部 1800ms pending buffer，
+    // 正好让 tierCeremony 的 240ms exit 动画先跑完，两者时序无缝衔接，不会双全屏打架）
+    const g = _state.g
+    const prev = _state.prev
+    const curr = _state.curr
     dismiss()
+    if (g && curr) {
+      try {
+        const shareHooks = require('../data/shareHooks')
+        shareHooks.onRealmUp(g, {
+          realmId: curr.id,
+          prevName: (prev && prev.name) || '凡尘',
+          currName: curr.name,
+          prev, curr,
+        })
+      } catch (_e) { /* ignore：分享钩子异常不影响仪式关闭 */ }
+    }
     return true
   }
   return true  // 非按钮区域也吞，避免点透

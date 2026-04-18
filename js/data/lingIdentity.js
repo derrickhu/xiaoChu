@@ -97,6 +97,18 @@ const LING = {
     towerNewBest(floor) {
       return `主人爬到 ${floor} 层啦！又创新高～`
     },
+    /** 逆风翻盘（残血胜利）—— 紧张过后的释然 */
+    comebackWin(stageName) {
+      return stageName
+        ? `哇～「${stageName}」主人差点就…好险！这一仗精彩！`
+        : '惊险逆转～主人这一仗打得漂亮！'
+    },
+    /** 境界大跨档（感气 → 炼气 等）—— 修仙里程碑 */
+    realmUp(currName) {
+      return currName
+        ? `主人晋入「${currName}」啦～修为又迈上新台阶！`
+        : '主人境界突破～修为精进！'
+    },
     /** 每日任务全清 */
     dailyAllDone() {
       return '主人今日功课全部做完啦～了不起！'
