@@ -1,5 +1,5 @@
 /**
- * 战斗 UI 控件：退出按钮、Buff 标签、灵宝匣按钮、经验指示器/飘字
+ * 战斗 UI 控件：退出按钮、Buff 标签、灵宝匣按钮、经验飘字（+N 飞向左上角区域）
  */
 const V = require('../env')
 const tutorial = require('../../engine/tutorial')
@@ -23,10 +23,6 @@ function drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, d
     g._exitBtnRect = [exitBtnX, exitBtnY, exitBtnSize, exitBtnSize]
   } else {
     g._exitBtnRect = null
-  }
-
-  if (!tutorial.isActive() && g.bState !== 'none') {
-    drawExpIndicator(g, exitBtnX, exitBtnY + exitBtnSize + 6*S, exitBtnSize, S)
   }
 
   if (!tutorial.isActive() && g.bState !== 'victory' && g.bState !== 'defeat') {
@@ -67,62 +63,6 @@ function drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, d
   }
 }
 
-function drawExpIndicator(g, x, y, w, S) {
-  const { ctx: c, R } = V
-  const exp = g.runExp || 0
-  const pulse = g._expIndicatorPulse || 0
-
-  const iconSz = 28 * S
-  const iconX = x + (w - iconSz) / 2
-  const iconY = y
-  const centerY = iconY + iconSz / 2
-
-  g._expIndicatorX = iconX + iconSz / 2
-  g._expIndicatorY = centerY
-
-  c.save()
-
-  const expText = `${exp}`
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'middle'
-  const txtW = c.measureText(expText).width
-  const padX = 5 * S
-  const capH = 20 * S, capR = capH / 2
-  const txtX = iconX + iconSz + 2 * S
-  const capX = iconX + iconSz * 0.38
-  const capW = txtX + txtW + padX - capX
-  const capY = centerY - capH / 2
-
-  c.beginPath()
-  c.moveTo(capX + capR, capY)
-  c.lineTo(capX + capW - capR, capY)
-  c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
-  c.lineTo(capX + capW, capY + capH - capR)
-  c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
-  c.lineTo(capX + capR, capY + capH)
-  c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
-  c.lineTo(capX, capY + capR)
-  c.quadraticCurveTo(capX, capY, capX + capR, capY)
-  c.closePath()
-  c.fillStyle = pulse > 0 ? 'rgba(180,130,10,0.75)' : 'rgba(0,0,0,0.52)'
-  c.fill()
-
-  c.fillStyle = pulse > 0 ? '#FFD700' : '#fff8cc'
-  c.fillText(expText, txtX, centerY)
-
-  const expIcon = R.getImg('assets/ui/icon_cult_exp.png')
-  if (expIcon && expIcon.width > 0) {
-    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
-  } else {
-    c.fillStyle = '#E8D5A3'
-    c.font = `${iconSz * 0.7}px sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('\u2728', iconX + iconSz / 2, centerY)
-  }
-
-  c.restore()
-}
-
 function drawExpFloats(g) {
   const { ctx, S } = V
   const floats = g._expFloats
@@ -152,4 +92,4 @@ function drawExpFloats(g) {
   }
 }
 
-module.exports = { drawBattleUIControls, drawExpIndicator, drawExpFloats }
+module.exports = { drawBattleUIControls, drawExpFloats }

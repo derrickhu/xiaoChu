@@ -41,6 +41,62 @@ function _getFramePetMap(R) {
   return _framePetMap
 }
 
+/**
+ * 绘制 "小图标 + 文字" 行内组，返回绘制结束后的右侧 x 坐标
+ * 用于奖励清单里统一的资源展示（图标 14*S，图标与文字间距 3*S）
+ */
+function _drawIconText(c, R, S, x, y, iconPath, text, color) {
+  const iconSz = 14 * S
+  const img = R.getImg(iconPath)
+  if (img && img.width > 0) {
+    c.drawImage(img, x, y, iconSz, iconSz)
+  }
+  c.fillStyle = color
+  c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'middle'
+  const textX = x + iconSz + 3 * S
+  c.fillText(text, textX, y + iconSz / 2)
+  c.textBaseline = 'top'
+  return textX + c.measureText(text).width
+}
+
+/**
+ * 星级目标行右侧：灵石 / 灵宠碎片 / 觉醒石 图标 + 数字，整体右对齐（替代「灵石+7 碎片+1」纯文字）
+ */
+function _drawStarRowExtras(c, R, S, rightX, midY, extra, claimed) {
+  if (!extra) return
+  const color = claimed ? '#90EE90' : '#D4A030'
+  const iconSz = 11 * S
+  const gap = 5 * S
+  const parts = []
+  if (extra.soulStone) parts.push({ path: 'assets/ui/icon_soul_stone.png', txt: '+' + extra.soulStone })
+  if (extra.fragment) parts.push({ path: 'assets/ui/frame_fragment.png', txt: '+' + extra.fragment })
+  if (extra.awakenStone) parts.push({ path: 'assets/ui/icon_awaken_stone.png', txt: '+' + extra.awakenStone })
+  if (!parts.length) return
+  c.font = `${8.8 * S}px "PingFang SC",sans-serif`
+  c.textBaseline = 'middle'
+  const widths = parts.map((p) => {
+    const tw = c.measureText(p.txt).width
+    return iconSz + 2 * S + tw
+  })
+  let totalW = widths.reduce((a, b) => a + b, 0) + gap * (parts.length - 1)
+  let x = rightX - totalW
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0) x += gap
+    const p = parts[i]
+    const img = R.getImg(p.path)
+    const iy = midY - iconSz / 2
+    if (img && img.width > 0) c.drawImage(img, x, iy, iconSz, iconSz)
+    c.fillStyle = color
+    c.textAlign = 'left'
+    c.fillText(p.txt, x + iconSz + 2 * S, midY)
+    x += widths[i]
+  }
+  c.textBaseline = 'top'
+  c.textAlign = 'left'
+}
+
 function _calcAvgPetStar(g) {
   const pool = g.storage && g.storage._d && g.storage._d.petPool
   if (!pool || !pool.length) return 1
@@ -170,11 +226,23 @@ function rStageInfo(g) {
   c.fillText(stage.name, W / 2, nameY)
   cy += stageOrderLabel ? 38 * S : 30 * S
 
-  // 副标题：属性 + 波次 + 消耗（无限制时不显示次数）
+  // 副标题：属性 + 波次 + 体力图标 + 消耗（无限制时不显示次数）
   const dailyStr = hasDailyLimit ? `  ·  今日${dailyLeft}/${stage.dailyLimit}` : ''
-  const subText = `${attrName}属性  ·  ${stage.waves.length}波  ·  ⚡${stage.staminaCost ?? STAMINA_COST}${dailyStr}`
+  const subLeft = `${attrName}属性  ·  ${stage.waves.length}波`
+  const subSep = '  ·  '
+  const stCostStr = String(stage.staminaCost ?? STAMINA_COST)
+  const subCostIcon = R.getImg('assets/ui/icon_stamina.png')
   c.font = `${10*S}px "PingFang SC",sans-serif`
-  const subW = c.measureText(subText).width + 20 * S
+  const subIconSz = 11 * S
+  const subIconGap = 2 * S
+  const wSubLeft = c.measureText(subLeft).width
+  const wSubSep = c.measureText(subSep).width
+  const wSubCost = c.measureText(stCostStr).width
+  const wSubDaily = c.measureText(dailyStr).width
+  const wSubIconBlk =
+    subCostIcon && subCostIcon.width > 0 ? subIconSz + subIconGap : c.measureText('⚡').width
+  const subInnerW = wSubLeft + wSubSep + wSubIconBlk + wSubCost + wSubDaily
+  const subW = subInnerW + 20 * S
   const subH = 20 * S
   const subX = (W - subW) / 2
   c.fillStyle = 'rgba(0,0,0,0.45)'
@@ -182,8 +250,20 @@ function rStageInfo(g) {
   c.strokeStyle = attrColor ? attrColor.main + '60' : 'rgba(200,180,120,0.4)'; c.lineWidth = 1 * S
   R.rr(subX, cy, subW, subH, subH / 2); c.stroke()
   c.fillStyle = attrColor ? attrColor.main : '#E8D5A3'
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(subText, W / 2, cy + subH / 2)
+  const subMidY = cy + subH / 2
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  let subTx = W / 2 - subInnerW / 2
+  c.fillText(subLeft, subTx, subMidY); subTx += wSubLeft
+  c.fillText(subSep, subTx, subMidY); subTx += wSubSep
+  if (subCostIcon && subCostIcon.width > 0) {
+    c.drawImage(subCostIcon, subTx, subMidY - subIconSz / 2, subIconSz, subIconSz)
+    subTx += subIconSz + subIconGap
+  } else {
+    c.fillText('⚡', subTx, subMidY)
+    subTx += c.measureText('⚡').width
+  }
+  c.fillText(stCostStr, subTx, subMidY); subTx += wSubCost
+  if (dailyStr) c.fillText(dailyStr, subTx, subMidY)
   cy += subH + 6 * S
 
   // 建议战力提示
@@ -280,17 +360,10 @@ function rStageInfo(g) {
     // 条件
     c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
     c.fillText(sd.cond, indent + 48 * S, rowY)
-    // 额外奖励（2★/3★）
+    // 额外奖励（2★/3★）：图标 + 数字，右对齐
     if (sd.extra) {
-      const parts = []
-      if (sd.extra.soulStone) parts.push(`灵石+${sd.extra.soulStone}`)
-      if (sd.extra.fragment) parts.push(`碎片+${sd.extra.fragment}`)
-      if (sd.extra.awakenStone) parts.push(`觉醒石+${sd.extra.awakenStone}`)
-      c.textAlign = 'right'
-      c.fillStyle = sd.claimed ? '#90EE90' : '#D4A030'
-      c.font = `${9*S}px "PingFang SC",sans-serif`
-      c.fillText(parts.join(' '), cardX + cardW - cardPad, rowY + 1 * S)
-      c.textAlign = 'left'
+      const rowMidY = rowY + 7 * S
+      _drawStarRowExtras(c, R, S, cardX + cardW - cardPad, rowMidY, sd.extra, sd.claimed)
     }
     iy += 14 * S
   }
@@ -362,8 +435,8 @@ function rStageInfo(g) {
           c.textBaseline = 'top'
           iy += fragIconSz + 4 * S
         } else {
-          c.fillText(`  ${fragName} ×${r.count}`, indent + 12 * S, iy)
-          iy += 13 * S
+          _drawIconText(c, R, S, indent + 12 * S, iy, 'assets/ui/frame_fragment.png', `${fragName} ×${r.count}`, 'rgba(255,230,150,0.9)')
+          iy += 15 * S
         }
       } else if (r.type === 'randomPet') {
         const maxR = getMaxDropRarity(r.chapter, r.difficulty, 'pet')
@@ -386,22 +459,23 @@ function rStageInfo(g) {
         c.fillText(`✦ ${weaponName}`, indent + 12 * S, iy)
         iy += 13 * S
       } else if (r.type === 'exp') {
-        c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  修炼经验 +${r.amount}`, indent + 12 * S, iy)
-        iy += 13 * S
+        _drawIconText(c, R, S, indent + 12 * S, iy, 'assets/ui/icon_cult_exp.png', `修炼经验 +${r.amount}`, 'rgba(255,230,150,0.9)')
+        iy += 15 * S
       } else if (r.type === 'soulStone') {
-        c.fillStyle = 'rgba(255,230,150,0.8)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-        c.fillText(`  灵石 +${r.amount}`, indent + 12 * S, iy)
-        iy += 13 * S
+        _drawIconText(c, R, S, indent + 12 * S, iy, 'assets/ui/icon_soul_stone.png', `灵石 +${r.amount}`, 'rgba(255,230,150,0.9)')
+        iy += 15 * S
       }
     }
     iy += 2 * S
   }
 
-  // 周回奖励（显示评价倍率范围）
+  // 周回奖励（显示评价倍率范围，图标化展示，术语统一为"灵宠碎片"）
   const rp = preview.repeat
-  c.fillStyle = '#E8D5A3'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  c.fillText(`碎片 ×${rp.fragments.min}~${rp.fragments.max}  |  经验 +${rp.exp.base}~${rp.exp.max}  |  灵石 +${rp.soulStone.base}~${rp.soulStone.max}`, indent + 6 * S, iy)
+  const repeatColor = '#E8D5A3'
+  let rx = indent + 6 * S
+  rx = _drawIconText(c, R, S, rx, iy, 'assets/ui/frame_fragment.png', `灵宠碎片 ×${rp.fragments.min}~${rp.fragments.max}`, repeatColor) + 10 * S
+  rx = _drawIconText(c, R, S, rx, iy, 'assets/ui/icon_cult_exp.png', `经验 +${rp.exp.base}~${rp.exp.max}`, repeatColor) + 10 * S
+  _drawIconText(c, R, S, rx, iy, 'assets/ui/icon_soul_stone.png', `灵石 +${rp.soulStone.base}~${rp.soulStone.max}`, repeatColor)
   iy += 16 * S
 
   // 分隔线

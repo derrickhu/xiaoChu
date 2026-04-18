@@ -1457,6 +1457,109 @@ function createScrollState() {
  *   fontSize   主文字字号（默认根据按钮高度自动）
  *   subFontSize  副文字字号（默认 10*S）
  */
+/**
+ * 主动分享按钮（底图：btn_reward_confirm.png 金色卷轴）
+ *
+ * 设计思路：
+ *   v5 单行横向：「分享」· [灵石icon] +N（动作与奖励同一行扫读）。
+ *   锚点略偏右（~0.56w）避开底板左侧云纹；底图仍为 btn_reward_confirm.png。
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {Object} R 渲染模块（getImg）
+ * @param {number} S 缩放倍率
+ * @param {number} rightX 按钮右边界 x（函数内部右对齐计算左上 x）
+ * @param {number} y 按钮左上 y
+ * @param {number} h 按钮高度（推荐 36~44 * S，宽度按 3.5:1 自适应）
+ * @param {Object} opts
+ *   · glow - 呼吸金边（情绪峰值：首通胜利 / 通天塔破境）
+ *   · reward - 奖励灵石数量（默认 20，来自 shareConfig.activeStageShare.reward.soulStone）
+ * @returns {{x:number, y:number, w:number, h:number}} 实际命中区域
+ */
+function drawShareIconBtn(c, R, S, rightX, y, h, opts) {
+  opts = opts || {}
+  const reward = opts.reward != null ? opts.reward : 20
+  const glow = !!opts.glow
+  const pulse = glow ? 0.35 + 0.35 * Math.sin(Date.now() * 0.004) : 0
+
+  // btn_reward_confirm 原图比例约 3.5:1，按此算宽
+  const w = h * 3.4
+  const x = rightX - w
+
+  c.save()
+
+  // 呼吸金光（外层柔和发光）
+  if (glow) {
+    c.save()
+    c.shadowColor = 'rgba(255,210,90,0.95)'
+    c.shadowBlur = (9 + 6 * pulse) * S
+    c.strokeStyle = 'rgba(255,225,120,' + (0.55 + 0.25 * pulse) + ')'
+    c.lineWidth = 2 * S
+    _rr(c, x - 1.5 * S, y - 1.5 * S, w + 3 * S, h + 3 * S, h * 0.3)
+    c.stroke()
+    c.restore()
+  }
+
+  // ① 底图：btn_reward_confirm.png（金色卷轴带云纹装饰）
+  const bgImg = R && R.getImg ? R.getImg('assets/ui/btn_reward_confirm.png') : null
+  if (bgImg && bgImg.width > 0) {
+    c.drawImage(bgImg, x, y, w, h)
+  } else {
+    drawPrimaryButton(c, S, x, y, w, h, { style: 'gold' })
+  }
+
+  // ② 单行：分享 · [灵石icon] +N（垂直居中，锚点略偏右避开左侧云纹）
+  const midY = y + h * 0.5
+  const mainFontSz = Math.max(12 * S, h * 0.34)
+  const rewardFontSz = Math.max(11 * S, h * 0.30)
+  const iconSz = h * 0.48
+  const gapShareSep = 5 * S
+  const gapSepIcon = 4 * S
+  const iconToNumGap = 2 * S
+  const rewardText = '+' + reward
+  const sep = '·'
+
+  c.save()
+  c.textBaseline = 'middle'
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  const wShare = c.measureText('分享').width
+  c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
+  const wReward = c.measureText(rewardText).width
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  const wSep = c.measureText(sep).width
+
+  const totalW = wShare + gapShareSep + wSep + gapSepIcon + iconSz + iconToNumGap + wReward
+  const contentCx = x + w * 0.56
+  let curX = contentCx - totalW / 2
+
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.fillStyle = '#4A2020'
+  c.shadowColor = 'rgba(255,255,255,0.35)'
+  c.shadowBlur = 1 * S
+  c.fillText('分享', curX, midY)
+  c.shadowBlur = 0
+  curX += wShare + gapShareSep
+
+  c.fillStyle = 'rgba(74,32,0,0.45)'
+  c.fillText(sep, curX, midY)
+  curX += wSep + gapSepIcon
+
+  const iconImg = R && R.getImg ? R.getImg('assets/ui/icon_soul_stone.png') : null
+  if (iconImg && iconImg.width > 0) {
+    c.drawImage(iconImg, curX, midY - iconSz / 2, iconSz, iconSz)
+  }
+  curX += iconSz + iconToNumGap
+
+  c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
+  c.fillStyle = 'rgba(74,32,0,0.92)'
+  c.fillText(rewardText, curX, midY)
+  c.restore()
+
+  c.restore()
+
+  return { x, y, w, h }
+}
+
 function drawPrimaryButton(c, S, x, y, w, h, opts) {
   opts = opts || {}
   const text = opts.text || ''
@@ -1646,4 +1749,5 @@ module.exports = {
   drawGuideBubble,
   drawLingCard, drawLingHeader,
   drawPrimaryButton,
+  drawShareIconBtn,
 }

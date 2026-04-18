@@ -27,6 +27,7 @@ const { SHARE_SCENES } = require('../data/shareConfig')
 const shareCard = require('./shareCard')
 const analytics = require('../data/analytics')
 const P = require('../platform')
+const { drawRewardSlotChips, getShareRewardSlots } = require('./rewardChipFlyAnim')
 
 // ===== 时序常量（ms） =====
 const DELAY_BEFORE_SHOW = 1800   // 情绪 buffer：爽劲散开后再弹
@@ -78,12 +79,21 @@ function _ensurePreviewImg(tempPath) {
  * @param {string} sceneKey
  * @param {object} data
  */
-function trigger(g, sceneKey, data) {
+/**
+ * 弹出炫耀卡
+ * @param {object} g
+ * @param {string} sceneKey
+ * @param {object} data
+ * @param {object} [opts]
+ * @param {Function} [opts.onConfirm] 玩家真正点"分享给好友/朋友圈"时触发（用于"稍后再说不 mark flag"策略）
+ */
+function trigger(g, sceneKey, data, opts) {
   if (_state) return false
   const cfg = SHARE_SCENES[sceneKey]
   if (!cfg) return false
 
   const fallbackPath = shareCard.getCardTemplatePath(sceneKey) || cfg.imageUrl || null
+  const onConfirm = opts && typeof opts.onConfirm === 'function' ? opts.onConfirm : null
 
   _state = {
     phase: 'pending',
@@ -93,6 +103,7 @@ function trigger(g, sceneKey, data) {
     cardPath: null,
     cardStatus: 'loading',
     fallbackPath,
+    onConfirm,
     g,
     rects: {},
   }
@@ -184,7 +195,9 @@ function draw() {
   const previewW = panelW - 24 * S
   const previewH = previewW * 0.8   // 5:4 比
   const titleH = 36 * S
-  const metaH = 56 * S
+  const cfgForH = SHARE_SCENES[state.sceneKey]
+  const hasRewardChipRow = !!(cfgForH && cfgForH.reward && getShareRewardSlots(cfgForH.reward).length)
+  const metaH = 56 * S + (hasRewardChipRow ? 22 * S : 0)
   const btnH = 46 * S
   const btnGap = 10 * S
   const innerPad = 12 * S
@@ -270,24 +283,32 @@ function draw() {
   _rr(ctx, previewX, previewY, previewW, previewH, 10 * S)
   ctx.stroke()
 
-  // ---- 奖励提示（在预览下方） ----
+  // ---- 奖励提示（在预览下方）：图标芯片 + 文案，与首页任务奖励条一致 ----
   const cfg = SHARE_SCENES[state.sceneKey]
-  const rewardText = _formatReward(cfg && cfg.reward)
+  const shareSlots = cfg && cfg.reward ? getShareRewardSlots(cfg.reward) : []
   const metaY = previewY + previewH + 14 * S
-  if (rewardText) {
-    ctx.fillStyle = '#ffd580'
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(rewardText, panelX + panelW / 2, metaY)
+  if (shareSlots.length) {
+    const R = V.R
+    drawRewardSlotChips(ctx, R, null, panelX + panelW / 2, metaY + 6 * S, panelW - 28 * S, S, {
+      align: 'center',
+      state: 'ready',
+      slotsOverride: shareSlots,
+      iconSz: 21 * S,
+      chipH: 26 * S,
+      gap: 8 * S,
+      fontSize: 10.5 * S,
+    })
   }
   // 日常分享奖励说明（灰字）
   ctx.fillStyle = '#8a8098'
   ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
-  ctx.fillText('每日分享另得体力奖励', panelX + panelW / 2, metaY + 18 * S)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const dailyY = metaY + (shareSlots.length ? 42 : 18) * S
+  ctx.fillText('每日分享另得体力奖励', panelX + panelW / 2, dailyY)
 
   // ---- 按钮 ----
   const btnUnlocked = state.phase === 'ready'
-  const btnY = metaY + 36 * S
+  const btnY = dailyY + 28 * S
   const btnGapX = 10 * S
   const hasTimeline = P.hasShareTimeline
   const btnCount = hasTimeline ? 2 : 1
@@ -362,15 +383,6 @@ function _drawBtn(ctx, S, x, y, w, h, opts) {
   ctx.fillText(opts.text || '', x + w / 2, y + h / 2)
 }
 
-function _formatReward(reward) {
-  if (!reward) return ''
-  const parts = []
-  if (reward.soulStone) parts.push(`灵石+${reward.soulStone}`)
-  if (reward.fragment) parts.push(`万能碎片+${reward.fragment}`)
-  if (reward.stamina) parts.push(`体力+${reward.stamina}`)
-  return parts.length ? `分享奖励：${parts.join('  ')}` : ''
-}
-
 // ===== 命中检测 =====
 function _hit(rect, x, y) {
   if (!rect) return false
@@ -415,6 +427,11 @@ function _doShare(g, sceneKey, data, mode) {
   const { shareCore } = require('../share')
   // 带上合成图（若已合成成功）
   const mergedData = Object.assign({}, data, { cardTempPath: _state && _state.cardPath })
+  // 玩家在卡片上真正点"发给好友/朋友圈" → 执行 onConfirm，消费里程碑 flag
+  // （"稍后再说" / 外部 dismiss 路径不会走到这里）
+  if (_state && typeof _state.onConfirm === 'function') {
+    try { _state.onConfirm() } catch (e) { console.warn('[shareCelebrate] onConfirm error', e) }
+  }
   shareCore(g, sceneKey, mergedData, { mode })
 }
 

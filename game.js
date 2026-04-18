@@ -35,6 +35,13 @@ if (typeof P.checkScene === 'function') {
   })
 }
 
+// 尽早注册分享菜单监听（须在 Main 实例存在前完成 wx侧绑定，否则右上角转发可能不触发 onShareAppMessage）
+try {
+  require('./js/share').registerMenuShareListeners()
+} catch (e) {
+  console.warn('[Share] registerMenuShareListeners failed', e)
+}
+
 // 兼容：抖音无 getWindowInfo，用 getSystemInfoSync 代替
 function _getWinInfo() {
   if (typeof P.getWindowInfo === 'function') return P.getWindowInfo()

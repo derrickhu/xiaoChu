@@ -344,16 +344,36 @@ function _drawMechanicOverlay(g, S, W, safeTop, boardTop, eAreaBottom) {
   if (mf && mf.challenge && g.bState !== 'victory' && g.bState !== 'defeat') {
     _drawChallengeCapsule(g, S, W, eAreaBottom)
   }
-  // 回合计数 / S 线（右上角）
+  // 回合计数 / S 线：居中放在关卡标题条下方（与 battleEnemyView 的 floor_label 几何一致），避免右上角被微信胶囊遮挡。
   if (g.battleMode === 'stage' && g._stageRatingS > 0 && g.bState !== 'victory' && g.bState !== 'defeat') {
     ctx.save()
     const turns = (g._stageTotalTurns || 0) + (g.turnCount || 0)
     const sLine = g._stageRatingS
     const onTrack = turns <= sLine
-    ctx.fillStyle = onTrack ? 'rgba(76,175,80,0.7)' : 'rgba(255,152,0,0.7)'
-    ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'right'; ctx.textBaseline = 'top'
-    ctx.fillText(`回合 ${turns}/${sLine}`, W - 10 * S, safeTop + 10 * S)
+    const { eAreaTop } = getBattleLayout()
+    const labelW = W * 0.45
+    const labelH = labelW / 4
+    const labelY = eAreaTop + 2 * S
+    const turnCy = labelY + labelH + 11 * S
+    const text = `回合 ${turns}/${sLine}`
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const tw = ctx.measureText(text).width
+    const padX = 10 * S
+    const pillH = 22 * S
+    const pillW = tw + padX * 2
+    const pillX = W * 0.5 - pillW * 0.5
+    const pillY = turnCy - pillH * 0.5
+    ctx.fillStyle = onTrack ? 'rgba(40,85,50,0.88)' : 'rgba(95,55,18,0.9)'
+    R.rr(pillX, pillY, pillW, pillH, pillH * 0.5)
+    ctx.fill()
+    ctx.strokeStyle = onTrack ? 'rgba(130,210,140,0.85)' : 'rgba(255,190,100,0.8)'
+    ctx.lineWidth = 1.2 * S
+    R.rr(pillX, pillY, pillW, pillH, pillH * 0.5)
+    ctx.stroke()
+    ctx.fillStyle = onTrack ? '#e8ffec' : '#ffe8cc'
+    ctx.fillText(text, W * 0.5, turnCy)
     ctx.restore()
   }
 }

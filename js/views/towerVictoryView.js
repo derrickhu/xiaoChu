@@ -8,12 +8,17 @@ const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
 const { getCurrentSeason } = require('../data/towerEvent')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
-const { drawCelebrationBackdrop, drawRewardRow, drawBuffCard } = require('./uiComponents')
+const { drawCelebrationBackdrop, drawRewardRow, drawBuffCard, drawShareIconBtn } = require('./uiComponents')
+const shareCelebrate = require('./shareCelebrate')
+const { SHARE_SCENES } = require('../data/shareConfig')
 const MusicMgr = require('../runtime/music')
 const guideMgr = require('../engine/guideManager')
 
 let _animTimer = 0
-let _lastScene = null
+// 以 g._towerFloorResult 引用变化作为"首次进入过层结算"的判据；
+// 避免 _lastScene 在离开场景后不被重置，导致重复进入时 _animTimer 不归零、
+// 首帧一次性逻辑（选卡重置等）失效。
+let _lastResultRef = null
 
 const STATS_ANIM_DURATION = 30
 const STATS_SETTLE_FRAME = 15
@@ -202,7 +207,7 @@ function _drawTowerMilestonePopup(g) {
     c.textAlign = 'right'
     c.fillStyle = '#A09070'
     c.font = `${9 * S}px "PingFang SC",sans-serif`
-    c.fillText(reward.type === 'ssrPet' ? '已加入灵宠池' : '已加入灵兽碎片库', panelX + panelW - pad, cy)
+    c.fillText(reward.type === 'ssrPet' ? '已加入灵宠池' : '已加入灵宠碎片库', panelX + panelW - pad, cy)
     cy += lineH
   })
 
@@ -220,9 +225,9 @@ function rTowerVictory(g) {
   const d = g._towerFloorResult
   if (!d) return
 
-  if (_lastScene !== 'towerVictory') {
+  if (_lastResultRef !== d) {
     _animTimer = 0
-    _lastScene = 'towerVictory'
+    _lastResultRef = d
     g.selectedReward = -1
   }
   _animTimer++
@@ -504,12 +509,37 @@ function rTowerVictory(g) {
     guideMgr.trigger(g, 'reward_first')
   }
 
+  // === 主动分享胶囊按钮（右下角常驻，"+20灵石"摆脸上）===
+  //   shareCelebrate 正在展示 / 里程碑弹窗激活时隐藏，避免入口打架
+  //   破境时（realmChanged）加呼吸金光，把情绪高点引流到主动分享
+  const popupActive = !!(g._towerMilestoneRewardPopup || g._petObtainedPopup
+    || g._star3Celebration || g._petPoolEntryPopup || g._fragmentObtainedPopup)
+  if (!popupActive && !(shareCelebrate && shareCelebrate.isActive && shareCelebrate.isActive())) {
+    const h = 36 * S
+    const rightX = W - 12 * S
+    const sy = H - h - 16 * S
+    const reward = (SHARE_SCENES.activeTowerShare && SHARE_SCENES.activeTowerShare.reward && SHARE_SCENES.activeTowerShare.reward.soulStone) || 20
+    const rect = drawShareIconBtn(c, R, S, rightX, sy, h, { glow: !!d.realmChanged, reward })
+    g._towerShareBtnRect = [rect.x, rect.y, rect.w, rect.h]
+  } else {
+    g._towerShareBtnRect = null
+  }
+
   c.restore()
   _drawTowerMilestonePopup(g)
 }
 
 function tTowerVictory(g, x, y, type) {
   if (type !== 'end') return
+
+  // 主动分享小图标（放在最前面，优先级最高，弹窗 guard 已在绘制时处理）
+  if (g._towerShareBtnRect && g._hitRect(x, y, ...g._towerShareBtnRect)) {
+    const { shareCore } = require('../share')
+    const floor = (g._towerFloorResult && g._towerFloorResult.floor) || 1
+    shareCore(g, 'activeTowerShare', { floor }, { mode: 'friend' })
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
 
   // 弹窗优先处理（applyReward 可能触发的宠物/碎片弹窗）
   if (g._petObtainedPopup) {

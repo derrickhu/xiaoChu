@@ -94,6 +94,8 @@ function getRealmByLv(level) {
   return {
     realmId: realm.id,
     realmName: realm.name,
+    // 与 realmName 同义；tierCeremony 等只读 name 的 UI 依赖此字段（diffRealmUp 路径不会经 storage 里 curr.name 别名）
+    name: realm.name,
     subStage,
     subStageName,
     isMortal,

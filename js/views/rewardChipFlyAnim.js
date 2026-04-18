@@ -53,6 +53,22 @@ function getRewardSlots(rewards) {
   return slots.slice(0, 3)
 }
 
+/** 分享场景奖励展示：fragment 为万能碎片（与 getRewardSlots 的随机碎片区分） */
+function getShareRewardSlots(rewards) {
+  const slots = []
+  if (!rewards) return slots
+  if (rewards.soulStone) {
+    slots.push({ tex: 'assets/ui/icon_soul_stone.png', line: `×${rewards.soulStone}`, subLine: '灵石' })
+  }
+  if (rewards.stamina) {
+    slots.push({ tex: 'assets/ui/icon_stamina.png', line: `×${rewards.stamina}`, subLine: '体力' })
+  }
+  if (rewards.fragment) {
+    slots.push({ tex: 'assets/ui/icon_universal_frag.png', line: `×${rewards.fragment}`, subLine: '万能碎片' })
+  }
+  return slots.slice(0, 3)
+}
+
 function layoutRewardSlotChips(c, rewards, anchorX, cy, maxW, u, opts) {
   const cfg = Object.assign({
     align: 'left',
@@ -61,8 +77,9 @@ function layoutRewardSlotChips(c, rewards, anchorX, cy, maxW, u, opts) {
     chipH: 20 * u,
     gap: 6 * u,
     fontSize: 9 * u,
+    slotsOverride: null,
   }, opts || {})
-  const slots = getRewardSlots(rewards).slice(0, cfg.maxSlots)
+  const slots = (cfg.slotsOverride || getRewardSlots(rewards || {})).slice(0, cfg.maxSlots)
   if (!slots.length) return { entries: [], totalW: 0, startX: anchorX, cfg }
 
   c.save()
@@ -161,6 +178,7 @@ function drawRewardSlotChips(c, R, rewards, anchorX, cy, maxW, u, opts) {
     chipH: 20 * u,
     gap: 6 * u,
     fontSize: 9 * u,
+    slotsOverride: null,
   }, opts || {})
   const layout = layoutRewardSlotChips(c, rewards, anchorX, cy, maxW, u, cfg)
   if (!layout.entries.length) return 0
@@ -245,6 +263,7 @@ module.exports = {
   FLY_TAIL_MS,
   getRewardChipFlyAnimEndMs,
   getRewardSlots,
+  getShareRewardSlots,
   layoutRewardSlotChips,
   chipStyleForRewardState,
   drawOneRewardChip,

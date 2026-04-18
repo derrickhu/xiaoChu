@@ -65,9 +65,6 @@ function initState(g) {
 
   // ===== 经验反馈特效 =====
   g._expFloats = []           // 飞行中的经验飘字 { x, y, startX, startY, targetX, targetY, text, t, duration, alpha, color }
-  g._expIndicatorPulse = 0    // 经验图标脉冲倒计时帧
-  g._expIndicatorX = 0        // 经验图标中心坐标（由 battleView 写入）
-  g._expIndicatorY = 0
   g._floorStartExp = 0        // 本层开始时的 runExp 快照
   g._floorExpSummary = null    // 过层经验汇总 { amount, timer }
   g._floorStartCombatExp = 0  // 每层开始时的战斗经验基准（用于计算本层灵石）
@@ -153,6 +150,8 @@ function initState(g) {
   g._dailyAllBonusChipLayout = null // 任务窗「全部完成奖励」芯片布局（供飞效取坐标）
   g._dailyTaskChipLayouts = {}      // taskId -> layout，可领取行每帧更新
   g._rewardChipFlyAnim = null       // { t0, duration, source, items }见 rewardChipFlyAnim.js
+  g._resourceFlyParticles = null    // 分享发奖等：灵石/体力/碎片飞入粒子，见 resourceFlyParticles.js
+  g._pendingShareFly = null         // 分享奖励飞效排队：[{ rewarded, createdAt }]，等分享面板关闭后再播放，见 share.js
   g._showGMPanel = false          // GM调试面板弹窗
   g.showSidebarPanel = false      // 侧边栏复访弹窗（抖音）
   g.titleMode = 'stage'           // 首页当前展示的模式：'tower' | 'stage'
@@ -194,6 +193,7 @@ function initState(g) {
   g._towerVictoryBtnRect = null // 过层结算页「选择奖励」按钮区域
   g._towerMilestoneRewardPopup = null // 过层即时里程碑奖励弹层 { floor, rewards }
   g._towerMilestonePopupBtnRect = null // 里程碑奖励弹层按钮区域
+  g._towerShareBtnRect = null   // 通天塔过层结算页右下角主动分享小喇叭按钮
   g._towerJustClaimedMilestones = [] // 本局已即时领取的里程碑奖励记录
 
   // ===== Phase 3：固定关卡 =====

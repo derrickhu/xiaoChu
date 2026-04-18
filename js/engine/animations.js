@@ -218,15 +218,12 @@ function updateAnimations(g) {
       if (f._dead) continue
       f.t++
       if (f.t >= f.duration) {
-        g._expIndicatorPulse = 12
         f._dead = true
         continue
       }
       if (f.alpha <= 0) f._dead = true
     }
   }
-  // 经验指示器脉冲衰减
-  if (g._expIndicatorPulse > 0) g._expIndicatorPulse--
   // 过层经验汇总淡出
   if (g._floorExpSummary && g._floorExpSummary.timer > 0) {
     g._floorExpSummary.timer--

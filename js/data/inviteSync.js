@@ -16,6 +16,15 @@ const analytics = require('./analytics')
 
 let _synced = false
 
+// share 云函数尚未部署时会回 FUNCTION_NOT_FOUND(-501000)，这是"功能未上线"的预期错误，
+// 不必污染控制台；其它真实错误（网络/权限/业务）仍正常 warn 出来便于排查
+function _isFunctionNotFound(e) {
+  if (!e) return false
+  if (e.errCode === -501000) return true
+  const msg = (e.errMsg || e.message || String(e))
+  return /FUNCTION_NOT_FOUND|-501000|FunctionName parameter could not be found/i.test(msg)
+}
+
 /**
  * 执行一次邀请同步（启动后 cloudSyncReady 时调用；幂等）
  * @param {object} storage
@@ -47,7 +56,7 @@ async function syncOnce(storage, onInviterReward) {
         analytics.track('invite_skip', { role: 'newbie', reason })
       }
     } catch (e) {
-      console.warn('[invite] recordInvite failed:', e.message || e)
+      if (!_isFunctionNotFound(e)) console.warn('[invite] recordInvite failed:', e.message || e)
     } finally {
       storage.clearPendingInviteReport && storage.clearPendingInviteReport()
     }
@@ -67,7 +76,7 @@ async function syncOnce(storage, onInviterReward) {
       analytics.track('invite_success', { role: 'inviter', count })
     }
   } catch (e) {
-    console.warn('[invite] claimInvites failed:', e.message || e)
+    if (!_isFunctionNotFound(e)) console.warn('[invite] claimInvites failed:', e.message || e)
   }
 }
 

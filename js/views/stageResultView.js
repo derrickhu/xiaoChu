@@ -15,7 +15,9 @@ const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stage
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
-const { drawCelebrationBackdrop, drawLingHeader } = require('./uiComponents')
+const { drawCelebrationBackdrop, drawLingHeader, drawShareIconBtn } = require('./uiComponents')
+const shareCelebrate = require('./shareCelebrate')
+const { SHARE_SCENES } = require('../data/shareConfig')
 const { LING } = require('../data/lingIdentity')
 const { drawCultLvUpRow: _drawCultLvUpRow, drawCultSubRealmUpRow: _drawCultSubRealmUpRow } = require('./cultFeedbackUi')
 const C = require('./uiColors')
@@ -32,7 +34,34 @@ const _rects = {
 }
 
 let _animTimer = 0
-let _lastScene = null
+// 以 result 对象引用变化作为"首次进入结算页"的判据：
+//   每次 settleStage 都会构造新的 g._stageResult 对象，引用必然变化；
+//   若沿用 _lastScene === 'stageResult' 的判据，离开结算页时不会触发重置，
+//   下次再进入（如 1-2/1-3 通关）会认为"场景未切换"，导致首帧逻辑（lingCheer、
+//   shareHooks、tierCeremony、chapterComplete 等）全部哑火。
+let _lastResultRef = null
+
+// ===== 主动分享按钮（胜/败/首通/重玩常驻，游戏标准 gold 款按钮样式）=====
+// 位置：贴底部按钮行右下外侧，按钮高度 36*S（和"下一关"等高，宽 84*S）
+// 行为：
+//   · shareCelebrate 被动卡片正在展示时，隐藏按钮，避免主被动入口打架
+//   · 首通胜利加呼吸金光，把情绪高点引流到主动分享
+//   · 失败胜利都显示；失败时的文案走 activeStageShare 的 victory=false 分支（"来帮我一起"）
+//   · 上"分享" + 下"灵石icon +20"：主动作零歧义 + 奖励明牌提升转化
+const _SHARE_CAPSULE_H = 36
+function _drawShareIconBtnOnResult(g, rightEdgeX, btnY, btnH, result, scroll, isVictory) {
+  const { S, ctx: c, R } = V
+  if (shareCelebrate && shareCelebrate.isActive && shareCelebrate.isActive()) {
+    _rects.shareBtnRect = null
+    return
+  }
+  const h = _SHARE_CAPSULE_H * S
+  const y = btnY + btnH + 8 * S
+  const glow = !!(isVictory && result && result.victory && result.isFirstClear)
+  const reward = (SHARE_SCENES.activeStageShare && SHARE_SCENES.activeStageShare.reward && SHARE_SCENES.activeStageShare.reward.soulStone) || 20
+  const rect = drawShareIconBtn(c, R, S, rightEdgeX, y, h, { glow, reward })
+  _rects.shareBtnRect = [rect.x, rect.y - scroll, rect.w, rect.h]
+}
 
 /** 胜利结算奖励面板：总可滚高度超出屏高时，在面板可视区内滚动 */
 let _victoryRewardScroll = 0
@@ -46,9 +75,13 @@ let _victScrollMoved = false
 function rStageResult(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
 
-  if (_lastScene !== 'stageResult') {
+  const result = g._stageResult
+  // 以 result 引用变化判定"首次进入结算页"：每关 settleStage 生成新对象，引用必变。
+  //   必须放在 if(!result) 之前判断，否则 null → 新对象 的切换会漏。
+  const sceneSwitched = _lastResultRef !== result
+  if (sceneSwitched) {
     _animTimer = 0
-    _lastScene = 'stageResult'
+    _lastResultRef = result
     _victoryRewardScroll = 0
     _victoryRewardScrollMax = 0
     _victoryRewardViewport = null
@@ -57,7 +90,6 @@ function rStageResult(g) {
   const at = _animTimer
   const fadeIn = Math.min(1, at / 20)
 
-  const result = g._stageResult
   if (!result) return
 
   if (!result.victory) {
@@ -94,29 +126,37 @@ function rStageResult(g) {
     const isFinalBoss = !!(stage && stage.chapter === 12 && stage.order === 8)
     const isElite = !!(stage && stage.difficulty === 'elite')
     const turns = result.turns || result.turnCount || 0
-    // 1-3 首通 = 首支队伍成型 → 用 firstPet 承接（队伍成员取当前 petPool）
-    //   原 1-1 首宠方案情绪值过低，已迁移到 1-3
-    if (result.stageId === 'stage_1_3') {
-      const firstPet = (g.storage.petPool || [])[0]
-      const petMeta = firstPet ? getPetById(firstPet.id) : null
-      const petName = (petMeta && petMeta.name) || '灵宠'
-      shareHooks.onFirstPet(g, { petName })
-    } else {
-      shareHooks.onStageFirstClear(g, {
-        stageId: result.stageId, stageName,
-        rating: result.rating, isFinalBoss, isElite, turns,
-      })
-    }
-    if (result.rating === 'S') {
-      shareHooks.onFirstSRating(g, { stageId: result.stageId, stageName, turns })
-    }
-    // 章节圆满：本关附带 chapterClearReward 说明这章已全数通关
+
+    // 【方案 A · 2026-04】触发优先级（后者会被前面已占位的 shareCelebrate 让位吞掉）：
+    //   chapterComplete（章节圆满仪式感）
+    //     > firstSRating（首次 S，章≥2 才弹炫耀卡）
+    //     > firstPet（1-3 首队成型）
+    //     > stageFirstClear（仅 lingCheer，不占位）
+    // 原实现把 stageFirstClear 放第一位，导致章末 S + chapterComplete 场景下常被 stageFirstClear 抢先
+    // 1. 章节圆满最高优先级
     if (result.chapterClearReward && stage && stage.chapter) {
       const { CHAPTERS } = require('../data/stages')
       const ch = CHAPTERS.find(c => c.id === stage.chapter)
       shareHooks.onChapterComplete(g, {
         chapterId: `ch_${stage.chapter}`,
         chapterName: (ch && ch.name) || `第${stage.chapter}章`,
+      })
+    }
+    // 2. 首次 S（shareHooks 内部会区分第 1 章只 cheer / 第 2 章起弹炫耀卡）
+    if (result.rating === 'S') {
+      shareHooks.onFirstSRating(g, { stageId: result.stageId, stageName, turns })
+    }
+    // 3. 1-3 首队成型
+    if (result.stageId === 'stage_1_3') {
+      const firstPet = (g.storage.petPool || [])[0]
+      const petMeta = firstPet ? getPetById(firstPet.id) : null
+      const petName = (petMeta && petMeta.name) || '灵宠'
+      shareHooks.onFirstPet(g, { petName })
+    } else {
+      // 4. 普通关首通：只 lingCheer，不弹炫耀卡（不会与前面事件冲突）
+      shareHooks.onStageFirstClear(g, {
+        stageId: result.stageId, stageName,
+        rating: result.rating, isFinalBoss, isElite, turns,
       })
     }
   }
@@ -987,6 +1027,8 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   if (canRefund || result.staminaRefunded) contentH += 44 * S
 
   contentH += pad + 48 * S
+  // 主动分享小图标挂在底部按钮右下外侧，预留一行空间
+  contentH += 40 * S
   const ph = contentH
 
   R.drawInfoPanel(px, panelTop, pw, ph)
@@ -1247,6 +1289,9 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, '再次挑战', 'confirm')
   _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY, btnW, btnH]
+
+  // 主动分享小图标（失败页也有入口——"来帮我一起玩"也是自然分享场景）
+  _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, 0, false)
 }
 
 // ===== 失败建议生成（数据驱动，由 strategyAdvisor 提供） =====
@@ -1451,7 +1496,8 @@ function _computeVictoryRewardContentHeight(result, S, pad) {
   contentH += 24 * S
   if (result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble')) contentH += 44 * S
   contentH += pad + 48 * S
-  if (result.victory && result.isFirstClear) contentH += 44 * S
+  // 主动分享小图标挂在底部按钮右下外侧，预留一行空间
+  contentH += 40 * S
   return contentH
 }
 
@@ -1741,15 +1787,11 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, isNewbieContinuous ? 'gold' : 'confirm')
   _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY - scroll, btnW, btnH]
 
-  // 首通分享按钮
-  if (result.victory && result.isFirstClear) {
-    const shareBtnW = innerW * 0.5, shareBtnH = 28 * S
-    const shareBtnX = (W - shareBtnW) / 2, shareBtnY = btnY + btnH + 10 * S
-    R.drawDialogBtn(shareBtnX, shareBtnY, shareBtnW, shareBtnH, '📤 分享炫耀', 'gold')
-    _rects.shareBtnRect = [shareBtnX, shareBtnY - scroll, shareBtnW, shareBtnH]
-  } else {
-    _rects.shareBtnRect = null
-  }
+  // 主动分享小图标（右下角常驻，胜利/失败/首通/重玩都显示）
+  //   · 与返回按钮同一行，贴面板右下外缘
+  //   · shareCelebrate 正在展示时隐藏，避免主被动入口并存打架
+  //   · 首通胜利时带呼吸发光，把"情绪高点"引流到主动分享
+  _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, scroll, true)
 
   c.restore()
 
@@ -2414,14 +2456,16 @@ function tStageResult(g, x, y, type) {
   }
 
   if (_rects.shareBtnRect && g._hitRect(x, y, ..._rects.shareBtnRect)) {
-    const { doShare } = require('../share')
+    // 主动分享：走邀请型专用场景 activeStageShare（胜/败/首通/重玩都复用）
+    //   · 胜利 + 首通还会额外触发 shareHooks.onFirstSRating 等被动卡（方案 A 后章≥2 才触发）
+    //   · 主动点击不受里程碑 flag 限制，可反复点（奖励有 24h 场景冷却保护）
+    const { shareCore } = require('../share')
     const stage = getStageById(result.stageId)
-    doShare(g, 'stageFirstClear', {
+    shareCore(g, 'activeStageShare', {
+      victory: !!result.victory,
       stageName: stage ? stage.name : '',
-      rating: result.rating || '',
-      isFinalBoss: !!(stage && stage.chapter === 12 && stage.order === 8),
-      isElite: !!(stage && stage.difficulty === 'elite'),
-    })
+      rating: result.victory ? (result.rating || '') : '',
+    }, { mode: 'friend' })
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

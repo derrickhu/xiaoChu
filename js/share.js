@@ -14,6 +14,8 @@ const P = require('./platform')
 const cloudSync = require('./data/cloudSync')
 const analytics = require('./data/analytics')
 const { SHARE_SCENES } = require('./data/shareConfig')
+const gameToast = require('./views/gameToast')
+const shareRewardPopup = require('./views/shareRewardPopup')
 
 // ===== Pending 主动分享（解决"onShareAppMessage 覆盖 shareAppMessage 参数"的平台坑） =====
 //
@@ -27,7 +29,7 @@ const { SHARE_SCENES } = require('./data/shareConfig')
 //
 // 超时清理（PENDING_TTL_MS）：防止玩家取消分享后 pending 残留，污染后续被动分享。
 // 15s 足以覆盖绝大多数转发面板交互，超时就让被动分享回落到通用文案。
-const PENDING_TTL_MS = 15000
+const PENDING_TTL_MS = 8000
 let _pendingShare = null  // { scene, data, mode, title, imageUrl, query, expireAt }
 
 function _setPendingShare(scene, data, mode, title, imageUrl, query) {
@@ -92,18 +94,116 @@ function _resolveTitle(cfg, data, mode) {
 }
 
 // ===== 内部：本地奖励入账 =====
+//
+// 【飞效时机 · 2026-04】
+//   旧实现：shareAppMessage 调起转发面板后立刻 spawnFromReward
+//     → 问题：粒子在 0.5s 内飞完，但玩家此时还在选联系人，根本看不到反馈
+//   新实现：奖励数据入账后**排队**到 g._pendingShareFly，等以下任一时机再真正播放飞效：
+//     · onShow（分享面板/联系人选择关掉、应用 resume）→ main.js 调 flushShareFly
+//     · 1.5s fallback（分享面板被玩家秒关或根本没弹出）→ main.js 每帧调 tickShareFly
+//   这样玩家回到游戏界面时才弹出分享奖励窗（图标汇总 + 领取后飞效）；无入账时 toast「感谢分享」
 function _recordShareReward(g, sceneKey, mode) {
   if (!g || !g.storage || !g.storage.recordShare) return
   // recordShare 接受 sceneKey 做差异化奖励；老调用点传 undefined 会按 base 奖励走
   const rewarded = g.storage.recordShare(sceneKey, { mode })
-  if (rewarded && g._toast) {
-    const parts = []
-    if (rewarded.stamina) parts.push(`体力+${rewarded.stamina}`)
-    if (rewarded.soulStone) parts.push(`灵石+${rewarded.soulStone}`)
-    if (rewarded.fragment) parts.push(`万能碎片+${rewarded.fragment}`)
-    if (parts.length) g._toast(`分享奖励：${parts.join(' ')}`)
-  }
+  // 无道具也排队：与有奖励同源在 onShow / 1.5s 后提示，避免「刚点分享就弹窗」的错位感
+  _queueShareFly(g, rewarded)
   g._dirty = true
+}
+
+function _queueShareFly(g, rewarded) {
+  if (!g._pendingShareFly) g._pendingShareFly = []
+  g._pendingShareFly.push({ rewarded, createdAt: Date.now() })
+}
+
+function _mergeQueuedRewards(list) {
+  let stamina = 0
+  let soulStone = 0
+  let fragment = 0
+  let anyThanks = false
+  for (const it of list) {
+    if (!it || !it.rewarded) {
+      anyThanks = true
+      continue
+    }
+    stamina += it.rewarded.stamina || 0
+    soulStone += it.rewarded.soulStone || 0
+    fragment += it.rewarded.fragment || 0
+  }
+  if (stamina || soulStone || fragment) return { stamina, soulStone, fragment }
+  if (anyThanks) return 'thanks'
+  return null
+}
+
+function _presentShareQueue(g, list) {
+  if (!g || !list || !list.length) return
+  const merged = _mergeQueuedRewards(list)
+  if (merged === 'thanks') {
+    gameToast.show('感谢分享！', { type: 'text', duration: 2000 })
+    g._dirty = true
+    return
+  }
+  if (!merged) return
+  shareRewardPopup.open(g, merged)
+  g._dirty = true
+}
+
+/**
+ * onShow 时调用：立即触发所有排队中的分享奖励飞效
+ *   玩家从分享面板 / 联系人选择器回来时看到飞效，"获得感"落地
+ */
+function flushShareFly(g) {
+  if (!g || !g._pendingShareFly || !g._pendingShareFly.length) return
+  const list = g._pendingShareFly
+  g._pendingShareFly = []
+  _presentShareQueue(g, list)
+}
+
+// 1.5s fallback：玩家秒关面板 / 面板没弹起 / 平台不触发 onShow
+const _FLY_FALLBACK_MS = 1500
+
+/**
+ * 主循环里调用：超过 fallback 时间的排队奖励也触发飞效
+ *   兜底保护"分享 → 玩家取消 → 回到游戏但 onShow 没触发"的场景
+ */
+function tickShareFly(g) {
+  if (!g || !g._pendingShareFly || !g._pendingShareFly.length) return
+  const now = Date.now()
+  const due = []
+  const pending = []
+  g._pendingShareFly.forEach((it) => {
+    if (now - it.createdAt >= _FLY_FALLBACK_MS) due.push(it)
+    else pending.push(it)
+  })
+  if (!due.length) return
+  g._pendingShareFly = pending
+  _presentShareQueue(g, due)
+}
+
+// ===== 小程序菜单「转发 / 朋友圈」（被动入口）· 日任 share_1 记账 =====
+//
+// 问题：仅 return getShareData() 时，从未调用 storage.recordShare → 每日「分享游戏1次」进度不涨。
+// 主动分享（shareCore / shareGame）会先 setPending 再调 shareAppMessage，随后 _recordShareReward。
+// 若此时同步触发 onShareAppMessage，pending 已存在 → 此处不再记账，避免 double count。
+// 玩家纯点右上角转发、无 pending → 此处补一次 recordShare（与 shareGame 同 passive 场景）。
+function onMenuShareAppMessageForGame(game) {
+  if (!game || !game.storage) {
+    return { title: '', imageUrl: 'assets/share/share_default.jpg', query: '' }
+  }
+  if (!_getPendingShare()) {
+    _recordShareReward(game, 'passive', 'friend')
+  }
+  return getShareData(game.storage)
+}
+
+function onMenuShareTimelineForGame(game) {
+  if (!game || !game.storage) {
+    return { title: '', imageUrl: 'assets/share/share_default.jpg', query: '' }
+  }
+  if (!_getPendingShare()) {
+    _recordShareReward(game, 'passive', 'timeline')
+  }
+  return getShareTimelineData(game.storage)
 }
 
 // ===== 被动分享数据（onShareAppMessage 用） =====
@@ -194,8 +294,10 @@ function shareGame(g) {
 }
 
 // ===== 兼容老接口：shareStats =====
-//   首页"炫耀战绩"按钮用；内部走 stats 场景
-function shareStats(storage) {
+//   首页"炫耀战绩"按钮用；内部走 stats 场景（传入 Main 实例以便分享奖励飞效）
+function shareStats(g) {
+  const storage = g && g.storage ? g.storage : g
+  if (!storage) return
   const cfg = SHARE_SCENES.stats
   const st = storage.stats
   const d = { floor: storage.bestFloor, dex: (storage.petPool || []).length, combo: st.maxCombo }
@@ -205,7 +307,7 @@ function shareStats(storage) {
   const query = _buildQuery()
   _setPendingShare('stats', null, 'friend', title, imageUrl, query)
   P.shareAppMessage({ title, imageUrl, query })
-  // 注意：此接口没有 g 上下文，奖励入账依赖外部（或升级调用方传 g 换 shareCore）
+  if (g && g.storage) _recordShareReward(g, 'stats', 'friend')
 }
 
 // ===== 兼容老接口：doShare =====
@@ -215,6 +317,23 @@ function doShare(g, sceneKey, data) {
   shareCore(g, sceneKey, data, { mode: 'friend' })
 }
 
+/**
+ * 微信小游戏：右上角「转发 / 分享到朋友圈」依赖 onShareAppMessage / onShareTimeline。
+ * 须在引擎启动后尽早注册（勿等到 Main 构造末尾），否则真机菜单转发可能不进监听 → 无 recordShare、无奖励弹窗。
+ */
+function registerMenuShareListeners() {
+  try {
+    P.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
+  } catch (_) { /* 低版本或模拟器 */ }
+  const gMain = () => (typeof GameGlobal !== 'undefined' ? GameGlobal.__gameMain : null)
+  if (typeof P.onShareAppMessage === 'function') {
+    P.onShareAppMessage(() => onMenuShareAppMessageForGame(gMain()))
+  }
+  if (typeof P.onShareTimeline === 'function') {
+    P.onShareTimeline(() => onMenuShareTimelineForGame(gMain()))
+  }
+}
+
 module.exports = {
   // 新：统一入口（新代码用这个）
   shareCore,
@@ -222,10 +341,17 @@ module.exports = {
   getShareTimelineData,
   // 旧：被动分享数据（main.js onShareAppMessage 用）
   getShareData,
+  // 小程序菜单转发 / 朋友圈：补 recordShare + 日任 share_1（见文件内注释）
+  onMenuShareAppMessageForGame,
+  onMenuShareTimelineForGame,
+  registerMenuShareListeners,
   // 旧：兼容层（保留给 tTitle / stageResultView / runManager / adManager 等老调用）
   shareGame,
   shareStats,
   doShare,
+  // 分享奖励飞效：onShow 时清空队列 + 主循环 tick 兜底
+  flushShareFly,
+  tickShareFly,
   // 测试/热更钩子
   clearPendingShare,
 }

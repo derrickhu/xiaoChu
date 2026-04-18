@@ -599,7 +599,7 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
   if (fragFinal > 0) {
     const fragAlpha = _rowAlpha(rowIdx++)
     c.save(); c.globalAlpha *= fragAlpha
-    drawRewardRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵兽碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
+    drawRewardRow(c, R, S, px + pad, cy, innerW, 'frame_fragment', '灵宠碎片', `+${fragFinal}`, '#7B5EA7', '#9B59B6')
     c.restore()
     cy += 28 * S
 

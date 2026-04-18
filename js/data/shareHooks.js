@@ -10,11 +10,19 @@
  * 所有业务入口（stageResultView / petDetailView / runManager / main.js）只调这里，
  * 不直接碰 shareCelebrate / lingCheer / shareConfig —— 单一触发入口便于做埋点、冷却、A/B。
  *
- * 【新手静默期设计（方向 A）】
- *   · 1-1 / 1-2 首通：整个分享体系都静默（玩家刚接触游戏，情绪峰值不足，分享易被拒）
- *   · 1-3 首通：仅保留 firstPet（首队成型仪式，情绪最强）
- *   · 1-4 起：正常按里程碑触发
- *   · 这是"把最低含金量的事件踢出去"的过滤器，保证玩家分享的都是真情绪点
+ * 【频率控制设计（方案 A · 2026-04 上线）】
+ *   · stageFirstClear（普通关首通）：一律**不再**弹炫耀卡，仅走 lingCheer 情绪横条
+ *     —— 实测新手章每关都弹体验极差；"关通了"情绪峰值不够强，不构成分享意愿
+ *   · firstSRating（首次 S 评价）：仅第 2 章起弹炫耀卡，第 1 章 S 只 lingCheer
+ *     —— 第 1 章是教学章，玩家对 S 的稀缺感尚未建立
+ *   · chapterComplete（章节圆满）：继续弹，承担"整章通关"仪式感
+ *   · firstPet（1-3 首队成型）、petStarUp、towerNewBest、comebackWin、realmUp：继续弹
+ *   · 1-1 / 1-2：一切都静默（教学关）
+ *
+ * 【建议 2：稍后再说不 mark flag（2026-04）】
+ *   · 旧：shareCelebrate.trigger 成功立刻 mark → 点"稍后再说"也算用掉唯一额度
+ *   · 新：mark 延后到玩家真的点"分享给好友/朋友圈"时触发（shareCelebrate onConfirm 回调）
+ *   · 效果：玩家第一次错过的里程碑，下次还能再遇到
  *
  * 【幂等】
  *   · 一生一次：firstPet / firstSRating
@@ -68,7 +76,9 @@ function _isSilent(stageId) { return !!stageId && _SILENT_STAGES.has(stageId) }
 //   cheerText   小灵顶部横条（情绪带入 0.5s）
 //   sceneKey    SHARE_SCENES 里的 key
 //   data        传给 shareCard / share 标题模板
-// 关键：trigger 返回 false（被幂等吞掉）时不 mark flag，下次还能再次尝试触发
+// 关键：
+//   · trigger 返回 false（被幂等吞掉）时不 mark flag，下次还能再次尝试触发
+//   · 成功展示后也先不 mark（见"建议 2"）；等玩家在卡片上真的点"分享"时才 mark
 function _celebrate(g, stampKey, cheerText, sceneKey, data) {
   if (!g || !g.storage) return false
   if (_shown(g.storage, stampKey)) return false
@@ -77,9 +87,20 @@ function _celebrate(g, stampKey, cheerText, sceneKey, data) {
 
   const avatar = (LING && LING.avatar) || null
   if (cheerText) lingCheer.show(cheerText, { tone: 'epic', avatar })
-  const ok = shareCelebrate.trigger(g, sceneKey, data)
-  if (ok) _mark(g.storage, stampKey)
-  return ok
+  return shareCelebrate.trigger(g, sceneKey, data, {
+    // 只有玩家真正点"分享给好友/朋友圈"时才消费掉本条里程碑
+    // 点"稍后再说" / 外部 dismiss 时不 mark，里程碑依然有机会在下次结算页复现
+    onConfirm: () => _mark(g.storage, stampKey),
+  })
+}
+
+// ===== 仅情绪带入、不走炫耀卡 =====
+//   用于"方案 A 频控降级"：stageFirstClear / 第 1 章 firstS 等
+//   只弹 lingCheer 让玩家有情绪反馈，但不占用分享卡展位
+function _cheerOnly(cheerText) {
+  if (!cheerText) return
+  const avatar = (LING && LING.avatar) || null
+  lingCheer.show(cheerText, { tone: 'epic', avatar })
 }
 
 // =========================================================================
@@ -95,40 +116,56 @@ function onFirstPet(g, opts) {
 }
 
 // =========================================================================
-// 2. 关卡首通（1-1/1-2/1-3 静默；1-3 由 firstPet 承接）
+// 2. 关卡首通（方案 A：一律不弹炫耀卡，只 lingCheer 情绪带入）
+//    1-1/1-2：连 lingCheer 也静默（教学关）
+//    1-3：由 firstPet 承接（不在此函数处理）
+//    其他关：仅 lingCheer，不弹炫耀卡
 // =========================================================================
 function onStageFirstClear(g, opts) {
   const o = opts || {}
   const stageId = o.stageId || ''
   if (!stageId) return
-  if (_isSilent(stageId)) return  // 新手静默期
-  if (stageId === 'stage_1_3') return  // 1-3 交给 firstPet，避免重复
-  const data = {
-    stageName: o.stageName || '秘境',
-    rating: o.rating || 'A',
-    isFinalBoss: !!o.isFinalBoss,
-    isElite: !!o.isElite,
-    turns: o.turns || 0,
-  }
-  const cheer = data.isFinalBoss
+  if (_isSilent(stageId)) return
+  if (stageId === 'stage_1_3') return
+  const isFinalBoss = !!o.isFinalBoss
+  const stageName = o.stageName || '秘境'
+  const cheer = isFinalBoss
     ? (LING.cheer.stageFirstClearBoss && LING.cheer.stageFirstClearBoss()) || '终章守关已破～'
-    : (LING.cheer.stageFirstClear && LING.cheer.stageFirstClear(data.stageName)) || `主人闯过「${data.stageName}」啦～`
-  _celebrate(g, `stageFirstClear_${stageId}`, cheer, 'stageFirstClear', data)
+    : (LING.cheer.stageFirstClear && LING.cheer.stageFirstClear(stageName)) || `主人闯过「${stageName}」啦～`
+  _cheerOnly(cheer)
 }
 
 // =========================================================================
-// 3. 首次拿到 S 评价（一生一次；1-1/1-2 的 S 不点燃，避免消费低含金量额度）
+// 3. 首次拿到 S 评价
+//    方案 A：
+//      · 1-1/1-2：完全静默
+//      · 第 1 章其它关：仅 lingCheer（教学章节 S 稀缺感不足）
+//      · 第 2 章起：弹炫耀卡（首次 S 是真情绪点）
 // =========================================================================
+function _stageChapter(stageId) {
+  // stageId 形如 stage_1_3 / stage_2_5 → 取中间那段作为章号
+  if (!stageId) return 0
+  const m = /^stage_(\d+)_/.exec(stageId)
+  return m ? parseInt(m[1], 10) : 0
+}
+
 function onFirstSRating(g, opts) {
   const o = opts || {}
   const stageId = o.stageId || ''
-  if (_isSilent(stageId)) return  // 新手期 S 不作数
+  if (_isSilent(stageId)) return
+  const stageName = o.stageName || '秘境'
+  const chapter = _stageChapter(stageId)
+  const cheer = (LING.cheer.firstS && LING.cheer.firstS(stageName)) || `S 评价首度达成！主人好厉害～`
+  // 第 1 章只 cheer，不弹炫耀卡（也不消费"一生一次"的 firstSRating 额度）
+  if (chapter <= 1) {
+    _cheerOnly(cheer)
+    return
+  }
   const data = {
-    stageName: o.stageName || '秘境',
+    stageName,
     turns: o.turns || 0,
     stageId,
   }
-  const cheer = (LING.cheer.firstS && LING.cheer.firstS(data.stageName)) || `S 评价首度达成！主人好厉害～`
   _celebrate(g, 'firstSRating', cheer, 'firstSRating', data)
 }
 
@@ -139,7 +176,7 @@ function onPetStarUp(g, opts) {
   const o = opts || {}
   const pet = o.pet || {}
   const star = o.star || 0
-  if (star !== 3 && star !== 5) return  // 非里程碑不弹
+  if (star !== 3 && star !== 5) return
   const petId = pet.petId || pet.id || ''
   const data = {
     petName: pet.name || '灵宠',
@@ -186,7 +223,7 @@ function onComebackWin(g, opts) {
   const o = opts || {}
   const stageId = o.stageId || ''
   if (!stageId) return
-  if (_isSilent(stageId)) return  // 新手期：敌人伤害高容易达成，但情绪不够
+  if (_isSilent(stageId)) return
   const data = {
     stageId,
     stageName: o.stageName || '秘境',

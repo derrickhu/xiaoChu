@@ -58,7 +58,7 @@ const SHARE_SCENES = {
         const prefix = d.isElite ? '精英终章' : '终章'
         return `${prefix}「${d.stageName}」首通 ${d.rating} 评价！终章守关已破，快来挑战万妖之主！`
       }
-      return `秘境「${d.stageName}」首通 ${d.rating} 评价！灵宠消消乐，你也来试试！`
+      return `秘境「${d.stageName}」首通 ${d.rating} 评价！灵宠消消塔，你也来试试！`
     },
     timelineTitleFn: (d) => `${d.rating} 评价首通「${d.stageName}」，一起修仙吧`,
     imageUrl: 'assets/share/share_default.jpg',
@@ -152,6 +152,35 @@ const SHARE_SCENES = {
   towerItem: {
     titleFn: (d) => `我正在挑战消消塔第${d.floor}层，一起来修仙！`,
     imageUrl: 'assets/share/share_default.jpg',
+  },
+
+  // ========== 主动分享：结算页小喇叭按钮（邀请型文案，非炫耀） ==========
+  //   · 覆盖：关卡胜利 / 关卡失败 / 首通 / 重玩，全部走这里
+  //   · 使用固定底图、不合成动态卡（主动行为，玩家意图明确，不再加一层预览）
+  //   · data: { victory, stageName, rating }
+  activeStageShare: {
+    titleFn: (d) => {
+      if (d.victory) {
+        const ratingPart = d.rating ? `${d.rating} 评价` : ''
+        return `我在灵宠消消塔闯过「${d.stageName || '秘境'}」${ratingPart}！来一起修仙消消乐～`
+      }
+      return `我在灵宠消消塔挑战「${d.stageName || '秘境'}」，快来助我一臂之力～`
+    },
+    timelineTitleFn: (d) => d.victory
+      ? `闯过「${d.stageName || '秘境'}」，灵宠消消塔走起`
+      : `灵宠消消塔挑战「${d.stageName || '秘境'}」中，快来一起`,
+    imageUrl: 'assets/share/share_default.jpg',
+    // 24h 场景冷却（sceneOnce 不置 true，允许每天第二天再领）
+    reward: { soulStone: 20 },
+  },
+
+  // ========== 主动分享：通天塔结算页小喇叭按钮 ==========
+  //   · data: { floor }
+  activeTowerShare: {
+    titleFn: (d) => `我在通天塔第 ${d.floor || 1} 层闯荡中，来一起爬塔呀～`,
+    timelineTitleFn: (d) => `通天塔第 ${d.floor || 1} 层，灵宠消消塔走起`,
+    imageUrl: 'assets/share/share_cover.jpg',
+    reward: { soulStone: 20 },
   },
 }
 

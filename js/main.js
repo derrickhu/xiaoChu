@@ -40,6 +40,7 @@ const guideOverlay = require('./views/guideOverlay')
 const { drawConfirmDialog, handleConfirmDialogTouch } = require('./views/uiComponents')
 const { drawAdRewardPopup, handleAdRewardPopupTouch } = require('./views/adRewardPopup')
 const newbieGiftView = require('./views/newbieGiftView')
+const shareRewardPopup = require('./views/shareRewardPopup')
 const helpTourView = require('./views/helpTourView')
 const gameToast = require('./views/gameToast')
 const floatText = require('./views/floatText')
@@ -58,6 +59,7 @@ const Particles = require('./engine/particles')
 const stageMgr = require('./engine/stageManager')
 const AdManager = require('./adManager')
 const { getRewardChipFlyAnimEndMs } = require('./views/rewardChipFlyAnim')
+const resourceFlyParticles = require('./views/resourceFlyParticles')
 const memoryDebug = require('./runtime/memoryDebug')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
@@ -122,6 +124,7 @@ class Main {
     })
 
     initState(this)
+    GameGlobal.__gameMain = this
     // 从存档恢复BGM音量设置
     const savedBgmVol = this.storage.settings.bgmVolume
     MusicMgr.setBgmVolume((savedBgmVol != null ? savedBgmVol : 50) / 100)
@@ -368,6 +371,9 @@ class Main {
       wxBtns.destroyGameClubBtn(this)
     })
     P.onShow(() => {
+      // 分享奖励飞效：玩家从分享面板回来（微信某些机型会触发 onShow）→ 立刻播放飞效
+      //   放在最前面，即使下面 return 分支也能触发
+      try { share.flushShareFly(this) } catch (_) {}
       if (!this._appWasHidden) return
       this._appWasHidden = false
       this._dirty = true
@@ -405,13 +411,7 @@ class Main {
     }
     requestAnimationFrame(loop)
 
-    // 注册分享能力（平台适配）
-    //   好友分享：onShareAppMessage 返回被动分享数据
-    //   朋友圈分享：onShareTimeline（微信独占，抖音 noop）返回朋友圈数据
-    //   showShareMenu 同时开启好友 + 朋友圈入口，withShareTicket 便于群聊票据
-    P.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] })
-    P.onShareAppMessage(() => share.getShareData(this.storage))
-    P.onShareTimeline(() => share.getShareTimelineData(this.storage))
+    // 分享菜单：showShareMenu / onShareAppMessage已在 game.js 启动阶段 registerMenuShareListeners，此处勿重复注册（避免覆盖或注册过晚）
 
     this._criticalImages = [
       'assets/backgrounds/loading_bg.jpg',
@@ -674,6 +674,10 @@ class Main {
       if (Date.now() - a.t0 > getRewardChipFlyAnimEndMs(a)) this._rewardChipFlyAnim = null
       else this._dirty = true
     }
+    if (resourceFlyParticles.isActive(this)) this._dirty = true
+    if (shareRewardPopup.isActive(this)) this._dirty = true
+    // 分享奖励飞效：面板关闭后还没被 onShow 清空的，兜底 tick 触发
+    share.tickShareFly(this)
     wxBtns.updateAuthBtn(this, dpr)
     wxBtns.updateFeedbackBtn(this, dpr)
     wxBtns.updateGameClubBtn(this, dpr)
@@ -766,7 +770,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive() && !shareCelebrate.isActive() && !tierCeremony.isActive()) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._shareRewardPopup && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !resourceFlyParticles.isActive(this) && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive() && !shareCelebrate.isActive() && !tierCeremony.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -849,6 +853,8 @@ class Main {
     if (shareCelebrate.isActive()) shareCelebrate.draw()
     // 段位晋升仪式：比 shareCelebrate 更上层（身份变化比战绩炫耀更高级别）
     if (tierCeremony.isActive()) tierCeremony.draw()
+    if (this._shareRewardPopup) shareRewardPopup.draw(this)
+    resourceFlyParticles.draw(this)
 
     // 万能碎片胶囊脉冲高亮：新手礼包关闭后引导玩家注意顶栏新增的资源
     if (this._uniFragPulse && this._uniFragPillRect) {
@@ -891,6 +897,7 @@ class Main {
     if (tierCeremony.isActive() && tierCeremony.handleTouch(type, x, y)) return
     if (shareCelebrate.isActive() && shareCelebrate.handleTouch(type, x, y)) return
     if (handleAdRewardPopupTouch(this, x, y, type)) return
+    if (shareRewardPopup.isActive(this) && shareRewardPopup.onTouch(this, x, y, type)) return
     if (this._newbieGift && newbieGiftView.onTouch(this, x, y, type)) return
     if (this._helpTour && helpTourView.onTouch(this, x, y, type)) return
     if (handleConfirmDialogTouch(this, x, y, type)) return
@@ -1037,7 +1044,7 @@ class Main {
   _applyShopCdReduce(petIdx) { return skillEngine.applyShopCdReduce(this, petIdx) }
   _applyRestOption(opt) { skillEngine.applyRestOption(this, opt) }
   _applyAdventure(adv) { skillEngine.applyAdventure(this, adv) }
-  _shareStats() { share.shareStats(this.storage) }
+  _shareStats() { share.shareStats(this) }
   _hitRect(x,y,rx,ry,rw,rh) { return x>=rx && x<=rx+rw && y>=ry && y<=ry+rh }
 }
 
