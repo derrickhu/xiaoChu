@@ -16,7 +16,7 @@ const { generateStarterWeapon, getWeaponById } = require('../data/weapons')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
-const { effectValue: cultEffectValue } = require('../data/cultivationConfig')
+const { effectValue: cultEffectValue, diffRealmUp } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
 const {
   HERO_BASE_HP, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
@@ -259,8 +259,12 @@ function settleExp(g) {
   const finalExp = g.cleared ? rawTotal : Math.floor(rawTotal * cfg.cultExp.failRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const levelUps = finalExp > 0 ? g.storage.addCultExp(finalExp) : 0
-  // 境界跨档（A1 重构）：在通天塔结算里记录一次，供结算页和主菜单 lingCheer 消费
-  g._lastRunRealmUp = levelUps > 0 ? g.storage.checkCultRealmUp() : null
+  // 境界跨档（用 diffRealmUp 基于本关 prev/curr level 差判定）：
+  //   理由同 stageManager.settleStage：避免 lastCultRealmId flag 领先导致哑火
+  //   checkCultRealmUp 仍然调用一次，纯粹为了 mark flag 防止重复通知
+  const newLevel = g.storage.cultivation.level || 0
+  g._lastRunRealmUp = levelUps > 0 ? diffRealmUp(prevLevel, newLevel) : null
+  if (levelUps > 0) g.storage.checkCultRealmUp()
   // 小阶跨档：回主菜单时小灵横条再提一次（大境界走全屏 tierCeremony 不重复）
   if (g._lastRunRealmUp && g._lastRunRealmUp.kind === 'minor') {
     g._pendingRealmLingCheer = g._lastRunRealmUp.curr.fullName

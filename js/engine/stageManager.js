@@ -11,7 +11,7 @@
 const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../data/stages')
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { effectValue } = require('../data/cultivationConfig')
+const { effectValue, diffRealmUp } = require('../data/cultivationConfig')
 const { STAR_REWARDS, CHAPTER_CLEAR_REWARDS, STAGE_SETTLE, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
@@ -106,6 +106,9 @@ function startStage(g, stageId, teamPetIds) {
   const cult = g.storage.cultivation
   g.heroMaxHp += effectValue('body', cult.levels.body)
   g.heroHp = g.heroMaxHp
+  // 逆风翻盘追踪：记录本关战斗中血量曾跌到的最低比值（1 = 未扣过血）
+  // 在 battleHelpers.dealDmgToHero 里每次扣血后更新，结算时写入 result.heroMinHpRatio
+  g._heroMinHpRatio = 1
   g.heroShield = effectValue('sense', cult.levels.sense)
   g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
@@ -218,6 +221,9 @@ function startStageNewbie(g, stageId) {
   const cult = g.storage.cultivation
   g.heroMaxHp += effectValue('body', cult.levels.body)
   g.heroHp = g.heroMaxHp
+  // 逆风翻盘追踪：记录本关战斗中血量曾跌到的最低比值（1 = 未扣过血）
+  // 在 battleHelpers.dealDmgToHero 里每次扣血后更新，结算时写入 result.heroMinHpRatio
+  g._heroMinHpRatio = 1
   g.heroShield = effectValue('sense', cult.levels.sense)
   g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
   g._cultDmgReduce = effectValue('defense', cult.levels.defense)
@@ -412,8 +418,15 @@ function settleStage(g) {
   const rawTotal = (g.runExp || 0) + clearBonus
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
-  // 境界跨档检查（紧随 addCultExp；结算 UI 消费 cultRealmUp 做即时反馈）
-  const cultRealmUp = cultLevelUps > 0 ? g.storage.checkCultRealmUp() : null
+  // 境界跨档判定（改用 diffRealmUp 直接比较本关 prev/curr level 差）：
+  //   · 关键：不再依赖 storage.checkCultRealmUp() 的返回值，避免 lastCultRealmId
+  //     flag 领先于当前 cultLv 时（GM 调试 / 经验回退 / 数据迁移对齐等）
+  //     本关真实跨档却被判为 null，导致 tierCeremony / realmUp 炫耀卡全哑火。
+  //   · storage.checkCultRealmUp() 仍然调用一次，纯粹为了 mark lastCultRealmId，
+  //     防止同一次跨档被其它入口（cultivationView.checkRealmBreak）重复通知。
+  const newLevel = g.storage.cultivation.level || 0
+  const cultRealmUp = cultLevelUps > 0 ? diffRealmUp(prevLevel, newLevel) : null
+  if (cultLevelUps > 0) g.storage.checkCultRealmUp()
   // 小阶跨档：回主菜单时由小灵横条再提一次（大境界走全屏 tierCeremony 不重复）
   if (cultRealmUp && cultRealmUp.kind === 'minor') {
     g._pendingRealmLingCheer = cultRealmUp.curr.fullName
@@ -561,6 +574,9 @@ function settleStage(g) {
     challengeDone: !!(g._challengeDone),
     challengeDesc: (g._mechanicFocus && g._mechanicFocus.challenge) ? g._mechanicFocus.challenge.desc : null,
     challengeRewardSS,
+    // 逆风翻盘判定：本关战斗中血量曾跌到的最低比值（1 = 全程未扣血）
+    // stageResultView 据此判 hpPct <= 10% 触发 shareHooks.onComebackWin
+    heroMinHpRatio: typeof g._heroMinHpRatio === 'number' ? g._heroMinHpRatio : 1,
   }
 
   if (g.storage.userAuthorized) {
@@ -593,7 +609,10 @@ function settleStageDefeat(g) {
   const rawTotal = Math.floor(((g.runExp || 0) + baseExp) * STAGE_SETTLE.defeatExpRatio)
   const prevLevel = g.storage.cultivation.level || 0
   const cultLevelUps = rawTotal > 0 ? g.storage.addCultExp(rawTotal) : 0
-  const cultRealmUp = cultLevelUps > 0 ? g.storage.checkCultRealmUp() : null
+  // 境界跨档判定（同 settleStage 胜利分支：用本关 prev/curr level 差，避免 flag 领先哑火）
+  const newLevel = g.storage.cultivation.level || 0
+  const cultRealmUp = cultLevelUps > 0 ? diffRealmUp(prevLevel, newLevel) : null
+  if (cultLevelUps > 0) g.storage.checkCultRealmUp()
   if (cultRealmUp && cultRealmUp.kind === 'minor') {
     g._pendingRealmLingCheer = cultRealmUp.curr.fullName
   }
