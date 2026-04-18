@@ -17,7 +17,14 @@ const {
   emitShake,
   emitCast,
   emitPetSkillIntro,
+  emitPetSkillEffect,
+  emitBuffExpire,
+  emitPetBadge,
 } = require('./battle/index')
+const { getSkillKind, KIND } = require('../data/fx/skillFxKind')
+const { getSkillTier } = require('../data/fx/skillTier')
+const { getSkillPalette } = require('../data/fx/skillFxPalette')
+const { resolveBadge } = require('../data/fx/skillBadge')
 const {
   SKILL_SHIELD_DEFAULT_VAL, SKILL_SHIELD_PLUS_DEFAULT_VAL,
   SKILL_REDUCE_PCT_DEFAULT, SKILL_SHIELD_REFLECT_DEFAULTS,
@@ -106,6 +113,31 @@ function _applyResolvedPetSkillDamage(g, result) {
   return out
 }
 
+// 按 kind 收集技能 L2 视觉的目标（hero 侧宠物位或 enemy）
+// 核心原则：释放瞬间的 L2 视觉只反馈"技能本身的感觉"，不反馈"覆盖了谁"
+//   - heal / shield  → 全队宠物位（治疗/护盾本就作用于全员，绿光/金盾覆盖全队符合直觉）
+//   - buff           → 只释放者（覆盖范围由"持续状态栏图标 + 出伤时的×N 发动 badge"在生效瞬间反馈，
+//                       释放时全员同闪会模糊"谁放的这技能"的因果感）
+//   - cc             → 敌人（purify 净化例外，以释放者为基）
+//   - 其余           → 空（由外层 attack/convert 自己管视觉）
+function _collectSkillTargets(g, pet, idx, sk, kind) {
+  if (kind === KIND.heal || kind === KIND.shield) {
+    const targets = []
+    for (let i = 0; i < g.pets.length; i++) {
+      if (g.pets[i]) targets.push({ side: 'hero', petIdx: i })
+    }
+    return targets.length ? targets : [{ side: 'hero', petIdx: idx }]
+  }
+  if (kind === KIND.buff) {
+    return [{ side: 'hero', petIdx: idx }]
+  }
+  if (kind === KIND.cc) {
+    if (sk.type === 'purify') return [{ side: 'hero', petIdx: idx }]
+    return [{ side: 'enemy' }]
+  }
+  return []
+}
+
 function triggerPetSkill(g, pet, idx) {
   const { S, W, H } = V
   const baseSk = pet.skill; if (!baseSk) return
@@ -129,35 +161,62 @@ function triggerPetSkill(g, pet, idx) {
   pet.currentCd = cd
   const attrColor = (ATTR_COLOR[pet.attr] && ATTR_COLOR[pet.attr].main) || V.TH.accent
 
-  // 攻击伤害类技能：使用攻击光波特效 + pet_skill.mp3
-  const isAttackSkill = (sk.type === 'instantDmg' || sk.type === 'teamAttack' || sk.type === 'multiHit' || sk.type === 'instantDmgDot')
+  // ===== L1/L2 视觉分层 =====
+  // - kind：技能大类（attack/heal/shield/buff/convert/cc），决定 L2 视觉语言
+  // - tier：档位（★1/★2/★3+ → small/normal/ult），决定参数幅度
+  // - palette：配色，heal/shield/buff 强制走非元素色，避免"火系宠物放治疗却是橙红"的误导
+  const kind = getSkillKind(sk)
+  const tier = getSkillTier(pet, sk)
+  const attrForPalette = sk.attr || pet.attr
+  const palette = getSkillPalette(kind, attrForPalette)
+  const showWave = (kind === KIND.attack)
+
   MusicMgr.playSkill()
-  if (isAttackSkill) {
-    emitPetSkillIntro(g, {
+  if (tier === 'ult') MusicMgr.playPetSkill()
+
+  emitPetSkillIntro(g, {
+    petIdx: idx,
+    petName: pet.name,
+    skillName: sk.name,
+    skillDesc: (kind === KIND.attack) ? '' : (getPetSkillDesc(pet) || ''),
+    attr: attrForPalette,
+    color: attrColor,
+    kind,
+    tier,
+    palette,
+    showWave,
+  })
+
+  // L1.5 预载 badge 信息：在调 L2 emit 之前先解析，用于给 L2 传 subKind 分化视觉
+  const badgeInfo = resolveBadge(sk)
+
+  // L2 效果层：按 kind 收集 targets 分发
+  // 攻击类不走 L2（保留 _petSkillWave 为主视觉，命中冲击由 dmg 阶段处理）
+  if (kind !== KIND.attack && kind !== KIND.convert) {
+    const targets = _collectSkillTargets(g, pet, idx, sk, kind)
+    if (targets.length > 0) {
+      emitPetSkillEffect(g, {
+        kind,
+        tier,
+        palette,
+        attr: attrForPalette,
+        casterPetIdx: idx,
+        targets,
+        subKind: badgeInfo ? badgeInfo.subKind : null,
+      })
+    }
+  }
+
+  // L1.5 预载 badge：释放瞬间"只"在释放者头顶弹"×N 火 / 必暴 / 连击 +N%"
+  // 因果要清晰——玩家必须看清"是这只放的，放了什么"，而不是 badge 飞到队友头上
+  // 真正的"生效覆盖范围"由 applyFinalDamage 里的 _emitPreloadActiveBadges
+  // 在下次出伤时，对所有被加成宠物弹"发动"二次 badge，形成完整闭环
+  if (badgeInfo && kind !== KIND.attack) {
+    emitPetBadge(g, {
       petIdx: idx,
-      petName: pet.name,
-      skillName: sk.name,
-      skillDesc: '',
-      attr: sk.attr || pet.attr,
-      color: attrColor,
-      waveDuration: 24,
-      flashDuration: 24,
-      comboFlash: 6,
-      shake: { t: 6, i: 4 },
-    })
-  } else {
-    // 非攻击类技能：快闪技能名 + 描述 + 宠物头像弹跳 + 属性色光环
-    emitPetSkillIntro(g, {
-      petIdx: idx,
-      petName: pet.name,
-      skillName: sk.name,
-      skillDesc: getPetSkillDesc(pet) || '',
-      attr: sk.attr || pet.attr,
-      color: attrColor,
-      showWave: false,
-      flashDuration: 36,
-      comboFlash: 8,
-      shake: { t: 5, i: 3 },
+      label: badgeInfo.label,
+      color: badgeInfo.color,
+      style: 'preload',
     })
   }
   // 星级技能数值倍率（★1=1.0, ★2=1.25, ★3≈1.56）
@@ -322,8 +381,12 @@ function triggerPetSkill(g, pet, idx) {
       if (sk.cleanse) {
         const badBuffs = g.heroBuffs.filter(b => b.bad)
         for (let i = 0; i < sk.cleanse && badBuffs.length > 0; i++) {
-          const idx = g.heroBuffs.indexOf(badBuffs.pop())
-          if (idx >= 0) g.heroBuffs.splice(idx, 1)
+          const popped = badBuffs.pop()
+          const idx = g.heroBuffs.indexOf(popped)
+          if (idx >= 0) {
+            g.heroBuffs.splice(idx, 1)
+            emitBuffExpire(g, { side: 'hero', buffType: popped.type, mode: 'dispel' })
+          }
         }
       }
       break
@@ -458,8 +521,12 @@ function triggerPetSkill(g, pet, idx) {
       g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round(sk.pct * sMul), dur:1, bad:false, name:sk.name }); break
     case 'onKillHeal':
       g.heroBuffs.push({ type:'onKillHeal', pct:Math.round(sk.pct * sMul), dur:SKILL_ON_KILL_HEAL_DUR, bad:false, name:sk.name }); break
-    case 'purify':
+    case 'purify': {
+      const purged = g.heroBuffs.filter(b => b.bad)
       g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
+      if (purged.length > 0) {
+        purged.forEach((b) => emitBuffExpire(g, { side: 'hero', buffType: b.type, mode: 'dispel' }))
+      }
       if (sk.immuneDur) g.heroBuffs.push({ type:'immuneCtrl', dur:sk.immuneDur, bad:false, name:sk.name })
       // ★3附加治疗
       if (sk.healPct) {
@@ -467,6 +534,7 @@ function triggerPetSkill(g, pet, idx) {
         g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
       }
       break
+    }
     case 'warGod':
       g.heroBuffs.push({ type:'allAtkUp', pct:Math.round((sk.pct||SKILL_WAR_GOD_DEFAULTS.pct) * sMul), dur:sk.dur||SKILL_WAR_GOD_DEFAULTS.dur, bad:false, name:sk.name })
       g.heroBuffs.push({ type:'guaranteeCrit', attr:null, pct:100, dur:sk.critDur||1, bad:false, name:sk.name })
@@ -758,7 +826,12 @@ function applyAdventure(g, adv) {
     case 'multiAttrUp':    adv.attrs.forEach(a => { g.runBuffs.attrDmgPct[a] = (g.runBuffs.attrDmgPct[a]||0) + adv.pct }); break
     case 'comboNeverBreak': g.comboNeverBreak = true; break
     case 'getPet':         { const p = { ...randomPetFromPool(g.sessionPetPool, null, 'adventure', getMaxedPetIds(g)), currentCd: 0 }; const allP = [...g.pets, ...g.petBag]; const mr = _mergePetAndDex(g, allP, p); if (!mr.merged) { g.petBag.push(p); g._adventureResult = `获得灵兽「${p.name}」`; g._lastRewardInfo = { type: 'newPet', petId: p.id } } else { g._adventureResult = `「${p.name}」升星！`; g._lastRewardInfo = { type: 'starUp', petId: p.id } } break }
-    case 'clearDebuff':    g.heroBuffs = g.heroBuffs.filter(b => !b.bad); break
+    case 'clearDebuff': {
+      const purged2 = g.heroBuffs.filter(b => b.bad)
+      g.heroBuffs = g.heroBuffs.filter(b => !b.bad)
+      purged2.forEach((b) => emitBuffExpire(g, { side: 'hero', buffType: b.type, mode: 'dispel' }))
+      break
+    }
     case 'heartBoost':     g.runBuffs.heartBoostPct += adv.pct; _pushLog('heartBoostPct', adv.pct); break
     case 'weaponBoost':    g.runBuffs.weaponBoostPct += adv.pct; _pushLog('weaponBoostPct', adv.pct); break
     case 'allDmgUp':       g.runBuffs.allDmgPct += adv.pct; _pushLog('allDmgPct', adv.pct); break

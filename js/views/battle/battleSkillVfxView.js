@@ -31,17 +31,18 @@ function _getSkillFlashTextSprite(f, S) {
 
   const measureCanvas = P.createOffscreenCanvas({ type: '2d', width: 8, height: 8 })
   const measureCtx = measureCanvas.getContext('2d')
-  const nameFont = `bold ${11 * S}px "PingFang SC",sans-serif`
-  const descFont = hasDesc
-    ? `bold ${18 * S}px "PingFang SC",sans-serif`
+  // 重新调平：技能名是主标题（大+同元素色），描述是副标题（小+白），反过来强调"这是什么技能"
+  const nameFont = hasDesc
+    ? `italic 900 ${22 * S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
     : `italic 900 ${24 * S}px "Avenir-Black","Helvetica Neue","PingFang SC",sans-serif`
+  const descFont = `bold ${14 * S}px "PingFang SC",sans-serif`
   measureCtx.font = nameFont
   const nameW = Math.ceil(measureCtx.measureText(f.skillName || '').width)
   measureCtx.font = descFont
-  const descW = Math.ceil(measureCtx.measureText(hasDesc ? (f.skillDesc || '') : (f.skillName || '')).width)
+  const descW = hasDesc ? Math.ceil(measureCtx.measureText(f.skillDesc || '').width) : 0
 
-  const width = Math.max(1, Math.ceil(Math.max(nameW, descW) + 30 * S))
-  const height = Math.max(1, Math.ceil((hasDesc ? 46 : 30) * S))
+  const width = Math.max(1, Math.ceil(Math.max(nameW, descW) + 40 * S))
+  const height = Math.max(1, Math.ceil((hasDesc ? 56 : 34) * S))
   const oc = P.createOffscreenCanvas({ type: '2d', width, height })
   const octx = oc.getContext('2d')
   const cx = width * 0.5
@@ -51,24 +52,38 @@ function _getSkillFlashTextSprite(f, S) {
   octx.textAlign = 'center'
   octx.textBaseline = 'middle'
   if (hasDesc) {
+    // 主标题（大 · 同色发光）
     octx.font = nameFont
-    octx.strokeStyle = 'rgba(0,0,0,0.5)'
-    octx.lineWidth = 2 * S
-    octx.strokeText(f.skillName || '', cx, cy - 14 * S)
-    octx.fillStyle = f.color || '#ffffff'
-    octx.fillText(f.skillName || '', cx, cy - 14 * S)
-
-    octx.font = descFont
     octx.strokeStyle = 'rgba(0,0,0,0.85)'
     octx.lineWidth = 4 * S
-    octx.strokeText(f.skillDesc || '', cx, cy + 8 * S)
+    octx.strokeText(f.skillName || '', cx, cy - 10 * S)
     octx.shadowColor = f.color || '#ffffff'
-    octx.shadowBlur = 12 * S
+    octx.shadowBlur = 14 * S
     octx.fillStyle = '#ffffff'
-    octx.fillText(f.skillDesc || '', cx, cy + 8 * S)
+    octx.fillText(f.skillName || '', cx, cy - 10 * S)
     octx.shadowBlur = 0
-  } else {
+    // 副标题（小 · 金黄 · 胶囊底）
+    const capTxtW = descW + 18 * S
+    const capH = 20 * S
+    const capX = cx - capTxtW / 2
+    const capY = cy + 10 * S - capH / 2
+    octx.fillStyle = 'rgba(14,10,4,0.78)'
+    octx.beginPath()
+    const rr = capH / 2
+    octx.moveTo(capX + rr, capY)
+    octx.arcTo(capX + capTxtW, capY, capX + capTxtW, capY + capH, rr)
+    octx.arcTo(capX + capTxtW, capY + capH, capX, capY + capH, rr)
+    octx.arcTo(capX, capY + capH, capX, capY, rr)
+    octx.arcTo(capX, capY, capX + capTxtW, capY, rr)
+    octx.fill()
+    octx.strokeStyle = (f.color || '#ffd860') + 'cc'
+    octx.lineWidth = 1 * S
+    octx.stroke()
     octx.font = descFont
+    octx.fillStyle = '#ffe08a'
+    octx.fillText(f.skillDesc || '', cx, cy + 10 * S)
+  } else {
+    octx.font = nameFont
     octx.strokeStyle = 'rgba(0,0,0,0.8)'
     octx.lineWidth = 4 * S
     octx.strokeText(f.skillName || '', cx, cy)
@@ -107,9 +122,8 @@ function drawPetSkillWave(g) {
   const iconSize = L.iconSize
   const iconY = L.teamBarY + (L.teamBarH - iconSize) / 2
   const sidePad = 8 * S, wpnGap = 12 * S, petGap = 8 * S
-  let ix
-  if (wave.petIdx === 0) { ix = sidePad }
-  else { ix = sidePad + iconSize + wpnGap + (wave.petIdx - 1) * (iconSize + petGap) }
+  // wave.petIdx 是 g.pets 数组索引；布局 [武器][pets[0]][pets[1]]...，跳过武器槽
+  const ix = sidePad + iconSize + wpnGap + wave.petIdx * (iconSize + petGap)
   const startX = ix + iconSize * 0.5
   const startY = iconY
   const targetX = wave.targetX
@@ -254,12 +268,14 @@ function drawSkillFlash(g) {
     FXComposer.drawGlowSpot(ctx, W * 0.5, H * 0.38, W * (quality === 'lite' ? 0.22 : 0.3), f.color, flashAlpha)
   }
 
+  // 入场 [0..6] 2→1；稳定期 [6..dur*0.78] 保持+微弹；退场 [dur*0.78..dur] 1→0.7 & 1→0
+  const stableEnd = Math.max(12, Math.round(dur * 0.78))
   const mainScale = t <= 6
     ? 2.0 - (t / 6) * 1.0
-    : t <= 12
-      ? 1.0 + Math.sin((t - 6) / 6 * Math.PI) * 0.05
-      : 1.0 - (t - 12) / (dur - 12) * 0.3
-  const mainAlpha = t <= 12 ? 1 : 1 - (t - 12) / (dur - 12)
+    : t <= stableEnd
+      ? 1.0 + Math.sin((t - 6) / Math.max(1, stableEnd - 6) * Math.PI * 2) * 0.02
+      : 1.0 - (t - stableEnd) / Math.max(1, dur - stableEnd) * 0.3
+  const mainAlpha = t <= stableEnd ? 1 : 1 - (t - stableEnd) / Math.max(1, dur - stableEnd)
   const centerY = H * 0.36
 
   ctx.globalAlpha = mainAlpha

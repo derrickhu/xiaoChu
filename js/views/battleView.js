@@ -13,6 +13,8 @@ const { getBattleLayout } = require('./battle/battleLayout')
 const { drawBattleEnemyArea } = require('./battle/battleEnemyView')
 const { initOrbAttackTip } = require('./battle/battleOrbTipView')
 const { drawPetSkillWave, drawSkillFlash, drawSkillPreviewPopup } = require('./battle/battleSkillVfxView')
+const { drawCasterGlow, drawSkillEffectFx, drawPetBadges } = require('./battle/battleSkillEffectView')
+const { drawBattleStatusBars } = require('./battle/battleStatusBar')
 const { drawCombo } = require('./battle/battleComboView')
 const { drawHelpButton, drawBattleHelpPanel } = require('./battle/battleHelpView')
 const { drawBattleUIControls, drawExpFloats } = require('./battle/battleUIControlsView')
@@ -48,8 +50,17 @@ function rBattle(g) {
   drawCombo(g, cellSize, boardTop)
   if (g._newbieComboBanner) drawNewbieComboBanner(g, boardTop, padX)
   _drawMechanicOverlay(g, S, W, safeTop, boardTop, eAreaBottom)
-  if (g._skillFlash) drawSkillFlash(g)
+  // 玩家被眩晕时的"三件套"：顶部金色横幅 + 棋盘紫灰蒙层（头像图标由 battleStatusBar 兜底）
+  _drawHeroStunOverlay(g, S, W, H, safeTop, boardTop)
+  // 持续状态栏：画在特效层下面，避免被 skill flash 遮挡
+  drawBattleStatusBars(g)
+  // 技能 vfx 渲染顺序：L1 脚下光晕 → L1 飞行光波 → L2 效果层 → L1 快闪技能名（最上）
+  if (g._casterGlow) drawCasterGlow(g)
   if (g._petSkillWave) drawPetSkillWave(g)
+  drawSkillEffectFx(g)
+  if (g._skillFlash) drawSkillFlash(g)
+  // 宠物头顶 badge 飘字：预载 "×2 火" / 生效 "xx 发动"（在快闪之上，玩家一定看得见）
+  drawPetBadges(g)
   if (g.dragging && g.bState === 'playerTurn') drawDragTimer(g, cellSize, boardTop)
   if (g._pendingEnemyAtk && g.bState === 'playerTurn') drawEnemyTurnBanner(g)
 
@@ -94,6 +105,97 @@ function rBattle(g) {
 
   // 小灵讲堂（1-2/1-3 首通前的阻塞讲解卡）最上层，遮挡所有战场 UI，等玩家点一下才消失
   if (g._stageIntroCard) _drawStageIntroCard(g)
+}
+
+// ===== 玩家眩晕三件套（顶部金色横幅 + 棋盘紫灰蒙层） =====
+// 头像 icon 由 battleStatusBar.drawBattleStatusBars 画（已在 heroBuffs 里有 heroStun）
+// 此处只负责：
+//   1. 顶部金色半透横幅 + 警示文字 + 头顶星星粒子
+//   2. 棋盘紫灰蒙层 + 淡紫"禁止"斜纹
+// 确保玩家绝不会误以为游戏卡死
+function _drawHeroStunOverlay(g, S, W, H, safeTop, boardTop) {
+  if (!g || !g.heroBuffs) return
+  const stunBuff = g.heroBuffs.find(b => b.type === 'heroStun')
+  if (!stunBuff) return
+  if (g.bState === 'victory' || g.bState === 'defeat') return
+  const { ctx } = V
+  const af = g.af || 0
+
+  // —— 顶部金色半透横幅（60*S 高，贴 safeTop 下方） ——
+  const bannerH = 42 * S
+  const by = safeTop + 40 * S
+  ctx.save()
+  // 金色渐变底
+  const grd = ctx.createLinearGradient(0, by, 0, by + bannerH)
+  grd.addColorStop(0, 'rgba(80,50,15,0.72)')
+  grd.addColorStop(0.5, 'rgba(140,90,25,0.82)')
+  grd.addColorStop(1, 'rgba(80,50,15,0.72)')
+  ctx.fillStyle = grd
+  ctx.fillRect(0, by, W, bannerH)
+  // 上下金线
+  const lineGrd = ctx.createLinearGradient(0, 0, W, 0)
+  lineGrd.addColorStop(0, 'rgba(240,200,80,0)')
+  lineGrd.addColorStop(0.5, 'rgba(255,220,100,0.95)')
+  lineGrd.addColorStop(1, 'rgba(240,200,80,0)')
+  ctx.fillStyle = lineGrd
+  ctx.fillRect(0, by, W, 1.5 * S)
+  ctx.fillRect(0, by + bannerH - 1.5 * S, W, 1.5 * S)
+  // 文字
+  ctx.fillStyle = '#ffe082'
+  ctx.strokeStyle = 'rgba(30,18,6,0.8)'
+  ctx.lineWidth = 2.2 * S
+  ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const msg = `眩晕中，本回合无法操作（${stunBuff.dur || 1} 回合）`
+  ctx.strokeText(msg, W * 0.5, by + bannerH * 0.5)
+  ctx.fillText(msg, W * 0.5, by + bannerH * 0.5)
+  // 左右环绕小星粒
+  for (let i = 0; i < 6; i++) {
+    const ang = af * 0.05 + i * (Math.PI / 3)
+    const r = 70 * S
+    const sx = W * 0.5 + Math.cos(ang) * r
+    const sy = by + bannerH * 0.5 + Math.sin(ang) * 6 * S
+    const alpha = 0.5 + 0.4 * Math.sin(af * 0.09 + i)
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = '#ffeecc'
+    ctx.beginPath(); ctx.arc(sx, sy, 1.8 * S, 0, Math.PI * 2); ctx.fill()
+  }
+  ctx.restore()
+
+  // —— 棋盘紫灰蒙层 ——
+  if (g.boardX != null && g.cellSize) {
+    const boardW = g.cellSize * V.COLS
+    const boardH = g.cellSize * V.ROWS
+    ctx.save()
+    ctx.fillStyle = 'rgba(50,30,80,0.42)'
+    ctx.fillRect(g.boardX, g.boardY, boardW, boardH)
+    // 淡紫色斜纹禁止符
+    ctx.globalAlpha = 0.18
+    ctx.strokeStyle = '#c8a4ff'
+    ctx.lineWidth = 3 * S
+    const step = 24 * S
+    ctx.beginPath()
+    for (let x = -boardH; x < boardW; x += step) {
+      ctx.moveTo(g.boardX + x, g.boardY)
+      ctx.lineTo(g.boardX + x + boardH, g.boardY + boardH)
+    }
+    ctx.stroke()
+    // 中心"无法操作"圆环
+    ctx.globalAlpha = 0.78
+    const cx = g.boardX + boardW / 2
+    const cy = g.boardY + boardH / 2
+    const rOuter = 34 * S
+    ctx.strokeStyle = '#c8a4ff'
+    ctx.lineWidth = 4 * S
+    ctx.beginPath(); ctx.arc(cx, cy, rOuter, 0, Math.PI * 2); ctx.stroke()
+    // 禁止斜杠
+    ctx.lineWidth = 4 * S
+    ctx.beginPath()
+    ctx.moveTo(cx - rOuter * 0.7, cy - rOuter * 0.7)
+    ctx.lineTo(cx + rOuter * 0.7, cy + rOuter * 0.7)
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 // ===== 小灵讲堂 · 阻塞式新机制讲解卡（drawLingCard 模态） =====
@@ -306,9 +408,9 @@ function _drawChallengeCapsule(g, S, W, eAreaBottom) {
   const capH = 22 * S
   const capW = Math.min(W - 20 * S, textW + padH * 2)
   const capX = W - 10 * S - capW + slideOutX
-  // 定位到敌人 HP 条上方：battleEnemyView 里 hpY = eAreaBottom - 26*S
+  // 定位到敌人 HP 条上方：统一从 battleLayout.enemyHpTopY 读取（已整体上移）
   // 胶囊紧贴敌人 HP 条上方 2*S，挂在敌人立绘下半部（地面区域），不挡任何血条/头像/棋盘
-  const enemyHpTopY = eAreaBottom - 26 * S
+  const enemyHpTopY = getBattleLayout().enemyHpTopY
   const capY = enemyHpTopY - capH - 2 * S
 
   // 底：未完成金棕底，完成绿底（都是半透，后面的头像标签仍能隐约见到）

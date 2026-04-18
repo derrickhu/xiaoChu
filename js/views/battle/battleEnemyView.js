@@ -4,6 +4,7 @@
 const V = require('../env')
 const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_BY, ENEMY_SKILLS } = require('../../data/tower')
 const tutorial = require('../../engine/tutorial')
+const { getBattleLayout } = require('./battleLayout')
 
 function _drawStar(ctx, x, y, r) {
   ctx.beginPath()
@@ -394,7 +395,9 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   R.drawEnemyAreaBg(g.af, themeBg, eAreaTop, eAreaBottom, g.enemy.attr, g.enemy.battleBg)
 
   const eHpH = 14*S
-  const hpY = eAreaBottom - 26*S
+  // 敌人血条顶 Y：统一从 battleLayout 读取（见 enemyHpTopY 字段注释）
+  // 原值 eAreaBottom - 26*S 已上移至 eAreaBottom - 48*S，把原位置留给独立 debuff 行
+  const hpY = getBattleLayout().enemyHpTopY
   const hpBarW = W * 0.72
   const hpBarX = (W - hpBarW) / 2
   if (g.enemy.isBoss || g.enemy.isElite) {
@@ -469,6 +472,16 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
       ctx.globalAlpha = tintAlpha
       ctx.globalCompositeOperation = 'source-atop'
       ctx.fillStyle = '#ff2244'
+      ctx.fillRect(imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
+      ctx.restore()
+    }
+    // 受击前 4 帧额外白色剪影叠加：让玩家一眼看出命中（plan L1e 闪白升级）
+    if (g._enemyHitFlash > 0 && g._enemyHitFlash > 8) {
+      const whiteAlpha = Math.min(0.65, (g._enemyHitFlash - 8) / 4 * 0.65)
+      ctx.save()
+      ctx.globalAlpha = whiteAlpha
+      ctx.globalCompositeOperation = 'source-atop'
+      ctx.fillStyle = '#ffffff'
       ctx.fillRect(imgX + hitOffX, imgDrawY + hitOffY, imgW, imgH)
       ctx.restore()
     }

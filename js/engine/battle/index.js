@@ -15,12 +15,16 @@ const { resolveSkillDamage, commitSkillDamage } = require('./skillDamageResolver
 const {
   getAttrColor,
   getEnemyCenterY,
+  getPetIconCenter,
   emitNotice,
   emitFloat,
   emitShake,
   emitFlash,
   emitCast,
   emitPetSkillIntro,
+  emitPetSkillEffect,
+  emitBuffExpire,
+  emitPetBadge,
 } = require('./fxEmitter')
 
 module.exports = {
@@ -39,10 +43,14 @@ module.exports = {
   commitSkillDamage,
   getAttrColor,
   getEnemyCenterY,
+  getPetIconCenter,
   emitNotice,
   emitFloat,
   emitShake,
   emitFlash,
   emitCast,
   emitPetSkillIntro,
+  emitPetSkillEffect,
+  emitBuffExpire,
+  emitPetBadge,
 }

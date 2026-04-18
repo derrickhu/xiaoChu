@@ -9,7 +9,8 @@ function drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, d
   const exitBtnX = 8*S
   const exitBtnY = eAreaTop
 
-  drawBuffIconsLabeled(g.heroBuffs, W*0.3, teamBarY - 16*S, '己方', false)
+  // 旧的己方 Buff 小标签已由 battleStatusBar 取代，保留参数签名兼容
+  void drawBuffIconsLabeled
 
   if (!tutorial.isActive()) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)'

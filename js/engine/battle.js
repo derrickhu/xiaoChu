@@ -22,7 +22,13 @@ const {
   emitShake,
   emitFlash,
   emitCast,
+  emitPetSkillIntro,
+  emitPetSkillEffect,
+  emitBuffExpire,
+  emitPetBadge,
 } = require('./battle/fxEmitter')
+const { CC_NEG_PALETTE, HEAL_PALETTE, BUFF_PALETTE, ELEMENT_PALETTES } = require('../data/fx/skillFxPalette')
+const { resolveSubKindByBuffType, SUB: BADGE_SUB } = require('../data/fx/skillBadge')
 const {
   getComboMul: getSharedComboMul,
   calcCritFromCtx,
@@ -642,6 +648,9 @@ function applyFinalDamage(g, dmgMap, heal) {
 
   if (g.nextDmgDouble) g.nextDmgDouble = false
 
+  // B1：预载 buff "激活" 飘字 —— 让玩家看清上回合放的技能 *真的* 生效了
+  if (totalDmg > 0 && g.enemy) _emitPreloadActiveBadges(g, dmgMap, isCrit)
+
   if (totalDmg > 0 && g.enemy) {
     const oldPct = g.enemy.hp / g.enemy.maxHp
     const leadAttr = Object.keys(dmgMap || {})[0] || 'metal'
@@ -818,7 +827,23 @@ function onPlayerTurnStart(g) {
 
 // ===== 回合结算 =====
 function settle(g) {
-  g.heroBuffs = g.heroBuffs.filter(b => { b.dur--; return b.dur > 0 })
+  g.heroBuffs = g.heroBuffs.filter(b => {
+    b.dur--
+    if (b.dur <= 0) {
+      // L2.6 到期消散反馈：
+      //   - 负面到期 → dispel（金白破碎环，"摆脱了"）
+      //   - 预载类失效 → dispel（强化"上回合的 ×N 发动完毕"）
+      //   - 其他正面 buff → fade（柔和淡出）
+      const sub = resolveSubKindByBuffType(b)
+      const isPreload = sub === BADGE_SUB.preloadAttr || sub === BADGE_SUB.preloadAll
+        || sub === BADGE_SUB.preloadCrit || sub === BADGE_SUB.preloadCombo
+        || sub === BADGE_SUB.preloadExec
+      const mode = b.bad || isPreload ? 'dispel' : 'fade'
+      emitBuffExpire(g, { side: 'hero', buffType: b.type, mode })
+      return false
+    }
+    return true
+  })
   // enemyBuffs 在 enemyTurn 末尾递减，确保本回合施加的眩晕等能在下次敌方行动时生效
   g.pets.forEach((p, idx) => {
     if (!petHasSkill(p)) return  // ★1无技能，不处理CD
@@ -884,7 +909,14 @@ function enemyTurn(g) {
     })
     if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
     // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
-    g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
+    g.enemyBuffs = g.enemyBuffs.filter(b => {
+      b.dur--
+      if (b.dur <= 0) {
+        emitBuffExpire(g, { side: 'enemy', buffType: b.type, mode: b.bad ? 'dispel' : 'fade' })
+        return false
+      }
+      return true
+    })
     g.turnCount++
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
     return
@@ -989,6 +1021,144 @@ function enemyTurn(g) {
   g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
 }
 
+// =========================================================================
+// 敌人技能视觉反馈（L1 前摇 + L2 按 kind 分发）
+// =========================================================================
+// 和宠物技能走同一套 vfx 框架：
+//   - L1：在敌人身下画光晕 + 技能名快闪（复用 emitPetSkillIntro 的 enemyCaster 分支）
+//   - L2：按技能类型分发到 cc / convert / buff / heal / attack 等 kind
+// 调色板：
+//   - 所有敌人给玩家施加的负面 → CC_NEG_PALETTE（紫）
+//   - 敌人增益自己 → BUFF_PALETTE（红/金）
+//   - 敌人自愈 → HEAL_PALETTE（金绿）
+//   - 敌人 aoe 攻击 → 元素色
+// =========================================================================
+// 扫描 heroBuffs，识别"预载类"buff 在本次攻击是否真的生效，对匹配宠物弹"xxx 发动!" badge
+// 只对玩家最关心的几类做，避免头顶飘字过密
+function _emitPreloadActiveBadges(g, dmgMap, isCrit) {
+  if (!g || !g.heroBuffs || !g.pets) return
+  const emitted = Object.create(null)
+  const push = (petIdx, label, color) => {
+    const key = `${petIdx}|${label}`
+    if (emitted[key]) return
+    emitted[key] = true
+    emitPetBadge(g, { petIdx, label, color, style: 'active' })
+  }
+  for (const b of g.heroBuffs) {
+    if (!b || b.bad) continue
+    switch (b.type) {
+      case 'dmgBoost': {
+        if (!b.attr || !dmgMap[b.attr] || dmgMap[b.attr] <= 0) break
+        const mul = 1 + Math.round((b.pct || 0) / 100)
+        for (let i = 0; i < g.pets.length; i++) {
+          const p = g.pets[i]
+          if (p && p.attr === b.attr) push(i, `×${mul} 发动`, '#ffd860')
+        }
+        break
+      }
+      case 'guaranteeCrit': {
+        if (!isCrit) break
+        for (let i = 0; i < g.pets.length; i++) {
+          if (g.pets[i]) { push(i, '必暴发动', '#ffd860'); break }
+        }
+        break
+      }
+      case 'warGod': {
+        for (let i = 0; i < g.pets.length; i++) {
+          if (g.pets[i]) { push(i, '狂暴!', '#ff3b30'); break }
+        }
+        break
+      }
+      case 'lowHpDmgUp': {
+        if (g.heroHp / Math.max(1, g.heroMaxHp) > 0.3) break
+        for (let i = 0; i < g.pets.length; i++) {
+          if (g.pets[i]) { push(i, '绝境爆发', '#ff4d4d'); break }
+        }
+        break
+      }
+      default: break
+    }
+  }
+}
+
+function _emitEnemySkillVfx(g, sk, skillKey) {
+  if (!g || !sk) return
+  const { W, S } = V
+  const enemyCenterY = g._getEnemyCenterY()
+
+  const type = sk.type
+  // 归类
+  let kind = 'cc'
+  let palette = CC_NEG_PALETTE
+  if (type === 'buff') { kind = 'buff'; palette = BUFF_PALETTE }
+  else if (type === 'selfHeal') { kind = 'heal'; palette = HEAL_PALETTE }
+  else if (type === 'aoe') {
+    kind = 'attack'
+    palette = (g.enemy && ELEMENT_PALETTES[g.enemy.attr]) || CC_NEG_PALETTE
+  }
+  else if (type === 'convert' || type === 'breakBead' || type === 'attrAbsorb'
+        || type === 'sealCol' || type === 'sealRow' || type === 'sealCounter') {
+    kind = 'convert'
+    palette = CC_NEG_PALETTE
+  }
+
+  // L1 前摇：敌人身下光晕 + 快闪技能名
+  emitPetSkillIntro(g, {
+    enemyCaster: true,
+    casterX: W * 0.5,
+    casterY: enemyCenterY,
+    skillName: sk.name || '',
+    skillDesc: sk.desc || '',
+    attr: (g.enemy && g.enemy.attr) || null,
+    kind,
+    tier: 'normal',
+    palette,
+    showWave: false,
+    // 敌人技能不震屏，避免叠加玩家侧攻击的震屏
+    shake: null,
+    screenFlash: false,
+    comboFlash: 0,
+  })
+
+  // L2 效果：根据 kind 决定 targets
+  const targets = []
+  if (kind === 'heal' || type === 'buff') {
+    // 目标 = 敌人自己（用 enemy 侧 + 固定坐标，L2 会以 x/y 绘制）
+    targets.push({ side: 'enemy', x: W * 0.5, y: enemyCenterY })
+  } else if (kind === 'attack') {
+    // aoe → 目标是玩家血条位置（近似用 hero pets 全队）
+    for (let i = 0; i < (g.pets || []).length; i++) {
+      if (g.pets[i]) targets.push({ side: 'hero', petIdx: i })
+    }
+  } else if (kind === 'cc') {
+    // 负面作用在 hero pets 全队或单只
+    if (type === 'stun') {
+      targets.push({ side: 'hero', petIdx: 0 })  // 眩晕玩家：visual 挂在队长身上
+    } else if (type === 'seal' || type === 'sealAttr') {
+      // 普通封珠：目标是棋盘，简单处理成中心
+      targets.push({ side: 'hero', x: W * 0.5, y: g.boardY + 40 * S })
+    } else {
+      // dot / debuff / healBlock / defDown → 全队
+      for (let i = 0; i < (g.pets || []).length; i++) {
+        if (g.pets[i]) targets.push({ side: 'hero', petIdx: i })
+      }
+    }
+  } else if (kind === 'convert') {
+    // 变珠/碎珠：视觉以棋盘中心作 target（变珠动画由 _beadConvertAnim 自己出）
+    targets.push({ side: 'hero', x: W * 0.5, y: g.boardY + 80 * S })
+  }
+
+  if (targets.length > 0) {
+    emitPetSkillEffect(g, {
+      kind,
+      tier: 'normal',
+      palette,
+      attr: (g.enemy && g.enemy.attr) || null,
+      targets,
+    })
+  }
+}
+
 function applyEnemySkill(g, skillKey) {
   const { S, W, H, TH, ROWS, COLS } = V
   const L = g._getBattleLayout()
@@ -1001,6 +1171,7 @@ function applyEnemySkill(g, skillKey) {
     return
   }
   emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()+30*S, text:sk.name, desc:sk.desc||'', color:TH.danger, scale:1.8, _initScale:1.8, big:true })
+  _emitEnemySkillVfx(g, sk, skillKey)
   switch(sk.type) {
     case 'buff':
       g.enemyBuffs.push({ type:'buff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:false }); break

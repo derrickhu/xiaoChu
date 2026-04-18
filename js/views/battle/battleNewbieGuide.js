@@ -4,6 +4,7 @@
 const V = require('../env')
 const { ATTR_COLOR } = require('../../data/tower')
 const tutorial = require('../../engine/tutorial')
+const { getBattleLayout } = require('./battleLayout')
 
 // ===== 新手棋盘引导：扫描可消除的宠物属性珠组 =====
 let _newbieHighlightCache = null
@@ -397,8 +398,8 @@ function _drawNewbieHint(g, eAreaBottom, W) {
   const capW = Math.min(W - 20 * S, textW + padH * 2)
   const capX = (W - capW) / 2
 
-  // 与 _drawChallengeCapsule 保持同一坐标锚点（敌人 HP 条顶部 = eAreaBottom - 26*S）
-  const enemyHpTopY = eAreaBottom - 26 * S
+  // 与 _drawChallengeCapsule 保持同一坐标锚点：敌人 HP 条顶部（battleLayout 单一数据源）
+  const enemyHpTopY = getBattleLayout().enemyHpTopY
   const challengeCapH = 22 * S
   const hasChallenge = !!(g._mechanicFocus && g._mechanicFocus.challenge)
   const capY = hasChallenge
