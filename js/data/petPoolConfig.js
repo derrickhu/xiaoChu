@@ -168,6 +168,42 @@ function canStarUp(poolPet, awakenStone) {
   return awakenCost === 0 || (awakenStone || 0) >= awakenCost
 }
 
+/**
+ * 判断"仅差等级即可升星"——碎片/觉醒石都够、等级不足，且灵石还足以升至少 1 级。
+ * 作为"Lv↑"红点条件：只在宠物卡在升星门槛的等级差上时才亮，避免"谁都能升一级"的红点泛滥。
+ */
+function isLevelGatedByStarUp(poolPet, awakenStone, soulStone) {
+  if (!poolPet) return false
+  const nextStar = (poolPet.star || 1) + 1
+  const maxStar = getPoolPetMaxStar(poolPet)
+  if (nextStar > maxStar) return false
+  const fragCost = POOL_STAR_FRAG_COST[nextStar]
+  const lvReq = POOL_STAR_LV_REQ[nextStar]
+  if (!fragCost || !lvReq) return false
+  if ((poolPet.fragments || 0) < fragCost) return false
+  const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
+  if (awakenCost > 0 && (awakenStone || 0) < awakenCost) return false
+  if ((poolPet.level || 0) >= lvReq) return false
+  const maxLv = getPoolPetMaxLv(poolPet)
+  if ((poolPet.level || 0) >= maxLv) return false
+  const rarity = getPetRarity(poolPet.id)
+  return (soulStone || 0) >= petExpToNextLevel(poolPet.level, rarity)
+}
+
+/**
+ * 宠物卡片语义角标（业界主流：卡面只负责吸引注意，详情页负责解释原因）：
+ *   star：「升星链路可推进」——已能升星 或 仅差等级（但当前灵石够升级）
+ *   new：刚入池未查看过
+ * 仅返回最高优先级一个。star > new > null。
+ */
+function computePetPoolBadge(poolPet, soulStone, awakenStone, isNew) {
+  if (!poolPet) return null
+  if (canStarUp(poolPet, awakenStone)) return 'star'
+  if (isLevelGatedByStarUp(poolPet, awakenStone, soulStone)) return 'star'
+  if (isNew) return 'new'
+  return null
+}
+
 module.exports = {
   POOL_MAX_LV,
   POOL_ADV_MAX_LV,
@@ -186,6 +222,8 @@ module.exports = {
   getPoolPetMaxStar,
   canLevelUp,
   canStarUp,
+  isLevelGatedByStarUp,
+  computePetPoolBadge,
   ENTRY_LEVEL,
   ENTRY_FRAGMENTS,
   calcRoguelikeSoulStone,

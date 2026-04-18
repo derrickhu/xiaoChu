@@ -5,13 +5,14 @@
 const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetRarity, getPetAvatarPath } = require('../data/pets')
-const { getPoolPetAtk, canLevelUp, canStarUp } = require('../data/petPoolConfig')
+const { getPoolPetAtk, computePetPoolBadge } = require('../data/petPoolConfig')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { rarityVisualForAttr } = require('../data/rewardVisual')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
 const { getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
+const guideMgr = require('../engine/guideManager')
 
 // 属性筛选标签
 const ATTR_FILTERS = [
@@ -34,16 +35,174 @@ const RARITY_FILTERS = [
 const _rects = {
   filterRects: [],        // 属性筛选 [{ key, rect: [x,y,w,h] }]
   rarityFilterRects: [],  // 品质筛选 [{ key, rect: [x,y,w,h] }]
+  chipRects: [],          // 摘要 chip [{ key:'star'|'new'|'level', rect }]
   cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
   backBtnRect: null,      // [x,y,w,h]
   idleBtnRect: null,      // [x,y,w,h]
 }
 
+// ===== 摘要 chip 的视觉规格（分层优先级一一对应卡片角标）=====
+// 业界主流：卡面角标只分两档，卡面负责吸引注意、详情页负责解释。
+// 其余「为什么可推进」的细节全部留到详情页用资源条/按钮态表达，避免语义教学成本。
+const CHIP_STYLES = {
+  star: { label: '⭐', bg: 'rgba(255,180,60,0.92)', border: 'rgba(255,230,150,0.95)', fg: '#5a2d0c', desc: '升星可推进' },
+  new:  { label: 'NEW', bg: 'rgba(230,48,48,0.94)', border: 'rgba(255,205,205,0.95)', fg: '#ffffff', desc: '新入池未查看' },
+}
+
 const _getFilteredPool = _getFilteredPoolUtil
+
+// ===== 统计池内两档角标数量（基于"过滤后"的池，避免跨 Tab 时数量对不上）=====
+function _countBadges(g, pool) {
+  const ss = g.storage.soulStone || 0
+  const aw = g.storage.awakenStone || 0
+  let star = 0, fresh = 0
+  for (const p of pool) {
+    const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(p.id) : false
+    const b = computePetPoolBadge(p, ss, aw, isNew)
+    if (b === 'star') star++
+    else if (b === 'new') fresh++
+  }
+  return { star, new: fresh }
+}
+
+// ===== 摘要 chip 条：聚合可升星 / 新入池 / 卡等级 三档 =====
+function _drawSummaryChips(c, R, S, W, chipY, chipH, g) {
+  _rects.chipRects = []
+  const pool = _getFilteredPool(g)
+  const counts = _countBadges(g, pool)
+
+  // 组装待显示 chip；全 0 时显示"状态整齐"提示条，给玩家正反馈
+  const chips = []
+  if (counts.star > 0) chips.push({ key: 'star', count: counts.star })
+  if (counts.new > 0) chips.push({ key: 'new', count: counts.new })
+
+  c.save()
+  if (chips.length === 0) {
+    c.fillStyle = 'rgba(255,255,255,0.12)'
+    R.rr(12 * S, chipY, W - 24 * S, chipH, chipH / 2); c.fill()
+    c.fillStyle = 'rgba(255,245,200,0.72)'
+    c.font = `${10.5 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('✓ 灵宠状态整齐，暂无紧急操作', W / 2, chipY + chipH / 2)
+    c.restore()
+    return
+  }
+
+  // 先量所有 chip 宽度并居中
+  c.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+  const padX = 10 * S
+  const gap = 8 * S
+  const widths = chips.map(ch => {
+    const st = CHIP_STYLES[ch.key]
+    const text = `${st.label} ${ch.count}`
+    return c.measureText(text).width + padX * 2
+  })
+  const totalW = widths.reduce((a, b) => a + b, 0) + gap * (chips.length - 1)
+  let cx = (W - totalW) / 2
+
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  for (let i = 0; i < chips.length; i++) {
+    const ch = chips[i]
+    const st = CHIP_STYLES[ch.key]
+    const bw = widths[i]
+    const bx = cx
+    const by = chipY
+    // 最高优先级（star）呼吸发光，引导视线
+    if (ch.key === 'star') {
+      const pulse = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin((g.af || 0) * 0.1))
+      c.save()
+      c.globalAlpha = pulse
+      c.fillStyle = st.bg
+      R.rr(bx - 3 * S, by - 3 * S, bw + 6 * S, chipH + 6 * S, (chipH + 6 * S) / 2); c.fill()
+      c.restore()
+    }
+    c.fillStyle = st.bg
+    R.rr(bx, by, bw, chipH, chipH / 2); c.fill()
+    c.strokeStyle = st.border; c.lineWidth = 1.2 * S
+    R.rr(bx, by, bw, chipH, chipH / 2); c.stroke()
+    c.fillStyle = st.fg
+    c.fillText(`${st.label} ${ch.count}`, bx + bw / 2, by + chipH / 2 + 0.5 * S)
+    _rects.chipRects.push({ key: ch.key, rect: [bx, by, bw, chipH] })
+    cx += bw + gap
+  }
+  c.restore()
+}
+
+// ===== 卡片右上角语义角标（star / new / level，只画最高优先级一个） =====
+function _drawCardBadge(c, R, S, x, y, w, badgeKey) {
+  if (!badgeKey) return
+  const st = CHIP_STYLES[badgeKey]
+  if (!st) return
+  c.save()
+  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+  const text = st.label
+  const tw = c.measureText(text).width
+  const padX = 5 * S
+  const bw = tw + padX * 2
+  const bh = 14 * S
+  const bx = x + w - bw - 3 * S
+  const by = y + 3 * S
+
+  // star 呼吸外发光，吸引立即操作
+  if (badgeKey === 'star') {
+    const pulse = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(Date.now() * 0.006))
+    c.save()
+    c.globalAlpha = pulse
+    c.fillStyle = st.bg
+    R.rr(bx - 2 * S, by - 2 * S, bw + 4 * S, bh + 4 * S, (bh + 4 * S) / 2); c.fill()
+    c.restore()
+  }
+  c.fillStyle = st.bg
+  R.rr(bx, by, bw, bh, bh / 2); c.fill()
+  c.strokeStyle = st.border; c.lineWidth = 1 * S
+  R.rr(bx, by, bw, bh, bh / 2); c.stroke()
+  c.fillStyle = st.fg
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(text, bx + bw / 2, by + bh / 2 + 0.5 * S)
+  c.restore()
+}
+
+// ===== 点击 chip 后，循环定位到"下一只该状态的宠物"并短暂高亮 =====
+function _focusNextBadgePet(g, badgeKey) {
+  const pool = _getFilteredPool(g)
+  const ss = g.storage.soulStone || 0
+  const aw = g.storage.awakenStone || 0
+  const indices = []
+  for (let i = 0; i < pool.length; i++) {
+    const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(pool[i].id) : false
+    if (computePetPoolBadge(pool[i], ss, aw, isNew) === badgeKey) indices.push(i)
+  }
+  if (indices.length === 0) return
+  if (!g._petPoolChipCursor) g._petPoolChipCursor = {}
+  const cur = g._petPoolChipCursor[badgeKey] || 0
+  const targetPoolIdx = indices[cur % indices.length]
+  g._petPoolChipCursor[badgeKey] = (cur + 1) % indices.length
+
+  const cols = 3
+  const cardGap = 8 * V.S
+  const cardW = (V.W - 24 * V.S - cardGap * (cols - 1)) / cols
+  const cardH = cardW * 1.35
+  const row = Math.floor(targetPoolIdx / cols)
+  g._petPoolScroll = Math.max(0, row * (cardH + cardGap))
+  g._petPoolHighlight = { petId: pool[targetPoolIdx].id, until: Date.now() + 1600 }
+}
+
+// 小灵「角标系统」首次引导：首次进池、没在指引中、池里有 ⭐ 或 NEW 时触发一次。
+// 条件里要求"看得到"角标（任一档 count>0），否则玩家还感知不到这套视觉，小灵讲了也白讲。
+function _tryTriggerBadgeIntro(g) {
+  if (guideMgr.isActive()) return
+  if (!guideMgr.shouldShow(g, 'pet_pool_badge_intro')) return
+  const pool = g.storage.petPool || []
+  if (pool.length === 0) return
+  const counts = _countBadges(g, pool)
+  if (counts.star <= 0 && counts.new <= 0) return
+  guideMgr.trigger(g, 'pet_pool_badge_intro')
+}
 
 // ===== 主渲染 =====
 function rPetPool(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
+  _tryTriggerBadgeIntro(g)
 
   // 背景：优先使用专属背景图，fallback 到首页背景
   const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
@@ -199,11 +358,16 @@ function rPetPool(g) {
   }
   c.restore()
 
+  // === 摘要 Chip 条（聚合红点数量，点击循环定位）===
+  const chipH = 22 * S
+  const chipY = rarityY + filterH + 6 * S
+  _drawSummaryChips(c, R, S, W, chipY, chipH, g)
+
   // 派遣按钮 rect 占位（实际绘制在卡片网格下方）
   _rects.idleBtnRect = null
 
   // === 卡片网格 ===
-  const gridTop = filterY + filterH + 6 * S + filterH + 8 * S
+  const gridTop = chipY + chipH + 8 * S
   const gridBottom = contentBottom - 78 * S
   const pool = _getFilteredPool(g)
   const cols = 3
@@ -476,20 +640,29 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.fillText(badgeText, x + 5 * S, y + 4 * S)
   c.restore()
 
-  // 可升级/可升星红点（右上角）
+  // 语义角标（star=立即可升星 / new=刚入池未查看 / level=仅差等级即可升星）
+  // 同一卡片只显示最高优先级一个，避免角标堆叠。
   if (g) {
     const ss = g.storage.soulStone || 0
     const aw = g.storage.awakenStone || 0
-    if (canLevelUp(poolPet, ss) || canStarUp(poolPet, aw)) {
-      const dotR = 5 * S
-      const dotX = x + w - 6 * S
-      const dotY = y + 6 * S
-      c.save()
-      c.beginPath()
-      c.arc(dotX, dotY, dotR, 0, Math.PI * 2)
-      c.fillStyle = '#ff4444'; c.fill()
-      c.strokeStyle = '#fff'; c.lineWidth = 1.5 * S; c.stroke()
-      c.restore()
+    const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(poolPet.id) : false
+    const badge = computePetPoolBadge(poolPet, ss, aw, isNew)
+    _drawCardBadge(c, R, S, x, y, w, badge)
+
+    // 摘要 chip 点击后，对目标卡片进行短暂黄色描边高亮
+    const hl = g._petPoolHighlight
+    if (hl && hl.petId === poolPet.id) {
+      const remain = hl.until - Date.now()
+      if (remain > 0) {
+        c.save()
+        const a = 0.45 + 0.35 * Math.sin(Date.now() * 0.012)
+        c.strokeStyle = `rgba(255,235,120,${a})`
+        c.lineWidth = 2.5 * S
+        R.rr(x - 1 * S, y - 1 * S, w + 2 * S, h + 2 * S, 9 * S); c.stroke()
+        c.restore()
+      } else {
+        g._petPoolHighlight = null
+      }
     }
   }
 
@@ -702,6 +875,15 @@ function tPetPool(g, x, y, type) {
       if (g._hitRect(x, y, ...f.rect)) {
         g._petPoolRarityFilter = f.key
         g._petPoolScroll = 0
+        return
+      }
+    }
+
+    // 摘要 chip 点击：循环定位到下一只该状态的宠物
+    for (const chip of _rects.chipRects) {
+      if (g._hitRect(x, y, ...chip.rect)) {
+        _focusNextBadgePet(g, chip.key)
+        MusicMgr.playClick && MusicMgr.playClick()
         return
       }
     }

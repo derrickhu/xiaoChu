@@ -252,15 +252,19 @@ function drawBottomBar(g) {
           ctx.fillStyle = '#ff4444'; ctx.fill()
         }
       }
-      // 灵宠池红点：有宠物可升星/可升级或有派遣可收取时显示
+      // 灵宠池红点：仅在「高优先级」事件上亮——
+      //   1) 有宠物可升星（玩家应立即领取的明确行动）
+      //   2) 有新入池未查看的宠物（NEW）
+      //   3) 派遣有奖励可收取
+      // 移除了「可升级（仅灵石够）」——否则几乎全员常亮红点，失去指示意义。
       if (item.key === 'pets' && !isLocked) {
-        const { canLevelUp, canStarUp } = require('../data/petPoolConfig')
+        const { canStarUp } = require('../data/petPoolConfig')
         const pool = g.storage.petPool || []
-        const ss = g.storage.soulStone || 0
         const aw = g.storage.awakenStone || 0
-        const hasUpgradeable = pool.some(p => canStarUp(p, aw) || canLevelUp(p, ss))
+        const hasStarUp = pool.some(p => canStarUp(p, aw))
+        const hasNewPet = g.storage.hasNewPetInPool && g.storage.hasNewPetInPool()
         const hasIdleReward = g.storage.idleHasReward()
-        if (hasUpgradeable || hasIdleReward) {
+        if (hasStarUp || hasNewPet || hasIdleReward) {
           ctx.globalAlpha = 1
           ctx.beginPath()
           ctx.arc(iconCX + iconSize * 0.42, iconCY - iconSize * 0.38, 4 * S, 0, Math.PI * 2)

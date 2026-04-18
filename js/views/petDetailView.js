@@ -221,6 +221,10 @@ function rPetDetail(g) {
     _panelScrollY = 0
     _expandedRoadmapStar = 0
     _lastShownPetId = petId
+    // 进入详情即视为"已查看"——清掉灵宠池 NEW 角标
+    if (!g._petDetailUnowned && g.storage.markPetPoolSeen) {
+      g.storage.markPetPoolSeen(petId)
+    }
   }
 
   const isUnowned = !!g._petDetailUnowned

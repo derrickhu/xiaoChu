@@ -194,6 +194,15 @@ const GUIDE_DEFS = {
       { text: '下方「派遣修行」点开，\n灵宠会自动修行，定时回来收碎片！', position: 'center', highlightId: 'idle_btn' },
     ],
   },
+  // 灵宠池角标系统引导：首次进池且看到 ⭐ / NEW 时触发一次
+  // 目标：用一句话帮玩家建立"卡面颜色 → 含义"的直觉，具体缺什么留到详情页再看
+  pet_pool_badge_intro: {
+    steps: [
+      { text: '主人看这里～\n金色 ⭐ 的灵宠可以推进升星哦，优先关照它们！', position: 'center' },
+      { text: '红色 NEW 是刚入伙的新伙伴，\n点进去看看它们的身世和本事吧～', position: 'center' },
+      { text: '顶部 ⭐ / NEW 的数字按一下，\n小灵帮主人直接定位到它们～', position: 'center' },
+    ],
+  },
   // 从派遣返回灵宠池后触发
   newbie_after_dispatch: {
     steps: [
