@@ -20,12 +20,15 @@ const { drawSeparator, drawGoldBtn } = require('./uiUtils')
 const gameToast = require('./gameToast')
 const { pickBestPresetCached, RECOMMEND_MIN_SCORE } = require('../engine/presetScorer')
 const guideMgr = require('../engine/guideManager')
+const goalHint = require('./goalHintView')
 
 const _rects = {
   backBtnRect: null,
   startBtnRect: null,
   editTeamBtnRect: null,
   recommendApplyRect: null, // 本关推荐预设「一键应用」按钮命中区
+  goalBarRect: null,        // 顶部章节目标条（整条可点）
+  goalBarBtnRect: null,     // 顶部章节目标条右侧"章节主线 ›"按钮
   petSlotRects: [],   // [{petId, rect}]
   enemyRects: [],
 }
@@ -210,6 +213,23 @@ function rStageInfo(g) {
 
   c.restore()
   cy += 40 * S
+
+  // ── 顶部目标条：章节进度 bar + 下一档奖励 icon + "查看章节主线 ›" ──
+  //   · 设计意图（plan E2）：比奖励区"预告"更高可见性，让玩家在点击"出战"前一眼看到本章目标
+  //   · 整条 bar 本身可点击跳转 chapterMap；右侧按钮也接相同动作，命中范围更友好
+  {
+    const gbarW = contentW
+    const gbarX = px
+    goalHint.drawGoalBar(c, R, S, gbarX, cy, gbarW, {
+      storage: g.storage,
+      chapterId: stage.chapter,
+      onRegisterRect: ({ btnRect, barRect }) => {
+        _rects.goalBarRect = barRect
+        _rects.goalBarBtnRect = btnRect
+      },
+    })
+    cy += 46 * S + 6 * S
+  }
 
   // ── 关卡编号 + 标题（先显示 章-关，再显示关卡名） ──
   c.textAlign = 'center'; c.textBaseline = 'middle'
@@ -763,6 +783,16 @@ function tStageInfo(g, x, y, type) {
   // 返回
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g.setScene('title')
+    return
+  }
+
+  // 顶部目标条：按钮优先、整条兜底，均跳章节主线页
+  if (_rects.goalBarBtnRect && g._hitRect(x, y, ..._rects.goalBarBtnRect)) {
+    g.setScene('chapterMap')
+    return
+  }
+  if (_rects.goalBarRect && g._hitRect(x, y, ..._rects.goalBarRect)) {
+    g.setScene('chapterMap')
     return
   }
 

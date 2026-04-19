@@ -21,7 +21,7 @@ const { TEAM_PRESET_MAX } = require('../data/constants')
 
 // 预设相关引导：
 //   · team_preset_intro：首次进编队页就讲，让玩家知道 tab 的用法
-//   · team_preset_unlock：看到 🔒 tab 时讲，告诉他可以看广告解锁
+//   · team_preset_unlock：看到 🔒 tab 时只讲「锁 = 未解锁」，不引导看广告
 // 两条只触发一次（guideMgr 内置已看过标记）
 function _tryTriggerPresetGuides(g) {
   if (guideMgr.isActive()) return

@@ -18,6 +18,8 @@ const petPoolView = require('./views/petPoolView')
 const petDetailView = require('./views/petDetailView')
 const weaponPoolView = require('./views/weaponPoolView')
 const stageInfoView = require('./views/stageInfoView')
+const chapterMapView = require('./views/chapterMapView')
+const weaponTicketView = require('./views/weaponTicketView')
 const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
 const towerVictoryView = require('./views/towerVictoryView')
@@ -802,6 +804,8 @@ class Main {
       case 'weaponPool': weaponPoolView.rWeaponPool(this); break
       case 'petDetail': petDetailView.rPetDetail(this); break
       case 'stageInfo': stageInfoView.rStageInfo(this); break
+      case 'chapterMap': chapterMapView.rChapterMap(this); break
+      case 'weaponTicket': weaponTicketView.rWeaponTicket(this); break
       case 'stageTeam': stageTeamView.rStageTeam(this); break
       case 'stageResult': stageResultView.rStageResult(this); break
       case 'towerVictory': towerVictoryView.rTowerVictory(this); break
@@ -923,6 +927,8 @@ class Main {
       case 'weaponPool': weaponPoolView.tWeaponPool(this,x,y,type); break
       case 'petDetail': petDetailView.tPetDetail(this,x,y,type); break
       case 'stageInfo': stageInfoView.tStageInfo(this,x,y,type); break
+      case 'chapterMap': chapterMapView.tChapterMap(this,x,y,type); break
+      case 'weaponTicket': weaponTicketView.tWeaponTicket(this,x,y,type); break
       case 'stageTeam': stageTeamView.tStageTeam(this,x,y,type); break
       case 'stageResult': stageResultView.tStageResult(this,x,y,type); break
       case 'towerVictory': towerVictoryView.tTowerVictory(this,x,y,type); break

@@ -44,9 +44,12 @@ const _rects = {
 // ===== 摘要 chip 的视觉规格（分层优先级一一对应卡片角标）=====
 // 业界主流：卡面角标只分两档，卡面负责吸引注意、详情页负责解释。
 // 其余「为什么可推进」的细节全部留到详情页用资源条/按钮态表达，避免语义教学成本。
+// · chipLabel：chip 条上（底部聚合条 + 卡片角标用不同长度，角标要短到能放进卡右上）
+// · cardLabel：卡片右上角的文字；业界主流「AFK / 原神 / 明日方舟」都用 2-3 字中文提示可操作
+// 可升星文字颜色与星星一致（STAR_VISUAL[2/3].color = '#ffd700'），视觉风格统一
 const CHIP_STYLES = {
-  star: { label: '⭐', bg: 'rgba(255,180,60,0.92)', border: 'rgba(255,230,150,0.95)', fg: '#5a2d0c', desc: '升星可推进' },
-  new:  { label: 'NEW', bg: 'rgba(230,48,48,0.94)', border: 'rgba(255,205,205,0.95)', fg: '#ffffff', desc: '新入池未查看' },
+  star: { chipLabel: '⭐ 可升星', cardLabel: '可升星', bg: 'rgba(255,180,60,0.96)', border: 'rgba(255,235,160,0.98)', fg: '#5a2d0c', textColor: '#ffd700', desc: '升星可推进' },
+  new:  { chipLabel: 'NEW',     cardLabel: 'NEW',    bg: 'rgba(230,48,48,0.94)', border: 'rgba(255,205,205,0.95)', fg: '#ffffff', textColor: '#ffffff', desc: '新入池未查看' },
 }
 
 const _getFilteredPool = _getFilteredPoolUtil
@@ -55,10 +58,11 @@ const _getFilteredPool = _getFilteredPoolUtil
 function _countBadges(g, pool) {
   const ss = g.storage.soulStone || 0
   const aw = g.storage.awakenStone || 0
+  const uf = g.storage.universalFragment || 0
   let star = 0, fresh = 0
   for (const p of pool) {
     const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(p.id) : false
-    const b = computePetPoolBadge(p, ss, aw, isNew)
+    const b = computePetPoolBadge(p, ss, aw, isNew, uf)
     if (b === 'star') star++
     else if (b === 'new') fresh++
   }
@@ -94,7 +98,7 @@ function _drawSummaryChips(c, R, S, W, chipY, chipH, g) {
   const gap = 8 * S
   const widths = chips.map(ch => {
     const st = CHIP_STYLES[ch.key]
-    const text = `${st.label} ${ch.count}`
+    const text = `${st.chipLabel} ${ch.count}`
     return c.measureText(text).width + padX * 2
   })
   const totalW = widths.reduce((a, b) => a + b, 0) + gap * (chips.length - 1)
@@ -121,21 +125,24 @@ function _drawSummaryChips(c, R, S, W, chipY, chipH, g) {
     c.strokeStyle = st.border; c.lineWidth = 1.2 * S
     R.rr(bx, by, bw, chipH, chipH / 2); c.stroke()
     c.fillStyle = st.fg
-    c.fillText(`${st.label} ${ch.count}`, bx + bw / 2, by + chipH / 2 + 0.5 * S)
+    c.fillText(`${st.chipLabel} ${ch.count}`, bx + bw / 2, by + chipH / 2 + 0.5 * S)
     _rects.chipRects.push({ key: ch.key, rect: [bx, by, bw, chipH] })
     cx += bw + gap
   }
   c.restore()
 }
 
-// ===== 卡片右上角语义角标（star / new / level，只画最高优先级一个） =====
+// ===== 卡片右上角语义角标（star / new，只画最高优先级一个） =====
+//   · star：金色"可升星"纯文字 + 透明描边底 + 文字本体 alpha 呼吸闪烁（与星星同金）
+//   · new ：红色胶囊（醒目提示"新"）
+//   · 业界参考：AFK 的"可突破"提示就是卡角金字闪烁，不再在卡面加描边/扫光，避免视觉噪声
 function _drawCardBadge(c, R, S, x, y, w, badgeKey) {
   if (!badgeKey) return
   const st = CHIP_STYLES[badgeKey]
   if (!st) return
   c.save()
-  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
-  const text = st.label
+  c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+  const text = st.cardLabel
   const tw = c.measureText(text).width
   const padX = 5 * S
   const bw = tw + padX * 2
@@ -143,22 +150,29 @@ function _drawCardBadge(c, R, S, x, y, w, badgeKey) {
   const bx = x + w - bw - 3 * S
   const by = y + 3 * S
 
-  // star 呼吸外发光，吸引立即操作
   if (badgeKey === 'star') {
-    const pulse = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(Date.now() * 0.006))
-    c.save()
+    // 半透明深色底衬托，保证在任意宠物插画上金字都能看清
+    c.fillStyle = 'rgba(0,0,0,0.42)'
+    R.rr(bx, by, bw, bh, bh / 2); c.fill()
+    // 文字层：金色 + alpha 呼吸（0.55 ↔ 1.0）
+    const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() * 0.006))
     c.globalAlpha = pulse
+    c.fillStyle = st.textColor
+    c.strokeStyle = 'rgba(0,0,0,0.85)'
+    c.lineWidth = 2.2 * S
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.strokeText(text, bx + bw / 2, by + bh / 2 + 0.5 * S)
+    c.fillText(text, bx + bw / 2, by + bh / 2 + 0.5 * S)
+  } else {
+    // new：保持红色胶囊强提示
     c.fillStyle = st.bg
-    R.rr(bx - 2 * S, by - 2 * S, bw + 4 * S, bh + 4 * S, (bh + 4 * S) / 2); c.fill()
-    c.restore()
+    R.rr(bx, by, bw, bh, bh / 2); c.fill()
+    c.strokeStyle = st.border; c.lineWidth = 1 * S
+    R.rr(bx, by, bw, bh, bh / 2); c.stroke()
+    c.fillStyle = st.fg
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(text, bx + bw / 2, by + bh / 2 + 0.5 * S)
   }
-  c.fillStyle = st.bg
-  R.rr(bx, by, bw, bh, bh / 2); c.fill()
-  c.strokeStyle = st.border; c.lineWidth = 1 * S
-  R.rr(bx, by, bw, bh, bh / 2); c.stroke()
-  c.fillStyle = st.fg
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(text, bx + bw / 2, by + bh / 2 + 0.5 * S)
   c.restore()
 }
 
@@ -167,10 +181,11 @@ function _focusNextBadgePet(g, badgeKey) {
   const pool = _getFilteredPool(g)
   const ss = g.storage.soulStone || 0
   const aw = g.storage.awakenStone || 0
+  const uf = g.storage.universalFragment || 0
   const indices = []
   for (let i = 0; i < pool.length; i++) {
     const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(pool[i].id) : false
-    if (computePetPoolBadge(pool[i], ss, aw, isNew) === badgeKey) indices.push(i)
+    if (computePetPoolBadge(pool[i], ss, aw, isNew, uf) === badgeKey) indices.push(i)
   }
   if (indices.length === 0) return
   if (!g._petPoolChipCursor) g._petPoolChipCursor = {}
@@ -435,6 +450,15 @@ function rPetPool(g) {
   }
   c.restore()
 
+  // 导出精确滚动上限给 tPetPool 使用（替代旧 V.H*0.5 粗估）
+  //   · 内容高 = (普通 + 幽灵) 全部行 × (cardH + gap) + 顶部 gap
+  //   · 可视高 = gridBottom - gridTop（已避开 chip 条 / idle 按钮 / 底栏）
+  const totalGridRows = Math.ceil((pool.length + ghostPets.length) / cols)
+  const contentHForScroll = totalGridRows * (cardH + cardGap) + cardGap
+  const viewHForScroll = gridBottom - gridTop
+  g._petPoolScrollMax = Math.max(0, contentHForScroll - viewHForScroll)
+  if ((g._petPoolScroll || 0) > g._petPoolScrollMax) g._petPoolScroll = g._petPoolScrollMax
+
   // === 派遣大按钮（卡片区下方，底栏上方） ===
   const hasIdleReward = g.storage.idleHasReward()
   const idleBtnW = W - 48 * S
@@ -645,8 +669,9 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   if (g) {
     const ss = g.storage.soulStone || 0
     const aw = g.storage.awakenStone || 0
+    const uf = g.storage.universalFragment || 0
     const isNew = g.storage.isPetNewInPool ? g.storage.isPetNewInPool(poolPet.id) : false
-    const badge = computePetPoolBadge(poolPet, ss, aw, isNew)
+    const badge = computePetPoolBadge(poolPet, ss, aw, isNew, uf)
     _drawCardBadge(c, R, S, x, y, w, badge)
 
     // 摘要 chip 点击后，对目标卡片进行短暂黄色描边高亮
@@ -809,13 +834,9 @@ function tPetPool(g, x, y, type) {
     if (_scrolling) {
       g._petPoolScroll = Math.max(0, (g._petPoolScroll || 0) + dy)
       _scrollTouchY = y
-      // 限制最大滚动（粗略估算）
-      const pool = _getFilteredPool(g)
-      const cols = 3
-      const cardW = (V.W - 24 * S - 8 * S * 2) / cols
-      const cardH = cardW * 1.35
-      const totalRows = Math.ceil(pool.length / cols)
-      const maxScroll = Math.max(0, totalRows * (cardH + 8 * S) - (V.H * 0.5))
+      // 滚动上限：由渲染端 rPetPool 根据"网格实际内容高 - 可视区高"精确算出写入 g._petPoolScrollMax
+      //   · 老版本用 V.H*0.5 粗估 → 底部最后一行 + SSR 收集条滚不到（玩家反馈）
+      const maxScroll = g._petPoolScrollMax || 0
       g._petPoolScroll = Math.min(g._petPoolScroll, maxScroll)
     }
     return

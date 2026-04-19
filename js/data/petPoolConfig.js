@@ -154,8 +154,10 @@ function canLevelUp(poolPet, soulStone) {
 
 /**
  * 判断灵宠是否可升星（碎片、等级、觉醒石全部满足）
+ *   · universalFragment：万能碎片可无损替代本宠碎片（详情页升星按钮的判定口径）
+ *     老版本只看本宠碎片 → 出现"详情页可点，但池子卡片上无⭐徽章"的不一致（玩家反馈）
  */
-function canStarUp(poolPet, awakenStone) {
+function canStarUp(poolPet, awakenStone, universalFragment) {
   if (!poolPet) return false
   const nextStar = (poolPet.star || 1) + 1
   const maxStar = getPoolPetMaxStar(poolPet)
@@ -163,16 +165,20 @@ function canStarUp(poolPet, awakenStone) {
   const fragCost = POOL_STAR_FRAG_COST[nextStar]
   const lvReq = POOL_STAR_LV_REQ[nextStar]
   if (!fragCost || !lvReq) return false
-  if (poolPet.fragments < fragCost || poolPet.level < lvReq) return false
+  const fragOwn = (poolPet.fragments || 0) + (universalFragment || 0)
+  if (fragOwn < fragCost || poolPet.level < lvReq) return false
   const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
   return awakenCost === 0 || (awakenStone || 0) >= awakenCost
 }
 
 /**
- * 判断"仅差等级即可升星"——碎片/觉醒石都够、等级不足，且灵石还足以升至少 1 级。
- * 作为"Lv↑"红点条件：只在宠物卡在升星门槛的等级差上时才亮，避免"谁都能升一级"的红点泛滥。
+ * 判断"仅差等级即可升星"——碎片/觉醒石都够、等级不足，且灵石足以**一路升到 lvReq**。
+ * 作为卡片"可升星"徽章条件之一：业界通用口径——亮灯意味着玩家点进去一键就能完成升星，
+ * 而不是"碎片够但灵石只够升 1/7 级，还差一堆灵石"这种伪推进（玩家反馈）。
+ *   · 碎片口径同 canStarUp：本宠碎片 + 万能碎片都算
+ *   · 灵石口径：accum(exp[lv]) from cur → lvReq-1，整条升级链的灵石总和 <= soulStone
  */
-function isLevelGatedByStarUp(poolPet, awakenStone, soulStone) {
+function isLevelGatedByStarUp(poolPet, awakenStone, soulStone, universalFragment) {
   if (!poolPet) return false
   const nextStar = (poolPet.star || 1) + 1
   const maxStar = getPoolPetMaxStar(poolPet)
@@ -180,14 +186,22 @@ function isLevelGatedByStarUp(poolPet, awakenStone, soulStone) {
   const fragCost = POOL_STAR_FRAG_COST[nextStar]
   const lvReq = POOL_STAR_LV_REQ[nextStar]
   if (!fragCost || !lvReq) return false
-  if ((poolPet.fragments || 0) < fragCost) return false
+  const fragOwn = (poolPet.fragments || 0) + (universalFragment || 0)
+  if (fragOwn < fragCost) return false
   const awakenCost = (nextStar >= 4 && POOL_STAR_AWAKEN_COST[nextStar]) || 0
   if (awakenCost > 0 && (awakenStone || 0) < awakenCost) return false
-  if ((poolPet.level || 0) >= lvReq) return false
+  const curLv = poolPet.level || 0
+  if (curLv >= lvReq) return false
   const maxLv = getPoolPetMaxLv(poolPet)
-  if ((poolPet.level || 0) >= maxLv) return false
+  if (curLv >= maxLv) return false
   const rarity = getPetRarity(poolPet.id)
-  return (soulStone || 0) >= petExpToNextLevel(poolPet.level, rarity)
+  const ss = soulStone || 0
+  let cost = 0
+  for (let lv = curLv; lv < lvReq; lv++) {
+    cost += petExpToNextLevel(lv, rarity)
+    if (cost > ss) return false
+  }
+  return true
 }
 
 /**
@@ -195,11 +209,12 @@ function isLevelGatedByStarUp(poolPet, awakenStone, soulStone) {
  *   star：「升星链路可推进」——已能升星 或 仅差等级（但当前灵石够升级）
  *   new：刚入池未查看过
  * 仅返回最高优先级一个。star > new > null。
+ *   · universalFragment：计入万能碎片口径，和详情页升星按钮一致
  */
-function computePetPoolBadge(poolPet, soulStone, awakenStone, isNew) {
+function computePetPoolBadge(poolPet, soulStone, awakenStone, isNew, universalFragment) {
   if (!poolPet) return null
-  if (canStarUp(poolPet, awakenStone)) return 'star'
-  if (isLevelGatedByStarUp(poolPet, awakenStone, soulStone)) return 'star'
+  if (canStarUp(poolPet, awakenStone, universalFragment)) return 'star'
+  if (isLevelGatedByStarUp(poolPet, awakenStone, soulStone, universalFragment)) return 'star'
   if (isNew) return 'new'
   return null
 }

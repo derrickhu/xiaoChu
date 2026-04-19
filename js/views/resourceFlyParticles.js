@@ -11,12 +11,32 @@ function _easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3)
 }
 
+/**
+ * 把任意 reward 归一化成"要飞的 icon 项"
+ *
+ * 支持两种格式，避免散点各自写 if-else：
+ *   A) 老格式（recordShare 返回）：{ soulStone, stamina, fragment }
+ *   B) 新格式（章节里程碑、关卡结算）：{ type, amount/count }
+ *      · 新增 awakenStone / weaponTicket / ssrFragment 映射
+ *      · weaponTicket 无独立 icon，复用 icon_universal_frag 作"领到新东西"的代表飞效
+ *        （搭配后续 toast 给文字说明，玩家能意识到"有奖励到手"）
+ */
 function _itemsFromReward(reward) {
   const items = []
   if (!reward) return items
+  // 老格式
   if (reward.soulStone) items.push({ icon: 'assets/ui/icon_soul_stone.png' })
   if (reward.stamina) items.push({ icon: 'assets/ui/icon_stamina.png' })
-  if (reward.fragment) items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  if (reward.fragment && !reward.type) items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  // 新格式（type 驱动）
+  if (reward.type === 'soulStone')         items.push({ icon: 'assets/ui/icon_soul_stone.png' })
+  if (reward.type === 'stamina')           items.push({ icon: 'assets/ui/icon_stamina.png' })
+  if (reward.type === 'awakenStone')       items.push({ icon: 'assets/ui/icon_awaken_stone.png' })
+  if (reward.type === 'universalFragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  if (reward.type === 'ssrFragment' || reward.type === 'fragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  if (reward.type === 'weaponTicket')      items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  // SSR 法宝（章节 24★ 里程碑直接发放）：与首页底栏「法宝」Tab 同款 nav_weapon
+  if (reward.type === 'ssrWeapon')         items.push({ icon: 'assets/ui/nav_weapon.png' })
   return items
 }
 

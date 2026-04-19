@@ -21,20 +21,55 @@ const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
 const ELITE_MULTIPLIERS = STAGE_ELITE_MULTIPLIERS
 
+/**
+ * 章节元信息（含主题色、副标题、徽章 key）
+ *
+ * 字段说明：
+ *   - theme:   主题色 hex（用于首页章节带背景、章节主线页卡片基色、里程碑高亮）
+ *   - subtitle: 章节副标题（章节主线页用，做"氛围感"标题第二行）
+ *   - bannerKey: 章节 banner 资源 key（暂用 null，后续美术接 assets/ui/chapter_banners/）
+ *   - badgeKey: 章节徽章 icon key（对应 assets/ui/badges/badge_ch{N}.png）
+ *
+ * 主题色选取原则：按"章节属性意境 + 主线色相渐变"（1→12 冷 → 暖 → 紫）调色，
+ * 避免相邻章节色相过近造成首页章节带切换不明显。
+ */
+// 说明：badgeKey 暂置 null —— 12 个章节徽章 icon 尚未交付美术，
+//   视图侧（chapterMapView._drawCardBadge）已内置 🏅 金色圆形占位 fallback，
+//   美术资源到位后，将对应行的 badgeKey 改回 'badge_ch<N>' 并把图片放到 assets/ui/badges/ 即可。
+//   （assets/ui/* 属 bundled 目录，路径不存在时 R.getImg → ENOENT，所以字段必须先留空）
 const CHAPTERS = [
-  { id: 1,  name: '灵山试炼', desc: '灵山脚下，试炼开始' },
-  { id: 2,  name: '幽冥秘境', desc: '幽暗深处，危机四伏' },
-  { id: 3,  name: '天劫雷域', desc: '九天雷劫，唯强者渡' },
-  { id: 4,  name: '仙灵古域', desc: '上古遗境，灵气纵横' },
-  { id: 5,  name: '万妖禁地', desc: '妖族圣域，群妖争锋' },
-  { id: 6,  name: '苍穹裂谷', desc: '天裂之地，元气激荡' },
-  { id: 7,  name: '精英试炼', desc: '百炼成钢，精英崛起' },
-  { id: 8,  name: '九幽深渊', desc: '深渊尽头，暗流涌动' },
-  { id: 9,  name: '太古战场', desc: '上古遗迹，神魔余威' },
-  { id: 10, name: '天罡圣域', desc: '天罡之境，气贯九霄' },
-  { id: 11, name: '混沌秘界', desc: '混沌初开，法则崩坏' },
-  { id: 12, name: '终焉之地', desc: '万妖之巅，终极对决' },
+  { id: 1,  name: '灵山试炼',   desc: '灵山脚下，试炼开始', subtitle: '初心踏入灵山',   theme: '#7ec4a8', bannerKey: null, badgeKey: null },
+  { id: 2,  name: '幽冥秘境',   desc: '幽暗深处，危机四伏', subtitle: '幽影藏刀的低谷', theme: '#5b7aa8', bannerKey: null, badgeKey: null },
+  { id: 3,  name: '天劫雷域',   desc: '九天雷劫，唯强者渡', subtitle: '雷光为冠的境域', theme: '#9e8fd8', bannerKey: null, badgeKey: null },
+  { id: 4,  name: '仙灵古域',   desc: '上古遗境，灵气纵横', subtitle: '古道氤氲的仙途', theme: '#6ca6c4', bannerKey: null, badgeKey: null },
+  { id: 5,  name: '万妖禁地',   desc: '妖族圣域，群妖争锋', subtitle: '妖潮翻涌的禁地', theme: '#c4864f', bannerKey: null, badgeKey: null },
+  { id: 6,  name: '苍穹裂谷',   desc: '天裂之地，元气激荡', subtitle: '天裂之上的余辉', theme: '#d0a868', bannerKey: null, badgeKey: null },
+  { id: 7,  name: '精英试炼',   desc: '百炼成钢，精英崛起', subtitle: '剑锋指向的试炼', theme: '#c26b6b', bannerKey: null, badgeKey: null },
+  { id: 8,  name: '九幽深渊',   desc: '深渊尽头，暗流涌动', subtitle: '九幽深处的低语', theme: '#6a4d7a', bannerKey: null, badgeKey: null },
+  { id: 9,  name: '太古战场',   desc: '上古遗迹，神魔余威', subtitle: '太古余威未散',   theme: '#8a4d4a', bannerKey: null, badgeKey: null },
+  { id: 10, name: '天罡圣域',   desc: '天罡之境，气贯九霄', subtitle: '天罡气贯九霄',   theme: '#c8a94a', bannerKey: null, badgeKey: null },
+  { id: 11, name: '混沌秘界',   desc: '混沌初开，法则崩坏', subtitle: '混沌初开之境',   theme: '#8a5ec0', bannerKey: null, badgeKey: null },
+  { id: 12, name: '终焉之地',   desc: '万妖之巅，终极对决', subtitle: '万妖之巅终对决', theme: '#b84f7a', bannerKey: null, badgeKey: null },
 ]
+
+/**
+ * 法宝投放策略：只在**章末 Boss（ord===8）**的普通/精英关发放法宝，
+ * 其余 14 关（含精英）把原本"每关一件法宝"的名额折算为灵石 +20 + 随机碎片 ×3。
+ *
+ * 背景：在"每关一件法宝"时代，主线 192 关会产出 192 次法宝投放，
+ *       玩家只能装备 1 件，SSR 很快满仓变白菜，稀缺性崩坏。
+ *       改为只在章末给 → 主线 24 件 + 里程碑保底券，每件都在"大关"场景拿到，
+ *       稀缺感回归，章末仪式感增强（见 plan A 节）。
+ *
+ * v2 "Day1 经济温和收紧"：soulStone 50 → 20。
+ *   · 玩家 Day1 推到 4-4 时要走过 25 个非 Boss 关，50×25=1250 灵石纯靠这条常量堆出
+ *   · 它原本是"每关掉一件法宝"的数值占位，单次体验很微弱，削减到 20 不会让玩家感知到
+ *   · 真正的爆点还在 Boss 关直接发法宝 + 章节 24★ 发 SSR 法宝两条主链
+ */
+const NON_BOSS_WEAPON_SUBSTITUTE = {
+  soulStone: 20,
+  fragmentCount: 3,
+}
 
 function mkRewards(ch, ord, diff, petId, weaponId, exp, repExp) {
   const idx = ord - 1
@@ -46,14 +81,27 @@ function mkRewards(ch, ord, diff, petId, weaponId, exp, repExp) {
   } else {
     firstClear.push({ type: 'randomPet', chapter: ch, order: ord, difficulty: diff })
   }
-  if (weaponId) {
-    firstClear.push({ type: 'weapon', weaponId })
+  const isBossStage = ord === 8
+  let soulStoneFirstBonus = 0
+  if (isBossStage) {
+    if (weaponId) {
+      firstClear.push({ type: 'weapon', weaponId })
+    } else {
+      firstClear.push({ type: 'randomWeapon', chapter: ch, order: ord, difficulty: diff })
+    }
   } else {
-    firstClear.push({ type: 'randomWeapon', chapter: ch, order: ord, difficulty: diff })
+    // 折算：额外碎片 ×3（随机宠物）+ 灵石 +50（合并到最终 soulStone 条目里，避免两条 soulStone）
+    soulStoneFirstBonus = NON_BOSS_WEAPON_SUBSTITUTE.soulStone
+    firstClear.push({
+      type: 'fragment',
+      target: 'random_all',
+      count: NON_BOSS_WEAPON_SUBSTITUTE.fragmentCount,
+      weaponSubstitute: true, // 结算展示时可区分"代替法宝的碎片"（暂未单独 UI，保留字段）
+    })
   }
   firstClear.push(
     { type: 'exp', amount: exp },
-    { type: 'soulStone', amount: STAGE_REWARDS[ch][diff].soulStone.first[idx] },
+    { type: 'soulStone', amount: STAGE_REWARDS[ch][diff].soulStone.first[idx] + soulStoneFirstBonus },
   )
   return {
     firstClear,
@@ -508,6 +556,14 @@ function formatRankStageProgressSubtitle(item) {
  * 实际开战所需上阵人数：关卡下限、全局编队下限、灵宠池数量三者取合理交集。
  * 池子不足 3 只时，降为「至多能选几只就选几只」即可开战。
  */
+/**
+ * 根据章节 id 查章节元信息（含 theme/subtitle/bannerKey/badgeKey）
+ * 找不到返回 null；上层取完可放心做 name/theme 读取
+ */
+function getChapterById(chapterId) {
+  return CHAPTERS.find(c => c.id === chapterId) || null
+}
+
 function getEffectiveStageTeamMin(storage, stage) {
   if (!stage || !stage.teamSize) return 1
   const smin = stage.teamSize.min
@@ -523,6 +579,7 @@ module.exports = {
   CHAPTER_RECOMMENDED,
   RATING_ORDER,
   getStageById,
+  getChapterById,
   getChapterStages,
   isChapterUnlocked,
   isStageUnlocked,

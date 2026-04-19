@@ -233,6 +233,13 @@ function tTitle(g, type, x, y) {
     return
   }
 
+  // ④a 秘境关卡副标题（章节名 · 关卡名 ›）点击 → 章节主线页
+  //   · 方案 A 合并版后：原独立 chip 已去掉，副标题并入章节名；命中区由 titleView 写入 g._chapterBandRect
+  if (isStageMode && g._chapterBandRect && g._hitRect(x, y, ...g._chapterBandRect)) {
+    g.setScene('chapterMap')
+    return
+  }
+
   // ④a 难度 Tab 切换
   if (isStageMode) {
     if (g._diffTabNormalRect && g._hitRect(x, y, ...g._diffTabNormalRect) && g._stageDifficulty !== 'normal') {

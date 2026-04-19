@@ -213,11 +213,10 @@ const GUIDE_DEFS = {
       { text: '保存后我会按你的阵容\n自动起个名（金系队、五行齐队…），\n不用操心起名~', position: 'center' },
     ],
   },
-  // 预设编队：第一次看到 🔒 tab 时触发，帮玩家理解"看广告解锁"这个入口
+  // 预设编队：第一次看到 🔒 tab 时触发，只说明「锁 = 未解锁」，不教看广告（玩家自行探索）
   team_preset_unlock: {
     steps: [
       { text: '主人，锁着的 tab 是还没解锁的预设槽位～', position: 'center' },
-      { text: '看一段短广告就能再解锁一套，\n最多能养到 5 套阵容方便切换哦', position: 'center' },
     ],
   },
   // 预设编队：stageInfo 首次出现"本关推荐 · 预设 X"提示条时触发
@@ -225,6 +224,16 @@ const GUIDE_DEFS = {
     steps: [
       { text: '主人，小灵帮你扫过本关的弱点～\n这一套预设打起来更占便宜哦', position: 'center' },
       { text: '点「一键应用」就能马上换成这套出发～', position: 'center' },
+    ],
+  },
+  // 章节主线页：首次进入时触发
+  // 目标：告诉玩家"章节里程碑 + 徽章"在哪、怎么领、为什么老号可能看起来是 0
+  chapter_map_intro: {
+    steps: [
+      { text: '主人看这里～\n这里是本章主线，Boss 剪影就是章末守关的家伙', position: 'center' },
+      { text: '每满 8 / 16 / 24 ★ 会解锁一档大奖，\n里面有觉醒石、SSR 碎片和保底券哦', position: 'center' },
+      { text: '全 3 ★ 通关本章还会点亮专属徽章，\n收集 12 章徽章就是修仙纪念册啦～', position: 'center' },
+      { text: '本版本起新通关的星才会累计进度，\n老主人可以回头把低关刷成 3★ 一次性拿大奖哦', position: 'center' },
     ],
   },
   // 从派遣返回灵宠池后触发
@@ -248,6 +257,10 @@ function shouldShow(g, guideId) {
 
 function trigger(g, guideId, highlight) {
   if (!shouldShow(g, guideId)) return false
+  // 防重复入队：调用方若在「每帧 render」里 trigger，会把队列塞满同 id，
+  // 点完一整轮 markGuideShown 后 _dequeue 会立即播放下一条 → 表现为小灵死循环
+  if (_currentGuide && _currentGuide.id === guideId) return false
+  if (_queue.some((item) => item.id === guideId)) return false
   _queue.push({ id: guideId, highlight })
   if (!_currentGuide) _dequeue(g)
   return true

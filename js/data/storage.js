@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 23
+const CURRENT_VERSION = 25
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -83,7 +83,12 @@ function defaultPersist() {
     },
     // Phase 3：固定关卡
     stageClearRecord: {},    // { 'stage_1_1': { cleared, bestRating, clearCount, starsClaimed:[bool,bool,bool] } }
-    chapterStarMilestones: {},  // { 1: [false,false,false], ... } 对应 5★/10★/15★
+    // 章节星级里程碑领取标记：{ [chapterId]: { 8: bool, 16: bool, 24: bool } }
+    //   阈值含义见 chapterMilestoneConfig.MILESTONE_TIERS（8/16/24 星）
+    //   老字段形态可能是 [bool,bool,bool] 数组（v11 预留但未接线），v23→v24 迁移时转换
+    chapterStarMilestones: {},
+    chapterBadges: {},             // 章节徽章：{ [chapterId]: bool } 章节全 3★ 解锁
+    weaponWildcardTickets: 0,      // SSR 法宝定向保底券数量（24★ 里程碑发放）
     dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
     savedStageTeam: [],      // 持久化保存的"当前编队"（灵宠ID列表；战斗引擎从这里读）
     // ===== 预设编队（秘境/塔共用；默认 2 套，看广告解锁到 TEAM_PRESET_MAX） =====
@@ -354,6 +359,58 @@ const migrations = {
       }
       if (d.equippedWeaponId) first.weaponId = d.equippedWeaponId
     }
+  },
+  // v23→v24：章节星级里程碑正式接线 + 徽章 + SSR 法宝保底券
+  //   · chapterStarMilestones 老字段（v11 预留未用）若为旧数组形态 [bool,bool,bool]
+  //     转换为 { 8, 16, 24 } 对象形态；老数据的阈值（5/10/15）不做回溯补发
+  //     （plan 四节"老玩家不补发"明确决策）
+  //   · 新增 chapterBadges / weaponWildcardTickets 字段
+  23: (d) => {
+    if (!d.chapterStarMilestones || typeof d.chapterStarMilestones !== 'object') {
+      d.chapterStarMilestones = {}
+    } else {
+      for (const ch of Object.keys(d.chapterStarMilestones)) {
+        const v = d.chapterStarMilestones[ch]
+        if (Array.isArray(v)) {
+          // 老字段（5/10/15★ 语义），按"不补发"原则直接丢弃，置空对象
+          d.chapterStarMilestones[ch] = {}
+        }
+      }
+    }
+    if (!d.chapterBadges || typeof d.chapterBadges !== 'object') d.chapterBadges = {}
+    if (typeof d.weaponWildcardTickets !== 'number') d.weaponWildcardTickets = 0
+  },
+  // v24→v25：SSR 法宝现货化
+  //   · 旧设计：24★ 发"法宝保底券"，玩家去专门兑换页自己挑一件 SSR
+  //   · 新设计：24★ 直接随机发放一件未拥有的 SSR；玩家反馈"券找不到兑换页 UX 差"
+  //   · 迁移策略：把旧券逐张自动兑换成随机未拥有 SSR 法宝；全拥有走兜底 → 每张 60 万能碎片
+  //   · 保证升级后玩家不会"券数 > 0 但没有入口"
+  24: (d) => {
+    const tickets = d.weaponWildcardTickets || 0
+    if (tickets <= 0) {
+      d.weaponWildcardTickets = 0
+      return
+    }
+    const { WEAPON_RARITY } = require('./weapons')
+    const ssrIds = WEAPON_RARITY.SSR || []
+    if (!Array.isArray(d.weaponCollection)) d.weaponCollection = []
+    let granted = 0
+    let fallbackFrag = 0
+    for (let i = 0; i < tickets; i++) {
+      const available = ssrIds.filter(id => d.weaponCollection.indexOf(id) === -1)
+      if (available.length === 0) {
+        fallbackFrag += 60
+        continue
+      }
+      const picked = available[Math.floor(Math.random() * available.length)]
+      d.weaponCollection.push(picked)
+      granted++
+    }
+    d.weaponWildcardTickets = 0
+    if (fallbackFrag > 0) {
+      d.universalFragment = (d.universalFragment || 0) + fallbackFrag
+    }
+    console.log(`[Storage] v24→v25 自动兑换 ${tickets} 张保底券：获得 ${granted} 件 SSR 法宝 + 兜底万能碎片 ${fallbackFrag}`)
   },
 }
 
@@ -1641,6 +1698,81 @@ class Storage {
       total += RATING_TO_STARS[best] || 0
     }
     return total
+  }
+
+  // ===== 章节里程碑（8★/16★/24★） =====
+
+  /** 某章某档是否已领取 */
+  isChapterMilestoneClaimed(chapterId, tier) {
+    const m = this._d.chapterStarMilestones || {}
+    return !!(m[chapterId] && m[chapterId][tier])
+  }
+
+  /** 标记某章某档为已领（仅写存档，不下发奖励；奖励由 settleStage 统一发） */
+  markChapterMilestoneClaimed(chapterId, tier) {
+    if (!this._d.chapterStarMilestones) this._d.chapterStarMilestones = {}
+    if (!this._d.chapterStarMilestones[chapterId]) this._d.chapterStarMilestones[chapterId] = {}
+    this._d.chapterStarMilestones[chapterId][tier] = true
+    this._save()
+  }
+
+  /** 返回某章已领取的档位数组（用于 UI 展示槽位状态） */
+  getChapterMilestoneClaimed(chapterId) {
+    const m = (this._d.chapterStarMilestones && this._d.chapterStarMilestones[chapterId]) || {}
+    return { 8: !!m[8], 16: !!m[16], 24: !!m[24] }
+  }
+
+  // ===== 章节徽章 =====
+
+  isChapterBadgeUnlocked(chapterId) {
+    const m = this._d.chapterBadges || {}
+    return !!m[chapterId]
+  }
+
+  unlockChapterBadge(chapterId) {
+    if (!this._d.chapterBadges) this._d.chapterBadges = {}
+    if (this._d.chapterBadges[chapterId]) return false
+    this._d.chapterBadges[chapterId] = true
+    this._save()
+    return true
+  }
+
+  /** 返回已解锁的章节 id 数组（用于成就页 / 章节主线页展示） */
+  getUnlockedChapterBadges() {
+    const m = this._d.chapterBadges || {}
+    return Object.keys(m).filter(k => m[k]).map(k => Number(k))
+  }
+
+  // ===== SSR 法宝定向保底券 =====
+
+  get weaponWildcardTickets() {
+    return this._d.weaponWildcardTickets || 0
+  }
+
+  /** 增加保底券（里程碑 24★ 档发放） */
+  addWeaponWildcardTickets(n) {
+    if (!n || n <= 0) return
+    if (typeof this._d.weaponWildcardTickets !== 'number') this._d.weaponWildcardTickets = 0
+    this._d.weaponWildcardTickets += n
+    this._save()
+  }
+
+  /**
+   * 使用一张保底券兑换指定 SSR 法宝
+   * @returns {boolean} 成功返回 true；余额不足或法宝已拥有返回 false
+   */
+  useWeaponWildcardTicket(weaponId) {
+    const { getWeaponById, getWeaponRarity } = require('./weapons')
+    const w = getWeaponById(weaponId)
+    if (!w) return false
+    if ((getWeaponRarity(weaponId) || 'R') !== 'SSR') return false
+    if (this.hasWeapon(weaponId)) return false
+    if ((this._d.weaponWildcardTickets || 0) <= 0) return false
+    this._d.weaponWildcardTickets -= 1
+    const added = this.addWeapon(weaponId)
+    // addWeapon 内部会 _save，这里保险再 _save 一次
+    this._save()
+    return added
   }
 
   // ===== 秘境排行统计 =====

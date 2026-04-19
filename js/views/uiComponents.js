@@ -1481,8 +1481,39 @@ function drawShareIconBtn(c, R, S, rightX, y, h, opts) {
   const glow = !!opts.glow
   const pulse = glow ? 0.35 + 0.35 * Math.sin(Date.now() * 0.004) : 0
 
-  // btn_reward_confirm 原图比例约 3.5:1，按此算宽
-  const w = h * 3.4
+  // reward <= 0（场景每日上限已耗尽）时，不再画"· 灵石 +0"尾巴
+  //   · 显示 +0 既无意义又误导玩家"分享没奖励"，直接隐藏数字区，胶囊整体收窄到只容纳"分享"
+  const showReward = reward > 0
+
+  // 胶囊宽度：btn_reward_confirm 原图比例 ≈ 3.5:1 作基础
+  //   · 奖励数字从 2 位（+20）升到 3 位甚至 4 位（+120/+160）时，老固定宽度会裁掉文案
+  //   · 改成按"内容所需宽 + 左右留白"自适应，最低仍保持 3.4h 的视觉比例
+  const mainFontSz = Math.max(12 * S, h * 0.34)
+  const rewardFontSz = Math.max(11 * S, h * 0.30)
+  const iconSz = h * 0.48
+  const gapShareSep = 5 * S
+  const gapSepIcon = 4 * S
+  const iconToNumGap = 2 * S
+  const rewardText = '+' + reward
+  const sep = '·'
+  c.save()
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  const wShare = c.measureText('分享').width
+  const wSep = showReward ? c.measureText(sep).width : 0
+  let wReward = 0
+  if (showReward) {
+    c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
+    wReward = c.measureText(rewardText).width
+  }
+  c.restore()
+  const contentW = showReward
+    ? (wShare + gapShareSep + wSep + gapSepIcon + iconSz + iconToNumGap + wReward)
+    : wShare
+  const minW = showReward ? h * 3.4 : h * 2.2
+  //   · 图底纹有左右云纹占位 ≈ 0.22w + 0.22w（不能被文字压住），所以把内容塞进中间 56% 区域
+  //   · capsule 目标宽 = contentW / 0.56 + 视觉余量
+  const fitW = contentW / 0.56 + 6 * S
+  const w = Math.max(minW, fitW)
   const x = rightX - w
 
   c.save()
@@ -1508,27 +1539,12 @@ function drawShareIconBtn(c, R, S, rightX, y, h, opts) {
   }
 
   // ② 单行：分享 · [灵石icon] +N（垂直居中，锚点略偏右避开左侧云纹）
+  //   · mainFontSz / rewardFontSz / iconSz / gap* 变量已在胶囊宽度自适应段落中测出
   const midY = y + h * 0.5
-  const mainFontSz = Math.max(12 * S, h * 0.34)
-  const rewardFontSz = Math.max(11 * S, h * 0.30)
-  const iconSz = h * 0.48
-  const gapShareSep = 5 * S
-  const gapSepIcon = 4 * S
-  const iconToNumGap = 2 * S
-  const rewardText = '+' + reward
-  const sep = '·'
-
+  const totalW = contentW
+  const contentCx = x + w * 0.56
   c.save()
   c.textBaseline = 'middle'
-  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
-  const wShare = c.measureText('分享').width
-  c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
-  const wReward = c.measureText(rewardText).width
-  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
-  const wSep = c.measureText(sep).width
-
-  const totalW = wShare + gapShareSep + wSep + gapSepIcon + iconSz + iconToNumGap + wReward
-  const contentCx = x + w * 0.56
   let curX = contentCx - totalW / 2
 
   c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
@@ -1540,19 +1556,22 @@ function drawShareIconBtn(c, R, S, rightX, y, h, opts) {
   c.shadowBlur = 0
   curX += wShare + gapShareSep
 
-  c.fillStyle = 'rgba(74,32,0,0.45)'
-  c.fillText(sep, curX, midY)
-  curX += wSep + gapSepIcon
+  // reward > 0 时才画"· 灵石 +N"；= 0 时上面 contentW 已收窄，"分享"已在胶囊中心
+  if (showReward) {
+    c.fillStyle = 'rgba(74,32,0,0.45)'
+    c.fillText(sep, curX, midY)
+    curX += wSep + gapSepIcon
 
-  const iconImg = R && R.getImg ? R.getImg('assets/ui/icon_soul_stone.png') : null
-  if (iconImg && iconImg.width > 0) {
-    c.drawImage(iconImg, curX, midY - iconSz / 2, iconSz, iconSz)
+    const iconImg = R && R.getImg ? R.getImg('assets/ui/icon_soul_stone.png') : null
+    if (iconImg && iconImg.width > 0) {
+      c.drawImage(iconImg, curX, midY - iconSz / 2, iconSz, iconSz)
+    }
+    curX += iconSz + iconToNumGap
+
+    c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(74,32,0,0.92)'
+    c.fillText(rewardText, curX, midY)
   }
-  curX += iconSz + iconToNumGap
-
-  c.font = `bold ${rewardFontSz}px "PingFang SC",sans-serif`
-  c.fillStyle = 'rgba(74,32,0,0.92)'
-  c.fillText(rewardText, curX, midY)
   c.restore()
 
   c.restore()

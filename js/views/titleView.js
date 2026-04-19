@@ -7,7 +7,7 @@ const P = require('../platform')
 
 const { BAR_ITEMS, getLayout, drawBottomBar } = require('./bottomBar')
 const { drawPanel } = require('./uiComponents')
-const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, getEliteLockReason } = require('../data/stages')
+const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, getEliteLockReason, getChapterById } = require('../data/stages')
 const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
@@ -308,6 +308,12 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
 
   const tabH = 24 * S
   const tabGap = 4 * S
+  // 章节 chip：精简到一条内嵌小标签，嵌在关卡编号上方（inline），不再占独立一行
+  //   · 设计改自原"带进度条横幅"（32*S 高）：业界主页（原神/星铁/阴阳师）不堆多余浮层，主屏越简越好
+  //   · chip 本体只有 14*S 高，与标题区融合：下面 titleBlockH 扩展 16*S 即可容纳
+  //   · 旧 chapterBandH / chapterBandGap 不再参与布局，保留变量 = 0 减少侵入
+  const chapterBandH = 0
+  const chapterBandGap = 0
   const titleBlockH = 48 * S
   const titleGateGap = 2 * S
   const gateStarGap = 6 * S
@@ -327,7 +333,7 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const belowGateFixed =
     gateStarGap + starH + 4 * S + condPanelH + condAboveBtn + startBtnH +
     progressUnderBtnGap + progressTextAllowance + aboveBottomBarPad
-  const aboveGateFixed = tabH + tabGap + titleBlockH + titleGateGap
+  const aboveGateFixed = tabH + tabGap + chapterBandH + chapterBandGap + titleBlockH + titleGateGap
   const maxGateH = Math.max(96 * S, bottomLimit - minTop - aboveGateFixed - belowGateFixed)
 
   const gateWDesired = W * 0.72
@@ -342,9 +348,10 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     gateH = gateHDesired
   }
 
-  // 从顶部向下排列：Tab → 标题区 → 门 → 星级
+  // 从顶部向下排列：Tab → 章节带 → 标题区 → 门 → 星级
   const tabY = minTop
-  const titleTopY = tabY + tabH + tabGap
+  const chapterBandY = tabY + tabH + tabGap
+  const titleTopY = chapterBandY + chapterBandH + chapterBandGap
   const gateX = cx - gateW / 2
   const gateY = titleTopY + titleBlockH + titleGateGap
   const starBaseY = gateY + gateH + gateStarGap
@@ -395,11 +402,15 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.fillText('🔒 需普通3星通关解锁', cx, gateY + gateH / 2)
     ctx.restore()
     g._stageGateRect = null; g._stageArrowLeftRect = null; g._stageArrowRightRect = null
+    g._chapterBandRect = null
     return
   }
 
   const { stage, unlocked } = entry
   const swipeDx = g._stageSwipeDeltaX || 0
+
+  // 章节 chip 命中区由下文"关卡标题"里 _drawChapterChip 写入 g._chapterBandRect
+  g._chapterBandRect = null
 
   // ══════ 仙门主体 ══════
   if (gateImg && gateImg.width > 0) {
@@ -407,8 +418,12 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   }
 
   // ══════ 关卡标题：纯色金/褐 + 描边 + 轻阴影（无渐变，减少刺眼感）══════
+  //   · 方案 A 合并版：章节信息并进副标题，整体只呈 2 行（主标题"第N章 第N关" + 副标题"章节名 · 关卡名"）
+  //   · 早期用 "4-4" 简写，玩家反馈"看不出章节概念"，改为中文全称更直观
+  //   · 去掉独立章节 chip，避免和主标题阴影打架
+  //   · 副标题整块作为 chapterMap 点击热区（原 _chapterBandRect 复用），尾部挂 '›' 提示可点
   {
-    const stageLabel = `${stage.chapter}-${stage.order}`
+    const stageLabel = `第${stage.chapter}章 · 第${stage.order}关`
     const mainY = titleTopY + 21 * S
     const subY = titleTopY + 41 * S
     const mainFontPx = 15 * S
@@ -430,25 +445,39 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     ctx.fillText(stageLabel, cx, mainY)
     ctx.restore()
 
+    // 副标题文本：`章节名 · 关卡原名`（关卡原名已含元素前缀·敌人名）
+    //   · 章节号信息在主标题"4-4"中已有，故副标题只放章节名（更短、更易辨识）
+    //   · 尾部 '›' 提示可点击（跳转章节主线页）
+    const chapter = getChapterById(stage.chapter)
+    const chapterName = chapter ? (chapter.name || '') : ''
+    const subText = chapterName ? `${chapterName} · ${stage.name}` : stage.name
+    const arrowText = ' ›'
+
     let nameFontPx = 13 * S
     ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
-    const maxNameW = gateW * 0.72
-    while (ctx.measureText(stage.name).width > maxNameW && nameFontPx > 9 * S) {
+    const maxNameW = gateW * 0.82
+    while (ctx.measureText(subText + arrowText).width > maxNameW && nameFontPx > 9 * S) {
       nameFontPx -= S; ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
     }
+    const fullW = ctx.measureText(subText + arrowText).width
+    const subHitH = Math.max(18 * S, nameFontPx + 6 * S)
+
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.strokeStyle = '#120806'
     ctx.lineWidth = 2.5 * S
     ctx.lineJoin = 'round'
-    ctx.strokeText(stage.name, cx, subY)
+    ctx.strokeText(subText + arrowText, cx, subY)
     ctx.shadowColor = isElite ? 'rgba(160, 50, 40, 0.22)' : 'rgba(80, 45, 20, 0.22)'
     ctx.shadowBlur = 4 * S
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 1 * S
     ctx.fillStyle = subFill
-    ctx.fillText(stage.name, cx, subY)
+    ctx.fillText(subText + arrowText, cx, subY)
     ctx.restore()
+
+    // 副标题点击区 → 跳章节主线页（命中区沿用 g._chapterBandRect，tTitle.js 已有处理）
+    g._chapterBandRect = [cx - fullW / 2 - 6 * S, subY - subHitH / 2, fullW + 12 * S, subHitH]
   }
 
   // ── 门内灵力光效（脉冲动画）──
@@ -1930,6 +1959,9 @@ function rTitle(g) {
     _drawTowerEventBanner(g, ctx, R, W, S, L, progressMidY)
   }
   if (showDailyEntries) drawHomeDailyTaskTracker(g)
+  // 注：原有「目标追踪器」浮标已移除 —— 业界手游（原神/星铁/阴阳师）主页不堆多余浮层；
+  //     章节目标信息改由 stageInfoView 顶部的 drawGoalBar 承担（玩家点入关卡前 0.5 秒可见），
+  //     主屏只保留「选关 + 出发」的核心视觉，参考方案 A。
   drawMorePanel(g)
   drawTitleStartDialog(g)
   drawSidebarPanel(g)

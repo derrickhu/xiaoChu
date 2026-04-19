@@ -47,16 +47,25 @@ const ECONOMY_FRAMEWORK = {
     11: { soulStone: 1750, fragment: 40, awakenStonePerWeek: 15 },
     12: { soulStone: 2080, fragment: 46, awakenStonePerWeek: 18 },
   },
+  // v2.2 "曲线平滑方案 A"：stageRepeat 0.35 → 0.42（+20%），把"推进期日均灵石"抬起来填 Day3~7 饿肚子
+  //   · 直接作用于 _genStageRewards → STAGE_REWARDS.normal.soulStone.repeat，玩家每天刷关收益上调
+  //   · 取 0.42 而非 0.50：长期稳态 Day30 repeat 灵石从 1495/天 → ~1250/天，避免后期玩家灵石溢出
+  //   · Day1 副作用：关卡首通灵石（firstClearMul × repeat）会小幅上调 +~90，靠里程碑/宝箱削减覆盖
+  //   · 其他比例同步下调，总和守住 1.0；实际产出受 TOWER_SETTLE/DAILY_TASKS 硬公式约束，ratio 仅做审计参照
   sourceRatio: {
-    stageRepeat: 0.35,
-    tower:       0.30,
-    dailyTask:   0.15,
-    idle:        0.10,
-    signIn:      0.10,
+    stageRepeat: 0.42,
+    tower:       0.26,
+    dailyTask:   0.14,
+    idle:        0.09,
+    signIn:      0.09,
   },
+  // v2   "Day1 经济温和收紧"：第 4 章 1.7 → 1.3，第 2/3 章线性插值避免陡降
+  // v2.2 "曲线平滑方案 A"：2~4 章再抬高到 1.3/1.5/1.7，填平 Day3~7 日任饿肚子
+  //   · Day1 玩家通常 1 天最多推到 4-4，新数值让每日日任灵石上调 ~50~80（+20~40%）
+  //   · 5~12 章保持原曲线：长线玩家日常驱动力不变
   dailyTaskScale: {
-    1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0, 6: 2.4,
-    7: 2.8, 8: 3.3, 9: 3.9, 10: 4.6, 11: 5.4, 12: 6.4,
+    1: 1.0, 2: 1.3, 3: 1.5, 4: 1.7, 5: 1.8, 6: 2.2,
+    7: 2.6, 8: 3.1, 9: 3.7, 10: 4.3, 11: 5.1, 12: 6.0,
   },
 }
 
@@ -72,10 +81,13 @@ const IDLE_CFG = {
 // ===== 章节通关宝箱 =====
 // 注：第 1 章关卡全免体力，宝箱的体力奖励刻意克制（避免与新手礼包/首通里程碑重复堆积），
 // 把正反馈权重转移到灵石/碎片这些直接推动成长的货币上
+// v2 "Day1 经济温和收紧"：前 3 章灵石 -30%（80/60/80 → 55/40/55）
+// v2.2 "曲线平滑方案 A"：前 3 章再 -45%（55/40/55 → 30/25/40），把"连通三章瞬间 150 灵石"的
+//   放送口径继续压下来；4 章及以后保持不变（中后段需要这份日常灵石维持节奏）
 const CHAPTER_CLEAR_REWARDS = {
-  1:  { soulStone: 80,  fragment: 3, stamina: 20 },
-  2:  { soulStone: 60,  fragment: 4 },
-  3:  { soulStone: 80,  fragment: 5 },
+  1:  { soulStone: 30,  fragment: 3, stamina: 20 },
+  2:  { soulStone: 25,  fragment: 4 },
+  3:  { soulStone: 40,  fragment: 5 },
   4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },
   5:  { soulStone: 120, fragment: 8,  awakenStone: 1 },
   6:  { soulStone: 150, fragment: 10, awakenStone: 2 },

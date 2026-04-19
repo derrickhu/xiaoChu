@@ -518,7 +518,10 @@ function rTowerVictory(g) {
     const h = 36 * S
     const rightX = W - 12 * S
     const sy = H - h - 16 * S
-    const reward = (SHARE_SCENES.activeTowerShare && SHARE_SCENES.activeTowerShare.reward && SHARE_SCENES.activeTowerShare.reward.soulStone) || 20
+    // 按钮上的"+N"要和实际入账完全对齐（含每日基础/首次永久/场景三档合并，见 shareRewardCalc）
+    const { previewShareReward } = require('../data/shareRewardCalc')
+    const preview = previewShareReward(g.storage, 'activeTowerShare')
+    const reward = (preview && preview.soulStone) || 0
     const rect = drawShareIconBtn(c, R, S, rightX, sy, h, { glow: !!d.realmChanged, reward })
     g._towerShareBtnRect = [rect.x, rect.y, rect.w, rect.h]
   } else {

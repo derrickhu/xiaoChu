@@ -15,7 +15,7 @@ const teamPresetBar = require('./teamPresetBar')
 const guideMgr = require('../engine/guideManager')
 const { TEAM_PRESET_MAX } = require('../data/constants')
 
-// 塔编队也用预设，同秘境一样触发 intro / unlock 两条引导
+// 塔编队也用预设，同秘境一样触发 intro / unlock 两条引导（unlock 不教看广告）
 function _tryTriggerPresetGuides(g) {
   if (guideMgr.isActive()) return
   if (guideMgr.shouldShow(g, 'team_preset_intro')) {

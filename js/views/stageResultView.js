@@ -11,7 +11,7 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
 const { MAX_LEVEL, expToNextLevel, currentRealm, getRealmByLv } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
-const { getNextStageId, getStageById, isStageUnlocked } = require('../data/stages')
+const { getNextStageId, getStageById, getChapterById, isStageUnlocked } = require('../data/stages')
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
@@ -20,6 +20,7 @@ const shareCelebrate = require('./shareCelebrate')
 const { SHARE_SCENES } = require('../data/shareConfig')
 const { LING } = require('../data/lingIdentity')
 const { drawCultLvUpRow: _drawCultLvUpRow, drawCultSubRealmUpRow: _drawCultSubRealmUpRow } = require('./cultFeedbackUi')
+const goalHint = require('./goalHintView')
 const C = require('./uiColors')
 const lingCheer = require('./lingCheer')
 const buttonFx = require('./buttonFx')
@@ -31,6 +32,8 @@ const _rects = {
   shareBtnRect: null,
   adDoubleBtnRect: null,
   staminaRefundBtnRect: null,
+  goalTailRect: null,    // 胜利结算页底部"下一里程碑"整条命中区
+  goalTailBtnRect: null, // 上述右侧"查看 >"按钮命中区
 }
 
 let _animTimer = 0
@@ -58,7 +61,12 @@ function _drawShareIconBtnOnResult(g, rightEdgeX, btnY, btnH, result, scroll, is
   const h = _SHARE_CAPSULE_H * S
   const y = btnY + btnH + 8 * S
   const glow = !!(isVictory && result && result.victory && result.isFirstClear)
-  const reward = (SHARE_SCENES.activeStageShare && SHARE_SCENES.activeStageShare.reward && SHARE_SCENES.activeStageShare.reward.soulStone) || 20
+  // 按钮上的"+N"要和实际入账完全对齐：
+  //   · 包含每日基础 + 首次永久(+100) + 场景(+20) 三档合并后的灵石数
+  //   · 只取场景奖 20 会出现"按钮显示 +20，实发 +120"的错位（玩家反馈）
+  const { previewShareReward } = require('../data/shareRewardCalc')
+  const preview = previewShareReward(g.storage, 'activeStageShare')
+  const reward = (preview && preview.soulStone) || 0
   const rect = drawShareIconBtn(c, R, S, rightEdgeX, y, h, { glow, reward })
   _rects.shareBtnRect = [rect.x, rect.y - scroll, rect.w, rect.h]
 }
@@ -1490,6 +1498,12 @@ function _computeVictoryScrollContentHeight(result, S, pad) {
     contentH += 10 * S
   }
   if (hasChapterClear) contentH += 10 * S + 28 * S
+  if (result.chapterMilestones && result.chapterMilestones.length > 0) {
+    for (const ms of result.chapterMilestones) {
+      contentH += _chapterMilestoneCardHeight(ms, S) + 8 * S
+    }
+  }
+  if (result.chapterBadgeUnlocked) contentH += 36 * S + 6 * S
   if (result.soulStone > 0) contentH += 32 * S
   if (result.firstClearSoulStone > 0) contentH += 32 * S
   if (result.cultExp > 0) {
@@ -1511,11 +1525,191 @@ function _hasAdDoubleBtn(result) {
 //   · 基础：4*S 顶距 + 38*S 按钮行 + 8*S 间距 + 36*S 分享胶囊 + pad 底距 = 86*S + pad
 //   · Boss 关可看广告：上方再加 36*S 按钮 + 8*S 间距
 //   · Boss 关已翻倍：上方加 22*S 提示条 + 4*S 间距
-function _victoryActionsHeight(result, S, pad) {
+// 固定操作区总高度：tail（下一里程碑，26*S+6*S）+ 广告翻倍（0/36+8*S/22+4*S）+ 返回/下一关（38*S+4*S）+ 分享胶囊（36*S+8*S）+ 底 pad
+//   · 老版本漏算了 tail 高度：首通+Boss 关同时存在 tail 和广告翻倍时，分享胶囊会被挤出屏幕底部（玩家反馈）
+//   · storage：用于预测 tail 是否显示（computeNextMilestone 为 null 时 drawGoalTail 返回 0，这里同口径）
+function _victoryActionsHeight(result, S, pad, storage) {
   let h = 4 * S + 38 * S + 8 * S + 36 * S + pad
   if (_hasAdDoubleBtn(result)) h += 36 * S + 8 * S
   else if (result && result.adDoubled) h += 22 * S + 4 * S
+  // tail 只在胜利且本章还有下一里程碑时显示
+  if (result && result.victory && storage) {
+    const stage = getStageById(result.stageId)
+    const chapterId = stage ? stage.chapter : null
+    if (chapterId) {
+      const nextMs = goalHint.computeNextMilestone(storage, chapterId)
+      if (nextMs) h += 26 * S + 6 * S
+    }
+  }
   return h
+}
+
+// ===== 章节里程碑大奖卡片 =====
+// 设计意图（plan B 节）：
+//   · 跨过 8/16/24 阈值时，给玩家一张"明显比普通奖励行更重"的金色卡片
+//   · 卡片包含：TIER 徽章（★8/★16/★24）+ 章节名 + 奖励 icon 行
+//   · 使用主题色金色（仿章节通关宝箱）+ 内阴影 + 微光动画，强化仪式感
+//   · 高度因奖励条数而异，最少 46*S，最多 ~62*S（4 种奖励混合时）
+
+function _chapterMilestoneCardHeight(ms, S) {
+  // 标题行 18*S + 奖励图标行 28*S + pad 8*S = 54*S（单行奖励）
+  // 超过 3 条奖励则换两行：+24*S
+  const rewardCount = (ms && ms.rewards) ? ms.rewards.length : 0
+  const baseH = 54 * S
+  return rewardCount > 3 ? baseH + 24 * S : baseH
+}
+
+function _drawChapterMilestoneCard(c, R, S, x, cy, innerW, ms, at) {
+  const cardH = _chapterMilestoneCardHeight(ms, S)
+
+  // 金色主题底板（比章节通关宝箱更浓，让里程碑更"大"）
+  const grad = c.createLinearGradient(x, cy, x, cy + cardH)
+  grad.addColorStop(0, 'rgba(220,175,70,0.22)')
+  grad.addColorStop(1, 'rgba(220,175,70,0.08)')
+  c.fillStyle = grad
+  R.rr(x, cy, innerW, cardH, 8 * S); c.fill()
+  const pulse = 0.8 + 0.2 * Math.sin((at || 0) * 0.08)
+  c.strokeStyle = `rgba(230,180,60,${0.45 * pulse})`
+  c.lineWidth = 1.5 * S
+  R.rr(x, cy, innerW, cardH, 8 * S); c.stroke()
+
+  // 左侧 TIER 徽章（★8/★16/★24 圆形勋章）
+  const badgeR = 18 * S
+  const badgeCx = x + 10 * S + badgeR
+  const badgeCy = cy + 10 * S + badgeR
+  c.fillStyle = 'rgba(255,230,140,0.9)'
+  c.beginPath(); c.arc(badgeCx, badgeCy, badgeR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = '#b8860b'; c.lineWidth = 1.5 * S
+  c.beginPath(); c.arc(badgeCx, badgeCy, badgeR, 0, Math.PI * 2); c.stroke()
+  c.fillStyle = '#7a4a00'
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(`★${ms.tier}`, badgeCx, badgeCy + 0.5 * S)
+
+  // 右上：标题"本章 X★ 达成！"
+  const titleX = badgeCx + badgeR + 8 * S
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillStyle = '#A05010'
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  const tierLabel = ms.tier === 24 ? '章节全3★达成！' : `本章累计 ${ms.tier}★ 达成！`
+  c.fillText(tierLabel, titleX, cy + 10 * S)
+
+  // 奖励图标行
+  const rewardCy = cy + 32 * S
+  _drawMilestoneRewardIcons(c, R, S, titleX, rewardCy, x + innerW - 10 * S - titleX, ms.rewards || [])
+
+  return cardH
+}
+
+function _drawMilestoneRewardIcons(c, R, S, x, y, maxW, rewards) {
+  const iconSz = 20 * S
+  const textGap = 3 * S
+  const segGap = 10 * S
+  let cx = x
+  const cy = y + iconSz / 2
+  c.textBaseline = 'middle'
+  c.textAlign = 'left'
+
+  for (const r of rewards) {
+    let iconPath = null
+    let text = ''
+    if (r.type === 'soulStone') {
+      iconPath = 'assets/ui/icon_soul_stone.png'
+      text = `+${r.amount}`
+    } else if (r.type === 'awakenStone') {
+      iconPath = 'assets/ui/icon_awaken_stone.png'
+      text = `+${r.amount}`
+    } else if (r.type === 'universalFragment') {
+      iconPath = 'assets/ui/icon_universal_frag.png'
+      text = `×${r.count}`
+    } else if (r.type === 'fragment' && r.petId) {
+      // SSR 碎片：用宠物头像（小一圈），旁边写"碎片×N"
+      const pet = getPetById(r.petId)
+      if (pet) {
+        const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+        const img = R.getImg(avatarPath)
+        if (img && img.width > 0) {
+          R.drawCoverImg(img, cx, y, iconSz, iconSz, { radius: 4 * S, strokeStyle: '#b8860b', strokeWidth: 1 })
+        }
+        cx += iconSz + textGap
+      }
+      c.fillStyle = '#A05010'
+      c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      text = `碎片×${r.count}`
+      c.fillText(text, cx, cy)
+      cx += c.measureText(text).width + segGap
+      continue
+    } else if (r.type === 'ssrWeapon') {
+      // 24★ 现货 SSR 法宝：icon 与章节里程碑一致（底栏法宝 Tab）
+      const fabaoIcon = R.getImg('assets/ui/nav_weapon.png')
+      if (fabaoIcon && fabaoIcon.width > 0) c.drawImage(fabaoIcon, cx, cy, iconSz, iconSz)
+      cx += iconSz + textGap
+      c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      text = r.weaponName ? `SSR法宝「${r.weaponName}」` : 'SSR法宝×1'
+      c.fillText(text, cx, cy)
+      cx += c.measureText(text).width + segGap
+      continue
+    } else if (r.type === 'weaponTicket') {
+      // 历史兼容：v1 旧存档里可能残留的 weaponTicket（新存档已不再产生）
+      c.fillStyle = '#A05010'
+      c.font = `${iconSz}px "PingFang SC",sans-serif`
+      c.fillText('🎫', cx, cy)
+      cx += iconSz + textGap
+      c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      text = `SSR法宝保底券×${r.count}`
+      c.fillText(text, cx, cy)
+      cx += c.measureText(text).width + segGap
+      continue
+    }
+    if (iconPath) {
+      const img = R.getImg(iconPath)
+      if (img && img.width > 0) c.drawImage(img, cx, y, iconSz, iconSz)
+      cx += iconSz + textGap
+    }
+    if (text) {
+      c.fillStyle = '#A05010'
+      c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      c.fillText(text, cx, cy)
+      cx += c.measureText(text).width + segGap
+    }
+    // 换行：超过可用宽度就跳下一行（高度已在 _chapterMilestoneCardHeight 中预留）
+    if (cx - x > maxW - 40 * S) {
+      cx = x
+      y += iconSz + 4 * S
+    }
+  }
+}
+
+// ===== 章节徽章解锁行（24★ 全通关） =====
+function _drawChapterBadgeUnlockedRow(c, R, S, x, cy, innerW, result, at) {
+  const rowH = 36 * S
+  const pulse = 0.7 + 0.3 * Math.sin((at || 0) * 0.1)
+
+  // 紫金底板（徽章 = 成就感，区别于普通金色里程碑）
+  const grad = c.createLinearGradient(x, cy, x + innerW, cy)
+  grad.addColorStop(0, 'rgba(180,120,200,0.22)')
+  grad.addColorStop(1, 'rgba(220,175,70,0.22)')
+  c.fillStyle = grad
+  R.rr(x, cy, innerW, rowH, 6 * S); c.fill()
+  c.strokeStyle = `rgba(200,150,220,${0.45 * pulse})`
+  c.lineWidth = 1.2 * S
+  R.rr(x, cy, innerW, rowH, 6 * S); c.stroke()
+
+  const stage = getStageById(result.stageId)
+  const chapter = stage ? getChapterById(stage.chapter) : null
+  const chapterName = chapter ? chapter.name : ''
+
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.font = `${20*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#a05010'
+  c.fillText('🏅', x + 10 * S, cy + rowH / 2)
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#7a3a8a'
+  c.fillText(`章节徽章点亮！`, x + 38 * S, cy + rowH / 2 - 6 * S)
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#8B7355'
+  c.fillText(`${chapterName}·全3★成就 · 章节主线页可查看`, x + 38 * S, cy + rowH / 2 + 7 * S)
+  return rowH
 }
 
 // 看广告翻倍按钮内部绘制：借用 adReward 金色底板，自己绘制"▶ 看广告翻倍 + 图标奖励"
@@ -1586,7 +1780,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   // 奖励明细走滚动区；看广告翻倍 + 返回/下一关 + 分享胶囊钉在面板底，不随滚动裁剪，保证始终可见可点
   const scrollContentH = _computeVictoryScrollContentHeight(result, S, pad)
-  const actionsH = _victoryActionsHeight(result, S, pad)
+  const actionsH = _victoryActionsHeight(result, S, pad, g.storage)
   const marginBottom = 10 * S
   const screenBottom = H - marginBottom
 
@@ -1701,6 +1895,31 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     cy += 28 * S
     rowIdx++
     cy += 10 * S
+  }
+
+  // === 章节星级里程碑大奖（8★/16★/24★） ===
+  // plan B 节核心：跨过 8/16/24 阈值时立刻展示金色大卡，让"章节终点"有仪式感
+  //   · 每档一张独立卡片（多档同时达成时依次展示）
+  //   · 24★ 达成时额外亮出"章节徽章解锁"小条（C 节）
+  if (result.chapterMilestones && result.chapterMilestones.length > 0) {
+    for (const ms of result.chapterMilestones) {
+      const msDelay = 15 + rowIdx * 6
+      const msAlpha = Math.min(1, Math.max(0, (at - msDelay) / 12))
+      c.save(); c.globalAlpha *= msAlpha
+      const cardH = _drawChapterMilestoneCard(c, R, S, px + pad, cy, innerW, ms, at)
+      c.restore()
+      cy += cardH + 8 * S
+      rowIdx++
+    }
+  }
+  if (result.chapterBadgeUnlocked) {
+    const bgDelay = 15 + rowIdx * 6
+    const bgAlpha = Math.min(1, Math.max(0, (at - bgDelay) / 12))
+    c.save(); c.globalAlpha *= bgAlpha
+    const bgH = _drawChapterBadgeUnlockedRow(c, R, S, px + pad, cy, innerW, result, at)
+    c.restore()
+    cy += bgH + 6 * S
+    rowIdx++
   }
 
   // === 本关灵石 / 修炼经验 ===
@@ -1832,6 +2051,26 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   //   · shareCelebrate 正在展示时分享胶囊内部会自动隐藏，避免主被动入口并存打架
   //   · 首通胜利时分享胶囊带呼吸发光，把"情绪高点"引流到主动分享
   let actionsCy = panelTop + scrollViewportH
+
+  // 胜利结算页尾部：常驻"下一里程碑"提示（plan E3）
+  //   · 贴在固定操作区最上沿，不受滚动裁剪，确保玩家下一关之前必然扫一眼"下一目标"
+  //   · 若本章所有里程碑已全部领取，drawGoalTail 返回 0，自动不占用空间
+  _rects.goalTailRect = null; _rects.goalTailBtnRect = null
+  if (result.victory) {
+    const tailStage = getStageById(result.stageId)
+    const tailChapterId = tailStage ? tailStage.chapter : null
+    if (tailChapterId) {
+      const tailH = goalHint.drawGoalTail(c, R, S, px + pad, actionsCy, innerW, {
+        storage: g.storage,
+        chapterId: tailChapterId,
+        onRegisterRect: ({ btnRect, tailRect }) => {
+          _rects.goalTailRect = tailRect
+          _rects.goalTailBtnRect = btnRect
+        },
+      })
+      if (tailH > 0) actionsCy += tailH + 6 * S
+    }
+  }
 
   if (_hasAdDoubleBtn(result)) {
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
@@ -2492,6 +2731,16 @@ function tStageResult(g, x, y, type) {
   }
 
   const _firstClearGuide = _getFirstClearGuide(result)
+
+  // 胜利结算页尾部"下一里程碑"条：点击跳章节主线页
+  if (_rects.goalTailBtnRect && g._hitRect(x, y, ..._rects.goalTailBtnRect)) {
+    g.setScene('chapterMap')
+    return
+  }
+  if (_rects.goalTailRect && g._hitRect(x, y, ..._rects.goalTailRect)) {
+    g.setScene('chapterMap')
+    return
+  }
 
   // 看广告翻倍（仅 Boss 关胜利）
   if (_rects.adDoubleBtnRect && g._hitRect(x, y, ..._rects.adDoubleBtnRect)) {

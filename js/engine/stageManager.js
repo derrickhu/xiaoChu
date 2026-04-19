@@ -532,6 +532,21 @@ function settleStage(g) {
     }
   }
 
+  // ---- 章节星级里程碑检查（8★/16★/24★）+ 章节徽章 ----
+  // 设计见 plan B/C 节：
+  //   · 本关实际获得的新增星数 = newStars.length（来自上文 "星级首次达成" 统计）
+  //   · 跨过 8/16/24 阈值时，按 chapterMilestoneConfig 发奖，并 mark claimed
+  //   · 24★ 章节全 3★ 时，额外解锁章节徽章（仅一次）
+  //   · 老玩家"不补发"：只有本关新获得的星数才计入"跨阈值"判定（currStars - prevStars）
+  //   · 保底券用 addWeaponWildcardTickets 入库，UI 在结算页/首页提示去保底券兑换页使用
+  const chapterMilestones = _settleChapterMilestones(g, stage.chapter, newStars.length)
+  let chapterBadgeUnlocked = false
+  if (chapterMilestones && chapterMilestones.some(m => m.tier === 24)) {
+    if (g.storage.unlockChapterBadge(stage.chapter)) {
+      chapterBadgeUnlocked = true
+    }
+  }
+
   // 碎片奖励总计（供广告翻倍使用）
   const totalFragCount = rewards.filter(r => r.type === 'fragment' && !r.fromStar).reduce((s, r) => s + (r.count || 0), 0)
 
@@ -565,6 +580,8 @@ function settleStage(g) {
     starBonusAwakenStone: starAwakenStone,
     starBonusFragments: starFragments.reduce((s, f) => s + f.count, 0),
     chapterClearReward,
+    chapterMilestones: chapterMilestones || [],
+    chapterBadgeUnlocked,
     firstClearStamina,
     firstClearSoulStone: firstClearSS,
     isBossStage: stage.order === 8,
@@ -653,6 +670,148 @@ function settleStageDefeat(g) {
 }
 
 // ===== 工具函数 =====
+
+/**
+ * 章节星级里程碑结算 — 在本关结算末尾调用
+ *
+ * @param g                - 游戏状态
+ * @param chapterId        - 章节 id
+ * @param newStarsThisCell - 本关本次结算"新拿的星数"（0~3，来自 newStars.length）
+ * @returns {Array}        - 跨过的里程碑数组 [{ tier, rewards: [...resolved] }]，未跨档返回 []
+ *
+ * 设计要点（见 plan 四节 / 3.3 节）：
+ *   1. 只看"跨阈值"而不是"等于阈值"，避免老玩家存档中已有 10★ 但未领"8★"档的盲区
+ *      （对新玩家：严格按累计；对老玩家：v23→v24 迁移后 claim 字典清空，任何新获星都触发阈值检查）
+ *   2. 每档奖励**一次性发放**，并立即 mark claimed，避免同场景重复触发
+ *   3. SSR 碎片：章节代表 SSR 宠物；池里无该宠时走 addFragmentSmart（写入 fragmentBank 或入池）
+ *   4. 返回"已领取档位数组"供结算页做大奖卡片展示
+ */
+function _settleChapterMilestones(g, chapterId, newStarsThisCell) {
+  if (!newStarsThisCell || newStarsThisCell <= 0) return []
+
+  const { MILESTONE_TIERS, getChapterMilestoneReward, getChapterSsrPetId } = require('../data/chapterMilestoneConfig')
+  const currStars = g.storage.getChapterTotalStars(chapterId, 'normal')
+  const prevStars = Math.max(0, currStars - newStarsThisCell)
+
+  const crossed = []
+  for (const tier of MILESTONE_TIERS) {
+    // 跨过阈值：prev < tier <= curr
+    if (prevStars < tier && currStars >= tier && !g.storage.isChapterMilestoneClaimed(chapterId, tier)) {
+      const baseRewards = getChapterMilestoneReward(chapterId, tier)
+      const resolved = _grantChapterMilestoneRewards(g, chapterId, baseRewards)
+      g.storage.markChapterMilestoneClaimed(chapterId, tier)
+      crossed.push({ tier, rewards: resolved })
+    }
+  }
+  return crossed
+}
+
+/**
+ * 随机发放一件未拥有的 SSR 法宝
+ *
+ * 返回发放成功的 weapon 对象 { id, name, ... }，失败（已拥有全部）返回 null。
+ * 幂等要求：调用方需判断 null 走兜底分支。
+ */
+function _grantRandomSsrWeapon(g) {
+  const { WEAPON_RARITY, getWeaponById } = require('../data/weapons')
+  const ssrIds = WEAPON_RARITY.SSR || []
+  const pool = ssrIds.filter(id => !g.storage.hasWeapon(id))
+  if (pool.length === 0) return null
+  const pickedId = pool[Math.floor(Math.random() * pool.length)]
+  const added = g.storage.addWeapon(pickedId)
+  if (!added) return null
+  return getWeaponById(pickedId)
+}
+
+/**
+ * 发放单个里程碑档位的奖励条目
+ * 返回 UI 可直接渲染的 rewards 数组（含解析后的 petId 等）
+ */
+function _grantChapterMilestoneRewards(g, chapterId, rewards) {
+  const { getChapterSsrPetId } = require('../data/chapterMilestoneConfig')
+  const resolved = []
+  for (const r of rewards) {
+    if (r.type === 'soulStone') {
+      g.storage.addSoulStone(r.amount)
+      resolved.push({ type: 'soulStone', amount: r.amount })
+    } else if (r.type === 'awakenStone') {
+      g.storage.addAwakenStone(r.amount)
+      resolved.push({ type: 'awakenStone', amount: r.amount })
+    } else if (r.type === 'universalFragment') {
+      // 万能碎片：不走 target，直接增量
+      if (typeof g.storage.addUniversalFragment === 'function') {
+        g.storage.addUniversalFragment(r.count)
+      } else {
+        // 兼容：直接写 _d（极少数老分支没有 addUniversalFragment 时）
+        g.storage._d.universalFragment = (g.storage._d.universalFragment || 0) + r.count
+        g.storage._save && g.storage._save()
+      }
+      resolved.push({ type: 'universalFragment', count: r.count })
+    } else if (r.type === 'ssrFragment') {
+      const petId = getChapterSsrPetId(chapterId)
+      // addFragmentSmart：池里有则 addFragments，没有则写 fragmentBank，避免新手章节里程碑白给
+      g.storage.addFragmentSmart(petId, r.count)
+      resolved.push({ type: 'fragment', petId, count: r.count, fromChapterMilestone: true })
+    } else if (r.type === 'ssrWeapon') {
+      // 直接发放一件未拥有的 SSR 法宝（替代旧 weaponTicket）
+      //   · 玩家反馈"券要去兑换页选，关了就找不到"，UX 太绕
+      //   · 改为当场随机发放；全 11 件已拥有时走兜底：60 万能碎片（≈ 1 件 SSR 价值）
+      const granted = _grantRandomSsrWeapon(g)
+      if (granted) {
+        resolved.push({ type: 'ssrWeapon', weaponId: granted.id, weaponName: granted.name })
+      } else {
+        // 兜底：60 万能碎片（约等价于 1 件 SSR 法宝的抽卡成本）
+        const fallback = 60
+        if (typeof g.storage.addUniversalFragment === 'function') {
+          g.storage.addUniversalFragment(fallback)
+        } else {
+          g.storage._d.universalFragment = (g.storage._d.universalFragment || 0) + fallback
+          g.storage._save && g.storage._save()
+        }
+        resolved.push({ type: 'universalFragment', count: fallback, fromSsrWeaponFallback: true })
+      }
+    } else if (r.type === 'weaponTicket') {
+      // 历史兼容：老存档曾通过 v1 配置生成过 weaponTicket 奖励，这里只保留发放链路
+      //   · 新配置已不再使用此 type（见 chapterMilestoneConfig.js），可在下个大版本彻底删除
+      g.storage.addWeaponWildcardTickets(r.count)
+      resolved.push({ type: 'weaponTicket', count: r.count })
+    } else {
+      // 未知类型：透传，方便以后加新奖励种类不破坏老版本
+      resolved.push({ ...r })
+    }
+  }
+  return resolved
+}
+
+/**
+ * 手动领取某章某档里程碑奖励（章节主线页"领取"按钮使用）
+ *
+ * 设计要点：
+ *   · 原有链路只有"通关战斗结算时自动发奖"一条（_settleChapterMilestones）
+ *   · 老玩家在上线前已通关全章，但新存档字段 chapterStarMilestones 里没有记录 → 无法直接领取
+ *   · 本函数把"发奖 + mark claimed"打包成可单独触发的接口，给 chapterMapView 调用
+ *
+ * 幂等保证：
+ *   · currStars < tier → 返回 null（未达成不领）
+ *   · 已领取 → 返回 null（不重复发）
+ *
+ * @returns { tier, rewards: [...] } | null
+ */
+function grantChapterMilestoneManually(g, chapterId, tier) {
+  const { getChapterMilestoneReward } = require('../data/chapterMilestoneConfig')
+  const currStars = g.storage.getChapterTotalStars(chapterId, 'normal')
+  if (currStars < tier) return null
+  if (g.storage.isChapterMilestoneClaimed(chapterId, tier)) return null
+  const baseRewards = getChapterMilestoneReward(chapterId, tier)
+  if (!baseRewards || !baseRewards.length) return null
+  const resolved = _grantChapterMilestoneRewards(g, chapterId, baseRewards)
+  g.storage.markChapterMilestoneClaimed(chapterId, tier)
+  // 若三档全部领完 → 同步解锁章节徽章（和自动通关路径保持一致）
+  if (tier === 24 && !g.storage.isChapterBadgeUnlocked(chapterId)) {
+    g.storage.unlockChapterBadge(chapterId)
+  }
+  return { tier, rewards: resolved }
+}
 
 function calculateRating(totalTurns, ratingConfig) {
   if (totalTurns <= ratingConfig.s) return 'S'
@@ -771,4 +930,5 @@ module.exports = {
   settleStage,
   settleStageDefeat,
   calculateRating,
+  grantChapterMilestoneManually,
 }

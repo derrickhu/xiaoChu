@@ -261,7 +261,9 @@ function drawBottomBar(g) {
         const { canStarUp } = require('../data/petPoolConfig')
         const pool = g.storage.petPool || []
         const aw = g.storage.awakenStone || 0
-        const hasStarUp = pool.some(p => canStarUp(p, aw))
+        // 万能碎片和宠物自身碎片等效，必须并入升星判定（与详情页按钮态/卡片徽章同口径）
+        const uf = g.storage.universalFragment || 0
+        const hasStarUp = pool.some(p => canStarUp(p, aw, uf))
         const hasNewPet = g.storage.hasNewPetInPool && g.storage.hasNewPetInPool()
         const hasIdleReward = g.storage.idleHasReward()
         if (hasStarUp || hasNewPet || hasIdleReward) {
