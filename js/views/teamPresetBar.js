@@ -185,7 +185,30 @@ function draw(g, x, y, w, opts) {
  *   afterSave(presetId)           — 保存到某预设成功后回调
  *   prepareSaveCurrent()          — 保存前的同步钩子（塔页用来把会话态灌进 savedStageTeam）
  *   onActiveChanged(presetId)     — 仅切 active 但不 apply（空预设场景）；调用方可据此刷新 UI
+ *   getCurrentFormationSnapshot() — 返回 { petIds, weaponId }，用于与预设比对；不传则用 storage 持久化编队
+ *   compareTeamMaxSlots           — 可选，如塔编队 5：只比较前 N 只是否与预设一致
  */
+function _petArraysEqual(a, b, maxLen) {
+  let aa = a || []
+  let bb = b || []
+  if (typeof maxLen === 'number' && maxLen >= 0) {
+    aa = aa.slice(0, maxLen)
+    bb = bb.slice(0, maxLen)
+  }
+  if (aa.length !== bb.length) return false
+  for (let i = 0; i < aa.length; i++) if (aa[i] !== bb[i]) return false
+  return true
+}
+
+/** 当前编队是否与预设内容一致（含法宝）；用于避免「activeId 仍是该预设但队伍已被清空」时误短路 */
+function _formationMatchesPreset(peek, snap, maxLen) {
+  if (!peek || !snap) return false
+  const w1 = peek.weaponId || null
+  const w2 = snap.weaponId || null
+  if (w1 !== w2) return false
+  return _petArraysEqual(peek.petIds, snap.petIds, maxLen)
+}
+
 function onTouch(g, x, y, type, opts) {
   opts = opts || {}
   // 只吃 end：start/move 交给编队页本身（不吃的话页面列表滚动会被卡住）
@@ -210,8 +233,11 @@ function onTouch(g, x, y, type, opts) {
       return true
     }
     const activeId = g.storage.teamPresetActiveId
-    if (t.id === activeId) {
-      // 已激活：提醒玩家一下当前就是这套，免得他以为没反应
+    const snap = typeof opts.getCurrentFormationSnapshot === 'function'
+      ? opts.getCurrentFormationSnapshot()
+      : { petIds: g.storage.getValidSavedTeam(), weaponId: g.storage.equippedWeaponId || null }
+    const maxLen = opts.compareTeamMaxSlots
+    if (t.id === activeId && _formationMatchesPreset(peek, snap, maxLen)) {
       gameToast.show(`当前已是「${peek.name}」`)
       return true
     }

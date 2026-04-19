@@ -30,6 +30,11 @@ let _scrolling = false
 function rWeaponPool(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
 
+  if ((g.storage.weaponCollection || []).length < 1) {
+    g.setScene('title')
+    return
+  }
+
   R.drawHomeBg(g.af)
 
   const L = getTitleLayout()
@@ -390,6 +395,8 @@ function resetScroll() {
 
 function tWeaponPool(g, x, y, type) {
   const { S, W, H } = V
+
+  if ((g.storage.weaponCollection || []).length < 1) return
 
   if (g._weaponPoolDetail) {
     if (type !== 'end') return

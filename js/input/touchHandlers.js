@@ -358,6 +358,7 @@ function tDex(g, type, x, y) {
       }
       if (item.key === 'dex') return
       if (item.key === 'weapons') {
+        if ((g.storage.weaponCollection || []).length < 1) return
         g._weaponPoolFilter = 'all'; g._weaponPoolScroll = 0; g._weaponPoolDetail = null
         g.setScene('weaponPool'); return
       }

@@ -718,10 +718,8 @@ class Main {
       R.clearDynamicCache()
       Particles.clearTexCache()
       MusicMgr.destroyBossBgm()
-      // 从局内（战斗结束/结算返回）回到首屏：秘境轮播重新对齐当前进度档，避免仍停在之前的索引（如 1-1）
-      if (old === 'battle' || old === 'stageResult') {
-        this._stageIdxInitialized = false
-      }
+      // 任意场景回到首屏：秘境轮播重新对齐「下一可打关」（含从 stageInfo 等链路返回，避免连打多关后仍停在进链前的旧索引）
+      this._stageIdxInitialized = false
       // 修炼小阶跨档：在结算/塔内已埋下 g._pendingRealmLingCheer，回主菜单时小灵横条说一句
       //   · 大境界跨档已用 tierCeremony 全屏处理过了，这里只处理 minor
       //   · 一次性消费，避免反复播放

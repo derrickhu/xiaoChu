@@ -111,13 +111,16 @@ function drawBottomBar(g) {
   for (let i = 0; i < BAR_ITEMS.length; i++) {
     const item = BAR_ITEMS[i]
     const cx = i * slotW + slotW / 2
-    // 灵宠 & 图鉴：战斗中获得首只三星永久宠物后同时解锁
+    // 灵宠 & 图鉴：入池首只灵宠后解锁；法宝：背包中至少 1 件后才解锁（与图鉴同款锁图标）
     const hasPet = g.storage.petPoolCount >= 1
+    const hasWeapon = (g.storage.weaponCollection || []).length >= 1
     const isLocked = item.key === 'pets'
       ? !hasPet
       : item.key === 'dex'
         ? !hasPet
-        : !!item.locked
+        : item.key === 'weapons'
+          ? !hasWeapon
+          : !!item.locked
     const isCenter = !!item.center
     const isActive = isCenter ? (g.scene === 'title') : (item.key === activeKey)
 
@@ -321,4 +324,9 @@ function drawPageTitle(ctx, R, W, S, centerX, centerY, text) {
   ctx.restore()
 }
 
-module.exports = { BAR_ITEMS, getLayout, drawBottomBar, drawPageTitle }
+/** 底栏「法宝」是否与图鉴同款锁定（无法宝不可进背包页） */
+function isWeaponBarLocked(storage) {
+  return !storage || (storage.weaponCollection || []).length < 1
+}
+
+module.exports = { BAR_ITEMS, getLayout, drawBottomBar, drawPageTitle, isWeaponBarLocked }

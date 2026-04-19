@@ -454,15 +454,25 @@ function rStageTeam(g) {
   cy += 28 * S
 
   // 提示文案（面板外，筛选标签与列表之间）
-  if (_teamHint) {
+  // · 编队/法宝说明与「小灵贴士：长按看技能」分行展示，样式与法宝行一致；不走高亮全屏引导，避免打断选将
+  const showLongPressHint =
+    !g.storage.isGuideShown('stage_team_longpress_hint') &&
+    (g.storage.petPool || []).length > 0
+  const hintLines = []
+  if (_teamHint) hintLines.push(_teamHint)
+  if (showLongPressHint) hintLines.push('小灵贴士：长按灵宠卡片可查看技能与详情～')
+  if (hintLines.length) {
     c.textAlign = 'center'
     c.textBaseline = 'top'
     c.font = `bold ${10*S}px "PingFang SC",sans-serif`
     c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
-    c.strokeText(_teamHint, W / 2, cy)
-    c.fillStyle = '#E8C547'
-    c.fillText(_teamHint, W / 2, cy)
-    cy += 16 * S
+    for (const line of hintLines) {
+      c.strokeText(line, W / 2, cy)
+      c.fillStyle = '#E8C547'
+      c.fillText(line, W / 2, cy)
+      cy += 15 * S
+    }
+    cy += 1 * S
   }
 
   const canGo = selected.length >= minTeam
@@ -997,6 +1007,7 @@ function tStageTeam(g, x, y, type) {
   // 长按检测（≥500ms 且未滚动 → 跳转宠物详情全屏页）
   const elapsed = Date.now() - _holdStartTime
   if (elapsed >= 500 && !_scrolling && _holdTarget) {
+    g.storage.markGuideShown('stage_team_longpress_hint')
     g._petDetailId = _holdTarget.petId
     g._petDetailReturnScene = 'stageTeam'
     _holdTarget = null
@@ -1013,6 +1024,10 @@ function tStageTeam(g, x, y, type) {
 
   // 预设 tab bar（优先处理，它自己决定是否吃掉事件；切换预设后刷新 selected/滚动）
   const presetHandled = teamPresetBar.onTouch(g, x, y, 'end', {
+    getCurrentFormationSnapshot: () => ({
+      petIds: (g._stageTeamSelected || []).slice(),
+      weaponId: g.storage.equippedWeaponId || null,
+    }),
     onApply: (_pid, applied) => {
       g._stageTeamSelected = applied.petIds.slice()
       _scrollY = 0

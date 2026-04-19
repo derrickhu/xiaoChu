@@ -384,19 +384,15 @@ function settleStage(g) {
   }
 
   // 第一章前 3 关首通掉法宝时自动装备：1-1 后天机镜要出现在 1-2 战场左侧栏（跳过编队的新手流程）
+  // 首次入包由 storage.addWeapon 排队 weapon_nav_unlock；此处只 toast + 装备
   if (isFirstClear && g.battleMode === 'stage' && stage.chapter === 1 && stage.order <= 3) {
     const wNew = rewards.find(r => r.type === 'weapon' && r.weaponId && r.isNew)
     if (wNew) {
       g.storage.equipWeapon(wNew.weaponId)
-      // 首次获得法宝：toast 提示 + 触发 weapon_equip 引导
-      if (!g.storage.isGuideShown('weapon_equip')) {
-        const P = require('../platform')
-        const wInfo = getWeaponById(wNew.weaponId)
-        const wName = (wInfo && wInfo.name) || '法宝'
-        if (P.showGameToast) P.showGameToast(`获得法宝「${wName}」，已自动装备`, { type: 'achievement' })
-        // 引导等结算关闭后再触发，挂到 pendingGuide
-        g._pendingGuide = 'weapon_equip'
-      }
+      const P = require('../platform')
+      const wInfo = getWeaponById(wNew.weaponId)
+      const wName = (wInfo && wInfo.name) || '法宝'
+      if (P.showGameToast) P.showGameToast(`获得法宝「${wName}」，已自动装备`, { type: 'achievement' })
     }
   }
 

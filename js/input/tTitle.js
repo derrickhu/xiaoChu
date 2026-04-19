@@ -375,6 +375,7 @@ function tTitle(g, type, x, y) {
         g.titleMode = (g.titleMode || 'tower') === 'tower' ? 'stage' : 'tower'
         return
       case 4: {
+        if ((g.storage.weaponCollection || []).length < 1) return
         g._weaponPoolFilter = 'all'
         g._weaponPoolScroll = 0
         g._weaponPoolDetail = null

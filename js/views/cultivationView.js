@@ -531,6 +531,7 @@ function tCultivation(g, x, y, type) {
           }
           if (item.key === 'dex') { g.setScene('dex'); return }
           if (item.key === 'weapons') {
+            if ((g.storage.weaponCollection || []).length < 1) return
             g._weaponPoolFilter = 'all'; g._weaponPoolScroll = 0; g._weaponPoolDetail = null
             g.setScene('weaponPool'); return
           }

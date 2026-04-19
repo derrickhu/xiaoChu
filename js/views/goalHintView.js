@@ -198,26 +198,46 @@ function drawGoalBar(c, R, S, x, y, w, opts) {
   const currStars = storage.getChapterTotalStars(chapterId, 'normal') || 0
   const barH = 46 * S
   const pad = 10 * S
+  const round = 6 * S
 
-  // 底板（章节主题色浅色 + 左侧主题色强调条）
+  // 底板：淡色「笺纸 / 卷轴」感——纵向暖米渐变 + 左侧章节色条 + 浅金描边，
+  // 与对局准备页标题 #FFF5E0、金棕描边同一套仙侠 UI 气质，又保证亮场景下可读
   const themeColor = (chapter && chapter.theme) || '#b89068'
-  c.fillStyle = _hexToRgba(themeColor, 0.12)
-  R.rr(x, y, w, barH, 6 * S); c.fill()
+  const paperGrad = c.createLinearGradient(x, y, x, y + barH)
+  paperGrad.addColorStop(0, 'rgba(255,252,244,0.98)')
+  paperGrad.addColorStop(0.42, 'rgba(252,244,228,0.97)')
+  paperGrad.addColorStop(1, 'rgba(245,232,212,0.96)')
+  c.fillStyle = paperGrad
+  R.rr(x, y, w, barH, round); c.fill()
+
+  const tintGrad = c.createLinearGradient(x, y, x + Math.min(w * 0.42, 130 * S), y + barH)
+  tintGrad.addColorStop(0, _hexToRgba(themeColor, 0.13))
+  tintGrad.addColorStop(0.55, _hexToRgba(themeColor, 0.04))
+  tintGrad.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = tintGrad
+  R.rr(x, y, w, barH, round); c.fill()
+
   c.fillStyle = themeColor
   R.rr(x, y, 3 * S, barH, 1 * S); c.fill()
-  c.strokeStyle = _hexToRgba(themeColor, 0.45)
-  c.lineWidth = 0.8 * S
-  R.rr(x, y, w, barH, 6 * S); c.stroke()
 
-  // 第1行：章节 + 星数
+  c.strokeStyle = 'rgba(188,152,88,0.72)'
+  c.lineWidth = 1 * S
+  R.rr(x, y, w, barH, round); c.stroke()
+  c.strokeStyle = 'rgba(255,250,235,0.55)'
+  c.lineWidth = 0.55 * S
+  R.rr(x + 0.45 * S, y + 0.45 * S, w - 0.9 * S, barH - 0.9 * S, round - 0.45 * S); c.stroke()
+
+  // 第1行：章节 + 星数（正文用深色，不用浅色 theme 直填字）
+  const titleColor = '#1a2a3a'
+  const metaColor = '#4a3410'
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.fillStyle = themeColor
+  c.fillStyle = titleColor
   c.fillText(`第${chapterId}章·${chapter ? chapter.name : ''}`, x + pad, y + 5 * S)
 
   c.textAlign = 'right'
   c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.fillStyle = '#8b6914'
+  c.fillStyle = metaColor
   c.fillText(`★ ${currStars}/24`, x + w - pad, y + 5 * S)
 
   // 进度条（节点版）在第1行下方
@@ -225,7 +245,7 @@ function drawGoalBar(c, R, S, x, y, w, opts) {
   const barY = y + 20 * S
   const barW = w - pad * 2
   const pbarH = 4 * S
-  c.fillStyle = 'rgba(120,90,40,0.18)'
+  c.fillStyle = 'rgba(72,58,38,0.22)'
   R.rr(barX, barY, barW, pbarH, pbarH / 2); c.fill()
   const progress = Math.min(1, currStars / 24)
   if (progress > 0) {
@@ -250,18 +270,18 @@ function drawGoalBar(c, R, S, x, y, w, opts) {
   if (nextMs) {
     const remainText = nextMs.remainingStars > 0 ? `距 ${nextMs.tier}★ 还差 ${nextMs.remainingStars}★` : `${nextMs.tier}★ 里程碑可领取！`
     c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    c.fillStyle = '#8b6914'
+    c.fillStyle = metaColor
     c.fillText(remainText, x + pad, line2Y + 7 * S)
     const remainW = c.measureText(remainText).width
     const icon = rewardToIconText(pickMarqueeReward(nextMs.rewards))
     if (icon) {
       drawRewardChip(c, R, S, x + pad + remainW + 6 * S, line2Y + 7 * S - 6 * S, icon, {
-        fontPx: 9 * S, iconSz: 12 * S, color: themeColor,
+        fontPx: 9 * S, iconSz: 12 * S, color: '#3d2910',
       })
     }
   } else {
     c.font = `${9.5*S}px "PingFang SC",sans-serif`
-    c.fillStyle = '#8b6914'
+    c.fillStyle = metaColor
     c.fillText('本章里程碑已全部领取', x + pad, line2Y + 7 * S)
   }
 

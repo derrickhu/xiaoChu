@@ -344,6 +344,21 @@ function rTowerTeam(g) {
   }
   cy += 28 * S
 
+  const showLongPressHint =
+    !g.storage.isGuideShown('stage_team_longpress_hint') &&
+    (g.storage.petPool || []).length > 0
+  if (showLongPressHint) {
+    c.textAlign = 'center'
+    c.textBaseline = 'top'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.65)'; c.lineWidth = 2.5 * S
+    const tip = '小灵贴士：长按灵宠卡片可查看技能与详情～'
+    c.strokeText(tip, W / 2, cy)
+    c.fillStyle = '#E8C547'
+    c.fillText(tip, W / 2, cy)
+    cy += 16 * S
+  }
+
   const canGo = selected.length >= MIN_TEAM
   const suggestCompleteTeam =
     canGo && selected.length < MAX_TEAM && _hasUnpickedPetsInPool(g, selected)
@@ -836,6 +851,7 @@ function tTowerTeam(g, x, y, type) {
   // 长按宠物详情
   const elapsed = Date.now() - _holdStartTime
   if (elapsed >= 500 && !_scrolling && _holdTarget) {
+    g.storage.markGuideShown('stage_team_longpress_hint')
     g._petDetailId = _holdTarget.petId
     g._petDetailReturnScene = 'towerTeam'
     _holdTarget = null
@@ -850,6 +866,11 @@ function tTowerTeam(g, x, y, type) {
 
   // 预设 tab bar：切换 = 同步到塔选中 + 装备法宝；保存 = 用塔选中覆盖槽位
   const presetHandled = teamPresetBar.onTouch(g, x, y, 'end', {
+    getCurrentFormationSnapshot: () => ({
+      petIds: (g._towerTeamSelected || []).slice(),
+      weaponId: g.storage.equippedWeaponId || null,
+    }),
+    compareTeamMaxSlots: MAX_TEAM,
     onApply: (_pid, applied) => {
       const filtered = (applied.petIds || []).slice(0, MAX_TEAM)
       g._towerTeamSelected = filtered

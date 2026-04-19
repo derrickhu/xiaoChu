@@ -2263,10 +2263,19 @@ class Storage {
   }
 
   addWeapon(weaponId) {
+    if (!weaponId) return false
     if (!this._d.weaponCollection) this._d.weaponCollection = []
     if (!this._d.weaponCollection.includes(weaponId)) {
+      const wasEmpty = this._d.weaponCollection.length === 0
       this._d.weaponCollection.push(weaponId)
       this._save()
+      // 首件法宝：回首页后由 main 消费 _pendingGuide → weapon_nav_unlock（小灵指底栏）
+      if (wasEmpty && !this.isGuideShown('weapon_nav_unlock') && !this.isGuideShown('weapon_equip')) {
+        try {
+          const gm = typeof GameGlobal !== 'undefined' && GameGlobal.__gameMain
+          if (gm && !gm._pendingGuide) gm._pendingGuide = 'weapon_nav_unlock'
+        } catch (_) {}
+      }
       return true
     }
     return false

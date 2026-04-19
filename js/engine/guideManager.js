@@ -51,9 +51,18 @@ const GUIDE_DEFS = {
       { text: '主人小心，BOSS 有大招，看清预告再应对～', position: 'center' },
     ],
   },
-  weapon_equip: {
+  // 首件法宝入包后回首页触发（替代旧 weapon_equip 单句，与底栏解锁联动）
+  weapon_nav_unlock: {
     steps: [
-      { text: '主人拿到新法宝啦！它的效果在战斗中会自动生效～', position: 'center' },
+      {
+        text: '主人主人～你终于有第一件法宝啦！\n快点点底下的「法宝」，小灵陪你认认它～',
+        position: 'bottom',
+        highlightId: 'nav_weapon',
+      },
+      {
+        text: '法宝带的是被动效果，主人出战时它会悄悄帮你一把～\n以后收了新宝贝，也来这里换上更厉害的！',
+        position: 'center',
+      },
     ],
   },
   buff_first: {
@@ -252,6 +261,8 @@ let _fadeAlpha = 0
 
 function shouldShow(g, guideId) {
   if (!GUIDE_DEFS[guideId]) return false
+  // 旧存档只记过 weapon_equip 的，不再播 weapon_nav_unlock
+  if (guideId === 'weapon_nav_unlock' && g.storage.isGuideShown('weapon_equip')) return false
   return !g.storage.isGuideShown(guideId)
 }
 
@@ -305,7 +316,9 @@ function advance(g) {
   if (!_currentGuide) return
   _stepIdx++
   if (_stepIdx >= _currentGuide.steps.length) {
-    g.storage.markGuideShown(_currentGuide.id)
+    const doneId = _currentGuide.id
+    g.storage.markGuideShown(doneId)
+    if (doneId === 'weapon_nav_unlock') g.storage.markGuideShown('weapon_equip')
     _dequeue(g)
   }
   _fadeAlpha = 0
@@ -327,7 +340,9 @@ function getFadeAlpha() {
  */
 function dismiss(g) {
   if (!_currentGuide) return
-  g.storage.markGuideShown(_currentGuide.id)
+  const doneId = _currentGuide.id
+  g.storage.markGuideShown(doneId)
+  if (doneId === 'weapon_nav_unlock') g.storage.markGuideShown('weapon_equip')
   _currentGuide = null
   _stepIdx = 0
   _fadeAlpha = 0
