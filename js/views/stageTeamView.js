@@ -15,6 +15,26 @@ const { STAMINA_COST } = require('../data/constants')
 const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
 const { drawGoldBtn } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
+const teamPresetBar = require('./teamPresetBar')
+const guideMgr = require('../engine/guideManager')
+const { TEAM_PRESET_MAX } = require('../data/constants')
+
+// 预设相关引导：
+//   · team_preset_intro：首次进编队页就讲，让玩家知道 tab 的用法
+//   · team_preset_unlock：看到 🔒 tab 时讲，告诉他可以看广告解锁
+// 两条只触发一次（guideMgr 内置已看过标记）
+function _tryTriggerPresetGuides(g) {
+  if (guideMgr.isActive()) return
+  if (guideMgr.shouldShow(g, 'team_preset_intro')) {
+    guideMgr.trigger(g, 'team_preset_intro')
+    return
+  }
+  // intro 看完后，如果还有锁定槽位，再下一次进来就讲 unlock
+  const unlocked = g.storage.teamPresetSlotUnlocked
+  if (unlocked < TEAM_PRESET_MAX && guideMgr.shouldShow(g, 'team_preset_unlock')) {
+    guideMgr.trigger(g, 'team_preset_unlock')
+  }
+}
 
 const FILTERS = [
   { key: 'all', label: '全部' },
@@ -260,6 +280,20 @@ function rStageTeam(g) {
       }
       cy += cardH + 6 * S
     }
+  }
+
+  // ── 预设编队 Tab Bar（秘境/塔共用） ──
+  //   点 tab = 应用预设；点"保存"= 把当前编队存到指定槽
+  //   推荐 preset 的 badge 由 stageInfoView 在进入战斗前已预算过，
+  //   这里读 g._recommendedPresetId 即可（stageInfo 决定，编队页消费）
+  {
+    const barX = 8 * S
+    const barW = W - 16 * S
+    teamPresetBar.draw(g, barX, cy, barW, {
+      highlightPresetId: g._recommendedPresetId || null,
+    })
+    cy += teamPresetBar.getBarHeight() + 6 * S
+    _tryTriggerPresetGuides(g)
   }
 
   // ── 编队槽位（上方面板） ──
@@ -977,6 +1011,30 @@ function tStageTeam(g, x, y, type) {
   if (!stage) return
   const selected = g._stageTeamSelected || (g._stageTeamSelected = [])
 
+  // 预设 tab bar（优先处理，它自己决定是否吃掉事件；切换预设后刷新 selected/滚动）
+  const presetHandled = teamPresetBar.onTouch(g, x, y, 'end', {
+    onApply: (_pid, applied) => {
+      g._stageTeamSelected = applied.petIds.slice()
+      _scrollY = 0
+    },
+    onActiveChanged: () => {
+      // 切到空预设：不动 _stageTeamSelected，玩家下一步应该点"保存"把现有队伍存进去
+    },
+    prepareSaveCurrent: () => {
+      // 关键：保存按钮读的是 storage.savedStageTeam，但玩家屏幕上正在调整的是
+      // g._stageTeamSelected。保存前必须把选中同步进 savedStageTeam，
+      // 否则会出现"看到 5 只却存成空/旧队"的问题。
+      g.storage.saveStageteam(g._stageTeamSelected || [])
+    },
+    afterSave: () => {
+      // 保存完保持原选中不变；不需要额外动作
+    },
+    onUnlockClick: () => {
+      teamPresetBar.triggerUnlockAd(g)
+    },
+  })
+  if (presetHandled) return
+
   // 开始战斗
   if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
     const wCol = g.storage.weaponCollection || []
@@ -1058,6 +1116,9 @@ function tStageTeam(g, x, y, type) {
 
 // ===== 工具 =====
 
-function resetScroll() { _scrollY = 0 }
+function resetScroll() {
+  _scrollY = 0
+  teamPresetBar.reset()
+}
 
 module.exports = { rStageTeam, tStageTeam, resetScroll }

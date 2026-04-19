@@ -203,6 +203,30 @@ const GUIDE_DEFS = {
       { text: '顶部 ⭐ / NEW 的数字按一下，\n小灵帮主人直接定位到它们～', position: 'center' },
     ],
   },
+  // 预设编队：秘境/塔编队页首次进入且已看到 tab bar 时触发
+  // 目标：告诉玩家「tab 一点 = 整套切换」，一句话消除"这是啥"的困惑
+  team_preset_intro: {
+    steps: [
+      { text: '主人看这里～\n上方是预设编队 tab，每个都能存一整套阵容+法宝', position: 'center' },
+      { text: '下次遇到同类型关卡，\n点一下 tab 就能一键切换，不用重新选啦～', position: 'center' },
+      { text: '先点一下想存的 tab，再点右边「保存」\n就会存到这一套里', position: 'center' },
+      { text: '保存后我会按你的阵容\n自动起个名（金系队、五行齐队…），\n不用操心起名~', position: 'center' },
+    ],
+  },
+  // 预设编队：第一次看到 🔒 tab 时触发，帮玩家理解"看广告解锁"这个入口
+  team_preset_unlock: {
+    steps: [
+      { text: '主人，锁着的 tab 是还没解锁的预设槽位～', position: 'center' },
+      { text: '看一段短广告就能再解锁一套，\n最多能养到 5 套阵容方便切换哦', position: 'center' },
+    ],
+  },
+  // 预设编队：stageInfo 首次出现"本关推荐 · 预设 X"提示条时触发
+  team_preset_recommend: {
+    steps: [
+      { text: '主人，小灵帮你扫过本关的弱点～\n这一套预设打起来更占便宜哦', position: 'center' },
+      { text: '点「一键应用」就能马上换成这套出发～', position: 'center' },
+    ],
+  },
   // 从派遣返回灵宠池后触发
   newbie_after_dispatch: {
     steps: [

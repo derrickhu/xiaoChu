@@ -2451,6 +2451,11 @@ function tStageResult(g, x, y, type) {
         if (tr.action === 'cultivation') { g.setScene('cultivation'); return }
         if (tr.action === 'stageTeam') {
           g._selectedStageId = tr.stageId
+          // 失败跳到编队页前先把"当前已保存编队"灌入选中列表，
+          // 否则 stageTeamView 会看到空的 _stageTeamSelected，
+          // 玩家进入后会误以为"全体被清空"。
+          g._stageTeamSelected = g.storage.getValidSavedTeam().slice()
+          g._stageTeamFilter = 'all'
           g.setScene('stageTeam')
           return
         }

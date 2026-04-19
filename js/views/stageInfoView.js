@@ -17,11 +17,15 @@ const { getRewardPreview } = require('../engine/rewardPreview')
 const { getMaxDropRarity } = require('../data/dropRoller')
 const { drawPoolPetDetailPopup } = require('./dialogs')
 const { drawSeparator, drawGoldBtn } = require('./uiUtils')
+const gameToast = require('./gameToast')
+const { pickBestPresetCached, RECOMMEND_MIN_SCORE } = require('../engine/presetScorer')
+const guideMgr = require('../engine/guideManager')
 
 const _rects = {
   backBtnRect: null,
   startBtnRect: null,
   editTeamBtnRect: null,
+  recommendApplyRect: null, // 本关推荐预设「一键应用」按钮命中区
   petSlotRects: [],   // [{petId, rect}]
   enemyRects: [],
 }
@@ -527,6 +531,62 @@ function rStageInfo(g) {
   // ── 卡片内容结束 ──
   const cardContentBottom = cardTop + cardH
 
+  // ── 本关推荐预设（可选一行，只在"有非当前的推荐预设"时显示） ──
+  //   推荐规则来自 presetScorer：按五行克制 + 队伍满员加分，
+  //   分数过阈值才算"值得推荐"，避免 1-1 这种随便打也能过的关泛红。
+  //   设计上这条"荐入口"是可忽略的：当前预设就推荐时完全不显示，
+  //   不推荐但 active 一致时也不显示，只有"换一套更合适"时才打扰玩家。
+  let recommendBarY = cardContentBottom + 10 * S
+  let recommendBarH = 0
+  _rects.recommendApplyRect = null
+  g._recommendedPresetId = null // 给 stageTeamView 消费（高亮 badge）
+  {
+    const presetsForView = g.storage.getTeamPresetsForView()
+    const best = pickBestPresetCached(presetsForView, stage, g.storage.teamPresetActiveId)
+    if (best && best.recommended && best.preset.id !== g.storage.teamPresetActiveId) {
+      g._recommendedPresetId = best.preset.id
+      const barX = px + 4 * S
+      const barW = W - 2 * (px + 4 * S)
+      recommendBarH = 34 * S
+      // 渐变底板
+      c.save()
+      const grad = c.createLinearGradient(barX, recommendBarY, barX + barW, recommendBarY)
+      grad.addColorStop(0, 'rgba(212,160,48,0.25)')
+      grad.addColorStop(1, 'rgba(212,160,48,0.08)')
+      c.fillStyle = grad
+      R.rr(barX, recommendBarY, barW, recommendBarH, 8 * S); c.fill()
+      c.strokeStyle = 'rgba(232,197,71,0.7)'; c.lineWidth = 1 * S
+      R.rr(barX, recommendBarY, barW, recommendBarH, 8 * S); c.stroke()
+      c.restore()
+      // 文案："本关推荐 · 预设 2（+15 分）"
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      c.fillStyle = '#FFE9A6'
+      c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+      c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 2 * S
+      const label = `本关推荐 · ${best.preset.name}`
+      c.strokeText(label, barX + 10 * S, recommendBarY + recommendBarH / 2)
+      c.fillText(label, barX + 10 * S, recommendBarY + recommendBarH / 2)
+      // 右侧"一键应用"按钮
+      const btnW = 72 * S
+      const btnH = 24 * S
+      const btnX = barX + barW - btnW - 6 * S
+      const btnY = recommendBarY + (recommendBarH - btnH) / 2
+      c.fillStyle = 'rgba(50,32,12,0.9)'
+      R.rr(btnX, btnY, btnW, btnH, btnH / 2); c.fill()
+      c.strokeStyle = 'rgba(255,220,120,0.85)'; c.lineWidth = 1.2 * S
+      R.rr(btnX, btnY, btnW, btnH, btnH / 2); c.stroke()
+      c.fillStyle = '#FFF2C8'
+      c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'center'
+      c.fillText('一键应用', btnX + btnW / 2, btnY + btnH / 2)
+      _rects.recommendApplyRect = [btnX, btnY, btnW, btnH]
+      // 首次出现"推荐 ≠ active"时小灵讲一次（仅讲一次，guideMgr 已做幂等）
+      if (!guideMgr.isActive() && guideMgr.shouldShow(g, 'team_preset_recommend')) {
+        guideMgr.trigger(g, 'team_preset_recommend')
+      }
+    }
+  }
+
   // ── 编队区域 ──
   const framePetMap = _getFramePetMap(R)
   const iconSize = 56 * S
@@ -537,8 +597,9 @@ function rStageInfo(g) {
   const iconsW = maxSlots * iconSize + (maxSlots - 1) * iconGap
   const iconStartX = (W - iconsW) / 2
 
-  // 编队标签（放大+描边让文字醒目）
-  const teamLabelY = cardContentBottom + 16 * S
+  // 编队标签（放大+描边让文字醒目）；有推荐条时往下让 recommendBarH 的高度 + 间距
+  const teamLabelYBase = cardContentBottom + 16 * S
+  const teamLabelY = recommendBarH > 0 ? recommendBarY + recommendBarH + 10 * S : teamLabelYBase
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.font = `bold ${15*S}px "PingFang SC",sans-serif`
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
@@ -702,6 +763,24 @@ function tStageInfo(g, x, y, type) {
   // 返回
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g.setScene('title')
+    return
+  }
+
+  // "本关推荐"一键应用：把推荐预设直接应用为当前编队，用户还能再点开始战斗
+  if (_rects.recommendApplyRect && g._hitRect(x, y, ..._rects.recommendApplyRect)) {
+    const rid = g._recommendedPresetId
+    if (rid) {
+      const applied = g.storage.applyTeamPreset(rid)
+      if (applied && applied.petIds.length > 0) {
+        gameToast.show('已应用推荐预设')
+      } else if (applied) {
+        gameToast.show('该预设还未保存过')
+      } else {
+        gameToast.show('预设不可用')
+      }
+      // 应用后清掉推荐缓存 flag，避免继续高亮
+      g._recommendedPresetId = null
+    }
     return
   }
 

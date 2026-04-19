@@ -11,6 +11,22 @@ const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = requ
 const { drawGoldBtn } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
 const { TOWER_DAILY } = require('../data/economyConfig')
+const teamPresetBar = require('./teamPresetBar')
+const guideMgr = require('../engine/guideManager')
+const { TEAM_PRESET_MAX } = require('../data/constants')
+
+// 塔编队也用预设，同秘境一样触发 intro / unlock 两条引导
+function _tryTriggerPresetGuides(g) {
+  if (guideMgr.isActive()) return
+  if (guideMgr.shouldShow(g, 'team_preset_intro')) {
+    guideMgr.trigger(g, 'team_preset_intro')
+    return
+  }
+  const unlocked = g.storage.teamPresetSlotUnlocked
+  if (unlocked < TEAM_PRESET_MAX && guideMgr.shouldShow(g, 'team_preset_unlock')) {
+    guideMgr.trigger(g, 'team_preset_unlock')
+  }
+}
 
 const FILTERS = [
   { key: 'all', label: '全部' },
@@ -84,8 +100,19 @@ function _getFramePetMap(R) {
 
 function _ensureSelected(g) {
   if (!g._towerTeamSelected) {
-    const pool = g.storage.petPool || []
-    g._towerTeamSelected = pool.slice(0, MAX_TEAM).map(p => p.id)
+    // 优先用当前激活的预设（玩家刚在秘境切过预设，进塔应该也"就地生效"）；
+    // 预设若为空，再用 savedStageTeam；最后才回落为"池前 MAX_TEAM 只"。
+    const poolIds = new Set((g.storage.petPool || []).map(p => p.id))
+    const filter = (arr) => (arr || []).filter(id => poolIds.has(id)).slice(0, MAX_TEAM)
+    const activeId = g.storage.teamPresetActiveId
+    const activePreset = activeId ? g.storage.getTeamPreset(activeId) : null
+    let picked = activePreset ? filter(activePreset.petIds) : []
+    if (picked.length === 0) picked = filter(g.storage.getValidSavedTeam())
+    if (picked.length === 0) {
+      const pool = g.storage.petPool || []
+      picked = pool.slice(0, MAX_TEAM).map(p => p.id)
+    }
+    g._towerTeamSelected = picked
   }
   return g._towerTeamSelected
 }
@@ -142,6 +169,17 @@ function rTowerTeam(g) {
   c.fillText(`今日 ${usedRuns}/${TOWER_DAILY.freeRuns}`, W - px, cy + 18 * S)
   c.restore()
   cy += 40 * S
+
+  // ── 预设编队 Tab Bar（与秘境共用）──
+  //   切换 tab 会同步刷新 _towerTeamSelected 与装备法宝；
+  //   保存按钮会用"当前塔选中"覆盖目标槽位（prepareSaveCurrent 回调实现）
+  {
+    const barX = 8 * S
+    const barW = W - 16 * S
+    teamPresetBar.draw(g, barX, cy, barW, {})
+    cy += teamPresetBar.getBarHeight() + 6 * S
+    _tryTriggerPresetGuides(g)
+  }
 
   // ── 编队槽位面板（高度含提示行 + 筛选 Tab，与秘境视觉一致）──
   const panelTop = cy
@@ -810,6 +848,27 @@ function tTowerTeam(g, x, y, type) {
 
   const selected = _ensureSelected(g)
 
+  // 预设 tab bar：切换 = 同步到塔选中 + 装备法宝；保存 = 用塔选中覆盖槽位
+  const presetHandled = teamPresetBar.onTouch(g, x, y, 'end', {
+    onApply: (_pid, applied) => {
+      const filtered = (applied.petIds || []).slice(0, MAX_TEAM)
+      g._towerTeamSelected = filtered
+      _scrollY = 0
+    },
+    onActiveChanged: () => {
+      // 切到空预设：保持塔内当前选中不动，玩家下一步应该点"保存"
+    },
+    prepareSaveCurrent: () => {
+      // 先把塔页会话态写进 savedStageTeam，这样 saveCurrentToPreset 读到的
+      // 就是玩家当前塔里的阵容；法宝本来就是全局存储无需动。
+      g.storage.saveStageteam(selected)
+    },
+    onUnlockClick: () => {
+      teamPresetBar.triggerUnlockAd(g)
+    },
+  })
+  if (presetHandled) return
+
   // 出发按钮（与秘境：先校验法宝，未满编时二次确认）
   if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
     const wCol = g.storage.weaponCollection || []
@@ -888,6 +947,9 @@ function tTowerTeam(g, x, y, type) {
   }
 }
 
-function resetScroll() { _scrollY = 0 }
+function resetScroll() {
+  _scrollY = 0
+  teamPresetBar.reset()
+}
 
 module.exports = { rTowerTeam, tTowerTeam, resetScroll }

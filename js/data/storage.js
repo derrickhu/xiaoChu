@@ -36,7 +36,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 22
+const CURRENT_VERSION = 23
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -85,7 +85,15 @@ function defaultPersist() {
     stageClearRecord: {},    // { 'stage_1_1': { cleared, bestRating, clearCount, starsClaimed:[bool,bool,bool] } }
     chapterStarMilestones: {},  // { 1: [false,false,false], ... } 对应 5★/10★/15★
     dailyChallenges: { date: '', counts: {} },  // 每日挑战次数
-    savedStageTeam: [],      // 持久化保存的编队（灵宠ID列表）
+    savedStageTeam: [],      // 持久化保存的"当前编队"（灵宠ID列表；战斗引擎从这里读）
+    // ===== 预设编队（秘境/塔共用；默认 2 套，看广告解锁到 TEAM_PRESET_MAX） =====
+    // 结构: [{ id, name, petIds, weaponId, lastUsedAt }]
+    //   · petIds:  数组顺序即出战顺序，允许空（空预设 = "未保存的槽位"，UI 会提示去保存）
+    //   · weaponId: null 代表不装备法宝；应用预设时会调 equipWeapon
+    //   · lastUsedAt: 最近一次 applyTeamPreset 的时间戳，用于排序/统计
+    teamPresets: [],
+    teamPresetSlotUnlocked: 0,  // 已解锁槽位数，2 ≤ x ≤ TEAM_PRESET_MAX
+    teamPresetActiveId: '',     // 最近一次"应用"的预设 id，用于 UI 高亮当前 tab
     sidebarRewardDate: '',   // 侧边栏复访奖励最后领取日期
     // Phase 4：灵宠派遣（挂机）
     idleDispatch: {
@@ -150,6 +158,28 @@ function defaultPersist() {
 /** 全新本地档：已是当前大版本，避免首次落盘 dataVersion=0 导致二次启动误判删档弹窗 */
 function _freshPersistDataVersion(d) {
   if (d && typeof d === 'object') d.dataVersion = DATA_VERSION
+}
+
+// 预设编队：保证 teamPresets 数组总是有 TEAM_PRESET_MAX 个槽位（缺几个补几个，多余保留），
+//   以便迁移/全新玩家/云端同步回来的数据都能走同一份 UI。
+//   - 迁移与 defaultPersist 首次落盘都会调用，防止"新老玩家字段不一致"两个 bug。
+function ensureTeamPresets(d) {
+  const { TEAM_PRESET_DEFAULT_UNLOCKED, TEAM_PRESET_MAX } = require('./constants')
+  if (!Array.isArray(d.teamPresets)) d.teamPresets = []
+  for (let i = d.teamPresets.length; i < TEAM_PRESET_MAX; i++) {
+    d.teamPresets.push({
+      id: `preset_${i + 1}`,
+      name: `预设 ${i + 1}`,
+      petIds: [],
+      weaponId: null,
+      lastUsedAt: 0,
+    })
+  }
+  if (typeof d.teamPresetSlotUnlocked !== 'number' || d.teamPresetSlotUnlocked < TEAM_PRESET_DEFAULT_UNLOCKED) {
+    d.teamPresetSlotUnlocked = TEAM_PRESET_DEFAULT_UNLOCKED
+  }
+  if (d.teamPresetSlotUnlocked > TEAM_PRESET_MAX) d.teamPresetSlotUnlocked = TEAM_PRESET_MAX
+  if (!d.teamPresetActiveId) d.teamPresetActiveId = d.teamPresets[0].id
 }
 
 /**
@@ -309,6 +339,20 @@ const migrations = {
     const pool = d.petPool || []
     for (const p of pool) {
       if (p && p.id && !d.petPoolSeen.includes(p.id)) d.petPoolSeen.push(p.id)
+    }
+  },
+  // v22→v23：预设编队
+  //   新增 teamPresets / teamPresetSlotUnlocked / teamPresetActiveId。
+  //   老玩家无痛：把既有 savedStageTeam + equippedWeaponId 灌成「预设 1」，
+  //   让他们第一次进编队页时就能"切一下预设 1 = 当前编队"。
+  22: (d) => {
+    ensureTeamPresets(d)
+    const first = d.teamPresets[0]
+    if (first && (!first.petIds || first.petIds.length === 0)) {
+      if (Array.isArray(d.savedStageTeam) && d.savedStageTeam.length > 0) {
+        first.petIds = d.savedStageTeam.slice()
+      }
+      if (d.equippedWeaponId) first.weaponId = d.equippedWeaponId
     }
   },
 }
@@ -1811,6 +1855,195 @@ class Storage {
     return out
   }
 
+  // ===== 预设编队（秘境/塔共用；灵宠 + 法宝一键整套切换） =====
+  // 设计要点：
+  //   · teamPresets 是"收藏夹"，只在玩家主动「保存 / 切换 / 重命名」时改
+  //   · savedStageTeam + equippedWeaponId 是"当前编队"，战斗引擎读这两份
+  //   · 胜利结算继续只写 savedStageTeam，不污染预设；玩家临时微调阵容后，
+  //     如果想存进预设需要主动点"保存到预设"。这样避免"不小心多练一局就覆盖"。
+
+  /** 预设编队只读数组（含 locked 标记供 UI 用；按槽位顺序返回） */
+  getTeamPresetsForView() {
+    ensureTeamPresets(this._d)
+    const unlocked = this._d.teamPresetSlotUnlocked || 0
+    return this._d.teamPresets.map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      petIds: (p.petIds || []).slice(),
+      weaponId: p.weaponId || null,
+      lastUsedAt: p.lastUsedAt || 0,
+      locked: idx >= unlocked,
+      isActive: p.id === this._d.teamPresetActiveId,
+    }))
+  }
+
+  /** 已解锁槽位数 */
+  get teamPresetSlotUnlocked() {
+    ensureTeamPresets(this._d)
+    return this._d.teamPresetSlotUnlocked
+  }
+
+  /** 当前激活预设 id */
+  get teamPresetActiveId() {
+    ensureTeamPresets(this._d)
+    return this._d.teamPresetActiveId
+  }
+
+  /** 内部：按 id 找到预设槽位索引；找不到返回 -1 */
+  _findPresetIdx(id) {
+    const presets = this._d.teamPresets || []
+    for (let i = 0; i < presets.length; i++) {
+      if (presets[i].id === id) return i
+    }
+    return -1
+  }
+
+  /** 读预设（含合法化：剔除不在池中的宠物、重复宠物；法宝若未拥有则清空） */
+  getTeamPreset(id) {
+    ensureTeamPresets(this._d)
+    const idx = this._findPresetIdx(id)
+    if (idx < 0) return null
+    const p = this._d.teamPresets[idx]
+    const poolIds = new Set((this._d.petPool || []).map(pp => pp.id))
+    const seen = new Set()
+    const petIds = []
+    for (const pid of p.petIds || []) {
+      if (!pid || !poolIds.has(pid) || seen.has(pid)) continue
+      seen.add(pid)
+      petIds.push(pid)
+    }
+    let weaponId = p.weaponId || null
+    if (weaponId && !(this._d.weaponCollection || []).includes(weaponId)) weaponId = null
+    return { id: p.id, name: p.name, petIds, weaponId, lastUsedAt: p.lastUsedAt || 0, locked: idx >= (this._d.teamPresetSlotUnlocked || 0) }
+  }
+
+  /**
+   * 把指定预设应用为"当前编队"：
+   *   · 同步 savedStageTeam / equippedWeaponId
+   *   · 更新 teamPresetActiveId + lastUsedAt
+   *   · 自动合法化（池内、去重、法宝已拥有）
+   *   · 锁定槽位不可应用（返回 null）
+   *   · **空预设**：仅更新 activeId，不清空当前编队 / 不换装备——避免"点了空 tab，
+   *     屏幕上精心调好的阵容一键清零"的糟糕体感。空预设通常和"保存"配合：
+   *     切过去 + 点保存 = 把当前队伍存进去。
+   * 返回实际应用到战斗的数据或 null。
+   */
+  applyTeamPreset(id) {
+    ensureTeamPresets(this._d)
+    const idx = this._findPresetIdx(id)
+    if (idx < 0) return null
+    if (idx >= (this._d.teamPresetSlotUnlocked || 0)) return null
+    const valid = this.getTeamPreset(id)
+    if (!valid) return null
+    if (valid.petIds.length === 0) {
+      this._d.teamPresetActiveId = id
+      this._save()
+      return valid
+    }
+    this._d.savedStageTeam = valid.petIds.slice()
+    this._d.equippedWeaponId = valid.weaponId || null
+    this._d.teamPresetActiveId = id
+    this._d.teamPresets[idx].lastUsedAt = gmNow()
+    this._save()
+    return valid
+  }
+
+  /**
+   * 根据阵容属性分布生成"智能默认名"
+   *   · 全空：null（调用方用 "预设 N" 兜底）
+   *   · 单属性：金系队 / 木系队 / …
+   *   · 双属性：按数量主次拼接，如"金火队"
+   *   · 三属性或更多（非全五）：取前两主属性 + "混队"，如"金水混队"
+   *   · 五属性：五行齐队
+   * 这样玩家不手动改名也能一眼看出每套预设的定位。
+   */
+  _computeSmartPresetName(petIds) {
+    if (!Array.isArray(petIds) || petIds.length === 0) return null
+    const ATTR_CN = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
+    const pool = this._d.petPool || []
+    const byId = new Map(pool.map(p => [p.id, p]))
+    const counts = {}
+    for (const pid of petIds) {
+      const pp = byId.get(pid)
+      if (!pp || !pp.attr) continue
+      counts[pp.attr] = (counts[pp.attr] || 0) + 1
+    }
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    if (sorted.length === 0) return null
+    if (sorted.length === 1) return ATTR_CN[sorted[0][0]] + '系队'
+    if (sorted.length >= 5) return '五行齐队'
+    if (sorted.length === 2) return sorted.map(s => ATTR_CN[s[0]]).join('') + '队'
+    return sorted.slice(0, 2).map(s => ATTR_CN[s[0]]).join('') + '混队'
+  }
+
+  /**
+   * 把当前编队（savedStageTeam + equippedWeaponId）保存到指定预设槽位
+   *   · 锁定槽位不可写（返回 false）
+   *   · 当前编队为空也不让保存（返回 false；调用方给 toast 提示"先选几只"）
+   *   · 同步把 teamPresetActiveId 切到该槽位：玩家刚保存完，很可能就想"就用它"
+   *   · 自动重命名（基于阵容属性），玩家无需手动改名。若未来加 rename UI，
+   *     可通过 preset.nameCustomized = true 跳过覆盖；一期默认总是自动命名。
+   */
+  saveCurrentToPreset(id) {
+    ensureTeamPresets(this._d)
+    const idx = this._findPresetIdx(id)
+    if (idx < 0) return false
+    if (idx >= (this._d.teamPresetSlotUnlocked || 0)) return false
+    const saved = this.getValidSavedTeam()
+    if (saved.length === 0) return false
+    const preset = this._d.teamPresets[idx]
+    preset.petIds = saved.slice()
+    preset.weaponId = this._d.equippedWeaponId || null
+    preset.lastUsedAt = gmNow()
+    // 自动命名：玩家没手动改过名时覆盖为智能名
+    if (!preset.nameCustomized) {
+      const smart = this._computeSmartPresetName(preset.petIds)
+      preset.name = smart || `预设 ${idx + 1}`
+    }
+    this._d.teamPresetActiveId = id
+    this._save()
+    return true
+  }
+
+  /**
+   * 重命名预设。空串/全空白视为恢复默认，自动重新走一次智能命名（或"预设 N"）。
+   * 超过 TEAM_PRESET_NAME_MAX_LEN 的部分切断（UI 防挤占）。
+   * 玩家一旦手动改名 → nameCustomized=true，后续 saveCurrentToPreset 不再覆盖；
+   * 清空恢复默认则重新回到"自动跟随阵容命名"状态。
+   */
+  renameTeamPreset(id, name) {
+    ensureTeamPresets(this._d)
+    const { TEAM_PRESET_NAME_MAX_LEN } = require('./constants')
+    const idx = this._findPresetIdx(id)
+    if (idx < 0) return false
+    const raw = (name || '').trim()
+    const preset = this._d.teamPresets[idx]
+    if (!raw) {
+      const smart = this._computeSmartPresetName(preset.petIds)
+      preset.name = smart || `预设 ${idx + 1}`
+      preset.nameCustomized = false
+    } else {
+      preset.name = raw.slice(0, TEAM_PRESET_NAME_MAX_LEN)
+      preset.nameCustomized = true
+    }
+    this._save()
+    return true
+  }
+
+  /**
+   * 解锁下一个预设槽位（看广告成功后调用）。
+   * 返回解锁后的槽位数；已到上限则返回 null。
+   */
+  unlockNextTeamPresetSlot() {
+    ensureTeamPresets(this._d)
+    const { TEAM_PRESET_MAX } = require('./constants')
+    const cur = this._d.teamPresetSlotUnlocked || 0
+    if (cur >= TEAM_PRESET_MAX) return null
+    this._d.teamPresetSlotUnlocked = cur + 1
+    this._save()
+    return this._d.teamPresetSlotUnlocked
+  }
+
   // ===== 灵宠派遣（挂机）系统 =====
 
   get idleDispatch() { return this._d.idleDispatch || (this._d.idleDispatch = { slots: [], lastCollect: 0 }) }
@@ -2400,15 +2633,19 @@ class Storage {
         }
         // 确保 cultivation 字段完整（防止迁移失败或字段缺失）
         this._ensureCultivationFields()
+        // 确保预设编队字段完整（兼容迁移失败 / 云端回灌数据 / defaultPersist 空骨架）
+        ensureTeamPresets(this._d)
         // 二测删档检测（已废弃，防止老用户客户端残留 dataVersion 导致误清档）
         // this._checkDataVersion()
       } else {
         this._d = defaultPersist()
+        ensureTeamPresets(this._d)
         _freshPersistDataVersion(this._d)
       }
     } catch(e) {
       console.warn('Storage load error:', e)
       this._d = defaultPersist()
+      ensureTeamPresets(this._d)
       _freshPersistDataVersion(this._d)
     }
   }

@@ -211,6 +211,12 @@ const CHECKIN_HUAHUA = {
 /** 秘境编队：灵宠池≥此数量时，至少选几只才能开战（与关卡 teamSize.min 取较大值；池子不足则降为可上阵上限） */
 const STAGE_FORMATION_MIN_PETS = 3
 
+/** 预设编队：默认赠送 2 套，看广告解锁到 5 套上限（灵宠 + 法宝整组切换；秘境/塔共用） */
+const TEAM_PRESET_DEFAULT_UNLOCKED = 2
+const TEAM_PRESET_MAX = 5
+/** 预设编队名称长度（中文字符数上限；多余部分切断，避免 UI 挤占） */
+const TEAM_PRESET_NAME_MAX_LEN = 6
+
 /** 局内「攻略」按钮顶边距 = safeTop + 此项×S，避开微信小游戏/小程序右上角胶囊菜单 */
 const BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT = 50
 
@@ -417,6 +423,9 @@ module.exports = {
   TITLE_HOME,
   CHECKIN_HUAHUA,
   STAGE_FORMATION_MIN_PETS,
+  TEAM_PRESET_DEFAULT_UNLOCKED,
+  TEAM_PRESET_MAX,
+  TEAM_PRESET_NAME_MAX_LEN,
   BATTLE_HELP_BTN_BELOW_SAFE_TOP_PT,
   DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
