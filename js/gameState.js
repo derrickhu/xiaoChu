@@ -158,11 +158,21 @@ function initState(g) {
   g.titleTowerIndex = 0      // 当前模式内塔的索引（预留左滑多塔扩展）
   g.shopUsed = false
 
-  // ===== 排行榜（与 screens._RANK_TABS key 一致：stage/tower/dex/combo）=====
+  // ===== 排行榜 =====
+  // 顶层数据源：'all'=全服榜（云函数）| 'friend'=好友榜（微信开放数据域）
+  //   这是最外层选择；四个维度 Tab（秘境/通天塔/图鉴/连击）在其下
+  g.rankSource = 'all'
+  // 维度 Tab（与 screens._RANK_TABS key 一致：stage/tower/dex/combo）
   g.rankTab = 'stage'
   g.rankScrollY = 0
   // 通天塔榜次级周期：'weekly'=本周（每周清零，低阶玩家也有名次感）| 'all'=总榜（历史最佳）
+  //   仅 rankSource==='all' && rankTab==='tower' 时展示
   g.rankTowerPeriod = 'weekly'
+  // 排行榜档位范围：'all'=全服 | 'tier'=同境界（Realm Tier 分档，仅 stage/tower 支持）
+  //   仅 rankSource==='all' 时展示
+  g.rankScope = 'all'
+  // 好友榜滚动位置（好友榜内容由 openDataContext 异步渲染，滚动值单独存）
+  g.rankFriendScrollY = 0
 
   // ===== Phase 2：灵宠池 =====
   g._petPoolEntryPopup = null   // 入池庆祝弹窗 { petId }

@@ -7,7 +7,7 @@ const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
 const { RANK_CACHE_TTL_MS } = require('./constants')
-const { isCurrentUserGM } = require('./gmConfig')
+const friendRanking = require('./friendRanking')
 
 class RankingService {
   /**
@@ -31,6 +31,17 @@ class RankingService {
     this.rankComboMyRank = -1
     // 周榜期号：云端返回 periodKey（形如 "2026-W16"），UI 需要时展示
     this.rankAllWeeklyPeriodKey = ''
+
+    // ==== 同境界档位榜缓存：单独存，与全服榜并列，避免切 scope 时闪回旧数据 ====
+    // scope = 'tier' 时的 list / myRank；切换 scope 走独立状态
+    this.rankStageTierList = []
+    this.rankAllTierList = []
+    this.rankAllWeeklyTierList = []
+    this.rankStageTierMyRank = -1
+    this.rankAllTierMyRank = -1
+    this.rankAllWeeklyTierMyRank = -1
+    // 当前档位快照（用于 UI 展示"同境界（金丹）"）
+    this.rankCurrentTier = ''
     this._rankLoading = false
     this.rankLoadingMsg = ''
     this.rankLastFetch = 0
@@ -61,6 +72,15 @@ class RankingService {
   _emitFeedback(tab, curr) {
     const prev = this._prevRankByTab[tab]
     this._prevRankByTab[tab] = curr
+    // 挂件动画：不走 pendingFeedback 消费机制，独立一份数据，每次拉到新名次就给结算页挂件一个数字滚动 + ↑N 徽章
+    //   · 放在 pendingFeedback 之前，让 firstTime / no-event 场景也能尝试（内部会自己挡）
+    //   · require 放函数内是避免循环依赖（rankWidget 目前不反向依赖 rankingService，不过留个稳妥）
+    try {
+      const rankWidget = require('../views/rankWidget')
+      if (rankWidget && rankWidget.noteRankChange) {
+        rankWidget.noteRankChange(tab, prev, curr)
+      }
+    } catch (_) { /* 容错：rankWidget 未加载时（比如单测）静默跳过 */ }
     const fb = this._computeFeedback(tab, prev, curr)
     if (!fb || !fb.events.length) return
     if (fb.events.length === 1 && fb.events[0] === 'firstTime' && prev == null) return
@@ -93,6 +113,11 @@ class RankingService {
     }
   }
 
+  /** 取当前上下文快照：主要给外部（好友榜）主动上报分数用 */
+  getContextSnapshot() {
+    try { return this._getContext() } catch (_) { return null }
+  }
+
   async _callRanking(data) {
     if (P.isWeChat) {
       const r = await P.cloud.callFunction({ name: 'ranking', data })
@@ -115,18 +140,15 @@ class RankingService {
   }
 
   async submitScore(floor, pets, weapon, totalTurns) {
-    if (isCurrentUserGM()) {
-      console.warn('[Ranking] GM 账号跳过提交通天塔成绩')
-      return
-    }
+    // GM 账号也一并上榜，便于测试榜单显示/刷新链路；后续需要屏蔽可在云函数侧加过滤
     const ctx = this._getContext()
-    if (!cloudSync.isReady() || !ctx.userAuthorized) {
-      console.warn('[Ranking] 提交跳过: cloudReady=', cloudSync.isReady(), 'authorized=', ctx.userAuthorized)
+    if (!cloudSync.isReady()) {
+      console.warn('[Ranking] 提交跳过: cloudReady=false')
       return
     }
     const t0 = Date.now()
     try {
-      console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns)
+      console.log('[Ranking] 提交分数: floor=', floor, 'turns=', totalTurns, 'tier=', ctx.realmTier)
       const result = await this._callRanking({
         action: 'submit',
         nickName: ctx.userInfo.nickName,
@@ -139,21 +161,24 @@ class RankingService {
         masteredCount: ctx.masteredCount,
         collectedCount: ctx.collectedCount,
         maxCombo: ctx.maxCombo,
+        realmTier: ctx.realmTier,
       })
-      console.log('[Ranking] 提交分数完成, 耗时', Date.now() - t0, 'ms, 结果:', JSON.stringify(result).slice(0, 200))
+      console.log('[Ranking] 提交分数完成, 耗时', Date.now() - t0, 'ms, 结果:', JSON.stringify(result).slice(0, 400))
+      // 单独把周榜写入结果打出来，方便定位"通天塔周榜无数据"这类问题
+      if (result && result.weekly) {
+        console.log('[Ranking] 周榜写入状态:', JSON.stringify(result.weekly))
+      }
       this.rankLastFetch = 0
+      // 顺便把四维度分数同步到 wx.setUserCloudStorage，供好友榜读取
+      try { friendRanking.uploadScores(ctx) } catch (_) {}
     } catch(e) {
       console.error('[Ranking] 提交分数失败, 耗时', Date.now() - t0, 'ms:', e.message || e)
     }
   }
 
   async submitDexAndCombo() {
-    if (isCurrentUserGM()) {
-      console.warn('[Ranking] GM 账号跳过提交图鉴/连击榜')
-      return
-    }
     const ctx = this._getContext()
-    if (!cloudSync.isReady() || !ctx.userAuthorized) return
+    if (!cloudSync.isReady()) return
     const t0 = Date.now()
     try {
       console.log('[Ranking] 提交图鉴/连击: dex=', ctx.petDexCount, 'mastered=', ctx.masteredCount, 'combo=', ctx.maxCombo)
@@ -165,20 +190,20 @@ class RankingService {
         masteredCount: ctx.masteredCount,
         collectedCount: ctx.collectedCount,
         maxCombo: ctx.maxCombo,
+        realmTier: ctx.realmTier,
       })
       console.log('[Ranking] 提交图鉴/连击完成, 耗时', Date.now() - t0, 'ms')
+      // 清掉缓存时间戳，下次切图鉴/连击榜强制重拉，避免"刚提交但列表还是旧的"
+      this.rankLastFetch = 0
+      try { friendRanking.uploadScores(ctx, { tabs: ['dex', 'combo'] }) } catch (_) {}
     } catch(e) {
       console.warn('[Ranking] 提交图鉴/连击失败, 耗时', Date.now() - t0, 'ms:', e)
     }
   }
 
   async submitStageRanking() {
-    if (isCurrentUserGM()) {
-      console.warn('[Ranking] GM 账号跳过提交秘境榜')
-      return
-    }
     const ctx = this._getContext()
-    if (!cloudSync.isReady() || !ctx.userAuthorized) return
+    if (!cloudSync.isReady()) return
     if (ctx.stageTotalStars <= 0 && ctx.stageClearCount <= 0) return
     const t0 = Date.now()
     try {
@@ -195,14 +220,24 @@ class RankingService {
         farthestNormalOrder: ctx.farthestNormalOrder,
         farthestEliteChapter: ctx.farthestEliteChapter,
         farthestEliteOrder: ctx.farthestEliteOrder,
+        realmTier: ctx.realmTier,
       })
       console.log('[Ranking] 提交秘境完成, 耗时', Date.now() - t0, 'ms')
+      // 清掉缓存时间戳，下次切秘境榜强制重拉，避免"打完新关卡但榜单列表还是旧的"
+      this.rankLastFetch = 0
+      try { friendRanking.uploadScores(ctx, { tabs: ['stage'] }) } catch (_) {}
     } catch(e) {
       console.warn('[Ranking] 提交秘境失败, 耗时', Date.now() - t0, 'ms:', e)
     }
   }
 
-  async fetchRanking(tab, force) {
+  /**
+   * 拉取排行榜
+   * @param {string} tab 'stage' | 'tower' | 'towerWeekly' | 'dex' | 'combo'
+   * @param {boolean} force 强制刷新
+   * @param {string} [scope='all'] 'all' 全服 | 'tier' 同境界（仅 stage/tower/towerWeekly 支持）
+   */
+  async fetchRanking(tab, force, scope) {
     if (!cloudSync.isReady()) {
       console.warn('[Ranking] 云环境未就绪，2秒后重试')
       this.rankLoadingMsg = '等待云环境...'
@@ -215,11 +250,20 @@ class RankingService {
         return
       }
     }
+    // 仅秘境榜支持 tier 档位：通天塔后续走"仅限二星宠"平衡模式自身即均衡，不再按境界分档
+    const useTier = scope === 'tier' && tab === 'stage'
+    const ctx = this._getContext()
+    const realmTier = ctx.realmTier
+    this.rankCurrentTier = realmTier
     const now = Date.now()
-    const listMap = { stage: 'rankStageList', tower: 'rankAllList', all: 'rankAllList', towerWeekly: 'rankAllWeeklyList', dex: 'rankDexList', combo: 'rankComboList' }
+    // 缓存键：区分 scope（all/tier），避免切档时看到上个档的旧数据
+    const cacheTabKey = useTier ? `${tab}:tier:${realmTier}` : tab
+    const listMap = useTier
+      ? { stage: 'rankStageTierList', tower: 'rankAllTierList', towerWeekly: 'rankAllWeeklyTierList' }
+      : { stage: 'rankStageList', tower: 'rankAllList', all: 'rankAllList', towerWeekly: 'rankAllWeeklyList', dex: 'rankDexList', combo: 'rankComboList' }
     const listKey = listMap[tab] || 'rankStageList'
-    if (!force && now - this.rankLastFetch < RANK_CACHE_TTL_MS && this.rankLastFetchTab === tab && this[listKey].length > 0) {
-      console.log('[Ranking] 命中缓存, 跳过拉取:', tab)
+    if (!force && now - this.rankLastFetch < RANK_CACHE_TTL_MS && this.rankLastFetchTab === cacheTabKey && this[listKey].length > 0) {
+      console.log('[Ranking] 命中缓存, 跳过拉取:', cacheTabKey)
       return
     }
     const seq = ++this._rankFetchSeq
@@ -230,11 +274,12 @@ class RankingService {
     try {
       const actionMap = { stage: 'getStage', tower: 'getAll', all: 'getAll', towerWeekly: 'getAllWeekly', dex: 'getDex', combo: 'getCombo' }
       const action = actionMap[tab] || 'getStage'
-      console.log('[Ranking] 开始拉取:', action)
-      const result = await this._callRanking({ action })
+      const data = useTier ? { action, realmTier } : { action }
+      console.log('[Ranking] 开始拉取:', action, useTier ? `(tier=${realmTier})` : '(all)')
+      const result = await this._callRanking(data)
       const elapsed = Date.now() - t0
       if (seq !== this._rankFetchSeq) {
-        console.log('[Ranking] 忽略过期的拉取结果:', tab, 'seq=', seq)
+        console.log('[Ranking] 忽略过期的拉取结果:', cacheTabKey, 'seq=', seq)
         return
       }
       console.log('[Ranking] 拉取完成, 耗时', elapsed, 'ms, 结果:', JSON.stringify(result).slice(0, 800))
@@ -242,7 +287,7 @@ class RankingService {
         console.log('[Ranking] DEBUG:', JSON.stringify(result.debug))
       }
       if (result && result.code === 0) {
-        console.log('[Ranking] 获取到', (result.list || []).length, '条记录, myRank=', result.myRank)
+        console.log('[Ranking] 获取到', (result.list || []).length, '条记录, myRank=', result.myRank, 'scope=', useTier ? 'tier' : 'all')
         this[listKey] = result.list || []
         const rankKey = listKey.replace('List', 'MyRank')
         this[rankKey] = result.myRank || -1
@@ -251,8 +296,9 @@ class RankingService {
           this.rankAllWeeklyPeriodKey = result.periodKey
         }
         this.rankLastFetch = Date.now()
-        this.rankLastFetchTab = tab
-        this._emitFeedback(tab, result.myRank || -1)
+        this.rankLastFetchTab = cacheTabKey
+        // 反馈键：同境界榜独立于全服榜（避免切 scope 误触发 up/down）
+        this._emitFeedback(useTier ? `${tab}:tier` : tab, result.myRank || -1)
       } else {
         console.warn('[Ranking] 返回错误:', result)
       }
@@ -267,7 +313,7 @@ class RankingService {
     }
   }
 
-  async fetchRankingCombined(tab, needSubmit) {
+  async fetchRankingCombined(tab, needSubmit, scope) {
     if (!cloudSync.isReady()) {
       console.warn('[Ranking] 云环境未就绪，2秒后重试')
       this.rankLoading = true
@@ -280,10 +326,13 @@ class RankingService {
     this.rankLoading = true
     this.rankLoadingMsg = needSubmit ? '提交并加载中...' : '加载排行中...'
     const t0 = Date.now()
+    const useTier = scope === 'tier'
+    const ctx = this._getContext()
+    const realmTier = ctx.realmTier
+    this.rankCurrentTier = realmTier
     try {
       if (tab === 'stage') {
-        const ctx = this._getContext()
-        const canSubmit = needSubmit && ctx.userAuthorized && !isCurrentUserGM()
+        const canSubmit = needSubmit
         if (canSubmit && (ctx.stageTotalStars > 0 || ctx.stageClearCount > 0)) {
           await this._callRanking({
             action: 'submitStage',
@@ -297,24 +346,29 @@ class RankingService {
             farthestNormalOrder: ctx.farthestNormalOrder,
             farthestEliteChapter: ctx.farthestEliteChapter,
             farthestEliteOrder: ctx.farthestEliteOrder,
+            realmTier: ctx.realmTier,
           })
         }
-        const result = await this._callRanking({ action: 'getStage' })
+        const getData = useTier ? { action: 'getStage', realmTier } : { action: 'getStage' }
+        const result = await this._callRanking(getData)
         if (result && result.code === 0) {
-          this.rankStageList = result.list || []
-          this.rankStageMyRank = result.myRank || -1
+          if (useTier) {
+            this.rankStageTierList = result.list || []
+            this.rankStageTierMyRank = result.myRank || -1
+          } else {
+            this.rankStageList = result.list || []
+            this.rankStageMyRank = result.myRank || -1
+          }
           this.rankLastFetch = Date.now()
-          this.rankLastFetchTab = 'stage'
-          console.log('[Ranking] 秘境榜获取到', this.rankStageList.length, '条记录')
-          this._emitFeedback('stage', this.rankStageMyRank)
+          this.rankLastFetchTab = useTier ? `stage:tier:${realmTier}` : 'stage'
+          console.log('[Ranking] 秘境榜获取到', (result.list || []).length, '条记录, scope=', useTier ? 'tier' : 'all')
+          this._emitFeedback(useTier ? 'stage:tier' : 'stage', result.myRank || -1)
         }
       } else {
-        const ctx = this._getContext()
-        const doTowerSubmit =
-          needSubmit && ctx.userAuthorized && !isCurrentUserGM()
+        const doTowerSubmit = needSubmit
         let result
         if (doTowerSubmit) {
-          result = await this._callRanking({
+          const submitData = {
             action: 'submitAndGetAll',
             nickName: ctx.userInfo.nickName,
             avatarUrl: ctx.userInfo.avatarUrl,
@@ -326,20 +380,26 @@ class RankingService {
             masteredCount: ctx.masteredCount,
             collectedCount: ctx.collectedCount,
             maxCombo: ctx.maxCombo,
-          })
-        } else {
-          if (needSubmit && isCurrentUserGM()) {
-            console.warn('[Ranking] GM 账号仅拉取通天塔榜，不上传')
+            realmTier: ctx.realmTier,
           }
-          result = await this._callRanking({ action: 'getAll' })
+          if (useTier) submitData.queryRealmTier = realmTier
+          result = await this._callRanking(submitData)
+        } else {
+          const getData = useTier ? { action: 'getAll', realmTier } : { action: 'getAll' }
+          result = await this._callRanking(getData)
         }
         if (result && result.code === 0) {
-          this.rankAllList = result.list || []
-          this.rankAllMyRank = result.myRank || -1
+          if (useTier) {
+            this.rankAllTierList = result.list || []
+            this.rankAllTierMyRank = result.myRank || -1
+          } else {
+            this.rankAllList = result.list || []
+            this.rankAllMyRank = result.myRank || -1
+          }
           this.rankLastFetch = Date.now()
-          this.rankLastFetchTab = 'tower'
-          console.log('[Ranking] 通天塔获取到', this.rankAllList.length, '条记录')
-          this._emitFeedback('tower', this.rankAllMyRank)
+          this.rankLastFetchTab = useTier ? `tower:tier:${realmTier}` : 'tower'
+          console.log('[Ranking] 通天塔获取到', (result.list || []).length, '条记录, scope=', useTier ? 'tier' : 'all')
+          this._emitFeedback(useTier ? 'tower:tier' : 'tower', result.myRank || -1)
         }
       }
     } catch(e) {
@@ -365,6 +425,12 @@ class RankingService {
     } catch(e) {
       console.warn('[Ranking] 预热失败(不影响使用):', e.message || e)
     }
+    // 预热时顺便把四维度分数同步到 wx.setUserCloudStorage：
+    // 这样玩家就算从不点"好友榜"Tab，自己的分数也会出现在朋友的榜单里
+    try {
+      const ctx = this._getContext()
+      if (ctx) friendRanking.uploadScores(ctx)
+    } catch (_) {}
   }
 }
 

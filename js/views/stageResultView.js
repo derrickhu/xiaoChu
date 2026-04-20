@@ -25,6 +25,7 @@ const C = require('./uiColors')
 const lingCheer = require('./lingCheer')
 const buttonFx = require('./buttonFx')
 const shareHooks = require('../data/shareHooks')
+const rankWidget = require('./rankWidget')
 
 const _rects = {
   backBtnRect: null,
@@ -34,6 +35,7 @@ const _rects = {
   staminaRefundBtnRect: null,
   goalTailRect: null,    // 胜利结算页底部"下一里程碑"整条命中区
   goalTailBtnRect: null, // 上述右侧"查看 >"按钮命中区
+  rankWidget: null,      // 排行榜入口挂件命中区（{rect, tab}）
 }
 
 let _animTimer = 0
@@ -1034,6 +1036,12 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   const canRefund = !result.staminaRefunded && result.staminaCost > 0 && AdManager.canShow('staminaRefund')
   if (canRefund || result.staminaRefunded) contentH += 44 * S
 
+  // 排行榜·我第 N 名 挂件（rankWidget）：和胜利面板同口径，rankStageMyRank>0 时会占 30*S+8*S
+  //   · 失败面板内容高度用来画 infoPanel 背景，漏算会让分享胶囊画到面板外
+  if (g.storage && g.storage.rankStageMyRank && g.storage.rankStageMyRank > 0) {
+    contentH += 30 * S + 8 * S
+  }
+
   contentH += pad + 48 * S
   // 主动分享小图标挂在底部按钮右下外侧，预留一行空间
   contentH += 40 * S
@@ -1286,6 +1294,23 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
     _rects.staminaRefundBtnRect = null
   }
 
+  // 排行榜·我第 N 名 · 挂件：即使败北也展示，鼓励玩家"去超越他"
+  _rects.rankWidget = null
+  const myStageRankD = g.storage.rankStageMyRank
+  if (myStageRankD && myStageRankD > 0) {
+    const rwd = rankWidget.drawRankWidget(c, R, S, px + pad, cy + 2 * S, innerW, 'stage', myStageRankD)
+    if (rwd) {
+      _rects.rankWidget = rwd
+      // 未授权玩家：给挂件盖一层透明原生 createUserInfoButton，点挂件 = 微信原生授权弹窗
+      //   · 授权通过后在 wxButtons 里统一带真名进榜
+      //   · 拒绝 / 隐私兜底 / 新政"微信用户"等场景也会 _navToRanking，不卡玩家
+      if (g.storage.needsRealNameCta && g.storage.needsRealNameCta()) {
+        g._rankEntryAuth = { rect: rwd.rect, tab: 'stage' }
+      }
+      cy += rwd.height + 8 * S
+    }
+  }
+
   // ── 底部按钮 ──
   const btnH = 38 * S
   const btnGap = 12 * S
@@ -1525,9 +1550,9 @@ function _hasAdDoubleBtn(result) {
 //   · 基础：4*S 顶距 + 38*S 按钮行 + 8*S 间距 + 36*S 分享胶囊 + pad 底距 = 86*S + pad
 //   · Boss 关可看广告：上方再加 36*S 按钮 + 8*S 间距
 //   · Boss 关已翻倍：上方加 22*S 提示条 + 4*S 间距
-// 固定操作区总高度：tail（下一里程碑，26*S+6*S）+ 广告翻倍（0/36+8*S/22+4*S）+ 返回/下一关（38*S+4*S）+ 分享胶囊（36*S+8*S）+ 底 pad
-//   · 老版本漏算了 tail 高度：首通+Boss 关同时存在 tail 和广告翻倍时，分享胶囊会被挤出屏幕底部（玩家反馈）
-//   · storage：用于预测 tail 是否显示（computeNextMilestone 为 null 时 drawGoalTail 返回 0，这里同口径）
+// 固定操作区总高度：tail（下一里程碑，26*S+6*S）+ 广告翻倍（0/36+8*S/22+4*S）+ 排行挂件（30*S+8*S，可选）+ 返回/下一关（38*S+4*S）+ 分享胶囊（36*S+8*S）+ 底 pad
+//   · 老版本漏算了 tail / rankWidget 高度：首通+Boss 关同时存在 tail 和广告翻倍时，分享胶囊会被挤出屏幕底部（玩家反馈）
+//   · storage：用于预测 tail 是否显示（computeNextMilestone 为 null 时 drawGoalTail 返回 0）和排行挂件是否显示
 function _victoryActionsHeight(result, S, pad, storage) {
   let h = 4 * S + 38 * S + 8 * S + 36 * S + pad
   if (_hasAdDoubleBtn(result)) h += 36 * S + 8 * S
@@ -1540,6 +1565,12 @@ function _victoryActionsHeight(result, S, pad, storage) {
       const nextMs = goalHint.computeNextMilestone(storage, chapterId)
       if (nextMs) h += 26 * S + 6 * S
     }
+  }
+  // 排行榜·我第 N 名 挂件：rankStageMyRank>0 时显示（见 rankWidget.drawRankWidget 返回 height = 30*S）
+  //   · 绘制时 actionsCy += rw.height(30*S) + 8*S，和 tail 的 26+6 同口径
+  //   · 没算这段会导致分享胶囊被压出面板底边（玩家反馈"分享按钮又超框"）
+  if (storage && storage.rankStageMyRank && storage.rankStageMyRank > 0) {
+    h += 30 * S + 8 * S
   }
   return h
 }
@@ -2086,6 +2117,21 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
     actionsCy += 22 * S + 4 * S
   } else {
     _rects.adDoubleBtnRect = null
+  }
+
+  // 排行榜·我第 N 名 · 挂件：点击跳转秘境榜
+  _rects.rankWidget = null
+  const myStageRankV = g.storage.rankStageMyRank
+  if (myStageRankV && myStageRankV > 0) {
+    const rw = rankWidget.drawRankWidget(c, R, S, px + pad, actionsCy + 2 * S, innerW, 'stage', myStageRankV)
+    if (rw) {
+      _rects.rankWidget = rw
+      // 未授权：挂件盖原生 createUserInfoButton，点一次就弹微信授权面板（见 wxButtons.updateRankEntryAuthBtn）
+      if (g.storage.needsRealNameCta && g.storage.needsRealNameCta()) {
+        g._rankEntryAuth = { rect: rw.rect, tab: 'stage' }
+      }
+      actionsCy += rw.height + 8 * S
+    }
   }
 
   const btnH = 38 * S
@@ -2797,6 +2843,11 @@ function tStageResult(g, x, y, type) {
     return
   }
 
+  // 排行榜挂件点击：切到 ranking 场景并定位 Tab
+  if (_rects.rankWidget && rankWidget.handleTap(g, _rects.rankWidget, x, y)) {
+    return
+  }
+
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     if (_firstClearGuide) {
       g._pendingGuide = _firstClearGuide
@@ -2805,6 +2856,8 @@ function tStageResult(g, x, y, type) {
       g.setScene('title')
     }
     MusicMgr.playClick && MusicMgr.playClick()
+    // 点击"返回"是情绪出口之一，尝试消费一次名次变动反馈
+    try { require('./rankChangePopup').drainPending(g) } catch (_e) { /* 防御式容错 */ }
     return
   }
 
@@ -2812,6 +2865,8 @@ function tStageResult(g, x, y, type) {
     MusicMgr.playClick && MusicMgr.playClick()
     // 主推 CTA：金光爆点 —— 让"再次挑战 / 下一关"那一下有打击感
     buttonFx.trigger(_rects.nextBtnRect.slice(), 'upgrade')
+    // 点击"下一关"是情绪峰值出口，尝试消费一次名次变动反馈（切场景前触发，让动画覆盖下一场景）
+    try { require('./rankChangePopup').drainPending(g) } catch (_e) { /* 防御式容错 */ }
     // 新手前 2 关首通：直接进入下一关战斗，不经过选关/编队
     if (result.victory && result.isFirstClear
         && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {

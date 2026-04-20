@@ -452,10 +452,11 @@ function endRun(g) {
     g.storage.addDailyTaskProgress('battle_3', 1)
   }
   g.storage.clearRunState()
-  if (g.storage.userAuthorized) {
-    g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
-    g.storage.submitDexAndCombo()
-  }
+  g.storage.submitScore(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
+  g.storage.submitDexAndCombo()
+  // 结算后静默拉取通天塔榜，让 pendingRankingFeedback 有值，
+  // 玩家在结算页点击"下一关/返回"时 rankChangePopup 可立即消费
+  g.storage.fetchRanking('tower', true).catch(() => {})
   settleAll(g)
   _checkTowerEventMilestones(g)
   if (g._lastRunExp > 0 && !g.storage.isGuideShown('cultivation_unlock')) {

@@ -52,6 +52,7 @@ const buttonFx = require('./views/buttonFx')
 const numberTween = require('./views/numberTween')
 const shareCelebrate = require('./views/shareCelebrate')
 const tierCeremony = require('./views/tierCeremony')
+const rankChangePopup = require('./views/rankChangePopup')
 const guideMgr = require('./engine/guideManager')
 const bh = require('./battleHelpers')
 const wxBtns = require('./wxButtons')
@@ -371,6 +372,8 @@ class Main {
       this._dirty = true
       wxBtns.destroyFeedbackBtn(this)
       wxBtns.destroyGameClubBtn(this)
+      wxBtns.destroyRankCtaBtn(this)
+      wxBtns.destroyRankEntryAuthBtn(this)
     })
     P.onShow(() => {
       // 分享奖励飞效：玩家从分享面板回来（微信某些机型会触发 onShow）→ 立刻播放飞效
@@ -383,6 +386,8 @@ class Main {
       this._resumeForceRenderFrames = 6
       wxBtns.destroyFeedbackBtn(this)
       wxBtns.destroyGameClubBtn(this)
+      wxBtns.destroyRankCtaBtn(this)
+      wxBtns.destroyRankEntryAuthBtn(this)
       try { ctx.clearRect(0, 0, W, H) } catch (_) {}
       console.log('[Lifecycle] resume from background, force redraw')
     })
@@ -667,8 +672,16 @@ class Main {
     anim.updateHpAnims(this)
     anim.updateSkillPreview(this)
     if (this.scene === 'ranking' && this.af % 7200 === 0) {
-      const fetchTab = (this.rankTab === 'tower' && this.rankTowerPeriod === 'weekly') ? 'towerWeekly' : this.rankTab
-      this.storage.fetchRanking(fetchTab, true)
+      // 好友数据源走 openDataContext，这里不触发后台 fetchRanking
+      if (this.rankSource !== 'friend') {
+        const fetchTab = (this.rankTab === 'tower' && this.rankTowerPeriod === 'weekly') ? 'towerWeekly' : this.rankTab
+        this.storage.fetchRanking(fetchTab, true)
+      }
+    }
+    // 好友榜内容由 openDataContext 异步绘制到 sharedCanvas，主域需周期性 dirty
+    // 才能把最新 sharedCanvas 贴回主画布（否则拉数据时点进榜会一直显示空白）
+    if (this.scene === 'ranking' && this.rankSource === 'friend' && this.af % 15 === 0) {
+      this._dirty = true
     }
     guideOverlay.update()
     if (this.scene === 'title' && this._rewardChipFlyAnim) {
@@ -683,6 +696,11 @@ class Main {
     wxBtns.updateAuthBtn(this, dpr)
     wxBtns.updateFeedbackBtn(this, dpr)
     wxBtns.updateGameClubBtn(this, dpr)
+    wxBtns.updateRankCtaBtn(this, dpr)
+    // 排行入口透明原生授权按钮：未授权时覆盖在结算页挂件 / 通天塔 gameover 挂件 / 首页排行按钮上
+    //   · 玩家第一次点排行入口就直接弹微信原生授权面板，而不是"先进榜再点 CTA"
+    //   · g._rankEntryAuth 由各 view 在渲染时写入；场景切换会清空，无需额外心跳
+    wxBtns.updateRankEntryAuthBtn(this, dpr)
   }
 
   setScene(name) {
@@ -690,6 +708,11 @@ class Main {
     if (old === name) return
     this._dirty = true
     this.scene = name
+    // 排行入口透明原生授权按钮：场景一换就清理矩形 + 销毁原生按钮
+    //   · 各 view 会在下一次渲染里重新 set _rankEntryAuth，节奏自然
+    //   · 不销毁的话离开 stageResult 后按钮还漂在原坐标上，会被别的场景误触
+    this._rankEntryAuth = null
+    try { wxBtns.destroyRankEntryAuthBtn(this) } catch (_) {}
     if (name === 'stageTeam' || name === 'towerTeam') {
       this._showWeaponPicker = false
       this._weaponPickerPreviewId = null
@@ -720,6 +743,11 @@ class Main {
       MusicMgr.destroyBossBgm()
       // 任意场景回到首屏：秘境轮播重新对齐「下一可打关」（含从 stageInfo 等链路返回，避免连打多关后仍停在进链前的旧索引）
       this._stageIdxInitialized = false
+      // 兜底消费一次名次变动反馈：结算页点击"返回/下一关"时反馈可能还没拉回来，
+      // 等到切回首页时若仍有 pendingFeedback 再尝试一次，保证"打完一关一定能看到名次变化"
+      try { rankChangePopup.drainPending(this) } catch (_e) { /* 容错 */ }
+      // 每日首登：检查上周通天塔周榜是否有可领奖励；有的话弹确认框
+      this._checkWeeklyRankRewardIfNeeded()
       // 修炼小阶跨档：在结算/塔内已埋下 g._pendingRealmLingCheer，回主菜单时小灵横条说一句
       //   · 大境界跨档已用 tierCeremony 全屏处理过了，这里只处理 minor
       //   · 一次性消费，避免反复播放
@@ -738,6 +766,53 @@ class Main {
       this._preloadBattleAssets()
     }
     this.events.emit('scene:change', name, old)
+  }
+
+  /**
+   * 每日首次回到首页：静默拉取上周通天塔周榜奖励预览；若可领取则弹确认框引导领取
+   * · 每日最多触发一次云调（storage 内部按 localDateKey 去重）
+   * · 已领取过或未上榜的不打扰
+   */
+  _checkWeeklyRankRewardIfNeeded() {
+    if (!this.storage) return
+    if (this._weeklyRewardPromptShown) return
+    this.storage.checkWeeklyRewardOnceToday().then((preview) => {
+      if (!preview || !preview.canClaim || !preview.reward) return
+      if (this.scene !== 'title') return
+      if (this._confirmDialog) return
+      this._weeklyRewardPromptShown = true
+      const rank = preview.rank
+      const reward = preview.reward
+      const parts = []
+      if (reward.soulStone > 0) parts.push(`${reward.soulStone} 灵石`)
+      if (reward.uniFrag > 0) parts.push(`${reward.uniFrag} 万能碎片`)
+      const rewardStr = parts.length ? parts.join(' + ') : '参与奖'
+      const title = rank <= 10 ? `上周冲榜奖励（第 ${rank} 名）` : '上周参与奖'
+      const body = rank <= 10
+        ? `上周通天塔周榜你排到了第 ${rank} 名！\n可领取：${rewardStr}\n\n继续冲，本周榜已开启～`
+        : `上周你参与了通天塔周榜挑战。\n可领取：${rewardStr}\n\n本周再接再厉！`
+      this._confirmDialog = {
+        title,
+        content: body,
+        confirmText: '领取',
+        cancelText: '稍后',
+        onConfirm: async () => {
+          const res = await this.storage.claimWeeklyReward()
+          if (res && res.ok && res.justGranted) {
+            try {
+              const lingCheer = require('./views/lingCheer')
+              const parts2 = []
+              if (res.reward.soulStone > 0) parts2.push(`+${res.reward.soulStone} 灵石`)
+              if (res.reward.uniFrag > 0) parts2.push(`+${res.reward.uniFrag} 万能碎片`)
+              lingCheer.show(`上周冲榜奖励到账：${parts2.join(' · ')}`, { tone: 'epic', duration: 2400 })
+            } catch (_e) { /* 容错 */ }
+          }
+          this._dirty = true
+        },
+        timer: 0,
+      }
+      this._dirty = true
+    }).catch(() => { /* 容错 */ })
   }
 
   _preloadBattleAssets() {
@@ -770,7 +845,7 @@ class Main {
     const isStatic = (this.scene === 'title' || this.scene === 'weaponPool' ||
       this.scene === 'ranking' || this.scene === 'dex' ||
       this.scene === 'stageInfo')
-    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._shareRewardPopup && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !resourceFlyParticles.isActive(this) && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive() && !shareCelebrate.isActive() && !tierCeremony.isActive()) return
+    if (isStatic && !this._dirty && !this._confirmDialog && !this._adRewardPopup && !this._newbieGift && !this._shareRewardPopup && !this._helpTour && !this.showSidebarPanel && !this.showMorePanel && !guideMgr.isActive() && !this._rewardChipFlyAnim && !resourceFlyParticles.isActive(this) && !gameToast.isActive() && !floatText.isActive() && !lingCheer.isActive() && !buttonFx.isActive() && !numberTween.isActive() && !shareCelebrate.isActive() && !tierCeremony.isActive() && !rankChangePopup.isActive()) return
     this._dirty = false
     ctx.clearRect(0, 0, W, H)
     let sx = 0, sy = 0
@@ -855,6 +930,8 @@ class Main {
     if (shareCelebrate.isActive()) shareCelebrate.draw()
     // 段位晋升仪式：比 shareCelebrate 更上层（身份变化比战绩炫耀更高级别）
     if (tierCeremony.isActive()) tierCeremony.draw()
+    // 名次变动三档弹窗：放在段位仪式之上，让"终极荣耀"动画不被任何其他 UI 遮挡
+    rankChangePopup.draw()
     if (this._shareRewardPopup) shareRewardPopup.draw(this)
     resourceFlyParticles.draw(this)
 
@@ -895,6 +972,8 @@ class Main {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
     if (!t) return
     const x = t.clientX * dpr, y = t.clientY * dpr
+    // 名次变动三档弹窗：tier 2/3 吞触摸；tier 1 非阻塞
+    if (rankChangePopup.isActive() && rankChangePopup.handleTouch(type, x, y)) return
     // 炫耀卡弹窗：优先级最高，激活时拦截一切触摸（"请玩家先回应分享引导"）
     if (tierCeremony.isActive() && tierCeremony.handleTouch(type, x, y)) return
     if (shareCelebrate.isActive() && shareCelebrate.handleTouch(type, x, y)) return
@@ -981,10 +1060,12 @@ class Main {
     }
     this.rankTab = 'stage'
     this.rankScrollY = 0
+    // 档位 UI 已下线（_supportsTierScope 恒 false），强制回到 all，避免老会话残留 'tier' 导致列表读空
+    this.rankScope = 'all'
     this.setScene('ranking')
-    const needSubmit = this.storage.userAuthorized
-    if (needSubmit) this.storage.submitDexAndCombo()
-    await this.storage.fetchRankingCombined('stage', needSubmit)
+    // 放开匿名上榜后，打开排行榜时无条件做一次提交并拉取；真实授权由顶部 CTA 条驱动（它已盖原生 createUserInfoButton，点一次就能直接弹微信授权）
+    this.storage.submitDexAndCombo()
+    await this.storage.fetchRankingCombined('stage', true, this.rankScope)
     console.log('[Ranking] 排行榜加载完成, 总耗时', Date.now() - t0, 'ms')
   }
 

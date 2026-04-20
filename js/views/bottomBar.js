@@ -291,7 +291,15 @@ function drawBottomBar(g) {
 
   // 排行按钮 rect 同步给 wxButtons
   const rankIdx = BAR_ITEMS.findIndex(b => b.key === 'rank')
-  if (rankIdx >= 0) g._rankBtnRect = g._bottomBarRects[rankIdx]
+  if (rankIdx >= 0) {
+    g._rankBtnRect = g._bottomBarRects[rankIdx]
+    // 未授权时让底栏"排行"按钮也盖原生 createUserInfoButton —— 从底栏进榜也必弹授权
+    //   · 和结算页挂件共用 g._rankEntryAuth 通道（场景切换会清）
+    //   · 抖音端 P.createUserInfoButton 不存在时由 wxButtons 里 P.isWeChat 守卫兜底
+    if (g.storage && g.storage.needsRealNameCta && g.storage.needsRealNameCta()) {
+      g._rankEntryAuth = { rect: g._rankBtnRect.slice(), tab: 'stage' }
+    }
+  }
 
   ctx.restore()
 }

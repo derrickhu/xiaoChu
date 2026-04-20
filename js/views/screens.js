@@ -414,6 +414,8 @@ function _goComputeContentH(g, S) {
   }
 
   h += 24 * S
+  // 排行榜挂件占位（30*S + 10*S 间距），仅在已有 myRank 时计入
+  if (g.storage && g.storage.rankAllMyRank > 0) h += 30 * S + 10 * S
   if (!g._goAdDoubled && AdManager.canShow('settleDouble')) h += 44 * S
   h += pad + 48 * S
 
@@ -746,6 +748,26 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
     cy += 28 * S
   }
 
+  // === 排行榜·我第 N 名 · 挂件（通天塔榜入口）===
+  g._goRankWidget = null
+  const towerMyRank = g.storage.rankAllMyRank
+  if (towerMyRank && towerMyRank > 0) {
+    const rwt = require('./rankWidget').drawRankWidget(c, R, S, px + pad, cy + 2 * S, innerW, 'tower', towerMyRank)
+    if (rwt) {
+      // 存储去 scroll 后的实际屏幕坐标，便于命中测试
+      const screenRect = [rwt.rect[0], rwt.rect[1] - scroll, rwt.rect[2], rwt.rect[3]]
+      g._goRankWidget = {
+        rect: screenRect,
+        tab: rwt.tab,
+      }
+      // 未授权时盖原生授权按钮（和结算页同口径），点挂件 = 微信原生授权弹窗
+      if (g.storage.needsRealNameCta && g.storage.needsRealNameCta()) {
+        g._rankEntryAuth = { rect: screenRect, tab: rwt.tab }
+      }
+      cy += rwt.height + 10 * S
+    }
+  }
+
   // === 底部按钮 ===
   cy += 6 * S
   const btnH = 38 * S
@@ -816,14 +838,28 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
 // drawRewardRow 已抽取到 uiComponents.js
 
 // ===== Ranking =====
+/**
+ * 信息架构（2026-04 重构）：
+ *   顶层：全服 / 好友（rankSource）—— 数据来源
+ *   次级：秘境 / 通天塔 / 图鉴 / 连击（rankTab）—— 维度
+ *   三级：本周/总榜（period，仅 source=all+tab=tower）
+ *        同境界/全服（scope，仅 source=all+tab∈{stage,tower}）
+ *   好友榜下不显示 period 和 scope 子 Tab，微信关系链无"本周""同境界"概念
+ */
 const _RANK_TABS = [
-  { key: 'stage', label: '秘境榜' },
-  { key: 'tower', label: '通天塔' },
-  { key: 'dex',   label: '图鉴榜' },
-  { key: 'combo', label: '连击榜' },
+  { key: 'stage',  label: '秘境榜' },
+  { key: 'tower',  label: '通天塔' },
+  { key: 'dex',    label: '图鉴榜' },
+  { key: 'combo',  label: '连击榜' },
 ]
 const _RANK_LIST_MAP = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
 const _RANK_MY_MAP   = { stage: 'rankStageMyRank', tower: 'rankAllMyRank', dex: 'rankDexMyRank', combo: 'rankComboMyRank' }
+
+/** 顶层数据源 */
+const _RANK_SOURCES = [
+  { key: 'all',    label: '全服' },
+  { key: 'friend', label: '好友' },
+]
 
 // 通天塔周期子 Tab（仅 rankTab==='tower' 时显示）
 const _RANK_TOWER_PERIODS = [
@@ -832,12 +868,19 @@ const _RANK_TOWER_PERIODS = [
 ]
 
 /**
- * 计算通天塔榜 list/myRank 实际读取的 storage 字段
- * 周榜时改读 rankAllWeeklyList / rankAllWeeklyMyRank
+ * 计算当前 tab 的 list/myRank 实际读取的 storage 字段
+ *   · 通天塔周榜：读 rankAllWeeklyList / rankAllWeeklyMyRank
+ *   · 同境界档位榜（scope='tier'）：读对应 Tier 专用字段
+ * 注意：只有秘境榜（stage）支持 tier 档位榜，通天塔后续走"仅限二星宠"平衡模式自身就均衡
  */
 function _resolveRankKeys(g, tab) {
+  const scope = g.rankScope || 'all'
+  const useTier = scope === 'tier' && tab === 'stage'
   if (tab === 'tower' && g.rankTowerPeriod === 'weekly') {
     return { listKey: 'rankAllWeeklyList', myKey: 'rankAllWeeklyMyRank' }
+  }
+  if (useTier && tab === 'stage') {
+    return { listKey: 'rankStageTierList', myKey: 'rankStageTierMyRank' }
   }
   return { listKey: _RANK_LIST_MAP[tab], myKey: _RANK_MY_MAP[tab] }
 }
@@ -846,6 +889,15 @@ function _resolveRankKeys(g, tab) {
 function _resolveFetchTab(g, tab) {
   if (tab === 'tower' && g.rankTowerPeriod === 'weekly') return 'towerWeekly'
   return tab
+}
+
+/** 档位榜子 Tab 暂时整体隐藏：
+ *   · DAU 不足时分档 = 让每个档位看起来更冷清，反而伤留存
+ *   · 云端 realmTier 字段仍继续写入（_updateStageRanking / submit 都保留），后面人气起来随时能再开
+ *   · 返回 false 时，所有相关调用会自动级联退化为 scope='all'（_effectiveScope / useTier / fetch 参数均已就位）
+ */
+function _supportsTierScope(/* tab */) {
+  return false
 }
 
 /** 榜单 tab 的人读标签（UI 展示 & 语音文案） */
@@ -911,7 +963,14 @@ function rRanking(g) {
 
   const padX = 12*S
   let tab = g.rankTab || 'stage'
-  if (tab === 'all' || !_RANK_LIST_MAP[tab]) { tab = 'tower'; g.rankTab = 'tower' }
+  // tab 校验：不在维度映射里的统一归位到 tower
+  if (tab === 'all' || tab === 'friend' || !_RANK_LIST_MAP[tab]) {
+    tab = 'tower'; g.rankTab = 'tower'
+  }
+  // 数据源校验
+  const source = g.rankSource === 'friend' ? 'friend' : 'all'
+  g.rankSource = source
+  const isFriendSrc = source === 'friend'
 
   // D3：名次对比反馈消费一次（进入/刷新/切 tab 后 fetchRanking 会写入 pendingFeedback）
   if (g.storage.pendingRankingFeedback) {
@@ -935,8 +994,40 @@ function rRanking(g) {
   ctx.restore()
   g._rankRefreshRect = [rfX, rfY, rfW, rfH]
 
-  // ── Tab 切换栏（4个） ──
-  const tabY = safeTop + 70*S, tabH = 30*S
+  // ── 顶层数据源：全服 / 好友（分段胶囊，置于所有 Tab 之上）──
+  const sourceTabY = safeTop + 66 * S
+  const sourceTabH = 22 * S
+  const sourceTotalW = W - padX * 2
+  const sourceGap = 4 * S
+  const sourceSingleW = (sourceTotalW - sourceGap) / 2
+  g._rankSourceTabRects = {}
+  _RANK_SOURCES.forEach((so, i) => {
+    const sx = padX + i * (sourceSingleW + sourceGap)
+    const isActive = source === so.key
+    ctx.save()
+    if (isActive) {
+      // 好友 / 全服 用同一套暖金配色，与下方维度主 Tab 保持和谐
+      const sg = ctx.createLinearGradient(sx, sourceTabY, sx, sourceTabY + sourceTabH)
+      sg.addColorStop(0, 'rgba(240,196,80,0.95)')
+      sg.addColorStop(1, 'rgba(200,140,50,0.9)')
+      ctx.fillStyle = sg
+    } else {
+      ctx.fillStyle = 'rgba(200,158,60,0.10)'
+    }
+    R.rr(sx, sourceTabY, sourceSingleW, sourceTabH, sourceTabH * 0.5); ctx.fill()
+    ctx.strokeStyle = isActive ? 'rgba(160,100,20,0.55)' : 'rgba(200,158,60,0.3)'
+    ctx.lineWidth = 1 * S
+    R.rr(sx, sourceTabY, sourceSingleW, sourceTabH, sourceTabH * 0.5); ctx.stroke()
+    ctx.fillStyle = isActive ? '#2a1a00' : '#6B5B40'
+    ctx.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(so.label, sx + sourceSingleW * 0.5, sourceTabY + sourceTabH * 0.5)
+    ctx.restore()
+    g._rankSourceTabRects[so.key] = [sx, sourceTabY, sourceSingleW, sourceTabH]
+  })
+
+  // ── 维度 Tab 切换栏（4个：秘境/通天塔/图鉴/连击）──
+  const tabY = sourceTabY + sourceTabH + 8 * S, tabH = 30*S
   const tabGap = 5*S
   const totalTabW = W - padX*2 - tabGap*(_RANK_TABS.length-1)
   const singleTabW = totalTabW / _RANK_TABS.length
@@ -960,8 +1051,8 @@ function rRanking(g) {
     g._rankTabRects[t.key] = [tx, tabY, singleTabW, tabH]
   })
 
-  // ── 通天塔子 Tab：本周 / 总榜（仅 tower 有）──
-  const showPeriodTabs = tab === 'tower'
+  // ── 通天塔子 Tab：本周 / 总榜（仅 全服-通天塔 显示；好友榜走微信关系链，无周期概念）──
+  const showPeriodTabs = !isFriendSrc && tab === 'tower'
   const subTabH = 22 * S
   const subTabY = tabY + tabH + 6 * S
   g._rankPeriodTabRects = {}
@@ -999,15 +1090,89 @@ function rRanking(g) {
     }
   }
 
+  // ── 档位子 Tab：全服 / 同境界（仅 全服数据源 + stage/tower 显示）──
+  const showScopeTabs = !isFriendSrc && _supportsTierScope(tab)
+  const scopeTabY = (showPeriodTabs ? subTabY + subTabH : tabY + tabH) + 6 * S
+  const scopeTabH = 22 * S
+  g._rankScopeTabRects = {}
+  if (showScopeTabs) {
+    const scope = g.rankScope || 'all'
+    const realmTier = g.storage.rankCurrentTier || require('../data/realmTier').getRealmTier(g.storage.cultLv || 0)
+    const tierName = require('../data/realmTier').getTierName(realmTier)
+    const scopeOptions = [
+      { key: 'all', label: '全档位' },
+      { key: 'tier', label: `同境界 · ${tierName}` },
+    ]
+    const stotalW = W - padX * 2
+    const sgap = 4 * S
+    const ssingleW = (stotalW - sgap) / 2
+    scopeOptions.forEach((so, i) => {
+      const sx = padX + i * (ssingleW + sgap)
+      const isActive = scope === so.key
+      ctx.save()
+      ctx.fillStyle = isActive ? 'rgba(170,120,200,0.85)' : 'rgba(170,120,200,0.12)'
+      R.rr(sx, scopeTabY, ssingleW, scopeTabH, scopeTabH * 0.5); ctx.fill()
+      ctx.strokeStyle = isActive ? 'rgba(120,70,160,0.6)' : 'rgba(170,120,200,0.3)'
+      ctx.lineWidth = 1 * S
+      R.rr(sx, scopeTabY, ssingleW, scopeTabH, scopeTabH * 0.5); ctx.stroke()
+      ctx.fillStyle = isActive ? '#fff5ff' : '#6B4E85'
+      ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(so.label, sx + ssingleW * 0.5, scopeTabY + scopeTabH * 0.5)
+      ctx.restore()
+      g._rankScopeTabRects[so.key] = [sx, scopeTabY, ssingleW, scopeTabH]
+    })
+  }
+
+  // 好友榜不再有独立子 Tab（顶层已切换到"好友"数据源，维度 Tab 与全服共用）
+  g._rankFriendSubTabRects = {}
+
+  // ── CTA：未授权/匿名玩家引导换头像昵称 ──
+  const baseAfterTabs = showScopeTabs
+    ? scopeTabY + scopeTabH
+    : (showPeriodTabs ? subTabY + subTabH : tabY + tabH)
+  const needsCta = !!(g.storage.needsRealNameCta && g.storage.needsRealNameCta())
+  const ctaH = needsCta ? 28 * S : 0
+  if (needsCta) {
+    const ctaY = baseAfterTabs + 6 * S
+    const ctaW = W - padX * 2
+    const ctaR = ctaH * 0.4
+    const ctaBg = ctx.createLinearGradient(padX, ctaY, padX, ctaY + ctaH)
+    ctaBg.addColorStop(0, 'rgba(240,196,80,0.28)')
+    ctaBg.addColorStop(1, 'rgba(200,140,50,0.18)')
+    ctx.fillStyle = ctaBg
+    R.rr(padX, ctaY, ctaW, ctaH, ctaR); ctx.fill()
+    ctx.strokeStyle = 'rgba(200,140,30,0.5)'; ctx.lineWidth = 1 * S
+    R.rr(padX, ctaY, ctaW, ctaH, ctaR); ctx.stroke()
+    ctx.save()
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#6b4500'
+    ctx.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText('设置真实头像昵称，让朋友认出你', padX + 12 * S, ctaY + ctaH / 2)
+    ctx.fillStyle = '#8B5E1B'
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'right'
+    ctx.fillText('去设置 >', W - padX - 12 * S, ctaY + ctaH / 2)
+    ctx.restore()
+    g._rankCtaRect = [padX, ctaY, ctaW, ctaH]
+  } else {
+    g._rankCtaRect = null
+  }
+
   // ── 列表区域 ──
-  const listTop = (showPeriodTabs ? subTabY + subTabH : tabY + tabH) + 8 * S
+  const listTop = baseAfterTabs + 8 * S + ctaH
   const myBarH = 52*S
-  const listBottom = H - myBarH - 16*S
+  const isFriend = isFriendSrc
+  // 好友榜没有 myRank 栏（数据在 openDataContext 沙箱里不可直接读取），列表占满下半屏
+  const listBottom = isFriend ? H - 16*S : H - myBarH - 16*S
   const rowH = 64*S
 
-  const { listKey, myKey } = _resolveRankKeys(g, tab)
-  const list = g.storage[listKey] || []
-  const myRank = g.storage[myKey] || -1
+  const { listKey, myKey } = isFriend
+    ? { listKey: null, myKey: null }
+    : _resolveRankKeys(g, tab)
+  const list = isFriend ? [] : (g.storage[listKey] || [])
+  const myRank = isFriend ? -1 : (g.storage[myKey] || -1)
 
   // 列表面板背景
   const lpbg = ctx.createLinearGradient(padX, listTop, padX, listBottom)
@@ -1027,9 +1192,18 @@ function rRanking(g) {
   ctx.fillText('玩家', padX + 52*S, listTop + 17*S)
   ctx.textAlign = 'right'
   const headerLabels = { stage: '总星数', tower: '成绩', dex: '精通数', combo: '最高连击' }
-  ctx.fillText(headerLabels[tab] || '成绩', W - padX - 10*S, listTop + 17*S)
+  const friendHeaderLabel = { tower: '层数', stage: '★', dex: '精通', combo: '连击' }[tab]
+  ctx.fillText(isFriend ? (friendHeaderLabel || '成绩') : (headerLabels[tab] || '成绩'), W - padX - 10*S, listTop + 17*S)
 
   const contentTop = listTop + headerH + 2*S
+
+  // 好友榜：内容来自 openDataContext（独立沙箱），这里只负责 drawImage sharedCanvas
+  if (isFriend) {
+    _drawFriendTabContent(g, ctx, tab, padX, contentTop, W - padX*2, listBottom - contentTop - 4*S)
+    drawBackBtn(g)
+    return
+  }
+
   ctx.save()
   ctx.beginPath(); ctx.rect(padX, contentTop, W - padX*2, listBottom - contentTop - 4*S); ctx.clip()
 
@@ -1142,6 +1316,81 @@ function rRanking(g) {
   _drawMyRankBar(g, ctx, R, TH, W, S, padX, myBarY, myBarH, myRank, tab)
 
   drawBackBtn(g)
+}
+
+/**
+ * 好友榜内容渲染：把 openDataContext 子包的 sharedCanvas 作为纹理画上来
+ * - 非微信环境：直接提示"仅支持微信"
+ * - 每帧发送渲染参数（tab / scrollY / 像素比）给子包；子包按需拉取 wx.getFriendCloudStorage 并回绘
+ * - 子包 sharedCanvas 可能是 null（基础库过低），此时退回占位提示
+ */
+function _drawFriendTabContent(g, ctx, dim, x, y, w, h) {
+  const { S } = V
+  const friendRanking = require('../data/friendRanking')
+
+  // 1) 非微信环境：绘制降级提示
+  if (!friendRanking.isSupported()) {
+    ctx.save()
+    ctx.fillStyle = '#8B7060'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('好友榜仅在微信小游戏中可用', x + w / 2, y + h / 2 - 10 * S)
+    ctx.fillStyle = '#b0a090'
+    ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('请在微信客户端打开体验', x + w / 2, y + h / 2 + 14 * S)
+    ctx.restore()
+    return
+  }
+
+  // 2) 通知 openDataContext 重绘（它会按需拉 getFriendCloudStorage，有缓存）
+  const sharedCanvas = friendRanking.getSharedCanvas()
+  if (!sharedCanvas) {
+    ctx.save()
+    ctx.fillStyle = '#8B7060'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('好友榜初始化失败', x + w / 2, y + h / 2)
+    ctx.restore()
+    return
+  }
+  // sharedCanvas 像素尺寸 = 显示尺寸 * DPR（S），保证高清
+  const targetW = Math.max(1, Math.round(w))
+  const targetH = Math.max(1, Math.round(h))
+  // 主域负责 sharedCanvas 尺寸（openDataContext 里 width/height 只读），内部做了变化检测，不会每帧 reset
+  friendRanking.ensureSharedCanvasSize(targetW, targetH)
+  try {
+    const cloudSync = require('../data/cloudSync')
+    friendRanking.render({
+      tab: dim || 'tower',
+      pixelRatio: Math.max(1, Math.round(S)),
+      width: targetW,
+      height: targetH,
+      scrollY: g.rankFriendScrollY || 0,
+      selfOpenId: (cloudSync && cloudSync.getOpenid) ? cloudSync.getOpenid() : '',
+      force: !!g._rankFriendForceRefresh,
+    })
+    g._rankFriendForceRefresh = false
+  } catch (e) {
+    console.warn('[FriendRank] render error', e)
+  }
+
+  // 3) 把 sharedCanvas 画到主场景
+  try {
+    ctx.drawImage(sharedCanvas, 0, 0, sharedCanvas.width || targetW, sharedCanvas.height || targetH, x, y, w, h)
+  } catch (e) {
+    ctx.save()
+    ctx.fillStyle = '#8B7060'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `${12 * S}px "PingFang SC",sans-serif`
+    ctx.fillText('好友榜暂时无法显示', x + w / 2, y + h / 2)
+    ctx.restore()
+  }
+
+  // 4) 登记内容区域触点，供滚动 / 未来扩展使用
+  g._rankFriendContentRect = [x, y, w, h]
 }
 
 // 绘制排名奖牌/序号

@@ -18,6 +18,26 @@ const { DATA_VERSION } = require('./giftConfig')
  * 持久化内容：关卡通关记录、灵宠池、资源（灵石/觉醒石/碎片/万能碎片/体力）、修炼数据、统计、设置等
  */
 
+// ===== 匿名昵称（排行榜兜底） =====
+// 未授权玩家也要上榜，由 openid 稳定哈希生成 4 位后缀，同一玩家昵称始终一致
+function _hashOpenidToSuffix(openid) {
+  if (!openid) return '0000'
+  let h = 5381
+  for (let i = 0; i < openid.length; i++) {
+    h = ((h << 5) + h + openid.charCodeAt(i)) | 0
+  }
+  return Math.abs(h).toString(36).toUpperCase().slice(-4).padStart(4, '0')
+}
+
+function genAnonNick(openid) {
+  return '修士·' + _hashOpenidToSuffix(openid)
+}
+
+// 判断昵称是否为匿名（以"修士·"开头且后缀长度为 4）——用于 UI 决定是否展示"换头像昵称"引导
+function isAnonNick(nickName) {
+  return typeof nickName === 'string' && /^修士·[0-9A-Z]{4}$/.test(nickName)
+}
+
 const LOCAL_KEY = 'wxtower_v1'
 
 /** GM 时间偏移（毫秒），GM 每"加一天"就 +86400000 */
@@ -449,9 +469,12 @@ class Storage {
         const dexProg = getDexProgress(pool)
         const farN = this.getFarthestClearedStageCoords(false)
         const farE = this.getFarthestClearedStageCoords(true)
+        // 未授权也要能上榜：用基于 openid 的稳定匿名昵称 + 空头像占位
+        // 授权后 this.userInfo 会被覆盖为真实头像昵称，后续提交自动使用真名
+        const anonInfo = this.userInfo || { nickName: genAnonNick(cloudSync.getOpenid()), avatarUrl: '' }
         return {
           userAuthorized: this.userAuthorized,
-          userInfo: this.userInfo,
+          userInfo: anonInfo,
           petDexCount: pool.length,
           masteredCount: dexProg.mastered.length,
           collectedCount: dexProg.collected.length,
@@ -469,6 +492,8 @@ class Storage {
           farthestNormalOrder: farN ? farN.order : 0,
           farthestEliteChapter: farE ? farE.chapter : 0,
           farthestEliteOrder: farE ? farE.order : 0,
+          // 档位（realmTier）：用于排行榜"同境界/全服"分档；基于 cultivation level 5 档聚合
+          realmTier: require('./realmTier').getRealmTier(this.cultLv),
         }
       },
       markDirty: () => { if (this._eventBus) this._eventBus.emit('ranking:dirty') },
@@ -2570,6 +2595,41 @@ class Storage {
   }
 
   /**
+   * 排行榜"换头像昵称"入口统一调用：根据平台分发
+   *   · 微信：先尝试 getUserInfo 兜底，失败则引导设置页（_tryOpenSetting 已有完整级联）
+   *   · 抖音：走 requestDouyinUserInfo
+   * callback(ok, info) — ok 为真时 info 为 { nickName, avatarUrl }
+   */
+  requestRealNameAuth(callback) {
+    const cb = callback || (() => {})
+    if (P.isDouyin) {
+      this.requestDouyinUserInfo(cb)
+      return
+    }
+    const base = typeof wx !== 'undefined' ? wx : null
+    if (!base || typeof base.getUserInfo !== 'function') {
+      cb(false, null)
+      return
+    }
+    base.getUserInfo({
+      withCredentials: false,
+      success: (res) => {
+        const info = res && res.userInfo
+        if (info && info.nickName && info.nickName !== '微信用户' && info.avatarUrl && info.avatarUrl.length > 10) {
+          this._saveUserInfo({ nickName: info.nickName, avatarUrl: info.avatarUrl })
+          cb(true, this.userInfo)
+        } else {
+          // 拿不到真实昵称头像 → 走设置页级联引导
+          this._tryOpenSetting(cb)
+        }
+      },
+      fail: () => {
+        this._tryOpenSetting(cb)
+      },
+    })
+  }
+
+  /**
    * 抖音端获取用户信息（通过 tt.getUserInfo）
    * 成功后更新 userInfo 和 userAuthorized
    */
@@ -2650,6 +2710,21 @@ class Storage {
   set rankLastFetch(v) { this._ranking.rankLastFetch = v }
   get rankLastFetchTab() { return this._ranking.rankLastFetchTab }
   set rankLastFetchTab(v) { this._ranking.rankLastFetchTab = v }
+
+  // ==== 档位榜（同境界）=====
+  get rankStageTierList() { return this._ranking.rankStageTierList }
+  set rankStageTierList(v) { this._ranking.rankStageTierList = v }
+  get rankAllTierList() { return this._ranking.rankAllTierList }
+  set rankAllTierList(v) { this._ranking.rankAllTierList = v }
+  get rankAllWeeklyTierList() { return this._ranking.rankAllWeeklyTierList }
+  set rankAllWeeklyTierList(v) { this._ranking.rankAllWeeklyTierList = v }
+  get rankStageTierMyRank() { return this._ranking.rankStageTierMyRank }
+  set rankStageTierMyRank(v) { this._ranking.rankStageTierMyRank = v }
+  get rankAllTierMyRank() { return this._ranking.rankAllTierMyRank }
+  set rankAllTierMyRank(v) { this._ranking.rankAllTierMyRank = v }
+  get rankAllWeeklyTierMyRank() { return this._ranking.rankAllWeeklyTierMyRank }
+  set rankAllWeeklyTierMyRank(v) { this._ranking.rankAllWeeklyTierMyRank = v }
+  get rankCurrentTier() { return this._ranking.rankCurrentTier }
 
   // ==== 名次反馈：由 RankingService 写入，UI 层消费一次（consumeRankingFeedback）====
   get pendingRankingFeedback() { return this._ranking.pendingFeedback }
@@ -2741,6 +2816,47 @@ class Storage {
     return true
   }
 
+  // ==== 名次变动三档 UI 频控 ====
+  //   tier 1：每榜单每日 2 次（小幅上升/下降）
+  //   tier 2：每榜单每周 1 次（进 Top10，按 ISO 周）
+  //   tier 3：走 rankMilestones（一生一次）
+  _getIsoWeekKey() {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    // ISO 周算法：取周四作为锚定日
+    d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+    const week1 = new Date(d.getFullYear(), 0, 4)
+    const wk = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+    return `${d.getFullYear()}-W${String(wk).padStart(2, '0')}`
+  }
+  canShowRankTier(tab, tier) {
+    const bag = (this._d && this._d.rankFeedback) || {}
+    const rec = bag[tab] || {}
+    if (tier === 1) {
+      const today = localDateKey()
+      if (rec.date !== today) return true
+      return (rec.count || 0) < 2
+    }
+    if (tier === 2) {
+      return rec.weeklyKey !== this._getIsoWeekKey()
+    }
+    return true
+  }
+  consumeRankTier(tab, tier) {
+    if (!this._d) return
+    if (!this._d.rankFeedback) this._d.rankFeedback = {}
+    const rec = this._d.rankFeedback[tab] || {}
+    if (tier === 1) {
+      const today = localDateKey()
+      if (rec.date !== today) { rec.date = today; rec.count = 0 }
+      rec.count = (rec.count || 0) + 1
+    } else if (tier === 2) {
+      rec.weeklyKey = this._getIsoWeekKey()
+    }
+    this._d.rankFeedback[tab] = rec
+    this._save()
+  }
+
   submitScore(floor, pets, weapon, totalTurns) {
     return this._ranking.submitScore(floor, pets, weapon, totalTurns)
   }
@@ -2750,11 +2866,83 @@ class Storage {
   submitStageRanking() {
     return this._ranking.submitStageRanking()
   }
-  fetchRanking(tab, force) {
-    return this._ranking.fetchRanking(tab, force)
+  fetchRanking(tab, force, scope) {
+    return this._ranking.fetchRanking(tab, force, scope)
   }
-  fetchRankingCombined(tab, needSubmit) {
-    return this._ranking.fetchRankingCombined(tab, needSubmit)
+  fetchRankingCombined(tab, needSubmit, scope) {
+    return this._ranking.fetchRankingCombined(tab, needSubmit, scope)
+  }
+
+  // ==== 通天塔周榜奖励：每日首登检查 + 领取 ====
+  //   · 云函数 checkWeeklyReward 只读（预览）；claimWeeklyReward 幂等写入 weeklyReward 表
+  //   · 客户端按 GM 账号静默跳过
+  //   · 每日首次调用（本地日历日）才发起请求，避免频繁云调
+  async checkWeeklyRewardOnceToday() {
+    if (isCurrentUserGM()) return null
+    if (!cloudSync.isReady()) return null
+    const today = localDateKey()
+    if (this._d._lastWeeklyRewardCheckDate === today) return this._d._lastWeeklyRewardPreview || null
+    try {
+      let result
+      if (P.isWeChat) {
+        const r = await P.cloud.callFunction({ name: 'ranking', data: { action: 'checkWeeklyReward' } })
+        result = r.result
+      } else {
+        return null
+      }
+      this._d._lastWeeklyRewardCheckDate = today
+      this._d._lastWeeklyRewardPreview = result && result.code === 0 ? {
+        periodKey: result.periodKey,
+        rank: result.rank,
+        reward: result.reward,
+        claimed: !!result.claimed,
+        canClaim: !!result.canClaim,
+      } : null
+      this._save()
+      return this._d._lastWeeklyRewardPreview
+    } catch (e) {
+      console.warn('[Ranking] checkWeeklyReward 失败:', e.message || e)
+      return null
+    }
+  }
+
+  async claimWeeklyReward() {
+    if (isCurrentUserGM()) return { ok: false, reason: 'gm' }
+    if (!cloudSync.isReady()) return { ok: false, reason: 'cloud_not_ready' }
+    try {
+      let result
+      if (P.isWeChat) {
+        const r = await P.cloud.callFunction({ name: 'ranking', data: { action: 'claimWeeklyReward' } })
+        result = r.result
+      } else {
+        return { ok: false, reason: 'unsupported' }
+      }
+      if (!result || result.code !== 0 || !result.reward) {
+        return { ok: false, reason: 'no_reward', result }
+      }
+      // 仅在 justGranted=true 时本地入账，避免同一奖励被重复发放
+      if (result.justGranted) {
+        const reward = result.reward
+        if (reward.soulStone > 0) this.addSoulStone(reward.soulStone)
+        if (reward.uniFrag > 0) this.addUniversalFragment(reward.uniFrag)
+      }
+      // 刷新本地缓存的预览状态，避免再次弹窗
+      if (this._d._lastWeeklyRewardPreview) {
+        this._d._lastWeeklyRewardPreview.claimed = true
+        this._d._lastWeeklyRewardPreview.canClaim = false
+      }
+      this._save()
+      return {
+        ok: true,
+        justGranted: !!result.justGranted,
+        periodKey: result.periodKey,
+        rank: result.rank,
+        reward: result.reward,
+      }
+    } catch (e) {
+      console.warn('[Ranking] claimWeeklyReward 失败:', e.message || e)
+      return { ok: false, reason: 'error', error: e.message || String(e) }
+    }
   }
 
   _load() {
@@ -3021,12 +3209,26 @@ class Storage {
       this._eventBus.emit('cloud:veteranRestored')
     }
 
-    // 云合并后数据已是最终态，静默提交图鉴/连击排行（未授权用户内部自动跳过）
+    // 云合并后数据已是最终态，静默提交图鉴/连击排行（未授权玩家走匿名昵称兜底）
     if ((this._d.petPool || []).length > 0) {
       this.submitDexAndCombo()
     }
   }
 
+  // 排行榜 UI 是否需要展示"换真实头像昵称"软引导
+  //   · 微信：未授权或没真实头像昵称时返回 true
+  //   · 抖音：默认"冒险者"时返回 true，主动授权过就为 false
+  needsRealNameCta() {
+    if (!this.userInfo) return true
+    const nick = this.userInfo.nickName || ''
+    if (isAnonNick(nick)) return true
+    if (nick === '冒险者' || nick === '微信用户' || nick === '修士') return true
+    return !this.userAuthorized
+  }
+
 }
+
+Storage.genAnonNick = genAnonNick
+Storage.isAnonNick = isAnonNick
 
 module.exports = Storage

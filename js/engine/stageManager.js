@@ -592,10 +592,11 @@ function settleStage(g) {
     heroMinHpRatio: typeof g._heroMinHpRatio === 'number' ? g._heroMinHpRatio : 1,
   }
 
-  if (g.storage.userAuthorized) {
-    g.storage.submitStageRanking()
-    g.storage.submitDexAndCombo()
-  }
+  g.storage.submitStageRanking()
+  g.storage.submitDexAndCombo()
+  // 秘境结算后静默拉取，让 pendingRankingFeedback 有值；
+  // 玩家在结算页点击"下一关/返回"时 rankChangePopup 可立即消费，做到"玩完一关立刻看到名次变化"
+  g.storage.fetchRanking('stage', true).catch(() => {})
 
   g.setScene('stageResult')
 }

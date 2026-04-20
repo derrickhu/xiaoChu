@@ -12,6 +12,13 @@ function _towerFetchTab(g) {
   if (g.rankTab === 'tower' && g.rankTowerPeriod === 'weekly') return 'towerWeekly'
   return g.rankTab
 }
+// 有效 scope：仅秘境榜（stage）支持 tier 档位；其他维度一律回退 all
+// 通天塔后续走"仅限二星宠"平衡模式，本身即均衡，不再按境界分档
+function _effectiveScope(g, tab) {
+  const t = tab || g.rankTab
+  if (t !== 'stage') return 'all'
+  return g.rankScope || 'all'
+}
 const MusicMgr = require('../runtime/music')
 
 const tTitle = require('./tTitle')
@@ -163,9 +170,19 @@ function tGameover(g, type, x, y) {
     return
   }
 
-  if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { g._handleBackToTitle(); return }
-  if (g._goHomeBtnRect && g._hitRect(x,y,...g._goHomeBtnRect)) { g._handleBackToTitle(); return }
-  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { g.setScene('title'); return }
+  // 排行榜·我第 N 名 挂件：点击切到 ranking 场景，定位通天塔 Tab
+  if (g._goRankWidget) {
+    const rankWidget = require('../views/rankWidget')
+    if (rankWidget.handleTap(g, g._goRankWidget, x, y)) return
+  }
+
+  // 通天塔结算"返回/继续"都是情绪出口：切场景前先尝试消费一次名次变动反馈
+  const _drainRank = () => {
+    try { require('../views/rankChangePopup').drainPending(g) } catch (_e) { /* 防御式容错 */ }
+  }
+  if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { _drainRank(); g._handleBackToTitle(); return }
+  if (g._goHomeBtnRect && g._hitRect(x,y,...g._goHomeBtnRect)) { _drainRank(); g._handleBackToTitle(); return }
+  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { _drainRank(); g.setScene('title'); return }
   if (g._cultBtnRect && g._hitRect(x,y,...g._cultBtnRect)) {
     const cultView = require('../views/cultivationView')
     cultView.resetScroll()
@@ -183,21 +200,36 @@ function tGameover(g, type, x, y) {
 function tRanking(g, type, x, y) {
   const { S, H } = V
   const safeTop = V.safeTop
-  if (g.rankTab === 'all' || !['stage', 'tower', 'dex', 'combo'].includes(g.rankTab)) {
+  // 校验维度 Tab（friend 不再是维度，旧数据兼容归位到 tower）
+  if (g.rankTab === 'all' || g.rankTab === 'friend' || !['stage', 'tower', 'dex', 'combo'].includes(g.rankTab)) {
     g.rankTab = 'tower'
   }
+  // 校验数据源
+  if (g.rankSource !== 'friend') g.rankSource = 'all'
+  const isFriendSrc = g.rankSource === 'friend'
+
   if (type === 'start') {
     g._rankTouchStartY = y
-    g._rankScrollStart = g.rankScrollY || 0
+    g._rankScrollStart = isFriendSrc ? (g.rankFriendScrollY || 0) : (g.rankScrollY || 0)
     return
   }
   if (type === 'move') {
     const dy = y - (g._rankTouchStartY || y)
-    let tab = g.rankTab || 'stage'
-    if (tab === 'all') tab = 'tower'
-    const listMap = { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
+    // 好友榜：滚动值落到 rankFriendScrollY（仅用于 openDataContext 渲染，暂不限制上下界——子包按实际 list 长度裁剪）
+    if (isFriendSrc) {
+      g.rankFriendScrollY = Math.min(0, g._rankScrollStart + dy)
+      g._dirty = true
+      return
+    }
+    const tab = g.rankTab || 'stage'
+    const useTier = (g.rankScope === 'tier') && tab === 'stage'
+    const listMap = useTier
+      ? { stage: 'rankStageTierList', tower: 'rankAllTierList' }
+      : { stage: 'rankStageList', tower: 'rankAllList', dex: 'rankDexList', combo: 'rankComboList' }
     let listKey = listMap[tab]
-    if (tab === 'tower' && g.rankTowerPeriod === 'weekly') listKey = 'rankAllWeeklyList'
+    if (tab === 'tower' && g.rankTowerPeriod === 'weekly') {
+      listKey = useTier ? 'rankAllWeeklyTierList' : 'rankAllWeeklyList'
+    }
     const list = g.storage[listKey] || []
     const rowH = 64*S
     const maxScroll = 0
@@ -206,13 +238,70 @@ function tRanking(g, type, x, y) {
     return
   }
   if (type !== 'end') return
+
   if (g._backBtnRect && g._hitRect(x, y, ...g._backBtnRect)) { g.setScene('title'); return }
+
+  // 刷新按钮：全服 → fetchRanking；好友 → 通知 openDataContext 清缓存重拉
   if (g._rankRefreshRect && g._hitRect(x, y, ...g._rankRefreshRect)) {
-    g.storage.fetchRanking(_towerFetchTab(g), true)
+    if (isFriendSrc) {
+      g._rankFriendForceRefresh = true
+      g._dirty = true
+    } else {
+      g.storage.fetchRanking(_towerFetchTab(g), true, _effectiveScope(g))
+    }
     return
   }
-  // 通天塔周榜/总榜子 Tab 命中：先于主 tab 判断，命中区间更小
-  if (g._rankPeriodTabRects && g.rankTab === 'tower') {
+  // 未授权 → 软引导换真实头像昵称
+  //   微信端：CTA 上已覆盖透明原生 createUserInfoButton（见 wxButtons.updateRankCtaBtn），
+  //           真正的授权流程由原生按钮的 onTap 处理；这里只是兜底：
+  //           a) 非微信环境（抖音 / 开发工具未注入 wx）走 requestRealNameAuth
+  //           b) 原生按钮创建失败的少数机型，也退到 JS 流并给出可见反馈，避免"点了没反应"
+  if (g._rankCtaRect && g._hitRect(x, y, ...g._rankCtaRect)) {
+    if (g._rankCtaBtn) return  // 已有原生按钮在吃点击，无需 JS 兜底
+    const P = require('../platform')
+    g.storage.requestRealNameAuth((ok) => {
+      if (ok) {
+        g.storage.submitDexAndCombo()
+        g.storage.submitStageRanking()
+        if (!isFriendSrc) g.storage.fetchRanking(_towerFetchTab(g), true, _effectiveScope(g))
+        try { P.showToast && P.showToast({ title: '已更新昵称头像', icon: 'success' }) } catch (_) {}
+        g._dirty = true
+      } else {
+        // 没原生按钮兜底 + 走完级联仍失败（典型是首次从未授权过、scope.userInfo=undefined 的情况）
+        try { P.showToast && P.showToast({ title: '请在右上角"..."→设置里开启', icon: 'none', duration: 2500 }) } catch (_) {}
+      }
+    })
+    return
+  }
+
+  // 顶层数据源切换：全服 / 好友（置于所有 Tab 命中之前，避免与 Y 坐标靠近的维度 Tab 相互干扰）
+  if (g._rankSourceTabRects) {
+    for (const k of Object.keys(g._rankSourceTabRects)) {
+      const r = g._rankSourceTabRects[k]
+      if (r && g._hitRect(x, y, ...r)) {
+        if (g.rankSource !== k) {
+          g.rankSource = k
+          g.rankScrollY = 0
+          g.rankFriendScrollY = 0
+          g._dirty = true
+          if (k === 'friend') {
+            // 主动推一次最新四维度分数，子包下次 render 能看到
+            try {
+              const snap = g.storage._ranking && g.storage._ranking.getContextSnapshot()
+              if (snap) require('../data/friendRanking').uploadScores(snap, { force: true })
+            } catch (_) {}
+            g._rankFriendForceRefresh = true
+          } else {
+            g.storage.fetchRanking(_towerFetchTab(g), false, _effectiveScope(g))
+          }
+        }
+        return
+      }
+    }
+  }
+
+  // 通天塔周榜/总榜子 Tab（仅 全服+tower 显示）
+  if (!isFriendSrc && g._rankPeriodTabRects && g.rankTab === 'tower') {
     for (const k of Object.keys(g._rankPeriodTabRects)) {
       const r = g._rankPeriodTabRects[k]
       if (r && g._hitRect(x, y, ...r)) {
@@ -220,19 +309,45 @@ function tRanking(g, type, x, y) {
           g.rankTowerPeriod = k
           g.rankScrollY = 0
           g._dirty = true
-          g.storage.fetchRanking(_towerFetchTab(g))
+          g.storage.fetchRanking(_towerFetchTab(g), false, _effectiveScope(g))
         }
         return
       }
     }
   }
+  // 档位子 Tab（全档位/同境界）（仅 全服+stage/tower 显示）
+  if (!isFriendSrc && g._rankScopeTabRects) {
+    for (const k of Object.keys(g._rankScopeTabRects)) {
+      const r = g._rankScopeTabRects[k]
+      if (r && g._hitRect(x, y, ...r)) {
+        if ((g.rankScope || 'all') !== k) {
+          g.rankScope = k
+          g.rankScrollY = 0
+          g._dirty = true
+          g.storage.fetchRanking(_towerFetchTab(g), false, k)
+        }
+        return
+      }
+    }
+  }
+
+  // 维度 Tab 切换（秘境/通天塔/图鉴/连击）
   const tabHit = hitTestRankingTab(x, y)
   if (tabHit) {
-    if (g.rankTab !== tabHit) {
+    // 点 Tab 一律 force 刷新：用户点榜就是明确意图看最新数据，不要被 30s 缓存拖后腿
+    //   · 换 Tab 自然要重拉
+    //   · 同 Tab 再次点等价于"刷新当前榜"（相当于第二个刷新入口，符合直觉）
+    const tabChanged = g.rankTab !== tabHit
+    if (tabChanged) {
       g.rankTab = tabHit
       g.rankScrollY = 0
-      g._dirty = true
-      g.storage.fetchRanking(_towerFetchTab(g))
+      g.rankFriendScrollY = 0
+    }
+    g._dirty = true
+    if (isFriendSrc) {
+      g._rankFriendForceRefresh = true
+    } else {
+      g.storage.fetchRanking(_towerFetchTab(g), true, _effectiveScope(g, tabHit))
     }
     return
   }
