@@ -216,7 +216,12 @@ function _drawList(list) {
   var w = CANVAS.width, h = CANVAS.height
   var padX = 12 * S
   var rowH = 64 * S
-  var scrollY = state.scrollY || 0
+  // 主域不知道好友 list 长度（数据在沙箱内），传来的 scrollY 可能越界；这里按实际 list 长度 clamp，
+  // 保证拖到底时最后一行完整露出，而不是继续滑出空白（"拖不满"观感的根源）
+  var rawScrollY = state.scrollY || 0
+  var totalH = list.length * rowH
+  var minScrollY = Math.min(0, h - totalH)
+  var scrollY = Math.max(minScrollY, Math.min(0, rawScrollY))
   var meta = TAB_META[state.tab] || TAB_META.tower
 
   _clear()

@@ -316,8 +316,8 @@ const STAGE_MECHANIC_FOCUS = {
   },
   stage_1_7: {
     focus: 'elim5',
-    openTip: '5 颗成排 = 2 倍伤害 + 敌人眩晕！',
-    battleTip: '5 连消！x2 伤害 + 眩晕！',
+    openTip: '5 颗成排 = 2 倍伤害 + 全队属性爆发！',
+    battleTip: '5 连消！x2 伤害 + 全队爆发！',
     challenge: { type: 'elim5', threshold: 1, rewardSoulStone: 20, desc: '达成 5 连消除 1 次' },
   },
   stage_1_8: {

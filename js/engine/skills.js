@@ -20,6 +20,7 @@ const {
   emitPetSkillEffect,
   emitBuffExpire,
   emitPetBadge,
+  applyStunToEnemy,
 } = require('./battle/index')
 const { getSkillKind, KIND } = require('../data/fx/skillFxKind')
 const { getSkillTier } = require('../data/fx/skillTier')
@@ -30,7 +31,7 @@ const {
   SKILL_REDUCE_PCT_DEFAULT, SKILL_SHIELD_REFLECT_DEFAULTS,
   SKILL_STUN_DOT_DEFAULTS, SKILL_COMBO_PLUS_DEFAULT, SKILL_COMBO_NEVER_BREAK_DEFAULT,
   SKILL_COMBO_DMG_PCT_DEFAULT, SKILL_EXTRA_TIME_DEFAULTS,
-  SKILL_HP_MAX_SHIELD_DEFAULTS, SKILL_HEART_BOOST_DEFAULT_MUL,
+  SKILL_HP_MAX_SHIELD_DEFAULTS, SKILL_HP_MAX_UP_HEAL_PCT_DEFAULT, SKILL_HEART_BOOST_DEFAULT_MUL,
   SKILL_ON_KILL_HEAL_DUR, SKILL_WAR_GOD_DEFAULTS,
   SKILL_IMMUNE_CC_DEFAULTS,
   SHOP_UPGRADE_PET_DEFAULT_PCT, SHOP_HP_MAX_UP_DEFAULT_PCT,
@@ -320,16 +321,16 @@ function triggerPetSkill(g, pet, idx) {
     case 'reduceDmg':
       g.heroBuffs.push({ type:'reduceDmg', pct:sk.pct, dur:2, bad:false, name:sk.name }); break
     case 'stun':
-      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true })
+      applyStunToEnemy(g, sk.dur || 1, { source: 'petSkill', controlType: sk.controlType })
       // ★3附加易伤
       if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.dur||1, bad:true })
       break
     case 'stunDot':
-      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.dur||1, bad:true })
+      applyStunToEnemy(g, sk.dur || 1, { source: 'petSkill', controlType: sk.controlType })
       g.enemyBuffs.push({ type:'dot', name:sk.name, dmg:Math.round((sk.dotDmg||SKILL_STUN_DOT_DEFAULTS.dotDmg) * sMul), dur:sk.dotDur||SKILL_STUN_DOT_DEFAULTS.dotDur, bad:true, dotType: (pet.attr === 'fire') ? 'burn' : 'poison' })
       break
     case 'stunBreakDef':
-      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur||1, bad:true })
+      applyStunToEnemy(g, sk.stunDur || 1, { source: 'petSkill', controlType: sk.controlType })
       if (g.enemy) g.enemy.def = 0
       // ★3附加易伤
       if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.stunDur||1, bad:true })
@@ -455,7 +456,12 @@ function triggerPetSkill(g, pet, idx) {
     }
     case 'hpMaxUp': {
       const inc = Math.round(g.heroMaxHp * sk.pct / 100)
-      g.heroMaxHp += inc; g.heroHp += inc; break
+      g.heroMaxHp += inc
+      // 立即回血量 = 新上限 × healPct%（默认回满，宠物技能可下调以削手感）
+      const healPct = (typeof sk.healPct === 'number') ? sk.healPct : SKILL_HP_MAX_UP_HEAL_PCT_DEFAULT
+      const healTarget = Math.round(g.heroMaxHp * healPct / 100)
+      g.heroHp = Math.min(g.heroMaxHp, Math.max(g.heroHp + inc, healTarget))
+      break
     }
     case 'hpMaxShield': {
       const inc = Math.round(g.heroMaxHp * (sk.hpPct||SKILL_HP_MAX_SHIELD_DEFAULTS.hpPct) / 100)
@@ -504,7 +510,7 @@ function triggerPetSkill(g, pet, idx) {
     case 'lowHpDmgUp':
       g.heroBuffs.push({ type:'lowHpDmgUp', pct:Math.round(sk.pct * sMul), dur:3, bad:false, name:sk.name }); break
     case 'stunPlusDmg':
-      g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:sk.stunDur||1, bad:true })
+      applyStunToEnemy(g, sk.stunDur || 1, { source: 'petSkill', controlType: sk.controlType })
       g.heroBuffs.push({ type:'dmgBoost', attr:sk.attr||pet.attr, pct:Math.round(sk.pct * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'allHpMaxUp': {

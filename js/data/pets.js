@@ -107,7 +107,7 @@ const PETS = {
   water: [
     { id:'s1',  name:'沧澜水雀',  atk:8,  skill:{ name:'水珠涌现', desc:'整列珠子变水珠', type:'convertCol', attr:'water' }, cd:4 },
     { id:'s2',  name:'冰魄灵龟',  atk:9,  skill:{ name:'冰魄化愈', desc:'全部火珠转为心珠', type:'replaceBeads', fromAttr:'fire', toAttr:'heart' }, cd:4 },
-    { id:'s3',  name:'海灵蛟童',  atk:9,  skill:{ name:'寒冰封印', desc:'冰冻敌人2回合', type:'stun', dur:2 }, cd:5 },
+    { id:'s3',  name:'海灵蛟童',  atk:9,  skill:{ name:'寒冰封印', desc:'冰冻敌人2回合（水伤+30%）', type:'stun', controlType:'freeze', dur:2 }, cd:5 },
     { id:'s4',  name:'玄水蛟龙',  atk:10, skill:{ name:'蛟龙怒击', desc:'250%水属性直接伤害', type:'instantDmg', attr:'water', pct:250 }, cd:3 },
     { id:'s5',  name:'碧波灵蛙',  atk:9,  skill:{ name:'碧波愈泉', desc:'回复40%血量', type:'healPct', pct:40 }, cd:4 },
     { id:'s6',  name:'流水灵鱼',  atk:11, skill:{ name:'水灵爆涌', desc:'下次水属性伤害×2.5倍', type:'dmgBoost', attr:'water', pct:150 }, cd:2 },
@@ -117,8 +117,8 @@ const PETS = {
     { id:'s10', name:'沧海龙神',  atk:13, skill:{ name:'龙神覆海', desc:'全场一半珠子变水珠（约18颗）', type:'convertBead', attr:'water', count:18 }, cd:7 },
     { id:'s11', name:'冰玄灵蛾',  atk:11, skill:{ name:'冰玄风暴', desc:'随机8颗变水珠+水珠概率大增', type:'convertBead', attr:'water', count:8, beadBoost:true }, cd:4 },
     { id:'s12', name:'沧澜海蛇',  atk:12, skill:{ name:'海蛇三连', desc:'连续攻击3次，每次120%水伤害', type:'multiHit', attr:'water', hits:3, pct:120 }, cd:4 },
-    { id:'s13', name:'玄水灵蟾',  atk:10, skill:{ name:'灵蟾冰封', desc:'冰冻敌人1回合+水伤×2倍', type:'stunPlusDmg', attr:'water', pct:100, stunDur:1 }, cd:4 },
-    { id:'s14', name:'冰魄灵鹤',  atk:12, skill:{ name:'冰魄封天', desc:'眩晕2回合+水伤×2倍', type:'stunPlusDmg', attr:'water', pct:100, stunDur:2 }, cd:6 },
+    { id:'s13', name:'玄水灵蟾',  atk:10, skill:{ name:'灵蟾冰封', desc:'冰冻敌人1回合（水伤+30%）+水伤×2倍', type:'stunPlusDmg', controlType:'freeze', attr:'water', pct:100, stunDur:1 }, cd:4 },
+    { id:'s14', name:'冰魄灵鹤',  atk:12, skill:{ name:'冰魄封天', desc:'冰冻2回合（水伤+30%）+水伤×2倍', type:'stunPlusDmg', controlType:'freeze', attr:'water', pct:100, stunDur:2 }, cd:6 },
     { id:'s15', name:'海灵水母',  atk:11, skill:{ name:'水母幻术', desc:'转珠时间+3秒+Combo不断', type:'extraTimePlus', sec:3, comboNeverBreak:true }, cd:5 },
     { id:'s16', name:'水镜灵蝶',  atk:11, skill:{ name:'水镜反射', desc:'反弹30%伤害持续2回合', type:'reflectPct', pct:30, dur:2 }, cd:4 },
     { id:'s17', name:'沧澜鲲鹏',  atk:14, skill:{ name:'鲲鹏怒涛', desc:'500%水属性爆裂伤害', type:'instantDmg', attr:'water', pct:500 }, cd:5 },
@@ -158,7 +158,7 @@ const PETS = {
     { id:'e3',  name:'镇地石犀',  atk:10, skill:{ name:'镇地壁垒', desc:'获得护盾35点', type:'shield', val:35 }, cd:5 },
     { id:'e4',  name:'玄武圣兽',  atk:11, skill:{ name:'玄武震慑', desc:'敌人眩晕2回合', type:'stun', dur:2 }, cd:5 },
     { id:'e5',  name:'裂地穿山甲',  atk:12, skill:{ name:'裂地重击', desc:'下次土属性伤害×2.5倍', type:'dmgBoost', attr:'earth', pct:150 }, cd:2 },
-    { id:'e6',  name:'山岩石蟹',  atk:10, skill:{ name:'岩甲回春', desc:'血量上限+30%+立即回满', type:'hpMaxUp', pct:30 }, cd:6 },
+    { id:'e6',  name:'山岩石蟹',  atk:10, skill:{ name:'岩甲回春', desc:'血量上限+15%，立即回70%血', type:'hpMaxUp', pct:15, healPct:70 }, cd:9 },
     { id:'e7',  name:'镇山石狮',  atk:11, skill:{ name:'石狮无畏', desc:'免疫所有控制2回合', type:'immuneCtrl', dur:2 }, cd:4 },
     { id:'e8',  name:'大地灵鼹',  atk:11, skill:{ name:'大地反噬', desc:'反弹30%伤害2回合', type:'reflectPct', pct:30, dur:2 }, cd:4 },
     { id:'e9',  name:'玄土石蟒',  atk:12, skill:{ name:'蟒击碎岩', desc:'350%土属性直接伤害', type:'instantDmg', attr:'earth', pct:350 }, cd:4 },
@@ -201,7 +201,7 @@ const PET_RARITY = {
     'w10','w20',                    // 万木之主、神木麒麟
     's10','s17',                    // 沧海龙神、沧澜鲲鹏
     'f4','f10','f16','f17',         // 炎狱火麟、朱雀神火、焚天火蟒、赤焰麒麟
-    'e10','e18','e20',              // 后土神兽、镇地神牛、玄武神君
+    'e6','e10','e18','e20',         // 山岩石蟹、后土神兽、镇地神牛、玄武神君
   ],
   SR: [
     'm4','m5','m6','m9','m11','m13','m14','m15','m16','m17',  // 金属性中坚
@@ -215,7 +215,7 @@ const PET_RARITY = {
     'w1','w2','w3','w4','w8','w9','w11','w13', // 木属性幼兽
     's1','s2','s3','s5','s7','s9','s13', // 水属性幼兽
     'f1','f2','f9',                  // 火属性幼兽
-    'e1','e2','e3','e6','e7',        // 土属性幼兽
+    'e1','e2','e3','e7',            // 土属性幼兽
   ],
 }
 
@@ -293,7 +293,7 @@ const STAR3_SKILL_OVERRIDE = {
   // --- 水属性 ---
   s1:  { desc:'整列变水珠+额外随机3颗变水珠', extra:3 },
   s2:  { desc:'全部火珠转心珠+心珠回复+40%', heartBoost:40 },
-  s3:  { desc:'冰冻敌人2回合+受伤+25%', dur:2, extraDmgPct:25 },
+  s3:  { desc:'冰冻敌人2回合（水伤+30%）+受伤+25%', controlType:'freeze', dur:2, extraDmgPct:25 },
   s4:  { desc:'350%水属性伤害+无视50%防御', pct:350, ignoreDefPct:50 },
   s5:  { desc:'回复60%血量+清除1个负面', pct:60, cleanse:1 },
   s6:  { desc:'下次水属性伤害×3.5倍', pct:250 },
@@ -303,11 +303,11 @@ const STAR3_SKILL_OVERRIDE = {
   s10: { desc:'全场一半珠子变水珠+水伤+30%', count:18, dmgBoost:30 },
   s11: { desc:'随机12颗变水珠+水珠概率大增', count:12 },
   s12: { desc:'连续攻击4次，每次140%水伤害', hits:4, pct:140 },
-  s13: { desc:'冰冻2回合+水伤×3倍', stunDur:2, pct:200 },
-  s14: { desc:'眩晕3回合+水伤×3倍', stunDur:3, pct:200 },
+  s13: { desc:'冰冻2回合（水伤+30%）+水伤×3倍', controlType:'freeze', stunDur:2, pct:200 },
+  s14: { desc:'冰冻3回合（水伤+30%）+水伤×3倍', controlType:'freeze', stunDur:3, pct:200 },
   s15: { desc:'转珠+5秒+Combo不断+Combo+1', sec:5, bonusCombo:1 },
   s16: { desc:'反弹40%伤害持续3回合', pct:40, dur:3 },
-  s17: { desc:'700%水属性爆裂伤害+冰冻1回合', pct:700, stunDur:1 },
+  s17: { desc:'700%水属性爆裂伤害+冰冻1回合（水伤+30%）', controlType:'freeze', pct:700, stunDur:1 },
   s18: { desc:'全队防御+65%持续4回合', pct:65, dur:4 },
   s19: { desc:'全部火珠转水珠+水珠概率大增+水伤+25%', dmgBoost:25 },
   s20: { desc:'免疫控制3回合+护盾35点', immuneDur:3, shieldVal:35 },
@@ -338,7 +338,7 @@ const STAR3_SKILL_OVERRIDE = {
   e3:  { desc:'护盾55点+减伤15%持续1回合', val:55, reducePct:15 },
   e4:  { desc:'眩晕2回合+期间受伤+30%', dur:2, extraDmgPct:30 },
   e5:  { desc:'下次土属性伤害×3.5倍', pct:250 },
-  e6:  { desc:'血量上限+40%+立即回满', pct:40 },
+  e6:  { desc:'血量上限+20%，立即回80%血', pct:20, healPct:80 },
   e7:  { desc:'免疫所有控制3回合+护盾20点', dur:3, shieldVal:20 },
   e8:  { desc:'反弹40%伤害3回合', pct:40, dur:3 },
   e9:  { desc:'500%土属性直接伤害', pct:500 },
@@ -383,7 +383,7 @@ const STAR5_SKILL_OVERRIDE = {
   w20: { desc:'900%木属性爆裂伤害+全体回复25%', pct:900, teamHealPct:25 },
   // --- 水属性 ---
   s10: { desc:'全场一半珠子变水珠+水伤+50%', count:18, dmgBoost:50 },
-  s17: { desc:'900%水属性爆裂伤害+冰冻2回合', pct:900, stunDur:2 },
+  s17: { desc:'900%水属性爆裂伤害+冰冻2回合（水伤+30%）', controlType:'freeze', pct:900, stunDur:2 },
   // --- 火属性 ---
   f10: { desc:'全队暴击率+90%持续4回合', pct:90, dur:4 },
   f16: { desc:'900%火属性爆裂伤害+灼烧60点4回合', pct:900, dotDmg:60, dotDur:4 },

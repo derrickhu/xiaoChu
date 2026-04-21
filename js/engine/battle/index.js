@@ -13,6 +13,14 @@ const {
 const { estimateDamage } = require('./damageEstimator')
 const { resolveSkillDamage, commitSkillDamage } = require('./skillDamageResolver')
 const {
+  applyStunToEnemy,
+  applyFreezeToEnemy,
+  applyStunToHero,
+  isEnemyControlBuff,
+  findEnemyControlBuff,
+} = require('./stunResolver')
+const { commitBattleVictory } = require('./victoryResolver')
+const {
   getAttrColor,
   getEnemyCenterY,
   getPetIconCenter,
@@ -41,6 +49,12 @@ module.exports = {
   estimateDamage,
   resolveSkillDamage,
   commitSkillDamage,
+  applyStunToEnemy,
+  applyFreezeToEnemy,
+  applyStunToHero,
+  isEnemyControlBuff,
+  findEnemyControlBuff,
+  commitBattleVictory,
   getAttrColor,
   getEnemyCenterY,
   getPetIconCenter,

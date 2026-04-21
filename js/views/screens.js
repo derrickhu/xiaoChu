@@ -1197,6 +1197,12 @@ function rRanking(g) {
 
   const contentTop = listTop + headerH + 2*S
 
+  // 暴露列表真实布局给 touch 层（tRanking 用它算 minScroll，避免硬编码导致"拖不满"）
+  // 必须晚于 headerH / contentTop 声明，否则 TDZ 会让 visibleH=NaN 把 scrollY 污染成 NaN → 滚动失效
+  g._rankListContentTop = contentTop
+  g._rankListVisibleH = Math.max(0, listBottom - contentTop - 4*S)
+  g._rankRowH = rowH
+
   // 好友榜：内容来自 openDataContext（独立沙箱），这里只负责 drawImage sharedCanvas
   if (isFriend) {
     _drawFriendTabContent(g, ctx, tab, padX, contentTop, W - padX*2, listBottom - contentTop - 4*S)

@@ -215,7 +215,8 @@ function tRanking(g, type, x, y) {
   }
   if (type === 'move') {
     const dy = y - (g._rankTouchStartY || y)
-    // 好友榜：滚动值落到 rankFriendScrollY（仅用于 openDataContext 渲染，暂不限制上下界——子包按实际 list 长度裁剪）
+    // 好友榜：主域不知道好友 list 长度（数据在 openDataContext 沙箱），只能 clamp 上界；
+    //   下界交由子包 _drawList 内部按实际列表裁剪，确保最后一行能完整露出
     if (isFriendSrc) {
       g.rankFriendScrollY = Math.min(0, g._rankScrollStart + dy)
       g._dirty = true
@@ -231,9 +232,13 @@ function tRanking(g, type, x, y) {
       listKey = useTier ? 'rankAllWeeklyTierList' : 'rankAllWeeklyList'
     }
     const list = g.storage[listKey] || []
-    const rowH = 64*S
+    // rowH / visibleH 走 rRanking 绘制时挂的真实值；fallback 仅用于首帧尚未绘制时的兜底
+    const rowH = g._rankRowH || 64*S
+    const visibleH = (g._rankListVisibleH != null)
+      ? g._rankListVisibleH
+      : Math.max(0, H - safeTop - 234*S)
     const maxScroll = 0
-    const minScroll = -Math.max(0, list.length * rowH - (H - 70*S - safeTop - 130*S))
+    const minScroll = -Math.max(0, list.length * rowH - visibleH)
     g.rankScrollY = Math.max(minScroll, Math.min(maxScroll, g._rankScrollStart + dy))
     return
   }

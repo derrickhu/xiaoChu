@@ -38,12 +38,14 @@ const {
   calcPetDisplayBreakdown,
 } = require('./battle/damageFormula')
 const { getCritFxPlan } = require('./battle/critFxConfig')
+const { applyStunToEnemy, applyStunToHero, findEnemyControlBuff } = require('./battle/stunResolver')
+const { commitBattleVictory } = require('./battle/victoryResolver')
 const {
   COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
   HEAL_BASE, HEAL_FLOOR_COEFF,
   LOW_HP_BURST, CRIT_BASE_DMG, CRIT_MAX_RATE,
   ATK_REDUCE_FLOOR, NEXT_DMG_DOUBLE_MUL, HEART_BOOST_DEFAULT_MUL,
-  SPEED_KILL_TURNS, DRAG_BASE_SEC, STUN_BASE_DUR,
+  SPEED_KILL_TURNS, DRAG_BASE_SEC,
   SHIELD_ON_ELIM_DEFAULT, EXECUTE_DEFAULT_THRESHOLD,
   LOW_HP_DMG_UP_DEFAULT_THRESHOLD, AOE_ON_ELIM_HP_RATIO, AOE_ON_ELIM_MIN_COUNT,
   ENEMY_SKILL_CD_RESET, ENEMY_FIRST_SKILL_DELAY,
@@ -350,11 +352,7 @@ function startNextElimAnim(g) {
   if (count === 3) elimMul *= 1 + g.runBuffs.elim3DmgPct / 100
   if (count === 4) elimMul *= 1 + g.runBuffs.elim4DmgPct / 100
   if (count >= 5) elimMul *= 1 + g.runBuffs.elim5DmgPct / 100
-  if (count >= 5 && g.enemy) {
-    const stunDur = STUN_BASE_DUR + g.runBuffs.stunDurBonus
-    const hasStun = g.enemyBuffs.some(b => b.type === 'stun')
-    if (!hasStun) g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:stunDur, bad:true })
-  }
+  // 5 消自带眩晕已下线：眩晕能力统一交给宠物技能 / 法宝 / 事件（走 stunResolver）
   // 消除数值飘字
   let elimDisplayVal = 0, elimDisplayColor = '#fff'
   if (attr === 'heart') {
@@ -415,7 +413,7 @@ function startNextElimAnim(g) {
     g.enemy.hp = Math.max(0, g.enemy.hp - aoeDmg)
     DF.aoeDmg(g, aoeDmg, (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || '#ff6347')
     g.shakeT = 6; g.shakeI = 4
-    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+    if (g.enemy.hp <= 0) { commitBattleVictory(g); return }
   }
   g.elimAnimCells = cells.map(({r,c}) => ({r,c,attr}))
   g.elimAnimTimer = 0
@@ -761,10 +759,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     }
   }
   if (g.enemy && g.enemy.hp <= 0) {
-    _addKillExp(g)
-    g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount
-    g.bState = 'victory'; MusicMgr.playVictory()
-    g._enemyDeathAnim = { timer: 0, duration: 45 }
+    commitBattleVictory(g)
     g._enemyHitFlash = 14
     emitShake(g, { t: 12, i: 8 })
     if (g.weapon && g.weapon.type === 'onKillHeal') {
@@ -895,10 +890,14 @@ function enemyTurn(g) {
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
     return
   }
-  const stunBuff = g.enemyBuffs.find(b => b.type === 'stun')
+  // 查任意控制 buff（眩晕 / 冰冻），两者共用"跳过普攻"行为
+  const stunBuff = findEnemyControlBuff(g)
   if (stunBuff) {
-    emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY(), text:'眩晕跳过！', color:TH.info })
-    // 眩晕跳过攻击，但仍需结算敌人身上的dot伤害
+    const isFreeze = stunBuff.type === 'freeze'
+    const skipText = isFreeze ? '冰冻跳过！' : '眩晕跳过！'
+    const skipColor = isFreeze ? '#88ddff' : TH.info
+    emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY(), text:skipText, color:skipColor })
+    // 控制跳过普攻，但仍需结算敌人身上的 dot 伤害
     let dotIdx = 0
     g.enemyBuffs.forEach(b => {
       if (b.type === 'dot' && b.dmg > 0) {
@@ -907,8 +906,9 @@ function enemyTurn(g) {
         dotIdx++
       }
     })
-    if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
-    // 眩晕时技能倒计时不递减（怪物被眩晕无法蓄力）
+    if (g.enemy.hp <= 0) { commitBattleVictory(g); return }
+    // 眩晕只跳过普攻，不再冻结技能 CD（避免被"循环眩晕"把大招也永远压住）
+    if (g.enemySkillCd > 0) g.enemySkillCd--
     g.enemyBuffs = g.enemyBuffs.filter(b => {
       b.dur--
       if (b.dur <= 0) {
@@ -961,7 +961,7 @@ function enemyTurn(g) {
     emitFloat(g, 'reflectToEnemy', { dmg: refDmg, color: TH.info })
   }
   if (g.weapon && g.weapon.type === 'counterStun' && Math.random()*100 < g.weapon.chance) {
-    g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
+    applyStunToEnemy(g, 1, { source: 'weaponCounter' })
   }
   if (atkDmg > 0) {
     const hitResult = g._dealDmgToHero(atkDmg) || {}
@@ -1013,7 +1013,7 @@ function enemyTurn(g) {
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + heal)
     }
   })
-  if (g.enemy.hp <= 0) { _addKillExp(g); g.lastTurnCount = g.turnCount; g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS; g.runTotalTurns = (g.runTotalTurns||0) + g.turnCount; MusicMgr.playVictory(); g.bState = 'victory'; return }
+  if (g.enemy.hp <= 0) { commitBattleVictory(g); return }
   if (g.heroHp <= 0) { g._onDefeat(); return }
   // 敌方回合结束后递减 enemyBuffs（确保本回合施加的眩晕等已生效后才消耗）
   g.enemyBuffs = g.enemyBuffs.filter(b => { b.dur--; return b.dur > 0 })
@@ -1206,13 +1206,9 @@ function applyEnemySkill(g, skillKey) {
     }
     case 'debuff':
       g.heroBuffs.push({ type:'debuff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:true }); break
-    case 'stun': {
-      const hasImmuneCtrl = g.heroBuffs.some(b => b.type === 'immuneCtrl')
-      if (!g.immuneOnce && !hasImmuneCtrl && !(g.weapon && g.weapon.type === 'immuneStun')) {
-        g.heroBuffs.push({ type:'heroStun', name:'眩晕', dur:sk.dur, bad:true })
-      } else { g.immuneOnce = false }
+    case 'stun':
+      applyStunToHero(g, sk.dur)
       break
-    }
     case 'selfHeal':
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + Math.round(g.enemy.maxHp * (sk.pct || ENEMY_SELF_HEAL_DEFAULT_PCT) / 100)); break
     case 'breakBead':
@@ -1411,10 +1407,7 @@ function applyEnemySkill(g, skillKey) {
           if (g.board[r][c]) g.board[r][c].sealed = sk.sealDur || BOSS_ULTIMATE_DEFAULTS.sealDur
         }
       }
-      const hasImmuneCtrl2 = g.heroBuffs.some(b => b.type === 'immuneCtrl')
-      if (!g.immuneOnce && !hasImmuneCtrl2 && !(g.weapon && g.weapon.type === 'immuneStun')) {
-        g.heroBuffs.push({ type:'heroStun', name:'眩晕', dur:1, bad:true })
-      } else { g.immuneOnce = false }
+      applyStunToHero(g, 1)
       break
     }
   }
@@ -1463,7 +1456,8 @@ function enterBattle(g, enemyData) {
   g.showWeaponDetail = false; g.showBattlePetDetail = null
   if (g.nextStunEnemy) {
     g.nextStunEnemy = false
-    g.enemyBuffs.push({ type:'stun', name:'眩晕', dur:1, bad:true })
+    // 战前事件眩晕：不叠 stunDurBonus，保持策划标定的 1 回合
+    applyStunToEnemy(g, 1, { source: 'preBattle', applyBonus: false })
   }
   g.setScene('battle')
   if (g.enemy && g.enemy.isBoss) {

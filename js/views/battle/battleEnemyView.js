@@ -65,8 +65,10 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
   const cx = imgX + imgW / 2
   const cy = imgY + imgH / 2
 
-  // 分类检测
-  const hasStun = hasBuffs && bufs.some(b => b.type === 'stun')
+  // 分类检测（眩晕与冰冻共用"跳过普攻"控制语义，但视觉主题不同）
+  const controlBuff = hasBuffs ? bufs.find(b => b.type === 'stun' || b.type === 'freeze') : null
+  const hasStun = !!controlBuff
+  const isFreeze = !!controlBuff && controlBuff.type === 'freeze'
   const hasDot = hasBuffs && bufs.some(b => b.type === 'dot')
   const hasAtkBuff = hasBuffs && bufs.some(b => b.type === 'buff' && b.field === 'atk')
   const hasDefBuff = hasBuffs && bufs.some(b => b.type === 'buff' && b.field === 'def')
@@ -151,47 +153,49 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
     ctx.restore()
   }
 
-  // --- 2. 眩晕：头顶旋转星星 + 晕圈 + 文字 ---
+  // --- 2. 控制效果：头顶旋转星星/雪花 + 晕圈 + 文字（眩晕金色 / 冰冻冰蓝）---
   if (hasStun) {
     ctx.save()
     const stunCx = cx
     const stunCy = imgY + imgH * 0.02
     const starCount = 5
     const orbitR = imgW * 0.28
+    // 色板按控制类型切换；动画参数完全共用
+    const palette = isFreeze
+      ? { ringA: '#88ddff', ringB: '#55bbff', starA: '#aaeeff', starB: '#77ccff', glow: '#aaeeff', text: '#aaeeff', label: '冰冻' }
+      : { ringA: '#ffee55', ringB: '#ffcc22', starA: '#ffee44', starB: '#ffbb22', glow: '#ffee44', text: '#ffee44', label: '眩晕' }
 
     // 双层晕圈
     for (let layer = 0; layer < 2; layer++) {
       ctx.globalAlpha = (0.4 + 0.2 * Math.sin(af * 0.08 + layer)) * (layer === 0 ? 1 : 0.5)
-      ctx.strokeStyle = layer === 0 ? '#ffee55' : '#ffcc22'
+      ctx.strokeStyle = layer === 0 ? palette.ringA : palette.ringB
       ctx.lineWidth = (layer === 0 ? 2.5 : 1.5) * S
       ctx.beginPath()
       ctx.ellipse(stunCx, stunCy, orbitR * (1 + layer * 0.15), orbitR * 0.35 * (1 + layer * 0.15), 0, 0, Math.PI * 2)
       ctx.stroke()
     }
 
-    // 旋转星星（更大更亮）
+    // 旋转星星（冰冻时视觉上也是五角星，只是改冰蓝配色；动画共用）
     for (let i = 0; i < starCount; i++) {
       const angle = (af * 0.07) + (i / starCount) * Math.PI * 2
       const sx = stunCx + Math.cos(angle) * orbitR
       const sy = stunCy + Math.sin(angle) * orbitR * 0.35
       const starSize = (5 + Math.sin(af * 0.15 + i) * 1.5) * S
       ctx.globalAlpha = 0.85 + 0.15 * Math.sin(af * 0.12 + i * 1.5)
-      ctx.fillStyle = i % 2 === 0 ? '#ffee44' : '#ffbb22'
+      ctx.fillStyle = i % 2 === 0 ? palette.starA : palette.starB
       _drawStar(ctx, sx, sy, starSize)
-      // 星星光晕
       ctx.globalAlpha = 0.3
-      ctx.fillStyle = '#ffee44'
+      ctx.fillStyle = palette.glow
       ctx.beginPath(); ctx.arc(sx, sy, starSize * 1.8, 0, Math.PI * 2); ctx.fill()
     }
 
-    // "眩晕" 文字
     ctx.globalAlpha = 0.7 + 0.2 * Math.sin(af * 0.1)
-    ctx.fillStyle = '#ffee44'
+    ctx.fillStyle = palette.text
     ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2 * S
-    ctx.strokeText('眩晕', stunCx, stunCy - orbitR * 0.35 - 8 * S)
-    ctx.fillText('眩晕', stunCx, stunCy - orbitR * 0.35 - 8 * S)
+    ctx.strokeText(palette.label, stunCx, stunCy - orbitR * 0.35 - 8 * S)
+    ctx.fillText(palette.label, stunCx, stunCy - orbitR * 0.35 - 8 * S)
     ctx.textBaseline = 'alphabetic'
     ctx.globalAlpha = 1
     ctx.restore()

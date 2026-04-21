@@ -3,7 +3,7 @@
  *
  * 目标：
  *   - 玩家必须能在整个持续期间看到自己和敌人身上有什么状态、还剩几回合
- *   - 每个 icon 走其状态色（紫 = 瘴毒 / 灰 = 碎甲 / 暗紫 = 噬灵 / 蓝 = 禁珠 / 金 = 眩晕 / 红 = 狂暴 / 金 = 护盾 / 金 = 通用增益）
+ *   - 每个 icon 走其状态色（紫 = 瘴毒 / 灰 = 碎甲 / 暗紫 = 噬灵 / 蓝 = 禁珠 / 金 = 眩晕 / 冰蓝 = 冰冻 / 红 = 狂暴 / 金 = 护盾 / 金 = 通用增益）
  *   - 配合持续粒子，让玩家"一瞥即知"
  *
  * 渲染位置：
@@ -34,6 +34,7 @@ function _resolveStatusKey(buff) {
     return 'regen'
   }
   if (t === 'stun' || t === 'heroStun') return 'stun'
+  if (t === 'freeze') return 'freeze'
   if (t === 'seal') return 'seal'
   if (t === 'vulnerable') return 'vulnerable'
   if (t === 'buff' && field === 'atk' && !bad) return 'atkBuff'
@@ -69,6 +70,7 @@ const STATUS_META = {
   burn:      { bad: true,  color: '#ff6020', bg: '#401810', label: '烧' },
   regen:     { bad: false, color: '#4dff90', bg: '#10401c', label: '复' },
   stun:      { bad: true,  color: '#ffd042', bg: '#4a3808', label: '晕' },
+  freeze:    { bad: true,  color: '#88ddff', bg: '#103048', label: '冻' },
   seal:      { bad: true,  color: '#4dabff', bg: '#18284a', label: '封' },
   vulnerable:{ bad: true,  color: '#ff6060', bg: '#401616', label: '易' },
   atkBuff:   { bad: false, color: '#ff4d4d', bg: '#3a1515', label: '攻' },

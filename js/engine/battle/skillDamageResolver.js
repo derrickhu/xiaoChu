@@ -1,5 +1,4 @@
 const V = require('../../views/env')
-const MusicMgr = require('../../runtime/music')
 const { ATTR_COLOR } = require('../../data/tower')
 const { getPetStarAtk } = require('../../data/pets')
 const {
@@ -9,12 +8,12 @@ const {
   SKILL_MULTI_HIT_DEFAULT_PCT,
   SKILL_TEAM_ATTACK_DEFAULT_PCT,
   SKILL_INSTANT_DOT_TICK_DEFAULT,
-  SPEED_KILL_TURNS,
 } = require('../../data/balance/combat')
 const { buildDamageContext } = require('./damageContext')
 const { getEnemyDefense } = require('./damageFormula')
 const { emitCast, emitFloat, emitShake } = require('./fxEmitter')
-const { addKillExp } = require('../battle.js')
+const { applyStunToEnemy } = require('./stunResolver')
+const { commitBattleVictory } = require('./victoryResolver')
 
 function getSkillColor(attr) {
   return (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || V.TH.danger
@@ -35,18 +34,13 @@ function createBaseResult(ctx, payload, type) {
     shake: null,
     heroHeal: 0,
     enemyBuffsToAdd: [],
+    pendingStun: null,     // { dur, source, controlType } —— commit 阶段走 stunResolver，统一控制规则
     enemyKilled: false,
   }
 }
 
 function finishPetSkillKill(g) {
-  addKillExp(g)
-  g.lastTurnCount = g.turnCount
-  g.lastSpeedKill = g.turnCount <= SPEED_KILL_TURNS
-  g.runTotalTurns = (g.runTotalTurns || 0) + g.turnCount
-  MusicMgr.playVictory()
-  g.bState = 'victory'
-  g._enemyDeathAnim = { timer: 0, duration: 45 }
+  commitBattleVictory(g)
 }
 
 function resolveInstantDmg(g, payload) {
@@ -65,7 +59,7 @@ function resolveInstantDmg(g, payload) {
 
   result.totalDmg = dmg
   result.entries.push({ dmg, color: getSkillColor(sk.attr), petIdx: payload.idx })
-  if (sk.stunDur) result.enemyBuffsToAdd.push({ type:'stun', name:'眩晕', dur:sk.stunDur, bad:true })
+  if (sk.stunDur) result.pendingStun = { dur: sk.stunDur, source: 'petSkill', controlType: sk.controlType }
   if (sk.teamHealPct) result.heroHeal = Math.round(ctx.heroMaxHp * sk.teamHealPct / 100)
   return result
 }
@@ -181,6 +175,13 @@ function commitSkillDamage(g, result) {
 
   if (result.enemyBuffsToAdd && result.enemyBuffsToAdd.length > 0) {
     Array.prototype.push.apply(g.enemyBuffs, result.enemyBuffsToAdd)
+  }
+
+  if (result.pendingStun) {
+    applyStunToEnemy(g, result.pendingStun.dur, {
+      source: result.pendingStun.source,
+      controlType: result.pendingStun.controlType,
+    })
   }
 
   if (result.heroHeal > 0) {

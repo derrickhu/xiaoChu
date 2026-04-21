@@ -95,7 +95,7 @@ const BUFF_POOL_MAJOR = [
   { id:'M10', label:'每回合回血 +8',           buff:'regenPerTurn',    val:8 },
   { id:'M11', label:'受伤减免 -15%',          buff:'dmgReducePct',    val:15 },
   { id:'M12', label:'额外 +2连击',            buff:'bonusCombo',      val:2 },
-  { id:'M13', label:'5消眩晕 +2回合',         buff:'stunDurBonus',    val:2 },
+  { id:'M13', label:'眩晕持续 +1回合',        buff:'stunDurBonus',    val:1 },
   { id:'M14', label:'BOSS攻击 -15%',          buff:'bossAtkReducePct', val:15 },
   { id:'M15', label:'BOSS血量 -15%',          buff:'bossHpReducePct',  val:15 },
   { id:'M16', label:'立即恢复100%血量',       buff:'healNow',         val:100 },

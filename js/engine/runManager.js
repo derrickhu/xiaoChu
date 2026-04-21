@@ -24,7 +24,8 @@ const {
   FLOOR_ATK_BONUS_BASE, FLOOR_ATK_BONUS_PER_TIER, FLOOR_ATK_BONUS_INTERVAL,
 } = require('../data/balance/combat')
 const { TOWER_SETTLE } = require('../data/economyConfig')
-const { initBoard, addKillExp } = require('./battle')
+const { initBoard } = require('./battle')
+const { commitBattleVictory } = require('./battle/victoryResolver')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
 const {
@@ -736,13 +737,7 @@ function useItemHeal(g) {
 function gmSkipBattle(g) {
   if (!g._isGM || !g.enemy || g.bState !== 'playerTurn') return false
   g.enemy.hp = 0
-  addKillExp(g)
-  g.lastTurnCount = g.turnCount
-  g.lastSpeedKill = false
-  g.runTotalTurns = (g.runTotalTurns || 0) + g.turnCount
-  MusicMgr.playVictory()
-  g.bState = 'victory'
-  g._enemyDeathAnim = { timer: 0, duration: 45 }
+  commitBattleVictory(g, { speedKillEligible: false })
   return true
 }
 

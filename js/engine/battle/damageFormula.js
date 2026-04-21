@@ -7,8 +7,10 @@ const {
   ATK_REDUCE_FLOOR,
   NEXT_DMG_DOUBLE_MUL,
   LOW_HP_DMG_UP_DEFAULT_THRESHOLD,
+  FREEZE_WATER_DMG_BONUS_PCT,
 } = require('../../data/balance/combat')
 const { COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL } = require('../../data/tower')
+const { isEnemyControlBuff } = require('./stunResolver')
 
 function getComboMul(combo) {
   if (combo <= 1) return 1
@@ -183,7 +185,10 @@ function calcAttrPreDefense(ctx, attr, baseDmg, options) {
   if (ctx.weapon && ctx.weapon.type === 'attrPetAtkUp' && ctx.weapon.attr === attr) dmg *= 1 + ctx.weapon.pct / 100
   if (ctx.weapon && ctx.weapon.type === 'comboDmgUp') dmg *= 1 + ctx.weapon.pct / 100 * (ctx.combo > 1 ? 1 : 0)
   if (ctx.weapon && ctx.weapon.type === 'lowHpDmgUp' && hpRatio <= (ctx.weapon.threshold || LOW_HP_DMG_UP_DEFAULT_THRESHOLD) / 100) dmg *= 1 + ctx.weapon.pct / 100
-  if (ctx.weapon && ctx.weapon.type === 'stunBonusDmg' && (ctx.enemyBuffs || []).some(b => b.type === 'stun')) dmg *= 1 + ctx.weapon.pct / 100
+  // w42 碧波神灯：任意控制效果（眩晕/冰冻）下都触发增伤
+  if (ctx.weapon && ctx.weapon.type === 'stunBonusDmg' && (ctx.enemyBuffs || []).some(isEnemyControlBuff)) dmg *= 1 + ctx.weapon.pct / 100
+  // 冰冻差异化：期间敌人受到的水属性伤害额外 +30%（主题契合，鼓励水系阵容）
+  if (attr === 'water' && (ctx.enemyBuffs || []).some(b => b.type === 'freeze')) dmg *= 1 + FREEZE_WATER_DMG_BONUS_PCT / 100
   if (((ctx.runBuffs && ctx.runBuffs.weaponBoostPct) || 0) > 0) dmg *= 1 + ctx.runBuffs.weaponBoostPct / 100
   if (ctx.nextDmgDouble) dmg *= NEXT_DMG_DOUBLE_MUL
 
