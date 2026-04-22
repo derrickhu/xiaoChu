@@ -172,6 +172,8 @@ function drawSceneArea(g) {
 
 // ===== 通天塔活动横幅（绘在「开始挑战」按钮与进度文字下方）=====
 function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
+  g._towerWeeklySsrAvatarRect = null
+  g._towerWeeklySsrPetId = null
   const season = getCurrentSeason()
   if (!season) return
   const ssrPet = getSeasonSSRPet()
@@ -245,6 +247,9 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
   c.fillStyle = '#fff'; c.font = `bold ${6.5*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillText('SSR', avatarX + 10 * S, avatarY + 5 * S)
+
+  g._towerWeeklySsrAvatarRect = [avatarX, avatarY, avatarSz, avatarSz]
+  g._towerWeeklySsrPetId = ssrPet.id
 
   // 右侧文字区
   const textX = avatarX + avatarSz + 8 * S
@@ -1935,6 +1940,8 @@ function drawGameClubBtn(g) {
 
 // ===== 主入口 =====
 function rTitle(g) {
+  g._towerWeeklySsrAvatarRect = null
+  g._towerWeeklySsrPetId = null
   drawSceneArea(g)
   drawTopBar(g)
   drawStartBtn(g)

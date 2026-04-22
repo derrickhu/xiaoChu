@@ -397,6 +397,7 @@ function tDex(g, type, x, y) {
           g._dexDetailBtnRect = null
           g._petDetailId = petId
           g._petDetailUnowned = false
+          g._petDetailUnownedFullRoadmap = false
           g._petDetailReturnScene = 'dex'
           g.setScene('petDetail')
           return

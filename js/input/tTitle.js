@@ -275,6 +275,20 @@ function tTitle(g, type, x, y) {
     return
   }
 
+  // ④c 本周挑战 SSR 头像 → 宠物详情（未获得时展示与灵宠页一致的成长路线）
+  if (!isStageMode && g._towerWeeklySsrAvatarRect && g._towerWeeklySsrPetId
+      && g._hitRect(x, y, ...g._towerWeeklySsrAvatarRect)) {
+    const petId = g._towerWeeklySsrPetId
+    const owned = !!g.storage.getPoolPet(petId)
+    g._petDetailId = petId
+    g._petDetailUnowned = !owned
+    g._petDetailUnownedFullRoadmap = !owned
+    g._petDetailReturnScene = 'title'
+    g.setScene('petDetail')
+    MusicMgr.playClick && MusicMgr.playClick()
+    return
+  }
+
   // ⑤ 开始按钮
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
     if (isStageMode) {

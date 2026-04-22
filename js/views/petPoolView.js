@@ -928,6 +928,7 @@ function tPetPool(g, x, y, type) {
       if (g._hitRect(x, y, ...card.rect)) {
         g._petDetailId = card.petId
         g._petDetailUnowned = !!card.ghost
+        g._petDetailUnownedFullRoadmap = false
         g._petDetailReturnScene = null
         g.setScene('petDetail')
         MusicMgr.playClick && MusicMgr.playClick()

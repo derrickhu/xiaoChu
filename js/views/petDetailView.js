@@ -91,6 +91,23 @@ function _easeOut(t) {
   return 1 - (1 - t) * (1 - t)
 }
 
+/** 与 wrapTextDraw 相同断行规则，仅返回行数（用于先算展开区高度） */
+function _measureWrapLineCount(c, text, maxW) {
+  if (text == null || text === '') return 1
+  let line = ''
+  let lines = 1
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (c.measureText(line + ch).width > maxW) {
+      lines++
+      line = ch
+    } else {
+      line += ch
+    }
+  }
+  return lines
+}
+
 const { drawSeparator, wrapTextDraw, getFilteredPool, drawHeartEmoji } = uiUtils
 const _getFilteredPool = getFilteredPool
 
@@ -230,6 +247,395 @@ function _buildGrowthRoadmap(petId, basePet) {
   return rows
 }
 
+/**
+ * 「成长路线」★1～★5 区块（与已拥有详情页一致）。返回新的 cy。
+ * @param {boolean} opts.registerHits 是否写入 _rects.roadmapRowRects（供点击展开）
+ */
+function _drawGrowthRoadmapSection(c, R, S, opts) {
+  const {
+    petId, basePet, poolPet, curStar,
+    indent, rightEdge, contentRight, cy: cy0,
+    registerHits,
+  } = opts
+  let cy = cy0
+
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+  cy += 8 * S
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('成长路线', indent, cy)
+  cy += 18 * S
+
+  const roadmap = _buildGrowthRoadmap(petId, basePet)
+  const baseRowH = 28 * S
+  const starDotR = 5 * S
+  const lineX = indent + starDotR
+  const textStartX = lineX + 16 * S
+  const expandLineH = 13 * S
+  /** 成长路线右侧 ▶/▼ 与内容区右缘的距离（避免贴卷轴装饰边框） */
+  const roadArrowRightPad = 16 * S
+  const expandMaxW = Math.max(48 * S, contentRight - textStartX - roadArrowRightPad - 8 * S)
+
+  if (registerHits) _rects.roadmapRowRects = []
+
+  let roadmapCursorY = cy
+  for (let ri = 0; ri < roadmap.length; ri++) {
+    const row = roadmap[ri]
+    const isReached = curStar >= row.star
+    const isNext = curStar + 1 === row.star
+    const isExpanded = _expandedRoadmapStar === row.star
+
+    let rowH = baseRowH
+    const expandedLines = isExpanded ? _buildExpandedRoadmapLines(row, petId, basePet, poolPet) : null
+    if (isExpanded) {
+      c.font = `${10.5 * S}px "PingFang SC",sans-serif`
+      let expandBodyH = 0
+      for (const el of expandedLines) {
+        expandBodyH += _measureWrapLineCount(c, el.text, expandMaxW) * expandLineH
+      }
+      rowH = baseRowH + expandBodyH + 8 * S
+    } else if (isNext && row.fragCost > 0) {
+      rowH = baseRowH + 12 * S
+    }
+
+    const rowY = roadmapCursorY
+
+    if (registerHits) {
+      _rects.roadmapRowRects.push({ star: row.star, rect: [indent, rowY, contentRight - indent, rowH] })
+    }
+
+    if (ri < roadmap.length - 1) {
+      c.strokeStyle = isReached ? 'rgba(232,184,32,0.5)' : 'rgba(160,140,100,0.25)'
+      c.lineWidth = 1.5 * S
+      c.beginPath()
+      c.moveTo(lineX, rowY + starDotR * 2)
+      c.lineTo(lineX, rowY + rowH)
+      c.stroke()
+    }
+
+    c.beginPath()
+    c.arc(lineX, rowY + starDotR, starDotR, 0, Math.PI * 2)
+    if (isReached) {
+      c.fillStyle = '#E8B820'
+      c.fill()
+    } else if (isNext) {
+      c.fillStyle = 'rgba(232,184,32,0.4)'
+      c.fill()
+      c.strokeStyle = '#E8B820'
+      c.lineWidth = 1.5 * S
+      c.stroke()
+    } else {
+      c.fillStyle = 'rgba(160,140,100,0.25)'
+      c.fill()
+    }
+
+    if (isExpanded) {
+      c.fillStyle = 'rgba(232,184,32,0.07)'
+      R.rr(textStartX - 6 * S, rowY - 2 * S, contentRight - textStartX + 4 * S, rowH - 2 * S, 4 * S)
+      c.fill()
+    }
+
+    const labelColor = isReached ? '#C9A227' : (isNext ? '#8B7535' : 'rgba(120,100,70,0.6)')
+    c.fillStyle = labelColor
+    c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillText(`★${row.star} ${row.name}`, textStartX, rowY + starDotR)
+
+    const mulX = textStartX + 58 * S
+    c.fillStyle = isReached ? '#CC6600' : 'rgba(130,100,50,0.6)'
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillText(`×${row.atkMul}`, mulX, rowY + starDotR)
+
+    if (!isExpanded) {
+      const unlockX = mulX + 28 * S
+      const unlockText = row.unlocks.join(' / ')
+      c.fillStyle = isReached ? '#2E8B2E' : (isNext ? '#5A4530' : 'rgba(90,70,40,0.55)')
+      c.font = `${10 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'
+      const maxUnlockW = Math.max(24 * S, contentRight - unlockX - roadArrowRightPad - 11 * S)
+      let displayText = unlockText
+      if (c.measureText(displayText).width > maxUnlockW) {
+        while (displayText.length > 0 && c.measureText(displayText + '…').width > maxUnlockW) {
+          displayText = displayText.slice(0, -1)
+        }
+        displayText += '…'
+      }
+      c.fillText(displayText, unlockX, rowY + starDotR)
+    }
+
+    c.fillStyle = 'rgba(120,100,70,0.55)'
+    c.font = `${9 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'right'; c.textBaseline = 'middle'
+    c.fillText(isExpanded ? '▼' : '▶', contentRight - roadArrowRightPad, rowY + starDotR)
+
+    if (isExpanded) {
+      let ly = rowY + baseRowH - 4 * S
+      c.textAlign = 'left'; c.textBaseline = 'top'
+      c.font = `${10.5 * S}px "PingFang SC",sans-serif`
+      for (const line of expandedLines) {
+        c.fillStyle = line.color || '#5A4530'
+        const n = wrapTextDraw(c, line.text, textStartX, ly, expandMaxW, expandLineH)
+        ly += n * expandLineH
+      }
+    } else if (isNext && row.fragCost > 0) {
+      const reqY = rowY + starDotR + 10 * S
+      c.fillStyle = 'rgba(90,70,40,0.55)'
+      c.font = `${9 * S}px "PingFang SC",sans-serif`
+      c.textAlign = 'left'; c.textBaseline = 'middle'
+      const reqParts = [`Lv.${row.lvReq}`, `碎×${row.fragCost}`]
+      if (row.awakenCost > 0) reqParts.push(`觉×${row.awakenCost}`)
+      c.fillText(reqParts.join('  '), textStartX, reqY)
+    }
+
+    roadmapCursorY += rowH
+  }
+  cy = roadmapCursorY + 6 * S
+  return cy
+}
+
+/** 未获得周 SSR 预览：与灵宠详情相同的 ★1～★5 成长路线 + 碎片召唤 */
+function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
+  const basePet = getPetById(petId)
+  if (!basePet) return
+  const rarity = getPetRarity(petId)
+  const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
+  const attrColor = ATTR_COLOR[basePet.attr]
+  const ac = attrColor ? attrColor.main : '#666'
+  const { SUMMON_FRAG_COST } = require('../data/chestConfig')
+  const cost = SUMMON_FRAG_COST[rarity] || 15
+  const bankFrag = g.storage.getBankFragments(petId)
+  const canSummon = bankFrag >= cost
+
+  const poolFake = {
+    id: petId,
+    level: 1,
+    star: 0,
+    attr: basePet.attr,
+    source: 'stage',
+    fragments: 0,
+  }
+  const curStar = 0
+
+  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  if (poolBg && poolBg.width > 0) {
+    R._drawCoverImg(poolBg, 0, 0, W, H)
+  } else {
+    R.drawHomeBg(0)
+  }
+  c.fillStyle = 'rgba(0,0,0,0.25)'
+  c.fillRect(0, 0, W, H)
+
+  const rowTop = headerRowTop != null ? headerRowTop : _petDetailHeaderRowTop(safeTop, S)
+  const avatarAreaTop = rowTop + 64 * S
+  const avatarSize = W * 0.30
+  const avatarX = (W - avatarSize) / 2
+  const avatarY = avatarAreaTop
+
+  c.save()
+  const glowCx = avatarX + avatarSize / 2
+  const glowCy = avatarY + avatarSize / 2
+  const glowR = avatarSize * 0.72
+  const glow = c.createRadialGradient(glowCx, glowCy, glowR * 0.2, glowCx, glowCy, glowR)
+  glow.addColorStop(0, ac + '45')
+  glow.addColorStop(0.5, ac + '15')
+  glow.addColorStop(1, ac + '00')
+  c.fillStyle = glow
+  c.beginPath(); c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2); c.fill()
+  c.restore()
+
+  const avatarPath = getPetAvatarPath({ ...basePet, star: 1 })
+  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
+
+  const fragFrame = R.getImg('assets/ui/frame_fragment.png')
+  if (fragFrame && fragFrame.width > 0) {
+    const frameSz = avatarSize * 1.22
+    const frameX = avatarX + (avatarSize - frameSz) / 2
+    const frameY = avatarY + (avatarSize - frameSz) / 2
+    c.drawImage(fragFrame, frameX, frameY, frameSz, frameSz)
+  }
+
+  let cy = avatarY + avatarSize * 1.11 + 10 * S
+  const orbPath = `assets/orbs/orb_${basePet.attr || 'metal'}.png`
+  const orbImg = R.getImg(orbPath)
+  const orbSz = 22 * S
+  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+  const nameW = c.measureText(basePet.name).width
+  const badgeText = `[${rv.label}]`
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  const badgeW = c.measureText(badgeText).width
+  const badgeGap = 4 * S
+  const totalNameW = orbSz + 4 * S + nameW + badgeGap + badgeW
+  const nameStartX = (W - totalNameW) / 2
+
+  if (orbImg && orbImg.width > 0) {
+    c.drawImage(orbImg, nameStartX, cy - 1 * S, orbSz, orbSz)
+  }
+  const nameX = nameStartX + orbSz + 4 * S
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
+  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 4 * S
+  c.strokeText(basePet.name, nameX, cy)
+  c.fillStyle = 'rgba(200,200,220,0.8)'
+  c.fillText(basePet.name, nameX, cy)
+
+  c.save()
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillStyle = rv.badgeColor
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(badgeText, nameX + nameW + badgeGap, cy + 5 * S)
+  c.restore()
+
+  cy += 28 * S
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  c.font = `${10*S}px "PingFang SC",sans-serif`
+  c.fillStyle = 'rgba(255,248,220,0.9)'
+  c.fillText('本周通天塔 SSR · 点击星阶展开技能详情', W / 2, cy)
+  cy += 22 * S
+
+  const cardX = 6 * S
+  const cardW2 = W - 12 * S
+  const cardTop = cy
+  const cardBottom = H - safeTop - 24 * S
+  const cardH2 = Math.max(120 * S, cardBottom - cardTop)
+  const cardRad = 14 * S
+
+  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  if (cardBg && cardBg.width > 0) {
+    c.save()
+    R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
+    c.drawImage(cardBg, cardX, cardTop, cardW2, cardH2)
+    c.restore()
+  } else {
+    c.fillStyle = 'rgba(20,15,10,0.75)'
+    R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.fill()
+  }
+
+  c.save()
+  R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
+  const rarityGrad = c.createLinearGradient(cardX, cardTop, cardX, cardTop + cardH2 * 0.5)
+  rarityGrad.addColorStop(0, rv.bgGradient[0] + '30')
+  rarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
+  c.fillStyle = rarityGrad
+  c.fillRect(cardX, cardTop, cardW2, cardH2)
+  c.restore()
+
+  const borderL = Math.round(cardW2 * 0.25)
+  const borderR = Math.round(cardW2 * 0.10)
+  const borderT = Math.round(cardH2 * 0.12)
+  const indent = cardX + borderL
+  const rightEdge = cardX + cardW2 - borderR
+  const contentW = rightEdge - indent
+  const innerTop = cardTop + borderT
+  const padY = borderT
+
+  _rects.panelRect = [cardX, cardTop, cardW2, cardH2]
+  _rects.levelUpBtnRect = null
+  _rects.starUpBtnRect = null
+  _rects.decomposeBtnRect = null
+
+  c.save()
+  R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
+  c.translate(0, -_panelScrollY)
+
+  let contentCy = innerTop
+  contentCy += 4 * S
+  cy = _drawGrowthRoadmapSection(c, R, S, {
+    petId,
+    basePet,
+    poolPet: poolFake,
+    curStar,
+    indent,
+    rightEdge,
+    contentRight: rightEdge,
+    cy: contentCy,
+    registerHits: true,
+  })
+
+  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+  cy += 10 * S
+
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('碎片召唤', indent, cy)
+  cy += 22 * S
+
+  const barH3 = 14 * S
+  const barX2 = indent
+  const gapMid = 8 * S
+  const marginR = 14 * S
+  const fragStr = `${bankFrag} / ${cost}`
+  const textRight = rightEdge - marginR
+  let fragFs = 13 * S
+  c.font = `${fragFs}px "PingFang SC",sans-serif`
+  let fragW = c.measureText(fragStr).width
+  let availForBar = contentW - marginR - fragW - gapMid
+  if (availForBar < 36 * S && fragFs > 11 * S) {
+    fragFs = 11 * S
+    c.font = `${fragFs}px "PingFang SC",sans-serif`
+    fragW = c.measureText(fragStr).width
+    availForBar = contentW - marginR - fragW - gapMid
+  }
+  const barW2 = Math.min(contentW * 0.6, Math.max(0, availForBar))
+  const progress = Math.min(1, bankFrag / cost)
+  c.fillStyle = 'rgba(0,0,0,0.15)'
+  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.fill()
+  if (progress > 0) {
+    const fillGrad = c.createLinearGradient(barX2, cy, barX2 + barW2 * progress, cy)
+    fillGrad.addColorStop(0, '#9b7aff')
+    fillGrad.addColorStop(1, '#6b4adf')
+    c.fillStyle = fillGrad
+    R.rr(barX2, cy, barW2 * progress, barH3, barH3 / 2); c.fill()
+  }
+  c.strokeStyle = 'rgba(120,100,200,0.4)'; c.lineWidth = 1 * S
+  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.stroke()
+
+  c.fillStyle = canSummon ? '#7ecf6a' : 'rgba(90,70,40,0.75)'
+  c.font = `${fragFs}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'; c.textBaseline = 'top'
+  c.fillText(fragStr, textRight, cy + (barH3 - fragFs) * 0.15)
+  cy += barH3 + 16 * S
+
+  const sBtnW = 120 * S
+  const sBtnH = 38 * S
+  const sBtnX = indent
+  const sRect = [sBtnX, cy, sBtnW, sBtnH]
+  drawPrimaryButton(c, S, sBtnX, cy, sBtnW, sBtnH, {
+    text: canSummon ? '召唤灵宠' : '碎片不足',
+    style: canSummon ? 'milestone' : 'ghost',
+    enabled: canSummon,
+    pressed: _pressedBtnId === 'summon',
+    glow: canSummon,
+    flashT: buttonFx.getFlashT(sRect),
+  })
+  _rects.summonBtnRect = sRect
+  cy += sBtnH + 10 * S
+
+  const contentTotalH = Math.max(1, cy - cardTop)
+  _rects.panelContentH = contentTotalH
+  _panelMaxScrollY = Math.max(0, contentTotalH - cardH2)
+  if (_panelScrollY > _panelMaxScrollY) _panelScrollY = _panelMaxScrollY
+  if (_panelScrollY < 0) _panelScrollY = 0
+
+  c.restore()
+
+  if (_panelMaxScrollY > 0) {
+    const barW = 3 * S
+    const barTrackH = cardH2 - 8 * S
+    const barTrackY = cardTop + 4 * S
+    const barH = Math.max(28 * S, barTrackH * cardH2 / contentTotalH)
+    const barRatio = _panelScrollY / _panelMaxScrollY
+    const barY = barTrackY + barRatio * (barTrackH - barH)
+    const barX = cardX + cardW2 - barW - 3 * S
+    c.save()
+    c.globalAlpha = 0.55
+    c.fillStyle = '#9A7A40'
+    R.rr(barX, barY, barW, barH, barW / 2); c.fill()
+    c.restore()
+  }
+}
+
 // ===== 主渲染 =====
 let _lastShownPetId = null
 function rPetDetail(g) {
@@ -237,7 +643,12 @@ function rPetDetail(g) {
   const headerRowTop = _petDetailHeaderRowTop(safeTop, S)
   const petId = g._petDetailId
   const _returnScene = g._petDetailReturnScene || 'petPool'
-  if (!petId) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
+  if (!petId) {
+    g.scene = _returnScene
+    g._petDetailReturnScene = null
+    g._petDetailUnownedFullRoadmap = false
+    return
+  }
   // 切换宠物时重置滚动（通过 _navigatePet 切换已在其中处理，这里覆盖"直接从别处跳进来"的场景）
   if (petId !== _lastShownPetId) {
     _panelScrollY = 0
@@ -251,13 +662,27 @@ function rPetDetail(g) {
 
   const isUnowned = !!g._petDetailUnowned
   const poolPet = isUnowned ? null : g.storage.getPoolPet(petId)
-  if (!isUnowned && !poolPet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
+  if (!isUnowned && !poolPet) {
+    g.scene = _returnScene
+    g._petDetailReturnScene = null
+    g._petDetailUnownedFullRoadmap = false
+    return
+  }
   const basePet = getPetById(petId)
-  if (!basePet) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
+  if (!basePet) {
+    g.scene = _returnScene
+    g._petDetailReturnScene = null
+    g._petDetailUnownedFullRoadmap = false
+    return
+  }
 
-  // 未拥有宠物：直接渲染召唤页，不支持滑动
+  // 未拥有宠物：召唤页；通天塔周 SSR 入口用与灵宠详情一致的成长路线版
   if (isUnowned) {
-    _drawUnownedPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
+    if (g._petDetailUnownedFullRoadmap) {
+      _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
+    } else {
+      _drawUnownedPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
+    }
   } else {
     // 处理滑动动画
     if (_slideAnim) {
@@ -1141,142 +1566,17 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
     cy += 16 * S
   }
 
-  // ── 成长路线图（★1→★5 全星级一览）──
-  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
-  cy += 8 * S
-  c.fillStyle = '#5A4530'
-  c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText('成长路线', indent, cy)
-  cy += 18 * S
-
-  const roadmap = _buildGrowthRoadmap(petId, basePet)
-  const baseRowH = 28 * S
-  const starDotR = 5 * S
-  const lineX = indent + starDotR   // 时间线 x 坐标
-  const textStartX = lineX + 16 * S // 文字起始 x
-  const contentRight = rightEdge
-
-  if (isCurrentPet) _rects.roadmapRowRects = []
-
-  let roadmapCursorY = cy
-  for (let ri = 0; ri < roadmap.length; ri++) {
-    const row = roadmap[ri]
-    const isReached = curStar >= row.star
-    const isNext = curStar + 1 === row.star
-    const isExpanded = _expandedRoadmapStar === row.star
-
-    // 计算该行高度（展开时动态增加）
-    let rowH = baseRowH
-    const expandedLines = isExpanded ? _buildExpandedRoadmapLines(row, petId, basePet, poolPet) : null
-    if (isExpanded) {
-      rowH = baseRowH + expandedLines.length * 13 * S + 8 * S
-    } else if (isNext && row.fragCost > 0) {
-      rowH = baseRowH + 12 * S
-    }
-
-    const rowY = roadmapCursorY
-
-    // 整行命中区域（用于点击展开/收起）
-    if (isCurrentPet) {
-      _rects.roadmapRowRects.push({ star: row.star, rect: [indent, rowY, contentRight - indent, rowH] })
-    }
-
-    // 时间线竖线（从当前节点到下一节点）
-    if (ri < roadmap.length - 1) {
-      c.strokeStyle = isReached ? 'rgba(232,184,32,0.5)' : 'rgba(160,140,100,0.25)'
-      c.lineWidth = 1.5 * S
-      c.beginPath()
-      c.moveTo(lineX, rowY + starDotR * 2)
-      c.lineTo(lineX, rowY + rowH)
-      c.stroke()
-    }
-
-    // 节点圆点
-    c.beginPath()
-    c.arc(lineX, rowY + starDotR, starDotR, 0, Math.PI * 2)
-    if (isReached) {
-      c.fillStyle = '#E8B820'
-      c.fill()
-    } else if (isNext) {
-      c.fillStyle = 'rgba(232,184,32,0.4)'
-      c.fill()
-      c.strokeStyle = '#E8B820'
-      c.lineWidth = 1.5 * S
-      c.stroke()
-    } else {
-      c.fillStyle = 'rgba(160,140,100,0.25)'
-      c.fill()
-    }
-
-    // 展开态底色
-    if (isExpanded) {
-      c.fillStyle = 'rgba(232,184,32,0.07)'
-      R.rr(textStartX - 6 * S, rowY - 2 * S, contentRight - textStartX + 4 * S, rowH - 2 * S, 4 * S)
-      c.fill()
-    }
-
-    // 星级标签
-    const labelColor = isReached ? '#C9A227' : (isNext ? '#8B7535' : 'rgba(120,100,70,0.6)')
-    c.fillStyle = labelColor
-    c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    c.fillText(`★${row.star} ${row.name}`, textStartX, rowY + starDotR)
-
-    // 攻击倍率
-    const mulX = textStartX + 58 * S
-    c.fillStyle = isReached ? '#CC6600' : 'rgba(130,100,50,0.6)'
-    c.font = `${10 * S}px "PingFang SC",sans-serif`
-    c.fillText(`×${row.atkMul}`, mulX, rowY + starDotR)
-
-    // 解锁内容概述（仅收起态）
-    if (!isExpanded) {
-      const unlockX = mulX + 28 * S
-      const unlockText = row.unlocks.join(' / ')
-      c.fillStyle = isReached ? '#2E8B2E' : (isNext ? '#5A4530' : 'rgba(90,70,40,0.55)')
-      c.font = `${10 * S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'
-      const maxUnlockW = contentRight - unlockX - 12 * S  // 留出三角指示器空间
-      let displayText = unlockText
-      if (c.measureText(displayText).width > maxUnlockW) {
-        while (displayText.length > 0 && c.measureText(displayText + '…').width > maxUnlockW) {
-          displayText = displayText.slice(0, -1)
-        }
-        displayText += '…'
-      }
-      c.fillText(displayText, unlockX, rowY + starDotR)
-    }
-
-    // 三角指示器（▶ 收起 / ▼ 展开）
-    c.fillStyle = 'rgba(120,100,70,0.55)'
-    c.font = `${9 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'right'; c.textBaseline = 'middle'
-    c.fillText(isExpanded ? '▼' : '▶', contentRight - 4 * S, rowY + starDotR)
-
-    // 展开态详情
-    if (isExpanded) {
-      let ly = rowY + baseRowH - 4 * S
-      c.textAlign = 'left'; c.textBaseline = 'top'
-      c.font = `${10.5 * S}px "PingFang SC",sans-serif`
-      for (const line of expandedLines) {
-        c.fillStyle = line.color || '#5A4530'
-        c.fillText(line.text, textStartX, ly)
-        ly += 13 * S
-      }
-    } else if (isNext && row.fragCost > 0) {
-      // 下一星：简略需求提示
-      const reqY = rowY + starDotR + 10 * S
-      c.fillStyle = 'rgba(90,70,40,0.55)'
-      c.font = `${9 * S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'middle'
-      const reqParts = [`Lv.${row.lvReq}`, `碎×${row.fragCost}`]
-      if (row.awakenCost > 0) reqParts.push(`觉×${row.awakenCost}`)
-      c.fillText(reqParts.join('  '), textStartX, reqY)
-    }
-
-    roadmapCursorY += rowH
-  }
-  cy = roadmapCursorY + 6 * S
+  cy = _drawGrowthRoadmapSection(c, R, S, {
+    petId,
+    basePet,
+    poolPet,
+    curStar,
+    indent,
+    rightEdge,
+    contentRight: rightEdge,
+    cy,
+    registerHits: isCurrentPet,
+  })
 
   // ── 分解 ──
   if (poolPet.fragments > 0) {
@@ -1434,6 +1734,7 @@ function tPetDetail(g, x, y, type) {
       const result = g.storage.summonPet(g._petDetailId)
       if (result.success) {
         g._petDetailUnowned = false
+        g._petDetailUnownedFullRoadmap = false
         MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
       }
       return
@@ -1442,6 +1743,10 @@ function tPetDetail(g, x, y, type) {
     // 处理滑动结束
     if (_swiping) {
       _swiping = false
+      if (g._petDetailUnowned) {
+        _swipeDeltaX = 0
+        return
+      }
       const elapsed = Date.now() - _swipeStartTime
       const velocity = Math.abs(_swipeDeltaX) / Math.max(1, elapsed)
       const threshold = W * 0.2
@@ -1472,6 +1777,7 @@ function tPetDetail(g, x, y, type) {
       g._petDetailReturnScene = null
       g._petDetailId = null
       g._petDetailUnowned = false
+      g._petDetailUnownedFullRoadmap = false
       g.setScene(returnTo)
       MusicMgr.playClick && MusicMgr.playClick()
       return

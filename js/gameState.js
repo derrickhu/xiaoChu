@@ -183,6 +183,7 @@ function initState(g) {
   g._petPoolDetail = null       // 当前打开的宠物详情 petId（旧弹窗，保留兼容）
   g._petDetailId = null         // 宠物详情全屏页当前宠物 petId
   g._petDetailReturnScene = null // 宠物详情页返回目标场景（null则默认回 petPool）
+  g._petDetailUnownedFullRoadmap = false // 未获得宠物时是否用「成长路线」版详情（通天塔周 SSR 预览）
   g._petPoolLevelUpAnim = null  // 升级动画 { petId, fromLv, toLv }
   g._lastRunSoulStone = 0       // 上一局获得的灵石
   g._petPoolBtnRect = null      // gameover 页面"前往灵宠"按钮区域
@@ -308,7 +309,7 @@ function _createDomainProxies(g) {
   _createDomainProxy(g, 'petPool', [
     '_petPoolEntryPopup', '_fragmentObtainedPopup',
     '_petPoolFilter', '_petPoolRarityFilter', '_petPoolScroll', '_petPoolDetail',
-    '_petDetailId', '_petDetailReturnScene', '_petPoolLevelUpAnim',
+    '_petDetailId', '_petDetailReturnScene', '_petDetailUnownedFullRoadmap', '_petPoolLevelUpAnim',
     '_lastRunSoulStone', '_petPoolBtnRect',
   ])
 

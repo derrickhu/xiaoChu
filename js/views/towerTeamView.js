@@ -853,6 +853,8 @@ function tTowerTeam(g, x, y, type) {
   if (elapsed >= 500 && !_scrolling && _holdTarget) {
     g.storage.markGuideShown('stage_team_longpress_hint')
     g._petDetailId = _holdTarget.petId
+    g._petDetailUnowned = false
+    g._petDetailUnownedFullRoadmap = false
     g._petDetailReturnScene = 'towerTeam'
     _holdTarget = null
     g.setScene('petDetail')
