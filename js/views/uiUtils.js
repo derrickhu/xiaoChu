@@ -98,12 +98,91 @@ function drawGoldBtn(c, R, S, x, y, w, h, text, disabled, fontSize) {
   c.shadowBlur = 0
 }
 
-// ===== 筛选后的宠物池 =====
+// ===== 心形图标（中心点 cx,cy；size = 外接圆直径，心形对称、纵向比例接近圆内接） =====
+function drawHeartIcon(c, cx, cy, size, opts) {
+  opts = opts || {}
+  const filled = opts.filled !== false
+  const fill = opts.fill != null ? opts.fill : '#ff4d6d'
+  const stroke = opts.stroke != null ? opts.stroke : 'rgba(255,255,255,0.92)'
+  const lineWidth = opts.lineWidth != null ? opts.lineWidth : 1.5
+  const shadow = opts.shadow
+  // 对称贝塞尔心形；局部 bbox 约 y∈[-0.50,1.12]，几何中心约 (0, 0.31)
+  const HEART_LOCAL_CY = 0.31
+  const HEART_LOCAL_R = 1.06
+  const scale = (size * 0.5) / HEART_LOCAL_R
+  c.save()
+  c.translate(cx, cy)
+  c.scale(scale, scale)
+  c.translate(0, -HEART_LOCAL_CY)
+  c.beginPath()
+  c.moveTo(0, 0.40)
+  c.bezierCurveTo(0, 0.08, -0.40, -0.50, -0.75, -0.28)
+  c.bezierCurveTo(-1.02, -0.10, -0.70, 0.55, 0, 1.12)
+  c.bezierCurveTo(0.70, 0.55, 1.02, -0.10, 0.75, -0.28)
+  c.bezierCurveTo(0.40, -0.50, 0, 0.08, 0, 0.40)
+  c.closePath()
+  if (shadow && shadow.blur > 0) {
+    c.shadowColor = shadow.color || 'rgba(0,0,0,0.35)'
+    c.shadowBlur = shadow.blur / scale
+    c.shadowOffsetX = (shadow.offsetX || 0) / scale
+    c.shadowOffsetY = (shadow.offsetY || 0) / scale
+  }
+  if (filled) {
+    c.fillStyle = fill
+    c.fill()
+  }
+  if (stroke && lineWidth > 0) {
+    c.shadowColor = 'transparent'
+    c.shadowBlur = 0
+    c.shadowOffsetX = 0
+    c.shadowOffsetY = 0
+    c.strokeStyle = stroke
+    c.lineWidth = lineWidth / scale
+    c.stroke()
+  }
+  c.restore()
+}
+
+/** 系统彩色心形 emoji「❤️」（与文字 ❤️ 同源：U+2764 + FE0F） */
+const HEART_EMOJI_CHAR = '\u2764\uFE0F'
+
+/**
+ * 绘制红心 emoji（依赖系统/Canvas 对彩色字形的支持，外观接近输入法的 ❤️）
+ * @param {number} fontSize - 字号（画布像素，与调用处 S 一致）
+ */
+function drawHeartEmoji(c, cx, cy, fontSize, opts) {
+  opts = opts || {}
+  const alpha = opts.alpha != null ? opts.alpha : 1
+  const shadow = opts.shadow
+  c.save()
+  if (alpha < 1) c.globalAlpha = alpha
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.font = `${fontSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif`
+  if (shadow && shadow.blur > 0) {
+    c.shadowColor = shadow.color || 'rgba(0,0,0,0.35)'
+    c.shadowBlur = shadow.blur
+    c.shadowOffsetX = shadow.offsetX || 0
+    c.shadowOffsetY = shadow.offsetY || 0
+  }
+  c.fillStyle = opts.color || '#e11d48'
+  c.fillText(HEART_EMOJI_CHAR, cx, cy)
+  c.restore()
+}
+
+// ===== 筛选后的宠物池（收藏的灵宠在同筛选条件下排在前面） =====
 function getFilteredPool(g) {
   const pool = g.storage.petPool || []
   const attrFilter = g._petPoolFilter || 'all'
   const rarityFilter = g._petPoolRarityFilter || 'all'
-  return pool.filter(p => {
+  const origIndex = new Map()
+  for (let i = 0; i < pool.length; i++) origIndex.set(pool[i].id, i)
+  const poolIds = new Set(pool.map(p => p.id))
+  const favList = (g.storage.petPoolFavoriteIds || []).filter(id => poolIds.has(id))
+  const favRank = new Map()
+  for (let i = 0; i < favList.length; i++) favRank.set(favList[i], i)
+
+  const filtered = pool.filter(p => {
     if (attrFilter !== 'all' && p.attr !== attrFilter) return false
     if (rarityFilter !== 'all') {
       const { getPetRarity } = require('../data/pets')
@@ -111,6 +190,14 @@ function getFilteredPool(g) {
     }
     return true
   })
+  filtered.sort((a, b) => {
+    const af = favRank.has(a.id)
+    const bf = favRank.has(b.id)
+    if (af !== bf) return af ? -1 : 1
+    if (af && bf) return favRank.get(a.id) - favRank.get(b.id)
+    return origIndex.get(a.id) - origIndex.get(b.id)
+  })
+  return filtered
 }
 
 // ===== 矩形命中检测 =====
@@ -118,4 +205,4 @@ function hitRect(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
 }
 
-module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, getFilteredPool, hitRect }
+module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, drawHeartIcon, drawHeartEmoji, getFilteredPool, hitRect }

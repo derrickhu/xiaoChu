@@ -11,7 +11,7 @@ const { rarityVisualForAttr } = require('../data/rewardVisual')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
-const { getFilteredPool: _getFilteredPoolUtil } = require('./uiUtils')
+const { getFilteredPool: _getFilteredPoolUtil, drawHeartEmoji } = require('./uiUtils')
 const guideMgr = require('../engine/guideManager')
 
 // 属性筛选标签
@@ -688,6 +688,19 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
       } else {
         g._petPoolHighlight = null
       }
+    }
+
+    // 收藏角标：卡片底部水平居中，整卡最上层
+    if (g.storage.isPetPoolFavorite && g.storage.isPetPoolFavorite(poolPet.id)) {
+      const fontPx = 17 * S
+      const bottomPad = 5 * S
+      const heartCx = x + w / 2
+      const heartCy = y + h - bottomPad - fontPx * 0.38
+      c.save()
+      drawHeartEmoji(c, heartCx, heartCy, fontPx, {
+        shadow: { blur: 3 * S, offsetY: 0.8 * S, color: 'rgba(0,0,0,0.4)' },
+      })
+      c.restore()
     }
   }
 

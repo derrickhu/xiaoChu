@@ -24,9 +24,30 @@ const { POOL_STAR_LV_CAP } = require('../data/petPoolConfig')
 /** 已拥有详情页头像占屏宽比例（rPetDetail 翻页箭头垂直位置须与此一致；无头像框时可略大） */
 const PET_DETAIL_AVATAR_FRAC = 0.38
 
+/** 详情顶栏（返回 / 灵石 / 收藏）的顶部 Y，避让微信右上角胶囊，与 canvas 坐标一致 */
+function _petDetailHeaderRowTop(safeTop, S) {
+  let top = safeTop + 8 * S
+  if (P.isWeChat && typeof wx !== 'undefined' && typeof wx.getMenuButtonBoundingClientRect === 'function') {
+    try {
+      const m = wx.getMenuButtonBoundingClientRect()
+      const wi = P.getWindowInfo()
+      const dpr = wi.pixelRatio || 2
+      if (m && typeof m.bottom === 'number' && m.bottom > 0) {
+        const clearY = m.bottom * dpr + 8 * S
+        if (clearY > top) top = clearY
+      }
+    } catch (_e) {}
+  } else if (P.isWeChat) {
+    // 部分运行环境无胶囊 API，整体下移避免与系统钮重叠
+    top = Math.max(top, safeTop + 32 * S)
+  }
+  return top
+}
+
 // 触摸区域
 const _rects = {
   backBtnRect: null,
+  favoriteBtnRect: null,
   levelUpBtnRect: null,
   starUpBtnRect: null,
   decomposeBtnRect: null,
@@ -70,7 +91,7 @@ function _easeOut(t) {
   return 1 - (1 - t) * (1 - t)
 }
 
-const { drawSeparator, wrapTextDraw, getFilteredPool } = uiUtils
+const { drawSeparator, wrapTextDraw, getFilteredPool, drawHeartEmoji } = uiUtils
 const _getFilteredPool = getFilteredPool
 
 // 当前按下的按钮 id（用于渲染按下态）
@@ -213,6 +234,7 @@ function _buildGrowthRoadmap(petId, basePet) {
 let _lastShownPetId = null
 function rPetDetail(g) {
   const { ctx: c, R, W, H, S, safeTop } = V
+  const headerRowTop = _petDetailHeaderRowTop(safeTop, S)
   const petId = g._petDetailId
   const _returnScene = g._petDetailReturnScene || 'petPool'
   if (!petId) { g.scene = _returnScene; g._petDetailReturnScene = null; return }
@@ -235,7 +257,7 @@ function rPetDetail(g) {
 
   // 未拥有宠物：直接渲染召唤页，不支持滑动
   if (isUnowned) {
-    _drawUnownedPage(g, petId, c, R, W, H, S, safeTop)
+    _drawUnownedPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
   } else {
     // 处理滑动动画
     if (_slideAnim) {
@@ -251,17 +273,17 @@ function rPetDetail(g) {
       const curOffset = _slideAnim.direction * W * ease
       c.save()
       c.translate(curOffset, 0)
-      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
       c.restore()
       const tgtOffset = -_slideAnim.direction * W * (1 - ease)
       c.save()
       c.translate(tgtOffset, 0)
-      _drawDetailPage(g, _slideAnim.to, c, R, W, H, S, safeTop)
+      _drawDetailPage(g, _slideAnim.to, c, R, W, H, S, safeTop, headerRowTop)
       c.restore()
     } else if (_swiping) {
       c.save()
       c.translate(_swipeDeltaX, 0)
-      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
       c.restore()
       if (Math.abs(_swipeDeltaX) > 5 * S) {
         const pool = _getFilteredPool(g)
@@ -271,18 +293,18 @@ function rPetDetail(g) {
           c.save()
           const sideOffset = _swipeDeltaX > 0 ? (_swipeDeltaX - W) : (_swipeDeltaX + W)
           c.translate(sideOffset, 0)
-          _drawDetailPage(g, pool[nextIdx].id, c, R, W, H, S, safeTop)
+          _drawDetailPage(g, pool[nextIdx].id, c, R, W, H, S, safeTop, headerRowTop)
           c.restore()
         }
       }
     } else {
-      _drawDetailPage(g, petId, c, R, W, H, S, safeTop)
+      _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop)
     }
   }
 
   // === 返回按钮（始终在最上层，不随滑动偏移）===
   const btnX = 12 * S
-  const btnY = safeTop + 8 * S
+  const btnY = headerRowTop
   const btnW = 36 * S
   const btnH = 36 * S
   c.save()
@@ -306,6 +328,27 @@ function rPetDetail(g) {
   c.restore()
   _rects.backBtnRect = [btnX, btnY, btnW, btnH]
 
+  // 收藏（爱心）：已拥有时右上角，与返回钮对称
+  _rects.favoriteBtnRect = null
+  if (!isUnowned) {
+    const favBtnW = 36 * S
+    const favBtnX = W - 12 * S - favBtnW
+    const favBtnY = headerRowTop
+    const petNow = g._petDetailId
+    const isFav = petNow && g.storage.isPetPoolFavorite && g.storage.isPetPoolFavorite(petNow)
+    c.save()
+    if (_pressedBtnId === 'favorite') c.globalAlpha = 0.82
+    const favCx = favBtnX + favBtnW / 2
+    const favCy = favBtnY + favBtnW / 2 + 0.5 * S
+    // 与输入法一致的彩色「❤️」字形（系统 emoji）；未收藏时略透明
+    drawHeartEmoji(c, favCx, favCy, 24 * S, {
+      alpha: isFav ? 1 : 0.48,
+      shadow: { blur: 4 * S, offsetY: 1 * S, color: 'rgba(0,0,0,0.35)' },
+    })
+    c.restore()
+    _rects.favoriteBtnRect = [favBtnX, favBtnY, favBtnW, favBtnW]
+  }
+
   // 左右翻页箭头（头像两侧，半透明，可点击）— 未拥有宠物不显示
   _rects.leftArrowRect = null
   _rects.rightArrowRect = null
@@ -313,7 +356,7 @@ function rPetDetail(g) {
   if (!isUnowned && !_swiping && !_slideAnim) {
     const pool = _getFilteredPool(g)
     const idx = _getCurrentIndex(g)
-    const arrowY = safeTop + 72 * S + W * PET_DETAIL_AVATAR_FRAC / 2
+    const arrowY = headerRowTop + 64 * S + W * PET_DETAIL_AVATAR_FRAC / 2
     const arrowSz = 12 * S
     const hitW = 36 * S, hitH = 48 * S
     c.save()
@@ -366,7 +409,7 @@ function rPetDetail(g) {
 }
 
 // ===== 未拥有宠物召唤页 =====
-function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
+function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const basePet = getPetById(petId)
   if (!basePet) return
   const rarity = getPetRarity(petId)
@@ -389,8 +432,9 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
   c.fillStyle = 'rgba(0,0,0,0.25)'
   c.fillRect(0, 0, W, H)
 
-  // 头像
-  const avatarAreaTop = safeTop + 72 * S
+  const rowTop = headerRowTop != null ? headerRowTop : _petDetailHeaderRowTop(safeTop, S)
+  // 头像（与旧版 safeTop+72 相对 safeTop+8 顶栏的间距一致）
+  const avatarAreaTop = rowTop + 64 * S
   const avatarSize = W * 0.30
   const avatarX = (W - avatarSize) / 2
   const avatarY = avatarAreaTop
@@ -613,11 +657,15 @@ function _drawUnownedPage(g, petId, c, R, W, H, S, safeTop) {
 }
 
 // ===== 绘制单个宠物详情页 =====
-function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
+function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const poolPet = g.storage.getPoolPet(petId)
   if (!poolPet) return
   const basePet = getPetById(petId)
   if (!basePet) return
+
+  const rowTop = headerRowTop != null ? headerRowTop : _petDetailHeaderRowTop(safeTop, S)
+  const expIconCenterY = rowTop + 18 * S
+  const avatarAreaTop = rowTop + 58 * S
 
   const rarity = getPetRarity(petId)
   const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
@@ -647,7 +695,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
 
   // === 灵石图标+数值（返回按钮右侧） ===
   const expIcon = R.getImg('assets/ui/icon_soul_stone.png')
-  const expIconCenterY = safeTop + 26 * S
   if (expIcon && expIcon.width > 0) {
     const iconSz = 32 * S
     const iconX = 52 * S
@@ -690,7 +737,6 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop) {
   }
 
   // === 顶部大图展示区 ===
-  const avatarAreaTop = safeTop + 66 * S
   const avatarSize = W * PET_DETAIL_AVATAR_FRAC
   const avatarX = (W - avatarSize) / 2
   const avatarY = avatarAreaTop
@@ -1332,6 +1378,7 @@ function tPetDetail(g, x, y, type) {
     else if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) _pressedBtnId = 'decompose'
     else if (_hitInsidePanel(g, x, y, _rects.summonBtnRect)) _pressedBtnId = 'summon'
     else if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) _pressedBtnId = 'back'
+    else if (_rects.favoriteBtnRect && !g._petDetailUnowned && g._hitRect(x, y, ..._rects.favoriteBtnRect)) _pressedBtnId = 'favorite'
     else _pressedBtnId = null
     if (_pressedBtnId) g._dirty = true
     return
@@ -1427,6 +1474,14 @@ function tPetDetail(g, x, y, type) {
       g._petDetailUnowned = false
       g.setScene(returnTo)
       MusicMgr.playClick && MusicMgr.playClick()
+      return
+    }
+
+    // 收藏切换
+    if (_rects.favoriteBtnRect && !g._petDetailUnowned && g._hitRect(x, y, ..._rects.favoriteBtnRect)) {
+      if (g.storage.togglePetPoolFavorite) g.storage.togglePetPoolFavorite(g._petDetailId)
+      MusicMgr.playClick && MusicMgr.playClick()
+      g._dirty = true
       return
     }
 

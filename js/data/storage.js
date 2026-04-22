@@ -56,7 +56,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 25
+const CURRENT_VERSION = 26
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -79,6 +79,7 @@ function defaultPersist() {
     petDex: [],  // 图鉴：历史收集到3星的宠物ID列表（兼容旧版）
     petDexSeen: [],  // 图鉴：已查看过详情的宠物ID列表
     petPoolSeen: [], // 灵宠池：已在池页面查看过详情的宠物ID列表（用于"NEW"角标）
+    petPoolFavoriteIds: [], // 灵宠池：玩家收藏的宠物 ID（顺序决定同组内排序）
     dexMilestonesClaimed: [],  // 图鉴里程碑：已领取的里程碑ID列表
     dexMilestonesAdRewardClaimed: [],  // 图鉴里程碑：已领过广告额外一份货币奖励的里程碑ID
     cultivation: {
@@ -432,6 +433,12 @@ const migrations = {
     }
     console.log(`[Storage] v24→v25 自动兑换 ${tickets} 张保底券：获得 ${granted} 件 SSR 法宝 + 兜底万能碎片 ${fallbackFrag}`)
   },
+  // v25→v26：灵宠池收藏（详情页爱心、列表角标、默认置顶排序）
+  25: (d) => {
+    if (!Array.isArray(d.petPoolFavoriteIds)) d.petPoolFavoriteIds = []
+    const ids = new Set((d.petPool || []).map(p => p && p.id).filter(Boolean))
+    d.petPoolFavoriteIds = d.petPoolFavoriteIds.filter(id => ids.has(id))
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -599,6 +606,7 @@ class Storage {
 
   // 灵宠池 NEW 角标：进入池内详情页即视为"已看过"
   get petPoolSeen() { return this._d.petPoolSeen || [] }
+  get petPoolFavoriteIds() { return this._d.petPoolFavoriteIds || [] }
   isPetNewInPool(petId) {
     if (!petId) return false
     const pool = this._d.petPool || []
@@ -616,6 +624,32 @@ class Storage {
     if (!this._d.petPoolSeen) this._d.petPoolSeen = []
     if (this._d.petPoolSeen.includes(petId)) return false
     this._d.petPoolSeen.push(petId)
+    this._save()
+    return true
+  }
+
+  /** 灵宠池收藏：是否在收藏列表中（仅池内宠物有效） */
+  isPetPoolFavorite(petId) {
+    if (!petId || !this.getPoolPet(petId)) return false
+    const arr = this._d.petPoolFavoriteIds
+    return Array.isArray(arr) && arr.includes(petId)
+  }
+
+  /**
+   * 切换灵宠池收藏状态
+   * @returns {boolean|null} 切换后是否已收藏；未入池返回 null
+   */
+  togglePetPoolFavorite(petId) {
+    if (!petId || !this.getPoolPet(petId)) return null
+    if (!Array.isArray(this._d.petPoolFavoriteIds)) this._d.petPoolFavoriteIds = []
+    const arr = this._d.petPoolFavoriteIds
+    const i = arr.indexOf(petId)
+    if (i >= 0) {
+      arr.splice(i, 1)
+      this._save()
+      return false
+    }
+    arr.push(petId)
     this._save()
     return true
   }
