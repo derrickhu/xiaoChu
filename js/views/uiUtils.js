@@ -2,6 +2,7 @@
  * UI 公共工具函数 — 从各 View 中提取的重复代码
  */
 const V = require('./env')
+const { getPoolPetAtk } = require('../data/petPoolConfig')
 
 // ===== 渐变分隔线 =====
 // color: RGB 字符串如 '201,168,76'; alpha: 中间段不透明度; fadeStart/fadeEnd: 渐变起止比例
@@ -179,8 +180,7 @@ function getFilteredPool(g) {
   for (let i = 0; i < pool.length; i++) origIndex.set(pool[i].id, i)
   const poolIds = new Set(pool.map(p => p.id))
   const favList = (g.storage.petPoolFavoriteIds || []).filter(id => poolIds.has(id))
-  const favRank = new Map()
-  for (let i = 0; i < favList.length; i++) favRank.set(favList[i], i)
+  const favSet = new Set(favList)
 
   const filtered = pool.filter(p => {
     if (attrFilter !== 'all' && p.attr !== attrFilter) return false
@@ -190,11 +190,20 @@ function getFilteredPool(g) {
     }
     return true
   })
+  // 收藏优先 → 攻击力降序 → 星级降序 → 入池顺序（稳定）
   filtered.sort((a, b) => {
-    const af = favRank.has(a.id)
-    const bf = favRank.has(b.id)
+    const af = favSet.has(a.id)
+    const bf = favSet.has(b.id)
     if (af !== bf) return af ? -1 : 1
-    if (af && bf) return favRank.get(a.id) - favRank.get(b.id)
+
+    const atkA = getPoolPetAtk(a)
+    const atkB = getPoolPetAtk(b)
+    if (atkB !== atkA) return atkB - atkA
+
+    const starA = a.star || 1
+    const starB = b.star || 1
+    if (starB !== starA) return starB - starA
+
     return origIndex.get(a.id) - origIndex.get(b.id)
   })
   return filtered

@@ -33,7 +33,7 @@ try {
 var TAB_META = {
   tower:   { key: 'towerFloor',  label: '通天塔', unit: '层',  color: '#FFD700' },
   stage:   { key: 'stageStars',  label: '秘境榜', unit: '★',  color: '#e88520' },
-  dex:     { key: 'dexMastered', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
+  dex:     { key: 'dexBoard', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
   combo:   { key: 'comboMax',    label: '连击榜', unit: '连击', color: '#ff6b6b' },
 }
 
@@ -56,6 +56,27 @@ var FONT_FALLBACK = '"PingFang SC","Microsoft YaHei",sans-serif'
 
 // ---------- 工具 ----------
 function _safeNum(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n }
+
+/** 图鉴好友榜：读 dexBoard（复合分）或旧 dexMastered；与全服榜排序一致 */
+function _parseDexFriendRow(kvList) {
+  var board = _parseWxgameData(kvList, 'dexBoard')
+  var legacy = _parseWxgameData(kvList, 'dexMastered')
+  var m = 0, c = 0, p = 0
+  if (board >= 100000000) {
+    var rest = board - 100000000
+    m = Math.floor(rest / 1000000)
+    c = Math.floor((rest % 1000000) / 1000)
+    p = rest % 1000
+  } else if (board > 0) {
+    m = board
+  }
+  if (m <= 0 && c <= 0 && p <= 0 && legacy > 0) {
+    m = legacy
+  }
+  if (m + c + p <= 0) return null
+  var sort = m * 1000000 + c * 1000 + p
+  return { m: m, c: c, p: p, sort: sort }
+}
 
 function _parseWxgameData(kvList, tabKey) {
   // kvList: [{ key, value }]，value 是 JSON 字符串 { wxgame: { score, update_time } }
@@ -110,22 +131,40 @@ function _fetchFriendCloudStorage(tab, cb) {
   if (typeof wx === 'undefined' || !wx.getFriendCloudStorage) { cb([]); return }
   state.loading = true
   try {
+    var keyList = tab === 'dex' ? [meta.key, 'dexMastered'] : [meta.key]
     wx.getFriendCloudStorage({
-      keyList: [meta.key],
+      keyList: keyList,
       success: function (res) {
         state.loading = false
         var rows = (res && res.data) || []
         var list = []
         for (var i = 0; i < rows.length; i++) {
           var r = rows[i]
-          var value = _parseWxgameData(r.KVDataList, meta.key)
-          if (value <= 0) continue
-          list.push({
+          var value = 0
+          var dexM, dexC, dexP
+          if (tab === 'dex') {
+            var dexRow = _parseDexFriendRow(r.KVDataList)
+            if (!dexRow) continue
+            value = dexRow.sort
+            dexM = dexRow.m
+            dexC = dexRow.c
+            dexP = dexRow.p
+          } else {
+            value = _parseWxgameData(r.KVDataList, meta.key)
+            if (value <= 0) continue
+          }
+          var row = {
             openid: r.openid || '',
             nickname: r.nickname || '修士',
             avatarUrl: r.avatarUrl || '',
             value: value,
-          })
+          }
+          if (tab === 'dex') {
+            row.dexM = dexM
+            row.dexC = dexC
+            row.dexP = dexP
+          }
+          list.push(row)
         }
         // 高分在前；相同分保留微信返回的原顺序
         list.sort(function (a, b) { return b.value - a.value })
@@ -307,10 +346,14 @@ function _drawList(list) {
     if (isSelf) nick = nick + ' · 我'
     CTX.fillText(nick, textX, ry + 26 * S)
 
-    // 副标签（好友 / 分数位置）
+    // 副标签
     CTX.fillStyle = '#8B7060'
     CTX.font = (9 * S) + 'px ' + FONT_FALLBACK
-    CTX.fillText('微信好友', textX, ry + 44 * S)
+    if (state.tab === 'dex' && item.dexM != null) {
+      CTX.fillText('收录 ' + item.dexC + ' · 发现 ' + item.dexP, textX, ry + 44 * S)
+    } else {
+      CTX.fillText('微信好友', textX, ry + 44 * S)
+    }
 
     // 分数
     var valRight = w - padX - 12 * S
@@ -320,7 +363,8 @@ function _drawList(list) {
     CTX.save()
     if (topRank) { CTX.shadowColor = 'rgba(255,215,0,0.25)'; CTX.shadowBlur = 4 * S }
     var valX = valRight - (meta.unit ? 18 * S : 0)
-    CTX.fillText(String(item.value || 0), valX, ry + 28 * S)
+    var mainNum = (state.tab === 'dex' && item.dexM != null) ? item.dexM : (item.value || 0)
+    CTX.fillText(String(mainNum), valX, ry + 28 * S)
     CTX.restore()
     CTX.fillStyle = '#8B7060'
     CTX.font = (9 * S) + 'px ' + FONT_FALLBACK

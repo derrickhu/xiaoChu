@@ -19,8 +19,18 @@ const P = require('../platform')
 const SCORE_KEYS = {
   tower: 'towerFloor',
   stage: 'stageStars',
-  dex:   'dexMastered',
+  /** 图鉴：复合分写入 dexBoard（精通/收录/池数），避免「精通为 0 就不上榜」与全服榜不一致 */
+  dex:   'dexBoard',
   combo: 'comboMax',
+}
+
+/** 与全服 rankDex 排序一致：精通优先，其次收录，再次入池数；写入微信 KV 的整数（带 1e8 前缀与旧版区分） */
+function encodeDexBoardScore(mastered, collected, poolSize) {
+  const m = Math.max(0, Math.min(999, mastered | 0))
+  const c = Math.max(0, Math.min(999, collected | 0))
+  const p = Math.max(0, Math.min(999, poolSize | 0))
+  if (m + c + p <= 0) return 0
+  return 100000000 + m * 1000000 + c * 1000 + p
 }
 
 let _lastUploadTs = 0
@@ -98,7 +108,7 @@ function uploadScores(ctx, opts) {
   const currVals = {
     tower: ctx.bestFloor || 0,
     stage: ctx.stageTotalStars || 0,
-    dex:   ctx.masteredCount || 0,
+    dex:   encodeDexBoardScore(ctx.masteredCount || 0, ctx.collectedCount || 0, ctx.petDexCount || 0),
     combo: ctx.maxCombo || 0,
   }
   const unchanged = ['tower', 'stage', 'dex', 'combo'].every(k => _lastUploadVals[k] === currVals[k])
@@ -108,8 +118,9 @@ function uploadScores(ctx, opts) {
   const KVDataList = []
   for (const tab of wantTabs) {
     const key = SCORE_KEYS[tab]
-    const val = currVals[tab]
+    let val = currVals[tab]
     if (!key) continue
+    if (tab === 'dex' && val <= 0) continue
     // 微信要求 value 是 JSON 字符串，且结构 { wxgame: { score, update_time } } 才能进入排行榜
     const payload = JSON.stringify({
       wxgame: {
@@ -149,6 +160,7 @@ function render(params) {
 
 module.exports = {
   SCORE_KEYS,
+  encodeDexBoardScore,
   isSupported,
   getSharedCanvas,
   ensureSharedCanvasSize,
