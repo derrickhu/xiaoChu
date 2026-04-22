@@ -144,6 +144,54 @@ function drawHeartIcon(c, cx, cy, size, opts) {
   c.restore()
 }
 
+/**
+ * 小金星收藏徽章（五角星）
+ *   - 用于灵宠池卡片上"已收藏"的角标，以及筛选条"仅看收藏" toggle 的图标
+ *   - 外层描深色描边 + 内部金色渐变，在浅/深底色上都能看清
+ * @param {number} size - 外接圆直径（画布像素）
+ */
+function drawFavStar(c, cx, cy, size, opts) {
+  opts = opts || {}
+  const filled = opts.filled !== false
+  const alpha = opts.alpha != null ? opts.alpha : 1
+  const scale = size * 0.5
+  c.save()
+  if (alpha < 1) c.globalAlpha = alpha
+  c.translate(cx, cy)
+  c.beginPath()
+  // 标准五角星：5 个外顶点 + 5 个内顶点，外半径 1，内半径 0.42
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 1 : 0.42
+    const a = -Math.PI / 2 + i * Math.PI / 5
+    const px = Math.cos(a) * r * scale
+    const py = Math.sin(a) * r * scale
+    if (i === 0) c.moveTo(px, py)
+    else c.lineTo(px, py)
+  }
+  c.closePath()
+  if (opts.shadow && opts.shadow.blur > 0) {
+    c.shadowColor = opts.shadow.color || 'rgba(0,0,0,0.4)'
+    c.shadowBlur = opts.shadow.blur
+    c.shadowOffsetX = opts.shadow.offsetX || 0
+    c.shadowOffsetY = opts.shadow.offsetY || 0
+  }
+  if (filled) {
+    // 金色径向渐变：中心亮金 → 边缘暗金
+    const grad = c.createRadialGradient(-scale * 0.2, -scale * 0.3, scale * 0.1, 0, 0, scale)
+    grad.addColorStop(0, opts.colorHi || '#FFF0B0')
+    grad.addColorStop(0.55, opts.color || '#F0C850')
+    grad.addColorStop(1, opts.colorLo || '#B8871F')
+    c.fillStyle = grad
+    c.fill()
+  }
+  // 描深色描边增强卡片上的辨识度
+  c.shadowColor = 'transparent'; c.shadowBlur = 0
+  c.strokeStyle = opts.stroke || 'rgba(60,35,5,0.85)'
+  c.lineWidth = opts.lineWidth != null ? opts.lineWidth : Math.max(0.8, size * 0.06)
+  c.stroke()
+  c.restore()
+}
+
 /** 系统彩色心形 emoji「❤️」（与文字 ❤️ 同源：U+2764 + FE0F） */
 const HEART_EMOJI_CHAR = '\u2764\uFE0F'
 
@@ -176,6 +224,7 @@ function getFilteredPool(g) {
   const pool = g.storage.petPool || []
   const attrFilter = g._petPoolFilter || 'all'
   const rarityFilter = g._petPoolRarityFilter || 'all'
+  const favOnly = !!g._petPoolFavOnly
   const origIndex = new Map()
   for (let i = 0; i < pool.length; i++) origIndex.set(pool[i].id, i)
   const poolIds = new Set(pool.map(p => p.id))
@@ -183,6 +232,7 @@ function getFilteredPool(g) {
   const favSet = new Set(favList)
 
   const filtered = pool.filter(p => {
+    if (favOnly && !favSet.has(p.id)) return false
     if (attrFilter !== 'all' && p.attr !== attrFilter) return false
     if (rarityFilter !== 'all') {
       const { getPetRarity } = require('../data/pets')
@@ -214,4 +264,4 @@ function hitRect(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
 }
 
-module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, drawHeartIcon, drawHeartEmoji, getFilteredPool, hitRect }
+module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, drawHeartIcon, drawHeartEmoji, drawFavStar, getFilteredPool, hitRect }

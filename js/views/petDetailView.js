@@ -498,7 +498,7 @@ function _measureWrapLineCount(c, text, maxW) {
   return lines
 }
 
-const { drawSeparator, wrapTextDraw, getFilteredPool, drawHeartEmoji } = uiUtils
+const { drawSeparator, wrapTextDraw, getFilteredPool, drawFavStar } = uiUtils
 const _getFilteredPool = getFilteredPool
 
 // 当前按下的按钮 id（用于渲染按下态）
@@ -1146,7 +1146,8 @@ function rPetDetail(g) {
   c.restore()
   _rects.backBtnRect = [btnX, btnY, btnW, btnH]
 
-  // 收藏（爱心）：已拥有时右上角，与返回钮对称
+  // 收藏（金星）：已拥有时右上角，与返回钮对称
+  //   视觉和灵宠池卡片角标统一使用"金星"：激活金色填充、未激活灰色描边空心
   _rects.favoriteBtnRect = null
   if (!isUnowned) {
     const favBtnW = 36 * S
@@ -1158,9 +1159,11 @@ function rPetDetail(g) {
     if (_pressedBtnId === 'favorite') c.globalAlpha = 0.82
     const favCx = favBtnX + favBtnW / 2
     const favCy = favBtnY + favBtnW / 2 + 0.5 * S
-    // 与输入法一致的彩色「❤️」字形（系统 emoji）；未收藏时略透明
-    drawHeartEmoji(c, favCx, favCy, 24 * S, {
-      alpha: isFav ? 1 : 0.48,
+    drawFavStar(c, favCx, favCy, 26 * S, {
+      filled: !!isFav,
+      alpha: isFav ? 1 : 0.55,
+      stroke: isFav ? 'rgba(60,35,5,0.85)' : 'rgba(255,235,180,0.85)',
+      lineWidth: 1.6 * S,
       shadow: { blur: 4 * S, offsetY: 1 * S, color: 'rgba(0,0,0,0.35)' },
     })
     c.restore()

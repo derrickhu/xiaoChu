@@ -11,7 +11,7 @@ const { rarityVisualForAttr } = require('../data/rewardVisual')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
-const { getFilteredPool: _getFilteredPoolUtil, drawHeartEmoji } = require('./uiUtils')
+const { getFilteredPool: _getFilteredPoolUtil, drawFavStar } = require('./uiUtils')
 const guideMgr = require('../engine/guideManager')
 
 // 属性筛选标签
@@ -35,6 +35,7 @@ const RARITY_FILTERS = [
 const _rects = {
   filterRects: [],        // 属性筛选 [{ key, rect: [x,y,w,h] }]
   rarityFilterRects: [],  // 品质筛选 [{ key, rect: [x,y,w,h] }]
+  favToggleRect: null,    // 「仅看收藏」toggle [x,y,w,h]
   chipRects: [],          // 摘要 chip [{ key:'star'|'new'|'level', rect }]
   cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
   backBtnRect: null,      // [x,y,w,h]
@@ -351,7 +352,11 @@ function rPetPool(g) {
 
   const rarityY = filterY + filterH + 6 * S
   const rarityGap = 6 * S
-  const rarityW = (W - 24 * S - rarityGap * (RARITY_FILTERS.length - 1)) / RARITY_FILTERS.length
+  // 行右侧预留圆形「仅看收藏」toggle（直径 = filterH），品质 chip 均分剩余宽度
+  const favToggleSize = filterH
+  const favToggleGap = 8 * S
+  const rarityRowWidth = W - 24 * S - favToggleSize - favToggleGap
+  const rarityW = (rarityRowWidth - rarityGap * (RARITY_FILTERS.length - 1)) / RARITY_FILTERS.length
   for (let i = 0; i < RARITY_FILTERS.length; i++) {
     const f = RARITY_FILTERS[i]
     const fx = 12 * S + i * (rarityW + rarityGap)
@@ -371,6 +376,22 @@ function rPetPool(g) {
     c.fillText(f.label, fx + rarityW / 2, rarityY + filterH / 2)
     _rects.rarityFilterRects.push({ key: f.key, rect: [fx, rarityY, rarityW, filterH] })
   }
+
+  // 「⭐ 仅看收藏」toggle：圆形按钮，激活态金色描边 + 内金星，未激活态灰色底 + 描边星
+  const favToggleX = W - 12 * S - favToggleSize
+  const favToggleY = rarityY
+  const favOnly = !!g._petPoolFavOnly
+  c.fillStyle = favOnly ? 'rgba(235,190,90,0.55)' : 'rgba(80,70,40,0.3)'
+  R.rr(favToggleX, favToggleY, favToggleSize, favToggleSize, favToggleSize / 2); c.fill()
+  c.strokeStyle = favOnly ? 'rgba(255,215,120,0.95)' : 'rgba(200,170,90,0.35)'
+  c.lineWidth = favOnly ? 2 * S : 1 * S
+  R.rr(favToggleX, favToggleY, favToggleSize, favToggleSize, favToggleSize / 2); c.stroke()
+  drawFavStar(c, favToggleX + favToggleSize / 2, favToggleY + favToggleSize / 2 + 0.3 * S, favToggleSize * 0.55, {
+    alpha: favOnly ? 1 : 0.55,
+    shadow: favOnly ? { blur: 3 * S, offsetY: 0.5 * S, color: 'rgba(120,80,0,0.45)' } : null,
+  })
+  _rects.favToggleRect = [favToggleX, favToggleY, favToggleSize, favToggleSize]
+
   c.restore()
 
   // === 摘要 Chip 条（聚合红点数量，点击循环定位）===
@@ -405,7 +426,10 @@ function rPetPool(g) {
     c.fillStyle = 'rgba(255,255,255,0.5)'
     c.font = `${13*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('暂无灵宠，在肉鸽中收集★3图鉴即可入池', W / 2, (gridTop + gridBottom) / 2)
+    const emptyText = g._petPoolFavOnly
+      ? '暂无收藏的灵宠，长按或在详情页点 ♥ 收藏'
+      : '暂无灵宠，在肉鸽中收集★3图鉴即可入池'
+    c.fillText(emptyText, W / 2, (gridTop + gridBottom) / 2)
   }
 
   for (let idx = 0; idx < pool.length; idx++) {
@@ -423,11 +447,12 @@ function rPetPool(g) {
   }
 
   // 幽灵卡片：碎片银行中有碎片的未拥有宠物（半透明）
+  // 开启「仅看收藏」时隐藏 ghost（未入池无法收藏，展示会产生语义冲突）
   const bank = g.storage.fragmentBank || {}
   const ownedIds = new Set(pool.map(p => p.id))
   const filter = g._petPoolFilter || 'all'
   const rarityFilter = g._petPoolRarityFilter || 'all'
-  const ghostPets = Object.keys(bank)
+  const ghostPets = g._petPoolFavOnly ? [] : Object.keys(bank)
     .filter(id => !ownedIds.has(id) && bank[id] > 0)
     .filter(id => {
       const bp = getPetById(id)
@@ -686,14 +711,27 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.font = `bold ${10 * S}px sans-serif`
   const tw = c.measureText(badgeText).width
   const bw = tw + 6 * S, bh = 14 * S
+  const bx = x + 2 * S, by = y + 2 * S
   c.fillStyle = rvBadge.badgeBg
-  R.rr(x + 2 * S, y + 2 * S, bw, bh, 3 * S); c.fill()
+  R.rr(bx, by, bw, bh, 3 * S); c.fill()
   c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
-  R.rr(x + 2 * S, y + 2 * S, bw, bh, 3 * S); c.stroke()
+  R.rr(bx, by, bw, bh, 3 * S); c.stroke()
   c.fillStyle = rvBadge.badgeColor
   c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(badgeText, x + 5 * S, y + 4 * S)
+  c.fillText(badgeText, bx + 3 * S, by + 2 * S)
   c.restore()
+
+  // 收藏徽章：品质印章右下角挂小金星（业界常见"心头好"标记，和觉印/语义角标位置错开）
+  //   - 描边 + 金色渐变，清晰度高、风格克制，不挤压 Lv/ATK 底部信息
+  //   - 排序已在 getFilteredPool 置顶，这里仅是视觉识别
+  if (g && g.storage.isPetPoolFavorite && g.storage.isPetPoolFavorite(poolPet.id)) {
+    const starSize = 11 * S
+    const starCx = bx + bw - 1 * S
+    const starCy = by + bh - 1 * S
+    drawFavStar(c, starCx, starCy, starSize, {
+      shadow: { blur: 3 * S, offsetY: 0.6 * S, color: 'rgba(0,0,0,0.45)' },
+    })
+  }
 
   // 语义角标（star=立即可升星 / new=刚入池未查看 / level=仅差等级即可升星）
   // 同一卡片只显示最高优先级一个，避免角标堆叠。
@@ -721,17 +759,21 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
       }
     }
 
-    // 收藏角标：卡片底部水平居中，整卡最上层
+    // 收藏状态下，整卡外缘再叠一层淡金色描边（第二道视觉钩子）
+    //   - 放在最上层避免被品质边框盖住；lineWidth 1.3*S，在品质边框 2*S 内侧隐约透出金辉
+    //   - 和"可升星"黄色高亮（_petPoolHighlight）时机互斥（玩家注意力优先给闪烁黄边）
     if (g.storage.isPetPoolFavorite && g.storage.isPetPoolFavorite(poolPet.id)) {
-      const fontPx = 17 * S
-      const bottomPad = 5 * S
-      const heartCx = x + w / 2
-      const heartCy = y + h - bottomPad - fontPx * 0.38
-      c.save()
-      drawHeartEmoji(c, heartCx, heartCy, fontPx, {
-        shadow: { blur: 3 * S, offsetY: 0.8 * S, color: 'rgba(0,0,0,0.4)' },
-      })
-      c.restore()
+      const hl = g._petPoolHighlight
+      const hlActive = hl && hl.petId === poolPet.id && hl.until - Date.now() > 0
+      if (!hlActive) {
+        c.save()
+        c.shadowColor = 'rgba(240,200,80,0.45)'
+        c.shadowBlur = 5 * S
+        c.strokeStyle = 'rgba(255,220,120,0.85)'
+        c.lineWidth = 1.3 * S
+        R.rr(x + 0.5 * S, y + 0.5 * S, w - 1 * S, h - 1 * S, 7.5 * S); c.stroke()
+        c.restore()
+      }
     }
   }
 
@@ -862,7 +904,46 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
 // ===== 触摸处理 =====
 // 滚动相关
 let _scrollTouchY = 0
+let _scrollTouchX = 0
 let _scrolling = false
+
+// 长按快捷收藏：按下卡片 ~450ms 不移动不抬起 → 切换收藏态
+const LONG_PRESS_MS = 450
+let _longPressTimer = null
+let _longPressTriggered = false
+
+function _cancelLongPress() {
+  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null }
+}
+
+function _tryStartLongPress(g, x, y) {
+  _cancelLongPress()
+  _longPressTriggered = false
+  // 命中已拥有卡片才启动（ghost 卡不支持收藏）
+  for (const card of _rects.cardRects) {
+    if (card.ghost) continue
+    if (g._hitRect(x, y, ...card.rect)) {
+      const petId = card.petId
+      _longPressTimer = setTimeout(() => {
+        _longPressTimer = null
+        _longPressTriggered = true
+        if (g.storage.togglePetPoolFavorite) {
+          const favNow = g.storage.togglePetPoolFavorite(petId)
+          if (favNow != null) {
+            MusicMgr.playClick && MusicMgr.playClick()
+            if (P && P.showGameToast) {
+              P.showGameToast(favNow ? '♥ 已收藏' : '已取消收藏', { type: favNow ? 'success' : 'info' })
+            }
+            // 触发一次黄色高亮闪烁，帮玩家定位排序位置变化
+            g._petPoolHighlight = { petId, until: Date.now() + 800 }
+            g._dirty = true
+          }
+        }
+      }, LONG_PRESS_MS)
+      return
+    }
+  }
+}
 
 function tPetPool(g, x, y, type) {
   const { S } = V
@@ -870,11 +951,17 @@ function tPetPool(g, x, y, type) {
   // 滚动处理
   if (type === 'start') {
     _scrollTouchY = y
+    _scrollTouchX = x
     _scrolling = false
+    _tryStartLongPress(g, x, y)
   }
   if (type === 'move') {
     const dy = _scrollTouchY - y
-    if (Math.abs(dy) > 3 * S) _scrolling = true
+    const dx = _scrollTouchX - x
+    if (Math.abs(dy) > 3 * S || Math.abs(dx) > 3 * S) {
+      _scrolling = true
+      _cancelLongPress()
+    }
     if (_scrolling) {
       g._petPoolScroll = Math.max(0, (g._petPoolScroll || 0) + dy)
       _scrollTouchY = y
@@ -886,6 +973,12 @@ function tPetPool(g, x, y, type) {
     return
   }
   if (type === 'end') {
+    _cancelLongPress()
+    // 长按已触发 → 吞掉本次 tap，避免继续进入详情页
+    if (_longPressTriggered) {
+      _longPressTriggered = false
+      return
+    }
     if (_scrolling) { _scrolling = false; return }
 
     // 派遣入口
@@ -943,6 +1036,14 @@ function tPetPool(g, x, y, type) {
         g._petPoolScroll = 0
         return
       }
+    }
+
+    // 「⭐ 仅看收藏」toggle：和品质筛选同行
+    if (_rects.favToggleRect && g._hitRect(x, y, ..._rects.favToggleRect)) {
+      g._petPoolFavOnly = !g._petPoolFavOnly
+      g._petPoolScroll = 0
+      MusicMgr.playClick && MusicMgr.playClick()
+      return
     }
 
     // 摘要 chip 点击：循环定位到下一只该状态的宠物
