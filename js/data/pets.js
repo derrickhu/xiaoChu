@@ -621,10 +621,10 @@ function generateStarterPets(sessionPool) {
   })
 }
 
-// 获取宠物头像路径：★3满星使用水墨国风JPG，其余使用原版PNG
+// 获取宠物头像路径：满星（5★）使用抠图透明底 PNG，其余使用原版 PNG
 function getPetAvatarPath(pet) {
   if ((pet.star || 1) >= MAX_STAR) {
-    return `assets/pets/pet_${pet.id}_s3.jpg`
+    return `assets/pets/pet_${pet.id}_s3.png`
   }
   return `assets/pets/pet_${pet.id}.png`
 }

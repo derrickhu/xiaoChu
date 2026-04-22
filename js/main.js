@@ -498,7 +498,7 @@ class Main {
     const pool = this.storage.petPool || []
     for (const p of pool) {
       paths.push(`assets/pets/pet_${p.id}.png`)
-      if ((p.star || 1) >= 3) paths.push(`assets/pets/pet_${p.id}_s3.jpg`)
+      if ((p.star || 1) >= 3) paths.push(`assets/pets/pet_${p.id}_s3.png`)
     }
     const weapons = this.storage.weaponCollection || []
     for (const wid of weapons) {
