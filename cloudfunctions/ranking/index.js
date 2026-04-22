@@ -53,6 +53,7 @@ function _normalizeTier(t) {
 
 // GM 黑名单：这些 openid 的提交操作一律拦截，只允许查询
 const GM_OPENIDS = [
+  "oEnZR3VWQoOEG0U9fhgFCatXLsY4",
 ]
 
 exports.main = async (event, context) => {
