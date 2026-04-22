@@ -1,11 +1,18 @@
 /**
  * 固定关卡管理 — 从编队到战斗到结算的完整生命周期
  *
- * startStage  — 初始化关卡战斗（预检查体力但不扣，构建宠物、加载波次）
+ * startStage  — 初始化关卡战斗（进入即扣体力，构建宠物、加载波次）
  * loadWave    — 加载指定波次敌人
  * advanceWave — 波间推进（波次+1 并重置回合）
- * settleStage — 胜利结算（扣体力、碎片/经验/评价）
- * settleStageDefeat — 失败结算（扣体力、部分经验；UI 可看广告退还）
+ * settleStage — 胜利结算（碎片/经验/评价，体力已在进入时扣除）
+ * settleStageDefeat — 失败结算（部分经验；体力已在进入时扣除，结算页可看广告退还）
+ *
+ * 体力策略（对齐业界标准：原神/方舟/阴阳师）：
+ *   - 进入挑战即扣（startStage / startStageNewbie）
+ *   - 中途退出不退还
+ *   - 退出对话框"重新挑战"= 再扣一次
+ *   - 失败后结算页可看广告退还（保留 staminaRefund 机制）
+ *   - 新手第 1 章全 8 关免扣（NEWBIE_FREE_STAMINA_STAGES）
  */
 
 const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../data/stages')
@@ -69,8 +76,16 @@ function startStage(g, stageId, teamPetIds) {
   if (!stage) return false
   if (teamPetIds.length < getEffectiveStageTeamMin(g.storage, stage)) return false
 
-  // 体力在结算时扣除（胜利 / 失败均扣，退出不扣）
-  g._stageStaminaCost = stage.staminaCost ?? STAMINA_COST
+  // 进入即扣体力（新手第 1 章全 8 关免扣；其余关卡扣除后不退还，除非失败看广告）
+  // 各调用入口（stageInfoView/stageTeamView/tTitle/tBattle "重新挑战"/stageResultView "下一关"）
+  // 需自行先完成体力检查与看广告获取体力的引导，此处仅做最后防御性判断
+  const staminaCost = stage.staminaCost ?? STAMINA_COST
+  const freeStamina = NEWBIE_FREE_STAMINA_STAGES.includes(stageId)
+  if (!freeStamina) {
+    if (g.storage.currentStamina < staminaCost) return false
+    g.storage.consumeStamina(staminaCost)
+  }
+  g._stageStaminaCost = staminaCost
   // 记录每日挑战次数
   g.storage.recordStageChallenge(stageId)
 
@@ -190,12 +205,13 @@ function startStage(g, stageId, teamPetIds) {
 
 /**
  * 新手零宠物时专用：跳过编队，自动分配临时宠物，直接进入战斗
- * 体力在结算时扣除
+ * 新手章节关卡在 NEWBIE_FREE_STAMINA_STAGES 内，本函数不扣体力
  */
 function startStageNewbie(g, stageId) {
   const stage = getStageById(stageId)
   if (!stage) return false
 
+  // 新手章节免体力，仅记录 cost 用于结算页展示
   g._stageStaminaCost = stage.staminaCost ?? STAMINA_COST
   g.storage.recordStageChallenge(stageId)
 
@@ -343,10 +359,8 @@ function settleStage(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
 
-  // 新手前 3 关免体力
-  if (!NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)) {
-    g.storage.consumeStamina(g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST)
-  }
+  // 体力已在 startStage 入口扣过，此处不再扣除
+  // staminaCost 仅用于 _stageResult 数据展示（胜利不支持广告退还）
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
@@ -603,17 +617,16 @@ function settleStage(g) {
 
 /**
  * 失败结算 — 不给碎片，修炼经验 60%、灵石 50%
- * 扣体力，但 UI 可通过看广告退还
+ * 体力已在 startStage 入口扣除；失败时 UI 可通过看广告退还已扣体力
  */
 function settleStageDefeat(g) {
   const stage = getStageById(g._stageId)
   if (!stage) return
 
-  // 失败扣体力（新手前 3 关免扣；其余可看广告退还）
+  // staminaCost 写入 _stageResult 用于广告退还按钮展示
+  // 新手章节 freeStamina=true，结算页不显示退还按钮（canRefund 判 staminaCost > 0）
   const staminaCost = g._stageStaminaCost ?? stage.staminaCost ?? STAMINA_COST
-  if (!NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)) {
-    g.storage.consumeStamina(staminaCost)
-  }
+  const freeStamina = NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)
 
   if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
 
@@ -648,7 +661,7 @@ function settleStageDefeat(g) {
     soulStone,
     totalTurns: g._stageTotalTurns,
     victory: false,
-    staminaCost,
+    staminaCost: freeStamina ? 0 : staminaCost,
     enemyHp: g.enemy ? g.enemy.hp : 0,
     enemyMaxHp: g.enemy ? g.enemy.maxHp : 0,
     enemyName: g.enemy ? g.enemy.name : '',

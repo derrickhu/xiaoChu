@@ -79,6 +79,59 @@ function _handleBoardDrag(g, type, x, y) {
   }
 }
 
+/**
+ * 秘境退出对话框「重新挑战」处理：
+ *   - 新手章节免体力：直接重开（和原行为一致）
+ *   - 非新手体力不足：走 AdManager.openStaminaRecoveryConfirm（与编队页同一入口）
+ *   - 非新手体力足够：弹二次确认，告知玩家会再扣一次体力
+ */
+function _handleStageRestart(g) {
+  const { getStageById } = require('../data/stages')
+  const { NEWBIE_FREE_STAMINA_STAGES } = require('../data/constants')
+  const { STAMINA_COST } = require('../data/balance/economy')
+  const P = require('../platform')
+  const AdManager = require('../adManager')
+
+  const stage = getStageById(g._stageId)
+  if (!stage) return
+  const cost = stage.staminaCost ?? STAMINA_COST
+  const isFree = NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)
+  const team = g._stageTeam
+
+  // 新手章节免体力 → 直接重开
+  if (isFree) {
+    g.showExitDialog = false
+    MusicMgr.resumeNormalBgm()
+    stageMgr.startStage(g, g._stageId, team)
+    return
+  }
+
+  // 体力不足 → 走看广告恢复入口（和编队页/主界面体力按钮逻辑一致）
+  if (g.storage.currentStamina < cost) {
+    g.showExitDialog = false
+    if (!AdManager.openStaminaRecoveryConfirm(g)) {
+      P.showGameToast('体力不足', { type: 'warn' })
+    }
+    return
+  }
+
+  // 体力足够 → 二次确认后才扣体力重开，避免误触
+  g.showExitDialog = false
+  g._confirmDialog = {
+    title: '重新挑战',
+    content: `重新挑战将消耗 ${cost} 点体力\n（当前挑战作废，不给奖励）`,
+    confirmText: '确定',
+    cancelText: '取消',
+    timer: 0,
+    onConfirm: () => {
+      MusicMgr.resumeNormalBgm()
+      if (!stageMgr.startStage(g, g._stageId, team)) {
+        P.showGameToast('重新挑战失败', { type: 'warn' })
+      }
+    },
+  }
+}
+
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
   // === 小灵讲堂阻塞卡拦截（1-2/1-3 首通）：最高优先级，遮挡所有其它交互 ===
@@ -167,11 +220,12 @@ function tBattle(g, type, x, y) {
       return
     }
     if (g._exitRestartRect && g._hitRect(x,y,...g._exitRestartRect)) {
-      g.showExitDialog = false
+      // 秘境模式：重新挑战会再次扣体力，需要二次确认 / 体力不足引导
       if (g.battleMode === 'stage' && g._stageId && g._stageTeam) {
-        MusicMgr.resumeNormalBgm()
-        stageMgr.startStage(g, g._stageId, g._stageTeam)
+        _handleStageRestart(g)
       } else {
+        // 肉鸽模式：重新开局（保持原行为：先结算经验再清档重启）
+        g.showExitDialog = false
         MusicMgr.stopBossBgm()
         runMgr.settleExp(g)
         g.storage.clearRunState(); g._startRun()

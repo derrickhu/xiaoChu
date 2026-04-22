@@ -29,6 +29,17 @@ function drawExitDialog(g) {
   g._exitCancelRect = [0, 0, W, H]
 
   const isStage = g.battleMode === 'stage'
+  // 秘境关卡：计算是否免体力，决定红字文案
+  let stageRestartHint = '重新挑战将重新开始本关'
+  if (isStage) {
+    const { NEWBIE_FREE_STAMINA_STAGES } = require('../data/constants')
+    const { STAMINA_COST } = require('../data/balance/economy')
+    const isFree = NEWBIE_FREE_STAMINA_STAGES.includes(g._stageId)
+    if (!isFree) {
+      const cost = g._stageStaminaCost ?? STAMINA_COST
+      stageRestartHint = `重新挑战将消耗 ${cost} 点体力`
+    }
+  }
 
   // 标题
   ctx.textAlign = 'center'
@@ -42,7 +53,7 @@ function drawExitDialog(g) {
   ctx.fillText('请选择退出方式', px + pw*0.5, py + 60*S)
   ctx.fillStyle = '#C0392B'
   ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText(isStage ? '重新挑战将重新开始本关' : '重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
+  ctx.fillText(isStage ? stageRestartHint : '重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
   ctx.fillStyle = '#8A7A62'
   ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击任意位置取消', px + pw*0.5, py + 94*S)
