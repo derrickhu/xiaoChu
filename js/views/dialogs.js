@@ -3,7 +3,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR, ATTR_NAME, ENEMY_SKILLS } = require('../data/tower')
-const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getPetById } = require('../data/pets')
+const { getPetStarAtk, MAX_STAR, getPetSkillDesc, petHasSkill, getPetAvatarPath, getStar3Override, getStar4Passive, getStar5Override, getPetById } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const { ENEMY_DOT_ATK_RATIO, ENEMY_SKILL_DESC_ATK_RATIO } = require('../data/balance/combat')
 const { wrapText: _uiWrapText } = require('./uiUtils')
@@ -507,10 +507,12 @@ function drawStar3Celebration(g) {
   const portraitX = cx - portraitSize / 2
   const portraitY = cy - portraitSize / 2
 
+  const newStar = pet.star || MAX_STAR
+  const prevStar = Math.max(1, newStar - 1)
   if (t < 24) {
-    // 旧形象（★2）: 缩小居中
+    // 旧形象（升星前）: 缩小居中
     const oldSize = 80 * S
-    const fakePetOld = { id: pet.id, star: 2 }
+    const fakePetOld = { id: pet.id, star: prevStar }
     const oldAvatar = R.getImg(getPetAvatarPath(fakePetOld))
     const ox = cx - oldSize / 2, oy = cy - oldSize / 2
     const fadeOutA = t >= 20 ? Math.max(0, 1 - (t - 20) / 4) : 1
@@ -558,15 +560,17 @@ function drawStar3Celebration(g) {
     ctx.restore()
   }
 
-  // --- ★★★ 星级逐颗亮起 ---
+  // --- ★★★ 星级逐颗亮起（按实际新星数画星） ---
   if (t >= 28) {
     const starY = cy + portraitSize / 2 + 20 * S
     const starSpacing = 22 * S
     const starFontSize = 20 * S
     ctx.font = `bold ${starFontSize}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    for (let si = 0; si < 3; si++) {
-      const starX = cx + (si - 1) * starSpacing
+    const starsTotal = newStar
+    const firstStarX = cx - (starsTotal - 1) * starSpacing / 2
+    for (let si = 0; si < starsTotal; si++) {
+      const starX = firstStarX + si * starSpacing
       const starDelay = si * 5
       const starT = t - 28 - starDelay
       if (starT < 0) {
@@ -587,19 +591,32 @@ function drawStar3Celebration(g) {
     }
   }
 
-  // --- 标题文字 ---
+  // --- 标题文字（按星数切换仪式文案） ---
   if (t >= 38) {
     const titleAlpha = Math.min(1, (t - 38) / 12)
     ctx.globalAlpha = titleAlpha
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
 
+    // ★3/★4/★5 三档分别对应：星辉映魂 / 灵相觉醒 / 满星觉醒
+    let titleText, subtitleText
+    if (newStar >= 5) {
+      titleText = '✦ 满星觉醒 ✦'
+      subtitleText = '达到满星，解锁终极形态！'
+    } else if (newStar === 4) {
+      titleText = '✦ 灵相觉醒 ✦'
+      subtitleText = '水墨新颜浮现，全场景焕然一新！'
+    } else {
+      titleText = '✦ 星辉映魂 ✦'
+      subtitleText = '三星成形，技能正式定型！'
+    }
+
     const titleY = cy - portraitSize / 2 - 36 * S
     ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3 * S
-    ctx.strokeText('✦ 满星觉醒 ✦', cx, titleY)
+    ctx.strokeText(titleText, cx, titleY)
     ctx.fillStyle = '#ffd700'
     ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12 * S
-    ctx.fillText('✦ 满星觉醒 ✦', cx, titleY)
+    ctx.fillText(titleText, cx, titleY)
     ctx.shadowBlur = 0
 
     const nameY = cy + portraitSize / 2 + 50 * S
@@ -610,13 +627,24 @@ function drawStar3Celebration(g) {
 
     ctx.font = `${11 * S}px "PingFang SC",sans-serif`
     ctx.fillStyle = '#ccc'
-    ctx.fillText('达到满星，解锁终极形态！', cx, nameY + 20 * S)
+    ctx.fillText(subtitleText, cx, nameY + 20 * S)
 
-    const s3 = getStar3Override(pet.id)
-    if (s3 && s3.desc) {
+    // 按星数展示对应技能/被动细节
+    let detailLine = null
+    if (newStar === 3) {
+      const s3 = getStar3Override(pet.id)
+      if (s3 && s3.desc) detailLine = `★3技能：${s3.desc}`
+    } else if (newStar === 4) {
+      const p4 = getStar4Passive(pet.id)
+      if (p4 && p4.name) detailLine = `★4 被动「${p4.name}」`
+    } else if (newStar >= 5) {
+      const s5 = getStar5Override(pet.id)
+      if (s5 && s5.desc) detailLine = `★5技能：${s5.desc}`
+    }
+    if (detailLine) {
       ctx.font = `${10 * S}px "PingFang SC",sans-serif`
       ctx.fillStyle = '#ffa040'
-      ctx.fillText(`★3技能：${s3.desc}`, cx, nameY + 40 * S)
+      ctx.fillText(detailLine, cx, nameY + 40 * S)
     }
 
     ctx.globalAlpha = 1

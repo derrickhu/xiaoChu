@@ -621,9 +621,10 @@ function generateStarterPets(sessionPool) {
   })
 }
 
-// 获取宠物头像路径：满星（5★）使用抠图透明底 PNG，其余使用原版 PNG
+// 获取宠物头像路径：★4 觉醒后使用抠图透明底水墨灵相 PNG（_s3.png），★4 以下使用原版 PNG
+// 设计：★4 为「灵相觉醒」阈值，达成后全场景（战斗/编队/池卡/图鉴/详情）统一换新灵相
 function getPetAvatarPath(pet) {
-  if ((pet.star || 1) >= MAX_STAR) {
+  if ((pet.star || 1) >= 4) {
     return `assets/pets/pet_${pet.id}_s3.png`
   }
   return `assets/pets/pet_${pet.id}.png`

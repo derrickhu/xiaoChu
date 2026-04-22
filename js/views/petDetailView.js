@@ -54,6 +54,7 @@ const _rects = {
   summonBtnRect: null,
   leftArrowRect: null,
   rightArrowRect: null,
+  awakenPreviewBtnRect: null,  // ★4 觉醒预览/★5 超越 底部按钮（★1-4 可点，★5 装饰）
   roadmapRowRects: [],    // [{ star, rect: [x,y,w,h] }]
   // 面板滚动：内容区可能因为成长路线展开而超出卡片高度，
   // 这里记录面板边界 + 当前滚动偏移，供内容 clip/translate 与触摸命中换算使用
@@ -89,6 +90,395 @@ let _slideAnim = null  // { from, to, progress, duration, direction }
 // 缓动函数：ease-out
 function _easeOut(t) {
   return 1 - (1 - t) * (1 - t)
+}
+
+// ===== ★4 觉醒灵相 · 可视化全家桶 =====
+// 行业参考：明日方舟精英化立绘切换、FGO 灵基再临全量预览、原神命之座暗色解锁
+// 设计理念：从 ★1 起让玩家看到终极形态，按星级梯度加强暗示 → 临门一脚冲刺感最强
+//
+// 5 档视觉梯度（详见提交说明）：
+//   ★1  · 很淡剪影 12%         · 按钮「觉醒预览 · 路还长」灰金
+//   ★2  · 微浮现剪影 18%        · 按钮「觉醒预览」金色
+//   ★3  · 明显剪影 26% + 脉冲    · 按钮「再升一星即可觉醒」红金跳动 ← 最强冲刺感
+//   ★4  · 主图已是 _s3 + 「觉」印 · 按钮「★5 超越 · 技能进化」蓝金钩子
+//   ★5  · 主图 _s3 + 「满」印 + 金光环 + 稀疏金粒子 · 按钮满星圆满徽章
+
+const _AWAKEN_TIER = {
+  1: { sil: 0.12, pulse: 0.02, btnText: '🔍 觉醒预览 · 路还长', btnBg: 'rgba(60,50,30,0.72)', btnBorder: 'rgba(200,170,80,0.55)', btnFg: 'rgba(235,210,130,0.9)', pulseBtn: 0 },
+  2: { sil: 0.18, pulse: 0.03, btnText: '🔍 觉醒预览', btnBg: 'rgba(50,40,15,0.82)', btnBorder: '#C9A227', btnFg: '#FFE58A', pulseBtn: 0 },
+  3: { sil: 0.26, pulse: 0.05, btnText: '🔥 再升一星即可觉醒', btnBg: 'rgba(80,30,20,0.88)', btnBorder: '#F4A43C', btnFg: '#FFF0B8', pulseBtn: 1 },
+  4: { sil: 0, pulse: 0, btnText: '⚡ ★5 超越 · 技能进化', btnBg: 'rgba(20,40,70,0.85)', btnBorder: '#7FB8F0', btnFg: '#DCEFFF', pulseBtn: 0.5 },
+  5: { sil: 0, pulse: 0, btnText: '✦ 满星圆满 ✦', btnBg: 'rgba(80,55,10,0.92)', btnBorder: '#FFD96A', btnFg: '#FFF8D6', pulseBtn: 0 },
+}
+
+/**
+ * ★1-★3 背后水墨剪影：半透明 _s3 灵相浮在主头像背后，呼吸脉冲
+ * 设计：让玩家扫一眼就感觉"它背后还有个形态"，形成视觉钩子
+ * 调用时机：主头像 drawCoverImg 之前（被主图覆盖，只露外圈轮廓）
+ */
+function _drawAwakenSilhouette(c, R, S, opts) {
+  const { petId, star, avatarX, avatarY, avatarSize } = opts
+  const tier = _AWAKEN_TIER[star]
+  if (!tier || tier.sil <= 0) return
+  const img = R.getImg(`assets/pets/pet_${petId}_s3.png`)
+  if (!img || img.width <= 0) return
+
+  // 呼吸脉冲：基于时间，0.7~1.3x 波动
+  const t = Date.now() * 0.001
+  const pulse = 1 + Math.sin(t * 1.6) * tier.pulse * 3
+  const alpha = tier.sil * (0.75 + 0.25 * Math.sin(t * 1.6))
+
+  const drawSize = avatarSize * 1.08 * pulse
+  const drawX = avatarX + avatarSize / 2 - drawSize / 2
+  const drawY = avatarY + avatarSize / 2 - drawSize / 2
+
+  c.save()
+  c.globalAlpha = alpha
+  R.drawCoverImg(img, drawX, drawY, drawSize, drawSize, { radius: 12 * S })
+  c.restore()
+}
+
+/**
+ * ★4/★5 主头像外圈装饰：金色光环（★5 满星才有）
+ * 调用时机：主头像 drawCoverImg 之前（垫在属性色光晕之上）
+ */
+function _drawMaxStarAura(c, S, opts) {
+  const { star, avatarX, avatarY, avatarSize } = opts
+  if (star < 5) return
+  const cx = avatarX + avatarSize / 2
+  const cy = avatarY + avatarSize / 2
+  const t = Date.now() * 0.001
+  const pulse = 0.5 + 0.5 * Math.sin(t * 1.2)
+  c.save()
+  const ringR = avatarSize * (0.55 + pulse * 0.03)
+  const grad = c.createRadialGradient(cx, cy, avatarSize * 0.42, cx, cy, ringR)
+  grad.addColorStop(0, 'rgba(255,220,120,0)')
+  grad.addColorStop(0.6, `rgba(255,210,80,${0.18 + pulse * 0.1})`)
+  grad.addColorStop(1, 'rgba(255,200,60,0)')
+  c.fillStyle = grad
+  c.beginPath(); c.arc(cx, cy, ringR, 0, Math.PI * 2); c.fill()
+  // 外圈金色细描线
+  c.strokeStyle = `rgba(255,225,140,${0.35 + pulse * 0.25})`
+  c.lineWidth = 1.5 * S
+  c.beginPath(); c.arc(cx, cy, avatarSize * 0.55, 0, Math.PI * 2); c.stroke()
+  c.restore()
+}
+
+/**
+ * ★4/★5 主头像右上金色印章
+ * ★4「觉」：灵相已觉醒标记
+ * ★5「满」：满星收口，双圈 + 外环金光
+ */
+function _drawAwakenSeal(c, S, opts) {
+  const { star, avatarX, avatarY, avatarSize } = opts
+  if (star < 4) return
+  const isMax = star >= 5
+  const sealR = (isMax ? 15 : 13) * S
+  const sealCx = avatarX + avatarSize - sealR - 4 * S
+  const sealCy = avatarY + sealR + 4 * S
+  c.save()
+  // ★5 额外一圈外金光
+  if (isMax) {
+    const t = Date.now() * 0.001
+    const pulse = 0.6 + 0.4 * Math.sin(t * 1.4)
+    c.strokeStyle = `rgba(255,220,120,${0.4 + pulse * 0.3})`
+    c.lineWidth = 2 * S
+    c.beginPath(); c.arc(sealCx, sealCy, sealR + 3 * S, 0, Math.PI * 2); c.stroke()
+  }
+  const grad = c.createRadialGradient(sealCx - 3 * S, sealCy - 3 * S, sealR * 0.2, sealCx, sealCy, sealR)
+  grad.addColorStop(0, '#FFE58A')
+  grad.addColorStop(0.55, '#E8B820')
+  grad.addColorStop(1, '#A77A20')
+  c.fillStyle = grad
+  c.beginPath(); c.arc(sealCx, sealCy, sealR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = 'rgba(255,240,180,0.9)'; c.lineWidth = 1.2 * S
+  c.beginPath(); c.arc(sealCx, sealCy, sealR - 1 * S, 0, Math.PI * 2); c.stroke()
+  // ★5 双圈内描
+  if (isMax) {
+    c.strokeStyle = 'rgba(120,80,20,0.5)'; c.lineWidth = 0.8 * S
+    c.beginPath(); c.arc(sealCx, sealCy, sealR - 3.5 * S, 0, Math.PI * 2); c.stroke()
+  }
+  c.fillStyle = '#fff'
+  const fontSz = (isMax ? 15 : 14) * S
+  c.font = `bold ${fontSz}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeStyle = 'rgba(80,50,0,0.6)'; c.lineWidth = 3 * S
+  const ch = isMax ? '满' : '觉'
+  c.strokeText(ch, sealCx, sealCy + 0.5 * S)
+  c.fillText(ch, sealCx, sealCy + 0.5 * S)
+  c.restore()
+}
+
+/**
+ * ★5 主头像周围持续性稀疏金色粒子（装饰向，与 ★5 aura 叠加）
+ * 调用时机：主头像之后，印章之前
+ */
+function _drawMaxStarSparkles(c, S, opts) {
+  const { star, avatarX, avatarY, avatarSize } = opts
+  if (star < 5) return
+  const cx = avatarX + avatarSize / 2
+  const cy = avatarY + avatarSize / 2
+  const t = Date.now() * 0.001
+  c.save()
+  // 8 颗沿椭圆轨道的金粒子，周期错开
+  for (let i = 0; i < 8; i++) {
+    const phase = (t * 0.4 + i / 8) % 1
+    const angle = phase * Math.PI * 2 + i * 0.3
+    const r = avatarSize * (0.52 + Math.sin(phase * Math.PI) * 0.04)
+    const px = cx + Math.cos(angle) * r
+    const py = cy + Math.sin(angle) * r * 0.9
+    const alpha = Math.sin(phase * Math.PI) * 0.8
+    const sz = (1.5 + Math.sin(phase * Math.PI) * 1.2) * S
+    c.globalAlpha = alpha
+    c.fillStyle = '#FFE58A'
+    c.beginPath(); c.arc(px, py, sz, 0, Math.PI * 2); c.fill()
+    c.globalAlpha = alpha * 0.4
+    c.fillStyle = '#fff'
+    c.beginPath(); c.arc(px, py, sz * 0.5, 0, Math.PI * 2); c.fill()
+  }
+  c.restore()
+}
+
+/**
+ * 头像底部「觉醒预览/★5 钩子」按钮
+ * 按星级切文案 + 色 + 脉冲，按下态响应由 _pressedBtnId 驱动
+ * @returns {number[]} 按钮 rect [x, y, w, h]，供触摸命中使用
+ */
+function _drawAwakenPreviewButton(c, S, opts) {
+  const { star, avatarX, avatarY, avatarSize, pressed } = opts
+  const tier = _AWAKEN_TIER[star]
+  if (!tier) return null
+  const t = Date.now() * 0.001
+  const pulseScale = tier.pulseBtn > 0
+    ? (1 + Math.sin(t * 3.2) * 0.04 * tier.pulseBtn)
+    : 1
+
+  c.save()
+  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  const textW = c.measureText(tier.btnText).width
+  const btnW = (textW + 22 * S) * pulseScale
+  const btnH = 22 * S * pulseScale
+  const btnX = avatarX + avatarSize / 2 - btnW / 2
+  // 按钮嵌在头像底部（约 1/3 在图内、2/3 在图外）—— 像一个绶带
+  const btnY = avatarY + avatarSize - btnH * 0.35
+
+  // 按下态微缩
+  const effW = pressed ? btnW * 0.96 : btnW
+  const effH = pressed ? btnH * 0.96 : btnH
+  const effX = avatarX + avatarSize / 2 - effW / 2
+  const effY = avatarY + avatarSize - effH * 0.35
+
+  // 底部阴影
+  c.fillStyle = 'rgba(0,0,0,0.3)'
+  V.R.rr(effX + 1 * S, effY + 2 * S, effW, effH, effH / 2); c.fill()
+  // 主体
+  c.fillStyle = tier.btnBg
+  V.R.rr(effX, effY, effW, effH, effH / 2); c.fill()
+  // 描边
+  c.strokeStyle = tier.btnBorder; c.lineWidth = 1.3 * S
+  V.R.rr(effX, effY, effW, effH, effH / 2); c.stroke()
+  // 文字
+  c.fillStyle = tier.btnFg
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText(tier.btnText, effX + effW / 2, effY + effH / 2 + 0.5 * S)
+  c.restore()
+
+  return [btnX, btnY, btnW, btnH]
+}
+
+/**
+ * 觉醒预览显影动画：点击预览按钮后触发（★1-★3 专用）
+ * 状态：g._awakenPreview = { petId, timer, phase, tappedAt }
+ *   phase 随 timer 推进：fadeOut → reveal → hold → fadeBack
+ *   hold 中玩家点击任意位置 → 立即跳到 fadeBack
+ *
+ * 绘制范围：主头像矩形内（同尺寸 _s3 灵相 + 金色粒子爆闪 + 顶部「★4 觉醒预览」标题）
+ * @returns {boolean} true 表示已接管主头像绘制（_drawDetailPage 应跳过原头像）
+ */
+function _drawAwakenPreviewAnim(g, c, R, S, opts) {
+  const p = g._awakenPreview
+  if (!p) return false
+  const { avatarX, avatarY, avatarSize } = opts
+  p.timer++
+  const t = p.timer
+
+  // 阶段划分（帧数）
+  //   0-10   fadeOut：旧形态（半透明）淡出
+  //   10-22  reveal ：_s3 从黑底+金粒中浮现
+  //   22-95  hold   ：稳态展示，可点击跳出
+  //   95-108 fadeBack：_s3 淡出，旧形态淡回
+  const FADE_OUT = 10, REVEAL = 22, HOLD_END = 95, FADE_END = 108
+  if (t >= FADE_END) {
+    g._awakenPreview = null
+    return false
+  }
+
+  const img = R.getImg(`assets/pets/pet_${p.petId}_s3.png`)
+  const cx = avatarX + avatarSize / 2
+  const cy = avatarY + avatarSize / 2
+
+  c.save()
+
+  // 背景深色圆角暗光（仅在 reveal~hold 之间）
+  if (t >= 6 && t < HOLD_END + 4) {
+    const bgA = Math.min(1, (t - 6) / 8) * (t > HOLD_END ? Math.max(0, 1 - (t - HOLD_END) / 4) : 1)
+    c.globalAlpha = bgA * 0.45
+    c.fillStyle = '#0a0a18'
+    R.rr(avatarX - 4 * S, avatarY - 4 * S, avatarSize + 8 * S, avatarSize + 8 * S, 14 * S); c.fill()
+    c.globalAlpha = 1
+  }
+
+  // 原头像：fadeOut 阶段淡出、fadeBack 阶段淡回（中间 reveal/hold 不绘制）
+  if (t < FADE_OUT || t > HOLD_END) {
+    const oldImg = R.getImg(opts.currentAvatarPath)
+    const alpha = t < FADE_OUT
+      ? 1 - t / FADE_OUT
+      : (t - HOLD_END) / (FADE_END - HOLD_END)
+    c.globalAlpha = Math.max(0, Math.min(1, alpha))
+    R.drawCoverImg(oldImg, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
+    c.globalAlpha = 1
+  }
+
+  // _s3 觉醒形态淡入（10 帧后）
+  if (t >= FADE_OUT && img && img.width > 0) {
+    let alpha = 1
+    if (t < REVEAL) {
+      alpha = (t - FADE_OUT) / (REVEAL - FADE_OUT)
+    } else if (t > HOLD_END) {
+      alpha = Math.max(0, 1 - (t - HOLD_END) / (FADE_END - HOLD_END))
+    }
+    c.globalAlpha = alpha
+    R.drawCoverImg(img, avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
+    c.globalAlpha = 1
+  }
+
+  // 金色粒子爆闪（reveal 瞬间）
+  if (t >= FADE_OUT && t < REVEAL + 6) {
+    const burstP = (t - FADE_OUT) / (REVEAL - FADE_OUT + 6)
+    const particleCount = 24
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + burstP * 0.5
+      const r = avatarSize * 0.25 * burstP + avatarSize * 0.1
+      const px = cx + Math.cos(angle) * r
+      const py = cy + Math.sin(angle) * r
+      const sz = (2 + (1 - burstP) * 3) * S
+      c.globalAlpha = Math.max(0, 1 - burstP) * 0.9
+      c.fillStyle = '#FFE58A'
+      c.beginPath(); c.arc(px, py, sz, 0, Math.PI * 2); c.fill()
+    }
+    c.globalAlpha = 1
+  }
+
+  // 顶部标题（reveal 完成后显示）
+  if (t >= REVEAL && t < FADE_END - 3) {
+    const titleA = Math.min(1, (t - REVEAL) / 8) * (t > HOLD_END ? Math.max(0, 1 - (t - HOLD_END) / 6) : 1)
+    c.globalAlpha = titleA
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3.5 * S
+    c.strokeText('★4 灵相觉醒 · 预览', cx, avatarY + 14 * S)
+    c.fillStyle = '#FFE58A'
+    c.fillText('★4 灵相觉醒 · 预览', cx, avatarY + 14 * S)
+    // 底部提示
+    c.font = `${10 * S}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(255,220,140,0.9)'
+    c.fillText('升至 ★4 自动觉醒 · 点击退出', cx, avatarY + avatarSize - 12 * S)
+    c.globalAlpha = 1
+  }
+
+  c.restore()
+  g._dirty = true
+  return true
+}
+
+/**
+ * ★4 宠物的「★5 超越」技能预览弹窗
+ * 状态：g._awakenStar5SkillPopup = { petId, timer }
+ * 居中弹卡显示 getStar5Override 内容，点击任意位置关闭
+ */
+function _drawStar5SkillPopup(g, c, R) {
+  const p = g._awakenStar5SkillPopup
+  if (!p) return
+  const { S, W, H } = V
+  const basePet = getPetById(p.petId)
+  const s5 = getStar5Override(p.petId)
+  const petName = (basePet && basePet.name) || p.petId
+  p.timer = (p.timer || 0) + 1
+
+  // 遮罩淡入
+  const maskA = Math.min(1, p.timer / 8) * 0.75
+  c.save()
+  c.fillStyle = `rgba(5,8,18,${maskA})`
+  c.fillRect(0, 0, W, H)
+
+  // 卡片尺寸
+  const cardW = W * 0.82
+  const cardH = 200 * S
+  const cardX = (W - cardW) / 2
+  const cardY = (H - cardH) / 2
+
+  // 卡片弹入缩放
+  const scaleP = Math.min(1, p.timer / 10)
+  const scale = 0.85 + 0.15 * _easeOut(scaleP)
+  c.save()
+  c.translate(cardX + cardW / 2, cardY + cardH / 2)
+  c.scale(scale, scale)
+  c.translate(-cardW / 2, -cardH / 2)
+
+  // 卡片背景
+  const bgGrad = c.createLinearGradient(0, 0, 0, cardH)
+  bgGrad.addColorStop(0, '#1a2440')
+  bgGrad.addColorStop(1, '#0d1628')
+  c.fillStyle = bgGrad
+  R.rr(0, 0, cardW, cardH, 16 * S); c.fill()
+  c.strokeStyle = '#7FB8F0'; c.lineWidth = 2 * S
+  R.rr(0, 0, cardW, cardH, 16 * S); c.stroke()
+
+  // 顶部角标
+  c.fillStyle = '#7FB8F0'
+  c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText('⚡ ★5 超越 · 技能进化预览', 18 * S, 16 * S)
+
+  // 宠物名
+  c.fillStyle = '#fff'
+  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  c.fillText(petName, 18 * S, 38 * S)
+
+  // 分割线
+  c.strokeStyle = 'rgba(127,184,240,0.4)'; c.lineWidth = 1 * S
+  c.beginPath(); c.moveTo(18 * S, 66 * S); c.lineTo(cardW - 18 * S, 66 * S); c.stroke()
+
+  // ★5 技能描述
+  if (s5 && s5.desc) {
+    c.fillStyle = '#DCEFFF'
+    c.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+    c.fillText('★5 技能 · 终极强化', 18 * S, 80 * S)
+    c.fillStyle = '#fff'
+    c.font = `${12 * S}px "PingFang SC",sans-serif`
+    uiUtils.wrapText(s5.desc, cardW - 36 * S, 12).forEach((line, i) => {
+      c.fillText(line, 18 * S, 102 * S + i * 18 * S)
+    })
+    if (s5.cd != null) {
+      c.fillStyle = 'rgba(200,220,255,0.7)'
+      c.font = `${11 * S}px "PingFang SC",sans-serif`
+      c.fillText(`冷却：${s5.cd} 回合`, 18 * S, cardH - 46 * S)
+    }
+  } else {
+    c.fillStyle = 'rgba(220,239,255,0.7)'
+    c.font = `${12 * S}px "PingFang SC",sans-serif`
+    c.fillText('★5 超越攻击与血量全面飞跃', 18 * S, 96 * S)
+  }
+
+  // 底部提示
+  c.fillStyle = 'rgba(200,220,255,0.6)'
+  c.font = `${10 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.fillText('升至 ★5 自动解锁 · 点击任意位置关闭', cardW / 2, cardH - 20 * S)
+
+  c.restore()
+  c.restore()
+  g._dirty = true
 }
 
 /** 与 wrapTextDraw 相同断行规则，仅返回行数（用于先算展开区高度） */
@@ -142,6 +532,7 @@ function _getStarUpBenefitLines(petId, poolPet, basePet, nextStar) {
   if (nextStar === 4) {
     const p = getStar4Passive(petId)
     if (p) lines.push(`★4 ${p.name}：${p.desc}`)
+    lines.push('★4 觉醒灵相：解锁全新水墨形态')
   }
   if (nextStar === 5) {
     const s5 = getStar5Override(petId)
@@ -192,6 +583,7 @@ function _buildExpandedRoadmapLines(row, petId, basePet, poolPet) {
     } else {
       lines.push({ text: '攻击提升（无被动）', color: 'rgba(90,70,40,0.7)' })
     }
+    lines.push({ text: '觉醒灵相：水墨溶解觉醒仪式触发，全场景（战斗/编队/图鉴）统一替换为全新水墨形态', color: '#B8860B' })
   } else if (star === 5) {
     const s5 = getStar5Override(petId)
     if (s5 && s5.desc) {
@@ -235,6 +627,7 @@ function _buildGrowthRoadmap(petId, basePet) {
     if (star === 4) {
       const p = getStar4Passive(petId)
       if (p) unlocks.push(`被动「${p.name}」`)
+      unlocks.push('觉醒灵相')
       unlocks.push(`上限Lv.${lvCap}`)
     }
     if (star === 5) {
@@ -812,24 +1205,31 @@ function rPetDetail(g) {
   }
 
   // 底部页码指示器（未拥有宠物不显示）
-  if (isUnowned) return
-  const pool = _getFilteredPool(g)
-  const idx = _getCurrentIndex(g)
-  if (pool.length > 1) {
-    const dotR = 3 * S
-    const dotGap = 10 * S
-    const totalDotsW = pool.length * dotR * 2 + (pool.length - 1) * dotGap
-    const dotsX = (W - totalDotsW) / 2
-    const dotsY = H - safeTop - 10 * S
-    c.save()
-    for (let i = 0; i < pool.length; i++) {
-      const dx = dotsX + i * (dotR * 2 + dotGap) + dotR
-      c.fillStyle = i === idx ? '#fff' : 'rgba(255,255,255,0.3)'
-      c.beginPath()
-      c.arc(dx, dotsY, i === idx ? dotR * 1.3 : dotR, 0, Math.PI * 2)
-      c.fill()
+  if (!isUnowned) {
+    const pool = _getFilteredPool(g)
+    const idx = _getCurrentIndex(g)
+    if (pool.length > 1) {
+      const dotR = 3 * S
+      const dotGap = 10 * S
+      const totalDotsW = pool.length * dotR * 2 + (pool.length - 1) * dotGap
+      const dotsX = (W - totalDotsW) / 2
+      const dotsY = H - safeTop - 10 * S
+      c.save()
+      for (let i = 0; i < pool.length; i++) {
+        const dx = dotsX + i * (dotR * 2 + dotGap) + dotR
+        c.fillStyle = i === idx ? '#fff' : 'rgba(255,255,255,0.3)'
+        c.beginPath()
+        c.arc(dx, dotsY, i === idx ? dotR * 1.3 : dotR, 0, Math.PI * 2)
+        c.fill()
+      }
+      c.restore()
     }
-    c.restore()
+  }
+
+  // ★5 超越技能预览弹窗（★4 详情页点击底部钩子按钮后弹出）
+  //   叠在最上层，遮住箭头/翻页点，点击任意位置关闭（逻辑在 tPetDetail）
+  if (g._awakenStar5SkillPopup) {
+    _drawStar5SkillPopup(g, c, R)
   }
 }
 
@@ -1179,11 +1579,43 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   c.beginPath(); c.arc(glowCx, glowCy, glowR, 0, Math.PI * 2); c.fill()
   c.restore()
 
+  const avatarStar = poolPet.star || 1
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
-  R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
+  const avatarOpts = { petId, star: avatarStar, avatarX, avatarY, avatarSize }
+
+  // ★5 满星金色光环（垫在主头像下方）
+  _drawMaxStarAura(c, S, avatarOpts)
+
+  // ★1-★3 背后水墨剪影（呼吸脉冲，制造"背后还有个形态"的视觉钩子）
+  _drawAwakenSilhouette(c, R, S, avatarOpts)
+
+  // 觉醒预览显影动画：若正在播放则接管主头像区；否则绘制常规主头像
+  const previewTakeover = _drawAwakenPreviewAnim(g, c, R, S, {
+    ...avatarOpts, currentAvatarPath: avatarPath,
+  })
+  if (!previewTakeover) {
+    R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 10 * S })
+  }
+
+  // ★5 周身金粒子轨道 + ★4/★5 右上印章
+  _drawMaxStarSparkles(c, S, avatarOpts)
+  _drawAwakenSeal(c, S, avatarOpts)
+
+  // 头像底部绶带按钮（★1-3 预览 / ★4 超越钩子 / ★5 满星徽章）
+  //   预览动画进行中时暂不画按钮，避免被压盖
+  if (!previewTakeover) {
+    _rects.awakenPreviewBtnRect = _drawAwakenPreviewButton(c, S, {
+      ...avatarOpts,
+      pressed: _pressedBtnId === 'awakenPreview',
+    })
+  } else {
+    _rects.awakenPreviewBtnRect = null
+  }
 
   // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
-  let cy = avatarY + avatarSize * 1.06 + 6 * S
+  //   注意：头像底部有觉醒预览/★5 超越绶带按钮（约 22S 高，1/3 嵌在头像内），
+  //   名称行需在按钮之下，留 10S 间距以保证视觉呼吸
+  let cy = avatarY + avatarSize + 22 * S * 0.65 + 10 * S
 
   const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
   const orbImg = R.getImg(orbPath)
@@ -1650,6 +2082,38 @@ function _hitInsidePanel(g, x, y, rect) {
 function tPetDetail(g, x, y, type) {
   const { S, W } = V
 
+  // ★4 觉醒 / ★5 圆满庆祝仪式：优先级最高，点击任意位置关闭；
+  //   关闭后如果登记了 onDismiss（一般是炫耀卡触发），顺序接入 —— 避免仪式与炫耀卡同屏
+  if (type === 'end' && g._star3Celebration && g._star3Celebration.phase === 'ready') {
+    const onDismiss = g._star3Celebration.onDismiss
+    g._star3Celebration = null
+    if (typeof onDismiss === 'function') {
+      try { onDismiss() } catch (e) { console.warn('[petDetail] celebration onDismiss error', e) }
+    }
+    return
+  }
+  if (g._star3Celebration) return
+
+  // ★5 超越技能弹窗：任意点击关闭
+  if (g._awakenStar5SkillPopup) {
+    if (type === 'end') {
+      g._awakenStar5SkillPopup = null
+      g._dirty = true
+    }
+    return
+  }
+
+  // 觉醒预览动画进行中：任意点击跳到"淡回"阶段；动画本身由帧推进关闭
+  if (g._awakenPreview) {
+    if (type === 'end') {
+      const p = g._awakenPreview
+      // 若还在 hold 阶段，把 timer 拨到 fadeBack 起点（95），加速收尾
+      if (p.timer < 95) p.timer = 95
+      g._dirty = true
+    }
+    return
+  }
+
   if (type === 'start') {
     _swipeStartX = x
     _swipeStartY = y
@@ -1679,6 +2143,7 @@ function tPetDetail(g, x, y, type) {
     else if (_hitInsidePanel(g, x, y, _rects.summonBtnRect)) _pressedBtnId = 'summon'
     else if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) _pressedBtnId = 'back'
     else if (_rects.favoriteBtnRect && !g._petDetailUnowned && g._hitRect(x, y, ..._rects.favoriteBtnRect)) _pressedBtnId = 'favorite'
+    else if (_rects.awakenPreviewBtnRect && g._hitRect(x, y, ..._rects.awakenPreviewBtnRect)) _pressedBtnId = 'awakenPreview'
     else _pressedBtnId = null
     if (_pressedBtnId) g._dirty = true
     return
@@ -1768,6 +2233,30 @@ function tPetDetail(g, x, y, type) {
         }
       }
       _swipeDeltaX = 0
+      return
+    }
+
+    // 觉醒预览按钮：
+    //   ★1-★3 → 触发水墨显影预览动画
+    //   ★4    → 弹出「★5 超越」技能进化预览卡
+    //   ★5    → 装饰性满星徽章，不响应点击
+    if (_rects.awakenPreviewBtnRect && g._hitRect(x, y, ..._rects.awakenPreviewBtnRect)) {
+      const curPet = g.storage.getPoolPet(g._petDetailId)
+      const curStar = curPet ? (curPet.star || 1) : 1
+      if (curStar >= 5) {
+        // 满星不响应
+      } else if (curStar === 4) {
+        g._awakenStar5SkillPopup = { petId: g._petDetailId, timer: 0 }
+        MusicMgr.playClick && MusicMgr.playClick()
+        g._dirty = true
+      } else {
+        // ★1-★3：触发显影预览
+        if (!g._awakenPreview) {
+          g._awakenPreview = { petId: g._petDetailId, timer: 0 }
+          MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
+          g._dirty = true
+        }
+      }
       return
     }
 
@@ -1898,13 +2387,29 @@ function _doStarUp(g) {
     MusicMgr.playStar3Unlock && MusicMgr.playStar3Unlock()
     const basePet = require('../data/pets').getPetById(petId)
     const petName = (basePet && basePet.name) || petId
+    const poolPetAfterStar = g.storage.getPoolPet(petId)
 
-    // 升星是每只宠物的重要里程碑：
-    //   · 3★ / 5★ 为情绪峰值 → 走 shareHooks 统一（lingCheer + 炫耀卡）
-    //   · 2★ / 4★ 仅顶部 lingCheer 夸一句，不弹炫耀卡
-    const isMilestone = result.newStar === 3 || result.newStar === 5
-    if (isMilestone) {
-      shareHooks.onPetStarUp(g, { pet: { petId, name: petName }, star: result.newStar })
+    // 升星里程碑分级：
+    //   · ★3 首次成形 / ★4 灵相觉醒 / ★5 圆满星耀 为情绪峰值 → 走 shareHooks（lingCheer + 炫耀卡）
+    //   · ★2 仅顶部 lingCheer 夸一句，不弹炫耀卡
+    const isMilestone = result.newStar === 3 || result.newStar === 4 || result.newStar === 5
+    const fireShareHook = isMilestone
+      ? () => shareHooks.onPetStarUp(g, { pet: { petId, name: petName }, star: result.newStar })
+      : null
+
+    // ★4 灵相觉醒 / ★5 圆满星耀：触发全屏水墨溶解仪式（旧形态→新灵相浮现）
+    //   仪式结束后再接入炫耀卡，避免仪式与炫耀卡同屏重叠；
+    //   ★3 没有新灵相，直接走 shareHooks 炫耀卡。
+    if (result.newStar >= 4 && poolPetAfterStar) {
+      g._star3Celebration = {
+        pet: { ...basePet, ...poolPetAfterStar },
+        timer: 0,
+        phase: 'fadeIn',
+        particles: [],
+        onDismiss: fireShareHook,
+      }
+    } else if (fireShareHook) {
+      fireShareHook()
     } else {
       lingCheer.show(LING.cheer.petStarUp(petName, result.newStar), { tone: 'epic', duration: 2200 })
     }

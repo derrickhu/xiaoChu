@@ -753,7 +753,8 @@ function applyShopPetByAttr(g, attr) {
   } else if (mergeResult.target) {
     g._shopPetObtained = { pet: { ...mergeResult.target }, type: mergeResult.maxed ? 'maxed' : 'starUp' }
     g._lastRewardInfo = { type: 'starUp', petId: mergeResult.target.id }
-    if ((mergeResult.target.star || 1) >= MAX_STAR) {
+    // ★4 灵相觉醒 / ★5 圆满星耀：都走全屏水墨溶解仪式
+    if ((mergeResult.target.star || 1) >= 4) {
       g._star3Celebration = { pet: mergeResult.target, timer: 0, phase: 'fadeIn', particles: [] }
       MusicMgr.playStar3Unlock()
     } else {
@@ -769,7 +770,8 @@ function applyShopStarUp(g, petIdx) {
   if ((p.star || 1) >= SHOP_STAR_CAP) return false
   p.star = (p.star || 1) + 1
   g._lastRewardInfo = { type: 'starUp', petId: p.id }
-  if (p.star >= MAX_STAR) {
+  // ★4 灵相觉醒 / ★5 圆满星耀：都走全屏水墨溶解仪式
+  if (p.star >= 4) {
     g._star3Celebration = {
       pet: p,
       timer: 0,

@@ -47,6 +47,10 @@ const LING = {
     petStarMax(petName) {
       return `主人主人，${petName || '它'}精通啦～背景故事也解锁咯！`
     },
+    /** ★4 灵相觉醒：解锁全新水墨形态的里程碑 */
+    petAwaken(petName) {
+      return `主人～ ${petName || '它'}灵相觉醒，换了一副水墨新颜！`
+    },
     /** 连升多级（>= 5 级） */
     petLevelUpBig(petName, levels) {
       return `主人，${petName || '它'}一口气升了 ${levels} 级！`

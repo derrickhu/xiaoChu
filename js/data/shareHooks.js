@@ -170,21 +170,27 @@ function onFirstSRating(g, opts) {
 }
 
 // =========================================================================
-// 4. 灵宠升星：仅 3★ / 5★ 触发炫耀（1/2/4 只给 toast/flotText，不弹炫耀卡）
+// 4. 灵宠升星：★3 首次成形 / ★4 灵相觉醒 / ★5 圆满星耀 触发炫耀
+//    （★1/★2 只给 toast/floatText，不弹炫耀卡）
 // =========================================================================
 function onPetStarUp(g, opts) {
   const o = opts || {}
   const pet = o.pet || {}
   const star = o.star || 0
-  if (star !== 3 && star !== 5) return
+  if (star !== 3 && star !== 4 && star !== 5) return
   const petId = pet.petId || pet.id || ''
   const data = {
     petName: pet.name || '灵宠',
     star,
   }
-  const cheer = star === 5
-    ? (LING.cheer.petStarMax && LING.cheer.petStarMax(data.petName)) || `「${data.petName}」· 5★ 精通！`
-    : (LING.cheer.petStarUp && LING.cheer.petStarUp(data.petName, star)) || `「${data.petName}」· ${star}★ 觉醒！`
+  let cheer
+  if (star === 5) {
+    cheer = (LING.cheer.petStarMax && LING.cheer.petStarMax(data.petName)) || `「${data.petName}」· 5★ 精通！`
+  } else if (star === 4) {
+    cheer = (LING.cheer.petAwaken && LING.cheer.petAwaken(data.petName)) || `「${data.petName}」· 灵相觉醒！`
+  } else {
+    cheer = (LING.cheer.petStarUp && LING.cheer.petStarUp(data.petName, star)) || `「${data.petName}」· ${star}★ 觉醒！`
+  }
   _celebrate(g, `petStarUp_${petId}_${star}`, cheer, 'petStarUp', data)
 }
 

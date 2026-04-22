@@ -595,6 +595,37 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
   R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
 
+  // ★4 灵相觉醒印章：★4+ 金色「觉」印章（拥有感），★3 半透明带锁（制造冲刺欲）
+  //   只在 ★3+ 才画（低星卡片不堆叠角标，避免视觉噪音）
+  if ((poolPet.star || 1) >= 3) {
+    const isAwakened = (poolPet.star || 1) >= 4
+    const sealR = 8 * S
+    const sealCx = avatarX + avatarSize - sealR - 2 * S
+    const sealCy = avatarY + sealR + 2 * S
+    c.save()
+    if (isAwakened) {
+      const grad = c.createRadialGradient(sealCx - 2 * S, sealCy - 2 * S, sealR * 0.2, sealCx, sealCy, sealR)
+      grad.addColorStop(0, '#FFE58A')
+      grad.addColorStop(0.55, '#E8B820')
+      grad.addColorStop(1, '#A77A20')
+      c.fillStyle = grad
+      c.beginPath(); c.arc(sealCx, sealCy, sealR, 0, Math.PI * 2); c.fill()
+      c.strokeStyle = 'rgba(255,240,180,0.85)'; c.lineWidth = 0.9 * S
+      c.beginPath(); c.arc(sealCx, sealCy, sealR - 0.8 * S, 0, Math.PI * 2); c.stroke()
+      c.fillStyle = '#fff'
+    } else {
+      c.fillStyle = 'rgba(60,40,10,0.55)'
+      c.beginPath(); c.arc(sealCx, sealCy, sealR, 0, Math.PI * 2); c.fill()
+      c.strokeStyle = 'rgba(232,184,32,0.55)'; c.lineWidth = 0.8 * S
+      c.beginPath(); c.arc(sealCx, sealCy, sealR - 0.6 * S, 0, Math.PI * 2); c.stroke()
+      c.fillStyle = 'rgba(255,220,140,0.85)'
+    }
+    c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('觉', sealCx, sealCy + 0.3 * S)
+    c.restore()
+  }
+
   // 去掉宠物头像框，让宠物图片直接显示
 
   // 名称（加深色描边，增强可读性）
