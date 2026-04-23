@@ -18,7 +18,7 @@
 const { getStageById, RATING_ORDER, getEffectiveStageTeamMin } = require('../data/stages')
 const { getPetById, petHasSkill } = require('../data/pets')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
-const { effectValue, diffRealmUp } = require('../data/cultivationConfig')
+const { diffRealmUp, calcCultBonuses } = require('../data/cultivationConfig')
 const { STAR_REWARDS, CHAPTER_CLEAR_REWARDS, STAGE_SETTLE, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
@@ -117,17 +117,21 @@ function startStage(g, stageId, teamPetIds) {
   g.heroHp = HERO_BASE_HP
   g.heroShield = 0
 
-  // 应用修炼加成
+  // 应用修炼加成（v2 后统一走 calcCultBonuses，已包含境界祝福乘数）
+  //   · body/defense/sense → 百分比，按队伍 HP 基数换算成绝对值
+  //   · spirit/wisdom → 绝对值，沿用旧口径
   const cult = g.storage.cultivation
-  g.heroMaxHp += effectValue('body', cult.levels.body)
+  const cb = calcCultBonuses(cult)
+  g.heroMaxHp += Math.round(g.heroMaxHp * cb.bodyPct / 100)
   g.heroHp = g.heroMaxHp
   // 逆风翻盘追踪：记录本关战斗中血量曾跌到的最低比值（1 = 未扣过血）
   // 在 battleHelpers.dealDmgToHero 里每次扣血后更新，结算时写入 result.heroMinHpRatio
   g._heroMinHpRatio = 1
-  g.heroShield = effectValue('sense', cult.levels.sense)
-  g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
-  g._cultDmgReduce = effectValue('defense', cult.levels.defense)
-  g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+  g.heroShield = Math.round(g.heroMaxHp * cb.sensePct / 100)
+  g.dragTimeLimit = (DRAG_BASE_SEC + cb.wisdomFlat) * 60
+  g._cultDmgReducePct = cb.defPct
+  g._cultDmgReduce = 0  // 旧字段保留为 0，battle.js 已切到 _cultDmgReducePct，残留逻辑不再触发
+  g._cultHeartBase = cb.spiritFlat
 
   // 加载玩家装备的法宝（固定关卡持久化装备）
   const eqId = g.storage.equippedWeaponId
@@ -235,15 +239,17 @@ function startStageNewbie(g, stageId) {
   g.heroShield = 0
 
   const cult = g.storage.cultivation
-  g.heroMaxHp += effectValue('body', cult.levels.body)
+  const cb = calcCultBonuses(cult)
+  g.heroMaxHp += Math.round(g.heroMaxHp * cb.bodyPct / 100)
   g.heroHp = g.heroMaxHp
   // 逆风翻盘追踪：记录本关战斗中血量曾跌到的最低比值（1 = 未扣过血）
   // 在 battleHelpers.dealDmgToHero 里每次扣血后更新，结算时写入 result.heroMinHpRatio
   g._heroMinHpRatio = 1
-  g.heroShield = effectValue('sense', cult.levels.sense)
-  g.dragTimeLimit = (DRAG_BASE_SEC + effectValue('wisdom', cult.levels.wisdom)) * 60
-  g._cultDmgReduce = effectValue('defense', cult.levels.defense)
-  g._cultHeartBase = effectValue('spirit', cult.levels.spirit)
+  g.heroShield = Math.round(g.heroMaxHp * cb.sensePct / 100)
+  g.dragTimeLimit = (DRAG_BASE_SEC + cb.wisdomFlat) * 60
+  g._cultDmgReducePct = cb.defPct
+  g._cultDmgReduce = 0
+  g._cultHeartBase = cb.spiritFlat
 
   g.weapon = null
   g.petBag = []

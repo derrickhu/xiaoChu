@@ -10,13 +10,15 @@ const { drawPanel, drawRibbonIcon, drawLingCard, wrapText } = require('./uiCompo
 const { LING } = require('../data/lingIdentity')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
-  effectValue, usedPoints, currentRealm, nextRealm, getRealmByLv,
+  effectValue, effectValueWithBlessing, getBlessingMultiplier,
+  usedPoints, currentRealm, nextRealm, getRealmByLv,
 } = require('../data/cultivationConfig')
 const MusicMgr = require('../runtime/music')
 const { drawBottomBar, getLayout, drawPageTitle } = require('./bottomBar')
 const Draw = require('./cultivationDraw')
 const floatText = require('./floatText')
 const lingCheer = require('./lingCheer')
+const guideMgr = require('../engine/guideManager')
 
 // 可选角色形象列表
 // avatar 为 fallback 头像（打坐图加载失败时使用），暂统一用已有资源占位
@@ -130,8 +132,36 @@ function rCultivation(g) {
   c.shadowBlur = 0
   c.restore()
 
-  // 经验条
-  const expBarY = infoY + 26*S
+  // 境界祝福徽章：当前所在大境界对百分比加成的乘数（化神 ×1.50 等）
+  //   仅在 blessing > 1（即过了感气）才显示，避免新手位被空徽章占位
+  const _blessing = getBlessingMultiplier(cult.level)
+  if (_blessing > 1) {
+    c.save()
+    const badgeText = `祝福 ×${_blessing.toFixed(2)}`
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    const tw = c.measureText(badgeText).width
+    const bw = tw + 16*S
+    const bh = 18*S
+    const bx = (W - bw) / 2
+    const by = infoY + 22*S
+    const bgrad = c.createLinearGradient(bx, by, bx, by + bh)
+    bgrad.addColorStop(0, '#FFE9A8')
+    bgrad.addColorStop(1, '#E5B55B')
+    c.fillStyle = bgrad
+    Draw.roundRect(c, bx, by, bw, bh, bh / 2)
+    c.fill()
+    c.strokeStyle = '#B47A18'
+    c.lineWidth = 1.2 * S
+    Draw.roundRect(c, bx, by, bw, bh, bh / 2)
+    c.stroke()
+    c.fillStyle = '#5A3A10'
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(badgeText, W * 0.5, by + bh / 2 + 0.5 * S)
+    c.restore()
+  }
+
+  // 经验条（祝福徽章占位时下移，避免与徽章互相压字）
+  const expBarY = infoY + (_blessing > 1 ? 46 : 26) * S
   const expBarW = W * 0.6
   const expBarH = 14*S
   const expBarX = (W - expBarW) / 2
@@ -214,10 +244,24 @@ function rCultivation(g) {
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(nextHintText, W * 0.5, ptsY + 22*S)
   }
+  // Lv.80 目标卡：仅在当前等级 >= 60 且未达满级时额外提示
+  //   背景：v27 扩容后老玩家从 Lv.60 起继续累积，需要让他们一眼看到"新终点"
+  //   已满级（Lv.80）时不再显示，避免与"已满级"经验条文案重复
+  const _CULT_FINAL_LV = 80
+  if (cult.level >= 60 && cult.level < _CULT_FINAL_LV) {
+    const remain = _CULT_FINAL_LV - cult.level
+    c.fillStyle = '#B47A18'
+    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    const targetY = ptsY + (nextHintText ? 34 : 22) * S
+    c.fillText(`化神·圆满 Lv.${_CULT_FINAL_LV} · 还差 ${remain} 级`, W * 0.5, targetY)
+  }
   c.restore()
 
   // 放射型星盘
-  const chartTop = ptsY + (nextHintText ? 34 : 20)*S
+  //   目标卡（化神·圆满 Lv.80 · 还差 N 级）会占一行 12*S，需要把星盘整体再下移
+  const _showLv80Target = (cult.level >= 60 && cult.level < _CULT_FINAL_LV)
+  const chartTop = ptsY + ((nextHintText ? 34 : 20) + (_showLv80Target ? 14 : 0)) * S
   const chartBottom = H - 30*S
   const chartCenterX = W * 0.5
   const chartCenterY = chartTop + (chartBottom - chartTop) * 0.38
@@ -395,9 +439,39 @@ function checkRealmBreak(g) {
       : `恭喜主人进阶${up.curr.fullName}～`
     lingCheer.show(cheerText, { tone: 'epic', duration: 2600 })
   }
+  // v26→v27 修炼扩容仪式：对老 Lv.60 玩家首次进入修炼页弹一次全屏"道韵重塑"
+  //   消费后落盘 flag 为 false，保证仪式只弹一次；仪式之后再排一个引导气泡把规则讲清楚
+  if (g.storage.consumeCultMigrationCeremony()) {
+    _triggerMigrationCeremony(g)
+    // 气泡比仪式轻，若老玩家没消费过这条引导就排队；ceremony 关掉后自然衔接
+    guideMgr.trigger(g, 'cult_cap_v2_intro')
+  }
   // 首次进入修炼页：展示玩法介绍卡
   if (!g.storage.isGuideShown('cult_intro')) {
     _state.cultIntro = { page: 0, alpha: 0 }
+  }
+}
+
+// ===== v26→v27 "道韵重塑" 扩容仪式 =====
+//   复用 tierCeremony 模块的全屏动画；用一个合成的"境界"对象传入，
+//   仅表达"修炼上限扩至 Lv.80"的剧情效果，不真的推进 lastCultRealmId。
+function _triggerMigrationCeremony(g) {
+  try {
+    const tierCeremony = require('./tierCeremony')
+    const prev = { name: '化神·三重', id: 'spirit', realmId: 'spirit', color: '#F08E58', accent: '#7A2A0C' }
+    const curr = {
+      id: '_migration_v2',
+      realmId: '_migration_v2',
+      name: '化神·圆满',
+      fullName: '化神·圆满',
+      color: '#FFD770',
+      accent: '#8B5A16',
+      motto: '道韵重塑：修炼之境拓展至 Lv.80，从化神继续前行！',
+    }
+    tierCeremony.trigger(g, prev, curr)
+    MusicMgr.playLevelUp()
+  } catch (_e) {
+    // 仪式异常不影响主流程；保证 flag 已消费即可
   }
 }
 
@@ -571,20 +645,21 @@ function tCultivation(g, x, y, type) {
 }
 
 // ===== 左上角属性加成面板 =====
-// base: 灵兽秘境基础值, maxBonus: 修炼满级最大加成
+//   pctMode=true：该行加成是"% 队伍 HP / % 减伤"百分比类，不依赖具体队伍 HP 基数
+//   base       ：仅用于绝对值类（spirit/wisdom/绝对值的展示）
 const _STAT_ROWS = [
-  { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', base: 100, unit: '' },
-  { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', base: 0,   unit: '' },
-  { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', base: 12,  unit: '' },
-  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', base: 0,   unit: '' },
-  { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', base: 8,   unit: 's' },
+  { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', base: 0,   unit: '%', pctMode: true  },
+  { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', base: 0,   unit: '%', pctMode: true  },
+  { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', base: 12,  unit: '',  pctMode: false },
+  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', base: 0,   unit: '%', pctMode: true  },
+  { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', base: 8,   unit: 's', pctMode: false },
 ]
 
 function _drawStatsSummary(c, S, startY, cult) {
   const px = 6 * S
   const py = startY + 4 * S
   const rowH = 22 * S
-  const panelW = 138 * S
+  const panelW = 152 * S  // 百分比化后展示文字偏长，宽度从 138 → 152
   const panelH = _STAT_ROWS.length * rowH + 16 * S
   const rad = 8 * S
 
@@ -598,12 +673,18 @@ function _drawStatsSummary(c, S, startY, cult) {
   const barH = 7 * S
   const barX = px + 54 * S
 
+  const cultLv = cult.level || 0
   for (let i = 0; i < _STAT_ROWS.length; i++) {
     const row = _STAT_ROWS[i]
     const cfg = CULT_CONFIG[row.key]
     const lv = cult.levels[row.key] || 0
-    const bonus = effectValue(row.key, lv)
-    const maxBonus = effectValue(row.key, cfg.maxLv)
+    // 百分比类显示"有效值"（已乘境界祝福），让玩家在面板上一眼看到化神的爽点
+    const bonus = row.pctMode
+      ? effectValueWithBlessing(row.key, lv, cultLv)
+      : effectValue(row.key, lv)
+    const maxBonus = row.pctMode
+      ? effectValueWithBlessing(row.key, cfg.maxLv, cultLv)
+      : effectValue(row.key, cfg.maxLv)
     const total = row.base + bonus
     const totalMax = row.base + maxBonus
     const ry = py + 8 * S + i * rowH
@@ -659,11 +740,22 @@ function _drawStatsSummary(c, S, startY, cult) {
       }
     }
 
-    // 总数值 = 基础+加成
+    // 总数值显示
+    //   · 百分比行（body/defense/sense）：base 始终为 0，直接显示 "+X%"（已乘祝福）
+    //   · 绝对值行（spirit/wisdom）：显示 "基础 + 加成" 或"基础"
     const u = row.unit
     c.font = `${8*S}px "PingFang SC",sans-serif`
     c.textAlign = 'left'; c.textBaseline = 'middle'
-    if (bonus > 0) {
+    if (row.pctMode) {
+      if (bonus > 0) {
+        c.fillStyle = '#fff'
+        c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+        c.fillText(`+${bonus}${u}`, barX + barW + 4 * S, cy)
+      } else {
+        c.fillStyle = 'rgba(255,240,210,0.5)'
+        c.fillText(`+0${u}`, barX + barW + 4 * S, cy)
+      }
+    } else if (bonus > 0) {
       c.fillStyle = 'rgba(255,240,210,0.7)'
       const baseStr = `${row.base}${u}`
       c.fillText(baseStr, barX + barW + 4 * S, cy)

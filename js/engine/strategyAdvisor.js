@@ -219,14 +219,19 @@ function analyzeDefeat(storage, result) {
   if (totalPoints > used) {
     const free = totalPoints - used
     const bodyLv = (cult.levels || {}).body || 0
-    const bodyMax = CULT_CONFIG.body.maxLv
-    const canBody = Math.min(free, bodyMax - bodyLv)
-    const hpGain = canBody > 0 ? canBody * CULT_CONFIG.body.perLv : 0
+    const bodyCfg = CULT_CONFIG.body
+    const canBody = Math.min(free, bodyCfg.maxLv - bodyLv)
+    const hpGain = canBody > 0 ? +(canBody * bodyCfg.perLv).toFixed(2) : 0
+    // v2 起 body 是 percent 类型，描述用百分号；老 flat 兜底（不会触发）
+    const isPct = bodyCfg.type === 'percent'
+    const desc = hpGain > 0
+      ? (isPct ? `可分配体魄 +${hpGain}% HP` : `可分配体魄 +${hpGain} HP`)
+      : '可提升防御/转珠时间等'
     tips.push({
       icon: '🧘',
       iconColor: '#9060D0',
       title: `${free} 修炼点未分配`,
-      desc: hpGain > 0 ? `可分配体魄 +${hpGain} HP` : '可提升防御/转珠时间等',
+      desc,
       priority: 7,
       action: 'cultivation',
     })

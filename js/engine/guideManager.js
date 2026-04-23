@@ -245,6 +245,16 @@ const GUIDE_DEFS = {
       { text: '本版本起新通关的星才会累计进度，\n老主人可以回头把低关刷成 3★ 一次性拿大奖哦', position: 'center' },
     ],
   },
+  // 修炼扩容 v2：老 Lv.60+ 玩家首次进入修炼洞府时触发
+  //   触发时机：_migrateCultV2 走过"道韵重塑"仪式之后，在 cultivationView 检测到
+  //   cult.capMigrationV === 2 且本引导未展示 → 弹一条小灵气泡把"为啥经验归 0 / 加成换算"讲清楚
+  cult_cap_v2_intro: {
+    steps: [
+      { text: '主人，修炼上限已拓至 Lv.80～\n化神不是终点，圆满才算开始哦', position: 'center' },
+      { text: '加成规则变成了百分比口径（体魄/根骨/神识）\n跨境界还会有祝福乘数，越走越强～', position: 'center' },
+      { text: '之前满级溢出的经验已归零，\n从 Lv.60 继续累积，打关就能涨经验啦', position: 'center' },
+    ],
+  },
   // 从派遣返回灵宠池后触发
   newbie_after_dispatch: {
     steps: [

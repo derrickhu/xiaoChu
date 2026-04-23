@@ -23,16 +23,67 @@ function expToNextLevel(level) {
   return base
 }
 
-// 修炼树总共需要的点数：20+15+5+10+8 = 58
+// 修炼树总共需要的点数（v2 后：28+19+5+14+12 = 78）
+//   与 CULT_MAX_LEVEL=80 对应，Lv.1 起步 + 79 次升级共 80 修炼点，差 2 点正好覆盖老 Lv.60 的 2 闲置点。
 const TOTAL_POINTS_NEEDED = CULT_KEYS.reduce((s, k) => s + CULT_CONFIG[k].maxLv, 0)
 
 /**
- * 当前等级的累计效果值
+ * 当前等级的"基础"累计效果值（不含境界祝福乘数）。
+ *   · type=percent 的属性返回的是百分比数值（如 6.0 表示 +6%）
+ *   · type=flat    的属性返回绝对值（心珠/秒等）
+ *   · 战斗等真正消费时应改用 effectValueWithBlessing 拿"有效值"
  */
 function effectValue(key, level) {
   const cfg = CULT_CONFIG[key]
   if (!cfg || level <= 0) return 0
   return +(level * cfg.perLv).toFixed(2)
+}
+
+/**
+ * 取指定修炼等级所在境界的祝福乘数（仅作用于 type=percent 的属性）。
+ *   未达到任何境界 / 凡人 / 感气：返回 1.00
+ */
+function getBlessingMultiplier(cultLv) {
+  const realm = currentRealm(Math.max(0, Math.floor(cultLv || 0)))
+  return (realm && realm.blessing) || 1
+}
+
+/**
+ * 战斗 / 数值消费的统一出口：返回乘上境界祝福后的"有效"加成。
+ *   · type=percent → 基础百分比 × blessing
+ *   · type=flat    → 不乘 blessing（spirit/wisdom 是离散值，乘小数会变成奇怪的 0.x 心珠）
+ *   · 上层调用约定：拿到的数值就是"实际生效"的最终值，不要再额外乘任何系数
+ */
+function effectValueWithBlessing(key, level, cultLv) {
+  const base = effectValue(key, level)
+  if (base === 0) return 0
+  const cfg = CULT_CONFIG[key]
+  if (!cfg || cfg.type !== 'percent') return base
+  const mul = getBlessingMultiplier(cultLv)
+  return +(base * mul).toFixed(2)
+}
+
+/**
+ * 根据 cultivation 持久化数据，统一算出战斗端要消费的修炼加成。
+ *   返回 { bodyPct, defPct, sensePct, spiritFlat, wisdomFlat, blessing, cultLv }
+ *   · bodyPct/defPct/sensePct 是"已经乘过境界祝福"的最终百分比
+ *   · spiritFlat/wisdomFlat 是绝对值（保持旧口径）
+ *   · 战斗端在 stageManager / runManager 入口调用一次，写入 g._cultBonus*
+ */
+function calcCultBonuses(cult) {
+  if (!cult || !cult.levels) {
+    return { bodyPct: 0, defPct: 0, sensePct: 0, spiritFlat: 0, wisdomFlat: 0, blessing: 1, cultLv: 0 }
+  }
+  const cultLv = cult.level || 0
+  return {
+    cultLv,
+    blessing: getBlessingMultiplier(cultLv),
+    bodyPct:    effectValueWithBlessing('body',    cult.levels.body    || 0, cultLv),
+    defPct:     effectValueWithBlessing('defense', cult.levels.defense || 0, cultLv),
+    sensePct:   effectValueWithBlessing('sense',   cult.levels.sense   || 0, cultLv),
+    spiritFlat: effectValueWithBlessing('spirit',  cult.levels.spirit  || 0, cultLv),
+    wisdomFlat: effectValueWithBlessing('wisdom',  cult.levels.wisdom  || 0, cultLv),
+  }
 }
 
 /**
@@ -138,11 +189,20 @@ function killExpBase(enemy, floor) {
   return CULT_KILL_NORMAL_BASE + floor * CULT_KILL_NORMAL_FLOOR_COEFF
 }
 
+// ===== 修炼等级解锁的额外形象 =====
+//   单一真源：cultivationView 展示 unlockHint 文案，storage._tryCultLevelUp 据此发解锁
+//   老玩家（已达阈值但历史上 storage 从没补上）进游戏时一次性兜底补发（见 storage 构造里的补链）
+const AVATAR_UNLOCK_LV = {
+  boy2:  5,
+  girl2: 10,
+}
+
 module.exports = {
   MAX_LEVEL, expToNextLevel,
   CULT_CONFIG, CULT_KEYS, TOTAL_POINTS_NEEDED,
-  effectValue, usedPoints,
+  effectValue, effectValueWithBlessing, getBlessingMultiplier, calcCultBonuses, usedPoints,
   REALMS, currentRealm, nextRealm,
   getRealmByLv, diffRealmUp,
   killExpBase,
+  AVATAR_UNLOCK_LV,
 }

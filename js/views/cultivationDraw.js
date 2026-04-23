@@ -4,10 +4,35 @@
  */
 const V = require('./env')
 const {
-  CULT_CONFIG, CULT_KEYS, effectValue,
+  CULT_CONFIG, CULT_KEYS, effectValue, effectValueWithBlessing, getBlessingMultiplier,
 } = require('../data/cultivationConfig')
 const { drawPrimaryButton } = require('./uiComponents')
 const buttonFx = require('./buttonFx')
+
+// ===== 修炼属性数值格式化 =====
+//   · type=percent  ：基础显示百分号；当 cultLv 提供时，二行展示"基础 +X% / 祝福 ×Y → 有效 +Z%"
+//   · wisdom        ：保留 "+X.XXs"（负向加成在 desc 已写明）
+//   · 其他 flat     ：直接显示数值（心珠回复等）
+function _formatEffect(key, lv, cultLv) {
+  const cfg = CULT_CONFIG[key]
+  if (!cfg || lv <= 0) return ''
+  const base = effectValue(key, lv)
+  if (cfg.type === 'percent') {
+    return `+${base}%`
+  }
+  if (key === 'wisdom') return `+${base.toFixed(2)}s`
+  return `+${base}`
+}
+
+// 拿"有效"加成字符串（已乘境界祝福），仅 type=percent 才与基础不同
+function _formatEffective(key, lv, cultLv) {
+  const cfg = CULT_CONFIG[key]
+  if (!cfg || lv <= 0) return ''
+  const eff = effectValueWithBlessing(key, lv, cultLv || 0)
+  if (cfg.type === 'percent') return `+${eff}%`
+  if (key === 'wisdom') return `+${eff.toFixed(2)}s`
+  return `+${eff}`
+}
 
 // 节点主题色和图标（与 cultivationView.js 共用）
 const NODE_STYLES = {
@@ -641,6 +666,10 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   const canUpgrade = !isMax && pts > 0
   const maxAdd = canUpgrade ? Math.min(cfg.maxLv - lv, pts) : 0
   const amt = canUpgrade ? Math.min(Math.max(1, upgradeAmount || 1), maxAdd) : 0
+  const cultLv = (cult && cult.level) || 0
+  const blessing = getBlessingMultiplier(cultLv)
+  const isPercent = cfg.type === 'percent'
+  const showBlessRow = isPercent && blessing > 1 && lv > 0  // 仅当生效时才占用一行
 
   c.save()
   c.fillStyle = 'rgba(0,0,0,0.4)'
@@ -648,7 +677,8 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   c.restore()
 
   const panelW = W * 0.82
-  const panelH = 240*S
+  // 加上"基础 → 祝福 → 有效"展开行后，面板需要多一点高度避免按钮被挤
+  const panelH = (showBlessRow ? 268 : 240) * S
   const panelX = (W - panelW) / 2
   const panelY = H * 0.5 - panelH * 0.45
   const panelR = 14*S
@@ -708,34 +738,46 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   c.restore()
   curY += 8*S
 
-  // 当前效果
+  // 当前效果（百分比类追加一行"祝福 ×N → 有效 +X%"）
   c.save()
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.fillStyle = '#8a7a58'
   c.font = `${11*S}px "PingFang SC",sans-serif`
   c.fillText('当前效果', panelX + pad, curY + 6*S)
-  const curEffect = effectValue(key, lv)
+  const baseStr = _formatEffect(key, lv, cultLv)
   const effectStr = lv > 0
-    ? `${cfg.desc} +${key === 'wisdom' ? curEffect.toFixed(2) + 's' : curEffect}`
+    ? `${cfg.desc} ${baseStr}`
     : `${cfg.desc}（未激活）`
   c.fillStyle = '#5C3A1E'
   c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.fillText(effectStr, panelX + pad, curY + 22*S)
+  if (showBlessRow) {
+    // 金色"有效行"：把当前境界祝福的乘数与最终值一起标出
+    c.fillStyle = '#B47A18'
+    c.font = `${11*S}px "PingFang SC",sans-serif`
+    const effStr = _formatEffective(key, lv, cultLv)
+    c.fillText(`境界祝福 ×${blessing.toFixed(2)} → 有效 ${effStr}`, panelX + pad, curY + 38*S)
+  }
   c.restore()
-  curY += 34*S
+  curY += showBlessRow ? 50*S : 34*S
 
   // 加点后预览
   if (!isMax && amt > 0) {
     const newLv = lv + amt
-    const newEffect = effectValue(key, newLv)
-    const newStr = key === 'wisdom' ? `+${newEffect.toFixed(2)}s` : `+${newEffect}`
+    const newStr = _formatEffect(key, newLv, cultLv)
     c.save()
     c.textAlign = 'left'; c.textBaseline = 'middle'
     c.fillStyle = style.color
     c.font = `bold ${11*S}px "PingFang SC",sans-serif`
     c.fillText(`加点后  Lv.${newLv}: ${cfg.desc} ${newStr}`, panelX + pad, curY + 6*S)
+    if (showBlessRow) {
+      const newEffStr = _formatEffective(key, newLv, cultLv)
+      c.fillStyle = '#B47A18'
+      c.font = `${10*S}px "PingFang SC",sans-serif`
+      c.fillText(`(乘祝福后 有效 ${newEffStr})`, panelX + pad, curY + 22*S)
+    }
     c.restore()
-    curY += 20*S
+    curY += showBlessRow ? 30*S : 20*S
   } else if (isMax) {
     c.save()
     c.fillStyle = '#aaa'

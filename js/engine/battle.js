@@ -936,8 +936,10 @@ function enemyTurn(g) {
   if (g.weapon && g.weapon.type === 'reduceAttrAtkDmg' && g.enemy && g.enemy.attr === g.weapon.attr) reducePct += g.weapon.pct
   reducePct += g.runBuffs.dmgReducePct
   if (g.runBuffs.nextDmgReducePct > 0) reducePct += g.runBuffs.nextDmgReducePct
+  // 修炼根骨：v2 起为百分比减伤（已乘境界祝福）；与其他百分比减伤同口径合并
+  if (g._cultDmgReducePct > 0) reducePct += g._cultDmgReducePct
   atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
-  // 修炼根骨：固定值减伤（仅固定关卡模式）
+  // 兼容旧字段：v1 时代 _cultDmgReduce 是固定值减伤（v2 后始终置 0，此分支不再触发）
   if (g._cultDmgReduce > 0) atkDmg -= g._cultDmgReduce
   atkDmg = Math.max(0, atkDmg)
   if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {

@@ -56,7 +56,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 26
+const CURRENT_VERSION = 27
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -89,6 +89,9 @@ function defaultPersist() {
       skillPoints: 0,        // 可用修炼点
       levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
       realmBreakSeen: 0,     // 已看过突破动画的最高境界索引
+      // 修炼上限版本号：1=旧（Lv.60，绝对值加成），2=v2（Lv.80，百分比+境界祝福）
+      // 全新档默认为最新 v2，无需迁移；老档由 migrations[26] 推到 2
+      capMigrationV: 2,
     },
     selectedAvatar: 'boy1',   // 当前选择的头像ID
     unlockedAvatars: ['boy1', 'girl1'], // 已解锁的形象列表
@@ -439,6 +442,40 @@ const migrations = {
     const ids = new Set((d.petPool || []).map(p => p && p.id).filter(Boolean))
     d.petPoolFavoriteIds = d.petPoolFavoriteIds.filter(id => ids.has(id))
   },
+  // v26→v27：修炼系统百分比化 + Lv.80 扩容（_migrateCultV2）
+  //   · MAX_LEVEL: 60 → 80，新增 20 修炼点（自动通过 cult.skillPoints 上限规则补齐）
+  //   · 老 Lv.60 玩家把堆积的溢出经验清零，从 Lv.60 重新累积；非满级账号不动
+  //   · CULT_CONFIG.maxLv 调整后若历史 levels[key] 超过新上限（不应发生，但兜底）→ 多余点退回
+  //   · 打标 cultMigrationV2=true，配合 ceremony pending 标志做首次进入仪式
+  26: (d) => {
+    const cult = d.cultivation || {}
+    if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    if (cult.totalExpEarned == null) cult.totalExpEarned = 0
+    // 1) 清掉满级溢出经验（v1 时代的"满级仍累积"留下的脏数据）
+    //    判 level >= 60（旧上限）而非新上限 80，确保只清理"已经卡满的旧数据"
+    if ((cult.level || 0) >= 60 && (cult.exp || 0) > 0) {
+      cult.exp = 0
+    }
+    // 2) 兜底退点：CULT_CONFIG.maxLv 调整后若历史点数超出新上限，多余点退回 skillPoints
+    const { CULT_CONFIG, CULT_KEYS } = require('./balance/cultivation')
+    for (const k of CULT_KEYS) {
+      const cap = CULT_CONFIG[k] && CULT_CONFIG[k].maxLv
+      if (cap == null) continue
+      const cur = cult.levels[k] || 0
+      if (cur > cap) {
+        cult.skillPoints += (cur - cap)
+        cult.levels[k] = cap
+      }
+    }
+    // 3) 标记 + 触发首次进入修炼界面的 ceremony / guide
+    cult.capMigrationV = 2
+    d.cultivation = cult
+    // 触发"扩容仪式"待播放（首次进入修炼界面消费一次）；只有真·老玩家（已修过炼）才弹
+    if ((cult.level || 0) >= 60) {
+      d.cultMigrationCeremonyPending = true
+    }
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -749,6 +786,15 @@ class Storage {
     const cult = this._d.cultivation
     if (cult.level == null || cult.level < 1) cult.level = 1
     if (cult.skillPoints == null) cult.skillPoints = 0
+    // 满级直接吞入：只累计 totalExpEarned 用于统计，不再让 cult.exp 无上限堆积
+    //   背景：早先策略"满级仍然累积 exp 用于显示"，导致提高 MAX_LEVEL 时老玩家瞬间蹿多级。
+    //   修正后：满级 → totalExpEarned += amount，cult.exp 保持 0，扩容上限时直接从满级再累积。
+    if (cult.level >= MAX_LEVEL) {
+      cult.exp = 0
+      cult.totalExpEarned += amount
+      this._save()
+      return 0
+    }
     cult.exp += amount
     cult.totalExpEarned += amount
     let levelUps = 0
@@ -760,7 +806,8 @@ class Storage {
       cult.skillPoints++
       levelUps++
     }
-    // 满级后经验仍然累积（显示用），但不再升级
+    // 升到上限那一帧把残留经验一并清零，避免"卡在 9999 / 10000"显示
+    if (cult.level >= MAX_LEVEL) cult.exp = 0
     this._save()
     return levelUps
   }
@@ -783,8 +830,25 @@ class Storage {
       cult.skillPoints++
       levelUps++
     }
+    // 与 addCultExp 一致：升满级后清掉残留 exp，防止下次扩容时"无中生有"蹿级
+    if (cult.level >= MAX_LEVEL && cult.exp > 0) cult.exp = 0
     if (levelUps > 0) this._save()
+    // 达到阈值的形象自动解锁（每次都跑一次，幂等；配置见 cultivationConfig.AVATAR_UNLOCK_LV）
+    this._syncAvatarUnlockByCultLv()
     return levelUps
+  }
+
+  // 按修炼等级补齐形象解锁
+  //   独立成方法：
+  //     1) _tryCultLevelUp 每次升级后调用
+  //     2) storage 构造末尾做一次老账号兜底（历史上没触发过 unlockAvatar 的老玩家直接补上）
+  _syncAvatarUnlockByCultLv() {
+    const { AVATAR_UNLOCK_LV } = require('./cultivationConfig')
+    const cult = this._d.cultivation
+    if (!cult || cult.level == null) return
+    for (const avId of Object.keys(AVATAR_UNLOCK_LV)) {
+      if (cult.level >= AVATAR_UNLOCK_LV[avId]) this.unlockAvatar(avId)
+    }
   }
 
   // ===== 新手指引 =====
@@ -2869,6 +2933,19 @@ class Storage {
   /** 当前修炼等级（便捷访问） */
   get cultLv() { return (this._d.cultivation && this._d.cultivation.level) || 0 }
 
+  /**
+   * 修炼扩容仪式待播放标记：v26→v27 迁移给老满级玩家打的一次性 flag。
+   *   · 首次进入修炼界面消费一次（消费后清零，不重复弹）
+   *   · 全新档不打这个 flag，避免对没修过炼的新玩家弹陌生仪式
+   */
+  consumeCultMigrationCeremony() {
+    if (!this._d.cultMigrationCeremonyPending) return false
+    this._d.cultMigrationCeremonyPending = false
+    this._save()
+    return true
+  }
+  get cultMigrationCeremonyPending() { return !!this._d.cultMigrationCeremonyPending }
+
   /** 当前境界完整信息（{ realmId, realmName, subStage, subStageName, fullName, ... }） */
   getCultRealmInfo() {
     const { getRealmByLv } = require('./cultivationConfig')
@@ -3093,6 +3170,10 @@ class Storage {
         }
         // 确保 cultivation 字段完整（防止迁移失败或字段缺失）
         this._ensureCultivationFields()
+        // 老账号兜底：按当前修炼等级补齐形象解锁
+        //   背景：早期 _tryCultLevelUp 没挂 unlockAvatar，历史上有玩家 Lv.10+ 但 boy2/girl2 还锁着
+        //   这里每次加载做一次幂等补齐，彻底收掉"等级到了但形象没解锁"的 bug
+        this._syncAvatarUnlockByCultLv()
         // 确保预设编队字段完整（兼容迁移失败 / 云端回灌数据 / defaultPersist 空骨架）
         ensureTeamPresets(this._d)
         // 二测删档检测（已废弃，防止老用户客户端残留 dataVersion 导致误清档）
@@ -3149,6 +3230,7 @@ class Storage {
     if (cult.skillPoints == null) cult.skillPoints = 0
     if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
     if (cult.realmBreakSeen == null) cult.realmBreakSeen = 0
+    if (cult.capMigrationV == null) cult.capMigrationV = 2
     if (!this._d.selectedAvatar) this._d.selectedAvatar = 'boy1'
     if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
     // Phase 2 字段补全

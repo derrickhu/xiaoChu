@@ -16,7 +16,7 @@ const { generateStarterWeapon, getWeaponById } = require('../data/weapons')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { resetPrepBagScroll } = require('../views/prepareView')
-const { effectValue: cultEffectValue, diffRealmUp } = require('../data/cultivationConfig')
+const { diffRealmUp, calcCultBonuses } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
 const {
   HERO_BASE_HP, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
@@ -145,22 +145,26 @@ function startRun(g, petIds) {
   for (const k of EXP_FIELDS) g[k] = 0
   g._floorStartExp = 0; g._floorStartCombatExp = 0; g._floorExpSummary = null; g._expFloats = []
 
-  // 应用修炼加成
+  // 应用修炼加成（v2 后统一走 calcCultBonuses，已包含境界祝福乘数）
   {
     const cult = g.storage.cultivation
-    const bodyBonus = Math.round(cultEffectValue('body', cult.levels.body))
-    const senseBonus = Math.round(cultEffectValue('sense', cult.levels.sense))
-    const wisdomBonus = cultEffectValue('wisdom', cult.levels.wisdom)
-    const defBonus = Math.round(cultEffectValue('defense', cult.levels.defense))
-    const spiritBonus = +cultEffectValue('spirit', cult.levels.spirit).toFixed(2)
+    const cb = calcCultBonuses(cult)
+    const bodyBonus = Math.round(g.heroMaxHp * cb.bodyPct / 100)
     g.heroMaxHp  += bodyBonus
     g.heroHp      = g.heroMaxHp
-    g.heroShield  = senseBonus
-    g.dragTimeLimit += Math.round(wisdomBonus * 60)
-    g._cultDmgReduce = defBonus
-    g._cultHeartBase = spiritBonus
-    if ((bodyBonus + senseBonus + defBonus) > 0) {
-      g._cultBonusSummary = { bodyBonus, senseBonus, defBonus, spiritBonus, wisdomBonus, timer: 180 }
+    g.heroShield  = Math.round(g.heroMaxHp * cb.sensePct / 100)
+    g.dragTimeLimit += Math.round(cb.wisdomFlat * 60)
+    g._cultDmgReducePct = cb.defPct
+    g._cultDmgReduce = 0
+    g._cultHeartBase = cb.spiritFlat
+    if ((bodyBonus + g.heroShield + cb.defPct) > 0) {
+      // UI summary：保留旧字段名，含义升级为"百分比/绝对值已乘祝福后的最终值"
+      g._cultBonusSummary = {
+        bodyBonus, senseBonus: g.heroShield, defBonusPct: cb.defPct,
+        spiritBonus: cb.spiritFlat, wisdomBonus: cb.wisdomFlat,
+        blessing: cb.blessing,
+        timer: 180,
+      }
     }
   }
 
@@ -563,11 +567,13 @@ function resumeRun(g) {
   g.turnCount = 0; g.combo = 0
   // 恢复修炼经验累积
   for (const k of EXP_FIELDS) g[k] = s[k] || 0
-  // 肉鸽模式恢复修炼加成（100%）
+  // 肉鸽模式恢复修炼加成（100%；只恢复战斗内会用到的减伤/心珠回复，body/sense 由存档 heroMaxHp 决定）
   {
     const cult = g.storage.cultivation
-    g._cultDmgReduce = Math.round(cultEffectValue('defense', cult.levels.defense))
-    g._cultHeartBase = +cultEffectValue('spirit', cult.levels.spirit).toFixed(2)
+    const cb = calcCultBonuses(cult)
+    g._cultDmgReducePct = cb.defPct
+    g._cultDmgReduce = 0
+    g._cultHeartBase = cb.spiritFlat
   }
   g.curEvent = s.curEvent
   // 兜底：如果存档中 curEvent 为空，重新生成当前层事件

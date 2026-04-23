@@ -340,7 +340,9 @@ function buildHelpPages() {
         }
         for (const c of d.cultConfig) {
           const icon = c.key === 'body' ? '💪' : c.key === 'spirit' ? '🔮' : c.key === 'wisdom' ? '🧠' : c.key === 'defense' ? '🛡' : '👁'
-          _row(`${icon} ${c.name}`, `每级 +${c.perLv} ${c.unit}（满${c.maxLv}级）`)
+          // unit 里以 '%' 开头的为百分比类（%HP / %减伤 / %护盾），"+0.6%HP" 比 "+0.6 %HP" 读起来更顺
+          const unitStr = c.unit && c.unit.charAt(0) === '%' ? c.unit : ` ${c.unit}`
+          _row(`${icon} ${c.name}`, `每级 +${c.perLv}${unitStr}（满${c.maxLv}级）`)
         }
         y += 8 * S
         ctx.fillStyle = '#a0a0a0'
