@@ -51,6 +51,7 @@ const _rects = {
   levelUpBtnRect: null,
   starUpBtnRect: null,
   decomposeBtnRect: null,
+  resetBtnRect: null,          // 返还培养按钮（通关第 4 章后解锁）
   summonBtnRect: null,
   leftArrowRect: null,
   rightArrowRect: null,
@@ -926,6 +927,7 @@ function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRow
   _rects.levelUpBtnRect = null
   _rects.starUpBtnRect = null
   _rects.decomposeBtnRect = null
+  _rects.resetBtnRect = null
 
   c.save()
   R.rr(cardX, cardTop, cardW2, cardH2, cardRad); c.clip()
@@ -1233,6 +1235,12 @@ function rPetDetail(g) {
   //   叠在最上层，遮住箭头/翻页点，点击任意位置关闭（逻辑在 tPetDetail）
   if (g._awakenStar5SkillPopup) {
     _drawStar5SkillPopup(g, c, R)
+  }
+
+  // 返还培养确认弹窗（最顶层，遮住所有详情页交互）
+  if (g._poolPetResetDialog) {
+    const { drawPoolPetResetDialog } = require('./dialogs')
+    drawPoolPetResetDialog(g)
   }
 }
 
@@ -2040,6 +2048,47 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
     cy += 14 * S
   }
 
+  // ── 返还培养（通关第 4 章后解锁；有可返还内容才画） ──
+  //   · 业界对标原神/FGO 圣杯转移：用稀缺道具（觉醒石）做闸门 + 返还打心理税
+  //   · 星级=★1 且等级=1 时投入为 0，整行隐藏避免"零返还"按钮骚扰玩家
+  if (g.storage.isPoolResetUnlocked && g.storage.isPoolResetUnlocked()
+      && ((poolPet.star || 1) > 1 || (poolPet.level || 1) > 1)) {
+    drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+    cy += 7 * S
+    const resetStatus = g.storage.checkPoolPetResetStatus(poolPet.id)
+    const resetEnabled = !!resetStatus.ok
+    c.fillStyle = 'rgba(90,70,40,0.78)'
+    c.font = `${11 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'left'; c.textBaseline = 'top'
+    c.fillText('返还培养：将等级/星级重置，按比例退还灵石、碎片、觉醒石', indent, cy)
+    cy += 14 * S
+    const rBtnW = Math.min(contentW, rightEdge - indent)
+    const rBtnH = Math.max(starBtnH, 30 * S)
+    const rBtnRect = [indent, cy, rBtnW, rBtnH]
+    let resetBtnText = '🔄 返 还 培 养'
+    let resetSubText = null
+    if (resetStatus.reason === 'gate_short') {
+      resetSubText = `需觉醒石 ${resetStatus.required}`
+    } else if (resetStatus.reason === 'in_team') {
+      resetSubText = '请先移出编队'
+    } else if (resetStatus.reason === 'dispatched') {
+      resetSubText = '派遣中无法重置'
+    } else if (resetStatus.reason === 'cooldown') {
+      const mins = Math.max(1, Math.ceil(resetStatus.cooldownMs / 60000))
+      resetSubText = `冷却 ${mins} 分钟`
+    }
+    drawPrimaryButton(c, S, indent, cy, rBtnW, rBtnH, {
+      text: resetBtnText,
+      subText: resetSubText,
+      style: 'silver',
+      enabled: resetEnabled,
+      pressed: _pressedBtnId === 'resetPet',
+      flashT: buttonFx.getFlashT(rBtnRect),
+    })
+    if (isCurrentPet) _rects.resetBtnRect = rBtnRect
+    cy += rBtnH + 6 * S
+  }
+
   // === 内容测量：记录内容总高度、更新滚动上限 ===
   const contentBottomY = cy + padY
   const contentTotalH = Math.max(panelInnerH, contentBottomY - cardTop)
@@ -2097,6 +2146,31 @@ function tPetDetail(g, x, y, type) {
   }
   if (g._star3Celebration) return
 
+  // 返还培养弹窗：优先级最高，拦截所有其他触摸
+  //   · 命中"取消"/遮罩 → 关闭
+  //   · 命中"基础返还" → 直接执行
+  //   · 命中"看广告"   → 先播广告，成功后才执行
+  if (g._poolPetResetDialog) {
+    if (type !== 'end') return
+    const d = g._poolPetResetDialog
+    if (d.basicBtnRect && g._hitRect(x, y, ...d.basicBtnRect)) {
+      _closeResetDialog(g)
+      _doPoolPetReset(g, false)
+      return
+    }
+    if (d.adBtnRect && g._hitRect(x, y, ...d.adBtnRect)) {
+      _closeResetDialog(g)
+      _doPoolPetResetWithAd(g)
+      return
+    }
+    if (d.cancelRect && g._hitRect(x, y, ...d.cancelRect)) {
+      _closeResetDialog(g)
+      return
+    }
+    _closeResetDialog(g)
+    return
+  }
+
   // ★5 超越技能弹窗：任意点击关闭
   if (g._awakenStar5SkillPopup) {
     if (type === 'end') {
@@ -2143,6 +2217,7 @@ function tPetDetail(g, x, y, type) {
     if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) _pressedBtnId = 'levelUp'
     else if (_hitInsidePanel(g, x, y, _rects.starUpBtnRect)) _pressedBtnId = 'starUp'
     else if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) _pressedBtnId = 'decompose'
+    else if (_hitInsidePanel(g, x, y, _rects.resetBtnRect)) _pressedBtnId = 'resetPet'
     else if (_hitInsidePanel(g, x, y, _rects.summonBtnRect)) _pressedBtnId = 'summon'
     else if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) _pressedBtnId = 'back'
     else if (_rects.favoriteBtnRect && !g._petDetailUnowned && g._hitRect(x, y, ..._rects.favoriteBtnRect)) _pressedBtnId = 'favorite'
@@ -2313,6 +2388,12 @@ function tPetDetail(g, x, y, type) {
       return
     }
 
+    // 返还培养
+    if (_hitInsidePanel(g, x, y, _rects.resetBtnRect)) {
+      _openResetDialog(g)
+      return
+    }
+
     // 成长路线图行点击（展开/收起）— 面板内，需用内容坐标系命中
     if (_rects.roadmapRowRects && _rects.roadmapRowRects.length > 0) {
       for (const item of _rects.roadmapRowRects) {
@@ -2463,6 +2544,121 @@ function _doDecompose(g) {
       color: '#E8C070', size: 14, dy: -10,
     })
   }
+}
+
+// ===== 返还培养 =====
+/**
+ * 打开"返还培养"双档确认弹窗
+ *   · 预检失败（冷却/在编队/闸门短缺/未解锁）→ Toast 解释，不开弹窗
+ *   · 预检通过 → 两档返还清单预算 + 弹窗显示
+ */
+function _openResetDialog(g) {
+  const petId = g._petDetailId
+  if (!petId) return
+  const status = g.storage.checkPoolPetResetStatus(petId)
+  if (!status.ok) {
+    const msgMap = {
+      locked: `通关第 ${status.unlockChapter} 章后解锁`,
+      gate_short: `需要 ${status.required} 颗觉醒石作为闸门`,
+      in_team: '该宠物仍在编队中，请先更换编队',
+      dispatched: '该宠物正在派遣，请先收回',
+      cooldown: `冷却中，剩约 ${Math.max(1, Math.ceil((status.cooldownMs || 0) / 60000))} 分钟`,
+      nothing_to_refund: '该宠物还没有可返还的培养投入',
+      not_found: '灵宠数据异常',
+    }
+    const msg = msgMap[status.reason] || '暂不可返还'
+    if (P.showGameToast) P.showGameToast(msg, { type: 'warn' })
+    return
+  }
+  const poolPet = g.storage.getPoolPet(petId)
+  const basePet = getPetById(petId)
+  const { calcPoolPetResetRefund } = require('../data/petPoolConfig')
+  const basicRefund = calcPoolPetResetRefund(poolPet, false)
+  const adRefund = calcPoolPetResetRefund(poolPet, true)
+  const AdManager = require('../adManager')
+  g._poolPetResetDialog = {
+    petId,
+    pet: basePet,
+    poolPet,
+    basicRefund,
+    adRefund,
+    adAvailable: AdManager.canShow('poolPetReset'),
+  }
+  MusicMgr.playClick && MusicMgr.playClick()
+  g._dirty = true
+}
+
+function _closeResetDialog(g) {
+  if (g._poolPetResetDialog) {
+    g._poolPetResetDialog = null
+    g._dirty = true
+  }
+}
+
+/**
+ * 执行基础档返还：扣闸门 + 按基础比例发资源 + 宠物归 ★1 Lv.1
+ *   失败时（稀有竞态：判定后刚好被出战/派遣）再弹一次 Toast
+ */
+function _doPoolPetReset(g, useAd) {
+  const petId = g._petDetailId
+  if (!petId) return
+  const result = g.storage.resetPoolPet(petId, !!useAd)
+  if (!result.ok) {
+    const msg = result.reason === 'gate_short'
+      ? `觉醒石不足，需要 ${result.required}`
+      : '返还失败，请稍后再试'
+    if (P.showGameToast) P.showGameToast(msg, { type: 'warn' })
+    return
+  }
+  MusicMgr.playReward && MusicMgr.playReward()
+  // 分段飘字：让玩家逐条看清楚返还了什么（避免一次性刷屏错过）
+  const r = result.refund
+  let delay = 0
+  const floats = []
+  if (r.soulStone > 0)     floats.push({ text: `+${r.soulStone} 灵石`,        color: '#F5E090' })
+  if (r.selfFrag > 0)      floats.push({ text: `+${r.selfFrag} 专属碎片`,     color: '#8BD06B' })
+  if (r.universalFrag > 0) floats.push({ text: `+${r.universalFrag} 万能碎片`, color: '#E8C070' })
+  if (r.awakenStone > 0)   floats.push({ text: `+${r.awakenStone} 觉醒石`,    color: '#B580FF' })
+  floats.push({ text: `-${r.gateCost} 闸门觉醒石`, color: '#FF9866' })
+  for (const f of floats) {
+    _spawnBtnFloat(_rects.resetBtnRect || _rects.panelRect, f.text, {
+      color: f.color, size: 13, bold: true, dy: -8, delay,
+    })
+    delay += 320
+  }
+  if (_rects.resetBtnRect) buttonFx.trigger(_toScreenRect(_rects.resetBtnRect), 'reward')
+  const petName = (getPetById(petId) || {}).name || '灵宠'
+  if (P.showGameToast) {
+    P.showGameToast(`${petName} 已重置为 ★1 Lv.1`, { type: 'achievement' })
+  }
+  g._dirty = true
+}
+
+/**
+ * 广告增强档：先播激励视频，成功后按广告档发放；用户中断则不执行重置
+ */
+function _doPoolPetResetWithAd(g) {
+  const petId = g._petDetailId
+  if (!petId) return
+  const AdManager = require('../adManager')
+  if (!AdManager.canShow('poolPetReset')) {
+    _doPoolPetReset(g, false)
+    return
+  }
+  AdManager.showRewardedVideo('poolPetReset', {
+    onRewarded: () => {
+      // 广告完整播放后原 petId 仍是当前详情（AdManager 回调在主线程，合理）
+      if (g._petDetailId !== petId) {
+        g._petDetailId = petId
+      }
+      _doPoolPetReset(g, true)
+    },
+    onSkipped: () => {
+      if (P.showGameToast) P.showGameToast('未完成广告，已取消返还', { type: 'warn' })
+    },
+    fallbackToShare: true,
+    rewardPopup: null,
+  })
 }
 
 /**

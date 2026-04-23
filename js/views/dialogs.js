@@ -947,6 +947,156 @@ function drawPoolPetDetailPopup(g, petId, storage) {
   c.restore()
 }
 
+// ===== 返还培养·双档并列弹窗 =====
+/**
+ * 「返还培养」确认弹窗：基础档 / 看广告增强档 并列，玩家选择一种执行
+ *   弹窗数据由调用方写入 g._poolPetResetDialog：
+ *     { petId, pet, poolPet, basicRefund, adRefund, adAvailable,
+ *       onBasic(), onAd(), onCancel(), basicBtnRect?, adBtnRect?, cancelRect?, closeRect? }
+ *   本函数只负责绘制 + 回填按钮 rect，不做业务逻辑
+ */
+function drawPoolPetResetDialog(g) {
+  const d = g._poolPetResetDialog
+  if (!d) return
+  const { ctx: c, R, W, H, S } = V
+  const { drawPrimaryButton } = require('./uiComponents')
+
+  c.fillStyle = 'rgba(0,0,0,0.62)'
+  c.fillRect(0, 0, W, H)
+  d.closeRect = [0, 0, W, H]
+
+  const pw = Math.min(W * 0.9, 380 * S)
+  const ph = 400 * S
+  const px = (W - pw) / 2
+  const py = (H - ph) / 2
+  const rad = 14 * S
+
+  const panelImg = R.getImg('assets/ui/info_panel_bg.png')
+  if (panelImg && panelImg.width > 0) {
+    c.drawImage(panelImg, px, py, pw, ph)
+  } else {
+    c.fillStyle = 'rgba(248,242,230,0.98)'
+    R.rr(px, py, pw, ph, rad); c.fill()
+    c.strokeStyle = 'rgba(201,168,76,0.55)'; c.lineWidth = 1.5 * S
+    R.rr(px, py, pw, ph, rad); c.stroke()
+  }
+
+  // ── 标题 + 副标题 ──
+  let cy = py + 26 * S
+  c.textAlign = 'center'
+  c.fillStyle = '#6B5014'
+  c.font = `bold ${17 * S}px "PingFang SC",sans-serif`
+  c.fillText('返还培养', px + pw / 2, cy)
+  cy += 22 * S
+
+  const petName = (d.pet && d.pet.name) || d.petId
+  const star = Math.max(1, d.poolPet.star || 1)
+  const lv = Math.max(1, d.poolPet.level || 1)
+  c.fillStyle = '#7B7060'
+  c.font = `${12 * S}px "PingFang SC",sans-serif`
+  const starsText = '★'.repeat(Math.min(star, 5))
+  c.fillText(`${petName}  ${starsText}  Lv.${lv}`, px + pw / 2, cy)
+  cy += 17 * S
+
+  c.fillStyle = '#C0392B'
+  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  c.fillText(`需消耗觉醒石 ${d.basicRefund.gateCost} 颗作为闸门`, px + pw / 2, cy)
+  cy += 18 * S
+
+  // ── 两张返还卡片并列 ──
+  const gap = 8 * S
+  const cardPad = 10 * S
+  const cardW = (pw - cardPad * 2 - gap) / 2
+  const cardH = 180 * S
+  const cardY = cy
+  const basicCardX = px + cardPad
+  const adCardX = basicCardX + cardW + gap
+
+  function drawCard(cx, cy2, cw, ch, title, ratioHint, refund, color, highlight) {
+    c.fillStyle = highlight ? 'rgba(255,235,180,0.82)' : 'rgba(255,248,230,0.72)'
+    R.rr(cx, cy2, cw, ch, 10 * S); c.fill()
+    c.strokeStyle = color; c.lineWidth = highlight ? 2 * S : 1.2 * S
+    R.rr(cx, cy2, cw, ch, 10 * S); c.stroke()
+    let y = cy2 + 14 * S
+    c.textAlign = 'center'
+    c.fillStyle = color
+    c.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+    c.fillText(title, cx + cw / 2, y)
+    y += 15 * S
+    c.fillStyle = '#8A7A62'
+    c.font = `${9 * S}px "PingFang SC",sans-serif`
+    c.fillText(ratioHint, cx + cw / 2, y)
+    y += 16 * S
+    const rows = [
+      { label: '灵石',     val: refund.soulStone,     show: refund.investedSoulStone > 0 },
+      { label: '专属碎片', val: refund.selfFrag,      show: refund.investedSelfFrag > 0 },
+      { label: '万能碎片', val: refund.universalFrag, show: refund.investedUniversal > 0 },
+      { label: '觉醒石',   val: refund.awakenStone,   show: refund.investedAwaken > 0 },
+    ]
+    c.font = `${11 * S}px "PingFang SC",sans-serif`
+    for (const row of rows) {
+      if (!row.show) continue
+      c.textAlign = 'left'
+      c.fillStyle = '#7B7060'
+      c.fillText(row.label, cx + 10 * S, y)
+      c.textAlign = 'right'
+      c.fillStyle = row.val > 0 ? '#2E8B2E' : '#9B8B80'
+      c.fillText(`+${row.val}`, cx + cw - 10 * S, y)
+      y += 15 * S
+    }
+  }
+
+  drawCard(basicCardX, cardY, cardW, cardH,
+    '基础返还', '灵石 70% · 万能/觉醒 90%',
+    d.basicRefund, '#8A7A62', false)
+  drawCard(adCardX, cardY, cardW, cardH,
+    '看广告返还', '灵石 90% · 万能/觉醒 100%',
+    d.adRefund, '#D4A52A', true)
+
+  cy = cardY + cardH + 10 * S
+
+  // ── 共同说明 ──
+  c.textAlign = 'center'
+  c.fillStyle = '#5A4530'
+  c.font = `${10 * S}px "PingFang SC",sans-serif`
+  c.fillText('专属碎片 100% 返回本宠，重新培养即可继续升星', px + pw / 2, cy)
+  cy += 13 * S
+  c.fillStyle = '#C0392B'
+  c.fillText('重置后回到 ★1 Lv.1，10 分钟内不可再次返还', px + pw / 2, cy)
+  cy += 16 * S
+
+  // ── 三按钮：取消 / 基础 / 看广告 ──
+  const btnH = 38 * S
+  const btnY = py + ph - btnH - 14 * S
+  const btnGap = 8 * S
+  const btnRowW = pw - cardPad * 2
+  const eachBtnW = (btnRowW - btnGap * 2) / 3
+  const cancelX = px + cardPad
+  const basicBtnX = cancelX + eachBtnW + btnGap
+  const adBtnX = basicBtnX + eachBtnW + btnGap
+
+  d.cancelRect = [cancelX, btnY, eachBtnW, btnH]
+  d.basicBtnRect = [basicBtnX, btnY, eachBtnW, btnH]
+  d.adBtnRect = [adBtnX, btnY, eachBtnW, btnH]
+
+  drawPrimaryButton(c, S, cancelX, btnY, eachBtnW, btnH, {
+    text: '取  消',
+    style: 'silver',
+    enabled: true,
+  })
+  drawPrimaryButton(c, S, basicBtnX, btnY, eachBtnW, btnH, {
+    text: '基础返还',
+    style: 'silver',
+    enabled: true,
+  })
+  drawPrimaryButton(c, S, adBtnX, btnY, eachBtnW, btnH, {
+    text: d.adAvailable ? '🎬 看广告' : '分享领奖',
+    style: 'milestone',
+    enabled: true,
+    glow: true,
+  })
+}
+
 module.exports = {
   drawExitDialog,
   drawRunBuffDetailDialog,
@@ -957,4 +1107,5 @@ module.exports = {
   drawPetPoolEntryPopup,
   drawFragmentPopup,
   drawPoolPetDetailPopup,
+  drawPoolPetResetDialog,
 }
