@@ -947,154 +947,379 @@ function drawPoolPetDetailPopup(g, petId, storage) {
   c.restore()
 }
 
-// ===== 返还培养·双档并列弹窗 =====
+// ===== 返还培养·按钮 helper =====
 /**
- * 「返还培养」确认弹窗：基础档 / 看广告增强档 并列，玩家选择一种执行
- *   弹窗数据由调用方写入 g._poolPetResetDialog：
- *     { petId, pet, poolPet, basicRefund, adRefund, adAvailable,
- *       onBasic(), onAd(), onCancel(), basicBtnRect?, adBtnRect?, cancelRect?, closeRect? }
- *   本函数只负责绘制 + 回填按钮 rect，不做业务逻辑
+ * 返还档按钮（卷轴胶囊 · 与 drawDialogBtn / drawShareIconBtn 同款美术语言）
+ *   · 底图：淡青 btn_cancel.png（基础档） / 纯金 btn_reward_confirm.png（广告档）
+ *   · 单行布局："动作名 · [灵石icon] +数字"，居中偏右（0.56w）避让左侧云纹
+ *   · 可选 glow：金色呼吸描边（只在广告档开启，正向 CTA 引导）
+ *   · 本函数只画底图 + 文字内容，不处理点击命中（外层已缓存 rect）
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {object} R 渲染模块（R.getImg / R.rr）
+ * @param {number} S 缩放
+ * @param {number} x,y,w,h 按钮矩形
+ * @param {object} opts
+ *   · bgKey       按钮底图路径（'assets/ui/btn_cancel.png' / 'assets/ui/btn_reward_confirm.png'）
+ *   · title       主文案（'基础返还' / '看广告返还'）
+ *   · titleColor  主文字色（浅青卷轴用 '#1E2A3A'；金色卷轴用 '#4A2020'）
+ *   · amount      奖励数字（主推指标：灵石返还数）
+ *   · glow        是否启用呼吸金晕
+ */
+function _drawRefundCapsule(c, R, S, x, y, w, h, opts) {
+  const { bgKey, title, titleColor, amount, glow } = opts
+  const rad = h / 2
+
+  if (glow) {
+    const pulse = 0.35 + 0.35 * Math.sin(Date.now() * 0.004)
+    c.save()
+    c.shadowColor = 'rgba(255,215,100,0.6)'
+    c.shadowBlur = (6 + 8 * pulse) * S
+    c.strokeStyle = `rgba(255,215,100,${0.45 + pulse * 0.35})`
+    c.lineWidth = 1.8 * S
+    R.rr(x, y, w, h, rad); c.stroke()
+    c.restore()
+  }
+
+  const bgImg = R.getImg(bgKey)
+  if (bgImg && bgImg.width > 0) {
+    c.drawImage(bgImg, x, y, w, h)
+  } else {
+    const isGold = titleColor === '#4A2020'
+    c.fillStyle = isGold ? 'rgba(212,165,42,0.92)' : 'rgba(180,200,215,0.92)'
+    R.rr(x, y, w, h, rad); c.fill()
+    c.strokeStyle = isGold ? '#8B6B18' : '#5A7088'
+    c.lineWidth = 1.5 * S
+    R.rr(x, y, w, h, rad); c.stroke()
+  }
+
+  //  · 安全区 = 按钮宽 × 0.78（左侧云纹占约 0.16、右端留 0.06 呼吸）
+  //  · 默认字号稍小，再跑一次 measure，若超安全区就按比例 auto-shrink
+  //  · 数字从 3 位到 6 位（+9231 → +999999）都能塞下，不同卡牌差异化奖励不会溢出
+  const safeW = w * 0.78
+  const gapTitleSep = 5 * S
+  const gapSepIcon = 4 * S
+  const gapIconNum = 2 * S
+  const amountText = '+' + amount
+  const sep = '·'
+
+  let mainFontSz = Math.max(11 * S, h * 0.28)
+  let numFontSz = Math.max(10 * S, h * 0.25)
+  let iconSz = h * 0.38
+
+  c.save()
+  c.textBaseline = 'middle'
+
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  let wTitle = c.measureText(title).width
+  let wSep = c.measureText(sep).width
+  c.font = `bold ${numFontSz}px "PingFang SC",sans-serif`
+  let wNum = c.measureText(amountText).width
+
+  let contentW = wTitle + gapTitleSep + wSep + gapSepIcon + iconSz + gapIconNum + wNum
+  if (contentW > safeW) {
+    const k = safeW / contentW
+    mainFontSz *= k; numFontSz *= k; iconSz *= k
+    c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+    wTitle = c.measureText(title).width
+    wSep = c.measureText(sep).width
+    c.font = `bold ${numFontSz}px "PingFang SC",sans-serif`
+    wNum = c.measureText(amountText).width
+    contentW = wTitle + gapTitleSep + wSep + gapSepIcon + iconSz + gapIconNum + wNum
+  }
+
+  const midY = y + h * 0.48
+  const contentCx = x + w * 0.56
+  let curX = contentCx - contentW / 2
+
+  c.font = `bold ${mainFontSz}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.fillStyle = titleColor
+  c.shadowColor = 'rgba(255,255,255,0.4)'; c.shadowBlur = 1 * S
+  c.fillText(title, curX, midY)
+  c.shadowBlur = 0
+  curX += wTitle + gapTitleSep
+
+  c.fillStyle = titleColor === '#4A2020' ? 'rgba(74,32,0,0.45)' : 'rgba(30,42,58,0.42)'
+  c.fillText(sep, curX, midY)
+  curX += wSep + gapSepIcon
+
+  const iconImg = R.getImg('assets/ui/icon_soul_stone.png')
+  if (iconImg && iconImg.width > 0) {
+    c.drawImage(iconImg, curX, midY - iconSz / 2, iconSz, iconSz)
+  }
+  curX += iconSz + gapIconNum
+
+  c.font = `bold ${numFontSz}px "PingFang SC",sans-serif`
+  c.fillStyle = titleColor
+  c.fillText(amountText, curX, midY)
+  c.restore()
+}
+
+// ===== 返还培养·单屏对比弹窗（方案 A） =====
+/**
+ * 「返还培养」确认弹窗
+ *   · 顶部：宠物头像 + 名称 + 星级 + 等级
+ *   · 闸门胶囊：橙红底 + 觉醒石图标 + 消耗数
+ *   · 返还明细：每条资源一行，右侧同时展示"基础 / 广告"两档，数值不等时广告档高亮金色
+ *   · 底部按钮：左「青玉基础档」+ 右「金箔看广告档」，双行「主标题 / +数字 资源」
+ *   · 关闭：右上角 × 圆钮；点击按钮以外的遮罩区域亦关闭
+ *   弹窗数据由调用方写入 g._poolPetResetDialog
  */
 function drawPoolPetResetDialog(g) {
   const d = g._poolPetResetDialog
   if (!d) return
   const { ctx: c, R, W, H, S } = V
-  const { drawPrimaryButton } = require('./uiComponents')
 
+  // ── 遮罩 ──（点击非按钮区域直接关闭）
   c.fillStyle = 'rgba(0,0,0,0.62)'
   c.fillRect(0, 0, W, H)
   d.closeRect = [0, 0, W, H]
 
-  const pw = Math.min(W * 0.9, 380 * S)
-  const ph = 400 * S
+  // ── 动态行数：只展示"实际有投入"的资源 ──
+  const br = d.basicRefund
+  const ar = d.adRefund
+  const petId = d.petId
+  const rows = []
+  if (br.investedSoulStone > 0) {
+    rows.push({ icon: 'assets/ui/icon_soul_stone.png', label: '灵石',
+      base: br.soulStone, ad: ar.soulStone })
+  }
+  if (br.investedSelfFrag > 0) {
+    rows.push({ useAvatar: true, label: '专属碎片',
+      base: br.selfFrag, ad: ar.selfFrag })
+  }
+  if (br.investedUniversal > 0) {
+    rows.push({ icon: 'assets/ui/icon_universal_frag.png', label: '万能碎片',
+      base: br.universalFrag, ad: ar.universalFrag })
+  }
+  if (br.investedAwaken > 0) {
+    rows.push({ icon: 'assets/ui/icon_awaken_stone.png', label: '觉醒石',
+      base: br.awakenStone, ad: ar.awakenStone })
+  }
+
+  // ── 尺寸计算 ──
+  //  预留段：标题 40（避开面板顶部金边+云纹装饰）/ 头像 24 / 闸门 14+50+12 / 段标 34+14
+  //  分割 18+8 / 资源行 rows*26 / 尾 8 / tips 14+14+14 / 按钮 44 + 底边 14
+  //  注意：rowH 本身不乘 S，避免在 ph 外层 *S 时被重复缩放
+  const pw = Math.min(W * 0.9, 360 * S)
+  const rowH = 26 * S
+  const ph = (40 + 24 + 14 + 50 + 12 + 34 + 14 + 18 + 8 + rows.length * 26
+            + 8 + 14 + 14 + 14 + 44 + 14) * S
   const px = (W - pw) / 2
   const py = (H - ph) / 2
-  const rad = 14 * S
 
+  // ── 面板底图（卷轴质感 + 描金边） ──
   const panelImg = R.getImg('assets/ui/info_panel_bg.png')
   if (panelImg && panelImg.width > 0) {
     c.drawImage(panelImg, px, py, pw, ph)
   } else {
-    c.fillStyle = 'rgba(248,242,230,0.98)'
+    const rad = 16 * S
+    c.fillStyle = 'rgba(250,244,232,0.98)'
     R.rr(px, py, pw, ph, rad); c.fill()
-    c.strokeStyle = 'rgba(201,168,76,0.55)'; c.lineWidth = 1.5 * S
+    c.strokeStyle = 'rgba(201,168,76,0.5)'; c.lineWidth = 2 * S
     R.rr(px, py, pw, ph, rad); c.stroke()
   }
 
-  // ── 标题 + 副标题 ──
-  let cy = py + 26 * S
-  c.textAlign = 'center'
-  c.fillStyle = '#6B5014'
+  // ── 标题 ──
+  //   标题 cy = py + 40S：避开面板顶部金边 + 祥云装饰带（约占 30S 高），
+  //   同时与右上角 × 钮中心近似平齐（× 中心 ≈ py + 36S）
+  let cy = py + 40 * S
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#7B5A1F'
   c.font = `bold ${17 * S}px "PingFang SC",sans-serif`
-  c.fillText('返还培养', px + pw / 2, cy)
-  cy += 22 * S
+  c.fillText('返 还 培 养', px + pw / 2, cy)
+  cy += 20 * S
 
-  const petName = (d.pet && d.pet.name) || d.petId
+  // ── 右上角 × 关闭钮（半透明黑圆 + 白叉，24S，与标题水平大致对齐） ──
+  const closeSize = 24 * S
+  const closeX = px + pw - closeSize - 8 * S
+  const closeY = py + 24 * S
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.32)'
+  c.beginPath()
+  c.arc(closeX + closeSize / 2, closeY + closeSize / 2, closeSize / 2, 0, Math.PI * 2)
+  c.fill()
+  c.strokeStyle = '#fff'; c.lineWidth = 2 * S; c.lineCap = 'round'
+  const ccx = closeX + closeSize / 2
+  const ccy = closeY + closeSize / 2
+  const cr = 6.5 * S
+  c.beginPath()
+  c.moveTo(ccx - cr, ccy - cr); c.lineTo(ccx + cr, ccy + cr)
+  c.moveTo(ccx + cr, ccy - cr); c.lineTo(ccx - cr, ccy + cr)
+  c.stroke()
+  c.restore()
+  d.closeBtnRect = [closeX, closeY, closeSize, closeSize]
+
+  // ── 宠物信息行：头像 + 名字 + 星 + Lv ──
+  const avSize = 44 * S
+  const avX = px + 18 * S
+  const avY = cy + 2 * S
+  const avatarPath = getPetAvatarPath({ id: petId, star: d.poolPet.star || 1 })
+  const avatarImg = R.getImg(avatarPath)
+  c.save()
+  c.beginPath()
+  c.arc(avX + avSize / 2, avY + avSize / 2, avSize / 2, 0, Math.PI * 2)
+  c.clip()
+  if (avatarImg && avatarImg.width > 0) {
+    c.drawImage(avatarImg, avX, avY, avSize, avSize)
+  } else {
+    c.fillStyle = '#E8DFC8'
+    c.fillRect(avX, avY, avSize, avSize)
+  }
+  c.restore()
+  c.strokeStyle = 'rgba(201,168,76,0.85)'; c.lineWidth = 2 * S
+  c.beginPath()
+  c.arc(avX + avSize / 2, avY + avSize / 2, avSize / 2, 0, Math.PI * 2)
+  c.stroke()
+
+  const infoX = avX + avSize + 12 * S
+  const petName = (d.pet && d.pet.name) || petId
   const star = Math.max(1, d.poolPet.star || 1)
   const lv = Math.max(1, d.poolPet.level || 1)
-  c.fillStyle = '#7B7060'
-  c.font = `${12 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillStyle = '#5A4530'
+  c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
+  c.fillText(petName, infoX, avY + 4 * S)
+  c.font = `${13 * S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#D4A52A'
   const starsText = '★'.repeat(Math.min(star, 5))
-  c.fillText(`${petName}  ${starsText}  Lv.${lv}`, px + pw / 2, cy)
-  cy += 17 * S
+  c.fillText(starsText, infoX, avY + 24 * S)
+  const starW = c.measureText(starsText).width
+  c.fillStyle = '#8A7A62'
+  c.font = `${12 * S}px "PingFang SC",sans-serif`
+  c.fillText(`Lv.${lv}`, infoX + starW + 8 * S, avY + 25 * S)
+  cy = avY + avSize + 10 * S
 
-  c.fillStyle = '#C0392B'
-  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-  c.fillText(`需消耗觉醒石 ${d.basicRefund.gateCost} 颗作为闸门`, px + pw / 2, cy)
-  cy += 18 * S
+  // ── 闸门消耗胶囊（橙红色，独立分层） ──
+  const gateX = px + 18 * S
+  const gateW = pw - 36 * S
+  const gateH = 30 * S
+  c.fillStyle = 'rgba(200,70,40,0.1)'
+  R.rr(gateX, cy, gateW, gateH, 8 * S); c.fill()
+  c.strokeStyle = 'rgba(200,70,40,0.55)'; c.lineWidth = 1.2 * S
+  R.rr(gateX, cy, gateW, gateH, 8 * S); c.stroke()
+  const gateIcon = R.getImg('assets/ui/icon_awaken_stone.png')
+  const gIconSize = 18 * S
+  const gIconY = cy + (gateH - gIconSize) / 2
+  if (gateIcon && gateIcon.width > 0) {
+    c.drawImage(gateIcon, gateX + 8 * S, gIconY, gIconSize, gIconSize)
+  }
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.fillStyle = '#8B3D2A'
+  c.font = `${12 * S}px "PingFang SC",sans-serif`
+  c.fillText('本次闸门消耗', gateX + 30 * S, cy + gateH / 2)
+  c.textAlign = 'right'
+  c.fillStyle = '#B94427'
+  c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+  c.fillText(`觉醒石 × ${br.gateCost}`, gateX + gateW - 10 * S, cy + gateH / 2)
+  cy += gateH + 14 * S
 
-  // ── 两张返还卡片并列 ──
-  const gap = 8 * S
-  const cardPad = 10 * S
-  const cardW = (pw - cardPad * 2 - gap) / 2
-  const cardH = 180 * S
-  const cardY = cy
-  const basicCardX = px + cardPad
-  const adCardX = basicCardX + cardW + gap
+  // ── 「本次将返还」段标 + 列名 + 细分割线 ──
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillStyle = '#7B5A1F'
+  c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  c.fillText('本次将返还', px + 18 * S, cy)
+  c.textAlign = 'right'
+  c.fillStyle = '#9B8A62'
+  c.font = `${10 * S}px "PingFang SC",sans-serif`
+  c.fillText('基础  /  看广告', px + pw - 18 * S, cy + 2 * S)
+  cy += 16 * S
+  c.strokeStyle = 'rgba(201,168,76,0.28)'; c.lineWidth = 1 * S
+  c.beginPath()
+  c.moveTo(px + 18 * S, cy); c.lineTo(px + pw - 18 * S, cy)
+  c.stroke()
+  cy += 8 * S
 
-  function drawCard(cx, cy2, cw, ch, title, ratioHint, refund, color, highlight) {
-    c.fillStyle = highlight ? 'rgba(255,235,180,0.82)' : 'rgba(255,248,230,0.72)'
-    R.rr(cx, cy2, cw, ch, 10 * S); c.fill()
-    c.strokeStyle = color; c.lineWidth = highlight ? 2 * S : 1.2 * S
-    R.rr(cx, cy2, cw, ch, 10 * S); c.stroke()
-    let y = cy2 + 14 * S
-    c.textAlign = 'center'
-    c.fillStyle = color
-    c.font = `bold ${13 * S}px "PingFang SC",sans-serif`
-    c.fillText(title, cx + cw / 2, y)
-    y += 15 * S
-    c.fillStyle = '#8A7A62'
-    c.font = `${9 * S}px "PingFang SC",sans-serif`
-    c.fillText(ratioHint, cx + cw / 2, y)
-    y += 16 * S
-    const rows = [
-      { label: '灵石',     val: refund.soulStone,     show: refund.investedSoulStone > 0 },
-      { label: '专属碎片', val: refund.selfFrag,      show: refund.investedSelfFrag > 0 },
-      { label: '万能碎片', val: refund.universalFrag, show: refund.investedUniversal > 0 },
-      { label: '觉醒石',   val: refund.awakenStone,   show: refund.investedAwaken > 0 },
-    ]
-    c.font = `${11 * S}px "PingFang SC",sans-serif`
-    for (const row of rows) {
-      if (!row.show) continue
-      c.textAlign = 'left'
-      c.fillStyle = '#7B7060'
-      c.fillText(row.label, cx + 10 * S, y)
-      c.textAlign = 'right'
-      c.fillStyle = row.val > 0 ? '#2E8B2E' : '#9B8B80'
-      c.fillText(`+${row.val}`, cx + cw - 10 * S, y)
-      y += 15 * S
+  // ── 资源行 ──
+  for (const row of rows) {
+    const rowY = cy
+    const icX = px + 20 * S
+    const icSize = 20 * S
+    const icY = rowY + (rowH - icSize) / 2
+    if (row.icon) {
+      const img = R.getImg(row.icon)
+      if (img && img.width > 0) c.drawImage(img, icX, icY, icSize, icSize)
+    } else if (row.useAvatar && avatarImg && avatarImg.width > 0) {
+      c.save()
+      c.beginPath()
+      c.arc(icX + icSize / 2, icY + icSize / 2, icSize / 2, 0, Math.PI * 2)
+      c.clip()
+      c.drawImage(avatarImg, icX, icY, icSize, icSize)
+      c.restore()
+      c.strokeStyle = 'rgba(201,168,76,0.6)'; c.lineWidth = 1 * S
+      c.beginPath()
+      c.arc(icX + icSize / 2, icY + icSize / 2, icSize / 2, 0, Math.PI * 2)
+      c.stroke()
     }
+    c.textAlign = 'left'; c.textBaseline = 'middle'
+    c.fillStyle = '#5A4530'
+    c.font = `${12 * S}px "PingFang SC",sans-serif`
+    c.fillText(row.label, icX + icSize + 8 * S, rowY + rowH / 2)
+
+    const rightEdge = px + pw - 20 * S
+    c.textAlign = 'right'
+    if (row.base === row.ad) {
+      // 两档一致（如专属碎片 100% / 100%）：合并成一个绿色数值，免视觉噪声
+      c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+      c.fillStyle = '#2E8B2E'
+      c.fillText(`+${row.ad}`, rightEdge, rowY + rowH / 2)
+    } else {
+      // 广告档用金色粗体突出，基础档灰色小字左置做对照 —— 让"广告多赚"一眼可见
+      const adText = `+${row.ad}`
+      c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+      c.fillStyle = '#D4A52A'
+      c.fillText(adText, rightEdge, rowY + rowH / 2)
+      const adW = c.measureText(adText).width
+      c.font = `${11 * S}px "PingFang SC",sans-serif`
+      c.fillStyle = '#9B8A62'
+      c.fillText(`+${row.base}  /`, rightEdge - adW - 8 * S, rowY + rowH / 2)
+    }
+    cy += rowH
   }
 
-  drawCard(basicCardX, cardY, cardW, cardH,
-    '基础返还', '灵石 70% · 万能/觉醒 90%',
-    d.basicRefund, '#8A7A62', false)
-  drawCard(adCardX, cardY, cardW, cardH,
-    '看广告返还', '灵石 90% · 万能/觉醒 100%',
-    d.adRefund, '#D4A52A', true)
+  cy += 8 * S
 
-  cy = cardY + cardH + 10 * S
-
-  // ── 共同说明 ──
-  c.textAlign = 'center'
-  c.fillStyle = '#5A4530'
+  // ── Tips（绿信提示 + 红字警示） ──
+  c.textAlign = 'center'; c.textBaseline = 'top'
+  c.fillStyle = '#4A7A58'
   c.font = `${10 * S}px "PingFang SC",sans-serif`
-  c.fillText('专属碎片 100% 返回本宠，重新培养即可继续升星', px + pw / 2, cy)
-  cy += 13 * S
+  c.fillText('专属碎片 100% 返回本宠，随时可再培养', px + pw / 2, cy)
+  cy += 14 * S
   c.fillStyle = '#C0392B'
   c.fillText('重置后回到 ★1 Lv.1，10 分钟内不可再次返还', px + pw / 2, cy)
-  cy += 16 * S
 
-  // ── 三按钮：取消 / 基础 / 看广告 ──
-  const btnH = 38 * S
+  // ── 底部两个主按钮（与游戏统一卷轴胶囊语言，复用美术预制底图） ──
+  //  · 左：btn_cancel 淡青卷轴（基础档，次要视觉）
+  //  · 右：btn_reward_confirm 纯金卷轴（看广告档，主推 CTA + 呼吸金晕）
+  //  · 单行内容「动作 · [灵石icon] +数字」，沿用 drawShareIconBtn 布局，右偏 0.56w 避开云纹
+  const btnH = 44 * S
   const btnY = py + ph - btnH - 14 * S
-  const btnGap = 8 * S
-  const btnRowW = pw - cardPad * 2
-  const eachBtnW = (btnRowW - btnGap * 2) / 3
-  const cancelX = px + cardPad
-  const basicBtnX = cancelX + eachBtnW + btnGap
-  const adBtnX = basicBtnX + eachBtnW + btnGap
+  const btnGap = 10 * S
+  const btnPad = 18 * S
+  const btnW = (pw - btnPad * 2 - btnGap) / 2
+  const btnLeftX = px + btnPad
+  const btnRightX = btnLeftX + btnW + btnGap
 
-  d.cancelRect = [cancelX, btnY, eachBtnW, btnH]
-  d.basicBtnRect = [basicBtnX, btnY, eachBtnW, btnH]
-  d.adBtnRect = [adBtnX, btnY, eachBtnW, btnH]
+  d.basicBtnRect = [btnLeftX, btnY, btnW, btnH]
+  d.adBtnRect = [btnRightX, btnY, btnW, btnH]
 
-  drawPrimaryButton(c, S, cancelX, btnY, eachBtnW, btnH, {
-    text: '取  消',
-    style: 'silver',
-    enabled: true,
+  _drawRefundCapsule(c, R, S, btnLeftX, btnY, btnW, btnH, {
+    bgKey: 'assets/ui/btn_cancel.png',
+    title: '基础返还',
+    titleColor: '#1E2A3A',
+    amount: br.soulStone,
   })
-  drawPrimaryButton(c, S, basicBtnX, btnY, eachBtnW, btnH, {
-    text: '基础返还',
-    style: 'silver',
-    enabled: true,
-  })
-  drawPrimaryButton(c, S, adBtnX, btnY, eachBtnW, btnH, {
-    text: d.adAvailable ? '🎬 看广告' : '分享领奖',
-    style: 'milestone',
-    enabled: true,
+  _drawRefundCapsule(c, R, S, btnRightX, btnY, btnW, btnH, {
+    bgKey: 'assets/ui/btn_reward_confirm.png',
+    title: d.adAvailable ? '看广告返还' : '分享返还',
+    titleColor: '#4A2020',
+    amount: ar.soulStone,
     glow: true,
   })
+
+  // 呼吸金晕依赖每帧重绘；弹窗关闭时调用方会清 dialog 数据，不会常驻消耗
+  g._dirty = true
 }
 
 module.exports = {

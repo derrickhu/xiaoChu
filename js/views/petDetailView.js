@@ -2150,9 +2150,9 @@ function tPetDetail(g, x, y, type) {
   if (g._star3Celebration) return
 
   // 返还培养弹窗：优先级最高，拦截所有其他触摸
-  //   · 命中"取消"/遮罩 → 关闭
-  //   · 命中"基础返还" → 直接执行
-  //   · 命中"看广告"   → 先播广告，成功后才执行
+  //   · 命中右上角 × / 遮罩 → 关闭
+  //   · 命中「基础返还」 → 直接执行
+  //   · 命中「看广告返还」→ 先播广告，成功后执行
   if (g._poolPetResetDialog) {
     if (type !== 'end') return
     const d = g._poolPetResetDialog
@@ -2166,10 +2166,7 @@ function tPetDetail(g, x, y, type) {
       _doPoolPetResetWithAd(g)
       return
     }
-    if (d.cancelRect && g._hitRect(x, y, ...d.cancelRect)) {
-      _closeResetDialog(g)
-      return
-    }
+    // 右上角关闭 + 遮罩任意点（面板外）均视为关闭
     _closeResetDialog(g)
     return
   }
