@@ -2077,12 +2077,15 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
       const mins = Math.max(1, Math.ceil(resetStatus.cooldownMs / 60000))
       resetSubText = `冷却 ${mins} 分钟`
     }
+    const resetFirstSeen = resetEnabled
+      && g.storage.isGuideShown && !g.storage.isGuideShown('pool_reset_seen')
     drawPrimaryButton(c, S, indent, cy, rBtnW, rBtnH, {
       text: resetBtnText,
       subText: resetSubText,
       style: 'silver',
       enabled: resetEnabled,
       pressed: _pressedBtnId === 'resetPet',
+      glow: resetFirstSeen,
       flashT: buttonFx.getFlashT(rBtnRect),
     })
     if (isCurrentPet) _rects.resetBtnRect = rBtnRect
@@ -2584,6 +2587,16 @@ function _openResetDialog(g) {
     adRefund,
     adAvailable: AdManager.canShow('poolPetReset'),
   }
+  if (g.storage.markGuideShown) g.storage.markGuideShown('pool_reset_seen')
+  try {
+    const analytics = require('../data/analytics')
+    analytics.track('pool_pet_reset_open', {
+      petId,
+      star: poolPet.star || 1,
+      level: poolPet.level || 1,
+      gateCost: basicRefund.gateCost,
+    })
+  } catch (_e) { /* ignore */ }
   MusicMgr.playClick && MusicMgr.playClick()
   g._dirty = true
 }
@@ -2631,6 +2644,18 @@ function _doPoolPetReset(g, useAd) {
   if (P.showGameToast) {
     P.showGameToast(`${petName} 已重置为 ★1 Lv.1`, { type: 'achievement' })
   }
+  try {
+    const analytics = require('../data/analytics')
+    analytics.track('pool_pet_reset_done', {
+      petId,
+      useAd: !!useAd,
+      gateCost: r.gateCost,
+      refundSoul: r.soulStone,
+      refundSelfFrag: r.selfFrag,
+      refundUniFrag: r.universalFrag,
+      refundAwaken: r.awakenStone,
+    })
+  } catch (_e) { /* ignore */ }
   g._dirty = true
 }
 
