@@ -981,8 +981,105 @@ class Storage {
     }
     if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
+    // 记账：累计用掉的万能碎片。供"返还培养"反推可返还的万能碎片数量
+    // 老存档升星时没写该字段，后续只有"新升星"会计入；功能公告需告知玩家
+    if (usedUniversal > 0) entry.universalUsed = (entry.universalUsed || 0) + usedUniversal
     this._save()
     return { ok: true, newStar: nextStar, usedUniversal }
+  }
+
+  /**
+   * 判断指定宠物当前是否在"编队在用"状态
+   *   · savedStageTeam（秘境编队）
+   *   · teamPresets 任一预设里
+   * 只要被任何一份队伍引用，都视为占用，避免"重置后队列出现空槽"的数据不一致
+   */
+  isPoolPetInAnyTeam(petId) {
+    if (!petId) return false
+    const saved = this._d.savedStageTeam || []
+    if (saved.indexOf(petId) >= 0) return true
+    const presets = this._d.teamPresets || []
+    for (const p of presets) {
+      if (p && Array.isArray(p.petIds) && p.petIds.indexOf(petId) >= 0) return true
+    }
+    return false
+  }
+
+  /** 判断指定宠物当前是否在派遣中（占用 idleDispatch.slots） */
+  isPoolPetDispatched(petId) {
+    if (!petId) return false
+    const slots = (this._d.idleDispatch && this._d.idleDispatch.slots) || []
+    return slots.some(s => s && s.petId === petId)
+  }
+
+  /**
+   * 返还培养 · 功能是否对当前玩家解锁
+   *   解锁条件：已打到第 POOL_RESET_UNLOCK_CHAPTER 章（玩家此时才真正积累了可观养成成本）
+   */
+  isPoolResetUnlocked() {
+    const { POOL_RESET_UNLOCK_CHAPTER } = require('./balance/pool')
+    return this.getFarthestChapter() >= POOL_RESET_UNLOCK_CHAPTER
+  }
+
+  /**
+   * 预检指定宠物可否重置，返回统一的判定结果给 UI 使用
+   *   · 解锁条件 / 出战中 / 派遣中 / 冷却中 / 闸门觉醒石不足 / 无可返还
+   * 不做任何写入
+   */
+  checkPoolPetResetStatus(petId) {
+    const entry = this.getPoolPet(petId)
+    if (!entry) return { ok: false, reason: 'not_found' }
+    if (!this.isPoolResetUnlocked()) {
+      const { POOL_RESET_UNLOCK_CHAPTER } = require('./balance/pool')
+      return { ok: false, reason: 'locked', unlockChapter: POOL_RESET_UNLOCK_CHAPTER }
+    }
+    const { canResetPoolPet } = require('./petPoolConfig')
+    return canResetPoolPet(entry, {
+      awakenStone: this._d.awakenStone || 0,
+      isDispatched: this.isPoolPetDispatched(petId),
+      isInTeam: this.isPoolPetInAnyTeam(petId),
+    })
+  }
+
+  /**
+   * 执行"返还培养"：扣闸门觉醒石 + 按档返还 + 宠物等级星级归 1
+   *   · 专属碎片 100% 返回 poolPet.fragments（保留本宠属性）
+   *   · 灵石/万能碎片/觉醒石按 useAd 档位返给全局资源池
+   *   · 重置后写 entry.resetAt 用于 10 分钟冷却
+   * @param {string} petId
+   * @param {boolean} useAd - 是否走广告增强档（UI 层负责先播广告，播完成功再调此方法）
+   * @returns {{ ok:boolean, reason?:string, refund?:object }}
+   */
+  resetPoolPet(petId, useAd) {
+    const entry = this.getPoolPet(petId)
+    if (!entry) return { ok: false, reason: 'not_found' }
+    const status = this.checkPoolPetResetStatus(petId)
+    if (!status.ok) return status
+    const { calcPoolPetResetRefund } = require('./petPoolConfig')
+    const refund = calcPoolPetResetRefund(entry, !!useAd)
+    if (!refund) return { ok: false, reason: 'calc_fail' }
+    if ((this._d.awakenStone || 0) < refund.gateCost) {
+      return { ok: false, reason: 'gate_short', required: refund.gateCost }
+    }
+    this._d.awakenStone = (this._d.awakenStone || 0) - refund.gateCost
+    if (refund.soulStone > 0) {
+      this._d.soulStone = (this._d.soulStone || 0) + refund.soulStone
+    }
+    if (refund.awakenStone > 0) {
+      this._d.awakenStone = (this._d.awakenStone || 0) + refund.awakenStone
+    }
+    if (refund.universalFrag > 0) {
+      this._d.universalFragment = (this._d.universalFragment || 0) + refund.universalFrag
+    }
+    if (refund.selfFrag > 0) {
+      entry.fragments = (entry.fragments || 0) + refund.selfFrag
+    }
+    entry.level = 1
+    entry.star = 1
+    entry.universalUsed = 0
+    entry.resetAt = Date.now()
+    this._save()
+    return { ok: true, refund, usedAd: !!useAd }
   }
 
   /** 获取灵宠池中指定宠物 */

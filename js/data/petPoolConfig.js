@@ -26,6 +26,11 @@ const {
   POOL_ENTRY_LEVEL,
   POOL_ENTRY_FRAGMENTS,
   POOL_R_LV_BONUS_RATE,
+  POOL_RESET_REFUND_BASE,
+  POOL_RESET_REFUND_AD,
+  POOL_RESET_GATE_COST,
+  POOL_RESET_COOLDOWN_MS,
+  POOL_RESET_UNLOCK_CHAPTER,
 } = require('./constants')
 const { ROGUE_SETTLE, IDLE_CFG } = require('./economyConfig')
 
@@ -205,6 +210,79 @@ function isLevelGatedByStarUp(poolPet, awakenStone, soulStone, universalFragment
 }
 
 /**
+ * 计算"返还培养"的返还清单与闸门消耗
+ *   · 反推历史灵石投入：按 petExpToNextLevel 从 Lv1 累加到当前 level
+ *   · 反推升星消耗：专属碎片、觉醒石按 POOL_STAR_* 表累加；万能碎片按 poolPet.universalUsed 记账
+ *     （老存档未记录 universalUsed 时按 0 计，玩家只拿专属碎片返还 —— 上线公告需说明）
+ *   · 专属碎片 100% 返还且加回 poolPet.fragments（保留本宠专属属性）
+ *   · 灵石/万能碎片/觉醒石按 useAd 走基础档或广告增强档比例
+ *   · 闸门觉醒石在外层 resetPoolPet 里单独扣除，这里仅把 gateCost 透出供 UI 展示
+ * @param {object} poolPet - { id, level, star, fragments, universalUsed? }
+ * @param {boolean} useAd  - true=广告增强档，false=基础档
+ * @returns {{ soulStone:number, selfFrag:number, universalFrag:number, awakenStone:number,
+ *             gateCost:number, netAwakenStone:number,
+ *             investedSoulStone:number, investedSelfFrag:number, investedUniversal:number, investedAwaken:number }}
+ */
+function calcPoolPetResetRefund(poolPet, useAd) {
+  if (!poolPet) return null
+  const rarity = getPetRarity(poolPet.id)
+  const star = Math.max(1, poolPet.star || 1)
+  const level = Math.max(1, poolPet.level || 1)
+  let investedSoulStone = 0
+  for (let lv = 1; lv < level; lv++) {
+    investedSoulStone += petExpToNextLevel(lv, rarity)
+  }
+  let fragTotalConsumed = 0
+  let investedAwaken = 0
+  for (let s = 2; s <= star; s++) {
+    fragTotalConsumed += POOL_STAR_FRAG_COST[s] || 0
+    investedAwaken    += POOL_STAR_AWAKEN_COST[s] || 0
+  }
+  const investedUniversal = Math.min(fragTotalConsumed, Math.max(0, poolPet.universalUsed || 0))
+  const investedSelfFrag = Math.max(0, fragTotalConsumed - investedUniversal)
+  const pct = useAd ? POOL_RESET_REFUND_AD : POOL_RESET_REFUND_BASE
+  const gateCost = POOL_RESET_GATE_COST[star] || 1
+  const refund = {
+    soulStone:     Math.floor(investedSoulStone * pct.soulStonePct),
+    selfFrag:      Math.floor(investedSelfFrag * pct.selfFragPct),
+    universalFrag: Math.floor(investedUniversal * pct.universalFragPct),
+    awakenStone:   Math.floor(investedAwaken * pct.awakenStonePct),
+    gateCost,
+    investedSoulStone,
+    investedSelfFrag,
+    investedUniversal,
+    investedAwaken,
+  }
+  refund.netAwakenStone = refund.awakenStone - gateCost
+  return refund
+}
+
+/**
+ * 判断是否可以对该宠物执行"返还培养"
+ *   不可重置场景：派遣中 / 在编队 / 在冷却期
+ *   所有原因以 reason 字符串返回给 UI 做差异化提示
+ * @returns {{ ok:boolean, reason?:string, cooldownMs?:number }}
+ */
+function canResetPoolPet(poolPet, ctx) {
+  if (!poolPet) return { ok: false, reason: 'not_found' }
+  const star = poolPet.star || 1
+  const gateCost = POOL_RESET_GATE_COST[star] || 1
+  if (ctx && ctx.awakenStone != null && ctx.awakenStone < gateCost) {
+    return { ok: false, reason: 'gate_short', required: gateCost }
+  }
+  if (ctx && ctx.isDispatched) return { ok: false, reason: 'dispatched' }
+  if (ctx && ctx.isInTeam) return { ok: false, reason: 'in_team' }
+  if (poolPet.resetAt) {
+    const leftMs = POOL_RESET_COOLDOWN_MS - (Date.now() - poolPet.resetAt)
+    if (leftMs > 0) return { ok: false, reason: 'cooldown', cooldownMs: leftMs }
+  }
+  if (star <= 1 && (poolPet.level || 1) <= 1) {
+    return { ok: false, reason: 'nothing_to_refund' }
+  }
+  return { ok: true }
+}
+
+/**
  * 宠物卡片语义角标（业界主流：卡面只负责吸引注意，详情页负责解释原因）：
  *   star：「升星链路可推进」——已能升星 或 仅差等级（但当前灵石够升级）
  *   new：刚入池未查看过
@@ -230,6 +308,11 @@ module.exports = {
   POOL_STAR_ATK_MUL,
   POOL_STAR_AWAKEN_COST,
   POOL_STAR_LV_CAP,
+  POOL_RESET_REFUND_BASE,
+  POOL_RESET_REFUND_AD,
+  POOL_RESET_GATE_COST,
+  POOL_RESET_COOLDOWN_MS,
+  POOL_RESET_UNLOCK_CHAPTER,
   FRAGMENT_TO_EXP,
    getPoolPetAtk,
   comparePoolPetsFormationOrder,
@@ -238,6 +321,8 @@ module.exports = {
   canLevelUp,
   canStarUp,
   isLevelGatedByStarUp,
+  calcPoolPetResetRefund,
+  canResetPoolPet,
   computePetPoolBadge,
   ENTRY_LEVEL,
   ENTRY_FRAGMENTS,

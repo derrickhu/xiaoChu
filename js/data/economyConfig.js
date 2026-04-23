@@ -214,6 +214,8 @@ const AD_REWARDS = {
   towerExtraRun:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 2 },
   towerItem:       { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: -1 },
   staminaRefund:   { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 5 },
+  // 返还培养·广告增强档：觉醒石闸门已天然限流，日上限 -1 不再叠加
+  poolPetReset:    { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: -1 },
   // 预设编队槽位：每次解锁 +1 套（默认 2 免费，广告可拉到 TEAM_PRESET_MAX），
   //   不限日上限，避免老玩家一天内拉满 3 套要等第 2 天
   unlockTeamPreset:{ enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: -1 },
