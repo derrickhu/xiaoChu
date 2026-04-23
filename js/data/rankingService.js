@@ -8,6 +8,7 @@ const api = require('../api')
 const cloudSync = require('./cloudSync')
 const { RANK_CACHE_TTL_MS } = require('./constants')
 const friendRanking = require('./friendRanking')
+const { isCurrentUserGM } = require('./gmConfig')
 
 class RankingService {
   /**
@@ -140,7 +141,11 @@ class RankingService {
   }
 
   async submitScore(floor, pets, weapon, totalTurns) {
-    // GM 账号也一并上榜，便于测试榜单显示/刷新链路；后续需要屏蔽可在云函数侧加过滤
+    // GM 账号不参与任何排行榜：客户端早退省云函数调用，云函数 GM_OPENIDS 做兜底
+    if (isCurrentUserGM()) {
+      console.log('[Ranking] GM 跳过提交通天塔')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady()) {
       console.warn('[Ranking] 提交跳过: cloudReady=false')
@@ -177,6 +182,10 @@ class RankingService {
   }
 
   async submitDexAndCombo() {
+    if (isCurrentUserGM()) {
+      console.log('[Ranking] GM 跳过提交图鉴/连击')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady()) return
     const t0 = Date.now()
@@ -202,6 +211,10 @@ class RankingService {
   }
 
   async submitStageRanking() {
+    if (isCurrentUserGM()) {
+      console.log('[Ranking] GM 跳过提交秘境')
+      return
+    }
     const ctx = this._getContext()
     if (!cloudSync.isReady()) return
     if (ctx.stageTotalStars <= 0 && ctx.stageClearCount <= 0) return

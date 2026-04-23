@@ -14,6 +14,7 @@
  */
 
 const P = require('../platform')
+const { isCurrentUserGM } = require('./gmConfig')
 
 // 四维度 key：须与 openDataContext/index.js 的 TAB_META 完全一致
 const SCORE_KEYS = {
@@ -22,6 +23,33 @@ const SCORE_KEYS = {
   /** 图鉴：复合分写入 dexBoard（精通/收录/池数），避免「精通为 0 就不上榜」与全服榜不一致 */
   dex:   'dexBoard',
   combo: 'comboMax',
+}
+
+// GM 账号在当前会话里只清理一次已上传的 KV；之后再有 uploadScores 调用直接短路 return
+let _gmKvCleaned = false
+
+/**
+ * GM 账号：清除微信侧已写入的四维度 KV，让好友榜彻底看不到 GM
+ *
+ *   · wx.setUserCloudStorage 是微信自家 KV（好友榜数据源），不走云函数，
+ *     云函数的 GM_OPENIDS 拦不到。GM 历史上传过的数据得主动清。
+ *   · _gmKvCleaned 做会话级去重：同一 session 只清一次，避免每次上报都发请求
+ *   · 清除对其他好友的可见性生效需微信服务端传播，几分钟到下次拉取之间
+ */
+function _cleanupGmCloudStorage() {
+  if (_gmKvCleaned) return
+  if (typeof wx === 'undefined' || typeof wx.removeUserCloudStorage !== 'function') return
+  _gmKvCleaned = true
+  const keyList = Object.values(SCORE_KEYS)
+  try {
+    wx.removeUserCloudStorage({
+      keyList,
+      success: () => { console.log('[FriendRank] GM 已清理好友榜 KV:', keyList.join(',')) },
+      fail: (err) => { console.warn('[FriendRank] GM 清理 KV 失败', err) },
+    })
+  } catch (e) {
+    console.warn('[FriendRank] GM removeUserCloudStorage throw', e)
+  }
 }
 
 /** 与全服 rankDex 排序一致：精通优先，其次收录，再次入池数；写入微信 KV 的整数（带 1e8 前缀与旧版区分） */
@@ -102,6 +130,13 @@ function uploadScores(ctx, opts) {
   if (!isSupported()) return
   if (typeof wx.setUserCloudStorage !== 'function') return
   if (!ctx) return
+
+  // GM 账号不得出现在任何榜（含好友榜），同时清掉历史 KV，让其他好友也看不到
+  //   · 云函数那边 GM_OPENIDS 只拦截云数据库，好友榜走 wx.setUserCloudStorage 必须在此闸门
+  if (isCurrentUserGM()) {
+    _cleanupGmCloudStorage()
+    return
+  }
 
   // 节流：同样的值 10s 内不重复报
   const now = Date.now()
