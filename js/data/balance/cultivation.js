@@ -40,11 +40,11 @@ const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 //     只能拿到 20 × 0.6 × 1.5 = 18% HP = +18 HP，被原版"+100 HP 固定"削穿 41%。
 //     本版以"老 Lv.60 满保不缩水 + 新 Lv.80 再 +20~25%"为准，才有下面这组数。
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:5,    type:'percent', unit:'%HP',     desc:'队伍HP上限（全模式生效）' },
-  spirit:  { name:'灵力', theme:'通脉', maxLv:19, perLv:1,    type:'flat',    unit:'心珠回复', desc:'心珠回复基数（全模式生效）' },
-  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠操作时间（全模式生效）' },
-  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:1,    type:'percent', unit:'%减伤',   desc:'伤害减免百分比（全模式生效）' },
-  sense:   { name:'神识', theme:'开窍', maxLv:12, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'按队伍HP获得开局护盾（全模式生效）' },
+  body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:5,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
+  spirit:  { name:'灵力', theme:'通脉', maxLv:19, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
+  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
+  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:1,    type:'percent', unit:'%减伤',   desc:'受到的所有伤害减少' },
+  sense:   { name:'神识', theme:'开窍', maxLv:12, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
 }
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 

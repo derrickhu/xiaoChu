@@ -251,7 +251,7 @@ const GUIDE_DEFS = {
   cult_cap_v2_intro: {
     steps: [
       { text: '主人，修炼上限已拓至 Lv.80～\n化神不是终点，圆满才算开始哦', position: 'center' },
-      { text: '加成规则变成了百分比口径（体魄/根骨/神识）\n跨境界还会有祝福乘数，越走越强～', position: 'center' },
+      { text: '体魄/根骨/神识改成了百分比加成\n跨境界还会多一层「境界加成」，越走越强～', position: 'center' },
       { text: '之前满级溢出的经验已归零，\n从 Lv.60 继续累积，打关就能涨经验啦', position: 'center' },
     ],
   },

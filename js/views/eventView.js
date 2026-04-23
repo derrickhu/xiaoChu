@@ -1152,7 +1152,7 @@ function rEvent(g) {
     if (defPct > 0) lines.push(`减伤+${defPct}%`)
     if (cb.spiritBonus > 0) lines.push(`心珠+${cb.spiritBonus}`)
     if (cb.wisdomBonus > 0) lines.push(`转珠+${cb.wisdomBonus.toFixed(1)}s`)
-    if (cb.blessing && cb.blessing > 1) lines.push(`祝福×${cb.blessing.toFixed(2)}`)
+    if (cb.blessing && cb.blessing > 1) lines.push(`境界×${cb.blessing.toFixed(2)}`)
     ctx.fillText(lines.join('  '), W * 0.5, panelY + 32 * S)
     ctx.fillStyle = '#999'
     ctx.font = `${9 * S}px "PingFang SC",sans-serif`

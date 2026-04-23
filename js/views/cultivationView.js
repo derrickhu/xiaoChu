@@ -10,9 +10,10 @@ const { drawPanel, drawRibbonIcon, drawLingCard, wrapText } = require('./uiCompo
 const { LING } = require('../data/lingIdentity')
 const {
   CULT_CONFIG, CULT_KEYS, MAX_LEVEL, expToNextLevel,
-  effectValue, effectValueWithBlessing, getBlessingMultiplier,
+  effectValue, effectValueWithBlessing, getBlessingMultiplier, calcCultBonuses,
   usedPoints, currentRealm, nextRealm, getRealmByLv,
 } = require('../data/cultivationConfig')
+const { HERO_BASE_HP, DRAG_BASE_SEC } = require('../data/balance/combat')
 const MusicMgr = require('../runtime/music')
 const { drawBottomBar, getLayout, drawPageTitle } = require('./bottomBar')
 const Draw = require('./cultivationDraw')
@@ -137,7 +138,7 @@ function rCultivation(g) {
   const _blessing = getBlessingMultiplier(cult.level)
   if (_blessing > 1) {
     c.save()
-    const badgeText = `祝福 ×${_blessing.toFixed(2)}`
+    const badgeText = `境界加成 ×${_blessing.toFixed(2)}`
     c.font = `bold ${10*S}px "PingFang SC",sans-serif`
     const tw = c.measureText(badgeText).width
     const bw = tw + 16*S
@@ -645,21 +646,29 @@ function tCultivation(g, x, y, type) {
 }
 
 // ===== 左上角属性加成面板 =====
-//   pctMode=true：该行加成是"% 队伍 HP / % 减伤"百分比类，不依赖具体队伍 HP 基数
-//   base       ：仅用于绝对值类（spirit/wisdom/绝对值的展示）
+//   pctMode=true：加成数值口径是百分比；主行显示"战斗起手实际值"，次行显示"+X%"
+//   spirit       ：绝对值加成；主行显示"心珠X"（基础 + 修炼加成），次行 Lv
+//   wisdom       ：绝对值加成；主行显示"转珠Xs"（基础 + 修炼加成），次行 Lv
 const _STAT_ROWS = [
-  { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', base: 0,   unit: '%', pctMode: true  },
-  { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', base: 0,   unit: '%', pctMode: true  },
-  { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', base: 12,  unit: '',  pctMode: false },
-  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', base: 0,   unit: '%', pctMode: true  },
-  { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', base: 8,   unit: 's', pctMode: false },
+  { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', pctMode: true  },
+  { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', pctMode: true  },
+  { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', pctMode: false },
+  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', pctMode: true  },
+  { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', pctMode: false },
 ]
+
+// 战斗起手的心珠回复基数（不经修炼加成前的常量）
+//   注：真实战斗中 _cultHeartBase 直接就是 cb.spiritFlat，基础值看作 0；
+//   此处沿用旧展示"心珠回复 12"字段，是因为面板里过去按"基础 12 + 加成 X"表达
+//   调整后统一口径：spirit 总值 = 12 + spiritFlat（12 仅作展示锚点，不是真 heartBase）
+const _HEART_DISPLAY_BASE = 12
 
 function _drawStatsSummary(c, S, startY, cult) {
   const px = 6 * S
   const py = startY + 4 * S
-  const rowH = 22 * S
-  const panelW = 152 * S  // 百分比化后展示文字偏长，宽度从 138 → 152
+  // 为放下"Lv.X/Y"与"+X%"两段信息，行高从 22 → 26；同时换成两行文字排版
+  const rowH = 26 * S
+  const panelW = 158 * S  // 百分比化 + 行内加 Lv.X/Y，宽度再扩一点避免贴边
   const panelH = _STAT_ROWS.length * rowH + 16 * S
   const rad = 8 * S
 
@@ -674,19 +683,61 @@ function _drawStatsSummary(c, S, startY, cult) {
   const barX = px + 54 * S
 
   const cultLv = cult.level || 0
+  // 一次性算全部修炼加成（已含境界祝福）和"如果点满"的加成，用来：
+  //   1) 顶行显示"战斗起手实际值"（HP=基础×(1+bodyPct%) 等）
+  //   2) 进度条宽度按 "当前加成 / 点满加成" 的比例
+  const cb = calcCultBonuses(cult)
+  const maxCult = {
+    level: cultLv,
+    levels: { body: CULT_CONFIG.body.maxLv, spirit: CULT_CONFIG.spirit.maxLv, wisdom: CULT_CONFIG.wisdom.maxLv, defense: CULT_CONFIG.defense.maxLv, sense: CULT_CONFIG.sense.maxLv },
+  }
+  const cbMax = calcCultBonuses(maxCult)
+  // 战斗起手 HP（英雄血量，不含宠物），同时作为 sense 的护盾基数
+  const startHp    = HERO_BASE_HP + Math.round(HERO_BASE_HP * cb.bodyPct / 100)
+  const startHpMax = HERO_BASE_HP + Math.round(HERO_BASE_HP * cbMax.bodyPct / 100)
+  const startShield    = Math.round(startHp    * cb.sensePct    / 100)
+  const startShieldMax = Math.round(startHpMax * cbMax.sensePct / 100)
+
   for (let i = 0; i < _STAT_ROWS.length; i++) {
     const row = _STAT_ROWS[i]
     const cfg = CULT_CONFIG[row.key]
     const lv = cult.levels[row.key] || 0
-    // 百分比类显示"有效值"（已乘境界祝福），让玩家在面板上一眼看到化神的爽点
-    const bonus = row.pctMode
-      ? effectValueWithBlessing(row.key, lv, cultLv)
-      : effectValue(row.key, lv)
-    const maxBonus = row.pctMode
-      ? effectValueWithBlessing(row.key, cfg.maxLv, cultLv)
-      : effectValue(row.key, cfg.maxLv)
-    const total = row.base + bonus
-    const totalMax = row.base + maxBonus
+    // 五行各自的"战斗起手值"（玩家能直接对应战斗界面数字）
+    //   · body  → 英雄 HP 上限（HERO_BASE_HP 受 body% 提升）
+    //   · sense → 起手护盾 = startHp × sense%
+    //   · defense → 减伤百分比本身
+    //   · spirit → HEAL_BASE + spiritFlat（心珠回复基数）
+    //   · wisdom → DRAG_BASE_SEC + wisdomFlat（转珠时间）
+    let mainText, maxVal, curVal
+    let subText = '' // 次行主体（百分比增幅 / 绝对值增量）
+    if (row.key === 'body') {
+      mainText = `HP ${startHp}`
+      curVal = startHp; maxVal = startHpMax
+      subText = `+${Math.round(cb.bodyPct)}%`
+    } else if (row.key === 'sense') {
+      mainText = `护盾 ${startShield}`
+      curVal = startShield; maxVal = startShieldMax
+      subText = `+${Math.round(cb.sensePct)}%`
+    } else if (row.key === 'defense') {
+      const pctNow = Math.round(cb.defPct)
+      const pctMax = Math.round(cbMax.defPct)
+      mainText = `减伤 ${pctNow}%`
+      curVal = pctNow; maxVal = pctMax
+      subText = `+${pctNow}%`
+    } else if (row.key === 'spirit') {
+      const cur = _HEART_DISPLAY_BASE + cb.spiritFlat
+      const max = _HEART_DISPLAY_BASE + cbMax.spiritFlat
+      mainText = `心珠 ${cur}`
+      curVal = cur; maxVal = max
+      subText = cb.spiritFlat > 0 ? `+${cb.spiritFlat}` : ''
+    } else { // wisdom
+      const cur = (DRAG_BASE_SEC + cb.wisdomFlat).toFixed(2).replace(/\.?0+$/, '')
+      const max = (DRAG_BASE_SEC + cbMax.wisdomFlat).toFixed(2).replace(/\.?0+$/, '')
+      mainText = `转珠 ${cur}s`
+      curVal = parseFloat(cur); maxVal = parseFloat(max)
+      subText = cb.wisdomFlat > 0 ? `+${cb.wisdomFlat.toFixed(2).replace(/\.?0+$/, '')}s` : ''
+    }
+
     const ry = py + 8 * S + i * rowH
     const cy = ry + rowH / 2
 
@@ -708,64 +759,39 @@ function _drawStatsSummary(c, S, startY, cult) {
     c.textAlign = 'left'
     c.fillText(row.label, labelX, cy)
 
-    // 双色进度条：灰底 → 暗色(基础) → 亮色(加成)
+    // 进度条：按"当前值 / 点满值"显示投入进度（直接贴合玩家能感知的数字）
     const barY = ry + (rowH - barH) / 2
     c.fillStyle = 'rgba(255,255,255,0.1)'
     _riRR(c, barX, barY, barW, barH, barH / 2)
     c.fill()
-
-    if (totalMax > 0) {
-      const basePct = row.base / totalMax
-      const totalPct = total / totalMax
-      // 基础值部分（该属性的浅色）
-      if (basePct > 0) {
-        const baseW = Math.max(barH, barW * basePct)
-        c.fillStyle = row.color + '40'
-        _riRR(c, barX, barY, baseW, barH, barH / 2)
-        c.fill()
-      }
-      // 修炼加成部分（该属性的亮色，覆盖到总值位置）
-      if (bonus > 0) {
+    if (maxVal > 0) {
+      const totalPct = Math.min(1, curVal / maxVal)
+      if (totalPct > 0) {
         const totalW = Math.max(barH, barW * totalPct)
         c.fillStyle = row.color + 'C0'
         _riRR(c, barX, barY, totalW, barH, barH / 2)
         c.fill()
-        // 基础部分用半透明白覆盖，使之比加成段更浅
-        if (basePct > 0) {
-          const baseW2 = Math.max(barH, barW * basePct)
-          c.fillStyle = 'rgba(255,255,255,0.2)'
-          _riRR(c, barX, barY, baseW2, barH, barH / 2)
-          c.fill()
-        }
       }
     }
 
-    // 总数值显示
-    //   · 百分比行（body/defense/sense）：base 始终为 0，直接显示 "+X%"（已乘祝福）
-    //   · 绝对值行（spirit/wisdom）：显示 "基础 + 加成" 或"基础"
-    const u = row.unit
-    c.font = `${8*S}px "PingFang SC",sans-serif`
+    // 数值区：
+    //   顶行（白粗）= 战斗起手实际值，例如 "HP 310" / "护盾 56" / "减伤 21%"
+    //   底行（灰小）= +X% / +X 心珠 / +Xs，修炼加成的增量
+    //   投入进度（Lv X/Y）已经由左侧进度条传达，不再冗余显示
+    const valX = barX + barW + 4 * S
+    const topY = cy - 4 * S
+    const botY = cy + 6 * S
     c.textAlign = 'left'; c.textBaseline = 'middle'
-    if (row.pctMode) {
-      if (bonus > 0) {
-        c.fillStyle = '#fff'
-        c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-        c.fillText(`+${bonus}${u}`, barX + barW + 4 * S, cy)
-      } else {
-        c.fillStyle = 'rgba(255,240,210,0.5)'
-        c.fillText(`+0${u}`, barX + barW + 4 * S, cy)
-      }
-    } else if (bonus > 0) {
-      c.fillStyle = 'rgba(255,240,210,0.7)'
-      const baseStr = `${row.base}${u}`
-      c.fillText(baseStr, barX + barW + 4 * S, cy)
-      const baseStrW = c.measureText(baseStr).width
-      c.fillStyle = '#fff'
-      c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`+${bonus}${u}`, barX + barW + 4 * S + baseStrW + 1 * S, cy)
-    } else {
-      c.fillStyle = 'rgba(255,240,210,0.5)'
-      c.fillText(`${row.base}${u}`, barX + barW + 4 * S, cy)
+
+    c.fillStyle = '#fff'
+    c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+    c.fillText(mainText, valX, topY)
+
+    if (subText) {
+      const isMax = lv >= cfg.maxLv
+      c.fillStyle = isMax ? '#F0C860' : 'rgba(255,240,210,0.55)'
+      c.font = `${7*S}px "PingFang SC",sans-serif`
+      c.fillText(subText, valX, botY)
     }
   }
 

@@ -667,9 +667,9 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   const maxAdd = canUpgrade ? Math.min(cfg.maxLv - lv, pts) : 0
   const amt = canUpgrade ? Math.min(Math.max(1, upgradeAmount || 1), maxAdd) : 0
   const cultLv = (cult && cult.level) || 0
-  const blessing = getBlessingMultiplier(cultLv)
   const isPercent = cfg.type === 'percent'
-  const showBlessRow = isPercent && blessing > 1 && lv > 0  // 仅当生效时才占用一行
+  // 详情面板不再展开"基础/祝福/有效"三层：境界加成已经体现在"实际数值"里，
+  // 顶部祝福徽章已经告诉玩家境界带来多少倍加成，这里再列出过程玩家反馈"难懂"
 
   c.save()
   c.fillStyle = 'rgba(0,0,0,0.4)'
@@ -677,8 +677,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   c.restore()
 
   const panelW = W * 0.82
-  // 加上"基础 → 祝福 → 有效"展开行后，面板需要多一点高度避免按钮被挤
-  const panelH = (showBlessRow ? 268 : 240) * S
+  const panelH = 240 * S
   const panelX = (W - panelW) / 2
   const panelY = H * 0.5 - panelH * 0.45
   const panelR = 14*S
@@ -738,46 +737,36 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   c.restore()
   curY += 8*S
 
-  // 当前效果（百分比类追加一行"祝福 ×N → 有效 +X%"）
+  // 当前效果（只显示实际数值，含境界加成；不再展开"基础/祝福/有效"三层）
+  //   · 百分比类 → effectValueWithBlessing（已含境界乘数）
+  //   · flat 类   → effectValue（没有境界乘数）
+  //   玩家只需要看到一句话："这个属性现在给我多少"
   c.save()
   c.textAlign = 'left'; c.textBaseline = 'middle'
   c.fillStyle = '#8a7a58'
   c.font = `${11*S}px "PingFang SC",sans-serif`
   c.fillText('当前效果', panelX + pad, curY + 6*S)
-  const baseStr = _formatEffect(key, lv, cultLv)
+  const effStr = isPercent ? _formatEffective(key, lv, cultLv) : _formatEffect(key, lv, cultLv)
   const effectStr = lv > 0
-    ? `${cfg.desc} ${baseStr}`
+    ? `${cfg.desc}  ${effStr}`
     : `${cfg.desc}（未激活）`
   c.fillStyle = '#5C3A1E'
   c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.fillText(effectStr, panelX + pad, curY + 22*S)
-  if (showBlessRow) {
-    // 金色"有效行"：把当前境界祝福的乘数与最终值一起标出
-    c.fillStyle = '#B47A18'
-    c.font = `${11*S}px "PingFang SC",sans-serif`
-    const effStr = _formatEffective(key, lv, cultLv)
-    c.fillText(`境界祝福 ×${blessing.toFixed(2)} → 有效 ${effStr}`, panelX + pad, curY + 38*S)
-  }
   c.restore()
-  curY += showBlessRow ? 50*S : 34*S
+  curY += 34*S
 
-  // 加点后预览
+  // 加点后预览（同样只显示"加完之后实际是多少"）
   if (!isMax && amt > 0) {
     const newLv = lv + amt
-    const newStr = _formatEffect(key, newLv, cultLv)
+    const newStr = isPercent ? _formatEffective(key, newLv, cultLv) : _formatEffect(key, newLv, cultLv)
     c.save()
     c.textAlign = 'left'; c.textBaseline = 'middle'
     c.fillStyle = style.color
     c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-    c.fillText(`加点后  Lv.${newLv}: ${cfg.desc} ${newStr}`, panelX + pad, curY + 6*S)
-    if (showBlessRow) {
-      const newEffStr = _formatEffective(key, newLv, cultLv)
-      c.fillStyle = '#B47A18'
-      c.font = `${10*S}px "PingFang SC",sans-serif`
-      c.fillText(`(乘祝福后 有效 ${newEffStr})`, panelX + pad, curY + 22*S)
-    }
+    c.fillText(`加点后  Lv.${newLv}: ${cfg.desc}  ${newStr}`, panelX + pad, curY + 6*S)
     c.restore()
-    curY += showBlessRow ? 30*S : 20*S
+    curY += 20*S
   } else if (isMax) {
     c.save()
     c.fillStyle = '#aaa'
