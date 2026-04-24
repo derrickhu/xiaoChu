@@ -133,6 +133,10 @@ function startRun(g, petIds) {
   g.petBag = []
   g.weaponBag = []
   g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0
+  // 清空上一局战斗态残留：enterBattle 曾把 heroMaxHp 快照写入 _baseHeroMaxHp，
+  // 若上一局走"阵亡结算"或"最终层通关"路径直接 endRun，未经过 nextFloor 的 restoreBattleHpMax，
+  // 残留值会在本局首次 nextFloor 时把 heroMaxHp 放大到上一局的上限，造成"新一局进塔就有 500 血"
+  g._baseHeroMaxHp = null
   g.realmLevel = 1
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
@@ -443,6 +447,9 @@ function settleAll(g) {
 
 function endRun(g) {
   MusicMgr.stopBossBgm()
+  // 阵亡结算 / 最终层通关都会直接走到这里，绕过 nextFloor 的 restoreBattleHpMax；
+  // 主动清一次，防止 _baseHeroMaxHp / heroMaxHp 膨胀状态遗留到下一局 startRun
+  restoreBattleHpMax(g)
   const finalFloor = g.cleared ? MAX_FLOOR : g.floor
   // 记录旧纪录用于判断新高：updateBestFloor 内部只更新不返回，这里先比对
   const prevBestFloor = g.storage.bestFloor || 0
