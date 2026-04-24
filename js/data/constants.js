@@ -103,7 +103,10 @@ const STAGE_CARD = {
 /** 首页标题 Logo（title_logo.png）布局，与 drawTopBar / getLayout.topBarH 同步 */
 const TITLE_LOGO = {
   heightPt: 70,
-  gapBelowStatusPt: 15,
+  // gapBelowStatusPt：logo 顶部距离状态栏底部（safeTop + 96）的距离。
+  // 头像外框比头像大 22%，头像下方的昵称要避开外框底边 + 留呼吸距离，
+  // 因此 logo 不能太贴状态栏；以前的 15 会和昵称底部几乎贴到一起。
+  gapBelowStatusPt: 22,
   gapBelowLogoPt: 15,
 }
 

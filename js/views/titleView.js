@@ -17,6 +17,57 @@ const { ATTR_COLOR } = require('../data/tower')
 const { isCurrentUserGM } = require('../data/gmConfig')
 const { DAILY_TASKS, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
 
+// 首页布局配置：把关键尺寸集中到一处，避免后续继续散落魔法数字
+const HOME_STATUS_UI = {
+  avatarRowTopPt: 48,
+  avatarSizePt: 48,
+  avatarLeftPt: 10,
+  avatarGapRightPt: 8,
+  // 名字文字（头像正下方，替代原来的 Lv 胶囊，授权前显示排行榜同款 "修士·XXXX"）
+  // 头像 frame 外框比 iconSz 大 22%，底边会延伸到 iconSz*0.11，
+  // 名字必须避开这个外延区域再留 2pt 边距，否则会被框压。
+  nameGapPt: 8,
+  nameFontPt: 10,
+  nameMaxChars: 8,
+  // Lv 胶囊：从头像下方挪到经验条左侧，改成紧凑版和经验条同排
+  lvPillHeightPt: 13,
+  lvPillPadXPt: 6,
+  lvPillFontPt: 9,
+  lvExpGapPt: 4,
+  // 经验条：抬高到 10pt，和 Lv 胶囊并排时不至于太细
+  expBarGapPt: 6,
+  expBarHeightPt: 10,
+}
+
+const HOME_STAGE_UI = {
+  tabH: 28,
+  tabGap: 8,
+  // 秘境 Tab 顶部额外下沉：把「普通/精英」切换和上方「境界·XX·N 重」胶囊拉开间距，
+  // 避免两排胶囊视觉挤成一坨。数值为 pt（会再乘 S）。
+  tabTopGap: 14,
+  titleBlockH: 74,
+  titleGateGap: 6,
+  gateStarGap: 4,
+  starH: 16,
+  gateWidthFrac: 0.64,
+  condCardH: 56,
+  condCardGap: 8,
+  condAboveBtnGap: 12,
+  condSectionWidthFrac: 0.80,
+  condRadius: 11,
+  condStarFont: 13,
+  condLabelFont: 11,
+  stageProgressGap: 12,
+  arrowGapPt: 12,
+}
+
+// 右侧竖排入口（签到 / 游戏圈 / 任务 / 通天塔）整体下移：
+// 顶部资源条在最近一轮改版里更饱满了（Lv 胶囊 + 加高经验条），
+// 若沿用旧基准会和万能碎片栏、Lv 经验条打架。
+const HOME_RIGHT_ENTRY_UI = {
+  topOffsetPt: 52,
+}
+
 const MODE_CFG = {
   tower: {
     name: '通天塔',
@@ -66,16 +117,18 @@ function _drawTitleTierBadge(g, ctx, W, S, topY) {
   const label = `境界·${info.fullName}`
   ctx.save()
   ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-  const padX = 12 * S
+  const padX = 14 * S
   const tw = ctx.measureText(label).width
   const boxW = tw + padX * 2
-  const boxH = 22 * S
+  const boxH = 24 * S
   const boxX = (W - boxW) / 2
   const boxY = topY
-  // 背景渐变
+
+  // 参考原稿的紫金胶囊感：主体走紫色渐变，境界色退到边缘高光里，不让主标题区过花
   const grad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH)
-  grad.addColorStop(0, info.color)
-  grad.addColorStop(1, info.accent)
+  grad.addColorStop(0, 'rgba(152, 108, 214, 0.96)')
+  grad.addColorStop(0.5, 'rgba(120, 78, 196, 0.96)')
+  grad.addColorStop(1, 'rgba(90, 58, 162, 0.96)')
   ctx.fillStyle = grad
   ctx.beginPath()
   ctx.moveTo(boxX + boxH / 2, boxY)
@@ -87,13 +140,20 @@ function _drawTitleTierBadge(g, ctx, W, S, topY) {
   ctx.quadraticCurveTo(boxX, boxY, boxX + boxH / 2, boxY)
   ctx.closePath()
   ctx.fill()
-  ctx.strokeStyle = 'rgba(255,240,180,0.55)'
+
+  const glowGrad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH * 0.7)
+  glowGrad.addColorStop(0, 'rgba(255,255,255,0.18)')
+  glowGrad.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = glowGrad
+  ctx.fill()
+
+  ctx.strokeStyle = 'rgba(255,240,180,0.62)'
   ctx.lineWidth = 1 * S
   ctx.stroke()
   // 文字
   ctx.fillStyle = '#FFF8DC'
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 2 * S
+  ctx.shadowColor = 'rgba(54, 26, 108, 0.55)'; ctx.shadowBlur = 3 * S
   ctx.fillText(label, boxX + boxW / 2, boxY + boxH / 2 + 0.5 * S)
   ctx.restore()
 }
@@ -311,25 +371,25 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const portalRelCy = 0.52
   const portalRelR = 0.245
 
-  const tabH = 24 * S
-  const tabGap = 4 * S
-  // 章节 chip：精简到一条内嵌小标签，嵌在关卡编号上方（inline），不再占独立一行
-  //   · 设计改自原"带进度条横幅"（32*S 高）：业界主页（原神/星铁/阴阳师）不堆多余浮层，主屏越简越好
-  //   · chip 本体只有 14*S 高，与标题区融合：下面 titleBlockH 扩展 16*S 即可容纳
-  //   · 旧 chapterBandH / chapterBandGap 不再参与布局，保留变量 = 0 减少侵入
+  const tabH = HOME_STAGE_UI.tabH * S
+  const tabGap = HOME_STAGE_UI.tabGap * S
+  // 章节信息区恢复为更完整的 2 层标题块：
+  //   · 上层是章节关卡主标题
+  //   · 下层是章节名 + 关卡名副标题
+  // 这样玩家进入首页时先看懂“当前在哪一关”，再去看中央门和目标条件
   const chapterBandH = 0
   const chapterBandGap = 0
-  const titleBlockH = 48 * S
-  const titleGateGap = 2 * S
-  const gateStarGap = 6 * S
-  const starH = 18 * S
+  const titleBlockH = HOME_STAGE_UI.titleBlockH * S
+  const titleGateGap = HOME_STAGE_UI.titleGateGap * S
+  const gateStarGap = HOME_STAGE_UI.gateStarGap * S
+  const starH = HOME_STAGE_UI.starH * S
   const marginV = SC.marginV * S
   const minTop = sceneTop + marginV
 
-  const condAboveBtn = (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
-  const condPanelH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
+  const condAboveBtn = HOME_STAGE_UI.condAboveBtnGap * S
+  const condPanelH = HOME_STAGE_UI.condCardH * S
   const startBtnH = L.startBtnH
-  const progressUnderBtnGap = 10 * S
+  const progressUnderBtnGap = HOME_STAGE_UI.stageProgressGap * S
   const progressTextAllowance = 16 * S
   const aboveBottomBarPad = 10 * S
 
@@ -338,10 +398,11 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   const belowGateFixed =
     gateStarGap + starH + 4 * S + condPanelH + condAboveBtn + startBtnH +
     progressUnderBtnGap + progressTextAllowance + aboveBottomBarPad
-  const aboveGateFixed = tabH + tabGap + chapterBandH + chapterBandGap + titleBlockH + titleGateGap
+  const tabTopGap = HOME_STAGE_UI.tabTopGap * S
+  const aboveGateFixed = tabTopGap + tabH + tabGap + chapterBandH + chapterBandGap + titleBlockH + titleGateGap
   const maxGateH = Math.max(96 * S, bottomLimit - minTop - aboveGateFixed - belowGateFixed)
 
-  const gateWDesired = W * 0.72
+  const gateWDesired = W * HOME_STAGE_UI.gateWidthFrac
   const gateHDesired = gateWDesired * gateAspect
 
   let gateW, gateH
@@ -354,7 +415,8 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   }
 
   // 从顶部向下排列：Tab → 章节带 → 标题区 → 门 → 星级
-  const tabY = minTop
+  // tabTopGap 让 Tab 和上方境界胶囊之间留出呼吸距离，两排胶囊不再挤在一起
+  const tabY = minTop + tabTopGap
   const chapterBandY = tabY + tabH + tabGap
   const titleTopY = chapterBandY + chapterBandH + chapterBandGap
   const gateX = cx - gateW / 2
@@ -373,32 +435,59 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
 
   // ══════ 难度 Tab ══════
   {
-    const tabW = W * 0.36
-    const tabBtnW = tabW / 2
+    const tabW = W * 0.40
+    const tabBtnW = (tabW - 4 * S) / 2
     const tabX = cx - tabW / 2
     const tabR = tabH / 2
 
+    ctx.save()
+    ctx.fillStyle = 'rgba(255,245,225,0.78)'
+    ctx.shadowColor = 'rgba(110,80,40,0.18)'
+    ctx.shadowBlur = 8 * S
+    R.rr(tabX, tabY, tabW, tabH, tabR)
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.strokeStyle = 'rgba(200,170,120,0.55)'
+    ctx.lineWidth = 1 * S
+    R.rr(tabX, tabY, tabW, tabH, tabR)
+    ctx.stroke()
+    ctx.restore()
+
     const nSel = !isElite
     ctx.save()
-    ctx.fillStyle = nSel ? 'rgba(160, 120, 50, 0.85)' : 'rgba(200, 185, 150, 0.25)'
-    R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.fill()
-    if (nSel) { ctx.strokeStyle = 'rgba(195, 160, 60, 0.5)'; ctx.lineWidth = 1 * S; R.rr(tabX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke() }
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = nSel ? '#fff' : 'rgba(120, 100, 70, 0.6)'
-    ctx.fillText('普通', tabX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
+    if (nSel) {
+      const ng = ctx.createLinearGradient(tabX, tabY, tabX, tabY + tabH)
+      ng.addColorStop(0, '#E8BF63')
+      ng.addColorStop(1, '#C9952A')
+      ctx.fillStyle = ng
+      R.rr(tabX + 2 * S, tabY + 2 * S, tabBtnW, tabH - 4 * S, tabR - 2 * S); ctx.fill()
+      ctx.strokeStyle = 'rgba(180,120,35,0.55)'
+      ctx.lineWidth = 1 * S
+      R.rr(tabX + 2 * S, tabY + 2 * S, tabBtnW, tabH - 4 * S, tabR - 2 * S); ctx.stroke()
+    }
+    ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = nSel ? '#fffaf1' : 'rgba(120, 100, 70, 0.78)'
+    ctx.fillText('普通', tabX + 2 * S + tabBtnW / 2, tabY + tabH / 2)
     ctx.restore()
-    g._diffTabNormalRect = [tabX, tabY, tabBtnW - 2 * S, tabH]
+    g._diffTabNormalRect = [tabX, tabY, tabW / 2, tabH]
 
-    const eX = tabX + tabBtnW + 2 * S
+    const eX = tabX + tabW / 2
     ctx.save()
-    ctx.fillStyle = isElite ? 'rgba(180, 120, 20, 0.9)' : 'rgba(200, 185, 150, 0.25)'
-    R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.fill()
-    if (isElite) { ctx.strokeStyle = 'rgba(218, 165, 32, 0.6)'; ctx.lineWidth = 1 * S; R.rr(eX, tabY, tabBtnW - 2 * S, tabH, tabR); ctx.stroke() }
-    ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = isElite ? '#fff8e0' : 'rgba(120, 100, 70, 0.6)'
-    ctx.fillText('精英', eX + (tabBtnW - 2 * S) / 2, tabY + tabH / 2)
+    if (isElite) {
+      const eg = ctx.createLinearGradient(eX, tabY, eX, tabY + tabH)
+      eg.addColorStop(0, '#E8BF63')
+      eg.addColorStop(1, '#C9952A')
+      ctx.fillStyle = eg
+      R.rr(eX + 2 * S, tabY + 2 * S, tabBtnW, tabH - 4 * S, tabR - 2 * S); ctx.fill()
+      ctx.strokeStyle = 'rgba(180,120,35,0.55)'
+      ctx.lineWidth = 1 * S
+      R.rr(eX + 2 * S, tabY + 2 * S, tabBtnW, tabH - 4 * S, tabR - 2 * S); ctx.stroke()
+    }
+    ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = isElite ? '#fffaf1' : 'rgba(120, 100, 70, 0.78)'
+    ctx.fillText('精英', eX + 2 * S + tabBtnW / 2, tabY + tabH / 2)
     ctx.restore()
-    g._diffTabEliteRect = [eX, tabY, tabBtnW - 2 * S, tabH]
+    g._diffTabEliteRect = [eX, tabY, tabW / 2, tabH]
   }
 
   if (!entry) {
@@ -429,24 +518,30 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   //   · 副标题整块作为 chapterMap 点击热区（原 _chapterBandRect 复用），尾部挂 '›' 提示可点
   {
     const stageLabel = `第${stage.chapter}章 · 第${stage.order}关`
-    const mainY = titleTopY + 21 * S
-    const subY = titleTopY + 41 * S
-    const mainFontPx = 15 * S
-    const mainFill = isElite ? '#c09848' : '#d4bc68'
-    const subFill = isElite ? '#c8b078' : '#d4c898'
+    const mainY = titleTopY + 30 * S
+    const subY = titleTopY + 54 * S
+    const mainFontPx = 20 * S
+    // 章节字体与颜色对齐原稿：
+    //   · 主标题 `第N章 · 第N关`：深棕红书法感实心字 + 浅米金外描边
+    //   · 副标题 `章节名 · 关卡名`：深红棕纯色
+    // 普通/精英共用同一套配色，避免精英关颜色跳脱
+    const chapterMainFill = '#5A2B0F'
+    const chapterStroke = 'rgba(255,241,206,0.95)'
+    const subFill = '#6A3714'
 
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.font = `bold ${mainFontPx}px "PingFang SC",sans-serif`
-    ctx.strokeStyle = '#1a0a02'
-    ctx.lineWidth = 3.5 * S
+    ctx.font = `900 ${mainFontPx}px "STKaiti","Kaiti SC","PingFang SC",sans-serif`
+    ctx.strokeStyle = chapterStroke
+    ctx.lineWidth = 4.8 * S
     ctx.lineJoin = 'round'
+    ctx.miterLimit = 2
     ctx.strokeText(stageLabel, cx, mainY)
-    ctx.shadowColor = isElite ? 'rgba(200, 90, 50, 0.28)' : 'rgba(160, 100, 30, 0.32)'
-    ctx.shadowBlur = 5 * S
+    ctx.shadowColor = 'rgba(90, 40, 12, 0.22)'
+    ctx.shadowBlur = 3 * S
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 1 * S
-    ctx.fillStyle = mainFill
+    ctx.fillStyle = chapterMainFill
     ctx.fillText(stageLabel, cx, mainY)
     ctx.restore()
 
@@ -459,22 +554,24 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     const arrowText = ' ›'
 
     let nameFontPx = 13 * S
-    ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
-    const maxNameW = gateW * 0.82
+    const subFontStack = '"STKaiti","Kaiti SC","PingFang SC",sans-serif'
+    ctx.font = `bold ${nameFontPx}px ${subFontStack}`
+    const maxNameW = gateW * 0.88
     while (ctx.measureText(subText + arrowText).width > maxNameW && nameFontPx > 9 * S) {
-      nameFontPx -= S; ctx.font = `bold ${nameFontPx}px "PingFang SC",sans-serif`
+      nameFontPx -= S; ctx.font = `bold ${nameFontPx}px ${subFontStack}`
     }
     const fullW = ctx.measureText(subText + arrowText).width
     const subHitH = Math.max(18 * S, nameFontPx + 6 * S)
 
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.strokeStyle = '#120806'
-    ctx.lineWidth = 2.5 * S
+    // 副标题对齐原稿：浅米色细描边 + 深红棕实心字
+    ctx.strokeStyle = 'rgba(255,244,214,0.78)'
+    ctx.lineWidth = 2.4 * S
     ctx.lineJoin = 'round'
     ctx.strokeText(subText + arrowText, cx, subY)
-    ctx.shadowColor = isElite ? 'rgba(160, 50, 40, 0.22)' : 'rgba(80, 45, 20, 0.22)'
-    ctx.shadowBlur = 4 * S
+    ctx.shadowColor = 'rgba(90, 40, 12, 0.18)'
+    ctx.shadowBlur = 3 * S
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 1 * S
     ctx.fillStyle = subFill
@@ -548,7 +645,7 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
   if (unlocked && stage.rating) {
     const bestRt = g.storage.getStageBestRating(stage.id)
     const bestSt = bestRt ? (RATING_ORDER[bestRt] || 0) : 0
-    const starFontSz = 16 * S
+    const starFontSz = 14 * S
     ctx.save()
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.font = `${starFontSz}px sans-serif`
@@ -575,13 +672,13 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
     const cx = ax + navW / 2
     const cy = ay + navH / 2
     const bg = ctx.createLinearGradient(ax, ay, ax, ay + navH)
-    bg.addColorStop(0, 'rgba(158, 120, 72, 0.58)')
-    bg.addColorStop(0.5, 'rgba(92, 68, 40, 0.52)')
-    bg.addColorStop(1, 'rgba(72, 50, 28, 0.56)')
+    bg.addColorStop(0, 'rgba(255,252,246,0.62)')
+    bg.addColorStop(0.5, 'rgba(235,220,192,0.54)')
+    bg.addColorStop(1, 'rgba(190,166,122,0.46)')
     ctx.fillStyle = bg
     R.rr(ax, ay, navW, navH, navR)
     ctx.fill()
-    ctx.strokeStyle = 'rgba(240, 210, 140, 0.42)'
+    ctx.strokeStyle = 'rgba(214, 183, 128, 0.55)'
     ctx.lineWidth = 1 * S
     R.rr(ax, ay, navW, navH, navR)
     ctx.stroke()
@@ -597,20 +694,20 @@ function _drawStageSceneArea(g, ctx, R, W, S, L) {
       ctx.lineTo(cx - chevTip * 0.15, cy + chevTip * 0.92)
     }
     ctx.closePath()
-    ctx.fillStyle = 'rgba(255, 248, 235, 0.96)'
+    ctx.fillStyle = 'rgba(132, 96, 52, 0.92)'
     ctx.fill()
     ctx.restore()
   }
 
   if (g._selectedStageIdx > 0) {
-    const lx = Math.max(2 * S, gateX - navW - 4 * S)
+    const lx = Math.max(2 * S, gateX - navW - HOME_STAGE_UI.arrowGapPt * S)
     const ly = arrowCY - navH / 2
     _drawStageNavBtn(lx, ly, -1)
     g._stageArrowLeftRect = [lx, ly, navW, navH]
   } else { g._stageArrowLeftRect = null }
 
   if (g._selectedStageIdx < list.length - 1) {
-    const rx = Math.min(W - navW - 2 * S, gateX + gateW + 4 * S)
+    const rx = Math.min(W - navW - 2 * S, gateX + gateW + HOME_STAGE_UI.arrowGapPt * S)
     const ry = arrowCY - navH / 2
     _drawStageNavBtn(rx, ry, 1)
     g._stageArrowRightRect = [rx, ry, navW, navH]
@@ -637,9 +734,9 @@ function drawAvatarWidget(g) {
   }
   const sitPath = CHAR_MAP[selectedId] || CHAR_MAP.boy1
 
-  const rowY = safeTop + 48 * S
-  const iconSz = 48 * S
-  const iconX = 10 * S
+  const rowY = safeTop + HOME_STATUS_UI.avatarRowTopPt * S
+  const iconSz = HOME_STATUS_UI.avatarSizePt * S
+  const iconX = HOME_STATUS_UI.avatarLeftPt * S
   const iconCX = iconX + iconSz / 2
   const iconCY = rowY + iconSz / 2
 
@@ -669,59 +766,78 @@ function drawAvatarWidget(g) {
     ctx.strokeStyle = 'rgba(220,180,60,0.9)'; ctx.lineWidth = 2 * S; ctx.stroke()
   }
 
-  // 等级角标（头像左上方）
-  const lvText = `Lv.${level}`
-  ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  const lvTxtW = ctx.measureText(lvText).width
-  const lvPadX = 5 * S
-  const lvCapW = lvTxtW + lvPadX * 2
-  const lvCapH = 16 * S
-  const lvCapR = lvCapH / 2
-  const lvCapCX = iconCX + iconSz * 0.22
-  const lvCapCY = iconCY + iconSz * 0.42
-  const lvCapX = lvCapCX - lvCapW / 2
-  const lvCapY = lvCapCY - lvCapH / 2
+  // 头像正下方显示名字（替代原 Lv 胶囊）：
+  //   · 授权后用微信/抖音昵称，未授权用 storage.getDisplayNickName() → "修士·XXXX"
+  //     和排行榜 / openDataContext 完全同源，一次授权即可全链路切换
+  //   · 超长截断到 nameMaxChars，和排行榜 `substring(0, 8)` 对齐
+  const rawNick = (g.storage.getDisplayNickName && g.storage.getDisplayNickName()) || '修士'
+  const nickText = String(rawNick).substring(0, HOME_STATUS_UI.nameMaxChars)
+  const nickCX = iconCX
+  const nickCY = rowY + iconSz + HOME_STATUS_UI.nameGapPt * S + HOME_STATUS_UI.nameFontPt * S / 2
 
-  ctx.beginPath()
-  R.rr(lvCapX, lvCapY, lvCapW, lvCapH, lvCapR)
-  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill()
-  ctx.strokeStyle = 'rgba(220,185,60,0.5)'; ctx.lineWidth = 0.8 * S; ctx.stroke()
-  ctx.fillStyle = '#fff8cc'
-  ctx.fillText(lvText, lvCapCX, lvCapCY)
+  ctx.save()
+  ctx.font = `bold ${HOME_STATUS_UI.nameFontPt * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.strokeStyle = 'rgba(30,20,10,0.55)'
+  ctx.lineWidth = 2.4 * S
+  ctx.lineJoin = 'round'
+  ctx.strokeText(nickText, nickCX, nickCY)
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 2 * S
+  ctx.fillStyle = '#fff5cf'
+  ctx.fillText(nickText, nickCX, nickCY)
+  ctx.restore()
 
   // ── 右侧区域起点 ──
-  const rightX = iconX + iconSz + 8 * S
+  const rightX = iconX + iconSz + HOME_STATUS_UI.avatarGapRightPt * S
 
-  // ── 灵石 + 体力胶囊（上排）──
-  const pillH = 22 * S
+  // ── 灵石 + 体力 + 觉醒石 + 万能碎片胶囊（上排）──
+  // 视觉审美升级：
+  //   · 胶囊拔高 22→24，字号 11→12，宝石图标 18→20，整体更"站得住"
+  //   · 底色从纯黑改成深紫蓝玻璃色，呼应仙侠紫金基调
+  //   · 顶部叠一层轻微高光渐变，营造玻璃/宝石质感
+  //   · 金丝描边加粗到 0.9*S 并提亮，与原稿一致
+  const pillH = 24 * S
   const pillR = pillH / 2
-  const pillIconSz = 18 * S
+  const pillIconSz = 20 * S
   const pillGap = 6 * S
   const pillCY = rowY + iconSz * 0.5
 
   // dim=true 时整体半透明（用于资源为 0 时的占位，帮助新玩家建立认知）
   // rich=true 时用金色高光描边（用于体力超出 maxStamina 的"充裕"态，暗示可尽情消耗存货）
   function _drawPill(px, text, iconPath, dim, rich) {
-    ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
+    ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     const tw = ctx.measureText(text).width
     const innerPad = 4 * S
-    const pillW = pillIconSz + innerPad + tw + 8 * S
+    const padR = 10 * S
+    const pillW = pillIconSz + innerPad + tw + padR
     const py = pillCY - pillH / 2
 
     ctx.save()
     if (dim) ctx.globalAlpha = 0.45
+
+    // 主底色：rich 态用暖金棕，预示"充裕/可消耗"；常态用深紫蓝玻璃
     ctx.beginPath()
     R.rr(px, py, pillW, pillH, pillR)
-    ctx.fillStyle = rich ? 'rgba(60,36,0,0.55)' : 'rgba(0,0,0,0.42)'
+    ctx.fillStyle = rich ? 'rgba(66,40,6,0.62)' : 'rgba(40,26,72,0.58)'
     ctx.fill()
+
+    // 顶部高光：一条从上 13% 白到透明的线性渐变，叠在底色上制造玻璃反光
+    // 必须保留同一 path 再填一次；不 beginPath 会累加 stroke，需在 fill 后再 stroke
+    const hl = ctx.createLinearGradient(px, py, px, py + pillH * 0.55)
+    hl.addColorStop(0, 'rgba(255,255,255,0.13)')
+    hl.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = hl
+    ctx.fill()
+
+    // 外描边：金丝；rich 态更亮更粗，常态稍柔以不抢注意力
     if (rich) {
-      ctx.strokeStyle = 'rgba(255,210,110,0.85)'
+      ctx.strokeStyle = 'rgba(255,215,120,0.88)'
       ctx.lineWidth = 1.1 * S
     } else {
-      ctx.strokeStyle = 'rgba(200,180,120,0.25)'
-      ctx.lineWidth = 0.6 * S
+      ctx.strokeStyle = 'rgba(255,214,120,0.42)'
+      ctx.lineWidth = 0.9 * S
     }
     ctx.stroke()
 
@@ -761,11 +877,41 @@ function drawAvatarWidget(g) {
   // 记录万能碎片胶囊位置，供新手礼包飞入终点 / 脉冲高亮使用
   g._uniFragPillRect = [ufPillX, pillCY - pillH / 2, ufPillW, pillH]
 
-  // ── 经验条（灵石/体力/觉醒石/万能碎片下方）──
-  const expBarY = pillCY + pillH / 2 + 4 * S
-  const expBarH = 7 * S
-  const expBarX = rightX
-  const expBarW = ssPillW + pillGap + stPillW + pillGap + asPillW + pillGap + ufPillW
+  // ── 等级条行（资源胶囊下方）：Lv 小胶囊 + 经验条并排，对齐参考图身份条 ──
+  const rowBarCY = pillCY + pillH / 2 + HOME_STATUS_UI.expBarGapPt * S + HOME_STATUS_UI.expBarHeightPt * S / 2
+  const expBarH = HOME_STATUS_UI.expBarHeightPt * S
+  const expBarY = rowBarCY - expBarH / 2
+  const rowTotalW = ssPillW + pillGap + stPillW + pillGap + asPillW + pillGap + ufPillW
+
+  const lvText = `Lv.${level}`
+  const lvFontPx = HOME_STATUS_UI.lvPillFontPt * S
+  const lvCapH = HOME_STATUS_UI.lvPillHeightPt * S
+  const lvCapR = lvCapH / 2
+  const lvPadX = HOME_STATUS_UI.lvPillPadXPt * S
+
+  ctx.save()
+  ctx.font = `bold ${lvFontPx}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const lvTxtW = ctx.measureText(lvText).width
+  const lvCapW = lvTxtW + lvPadX * 2
+  const lvCapX = rightX
+  const lvCapY = rowBarCY - lvCapH / 2
+
+  const lvGrad = ctx.createLinearGradient(lvCapX, lvCapY, lvCapX, lvCapY + lvCapH)
+  lvGrad.addColorStop(0, 'rgba(70,54,112,0.96)')
+  lvGrad.addColorStop(1, 'rgba(35,25,68,0.96)')
+  R.rr(lvCapX, lvCapY, lvCapW, lvCapH, lvCapR)
+  ctx.fillStyle = lvGrad; ctx.fill()
+  ctx.strokeStyle = 'rgba(230,198,104,0.72)'; ctx.lineWidth = 0.9 * S; ctx.stroke()
+  ctx.fillStyle = '#fff8cc'
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 2 * S
+  ctx.fillText(lvText, lvCapX + lvCapW / 2, rowBarCY)
+  ctx.restore()
+
+  // 经验条：从 Lv 胶囊右边开始，一直延伸到资源胶囊右沿
+  const expBarX = lvCapX + lvCapW + HOME_STATUS_UI.lvExpGapPt * S
+  const expBarW = Math.max(40 * S, rightX + rowTotalW - expBarX)
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)'
   R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()
@@ -782,18 +928,20 @@ function drawAvatarWidget(g) {
       ctx.fillStyle = barGrad
       R.rr(expBarX, expBarY, fillW, expBarH, expBarH / 2); ctx.fill()
     }
-    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.72)'
     ctx.font = `${8*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`${curExp}/${needed}`, expBarX + expBarW - 2 * S, expBarY + expBarH / 2)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(`${curExp}/${needed}`, expBarX + expBarW - 4 * S, rowBarCY)
   } else {
     const barGrad = ctx.createLinearGradient(expBarX, expBarY, expBarX + expBarW, expBarY)
     barGrad.addColorStop(0, '#D4A843')
     barGrad.addColorStop(1, '#F0C860')
     ctx.fillStyle = barGrad
     R.rr(expBarX, expBarY, expBarW, expBarH, expBarH / 2); ctx.fill()
-    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.7)'
-    ctx.font = `${8*S}px "PingFang SC",sans-serif`
-    ctx.fillText('MAX', expBarX + expBarW / 2, expBarY + expBarH / 2)
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.font = `bold ${8*S}px "PingFang SC",sans-serif`
+    ctx.textBaseline = 'middle'
+    ctx.fillText('MAX', expBarX + expBarW / 2, rowBarCY)
   }
 
   ctx.restore()
@@ -910,6 +1058,14 @@ function drawStartBtn(g) {
       ctx.fillStyle = grad
       R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
     }
+    ctx.save()
+    const btnGlow = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH * 0.55)
+    btnGlow.addColorStop(0, 'rgba(255,255,255,0.18)')
+    btnGlow.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = btnGlow
+    R.rr(btnX + 3 * S, btnY + 3 * S, btnW - 6 * S, btnH * 0.48, btnH * 0.22)
+    ctx.fill()
+    ctx.restore()
     ctx.globalAlpha = 1
 
     // 按钮文字
@@ -973,22 +1129,14 @@ function drawStartBtn(g) {
       ctx.restore()
     }
 
-    // 按钮上方：通关条件星级说明
+    // 按钮上方：独立三卡目标区
+    // 目标是把“成功通关 / ≤12回合 / ≤9回合”从背景里抠出来，
+    // 让玩家一眼知道这一关的完成条件，而不是埋在一条弱对比度横条里。
     if (stage && stage.rating && stageUnlocked) {
-      const condW = W * 0.78
-      const condH = (SC.condPanelPt != null ? SC.condPanelPt : 38) * S
+      const condW = W * HOME_STAGE_UI.condSectionWidthFrac
+      const condH = HOME_STAGE_UI.condCardH * S
       const condX = (W - condW) / 2
-      const condY = btnY - condH - (SC.condAboveStartBtnPt != null ? SC.condAboveStartBtnPt : 10) * S
-
-      ctx.save()
-      ctx.fillStyle = 'rgba(50, 35, 10, 0.1)'
-      R.rr(condX, condY, condW, condH, 8 * S)
-      ctx.fill()
-      ctx.strokeStyle = 'rgba(180, 150, 70, 0.15)'
-      ctx.lineWidth = 0.8 * S
-      R.rr(condX, condY, condW, condH, 8 * S)
-      ctx.stroke()
-      ctx.restore()
+      const condY = btnY - condH - HOME_STAGE_UI.condAboveBtnGap * S
 
       const conds = [
         { stars: 1, label: '成功通关' },
@@ -997,20 +1145,59 @@ function drawStartBtn(g) {
       ]
       const bestRt = g.storage.getStageBestRating(stage.id)
       const bestSt = bestRt ? (RATING_ORDER[bestRt] || 0) : 0
-      const colW2 = condW / 3
+      const gap = HOME_STAGE_UI.condCardGap * S
+      const colW2 = (condW - gap * 2) / 3
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       for (let ci = 0; ci < 3; ci++) {
-        const ccx = condX + colW2 * ci + colW2 / 2
+        const cardX = condX + (colW2 + gap) * ci
+        const ccx = cardX + colW2 / 2
         const done = bestSt >= conds[ci].stars
 
-        ctx.font = `bold ${12 * S}px sans-serif`
-        ctx.fillStyle = done ? '#b87a10' : 'rgba(100,80,45,0.5)'
-        ctx.fillText('★'.repeat(conds[ci].stars) + '☆'.repeat(3 - conds[ci].stars), ccx, condY + 13 * S)
+        // 通关目标卡按原稿继续收：
+        // 底色做成接近透明的薄磨砂，靠金色描边把卡框勾出来，让背景透过来。
+        // 视觉优先级远低于章节标题和开始按钮，只承担“信息承载”角色。
+        ctx.save()
+        ctx.fillStyle = done ? 'rgba(255,253,246,0.28)' : 'rgba(255,252,244,0.20)'
+        R.rr(cardX, condY, colW2, condH, HOME_STAGE_UI.condRadius * S)
+        ctx.fill()
 
-        ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
-        ctx.fillStyle = done ? '#5a3a08' : 'rgba(70,50,20,0.55)'
-        ctx.fillText(conds[ci].label, ccx, condY + 28 * S)
+        ctx.strokeStyle = done ? 'rgba(214,182,116,0.78)' : 'rgba(204,182,140,0.58)'
+        ctx.lineWidth = 1 * S
+        R.rr(cardX, condY, colW2, condH, HOME_STAGE_UI.condRadius * S)
+        ctx.stroke()
+
+        // 星级按原稿：默认也要亮起来，用“实心金星 vs 淡金空心星”区分活跃与空位，
+        // 不再用灰色表示未达成 —— 玩家一眼就知道“这关要几星”
+        const activeStars = conds[ci].stars
+        const starLabelY = condY + 20 * S
+        const textLabelY = condY + 42 * S
+        const starFontSz = HOME_STAGE_UI.condStarFont * S
+        const starStep = starFontSz * 0.95
+        const starRowLeft = ccx - starStep
+
+        ctx.font = `bold ${starFontSz}px sans-serif`
+        ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
+        for (let si = 0; si < 3; si++) {
+          const lit = si < activeStars
+          const sx = starRowLeft + si * starStep
+          ctx.save()
+          if (lit) {
+            ctx.shadowColor = done ? 'rgba(220,160,40,0.55)' : 'rgba(220,160,40,0.35)'
+            ctx.shadowBlur = done ? 6 * S : 4 * S
+            ctx.fillStyle = done ? '#D99A1C' : '#E5B445'
+            ctx.fillText('★', sx, starLabelY)
+          } else {
+            ctx.fillStyle = 'rgba(205,175,115,0.55)'
+            ctx.fillText('☆', sx, starLabelY)
+          }
+          ctx.restore()
+        }
+
+        ctx.font = `bold ${HOME_STAGE_UI.condLabelFont * S}px "PingFang SC",sans-serif`
+        ctx.fillStyle = done ? '#6B471A' : 'rgba(104,82,48,0.92)'
+        ctx.fillText(conds[ci].label, ccx, textLabelY)
+        ctx.restore()
       }
     }
 
@@ -1018,10 +1205,10 @@ function drawStartBtn(g) {
     if (stage && stageUnlocked) {
       const clearCount = g.storage.getStageClearCount(stage.id)
       const progressText = clearCount > 0 ? `已通关 ${clearCount} 次` : '尚未通关'
-      ctx.fillStyle = 'rgba(80,50,20,0.6)'
+      ctx.fillStyle = 'rgba(92,58,24,0.72)'
       ctx.font = `${10*S}px "PingFang SC",sans-serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(progressText, W / 2, btnY + btnH + 10 * S)
+      ctx.fillText(progressText, W / 2, btnY + btnH + HOME_STAGE_UI.stageProgressGap * S)
     }
   }
 
@@ -1142,7 +1329,7 @@ function _rightEntryGeometry(top, S) {
 
 /** 签到入口几何（drawDailySignBtn 使用） */
 function _dailySignBtnGeometry(safeTop, S) {
-  const top = safeTop + TITLE_HOME.dailySignTopBelowSafePt * S
+  const top = safeTop + (TITLE_HOME.dailySignTopBelowSafePt + HOME_RIGHT_ENTRY_UI.topOffsetPt) * S
   return _rightEntryGeometry(top, S)
 }
 
@@ -1737,30 +1924,41 @@ function _drawHomeDailyTaskRewardPreview(c, R, reward, x, y, w, h, S, tone) {
   c.restore()
 }
 
+// 从 "3/6" 这种文案里解析已完成任务数；解析失败返回 0
+function _parseOverallCompleted(overallText) {
+  if (!overallText) return 0
+  const m = /^(\d+)\s*\/\s*\d+$/.exec(String(overallText))
+  return m ? Math.max(0, parseInt(m[1], 10)) : 0
+}
+
+// ===== 首页任务指引卡：仿仙侠长条卷轴 =====
+// 设计对齐用户原稿：
+//   · 整卡：月白/米色玻璃底 + 外金边 + 内细金描边 + 柔和阴影
+//   · 左侧：青玉圆盘（法器章印）+ 金环 + 任务卷轴图标
+//   · 中间上：小号 badge（进行中/完成/翻倍）；中间下：粗体主文案
+//   · 中间底：N 个进度圆点，已完成金色实心、未完成淡灰描边（比条形进度条更有仪式感）
+//   · 右侧：金色粗箭头 '›'
 function drawHomeDailyTaskTracker(g) {
   const { ctx: c, R, W, S } = V
   const tracker = _getHomeDailyTaskTracker(g)
   const actionable = tracker.tone === 'ready'
   const doneTone = tracker.tone === 'claimed'
   const gateRect = g._stageGateRect || null
-  const cardW = Math.min(92 * S, W * 0.255)
-  const cardH = 35 * S
+
+  // 尺寸受限：首页副标题正好压在本卡顶部，cardH 一旦 > 34 就会撞副标题。
+  // 原稿那种长条卷轴 = 宽/高 ≈ 3:1；在不打架的前提下整体再收 10%，
+  // 让卡片更轻巧、不抢大门视觉。cardW 110 × cardH 32。
+  const cardW = Math.min(110 * S, W * 0.3)
+  const cardH = 32 * S
   const rad = 9 * S
   const fallbackX = 8 * S
   const fallbackY = (getLayout().bottomBarY || (V.H - 72 * S)) - cardH - 2 * S
   const x = gateRect
-    ? Math.max(6 * S, gateRect[0] - cardW - 11 * S)
+    ? Math.max(6 * S, gateRect[0] - cardW - 10 * S)
     : fallbackX
   const y = gateRect
-    ? Math.max(90 * S, gateRect[1] - 19 * S)
+    ? Math.max(90 * S, gateRect[1] - 16 * S)
     : fallbackY
-  const barX = x + 8 * S
-  const barY = y + cardH - 6 * S
-  const barW = cardW - 16 * S
-  const barH = 3.2 * S
-  const arrowCX = x + cardW - 10 * S
-  const arrowCY = y + cardH / 2 + 0.2 * S
-  const mainText = actionable ? tracker.title : (tracker.subtitle || tracker.title)
 
   g._homeDailyTaskRect = [x, y, cardW, cardH]
   g._homeDailyTaskTarget = {
@@ -1771,6 +1969,7 @@ function drawHomeDailyTaskTracker(g) {
   }
 
   c.save()
+
   if (tracker.pulse) {
     const pulse = 0.28 + 0.18 * Math.sin((g.af || 0) * 0.08)
     c.save()
@@ -1784,72 +1983,150 @@ function drawHomeDailyTaskTracker(g) {
     c.restore()
   }
 
+  // ── 卡底：月白/米色纵向渐变 + 柔和阴影
   c.save()
-  c.shadowColor = actionable ? 'rgba(186,134,36,0.16)' : 'rgba(96,72,36,0.1)'
-  c.shadowBlur = 6 * S
-  c.shadowOffsetY = 1.2 * S
+  c.shadowColor = 'rgba(140,100,40,0.20)'
+  c.shadowBlur = 8 * S
+  c.shadowOffsetY = 2 * S
   const bgGrad = c.createLinearGradient(x, y, x, y + cardH)
   if (doneTone) {
-    bgGrad.addColorStop(0, 'rgba(242,251,239,0.98)')
-    bgGrad.addColorStop(1, 'rgba(225,241,220,0.94)')
+    bgGrad.addColorStop(0, 'rgba(248,253,246,0.97)')
+    bgGrad.addColorStop(1, 'rgba(230,244,226,0.93)')
   } else if (actionable) {
-    bgGrad.addColorStop(0, 'rgba(255,249,225,0.99)')
-    bgGrad.addColorStop(1, 'rgba(249,226,162,0.96)')
+    bgGrad.addColorStop(0, 'rgba(255,252,236,0.98)')
+    bgGrad.addColorStop(1, 'rgba(252,236,192,0.94)')
   } else {
-    bgGrad.addColorStop(0, 'rgba(252,247,235,0.97)')
-    bgGrad.addColorStop(1, 'rgba(241,229,204,0.94)')
+    bgGrad.addColorStop(0, 'rgba(253,248,237,0.97)')
+    bgGrad.addColorStop(1, 'rgba(244,231,204,0.93)')
   }
   c.fillStyle = bgGrad
   R.rr(x, y, cardW, cardH, rad)
   c.fill()
   c.restore()
 
-  c.strokeStyle = doneTone ? 'rgba(104,173,109,0.34)' : actionable ? 'rgba(214,156,28,0.4)' : 'rgba(164,126,66,0.3)'
-  c.lineWidth = 1 * S
-  R.rr(x, y, cardW, cardH, rad)
-  c.stroke()
-
-  c.fillStyle = doneTone ? 'rgba(100,186,105,0.8)' : actionable ? 'rgba(235,174,45,0.96)' : 'rgba(205,157,86,0.84)'
-  R.rr(x + 5 * S, y + 6 * S, 3 * S, cardH - 12 * S, 1.5 * S)
+  // 顶部高光（玻璃反光感）
+  c.save()
+  const hl = c.createLinearGradient(x, y, x, y + cardH * 0.5)
+  hl.addColorStop(0, 'rgba(255,255,255,0.34)')
+  hl.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = hl
+  R.rr(x + 1 * S, y + 1 * S, cardW - 2 * S, cardH * 0.46, rad - 1 * S)
   c.fill()
+  c.restore()
 
-  c.font = `bold ${6.8 * S}px "PingFang SC",sans-serif`
-  const badgeW = Math.max(24 * S, c.measureText(tracker.badge).width + 9 * S)
-  const badgeH = 11.5 * S
-  const badgeX = x + 9 * S
-  const badgeY = y + 4.5 * S
-  c.fillStyle = doneTone ? 'rgba(224,242,227,0.98)' : actionable ? 'rgba(255,242,201,0.98)' : 'rgba(246,235,211,0.96)'
-  R.rr(badgeX, badgeY, badgeW, badgeH, badgeH / 2)
-  c.fill()
-  c.fillStyle = doneTone ? '#2F7B40' : actionable ? '#9C5400' : '#8A5A1E'
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText(tracker.badge, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.1 * S)
+  // 双层金描边：外粗暖金 + 内细浅金
+  c.save()
+  c.strokeStyle = doneTone ? 'rgba(118,170,122,0.72)' : 'rgba(212,168,76,0.85)'
+  c.lineWidth = 1.3 * S
+  R.rr(x, y, cardW, cardH, rad); c.stroke()
+  c.strokeStyle = 'rgba(255,238,182,0.72)'
+  c.lineWidth = 0.8 * S
+  R.rr(x + 1.6 * S, y + 1.6 * S, cardW - 3.2 * S, cardH - 3.2 * S, rad - 1.6 * S); c.stroke()
+  c.restore()
 
-  c.textAlign = 'left'
-  c.fillStyle = actionable ? '#7B3500' : doneTone ? '#2D5C33' : '#59340B'
-  c.font = `bold ${8.1 * S}px "PingFang SC",sans-serif`
-  c.shadowColor = 'rgba(255,255,255,0.36)'
+  // ── 左侧圆盘（法器章印）
+  const discR = (cardH - 10 * S) / 2
+  const discCX = x + 5 * S + discR
+  const discCY = y + cardH / 2
+  c.save()
+  const discGrad = c.createRadialGradient(
+    discCX - discR * 0.35, discCY - discR * 0.35, discR * 0.2,
+    discCX, discCY, discR
+  )
+  if (doneTone) {
+    discGrad.addColorStop(0, 'rgba(228,246,230,0.96)')
+    discGrad.addColorStop(1, 'rgba(178,212,186,0.9)')
+  } else {
+    discGrad.addColorStop(0, 'rgba(228,244,238,0.96)')
+    discGrad.addColorStop(1, 'rgba(168,198,192,0.88)')
+  }
+  c.fillStyle = discGrad
+  c.beginPath(); c.arc(discCX, discCY, discR, 0, Math.PI * 2); c.fill()
+  c.strokeStyle = 'rgba(214,170,78,0.92)'
+  c.lineWidth = 1.4 * S
+  c.beginPath(); c.arc(discCX, discCY, discR - 0.5 * S, 0, Math.PI * 2); c.stroke()
+  c.restore()
+
+  const iconImg = R.getImg('assets/ui/daily_task_icon.png')
+  if (iconImg && iconImg.width > 0) {
+    c.save()
+    c.beginPath(); c.arc(discCX, discCY, discR - 2 * S, 0, Math.PI * 2); c.clip()
+    const iconSz = discR * 1.55
+    c.drawImage(iconImg, discCX - iconSz / 2, discCY - iconSz / 2, iconSz, iconSz)
+    c.restore()
+  } else {
+    c.save()
+    c.fillStyle = 'rgba(120,80,30,0.55)'
+    c.font = `bold ${discR * 1.1}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText('任', discCX, discCY)
+    c.restore()
+  }
+
+  // ── 文字/进度区域（cardH 32 下三层：badge 8 / title 17 / dots 26）
+  const textX = discCX + discR + 4 * S
+  const arrowBoxW = 12 * S
+  const textRight = x + cardW - arrowBoxW - 3 * S
+  const textMaxW = Math.max(28 * S, textRight - textX)
+
+  c.save()
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.font = `bold ${6.2 * S}px "PingFang SC",sans-serif`
+  c.fillStyle = doneTone ? 'rgba(74,128,88,0.95)' : actionable ? 'rgba(170,104,18,0.95)' : 'rgba(150,102,46,0.92)'
+  c.fillText(tracker.badge, textX, y + 8 * S)
+  c.restore()
+
+  const mainText = actionable ? tracker.title : (tracker.subtitle || tracker.title)
+  c.save()
+  c.textAlign = 'left'; c.textBaseline = 'middle'
+  c.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+  c.fillStyle = actionable ? '#7B3500' : doneTone ? '#2F5C38' : '#5B3916'
+  c.shadowColor = 'rgba(255,245,218,0.55)'
   c.shadowBlur = 1.5 * S
-  c.fillText(_fitSingleLineText(c, mainText, cardW - 34 * S), x + 10 * S, y + 19.5 * S)
-  c.shadowBlur = 0
+  c.fillText(_fitSingleLineText(c, mainText, textMaxW), textX, y + 17 * S)
+  c.restore()
 
-  c.fillStyle = 'rgba(90,60,20,0.13)'
-  R.rr(barX, barY, barW, barH, barH / 2)
-  c.fill()
-  c.fillStyle = doneTone ? '#6CC07B' : actionable ? '#F0B83A' : '#D59F4B'
-  R.rr(barX, barY, Math.max(barH, barW * tracker.progress), barH, barH / 2)
-  c.fill()
+  const dotCount = (DAILY_TASKS && DAILY_TASKS.length) || 6
+  const completedCount = Math.min(dotCount, _parseOverallCompleted(tracker.overallText))
+  const dotR = 1.7 * S
+  const dotGap = Math.min(4.4 * S, Math.max(1.8 * S, (textMaxW - dotR * 2 * dotCount) / Math.max(1, dotCount - 1)))
+  const dotsStartX = textX + dotR
+  const dotsY = y + cardH - 5.5 * S
+  c.save()
+  for (let i = 0; i < dotCount; i++) {
+    const cxDot = dotsStartX + i * (dotR * 2 + dotGap)
+    c.beginPath(); c.arc(cxDot, dotsY, dotR, 0, Math.PI * 2)
+    if (i < completedCount) {
+      c.fillStyle = actionable ? '#E0A93E' : doneTone ? '#5DA86A' : '#C88C32'
+      c.fill()
+      c.strokeStyle = 'rgba(255,255,255,0.92)'
+      c.lineWidth = 0.6 * S
+      c.stroke()
+    } else {
+      c.fillStyle = 'rgba(120,90,50,0.14)'
+      c.fill()
+      c.strokeStyle = 'rgba(150,115,70,0.45)'
+      c.lineWidth = 0.7 * S
+      c.stroke()
+    }
+  }
+  c.restore()
 
+  // ── 右侧金色粗箭头
+  const arrowCX = x + cardW - 8 * S
+  const arrowCY = y + cardH / 2
+  c.save()
   c.strokeStyle = actionable ? '#B87418' : doneTone ? '#5C9765' : '#9A6A33'
-  c.lineWidth = 1.8 * S
+  c.lineWidth = 2 * S
   c.lineCap = 'round'
   c.lineJoin = 'round'
   c.beginPath()
-  c.moveTo(arrowCX - 3.2 * S, arrowCY - 3.6 * S)
-  c.lineTo(arrowCX + 0.4 * S, arrowCY)
-  c.lineTo(arrowCX - 3.2 * S, arrowCY + 3.6 * S)
+  c.moveTo(arrowCX - 2.6 * S, arrowCY - 3.6 * S)
+  c.lineTo(arrowCX + 0.8 * S, arrowCY)
+  c.lineTo(arrowCX - 2.6 * S, arrowCY + 3.6 * S)
   c.stroke()
+  c.restore()
+
   c.restore()
 }
 
