@@ -79,7 +79,7 @@ const api = {
 
   getRankingList(tab, limit) {
     tab = tab || 'all'
-    limit = limit || 50
+    limit = limit || 100
     return _request('GET', `/api/ranking/list?tab=${tab}&limit=${limit}`)
   },
 

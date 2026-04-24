@@ -56,6 +56,12 @@ const GM_OPENIDS = [
   "oEnZR3VWQoOEG0U9fhgFCatXLsY4",
 ]
 
+// 排行榜返回给客户端的最大条数：扩容显示"百强"更有人气，配套客户端里程碑也按百强演进
+//   · 显示上限 100 名
+//   · 拉取/去重上限 FETCH_CAP_DEFAULT：至少比 LIST_SIZE 多一点，防止去重后不满 100
+const LIST_SIZE = 100
+const FETCH_CAP_DEFAULT = 200
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const openid = wxContext.OPENID
@@ -198,7 +204,7 @@ exports.main = async (event, context) => {
         return 0
       }
       const deduped = _deduplicateByOpenid(res.data, cmp)
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       let myRank = -1
       const myIdxInList = deduped.findIndex(r => (r.uid === openid) || (r._openid === openid))
@@ -281,7 +287,7 @@ exports.main = async (event, context) => {
       if (queryTier) query = query.where({ realmTier: queryTier })
       const getRes = await query
         .orderBy('floor', 'desc')
-        .limit(100)
+        .limit(FETCH_CAP_DEFAULT)
         .get()
       debug.getCount = getRes.data.length
       debug.fetchMs = Date.now() - t0
@@ -294,7 +300,7 @@ exports.main = async (event, context) => {
 
       const deduped = _deduplicateByOpenid(records, _rankAllComparator)
       debug.dedupedCount = deduped.length
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       // 3. 从已拉到的数据中找自己排名
       let myRank = -1
@@ -303,7 +309,7 @@ exports.main = async (event, context) => {
         myRank = idx + 1
         debug.myFoundIn = 'cache'
       } else {
-        // 不在前100条里
+        // 不在前 FETCH_CAP_DEFAULT 条缓存里，回退精确查询
         const myWhere = queryTier
           ? _.and([{ realmTier: queryTier }, _.or([{ uid: openid }, { _openid: openid }])])
           : _.or([{ uid: openid }, { _openid: openid }])
@@ -348,7 +354,7 @@ exports.main = async (event, context) => {
       if (tierFilter) query = query.where({ realmTier: tierFilter })
       const getRes = await query
         .orderBy('floor', 'desc')
-        .limit(100)
+        .limit(FETCH_CAP_DEFAULT)
         .get()
       debug.getCount = getRes.data.length
       debug.fetchMs = Date.now() - t0
@@ -373,7 +379,7 @@ exports.main = async (event, context) => {
         return bTime - aTime
       })
       debug.dedupedCount = deduped.length
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       // 先尝试从已有的 100 条数据中找到自己（避免额外查询）
       let myRank = -1
@@ -399,7 +405,7 @@ exports.main = async (event, context) => {
         }
         debug.myFoundIn = 'cache'
       } else {
-        // 不在前 100 条里，需要额外查询（1次DB）
+        // 不在前 FETCH_CAP_DEFAULT 条缓存里，需要额外查询（1次DB）
         const myWhere = tierFilter
           ? _.and([{ realmTier: tierFilter }, _.or([{ uid: openid }, { _openid: openid }])])
           : _.or([{ uid: openid }, { _openid: openid }])
@@ -453,7 +459,7 @@ exports.main = async (event, context) => {
         return bTime - aTime
       }
       const deduped = _deduplicateByOpenid(res.data, cmp)
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       let myRank = -1
       // 先在 deduped 里找自己，找到直接用 index（和前端看到的列表顺序一致）
@@ -494,7 +500,7 @@ exports.main = async (event, context) => {
         return bTime - aTime
       }
       const deduped = _deduplicateByOpenid(res.data, cmp)
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       let myRank = -1
       const myIdxInList = deduped.findIndex(r => (r.uid === openid) || (r._openid === openid))
@@ -555,7 +561,7 @@ exports.main = async (event, context) => {
       const getRes = await db.collection('rankAllWeekly')
         .where(baseWhere)
         .orderBy('floor', 'desc')
-        .limit(100)
+        .limit(FETCH_CAP_DEFAULT)
         .get()
       debug.getCount = getRes.data.length
       debug.fetchMs = Date.now() - t0
@@ -567,7 +573,7 @@ exports.main = async (event, context) => {
       }
 
       const deduped = _deduplicateByOpenid(records, _rankAllComparator)
-      const list = deduped.slice(0, 50)
+      const list = deduped.slice(0, LIST_SIZE)
 
       let myRank = -1
       const idx = deduped.findIndex(r => (r._openid === openid || r.uid === openid))
@@ -687,14 +693,14 @@ async function _computeWeeklyRank(openid, periodKey) {
   const getRes = await db.collection('rankAllWeekly')
     .where({ periodKey })
     .orderBy('floor', 'desc')
-    .limit(100)
+    .limit(FETCH_CAP_DEFAULT)
     .get()
   const records = getRes.data
   if (!records.length) return -1
   const deduped = _deduplicateByOpenid(records, _rankAllComparator)
   const idx = deduped.findIndex(r => (r._openid === openid || r.uid === openid))
   if (idx >= 0) return idx + 1
-  // 兜底：deduped 可能只拿了 top 100，玩家可能在更深处 → 用计数 query
+  // 兜底：deduped 只覆盖 FETCH_CAP_DEFAULT 条，玩家可能在更深处 → 用计数 query
   const myRes = await db.collection('rankAllWeekly').where(_.and([
     { periodKey },
     _.or([{ uid: openid }, { _openid: openid }]),

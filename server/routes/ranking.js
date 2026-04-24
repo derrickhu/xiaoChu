@@ -80,10 +80,11 @@ router.post('/submit', async (req, res) => {
   }
 })
 
-// GET /api/ranking/list?tab=all|dex|combo&limit=50 — 拉取排行榜
+// GET /api/ranking/list?tab=all|dex|combo&limit=100 — 拉取排行榜
+//   默认 100 条，和云函数 LIST_SIZE 对齐；上限 200 防止误传超大 limit 打爆 db
 router.get('/list', async (req, res) => {
   const tab = req.query.tab || 'all'
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200)
+  const limit = Math.min(parseInt(req.query.limit) || 100, 200)
 
   const sortMap = {
     all:   { floor: -1, totalTurns: 1, updatedAt: -1 },
