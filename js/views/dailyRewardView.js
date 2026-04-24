@@ -32,7 +32,24 @@ const {
   drawRewardChipFlyLayer,
 } = require('./rewardChipFlyAnim')
 const _signRects = { closeBtnRect: null, signBtnRect: null, signAdRect: null, milestonePetRects: [] }
-const _taskRects = { closeBtnRect: null, taskBtnRects: [], allBonusBtnRect: null, allBonusAdRect: null }
+const _taskRects = {
+  closeBtnRect: null,
+  taskBtnRects: [],
+  allBonusBtnRect: null,
+  allBonusAdRect: null,
+  tabDailyRect: null,
+  tabAchievementRect: null,
+}
+
+// 任务分类竹牌文字（对应 DAILY_TASKS 六项）
+const _TASK_TAG_BY_ID = {
+  battle_1: '秘境',
+  battle_3: '征战',
+  tower_1: '通天',
+  idle_collect: '派遣',
+  pet_feed: '育灵',
+  share_1: '传音',
+}
 
 // ===== 里程碑奖励动画弹窗 =====
 let _milestoneRewardPopup = null  // { timer, petId, petName, rewardType, rewardText, subText, btnRect }
@@ -383,10 +400,10 @@ function _drawTaskStatusPill(c, x, cy, text, tone, u) {
   }
 
   c.save()
-  c.font = `bold ${8.5 * u}px "PingFang SC",sans-serif`
-  const padX = 9 * u
-  const h = 18 * u
-  const w = Math.max(46 * u, c.measureText(text).width + padX * 2)
+  c.font = `bold ${7 * u}px "PingFang SC",sans-serif`
+  const padX = 5.5 * u
+  const h = 12 * u
+  const w = Math.max(36 * u, c.measureText(text).width + padX * 2)
   const y = cy - h / 2
   c.fillStyle = fill
   _rr(c, x, y, w, h, h / 2)
@@ -403,7 +420,531 @@ function _drawTaskStatusPill(c, x, cy, text, tone, u) {
   return w
 }
 
+// ===== 任务弹窗·修仙风视觉件 =====
+
+// 修仙山水云雾背景（取代纯黑半透遮罩）：Canvas 纯手绘，CDN 背景图没加载也保证效果
+function _drawTaskPanelBackdrop(c, W, H) {
+  // 主体天空：顶部偏冷白、底部偏深青
+  const sky = c.createLinearGradient(0, 0, 0, H)
+  sky.addColorStop(0, '#B7CBD1')
+  sky.addColorStop(0.48, '#88A1AB')
+  sky.addColorStop(1, '#4D646E')
+  c.fillStyle = sky
+  c.fillRect(0, 0, W, H)
+
+  // 两团径向云雾
+  c.save()
+  c.globalAlpha = 0.32
+  const mist1 = c.createRadialGradient(W * 0.25, H * 0.35, 0, W * 0.25, H * 0.35, W * 0.55)
+  mist1.addColorStop(0, 'rgba(255,255,255,0.88)')
+  mist1.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = mist1
+  c.fillRect(0, 0, W, H)
+  c.globalAlpha = 0.22
+  const mist2 = c.createRadialGradient(W * 0.78, H * 0.7, 0, W * 0.78, H * 0.7, W * 0.62)
+  mist2.addColorStop(0, 'rgba(234,245,242,0.8)')
+  mist2.addColorStop(1, 'rgba(234,245,242,0)')
+  c.fillStyle = mist2
+  c.fillRect(0, 0, W, H)
+  c.restore()
+
+  // 远山剪影（单色水墨扁平）
+  c.save()
+  c.globalAlpha = 0.16
+  c.fillStyle = '#2E3A42'
+  c.beginPath()
+  c.moveTo(0, H * 0.78)
+  c.quadraticCurveTo(W * 0.18, H * 0.65, W * 0.32, H * 0.76)
+  c.quadraticCurveTo(W * 0.48, H * 0.62, W * 0.64, H * 0.78)
+  c.quadraticCurveTo(W * 0.82, H * 0.67, W, H * 0.8)
+  c.lineTo(W, H); c.lineTo(0, H); c.closePath()
+  c.fill()
+  c.restore()
+
+  // 顶部压暗让悬挂木匾更醒目
+  c.save()
+  const topDim = c.createLinearGradient(0, 0, 0, H * 0.25)
+  topDim.addColorStop(0, 'rgba(40,55,65,0.4)')
+  topDim.addColorStop(1, 'rgba(40,55,65,0)')
+  c.fillStyle = topDim
+  c.fillRect(0, 0, W, H * 0.25)
+  c.restore()
+}
+
+// 顶部悬挂式木匾：两根挂绳 + 深木底 + 双描边 + 金色楷体标题
+function _drawHangingPlaque(c, cx, cy, w, h, ropeTopY, title, S) {
+  // 挂绳（无论是图还是 Canvas 都需要画；绳子长度依赖面板顶部位置，不好做成图）
+  c.save()
+  c.strokeStyle = 'rgba(55,38,18,0.55)'
+  c.lineWidth = 1.5 * S
+  const ropeGap = w * 0.3
+  c.beginPath()
+  c.moveTo(cx - ropeGap, ropeTopY); c.lineTo(cx - w * 0.32, cy - h / 2 + 4 * S)
+  c.moveTo(cx + ropeGap, ropeTopY); c.lineTo(cx + w * 0.32, cy - h / 2 + 4 * S)
+  c.stroke()
+  c.restore()
+
+  const x = cx - w / 2
+  const y = cy - h / 2
+  const r = 9 * S
+
+  // 优先使用生成的木匾真图（360×201 透明底 PNG，雕花 + 铁钉质感比 Canvas 好）
+  const plaqueImg = V.R && V.R.getImg && V.R.getImg('assets/ui/task_plaque_title.png')
+  if (plaqueImg && plaqueImg.width > 0) {
+    c.save()
+    c.shadowColor = 'rgba(28,16,4,0.5)'
+    c.shadowBlur = 14 * S
+    c.shadowOffsetY = 4 * S
+    c.drawImage(plaqueImg, x, y, w, h)
+    c.restore()
+  } else {
+    c.save()
+    c.shadowColor = 'rgba(28,16,4,0.55)'
+    c.shadowBlur = 16 * S
+    c.shadowOffsetY = 5 * S
+    const wood = c.createLinearGradient(0, y, 0, y + h)
+    wood.addColorStop(0, '#8A5628')
+    wood.addColorStop(0.45, '#6D3C14')
+    wood.addColorStop(1, '#4A270C')
+    _rr(c, x, y, w, h, r)
+    c.fillStyle = wood
+    c.fill()
+    c.restore()
+
+    c.save()
+    _rr(c, x, y, w, h, r)
+    c.strokeStyle = 'rgba(214,172,72,0.95)'
+    c.lineWidth = 2 * S
+    c.stroke()
+    const ins = 5 * S
+    _rr(c, x + ins, y + ins, w - ins * 2, h - ins * 2, r - 3 * S)
+    c.strokeStyle = 'rgba(38,22,8,0.55)'
+    c.lineWidth = 1 * S
+    c.stroke()
+    _rr(c, x + ins, y + ins, w - ins * 2, (h - ins * 2) * 0.45, r - 3 * S)
+    const hl = c.createLinearGradient(0, y + ins, 0, y + ins + (h - ins * 2) * 0.45)
+    hl.addColorStop(0, 'rgba(255,220,140,0.20)')
+    hl.addColorStop(1, 'rgba(255,220,140,0)')
+    c.fillStyle = hl
+    c.fill()
+    c.fillStyle = 'rgba(232,188,86,0.92)'
+    const nailR = 2.2 * S
+    c.beginPath(); c.arc(x + ins + nailR + 2 * S, cy, nailR, 0, Math.PI * 2); c.fill()
+    c.beginPath(); c.arc(x + w - ins - nailR - 2 * S, cy, nailR, 0, Math.PI * 2); c.fill()
+    c.restore()
+  }
+
+  // 标题文字在图之上叠（深阴影 + 金色 + 描边），图刷新或换风格都不影响文字
+  c.save()
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  const fs = Math.round(h * 0.52)
+  c.font = `900 ${fs}px "STKaiti","Kaiti SC","PingFang SC",serif`
+  c.fillStyle = 'rgba(0,0,0,0.55)'
+  c.fillText(title, cx + 1.3 * S, cy + 1.3 * S)
+  c.fillStyle = '#F4D78A'
+  c.fillText(title, cx, cy)
+  c.strokeStyle = 'rgba(100,60,16,0.85)'
+  c.lineWidth = 0.8 * S
+  c.strokeText(title, cx, cy)
+  c.restore()
+}
+
+// 右上角独立圆章式关闭 ✕
+function _drawRoundCloseBtn(c, cx, cy, r, S) {
+  c.save()
+  c.shadowColor = 'rgba(28,16,4,0.5)'
+  c.shadowBlur = 8 * S
+  c.shadowOffsetY = 2 * S
+  const bg = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r)
+  bg.addColorStop(0, '#8C5830')
+  bg.addColorStop(1, '#452810')
+  c.fillStyle = bg
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill()
+  c.restore()
+
+  c.save()
+  c.strokeStyle = 'rgba(212,170,70,0.95)'
+  c.lineWidth = 1.8 * S
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke()
+  c.strokeStyle = 'rgba(60,38,18,0.55)'
+  c.lineWidth = 1 * S
+  c.beginPath(); c.arc(cx, cy, r - 3 * S, 0, Math.PI * 2); c.stroke()
+  c.restore()
+
+  c.save()
+  c.fillStyle = '#F4D78A'
+  c.font = `bold ${Math.round(r * 1.05)}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillText('✕', cx, cy + 0.5 * S)
+  c.restore()
+
+  return [cx - r, cy - r, r * 2, r * 2]
+}
+
+// 左侧丝绸竖挂吊牌（分类 Tab）：挂绳 + 绳结 + 渐变丝绸 + 底部三角流苏 + 竖排楷体
+// 返回命中矩形（含流苏区域，方便玩家点击）
+function _drawSideTab(c, cx, topY, w, h, label, selected, S) {
+  c.save()
+  c.strokeStyle = 'rgba(55,38,18,0.55)'
+  c.lineWidth = 1.2 * S
+  c.beginPath()
+  c.moveTo(cx, topY - 8 * S); c.lineTo(cx, topY + 2 * S)
+  c.stroke()
+  c.fillStyle = 'rgba(175,78,50,0.85)'
+  c.beginPath(); c.arc(cx, topY + 3 * S, 2.5 * S, 0, Math.PI * 2); c.fill()
+  c.restore()
+
+  const x = cx - w / 2
+  const y = topY + 5 * S
+
+  // 优先使用真图吊牌（红/灰两态各一张，透明底带流苏铜铃）
+  const imgKey = selected ? 'assets/ui/task_sidetab_active.png' : 'assets/ui/task_sidetab_dim.png'
+  const tabImg = V.R && V.R.getImg && V.R.getImg(imgKey)
+  if (tabImg && tabImg.width > 0) {
+    c.save()
+    c.shadowColor = 'rgba(28,16,4,0.4)'
+    c.shadowBlur = 6 * S
+    c.shadowOffsetX = 1.5 * S
+    c.shadowOffsetY = 2 * S
+    // 保持原图比例，以高度 h 为主，宽度适配图片比例（图片是 201×360，比例 0.558）
+    const ratio = tabImg.width / tabImg.height
+    const drawH = h + 14 * S  // 多给些高度容纳图里的流苏
+    const drawW = drawH * ratio
+    const drawX = cx - drawW / 2
+    c.drawImage(tabImg, drawX, y - 2 * S, drawW, drawH)
+    c.restore()
+  } else {
+    c.save()
+    c.shadowColor = 'rgba(28,16,4,0.42)'
+    c.shadowBlur = 8 * S
+    c.shadowOffsetX = 2 * S
+    c.shadowOffsetY = 3 * S
+    const grad = c.createLinearGradient(0, y, 0, y + h)
+    if (selected) {
+      grad.addColorStop(0, '#C59B4B')
+      grad.addColorStop(0.5, '#A67B2F')
+      grad.addColorStop(1, '#6F4E1A')
+    } else {
+      grad.addColorStop(0, '#6F8F7A')
+      grad.addColorStop(0.5, '#4E6B58')
+      grad.addColorStop(1, '#33493D')
+    }
+    const r = 5 * S
+    _rr(c, x, y, w, h, r)
+    c.fillStyle = grad
+    c.fill()
+    c.restore()
+
+    c.save()
+    _rr(c, x, y, w, h, r)
+    c.strokeStyle = selected ? 'rgba(255,220,140,0.95)' : 'rgba(230,215,180,0.35)'
+    c.lineWidth = selected ? 1.6 * S : 1 * S
+    c.stroke()
+    const ins = 2.5 * S
+    _rr(c, x + ins, y + ins, w - ins * 2, h - ins * 2, Math.max(1, r - 1.5 * S))
+    c.strokeStyle = selected ? 'rgba(255,245,200,0.4)' : 'rgba(200,215,195,0.22)'
+    c.lineWidth = 0.8 * S
+    c.stroke()
+    c.restore()
+
+    c.save()
+    c.fillStyle = selected ? 'rgba(175,60,40,0.85)' : 'rgba(160,100,50,0.55)'
+    c.beginPath()
+    c.moveTo(cx - 3.5 * S, y + h)
+    c.lineTo(cx + 3.5 * S, y + h)
+    c.lineTo(cx, y + h + 5 * S)
+    c.closePath()
+    c.fill()
+    c.strokeStyle = selected ? 'rgba(140,40,20,0.85)' : 'rgba(120,70,30,0.55)'
+    c.lineWidth = 0.8 * S
+    c.beginPath(); c.moveTo(cx, y + h + 5 * S); c.lineTo(cx, y + h + 11 * S); c.stroke()
+    c.restore()
+  }
+
+  // 竖排标题（文字叠在图上，保持清晰）
+  c.save()
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  const fs = Math.min(15 * S, w * 0.55)
+  c.font = `bold ${fs}px "STKaiti","Kaiti SC","PingFang SC",serif`
+  // 图背景本身偏饱和，文字需要深色描边衬托出来
+  const textColor = selected ? '#FFF5D6' : 'rgba(240,235,220,0.82)'
+  const strokeColor = selected ? 'rgba(90,30,10,0.85)' : 'rgba(60,60,60,0.55)'
+  const chars = String(label).split('')
+  const step = (h - 14 * S) / Math.max(1, chars.length)
+  let charY = y + 10 * S + step / 2
+  chars.forEach(ch => {
+    c.fillStyle = strokeColor
+    c.fillText(ch, cx + 0.8 * S, charY + 0.8 * S)
+    c.fillStyle = textColor
+    c.fillText(ch, cx, charY)
+    charY += step
+  })
+  c.restore()
+
+  return [x, y, w, h + 12 * S]
+}
+
+// 任务行左侧竖向竹牌（分类标签）：对齐 UI 图中"龙虎斗"那种小竖签
+// 改成深棕木牌 + 金色描边，和顶部木匾同色系，替代之前违和的绿色竹片
+function _drawTaskTypeTag(c, x, cy, w, h, text, done, S) {
+  const y = cy - h / 2
+
+  // 深棕木质底：顶亮底暗渐变，未领取稍偏暖金；已领取偏冷褐（降低注意力）
+  c.save()
+  c.shadowColor = 'rgba(30,18,6,0.35)'
+  c.shadowBlur = 4 * S
+  c.shadowOffsetY = 1.5 * S
+  const grad = c.createLinearGradient(0, y, 0, y + h)
+  if (done) {
+    grad.addColorStop(0, '#7A5226')
+    grad.addColorStop(0.5, '#573410')
+    grad.addColorStop(1, '#3A1F08')
+  } else {
+    grad.addColorStop(0, '#8B5A2A')
+    grad.addColorStop(0.5, '#5E380F')
+    grad.addColorStop(1, '#361B06')
+  }
+  _rr(c, x, y, w, h, 3 * S)
+  c.fillStyle = grad
+  c.fill()
+  c.restore()
+
+  // 外层金色描边 + 内层深色细边（木匾同款双层）
+  c.save()
+  _rr(c, x, y, w, h, 3 * S)
+  c.strokeStyle = done ? 'rgba(200,160,70,0.75)' : 'rgba(218,175,78,0.95)'
+  c.lineWidth = 1 * S
+  c.stroke()
+  _rr(c, x + 1.4 * S, y + 1.4 * S, w - 2.8 * S, h - 2.8 * S, 2 * S)
+  c.strokeStyle = 'rgba(28,14,4,0.45)'
+  c.lineWidth = 0.6 * S
+  c.stroke()
+  c.restore()
+
+  // 顶部极淡的金色高光（模拟木匾的打光）
+  c.save()
+  _rr(c, x + 2 * S, y + 2 * S, w - 4 * S, Math.min(h * 0.4, 10 * S), 2 * S)
+  const hl = c.createLinearGradient(0, y + 2 * S, 0, y + 2 * S + Math.min(h * 0.4, 10 * S))
+  hl.addColorStop(0, 'rgba(255,220,140,0.22)')
+  hl.addColorStop(1, 'rgba(255,220,140,0)')
+  c.fillStyle = hl
+  c.fill()
+  c.restore()
+
+  // 竖排楷体字：金米色 + 深阴影，保持清晰
+  c.save()
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  const fs = Math.min(10.5 * S, h * 0.3)
+  c.font = `bold ${fs}px "STKaiti","Kaiti SC","PingFang SC",serif`
+  const chars = String(text || '').split('').slice(0, 3)
+  const charH = h / (chars.length + 1)
+  chars.forEach((ch, i) => {
+    const ty = y + charH * (i + 1)
+    c.fillStyle = 'rgba(0,0,0,0.55)'
+    c.fillText(ch, x + w / 2 + 0.7 * S, ty + 0.7 * S)
+    c.fillStyle = done ? '#E8CF8A' : '#F6DC95'
+    c.fillText(ch, x + w / 2, ty)
+  })
+  c.restore()
+}
+
+// 已领取·朱红方印章："已" 字白篆 + 朱砂底
+// 取代原先的金色圆 ✓（那种圆贴纸风与卷轴/宣纸整体不搭）
+// 参考传统书画印鉴：方形朱红 + 阴刻白字 + 轻微边缘做旧
+function _drawGoldCheckStamp(c, cx, cy, r, S) {
+  // r 原先是圆章半径，方章半径取稍小一点让它显得更紧凑
+  const side = r * 1.82
+  const x = cx - side / 2
+  const y = cy - side / 2
+
+  c.save()
+  c.shadowColor = 'rgba(110,15,10,0.28)'
+  c.shadowBlur = 3 * S
+  c.shadowOffsetY = 1 * S
+  // 方章底色：朱砂红渐变（中心稍亮边缘稍暗模拟手按压印的轻微不均匀）
+  const grad = c.createRadialGradient(cx - side * 0.12, cy - side * 0.12, 0, cx, cy, side * 0.7)
+  grad.addColorStop(0, '#D5301E')
+  grad.addColorStop(0.7, '#B81A0F')
+  grad.addColorStop(1, '#8B1208')
+  _rr(c, x, y, side, side, 2 * S)
+  c.fillStyle = grad
+  c.fill()
+  c.restore()
+
+  // 外层深朱边（仿印章金属边/阳刻外框）
+  c.save()
+  _rr(c, x + 0.8 * S, y + 0.8 * S, side - 1.6 * S, side - 1.6 * S, 1.6 * S)
+  c.strokeStyle = 'rgba(65,10,5,0.75)'
+  c.lineWidth = 0.9 * S
+  c.stroke()
+  c.restore()
+
+  // "已" 字：粗楷体白色，压印略外凸的感觉
+  c.save()
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const fs = Math.round(side * 0.68)
+  c.font = `900 ${fs}px "STKaiti","Kaiti SC","KaiTi","PingFang SC",serif`
+  // 先画一个半透明深色衬底，再画白字，模拟雕刻阴影
+  c.fillStyle = 'rgba(70,10,5,0.55)'
+  c.fillText('已', cx + 0.6 * S, cy + 1 * S)
+  c.fillStyle = '#FFF5E6'
+  c.fillText('已', cx, cy)
+  c.restore()
+
+  // 印章边缘做旧：在 4 角各添一个微小的朱红小块，模拟手按印章边缘"糊边"的油墨溢出
+  c.save()
+  c.fillStyle = 'rgba(180,25,15,0.5)'
+  const dotR = 0.9 * S
+  c.beginPath(); c.arc(x + 1.2 * S, y + 1.2 * S, dotR, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.arc(x + side - 1.2 * S, y + 1.2 * S, dotR, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.arc(x + 1.2 * S, y + side - 1.2 * S, dotR, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.arc(x + side - 1.2 * S, y + side - 1.2 * S, dotR, 0, Math.PI * 2); c.fill()
+  c.restore()
+}
+
 /** 花华 CheckInPanel 风格：标题横幅（设计像素 × u，u=W/750） */
+// 底部横幅用的金色装饰标题：左右两条渐隐金线 + 两端金色菱形 + 楷体主标题
+// 用途：让"全部任务完成奖励"这行有"悬挂装饰"的仪式感，对齐原型图层次
+function _drawBonusHeader(c, cx, cy, maxW, title, S) {
+  c.save()
+  c.font = `900 ${11 * S}px "STKaiti","Kaiti SC","PingFang SC",serif`
+  const tW = c.measureText(title).width
+  const diamondR = 2.5 * S
+  const gapTD = 5 * S
+  const gapLD = 3.5 * S
+  const leftDiamondX = cx - tW / 2 - gapTD - diamondR
+  const rightDiamondX = cx + tW / 2 + gapTD + diamondR
+
+  const maxLineLen = 80 * S
+  const lineXEnd = leftDiamondX - gapLD
+  const lineXStart = Math.max(cx - maxW / 2, lineXEnd - maxLineLen)
+  if (lineXEnd > lineXStart + 4 * S) {
+    const lg = c.createLinearGradient(lineXStart, 0, lineXEnd, 0)
+    lg.addColorStop(0, 'rgba(196,146,48,0)')
+    lg.addColorStop(1, 'rgba(196,146,48,0.85)')
+    c.strokeStyle = lg
+    c.lineWidth = 0.9 * S
+    c.beginPath(); c.moveTo(lineXStart, cy); c.lineTo(lineXEnd, cy); c.stroke()
+  }
+  const rLineStart = rightDiamondX + gapLD
+  const rLineEnd = Math.min(cx + maxW / 2, rLineStart + maxLineLen)
+  if (rLineEnd > rLineStart + 4 * S) {
+    const rg = c.createLinearGradient(rLineStart, 0, rLineEnd, 0)
+    rg.addColorStop(0, 'rgba(196,146,48,0.85)')
+    rg.addColorStop(1, 'rgba(196,146,48,0)')
+    c.strokeStyle = rg
+    c.lineWidth = 0.9 * S
+    c.beginPath(); c.moveTo(rLineStart, cy); c.lineTo(rLineEnd, cy); c.stroke()
+  }
+
+  _drawDiamondMark(c, leftDiamondX, cy, diamondR, S)
+  _drawDiamondMark(c, rightDiamondX, cy, diamondR, S)
+
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = 'rgba(80,45,10,0.28)'
+  c.fillText(title, cx + 0.6 * S, cy + 0.9 * S)
+  const tg = c.createLinearGradient(0, cy - 9 * S, 0, cy + 9 * S)
+  tg.addColorStop(0, '#7A3E10')
+  tg.addColorStop(1, '#4A1E04')
+  c.fillStyle = tg
+  c.fillText(title, cx, cy)
+  c.restore()
+}
+
+function _drawDiamondMark(c, cx, cy, r, S) {
+  c.save()
+  const grad = c.createLinearGradient(cx, cy - r, cx, cy + r)
+  grad.addColorStop(0, '#F3D27A')
+  grad.addColorStop(1, '#A67310')
+  c.fillStyle = grad
+  c.beginPath()
+  c.moveTo(cx, cy - r)
+  c.lineTo(cx + r, cy)
+  c.lineTo(cx, cy + r)
+  c.lineTo(cx - r, cy)
+  c.closePath()
+  c.fill()
+  c.strokeStyle = 'rgba(90,55,15,0.5)'
+  c.lineWidth = 0.7 * S
+  c.stroke()
+  c.restore()
+}
+
+// 厚棕色双边框 + 金米色填充的"原木按钮"，对齐原型右下角"领取奖励"样式
+// variant: 'reward'（金米色，主 CTA） / 'ad'（琥珀黄，看广告翻倍）
+// 优先使用真图 task_btn_wood.png（金米色渐变 + 棕色厚边框 + 金丝花纹），文字 Canvas 叠加
+function _drawWoodenActionBtn(c, x, y, w, h, text, variant, S) {
+  const btnImg = V.R && V.R.getImg && V.R.getImg('assets/ui/task_btn_wood.png')
+  if (btnImg && btnImg.width > 0) {
+    c.save()
+    c.shadowColor = 'rgba(40,20,4,0.35)'
+    c.shadowBlur = 6 * S
+    c.shadowOffsetY = 2 * S
+    c.drawImage(btnImg, x, y, w, h)
+    // ad 变体轻微染黄：在图上叠一层琥珀暖色滤镜
+    if (variant === 'ad') {
+      c.globalCompositeOperation = 'source-atop'
+      c.fillStyle = 'rgba(240,185,60,0.25)'
+      _rr(c, x + 3 * S, y + 3 * S, w - 6 * S, h - 6 * S, 5 * S)
+      c.fill()
+    }
+    c.restore()
+  } else {
+    c.save()
+    _rr(c, x, y, w, h, 6 * S)
+    const outer = c.createLinearGradient(0, y, 0, y + h)
+    outer.addColorStop(0, '#5E3A16')
+    outer.addColorStop(0.5, '#3E220B')
+    outer.addColorStop(1, '#1F1205')
+    c.fillStyle = outer
+    c.fill()
+
+    const midIns = 1.6 * S
+    _rr(c, x + midIns, y + midIns, w - midIns * 2, h - midIns * 2, 5 * S)
+    c.fillStyle = '#7A4A1C'
+    c.fill()
+
+    const innerIns = 4 * S
+    _rr(c, x + innerIns, y + innerIns, w - innerIns * 2, h - innerIns * 2, 3 * S)
+    let inner
+    if (variant === 'ad') {
+      inner = c.createLinearGradient(0, y + innerIns, 0, y + h - innerIns)
+      inner.addColorStop(0, '#F6D36A')
+      inner.addColorStop(1, '#BF8A26')
+    } else {
+      inner = c.createLinearGradient(0, y + innerIns, 0, y + h - innerIns)
+      inner.addColorStop(0, '#F7E1A6')
+      inner.addColorStop(0.55, '#E2B864')
+      inner.addColorStop(1, '#B98828')
+    }
+    c.fillStyle = inner
+    c.fill()
+
+    _rr(c, x + innerIns + 1 * S, y + innerIns + 1 * S, w - innerIns * 2 - 2 * S, (h - innerIns * 2) * 0.42, 2.5 * S)
+    c.fillStyle = 'rgba(255,255,255,0.28)'
+    c.fill()
+    c.restore()
+  }
+
+  // 文字在图上叠（保持两变体一致可读，避免图里本身有文字）
+  c.save()
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const fs = Math.min(10 * S, (h - 6 * S) * 0.88)
+  c.font = `bold ${fs}px "STKaiti","Kaiti SC","PingFang SC",serif`
+  const availTextW = w - 10 * S
+  if (c.measureText(text).width > availTextW) {
+    c.font = `bold ${fs - 1 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+  }
+  c.fillStyle = 'rgba(60,30,5,0.55)'
+  c.fillText(text, x + w / 2 + 0.5 * S, y + h / 2 + 1 * S)
+  c.fillStyle = variant === 'ad' ? '#2E1A05' : '#4A1F05'
+  c.fillText(text, x + w / 2, y + h / 2)
+  c.restore()
+}
+
 function _drawHuahuaCheckinTitle(c, R, cx, y0, cardAreaW, u) {
   const Hcfg = CHECKIN_HUAHUA
   const img = R.getImg(Hcfg.titleBanner)
@@ -1088,46 +1629,115 @@ function rDailyTasks(g) {
   const { ctx: c, R, W, H, S } = V
 
   c.save()
-  c.fillStyle = 'rgba(0,0,0,0.55)'
+  // 任务面板是弹窗性质：底下应该是主页画面 + 半透明遮罩，而不是另外绘制的山水云雾
+  // 只铺一层暗色遮罩，让主页背景隐约透出，聚焦感由卷轴面板自身承担
+  c.fillStyle = 'rgba(0,0,0,0.48)'
   c.fillRect(0, 0, W, H)
 
-  const pw = W * 0.9
-  let ph = H * 0.84
-  const px = (W - pw) / 2
+  // 面板拉宽+基本居中：左侧吊牌 tab 直接覆盖在木框左半上，不另外占画面空间
+  const pw = W * 0.88
+  const sideTabSpace = 16 * S  // 只给吊牌流苏超出面板左外侧一点点的空间
+  const px = (W - pw) / 2 + sideTabSpace / 2
   const safe = V.safeTop || 0
-  const minPy = safe + DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT * S
+  // 悬挂木匾需要在面板顶上方留出木匾半高 + 绳子高 ≈ 36*S
+  const plaqueExtraTop = 36 * S
+  const minPy = safe + DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT * S + plaqueExtraTop
   const bottomMargin = 12 * S
+  // 卷轴面板生图有较粗的木框（左右 ~10% 宽 / 上下 ~8% 高）
+  // 内容必须缩进到宣纸画布区（inset），否则小竹签、✓印章会叠在木框上
+  const pad = 16 * S
+  // 面板图 task_panel_frame.png 实测（像素级扫描）：纸张区 x∈[16.4%, 83.3%]、y∈[13.0%, 87.2%]
+  // 面板 drawImage 是按 pw/ph 同比拉伸，inset 必须用**百分比**而非固定 *S，
+  // 否则不同屏幕下纸张边界位置会漂移，内容出画布。
+  // 横向 inset = pw × 17%（带 0.6% 安全余量）避开左右木框 + 金属角片
+  const frameInsetX = pw * 0.17
+  // 纵向 inset 需要基于"实际 ph"计算；先算内容所需高度 contentCore，
+  // 再反推 ph = contentCore / (1 - 2 × 13.5%)，保证任务/横幅都落在纸张区内
+  const _rowCount = DAILY_TASKS.length
+  const _rowH = 36 * S            // 行高再收：标题 10 + pill 12 + 上下各 6pt 呼吸空间
+  const _rowGap = 3 * S
+  const _bonusBeforeGap = 4 * S
+  const _bonusBlockH = 72 * S     // 横幅高：pad(7*2) + header(13) + gap(2) + subtitle(10) + gap(6) + chipRow(22) = 67*S，留 5*S 余量
+  const _contentCore =
+    _rowCount * (_rowH + _rowGap) - _rowGap + _bonusBeforeGap + _bonusBlockH
+  // 反推 ph：纸张区 y 占 74.2%，顶/底各 13.0% + 0.5% 安全余量
+  const _paperYRatio = 1 - 2 * 0.135  // = 0.73，留了 1% 安全边
+  const _phWant = _contentCore / _paperYRatio
+  const frameInsetYTop = _phWant * 0.135
+  const frameInsetYBot = _phWant * 0.135
+  const contentH = frameInsetYTop + _contentCore + frameInsetYBot
+  let ph = Math.min(H * 0.82, contentH)
   let py = (H - ph) / 2 - 6 * S
   if (py < minPy) py = minPy
   if (py + ph > H - bottomMargin) ph = H - bottomMargin - py
-  const pad = 16 * S
-  const ribbonH = 44 * S
-  const panelResult = drawPanel(c, S, px, py, pw, ph, { ribbonH })
-  const ribbonCY = panelResult.ribbonCY
+  // ribbonH = 0：新面板不再用金色 ribbon 标题条，改用悬挂木匾代替；也不要四角菱形装饰
+  // 优先使用真图卷轴面板（木框 + 铆钉 + 米黄宣纸），显著高于 Canvas 质感
+  const frameImg = R.getImg && R.getImg('assets/ui/task_panel_frame.png')
+  if (frameImg && frameImg.width > 0) {
+    c.save()
+    c.shadowColor = 'rgba(35,20,6,0.45)'
+    c.shadowBlur = 16 * S
+    c.shadowOffsetY = 4 * S
+    // 卷轴图本身左右偏窄（478×640 比例 0.747），直接拉伸到 pw×ph 即可，边框会轻微拉伸不影响观感
+    c.drawImage(frameImg, px, py, pw, ph)
+    c.restore()
+  } else {
+    drawPanel(c, S, px, py, pw, ph, { ribbonH: 0, corners: false })
+  }
 
-  c.fillStyle = '#5a3000'
-  c.font = `bold ${16 * S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText('任务', W / 2, ribbonCY)
+  // 顶部悬挂木匾 "任务"（中心上移到面板外，仅底沿极少叠入面板，避免压到第一行任务）
+  const plaqueW = Math.min(pw * 0.42, 220 * S)
+  const plaqueH = 46 * S
+  const plaqueCX = px + pw / 2
+  const plaqueCY = py - 10 * S
+  const ropeTopY = Math.max(safe + 6 * S, plaqueCY - plaqueH / 2 - 18 * S)
+  _drawHangingPlaque(c, plaqueCX, plaqueCY, plaqueW, plaqueH, ropeTopY, '任务', S)
 
-  const closeR = 14 * S
-  const closeX = px + pw - 20 * S, closeY = py + ribbonH / 2
-  c.fillStyle = 'rgba(120,80,20,0.15)'
-  c.beginPath(); c.arc(closeX, closeY, closeR, 0, Math.PI * 2); c.fill()
-  c.strokeStyle = 'rgba(175,135,48,0.4)'; c.lineWidth = 1 * S
-  c.beginPath(); c.arc(closeX, closeY, closeR, 0, Math.PI * 2); c.stroke()
-  c.fillStyle = '#8B6914'; c.font = `bold ${13 * S}px sans-serif`
-  c.fillText('✕', closeX, closeY)
-  _taskRects.closeBtnRect = [closeX - closeR, closeY - closeR, closeR * 2, closeR * 2]
+  // 右上角独立圆章 ✕（不再贴在面板内）
+  const closeR = 15 * S
+  const closeX = px + pw - closeR - 2 * S
+  const closeY = py - closeR - 4 * S
+  _taskRects.closeBtnRect = _drawRoundCloseBtn(c, closeX, closeY, closeR, S)
 
-  let cy = py + ribbonH + 14 * S
-  const innerL = px + pad, innerW = pw - pad * 2
+  // 左侧丝绸吊牌 tab：日常（选中）+ 成就（敬请期待）
+  const tabW = 26 * S
+  const tabH = 70 * S
+  // 吊牌主体紧贴面板左木框：中心右移到 px + 2*S，使吊牌主体压在木框左半上
+  // 视觉上吊牌像"从面板挂下来"，消除吊牌与纸张区之间的空白
+  const tabCX = px + 2 * S
+  const tabTopY1 = py + 14 * S
+  const tabGap = 16 * S
+  _taskRects.tabDailyRect = _drawSideTab(c, tabCX, tabTopY1, tabW, tabH, '日常', true, S)
+  _taskRects.tabAchievementRect = _drawSideTab(c, tabCX, tabTopY1 + tabH + tabGap, tabW, tabH, '成就', false, S)
+
+  // 第一行任务起点：从顶部 frameInset 开始，让内容整体收进卷轴的宣纸画布区
+  let cy = py + frameInsetYTop
+  const innerL = px + frameInsetX
+  const innerW = pw - frameInsetX * 2
 
   const prog = g.storage.dailyTaskProgress
   const _ch = g.storage.currentChapter
   _taskRects.taskBtnRects = []
   g._dailyTaskChipLayouts = {}
+
+  // 行内左侧竹牌尺寸：竖向小签（对齐参考图中"龙虎斗"样式）
+  const typeTagW = 17 * S
+  const typeTagH = 28 * S
+  const typeTagGap = 5 * S
+
+  // 任务区裁切 + 预留滚动位移：
+  //   - 裁切框 = 画布纸张区（innerL, cy, innerW, clipH），即便未来任务数超过面板高度也不会越界到木框外
+  //   - scrollY：当前保持 0；后续加任务需要滚动时，只需在 touchmove 里累加 g._taskListScrollY（向上滑为正）
+  //   - 触达矩形(_taskRects)在 task 循环里本就用 cy 即时写入，会自动带 scrollY 偏移，保持点击正确
+  const taskListTop = cy
+  const taskListH = _rowCount * (_rowH + _rowGap) - _rowGap
+  const scrollY = Math.max(0, g._taskListScrollY || 0)
+  c.save()
+  c.beginPath()
+  // 裁切区略放大 4*S 容纳焦点辉光描边
+  c.rect(innerL - 4 * S, taskListTop - 3 * S, innerW + 8 * S, taskListH + 6 * S)
+  c.clip()
+  cy -= scrollY
 
   for (const task of DAILY_TASKS) {
     const cur = prog.tasks[task.id] || 0
@@ -1135,25 +1745,45 @@ function rDailyTasks(g) {
     const done = cur >= need
     const claimed = !!prog.claimed[task.id]
     const reward = getScaledDailyTaskReward(task, _ch)
-    const rowH = 48 * S
+    const rowH = 36 * S
     const rowState = claimed ? 'claimed' : (done ? 'ready' : 'pending')
     const isFocusedTask = g._dailyTaskFocusId === task.id
-    const actionW = done && !claimed ? 56 * S : 24 * S
-    const rewardW = 124 * S
-    const titleX = innerL + 14 * S
-    const rewardCenterX = innerL + innerW - actionW - rewardW / 2 - 12 * S
+    // 已领取时右侧只留"金章对勾"的空间，未领取且可领时留"领取"按钮空间（tbW=46S + 外边距10S = 56S）
+    const actionW = done && !claimed ? 56 * S : (claimed ? 20 * S : 8 * S)
+    const rewardW = 90 * S
+    const titleX = innerL + typeTagW + typeTagGap + 3 * S
+    // 奖励 chip 固定比例定位：innerW × 0.56，吃掉"状态 pill 与 chip 之间"的中段空白
+    // 这样"已"章就能跟在 chip 右边，而不是顶到画布右缘压到木框上
+    // done 态仍需要为"领取"按钮(tbW=50S)让位，所以 done 态保留"右端对齐"
+    const rewardCenterX = claimed
+      ? innerL + innerW * 0.56
+      : innerL + innerW - actionW - rewardW / 2 - 4 * S
 
-    if (claimed) {
-      c.fillStyle = 'rgba(80, 170, 96, 0.08)'
-    } else if (done) {
-      c.fillStyle = 'rgba(233, 196, 82, 0.12)'
-    } else {
-      c.fillStyle = 'rgba(140,120,80,0.06)'
+    // 行底「直接画在宣纸上」：不要阴影、不要粗边框，也不要金色内描边——那些会让行看起来"浮"在面板上
+    // 只保留一个极淡的色块（区分可点击状态）和一条极淡的底部分隔线（像宣纸上的墨线）
+    // 原型图里的任务行就是"直接写在宣纸上"的，没有独立卡片
+    if (done && !claimed) {
+      // done 未领取：一抹极浅的金黄提示"可领"，引导点击
+      c.fillStyle = 'rgba(255,230,150,0.28)'
+      _rr(c, innerL, cy, innerW, rowH, 6 * S); c.fill()
+    } else if (!claimed && !done) {
+      // 未完成进行中：几乎透明的米白，仅给触达区一个微弱标识
+      c.fillStyle = 'rgba(255,248,225,0.14)'
+      _rr(c, innerL, cy, innerW, rowH, 6 * S); c.fill()
     }
-    _rr(c, innerL, cy, innerW, rowH, 8 * S); c.fill()
-    c.strokeStyle = claimed ? 'rgba(90,160,95,0.18)' : 'rgba(175,135,48,0.15)'
-    c.lineWidth = 0.7 * S
-    _rr(c, innerL, cy, innerW, rowH, 8 * S); c.stroke()
+    // claimed 状态不画行底，让已领取的任务彻底"退"到纸面中
+    // 行底部极淡水平分隔线（仿宣纸上的淡墨横线），最后一行不画
+    const isLastRow = (DAILY_TASKS[DAILY_TASKS.length - 1] === task)
+    if (!isLastRow) {
+      c.save()
+      c.strokeStyle = 'rgba(120,85,35,0.22)'
+      c.lineWidth = 0.6 * S
+      c.beginPath()
+      c.moveTo(innerL + 10 * S, cy + rowH + 4 * S)
+      c.lineTo(innerL + innerW - 10 * S, cy + rowH + 4 * S)
+      c.stroke()
+      c.restore()
+    }
 
     if (isFocusedTask) {
       const pulse = 0.4 + 0.22 * Math.sin((g.af || 0) * 0.08)
@@ -1161,29 +1791,30 @@ function rDailyTasks(g) {
       c.globalAlpha = pulse
       c.strokeStyle = done && !claimed ? 'rgba(232,181,71,0.96)' : 'rgba(255,223,147,0.9)'
       c.lineWidth = 2 * S
-      _rr(c, innerL - 1.5 * S, cy - 1.5 * S, innerW + 3 * S, rowH + 3 * S, 10 * S)
+      _rr(c, innerL - 1.5 * S, cy - 1.5 * S, innerW + 3 * S, rowH + 3 * S, 11 * S)
       c.stroke()
       c.restore()
     }
 
-    c.fillStyle = claimed ? 'rgba(102,187,106,0.72)' : done ? 'rgba(232,181,71,0.88)' : 'rgba(214,188,140,0.7)'
-    _rr(c, innerL + 6 * S, cy + 7 * S, 4 * S, rowH - 14 * S, 2 * S)
-    c.fill()
+    // 左侧竖竹牌分类（秘境 / 征战 / 通天 / 派遣 / 育灵 / 传音）
+    const tagX = innerL + 6 * S
+    _drawTaskTypeTag(c, tagX, cy + rowH / 2, typeTagW, typeTagH, _TASK_TAG_BY_ID[task.id] || '', claimed, S)
 
     c.textAlign = 'left'
     c.textBaseline = 'middle'
-    c.fillStyle = claimed ? '#8B857D' : '#4A3820'
-    c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-    c.fillText(task.name, titleX, cy + rowH * 0.34)
+    // 新的暖金纸底下，claimed 用"墨色变浅的暖褐"而非冷灰，保持水墨感
+    c.fillStyle = claimed ? '#8A6D3C' : '#3A2A12'
+    c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+    c.fillText(task.name, titleX, cy + rowH * 0.28)
 
     const statusText = claimed ? '已领取' : (done ? '已完成，可领取' : `进度 ${Math.min(cur, need)}/${need}`)
-    _drawTaskStatusPill(c, titleX, cy + rowH * 0.73, statusText, rowState, S)
+    _drawTaskStatusPill(c, titleX, cy + rowH * 0.78, statusText, rowState, S)
 
     const taskChipOpts = {
       align: 'center',
       maxSlots: 2,
-      iconSz: 15 * S,
-      chipH: 20 * S,
+      iconSz: 11 * S,
+      chipH: 15 * S,
       gap: 6 * S,
       fontSize: 8.8 * S,
     }
@@ -1197,205 +1828,159 @@ function rDailyTasks(g) {
     }
 
     if (done && !claimed) {
-      const tbW = 50 * S, tbH = 24 * S
-      const tbX = innerL + innerW - tbW - 8 * S
+      const tbW = 46 * S, tbH = 22 * S
+      const tbX = innerL + innerW - tbW - 6 * S
       const tbY = cy + (rowH - tbH) / 2
       R.drawDialogBtn(tbX, tbY, tbW, tbH, '领取', 'confirm')
       _taskRects.taskBtnRects.push({ id: task.id, rect: [tbX, tbY, tbW, tbH] })
     } else if (claimed) {
-      c.fillStyle = '#4CAF50'
-      c.font = `bold ${12 * S}px sans-serif`
-      c.textAlign = 'right'
-      c.textBaseline = 'middle'
-      c.fillText('✓', innerL + innerW - 10 * S, cy + rowH / 2)
+      // "已"章紧跟 chip 右侧：chip 左移到 innerW×0.56 后，"已"章中心落在 chip 右缘 + 12S gap + stampR
+      // 这样 stamp 右缘离 innerR 仍有 ~30S 呼吸，完全在画布内
+      const stampR = 7 * S
+      const stampCX = rewardCenterX + rewardW / 2 + 12 * S + stampR
+      _drawGoldCheckStamp(c, stampCX, cy + rowH / 2, stampR, S)
     }
 
-    cy += rowH + 8 * S
+    cy += rowH + 3 * S
   }
 
-  cy += 2 * S
+  c.restore()
+  // 裁切结束后，把 cy 还原到"任务区底部"（不带 scrollY 偏移），让底部横幅正常居中
+  cy = taskListTop + taskListH
+
+  // 底部横幅前间距（与上面 contentH 公式里的 _bonusBeforeGap 对齐）
+  cy += _bonusBeforeGap
   const allDone = DAILY_TASKS.every(t => prog.claimed[t.id])
   const allClaimed = prog.allClaimed
   const allBonusAdDone = !!prog.allBonusAdClaimed
   const allBonus = getScaledDailyAllBonus(_ch)
   const focusAllBonus = g._dailyTaskFocusSection === 'allBonus'
   const canDoubleBonus = allClaimed && !allBonusAdDone && AdManager.canShow('dailyTaskBonus')
-  const bonusActionW = allDone && !allClaimed ? 70 * S : (canDoubleBonus ? 98 * S : 0)
-  const bonusHasRightBtn = bonusActionW > 0
 
-  let bonusBadgeText = '全部完成可领'
-  let bonusSubtitle = '完成全部任务后领右侧奖励'
+  // 状态副标题：对齐原型的"看广告或分享成功可再领一整份奖励"写法
+  let bonusSubtitle = '完成全部任务后即可领取下列奖励'
   if (allDone && !allClaimed) {
-    bonusBadgeText = '奖励已解锁'
-    bonusSubtitle = '先点右侧领取，再看广告可再领一整份'
+    bonusSubtitle = '奖励已解锁，点击右侧「领取奖励」一次收下'
   } else if (canDoubleBonus) {
-    bonusBadgeText = '可翻倍再领'
     bonusSubtitle = '看广告或分享成功可再领一整份奖励'
   } else if (allClaimed && !allBonusAdDone) {
     const lim = AdManager.getDailyLimit('dailyTaskBonus')
     const used = AdManager.getTodayCount('dailyTaskBonus')
-    if (lim > 0 && used >= lim) {
-      bonusBadgeText = '今日翻倍已结束'
-      bonusSubtitle = '今日次数已用完，请明日再来'
-    } else {
-      bonusBadgeText = '翻倍暂不可用'
-      bonusSubtitle = '激励视频未配置或未就绪，请稍后再试'
-    }
+    bonusSubtitle = (lim > 0 && used >= lim)
+      ? '今日翻倍次数已用完，请明日再来'
+      : '激励视频未就绪，请稍后再试'
   } else if (allClaimed) {
-    bonusBadgeText = '全部奖励领完'
     bonusSubtitle = '今日奖励已全部领完'
   }
 
-  // 左侧：徽章 → 主标题 → 副标题纵向排布（原先固定 y 与徽章高度重叠）
-  const bonusPadT = 11 * S
-  const bonusPadB = 11 * S
-  const bonusGapBadgeTitle = 7 * S
-  const bonusGapTitleSub = 5 * S
-  const allBonusBadgeH = 18 * S
-  const allBonusTitleFs = 11.5 * S
-  const allBonusSubFs = 8.4 * S
-  c.save()
-  c.font = `bold ${8.8 * S}px "PingFang SC",sans-serif`
-  const badgeW = Math.max(58 * S, c.measureText(bonusBadgeText).width + 16 * S)
-  c.restore()
-  const titleLineH = Math.ceil(allBonusTitleFs * 1.22)
-  const subLineH = Math.ceil(allBonusSubFs * 1.28)
-  const allBonusChipH = 20 * S
-  const allBonusChipRowGap = 10 * S
-  const textStackH =
-    bonusPadT +
-    allBonusBadgeH +
-    bonusGapBadgeTitle +
-    titleLineH +
-    bonusGapTitleSub +
-    subLineH +
-    allBonusChipRowGap +
-    allBonusChipH +
-    bonusPadB
-  const bonusHMin = bonusHasRightBtn ? 92 * S : 72 * S
-  const bonusH = Math.max(textStackH, bonusHMin)
+  // === 横幅布局：3 层（主标题 → 副标题 → chip + 按钮）===
+  // 每一层独立绘制，制造"装饰条+纸张+奖励方块+厚棕按钮"的层次感
+  // 尺寸和上方 contentH 公式里的 _bonusBlockH(120*S) 必须一致
+  const bonusPadTop = 7 * S
+  const bonusPadBot = 7 * S
+  const bonusPadX = 7 * S
+  const headerRowH = 13 * S
+  const subtitleGap = 2 * S
+  const subtitleRowH = 10 * S
+  const chipRowGap = 6 * S
+  const chipRowH = 22 * S
+  const bonusH = bonusPadTop + headerRowH + subtitleGap + subtitleRowH + chipRowGap + chipRowH + bonusPadBot
+  // bonusH = 7+13+2+10+6+22+7 = 67*S（与上面 _bonusBlockH=72*S 留 5*S 容错）
 
   const bonusY = cy
-  const bonusRewardW = 148 * S
-  const bonusTitleX = innerL + 14 * S
-  let actionBtnOuterLeft = innerL + innerW - 8 * S
-  if (allDone && !allClaimed) actionBtnOuterLeft = innerL + innerW - 62 * S - 8 * S
-  else if (canDoubleBonus) actionBtnOuterLeft = innerL + innerW - 90 * S - 8 * S
-  const chipRightGap = 6 * S
-  const bonusRewardCenterX = innerL + innerW - bonusActionW - bonusRewardW / 2 - 12 * S
-  const chipAnchorX = bonusHasRightBtn ? (actionBtnOuterLeft - chipRightGap) : bonusRewardCenterX
+  const bonusX = innerL
+  const bonusW = innerW
   const bonusState = canDoubleBonus ? 'ready' : (allClaimed ? 'claimed' : (allDone ? 'ready' : 'pending'))
-
-  let yText = bonusY + bonusPadT
-  const badgeY = yText
-  yText += allBonusBadgeH + bonusGapBadgeTitle
-  const titleTopY = yText
-  yText += titleLineH + bonusGapTitleSub
-  const subtitleTopY = yText
-  const chipCy = subtitleTopY + subLineH + allBonusChipRowGap + allBonusChipH / 2
 
   _taskRects.allBonusBtnRect = null
   _taskRects.allBonusAdRect = null
 
-  if (allClaimed && !canDoubleBonus) c.fillStyle = 'rgba(80, 170, 96, 0.10)'
-  else if (allDone || canDoubleBonus) c.fillStyle = 'rgba(244, 218, 120, 0.18)'
-  else c.fillStyle = 'rgba(186,156,92,0.10)'
-  _rr(c, innerL, bonusY, innerW, bonusH, 12 * S)
-  c.fill()
-  c.strokeStyle = allClaimed && !canDoubleBonus ? 'rgba(90,160,95,0.20)' : 'rgba(206,163,42,0.26)'
-  c.lineWidth = 0.9 * S
-  _rr(c, innerL, bonusY, innerW, bonusH, 12 * S)
-  c.stroke()
+  // 不再画「独立米黄纸卡片+双描边+投影」的横幅底——那样会让底部奖励区看起来像另一张飘在面板外的纸
+  // 改为：仅在顶部画一条装饰性分隔（金色渐隐线 + 两侧小菱形），让"全部任务完成奖励"区与任务行自然断开
+  // 内容（标题/副标题/chip/按钮）全部直接画在卷轴的宣纸底色上
+  c.save()
+  const sepY = bonusY + 2 * S
+  const sepLen = Math.min(bonusW * 0.8, 240 * S)
+  const sepL = bonusX + bonusW / 2 - sepLen / 2
+  const sepR = bonusX + bonusW / 2 + sepLen / 2
+  const sepGrad = c.createLinearGradient(sepL, 0, sepR, 0)
+  sepGrad.addColorStop(0, 'rgba(176,125,38,0)')
+  sepGrad.addColorStop(0.5, 'rgba(176,125,38,0.55)')
+  sepGrad.addColorStop(1, 'rgba(176,125,38,0)')
+  c.strokeStyle = sepGrad
+  c.lineWidth = 0.8 * S
+  c.beginPath(); c.moveTo(sepL, sepY); c.lineTo(sepR, sepY); c.stroke()
+  c.restore()
 
+  // 聚焦高亮：只在"可领取"或"可看广告翻倍"态下画一圈微光描边，作为按钮区的呼吸提示
+  // 但要无填充、无阴影，避免又回到"卡片浮空"感
   if (focusAllBonus) {
-    const pulse = 0.42 + 0.22 * Math.sin((g.af || 0) * 0.08)
+    const pulse = 0.36 + 0.22 * Math.sin((g.af || 0) * 0.08)
     c.save()
     c.globalAlpha = pulse
-    c.strokeStyle = canDoubleBonus || (allDone && !allClaimed) ? 'rgba(232,181,71,0.98)' : 'rgba(255,228,161,0.9)'
-    c.lineWidth = 2 * S
-    _rr(c, innerL - 1.5 * S, bonusY - 1.5 * S, innerW + 3 * S, bonusH + 3 * S, 14 * S)
+    c.strokeStyle = canDoubleBonus || (allDone && !allClaimed) ? 'rgba(232,181,71,0.95)' : 'rgba(255,228,161,0.85)'
+    c.lineWidth = 1.6 * S
+    _rr(c, bonusX + 1 * S, bonusY + 4 * S, bonusW - 2 * S, bonusH - 5 * S, 9 * S)
     c.stroke()
     c.restore()
   }
 
-  c.fillStyle = allClaimed && !canDoubleBonus ? 'rgba(102,187,106,0.72)' : 'rgba(232,181,71,0.92)'
-  _rr(c, innerL + 6 * S, bonusY + 8 * S, 5 * S, bonusH - 16 * S, 2.5 * S)
-  c.fill()
+  // 第 2 层：顶部装饰主标题（金线 + 菱形 + 楷体大字，居中）
+  const headerCY = bonusY + bonusPadTop + headerRowH / 2
+  _drawBonusHeader(c, bonusX + bonusW / 2, headerCY, bonusW - bonusPadX * 2, '全部任务完成奖励', S)
 
-  const badgeX = bonusTitleX
+  // 第 3 层：居中副标题
+  const subtitleCY = headerCY + headerRowH / 2 + subtitleGap + subtitleRowH / 2
   c.save()
-  c.font = `bold ${8.8 * S}px "PingFang SC",sans-serif`
-  c.fillStyle = allClaimed && !canDoubleBonus ? 'rgba(223,241,226,0.98)' : 'rgba(255,244,209,0.98)'
-  _rr(c, badgeX, badgeY, badgeW, allBonusBadgeH, allBonusBadgeH / 2)
-  c.fill()
-  c.strokeStyle = allClaimed && !canDoubleBonus ? 'rgba(96,171,101,0.24)' : 'rgba(214,170,53,0.28)'
-  c.lineWidth = 0.8 * S
-  _rr(c, badgeX, badgeY, badgeW, allBonusBadgeH, allBonusBadgeH / 2)
-  c.stroke()
-  c.fillStyle = allClaimed && !canDoubleBonus ? '#4C8D59' : '#9C6B00'
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(bonusBadgeText, badgeX + badgeW / 2, badgeY + allBonusBadgeH / 2 + 0.2 * S)
+  c.font = `${8 * S}px "PingFang SC",sans-serif`
+  c.fillStyle = allClaimed && !canDoubleBonus ? '#6E9A72' : '#8A6A3A'
+  c.fillText(bonusSubtitle, bonusX + bonusW / 2, subtitleCY)
   c.restore()
 
-  c.textAlign = 'left'
-  c.textBaseline = 'top'
-  c.fillStyle = '#4A3820'
-  c.font = `bold ${allBonusTitleFs}px "PingFang SC",sans-serif`
-  c.fillText('全部任务完成奖励', bonusTitleX, titleTopY)
-  c.fillStyle = allClaimed && !canDoubleBonus ? '#6E9A72' : '#9A7B55'
-  c.font = `${allBonusSubFs}px "PingFang SC",sans-serif`
-  c.fillText(bonusSubtitle, bonusTitleX, subtitleTopY)
+  // 第 4 层：奖励 chip + 按钮同一行（左 chip / 右厚棕色按钮）
+  const rowY = subtitleCY + subtitleRowH / 2 + chipRowGap
+  const rowCY = rowY + chipRowH / 2
 
-  let effChipAnchorX = chipAnchorX
-  if (bonusHasRightBtn) {
-    c.save()
-    const slots = getRewardSlots(allBonus).slice(0, 3)
-    let chipTotalW = 0
-    if (slots.length) {
-      const iconSz = 15 * S
-      const gap = 5 * S
-      const fs = 8.6 * S
-      c.font = `bold ${fs}px "PingFang SC",sans-serif`
-      const widths = slots.map(slot => Math.max(40 * S, iconSz + 14 * S + c.measureText(slot.line).width))
-      chipTotalW = widths.reduce((s, w) => s + w, 0) + gap * (slots.length - 1)
-    }
-    c.restore()
-    const chipMinStartX = innerL + 12 * S
-    const maxChipRight = actionBtnOuterLeft - chipRightGap
-    const needAnchor = chipMinStartX + chipTotalW
-    effChipAnchorX = Math.min(maxChipRight, Math.max(chipAnchorX, needAnchor))
-  }
+  const showRewardBtn = allDone && !allClaimed
+  const showAdBtn = canDoubleBonus
+  const hasBtn = showRewardBtn || showAdBtn
+  // 按钮宽度：两种文案分别测出最小需要宽度，保证不会被切
+  // 按钮再收：字号 10*S bold 时 5 字 ~50*S，4 字 ~40*S，左右内边距 10*S
+  // → "看广告翻倍" 取 78*S，"领取奖励" 取 66*S
+  const btnW = showAdBtn ? 78 * S : 66 * S
+  const btnH = chipRowH
+  const btnX = bonusX + bonusW - bonusPadX - btnW
+  const btnY = rowY
+
+  const chipStartX = bonusX + bonusPadX
+  // chip 区与按钮之间保留 10*S 的"呼吸槽"，避免"x62/x1/翻倍"等挤到按钮边
+  const chipAvailRight = hasBtn ? (btnX - 10 * S) : (bonusX + bonusW - bonusPadX)
+  const chipAvailW = Math.max(40 * S, chipAvailRight - chipStartX)
 
   const chipDrawOpts = {
-    align: bonusHasRightBtn ? 'right' : 'center',
+    align: 'left',
     maxSlots: 3,
-    iconSz: 15 * S,
-    chipH: 20 * S,
-    gap: 5 * S,
-    fontSize: 8.6 * S,
+    iconSz: 11 * S,        // 从 14 缩到 11：底部"全部奖励"chip 图标不再过大
+    chipH: chipRowH,
+    gap: 3 * S,
+    fontSize: 7.5 * S,
   }
   if (allDone && !allClaimed) {
-    g._dailyAllBonusChipLayout = layoutRewardSlotChips(c, allBonus, effChipAnchorX, chipCy, bonusRewardW, S, chipDrawOpts)
+    g._dailyAllBonusChipLayout = layoutRewardSlotChips(c, allBonus, chipStartX, rowCY, chipAvailW, S, chipDrawOpts)
   }
-
   const skipBonusChips = allClaimed && shouldSkipStaticRewardChips(g, { type: 'dailyAllBonus' })
   if (!skipBonusChips) {
-    drawRewardSlotChips(c, R, allBonus, effChipAnchorX, chipCy, bonusRewardW, S, { ...chipDrawOpts, state: bonusState })
+    drawRewardSlotChips(c, R, allBonus, chipStartX, rowCY, chipAvailW, S, { ...chipDrawOpts, state: bonusState })
   }
 
-  if (allDone && !allClaimed) {
-    const abW = 62 * S, abH = 24 * S
-    const abX = innerL + innerW - abW - 8 * S
-    const abY = chipCy - abH / 2
-    R.drawDialogBtn(abX, abY, abW, abH, '领取', 'confirm')
-    _taskRects.allBonusBtnRect = [abX, abY, abW, abH]
-  } else if (canDoubleBonus) {
-    const adW = 90 * S, adH = 24 * S
-    const adX = innerL + innerW - adW - 8 * S
-    const adY = chipCy - adH / 2
-    R.drawDialogBtn(adX, adY, adW, adH, '看广告翻倍', 'adReward')
-    _taskRects.allBonusAdRect = [adX, adY, adW, adH]
+  if (showRewardBtn) {
+    _drawWoodenActionBtn(c, btnX, btnY, btnW, btnH, '领取奖励', 'reward', S)
+    _taskRects.allBonusBtnRect = [btnX, btnY, btnW, btnH]
+  } else if (showAdBtn) {
+    _drawWoodenActionBtn(c, btnX, btnY, btnW, btnH, '看广告翻倍', 'ad', S)
+    _taskRects.allBonusAdRect = [btnX, btnY, btnW, btnH]
   }
 
   drawRewardChipFlyLayer(c, R, g, S)
@@ -1523,6 +2108,20 @@ function tDailyTasks(g, x, y, type) {
   if (_taskRects.closeBtnRect && g._hitRect(x, y, ..._taskRects.closeBtnRect)) {
     g._showDailyTasks = false
     MusicMgr.playClick && MusicMgr.playClick()
+    return true
+  }
+
+  // 左侧 Tab：日常（当前面板即日常，点击仅给点击反馈）
+  if (_taskRects.tabDailyRect && g._hitRect(x, y, ..._taskRects.tabDailyRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    return true
+  }
+
+  // 左侧 Tab：成就系统暂未上线，给出明确预告
+  if (_taskRects.tabAchievementRect && g._hitRect(x, y, ..._taskRects.tabAchievementRect)) {
+    MusicMgr.playClick && MusicMgr.playClick()
+    const P = require('../platform')
+    P.showGameToast('成就系统即将开放，敬请期待', { type: 'warn' })
     return true
   }
 

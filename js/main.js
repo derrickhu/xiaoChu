@@ -454,6 +454,12 @@ class Main {
       'assets/ui/newbie_gift_icon.png',
       'assets/ui/icon_universal_frag.png',
       'assets/ui/guide_xiaoling.png',
+      // 每日任务界面的生图素材（卷轴面板 + 悬挂木匾 + 双态丝绸吊牌 + 金色原木按钮）
+      'assets/ui/task_panel_frame.png',
+      'assets/ui/task_plaque_title.png',
+      'assets/ui/task_sidetab_active.png',
+      'assets/ui/task_sidetab_dim.png',
+      'assets/ui/task_btn_wood.png',
       // 签到弹窗（花华 CheckIn 贴图）
       'assets/ui/checkin_huahua/checkin_title_banner.png',
       'assets/ui/checkin_huahua/checkin_milestone_panel.png',
