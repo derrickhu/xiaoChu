@@ -8,7 +8,7 @@ const V = require('./env')
 const uiUtils = require('./uiUtils')
 const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetRarity, getPetSkillDesc, getPetSkillBaseDesc, getPetAvatarPath, petHasSkill, getPetLore, getStar3Override, getStar4Passive, getStar5Override } = require('../data/pets')
-const { getPoolPetAtk, getPoolPetMaxLv, getPoolPetMaxStar, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_MAX_LV, POOL_ADV_MAX_LV, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
+const { getPoolPetAtk, getPoolPetMaxLv, getPoolPetMaxStar, petExpToNextLevel, POOL_STAR_FRAG_COST, POOL_STAR_LV_REQ, POOL_STAR_ATK_MUL, POOL_STAR_AWAKEN_COST, FRAGMENT_TO_EXP } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
 const floatText = require('./floatText')
@@ -1509,7 +1509,9 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const attrColor = ATTR_COLOR[poolPet.attr]
   const expPool = g.storage.soulStone || 0
   const nextLvExp = petExpToNextLevel(poolPet.level, rarity)
-  const maxLv = poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+  // 用 getPoolPetMaxLv 统一取"星级上限 + 来源上限"的真实满级，
+  // 避免 ★4 宠被错误判定为 Lv.40 满级、永远升不到升 5 星所需的 Lv.48
+  const maxLv = getPoolPetMaxLv(poolPet)
   const isMaxLv = poolPet.level >= maxLv
   const ac = attrColor ? attrColor.main : '#666'
   const maxStar = getPoolPetMaxStar(poolPet)
@@ -2714,7 +2716,7 @@ function _longPressLoop(g) {
   if (!_longPressActive) return
   _doLevelUp(g)
   const poolPet = g.storage.getPoolPet(g._petDetailId)
-  const maxLv = poolPet && poolPet.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+  const maxLv = poolPet ? getPoolPetMaxLv(poolPet) : 0
   if (poolPet && poolPet.level < maxLv) {
     const rarity = getPetRarity(g._petDetailId)
     const needed = petExpToNextLevel(poolPet.level, rarity)

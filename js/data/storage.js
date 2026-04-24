@@ -984,13 +984,15 @@ class Storage {
    * @param {number} amount - 投入灵石量
    */
   investSoulStone(petId, amount) {
-    const { petExpToNextLevel, POOL_MAX_LV, POOL_ADV_MAX_LV } = require('./petPoolConfig')
+    const { petExpToNextLevel, getPoolPetMaxLv } = require('./petPoolConfig')
     const { getPetRarity } = require('./pets')
     const entry = (this._d.petPool || []).find(p => p.id === petId)
     if (!entry || amount <= 0) return 0
     const available = Math.min(amount, this._d.soulStone || 0)
     if (available <= 0) return 0
-    const maxLv = entry.source === 'stage' ? POOL_ADV_MAX_LV : POOL_MAX_LV
+    // 必须用 getPoolPetMaxLv：它会结合星级上限（POOL_STAR_LV_CAP）与来源上限取较大值，
+    // 否则 ★4/★5 宠在非 stage 来源时会被错误卡在 POOL_MAX_LV=40，永远达不到升 5 星所需的 Lv.48
+    const maxLv = getPoolPetMaxLv(entry)
     if (entry.level >= maxLv) return 0
     const rarity = getPetRarity(entry.id)
     let spent = 0, levelUps = 0
@@ -3437,6 +3439,22 @@ class Storage {
     if (isAnonNick(nick)) return true
     if (nick === '冒险者' || nick === '微信用户' || nick === '修士') return true
     return !this.userAuthorized
+  }
+
+  // UI 层统一取显示用昵称：
+  //   · 授权后：微信/抖音授权昵称（真名）
+  //   · 未授权：用 openid 生成稳定匿名昵称 "修士·XXXX"，和排行榜完全一致
+  //   · openid 都拿不到（冷启动早期）：兜底 "修士"，不崩
+  getDisplayNickName() {
+    const nick = this.userInfo && this.userInfo.nickName
+    if (nick && !isAnonNick(nick) && nick !== '修士' && nick !== '微信用户') {
+      return nick
+    }
+    try {
+      const oid = cloudSync.getOpenid && cloudSync.getOpenid()
+      if (oid) return genAnonNick(oid)
+    } catch (_) {}
+    return '修士'
   }
 
 }
