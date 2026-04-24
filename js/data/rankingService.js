@@ -103,6 +103,7 @@ class RankingService {
     if (curr === 1) fb.events.push('top1')
     else if (curr <= 3) fb.events.push('top3')
     else if (curr <= 10) fb.events.push('top10')
+    else if (curr <= 50) fb.events.push('top50')
     return fb
   }
 

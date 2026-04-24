@@ -911,7 +911,12 @@ const _RANK_TAB_LABEL = {
 
 /**
  * D3：把 RankingService 算出的 feedback 落到 UI（lingCheer 头条 / gameToast 短提示）
- * 优先级：里程碑（首次 top1/3/10）→ 飞升（≥5 位）→ 普通上升 → 首次上榜。下降不打扰。
+ * 优先级：
+ *   1. 终身里程碑 top1/top3/top10（epic）
+ *   2. 终身里程碑 top50（info，配合榜单扩容到百强后让"踏入前 50"也有仪式感）
+ *   3. 巨幅飞升 ≥20 位（epic） → ≥5 位（info） → 普通上升（toast）
+ *   4. 首次上榜 toast
+ * 下降不打扰。
  */
 function _applyRankingFeedback(g, fb) {
   if (!fb || !fb.events || !fb.events.length) return
@@ -922,13 +927,13 @@ function _applyRankingFeedback(g, fb) {
   const tabLabel = _RANK_TAB_LABEL[fb.tab] || '榜单'
   const avatar = (LING && LING.avatar) || null
 
-  // 1. 里程碑（一生首次达成 top1/3/10）走 lingCheer + 持久去重
-  const milestones = [
+  // 1. 顶级里程碑（一生首次达成 top1/3/10）走 lingCheer epic + 持久去重
+  const epicMilestones = [
     { level: 'top1', hit: fb.events.includes('top1'), text: `登顶${tabLabel}！第 1 名！` },
     { level: 'top3', hit: fb.events.includes('top3'), text: `${tabLabel} · 冲进前三！第 ${fb.curr} 名` },
     { level: 'top10', hit: fb.events.includes('top10'), text: `${tabLabel} · 跻身前十！第 ${fb.curr} 名` },
   ]
-  for (const m of milestones) {
+  for (const m of epicMilestones) {
     if (!m.hit) continue
     if (storage.hasRankMilestone(fb.tab, m.level)) continue
     if (storage.markRankMilestone(fb.tab, m.level)) {
@@ -937,13 +942,25 @@ function _applyRankingFeedback(g, fb) {
     }
   }
 
-  // 2. 大幅上升（≥5）也给一次 lingCheer，玩家会有冲榜爽感
+  // 2. 百强段里程碑 top50：榜单扩到百强后专门给"稳坐前五十"一次仪式感
+  if (fb.events.includes('top50') && !storage.hasRankMilestone(fb.tab, 'top50')) {
+    if (storage.markRankMilestone(fb.tab, 'top50')) {
+      lingCheer.show(`${tabLabel} · 跻身前五十 · 第 ${fb.curr} 名`, { tone: 'info', avatar, duration: 2400 })
+      return
+    }
+  }
+
+  // 3a. 巨幅飞升（≥20 位）→ epic，够爽
+  if (fb.delta >= 20) {
+    lingCheer.show(`${tabLabel} · 连升 ${fb.delta} 位 → 第 ${fb.curr} 名！`, { tone: 'epic', avatar, duration: 2600 })
+    return
+  }
+  // 3b. 中幅上升（≥5）→ info lingCheer
   if (fb.delta >= 5) {
     lingCheer.show(`${tabLabel} · 飞升 ${fb.delta} 位 → 第 ${fb.curr} 名`, { tone: 'info', avatar, duration: 2200 })
     return
   }
-
-  // 3. 普通上升 → 小 toast
+  // 3c. 普通上升 → 小 toast
   if (fb.delta > 0) {
     gameToast.show(`${tabLabel} · ↑ ${fb.delta} 位 · 第 ${fb.curr} 名`, { type: 'achievement', duration: 1800 })
     return
