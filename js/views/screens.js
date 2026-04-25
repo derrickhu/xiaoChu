@@ -2387,21 +2387,23 @@ function _drawDexWeaponMode(g, ctx, R, W, S, sdivY) {
   const collSet = new Set(collection)
 
   const summaryY = sdivY + 8 * S
-  const summaryX = 18 * S
-  const summaryW = W - 36 * S
-  const summaryH = 30 * S
-  inkUI.drawScrollPanel(ctx, R, S, summaryX, summaryY, summaryW, summaryH, {
-    radius: 13 * S,
-    insetX: 12 * S,
-    insetY: 6 * S,
-    top: 'rgba(250,239,208,0.72)',
-    bottom: 'rgba(222,199,156,0.58)',
-  })
+  const summaryX = 20 * S
+  const summaryW = W - 40 * S
+  const summaryH = 24 * S
   ctx.save()
-  ctx.font = `bold ${12 * S}px "STKaiti","PingFang SC",serif`
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-  ctx.fillStyle = '#4f3928'
-  ctx.fillText('云阁藏宝录', summaryX + 14 * S, summaryY + summaryH / 2)
+  const statGrad = ctx.createLinearGradient(summaryX, summaryY, summaryX, summaryY + summaryH)
+  statGrad.addColorStop(0, 'rgba(250,239,208,0.66)')
+  statGrad.addColorStop(1, 'rgba(222,199,156,0.48)')
+  ctx.fillStyle = statGrad
+  R.rr(summaryX, summaryY, summaryW, summaryH, 10 * S); ctx.fill()
+  ctx.strokeStyle = 'rgba(174,132,74,0.28)'
+  ctx.lineWidth = 1 * S
+  R.rr(summaryX, summaryY, summaryW, summaryH, 10 * S); ctx.stroke()
+  ctx.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#5c4430'
+  ctx.fillText(`已收录 ${collection.length}`, summaryX + summaryW * 0.23, summaryY + summaryH / 2 + 0.5 * S)
+  ctx.fillText(`法宝总数 ${WEAPONS.length}`, summaryX + summaryW * 0.50, summaryY + summaryH / 2 + 0.5 * S)
   const progW = 66 * S
   const progH = 22 * S
   const progX = summaryX + summaryW - progW - 7 * S
@@ -2421,8 +2423,8 @@ function _drawDexWeaponMode(g, ctx, R, W, S, sdivY) {
   ctx.restore()
 
   if (!g._dexWpnRarityFilter) g._dexWpnRarityFilter = 'all'
-  const tabY = summaryY + summaryH + 8 * S
-  const tabH = 26 * S
+  const tabY = summaryY + summaryH + 7 * S
+  const tabH = 24 * S
   g._dexWpnTabRects = inkUI.drawInkFilterTabs(ctx, R, S,
     _DEX_WEAPON_RARITY_FILTERS,
     g._dexWpnRarityFilter || 'all',
@@ -2431,15 +2433,15 @@ function _drawDexWeaponMode(g, ctx, R, W, S, sdivY) {
     W - 36 * S,
     tabH,
     {
-      fontSize: 10.5,
+      fontSize: 9.8,
       gap: 7 * S,
-      activeBg: 'rgba(212,156,48,0.72)',
+      activeBg: 'rgba(212,156,48,0.64)',
       activeBorder: 'rgba(255,235,162,0.92)',
-      bg: 'rgba(245,231,196,0.42)',
+      bg: 'rgba(245,231,196,0.30)',
       radius: 8 * S,
     })
 
-  const contentTop = tabY + tabH + 12 * S
+  const contentTop = tabY + tabH + 9 * S
   const contentBottom = _getDexLayout().bottomBarY - 4 * S
   g._dexContentTop = contentTop
   g._dexContentBottom = contentBottom
@@ -2468,6 +2470,12 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
   const wpnList = rarityFilter === 'all'
     ? WEAPONS.slice()
     : WEAPONS.filter(wpn => getWeaponRarity(wpn.id) === rarityFilter)
+  wpnList.sort((a, b) => {
+    const ao = collSet.has(a.id) ? 0 : 1
+    const bo = collSet.has(b.id) ? 0 : 1
+    if (ao !== bo) return ao - bo
+    return Number(a.id.replace('w', '')) - Number(b.id.replace('w', ''))
+  })
 
   g._dexWpnCellRects = []
   g._dexTotalH = 0
@@ -2487,7 +2495,8 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
     const owned = collSet.has(wpn.id)
     const rarityKey = getWeaponRarity(wpn.id) || 'R'
 
-    inkUI.drawDexCardFrame(ctx, R, S, cx, cy, cellW, cellH, owned ? 'collected' : 'unknown')
+    if (owned) inkUI.drawDexCardFrame(ctx, R, S, cx, cy, cellW, cellH, 'collected')
+    else inkUI.drawUnknownInkSlot(ctx, R, S, cx, cy, cellW, cellH)
     const iconSz = Math.min(cellW - 12 * S, cellH - 36 * S)
     const iconX = cx + (cellW - iconSz) / 2
     const iconY = cy + 6 * S
@@ -2500,15 +2509,6 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
         fontSize: 7.2 * S,
         radius: 3 * S,
       })
-    } else {
-      ctx.save()
-      ctx.fillStyle = 'rgba(18,18,18,0.28)'
-      R.rr(iconX, iconY, iconSz, iconSz, 7 * S); ctx.fill()
-      ctx.fillStyle = 'rgba(245,235,210,0.20)'
-      ctx.font = `bold ${cellW * 0.34}px "STKaiti","PingFang SC",serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('?', cx + cellW / 2, iconY + iconSz / 2)
-      ctx.restore()
     }
 
     // 名称
@@ -2518,12 +2518,12 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
       ctx.strokeStyle = 'rgba(180,140,66,0.28)'
       ctx.lineWidth = 0.8 * S
       R.rr(cx + 8 * S, cy + cellH - 25 * S, cellW - 16 * S, 20 * S, 6 * S); ctx.stroke()
+      ctx.fillStyle = '#3a2f24'
+      ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      const displayName = wpn.name.length > 5 ? wpn.name.substring(0, 5) : wpn.name
+      ctx.fillText(displayName, cx + cellW / 2, cy + cellH - 14 * S)
     }
-    ctx.fillStyle = owned ? '#3a2f24' : 'rgba(255,255,255,0.55)'
-    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const displayName = owned ? (wpn.name.length > 5 ? wpn.name.substring(0, 5) : wpn.name) : '???'
-    ctx.fillText(displayName, cx + cellW / 2, cy + cellH - 14 * S)
 
     g._dexWpnCellRects.push({ id: wpn.id, x: cx, y: cy, w: cellW, h: cellH })
   }

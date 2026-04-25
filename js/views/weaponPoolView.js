@@ -7,8 +7,14 @@ const { WEAPON_ACQUIRE_HINT_UNOWNED } = require('../data/constants')
 const { WEAPONS, getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const { drawCornerRarityBadge, drawInlineRarityBadge } = require('./rarityBadge')
+const inkUI = require('./inkUiComponents')
 
 const OWNED_CARD_BORDER = 'rgba(212,175,55,0.65)'
+const WEAPON_POOL_ART = {
+  bg: 'assets/backgrounds/petpool_ink_bg.jpg',
+  card: 'assets/ui/pet_card_scroll_bg.png',
+  filter: 'assets/ui/pet_filter_scroll_bg.png',
+}
 const FILTERS = [
   { key: 'all', label: '全部' },
   { key: 'R', label: 'R' },
@@ -35,7 +41,9 @@ function rWeaponPool(g) {
     return
   }
 
-  R.drawHomeBg(g.af)
+  const bg = R.getImg(WEAPON_POOL_ART.bg)
+  if (bg && bg.width > 0) R._drawCoverImg(bg, 0, 0, W, H)
+  else R.drawHomeBg(g.af)
 
   const L = getTitleLayout()
   const topY = safeTop + 4 * S
@@ -47,48 +55,54 @@ function rWeaponPool(g) {
 
   drawPageTitle(c, R, W, S, W * 0.5, topY + 24 * S, '法宝阁')
 
-  // 收集进度（右上）
+  // 收集进度：对齐灵宠池的轻量玉牌质感
   c.save()
-  c.fillStyle = 'rgba(0,0,0,0.35)'
   const progText = `${collection.length} / ${WEAPONS.length}`
-  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'; c.textBaseline = 'middle'
-  const ptW = c.measureText(progText).width + 16 * S
-  const ptH = 22 * S
-  const ptX = W - 10 * S - ptW
-  const ptY = topY + 14 * S
-  R.rr(ptX, ptY, ptW, ptH, ptH / 2); c.fill()
-  c.fillStyle = '#ffe080'
-  c.fillText(progText, W - 18 * S, ptY + ptH / 2)
+  const ptW = 86 * S
+  const ptH = 24 * S
+  const ptX = W - 12 * S - ptW
+  const ptY = topY + 12 * S
+  const ptGrad = c.createLinearGradient(ptX, ptY, ptX, ptY + ptH)
+  ptGrad.addColorStop(0, 'rgba(46,82,66,0.82)')
+  ptGrad.addColorStop(1, 'rgba(35,58,48,0.82)')
+  c.fillStyle = ptGrad
+  R.rr(ptX, ptY, ptW, ptH, 9 * S); c.fill()
+  c.strokeStyle = 'rgba(231,199,116,0.68)'
+  c.lineWidth = 1.2 * S
+  R.rr(ptX, ptY, ptW, ptH, 9 * S); c.stroke()
+  c.fillStyle = '#fff1cc'
+  c.font = `bold ${11*S}px "PingFang SC",serif`
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeStyle = 'rgba(18,28,22,0.78)'
+  c.lineWidth = 2 * S
+  c.strokeText(`收录 ${progText}`, ptX + ptW / 2, ptY + ptH / 2 + 0.5 * S)
+  c.fillText(`收录 ${progText}`, ptX + ptW / 2, ptY + ptH / 2 + 0.5 * S)
   c.restore()
 
   _rects.filterRects = []
 
-  const filterY = contentTop + 8 * S
+  const filterY = contentTop + 10 * S
   const filterH = 26 * S
-  const filterGap = 6 * S
-  const filterW = (W - 24 * S - filterGap * (FILTERS.length - 1)) / FILTERS.length
-  c.save()
-  for (let i = 0; i < FILTERS.length; i++) {
-    const f = FILTERS[i]
-    const fx = 12 * S + i * (filterW + filterGap)
-    const isActive = (g._weaponPoolFilter || 'all') === f.key
-    c.fillStyle = isActive ? 'rgba(235,190,90,0.45)' : 'rgba(235,190,90,0.15)'
-    R.rr(fx, filterY, filterW, filterH, 6 * S); c.fill()
-    if (isActive) {
-      c.strokeStyle = 'rgba(255,215,120,0.85)'; c.lineWidth = 2 * S
-      R.rr(fx, filterY, filterW, filterH, 6 * S); c.stroke()
-    }
-    c.fillStyle = isActive ? '#fff8e0' : 'rgba(255,245,220,0.82)'
-    c.font = `bold ${(f.key === 'all' ? 10 : 11) * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.strokeStyle = 'rgba(0,0,0,0.35)'
-    c.lineWidth = 2.2 * S
-    c.strokeText(f.label, fx + filterW / 2, filterY + filterH / 2)
-    c.fillText(f.label, fx + filterW / 2, filterY + filterH / 2)
-    _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW, filterH] })
+  const filterBg = R.getImg(WEAPON_POOL_ART.filter)
+  const filterBgX = 6 * S
+  const filterBgY = filterY - 12 * S
+  const filterBgW = W - 12 * S
+  const filterBgH = filterH + 30 * S
+  if (filterBg && filterBg.width > 0) {
+    c.drawImage(filterBg, filterBgX, filterBgY, filterBgW, filterBgH)
+  } else {
+    c.fillStyle = 'rgba(222,205,164,0.28)'
+    R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 18 * S); c.fill()
   }
-  c.restore()
+  _rects.filterRects = inkUI.drawInkFilterTabs(c, R, S, FILTERS, g._weaponPoolFilter || 'all',
+    12 * S, filterY, W - 24 * S, filterH, {
+      fontSize: 10.5,
+      gap: 6 * S,
+      activeBg: 'rgba(74,145,122,0.62)',
+      activeBorder: 'rgba(212,190,118,0.9)',
+      bg: 'rgba(236,219,178,0.34)',
+      radius: 6 * S,
+    }).map(r => ({ key: r.key, rect: [r.x, r.y, r.w, r.h] }))
 
   // 卡片网格
   const gridTop = filterY + filterH + 8 * S
@@ -97,12 +111,19 @@ function rWeaponPool(g) {
   const weapons = rarityFilter === 'all'
     ? WEAPONS.slice()
     : WEAPONS.filter(w => getWeaponRarity(w.id) === rarityFilter)
-  const cols = 4
-  const cardGap = 6 * S
+  weapons.sort((a, b) => {
+    const ao = collSet.has(a.id) ? 0 : 1
+    const bo = collSet.has(b.id) ? 0 : 1
+    if (ao !== bo) return ao - bo
+    return Number(a.id.replace('w', '')) - Number(b.id.replace('w', ''))
+  })
+  const cols = 3
+  const cardGap = 8 * S
   const padX = 12 * S
   const cardW = (W - padX * 2 - cardGap * (cols - 1)) / cols
-  const cardH = cardW + 22 * S
+  const cardH = cardW * 1.32
   _rects.cardRects = []
+  g._weaponPoolContentH = gridBottom - gridTop
 
   c.save()
   c.beginPath()
@@ -141,63 +162,75 @@ function rWeaponPool(g) {
 }
 
 function _drawWeaponCard(c, R, S, x, y, w, h, wpn, owned, equipped) {
-  const iconH = w
-  const textH = h - iconH
   const rarityKey = getWeaponRarity(wpn.id) || 'R'
 
   c.save()
-  if (owned) {
-    c.fillStyle = 'rgba(40,35,25,0.85)'
+  const cardBg = R.getImg(WEAPON_POOL_ART.card)
+  if (cardBg && cardBg.width > 0) {
+    c.globalAlpha = owned ? 1 : 0.42
+    c.drawImage(cardBg, x, y, w, h)
+    c.globalAlpha = 1
   } else {
-    c.fillStyle = 'rgba(30,28,22,0.6)'
+    const grad = c.createLinearGradient(x, y, x, y + h)
+    grad.addColorStop(0, owned ? 'rgba(250,239,208,0.82)' : 'rgba(234,224,200,0.32)')
+    grad.addColorStop(1, owned ? 'rgba(222,199,156,0.68)' : 'rgba(180,170,150,0.24)')
+    c.fillStyle = grad
+    R.rr(x, y, w, h, 10 * S); c.fill()
+    c.strokeStyle = owned ? OWNED_CARD_BORDER : 'rgba(125,110,86,0.24)'
+    c.lineWidth = owned ? 1.4 * S : 0.8 * S
+    R.rr(x, y, w, h, 10 * S); c.stroke()
   }
-  R.rr(x, y, w, h, 6 * S); c.fill()
 
-  c.strokeStyle = owned ? OWNED_CARD_BORDER : 'rgba(100,90,70,0.3)'
-  c.lineWidth = owned ? 1.5 * S : 0.5 * S
-  R.rr(x, y, w, h, 6 * S); c.stroke()
+  const iconSz = Math.min(w - 16 * S, h - 38 * S)
+  const iconX = x + (w - iconSz) / 2
+  const iconY = y + 7 * S
 
   if (owned) {
     const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
     if (wpnImg && wpnImg.width > 0) {
-      c.save()
-      c.beginPath(); c.rect(x + 2, y + 2, w - 4, iconH - 4); c.clip()
-      const iw = wpnImg.width, ih = wpnImg.height
-      const scale = Math.min((w - 4) / iw, (iconH - 4) / ih)
-      const dw = iw * scale, dh = ih * scale
-      c.drawImage(wpnImg, x + (w - dw) / 2, y + (iconH - dh) / 2, dw, dh)
-      c.restore()
+      R.drawCoverImg(wpnImg, iconX, iconY, iconSz, iconSz, { radius: 8 * S })
     }
 
     if (equipped) {
-      c.fillStyle = 'rgba(212,175,55,0.85)'
-      const badgeH = 12 * S
-      R.rr(x, y, w, badgeH, 0); c.fill()
-      c.fillStyle = '#fff'
+      c.fillStyle = 'rgba(150,65,38,0.88)'
+      const badgeW = 38 * S
+      const badgeH = 16 * S
+      R.rr(x + w - badgeW - 5 * S, y + 5 * S, badgeW, badgeH, 5 * S); c.fill()
+      c.fillStyle = '#ffe8b0'
       c.font = `bold ${8*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('装备中', x + w / 2, y + badgeH / 2)
+      c.fillText('装备中', x + w - badgeW / 2 - 5 * S, y + 5 * S + badgeH / 2)
     }
-    drawCornerRarityBadge(c, R, S, x + 4 * S, y + (equipped ? 14 * S : 4 * S), rarityKey, wpn.attr, {
-      minWidth: 20 * S,
-      height: 11 * S,
-      fontSize: 6.8 * S,
+    drawCornerRarityBadge(c, R, S, x + 6 * S, y + 6 * S, rarityKey, wpn.attr, {
+      minWidth: 22 * S,
+      height: 12 * S,
+      fontSize: 7.2 * S,
     })
   } else {
-    c.globalAlpha = 0.3
-    c.fillStyle = '#666'
-    c.font = `${w * 0.35}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(62,58,48,0.22)'
+    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.fill()
+    c.strokeStyle = 'rgba(92,82,66,0.18)'
+    c.lineWidth = 1 * S
+    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.stroke()
+    c.fillStyle = 'rgba(80,72,58,0.34)'
+    c.font = `bold ${w * 0.34}px "STKaiti","PingFang SC",serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('?', x + w / 2, y + iconH / 2)
-    c.globalAlpha = 1
+    c.fillText('?', x + w / 2, iconY + iconSz / 2)
   }
 
   // 名称
-  c.fillStyle = owned ? '#e8d5a8' : 'rgba(200,190,170,0.4)'
-  c.font = `${9*S}px "PingFang SC",sans-serif`
+  if (owned) {
+    c.fillStyle = 'rgba(246,232,196,0.82)'
+    R.rr(x + 10 * S, y + h - 27 * S, w - 20 * S, 20 * S, 6 * S); c.fill()
+    c.strokeStyle = 'rgba(180,140,66,0.28)'
+    c.lineWidth = 0.8 * S
+    R.rr(x + 10 * S, y + h - 27 * S, w - 20 * S, 20 * S, 6 * S); c.stroke()
+  }
+  c.fillStyle = owned ? '#3a2f24' : 'rgba(86,76,60,0.48)'
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  const name = owned ? wpn.name : '???'
-  c.fillText(name, x + w / 2, y + iconH + textH / 2)
+  const name = owned ? (wpn.name.length > 5 ? wpn.name.substring(0, 5) : wpn.name) : '???'
+  c.fillText(name, x + w / 2, y + h - 16 * S)
 
   c.restore()
 }
@@ -225,62 +258,42 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   if (!wpn) return
   const owned = collSet.has(wpnId)
   const equipped = eqId === wpnId
+  const rarityKey = getWeaponRarity(wpnId) || 'R'
 
   c.save()
   c.fillStyle = 'rgba(0,0,0,0.65)'
   c.fillRect(0, 0, W, H)
 
-  const pw = W * 0.85
-  // pet_card_bg 四角多为透明，需与 petDetailView 类似留出「装饰安全区」，否则按钮会落在纹理外侧
-  const insetX = Math.max(14 * S, Math.round(pw * 0.065))
-  const insetT = Math.max(36 * S, Math.round(pw * 0.09))
-  const insetB = Math.max(44 * S, Math.round(pw * 0.11))
-  const innerPad = 12 * S
-  const iconSz = 72 * S
+  const pw = W * 0.82
+  const innerPad = 16 * S
+  const iconSz = Math.min(pw * 0.40, 90 * S)
   const descText = owned ? wpn.desc : WEAPON_ACQUIRE_HINT_UNOWNED
   c.font = `${12*S}px "PingFang SC",sans-serif`
-  const maxDescW = pw - insetX * 2 - innerPad * 2
-  const descLinesArr = _wrapLines(c, descText, maxDescW)
-  const lineHDesc = 17 * S
-  const gapAfterIcon = 16 * S
-  const gapAfterSep = 20 * S
-  const descBlockH = descLinesArr.length * lineHDesc + 10 * S
-  const btnH2 = owned ? 36 * S : 0
-  const btnGap = owned ? 12 * S : 0
-  const topToIcon = 32 * S + 18 * S + (equipped ? 22 * S : 0) + 30 * S
-  const contentStack = innerPad + topToIcon + iconSz + gapAfterIcon + gapAfterSep + descBlockH + btnGap + btnH2 + innerPad
-  const ph = insetT + insetB + contentStack
+  const maxDescW = pw - innerPad * 2
+  const rawDescLines = _wrapLines(c, descText, maxDescW)
+  const descLinesArr = rawDescLines.slice(0, 3)
+  if (rawDescLines.length > 3 && descLinesArr.length > 0) descLinesArr[2] += '…'
+  const ph = Math.min(owned ? 338 * S : 292 * S, H - (V.safeTop || 0) - 18 * S)
   const px = (W - pw) / 2
-  const py = (H - ph) / 2
-  const innerTop = py + insetT
-  const innerBottom = py + ph - insetB
-  const innerLeft = px + insetX
-  const innerRight = px + pw - insetX
+  const py = Math.max((V.safeTop || 0) + 8 * S, (H - ph) / 2)
+  inkUI.drawScrollPanel(c, R, S, px, py, pw, ph, {
+    radius: 16 * S,
+    insetX: innerPad,
+    insetY: innerPad,
+    top: 'rgba(250,243,225,0.97)',
+    bottom: 'rgba(229,214,185,0.96)',
+    border: owned ? 'rgba(212,175,55,0.70)' : 'rgba(120,102,78,0.55)',
+    lineWidth: owned ? 1.8 * S : 1.2 * S,
+  })
 
-  const panelRad = 14 * S
-  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
-  const PARCHMENT_UNDERLAY = '#EDE5D5'
-  if (cardBg && cardBg.width > 0) {
-    c.save()
-    R.rr(px, py, pw, ph, panelRad); c.clip()
-    c.fillStyle = PARCHMENT_UNDERLAY
-    R.rr(px, py, pw, ph, panelRad); c.fill()
-    c.drawImage(cardBg, px, py, pw, ph)
-    c.restore()
-  } else {
-    const grad = c.createLinearGradient(px, py, px, py + ph)
-    grad.addColorStop(0, 'rgba(60,50,35,0.97)')
-    grad.addColorStop(1, 'rgba(40,34,24,0.97)')
-    c.fillStyle = grad
-    R.rr(px, py, pw, ph, panelRad); c.fill()
-    c.strokeStyle = 'rgba(180,140,80,0.5)'; c.lineWidth = 1.5 * S
-    R.rr(px, py, pw, ph, panelRad); c.stroke()
-  }
+  const innerTop = py + innerPad
+  const innerBottom = py + ph - innerPad
+  const innerLeft = px + innerPad
+  const innerRight = px + pw - innerPad
 
   const closeSize = 28 * S
   const closeX = innerRight - closeSize
-  const closeY = innerTop - closeSize * 0.45
-  const closeYClamped = Math.max(py + 6 * S, Math.min(closeY, innerTop + 6 * S))
+  const closeYClamped = py + 8 * S
   c.fillStyle = 'rgba(80,55,35,0.25)'
   c.beginPath(); c.arc(closeX + closeSize / 2, closeYClamped + closeSize / 2, closeSize / 2, 0, Math.PI * 2); c.fill()
   c.strokeStyle = 'rgba(90,60,40,0.55)'; c.lineWidth = 1.5 * S
@@ -291,65 +304,57 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   c.beginPath(); c.moveTo(cx0 + cr, cy0 - cr); c.lineTo(cx0 - cr, cy0 + cr); c.stroke()
   _rects.detailCloseBtnRect = [closeX, closeYClamped, closeSize, closeSize]
 
-  let curY = innerTop + innerPad + 32 * S
+  let curY = innerTop + 10 * S
   c.textAlign = 'center'; c.textBaseline = 'alphabetic'
-  c.fillStyle = '#5A4530'
-  c.font = `bold ${16*S}px "PingFang SC",sans-serif`
-  c.fillText(owned ? wpn.name : '???', px + pw / 2, curY)
-  const rarityKey = getWeaponRarity(wpnId) || 'R'
-
-  if (equipped) {
-    curY += 22 * S
-    c.fillStyle = '#8B6914'
-    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-    c.fillText('✦ 装备中', px + pw / 2, curY)
-  }
-
   if (owned) {
-    curY += equipped ? 8 * S : 6 * S
-    drawInlineRarityBadge(c, R, S, px + pw / 2, curY, rarityKey, wpn.attr, {
+    drawInlineRarityBadge(c, R, S, px + innerPad + 20 * S, curY, rarityKey, wpn.attr, {
       minWidth: 30 * S,
       height: 14 * S,
       fontSize: 8 * S,
     })
-    curY += 22 * S
-  } else {
-    curY += 10 * S
   }
   const iconX = px + (pw - iconSz) / 2
-  const iconY = curY
+  const iconY = curY + 18 * S
 
   if (owned) {
     const wpnImg = R.getImg(`assets/equipment/fabao_${wpn.id}.png`)
     if (wpnImg && wpnImg.width > 0) {
-      c.drawImage(wpnImg, iconX, iconY, iconSz, iconSz)
+      R.drawCoverImg(wpnImg, iconX, iconY, iconSz, iconSz, { radius: 10 * S })
     }
+    R.drawWeaponFrame(iconX, iconY, iconSz)
   } else {
-    c.fillStyle = 'rgba(100,90,70,0.4)'
+    c.fillStyle = 'rgba(100,90,70,0.16)'
     R.rr(iconX, iconY, iconSz, iconSz, 8 * S); c.fill()
-    c.fillStyle = '#555'
-    c.font = `${iconSz * 0.5}px "PingFang SC",sans-serif`
+    c.fillStyle = 'rgba(80,72,58,0.42)'
+    c.font = `bold ${iconSz * 0.5}px "STKaiti","PingFang SC",serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText('?', iconX + iconSz / 2, iconY + iconSz / 2)
   }
-  R.drawWeaponFrame(iconX, iconY, iconSz)
 
-  const sepY = iconY + iconSz + gapAfterIcon
-  const descTop = sepY + gapAfterSep
-  c.strokeStyle = 'rgba(120,95,60,0.28)'
-  c.lineWidth = 1 * S
-  c.beginPath()
-  c.moveTo(innerLeft + 6 * S, sepY)
-  c.lineTo(innerRight - 6 * S, sepY)
-  c.stroke()
+  curY = iconY + iconSz + 12 * S
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#3D2B1F'
+  c.font = `bold ${17*S}px "STKaiti","PingFang SC",serif`
+  c.fillText(owned ? wpn.name : '未知法宝', px + pw / 2, curY + 9 * S)
+  curY += 30 * S
 
-  c.textAlign = 'center'
-  c.textBaseline = 'alphabetic'
-  c.fillStyle = owned ? 'rgba(70,50,30,0.92)' : 'rgba(120,105,90,0.75)'
-  c.font = `${12*S}px "PingFang SC",sans-serif`
-  const centerX = px + pw / 2
+  const stateText = owned ? (equipped ? '已装备 · 战斗生效' : '已收录 · 可装备') : '尚未收录 · 继续探索'
+  inkUI.drawRolePill(c, R, S, px + pw / 2 - 58 * S, curY, stateText, {
+    w: 116 * S,
+    h: 17 * S,
+    fontSize: 8,
+  })
+  curY += 28 * S
+
+  c.fillStyle = owned ? '#7A5C30' : '#766958'
+  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillText(owned ? '法宝效果' : '获取线索', innerLeft, curY)
+  curY += 17 * S
+  c.fillStyle = owned ? '#5C4A3A' : '#766958'
+  c.font = `${11*S}px "PingFang SC",sans-serif`
   descLinesArr.forEach((ln, i) => {
-    c.fillText(ln, centerX, descTop + i * lineHDesc)
+    c.fillText(ln, innerLeft + 3 * S, curY + i * 15 * S)
   })
 
   _rects.equipBtnRect = null
@@ -358,29 +363,18 @@ function _drawDetailPanel(g, c, R, S, W, H, collSet, eqId) {
   if (owned) {
     const btnW = 120 * S
     const btnH2 = 36 * S
-    const btnY = innerBottom - innerPad - btnH2
+    const btnY = innerBottom - btnH2
 
     if (equipped) {
       const ubx = px + (pw - btnW) / 2
-      c.fillStyle = 'rgba(180,60,60,0.7)'
-      R.rr(ubx, btnY, btnW, btnH2, btnH2 / 2); c.fill()
-      c.strokeStyle = 'rgba(255,100,100,0.5)'; c.lineWidth = 1.5 * S
-      R.rr(ubx, btnY, btnW, btnH2, btnH2 / 2); c.stroke()
-      c.fillStyle = '#fff'
-      c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('卸下法宝', ubx + btnW / 2, btnY + btnH2 / 2)
+      inkUI.drawInkActionButton(c, R, S, ubx, btnY, btnW, btnH2, '卸下法宝', {
+        top: '#b85a3a',
+        bottom: '#7e3024',
+      })
       _rects.unequipBtnRect = [ubx, btnY, btnW, btnH2]
     } else {
       const ebx = px + (pw - btnW) / 2
-      c.fillStyle = 'rgba(212,175,55,0.8)'
-      R.rr(ebx, btnY, btnW, btnH2, btnH2 / 2); c.fill()
-      c.strokeStyle = 'rgba(255,220,80,0.6)'; c.lineWidth = 1.5 * S
-      R.rr(ebx, btnY, btnW, btnH2, btnH2 / 2); c.stroke()
-      c.fillStyle = '#3a1a00'
-      c.font = `bold ${13*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('装备法宝', ebx + btnW / 2, btnY + btnH2 / 2)
+      inkUI.drawInkActionButton(c, R, S, ebx, btnY, btnW, btnH2, '装备法宝')
       _rects.equipBtnRect = [ebx, btnY, btnW, btnH2]
     }
   }
@@ -425,7 +419,7 @@ function tWeaponPool(g, x, y, type) {
     if (_scrolling) {
       g._weaponPoolScroll = Math.max(0, (g._weaponPoolScroll || 0) + dy)
       _scrollTouchY = y
-      const contentH = (V.H * 0.55)
+      const contentH = g._weaponPoolContentH || (V.H * 0.55)
       const maxScroll = Math.max(0, (g._weaponPoolTotalH || 0) - contentH)
       g._weaponPoolScroll = Math.min(g._weaponPoolScroll, maxScroll)
     }
