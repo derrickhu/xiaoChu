@@ -5,6 +5,7 @@ const P = require('../platform')
  */
 
 const POOL_SIZE = 300
+const MAX_ACTIVE = 180
 const _pool = []
 const _active = []
 
@@ -29,6 +30,13 @@ function _getParticle() {
 function _release(p) {
   p.active = false; p.texture = null
   if (_pool.length < POOL_SIZE * 1.5) _pool.push(p)
+}
+
+function _capActive() {
+  while (_active.length > MAX_ACTIVE) {
+    const p = _active.shift()
+    if (p) _release(p)
+  }
 }
 
 // ===== 纹理缓存（离屏 Canvas 预渲染） =====
@@ -152,6 +160,7 @@ function burst(opts) {
     p.active = true
     _active.push(p)
   }
+  _capActive()
 }
 
 /**
@@ -180,6 +189,7 @@ function ring(opts) {
     p.active = true
     _active.push(p)
   }
+  _capActive()
 }
 
 // ===== 每帧更新 =====

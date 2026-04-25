@@ -6,6 +6,7 @@ const MusicMgr = require('../runtime/music')
 const ViewEnv = require('../views/env')
 const { ANIM_CFG: _animCfg } = require('./dmgFloat')
 const { getCritFxQuality } = require('./battle/critFxConfig')
+const memoryGuard = require('./battleMemoryGuard')
 
 let _compactFrame = 0
 
@@ -239,9 +240,12 @@ function updateAnimations(g) {
     g.elimFloats = g.elimFloats.filter(x => !x._dead)
     if (g._expFloats) g._expFloats = g._expFloats.filter(x => !x._dead)
   }
-  if ((_compactFrame & 1) === 0 || !g._battleFxQuality) {
+  if (g._battleFxLowMemory) {
+    g._battleFxQuality = 'lite'
+  } else if ((_compactFrame & 1) === 0 || !g._battleFxQuality) {
     g._battleFxQuality = getCritFxQuality(g)
   }
+  memoryGuard.enforceBattleEffectLimits(g)
 }
 
 /**

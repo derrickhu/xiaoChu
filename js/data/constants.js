@@ -335,8 +335,8 @@ const STAGE_MECHANIC_FOCUS = {
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
 const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
 
-/** Canvas 图片 LRU 缓存上限：须大于「图鉴·全部」可能单帧触达的头像路径数（约百只×png/jpg 两路 + UI），否则真机会频繁淘汰未解码完的图片而长期灰块 */
-const RENDER_IMG_CACHE_MAX = 320
+/** Canvas 图片 LRU 缓存上限：按真机长局优先，避免大图解码缓存长期堆积 */
+const RENDER_IMG_CACHE_MAX = 220
 
 // ===== 内存调试（上架保持 MEMORY_DEBUG=false 即无任何监听与定时器）=====
 /** false：零开销，可进生产包；true：注册 onMemoryWarning + 可选周期快照（见下） */

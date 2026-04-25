@@ -64,6 +64,7 @@ const AdManager = require('./adManager')
 const { getRewardChipFlyAnimEndMs } = require('./views/rewardChipFlyAnim')
 const resourceFlyParticles = require('./views/resourceFlyParticles')
 const memoryDebug = require('./runtime/memoryDebug')
+const memoryGuard = require('./engine/battleMemoryGuard')
 
 // 复用 game.js 创建的主Canvas（第一个createCanvas是屏幕Canvas，再创建就是离屏的了）
 const canvas = GameGlobal.__mainCanvas || P.createCanvas()
@@ -460,8 +461,7 @@ class Main {
       'assets/ui/task_sidetab_active.png',
       'assets/ui/task_sidetab_dim.png',
       'assets/ui/task_btn_wood.png',
-      // 灵宠池水墨卷轴改版资源
-      'assets/backgrounds/petpool_ink_bg.jpg',
+      // 灵宠池水墨卷轴改版资源（大背景按页面懒加载，避免长局常驻）
       'assets/ui/pet_card_scroll_bg.png',
       'assets/ui/pet_filter_scroll_bg.png',
       'assets/ui/btn_pet_idle_scroll.png',
@@ -469,8 +469,7 @@ class Main {
       'assets/ui/dex_title_plaque.png',
       'assets/ui/dex_card_frame.png',
       'assets/ui/dex_unknown_slot.png',
-      // 灵宠详情页水墨修仙风资源
-      'assets/backgrounds/petdetail_ink_bg.jpg',
+      // 灵宠详情页水墨修仙风资源（大背景按页面懒加载，避免长局常驻）
       'assets/ui/pet_detail_platform.png',
       'assets/ui/pet_detail_panel_scroll.png',
       'assets/ui/pet_detail_action_badge.png',
@@ -751,7 +750,7 @@ class Main {
     // --- 场景切换时资源清理 ---
     // 离开战斗场景：清理粒子、悬挂定时器
     if (old === 'battle') {
-      Particles.clear()
+      memoryGuard.clearBattleTransientState(this, { clearTex: true, reason: 'leave_battle' })
       if (this._petLongPressTimer) {
         clearTimeout(this._petLongPressTimer)
         this._petLongPressTimer = null
@@ -852,6 +851,8 @@ class Main {
     if (paths.length > 0) {
       AssetLoader.preloadPaths(paths)
     }
+    // 进入战斗时只额外保留本场敌人、队伍和背景，非战斗大图交给 LRU 回收。
+    R.clearDynamicCache(paths)
   }
 
   markDirty() { this._dirty = true }

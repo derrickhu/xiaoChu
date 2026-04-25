@@ -181,6 +181,7 @@ class Render {
     return {
       imgCount: Object.keys(this._imgCache || {}).length,
       imgMax: this._IMG_CACHE_MAX,
+      keepCount: this._keepPaths ? this._keepPaths.size : 0,
       gradCount: this._gradCacheSize || 0,
     }
   }

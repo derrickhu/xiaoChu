@@ -26,6 +26,7 @@ const {
 const { TOWER_SETTLE } = require('../data/economyConfig')
 const { initBoard } = require('./battle')
 const { commitBattleVictory } = require('./battle/victoryResolver')
+const memoryGuard = require('./battleMemoryGuard')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
 const {
@@ -108,6 +109,8 @@ function syncPoolLinkedRunPet(g, pet) {
 }
 
 function startRun(g, petIds) {
+  memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'start_run' })
+  g._battleFxLowMemory = false
   g.battleMode = 'roguelike'
   g.floor = 0
   g.cleared = false
@@ -181,6 +184,7 @@ function startRun(g, petIds) {
 }
 
 function nextFloor(g) {
+  memoryGuard.clearBattleTransientState(g, { clearTex: g.floor > 0 && g.floor % 5 === 0, reason: 'next_floor' })
   restoreBattleHpMax(g)
   g.heroBuffs = []
   g.enemyBuffs = []
@@ -447,6 +451,7 @@ function settleAll(g) {
 
 function endRun(g) {
   MusicMgr.stopBossBgm()
+  memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'end_run' })
   // 阵亡结算 / 最终层通关都会直接走到这里，绕过 nextFloor 的 restoreBattleHpMax；
   // 主动清一次，防止 _baseHeroMaxHp / heroMaxHp 膨胀状态遗留到下一局 startRun
   restoreBattleHpMax(g)
@@ -499,6 +504,7 @@ function endRun(g) {
 
 function saveAndExit(g) {
   MusicMgr.stopBossBgm()
+  memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'save_exit' })
   if (g.battleMode === 'stage') {
     g.showExitDialog = false
     g.bState = 'none'
@@ -537,6 +543,7 @@ function saveAndExit(g) {
 function resumeRun(g) {
   const s = g.storage.loadRunState()
   if (!s) return
+  memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'resume_run' })
   g.battleMode = 'roguelike'
   g.floor = s.floor
   g.pets = (s.pets || []).map(p => syncPoolLinkedRunPet(g, p))
