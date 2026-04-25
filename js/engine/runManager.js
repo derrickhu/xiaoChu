@@ -593,18 +593,10 @@ function resumeRun(g) {
 }
 
 function onDefeat(g, W, H) {
-  // 固定关卡：仅"新手阶段"（2-1 未通）玩家享有免费续命，
-  // 老玩家在后续章节失败时直接进入失败结算，避免体验失衡。
-  if (g.battleMode === 'stage') {
-    const { NEWBIE_FREE_REVIVE_COUNT } = require('../data/constants')
-    if (g.storage.isNewbiePhase()
-        && g.storage.getNewbieRevivesUsed() < NEWBIE_FREE_REVIVE_COUNT) {
-      g.bState = 'freeReviveOffer'
-      return
-    }
-    g.bState = 'defeat'
-    return
-  }
+  // ── 优先级 1：装备 / 宠物技能自带的复活效果（两种模式通用）
+  //   这些是玩家已经付出培养代价的"自带保命"，无论固定关卡还是通天塔都该先生效；
+  //   早期版本误把固定关卡分支放在最前面 return，导致『不灭金身 / 天护 / 奇迹复活』
+  //   在固定关卡里完全无效。
   if (g.tempRevive) {
     g.tempRevive = false
     const reviveHealPct = g._reviveHealPct || REVIVE_HEAL_PCT
@@ -626,6 +618,21 @@ function onDefeat(g, W, H) {
     MusicMgr.playRevive()
     g.bState = 'playerTurn'; g.dragTimer = 0; return
   }
+
+  // ── 优先级 2：按战斗模式走对应的二次保底
+  //   固定关卡：仅"新手阶段"（2-1 未通）玩家享有免费续命，
+  //   老玩家在后续章节失败时直接进入失败结算，避免体验失衡。
+  if (g.battleMode === 'stage') {
+    const { NEWBIE_FREE_REVIVE_COUNT } = require('../data/constants')
+    if (g.storage.isNewbiePhase()
+        && g.storage.getNewbieRevivesUsed() < NEWBIE_FREE_REVIVE_COUNT) {
+      g.bState = 'freeReviveOffer'
+      return
+    }
+    g.bState = 'defeat'
+    return
+  }
+  // 通天塔：广告复活兜底
   if (!g.adReviveUsed) {
     g.bState = 'adReviveOffer'; return
   }
