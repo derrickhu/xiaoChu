@@ -105,7 +105,17 @@ function syncPoolLinkedRunPet(g, pet) {
   } else if (hasSkillNow && !hadSkill) {
     currentCd = Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET)
   }
-  return { ...pet, star, atk, currentCd }
+  // 续档时以当前配置覆盖静态字段，避免旧存档里的技能文案/效果和详情页不一致。
+  return {
+    ...pet,
+    name: basePet.name,
+    attr: basePet.attr,
+    skill: basePet.skill ? { ...basePet.skill } : null,
+    cd: Math.min(Number(pet.cd) || basePet.cd || 0, basePet.cd || Number(pet.cd) || 0),
+    star,
+    atk,
+    currentCd,
+  }
 }
 
 function startRun(g, petIds) {
