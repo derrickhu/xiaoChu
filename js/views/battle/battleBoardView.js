@@ -496,8 +496,10 @@ function drawBoard(g) {
     if (g.elimAnimTimer === 3 && !g._elimParticlesFired) {
       g._elimParticlesFired = true
       const elimCount = g.elimAnimCells.length
+      const quality = g._battleFxQuality || 'full'
       const pCount = elimCount >= 5 ? 24 : elimCount >= 4 ? 16 : 10
-      const comboMul = Math.min(2, 1 + (g.combo || 0) * 0.05)
+      const comboMulMax = quality === 'lite' ? 1.15 : quality === 'medium' ? 1.32 : 1.5
+      const comboMul = Math.min(comboMulMax, 1 + (g.combo || 0) * 0.035)
       Particles.burst({
         x: eCx, y: eCy, count: Math.round(pCount * comboMul),
         speed: (3 + elimCount * 0.5) * S, size: (3 + elimCount * 0.3) * S,
@@ -509,7 +511,9 @@ function drawBoard(g) {
     // 传统爆散粒子保留作为补充
     if (eP > 0.25 && eP < 0.85) {
       const sparkP = (eP - 0.25) / 0.6
-      const sparkCount = g.elimAnimCells.length >= 5 ? 10 : g.elimAnimCells.length >= 4 ? 7 : 5
+      const quality = g._battleFxQuality || 'full'
+      const sparkBase = g.elimAnimCells.length >= 5 ? 10 : g.elimAnimCells.length >= 4 ? 7 : 5
+      const sparkCount = quality === 'lite' ? Math.ceil(sparkBase * 0.55) : quality === 'medium' ? Math.ceil(sparkBase * 0.75) : sparkBase
       for (let si = 0; si < sparkCount; si++) {
         const angle = (si / sparkCount) * Math.PI * 2 + g.elimAnimTimer * 0.2
         const dist = cs * (0.3 + sparkP * 2)

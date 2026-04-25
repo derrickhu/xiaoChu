@@ -72,6 +72,7 @@ function clearBattleTransientState(g, opts) {
   if (o.lowMemory) {
     g._battleFxQuality = 'lite'
     g._battleFxLowMemory = true
+    g._battleFxLowMemoryFrames = 1800
   }
 }
 
@@ -94,6 +95,8 @@ function getSnapshot(g, render, tag) {
     comboParticles: (g && g._comboParticles && g._comboParticles.length) || 0,
     expFloats: (g && g._expFloats && g._expFloats.length) || 0,
     particles: Particles.count(),
+    particleTexCount: Particles.getTexCacheStats ? Particles.getTexCacheStats().count : 0,
+    particleTexMax: Particles.getTexCacheStats ? Particles.getTexCacheStats().max : 0,
     runBuffLogLen: (g && g.runBuffLog && g.runBuffLog.length) || 0,
   }
 }

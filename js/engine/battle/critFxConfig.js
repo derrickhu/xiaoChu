@@ -90,6 +90,7 @@ function getCritFxPressure(g, incoming) {
   const notices = _countAlive(g.skillEffects) + _extraLoad(extra, 'notices')
   const comboParticles = Math.min(12, Math.round((_countAlive(g._comboParticles) || 0) * 0.22))
     + Math.min(4, _extraLoad(extra, 'comboParticles'))
+  const comboLoad = Math.min(8, Math.floor((g.combo || 0) / 4))
   const transient = (g._comboFlash > 0 ? 2 : 0)
     + (g._screenFlash > 0 ? 2 : 0)
     + (g.skillCastAnim && g.skillCastAnim.active ? 3 : 0)
@@ -100,7 +101,7 @@ function getCritFxPressure(g, incoming) {
     + (_extraLoad(extra, 'skillCast') > 0 ? 3 : 0)
     + (_extraLoad(extra, 'petSkillWave') > 0 ? 2 : 0)
     + (_extraLoad(extra, 'skillFlash') > 0 ? 2 : 0)
-  return slotFloats + dmgFloats + notices * 2 + comboParticles + transient
+  return slotFloats + dmgFloats + notices * 2 + comboParticles + comboLoad + transient
 }
 
 function getCritFxQuality(g, incoming) {

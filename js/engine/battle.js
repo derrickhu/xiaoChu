@@ -59,6 +59,44 @@ const {
   PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
 } = require('../data/balance/combat')
 
+function _getBattleFxBudget(g) {
+  const quality = g && (g._battleFxQuality || (g._battleFxLowMemory ? 'lite' : 'full'))
+  if (quality === 'lite') {
+    return {
+      comboParticleMul: 0.5,
+      comboParticleMax: 20,
+      comboParticleSizeMax: 6.5,
+      comboSpeedMul: 0.82,
+      ringMul: 0.5,
+      ringMax: 12,
+      ringSpeedMax: 8.5,
+      ringSizeMax: 7,
+    }
+  }
+  if (quality === 'medium') {
+    return {
+      comboParticleMul: 0.72,
+      comboParticleMax: 28,
+      comboParticleSizeMax: 8,
+      comboSpeedMul: 0.9,
+      ringMul: 0.7,
+      ringMax: 18,
+      ringSpeedMax: 10,
+      ringSizeMax: 8.5,
+    }
+  }
+  return {
+    comboParticleMul: 1,
+    comboParticleMax: 38,
+    comboParticleSizeMax: 9.5,
+    comboSpeedMul: 1,
+    ringMul: 1,
+    ringMax: 24,
+    ringSpeedMax: 12,
+    ringSizeMax: 10,
+  }
+}
+
 // 击杀经验（统一调用避免遗漏）
 function _addKillExp(g) {
   if (!g.enemy) return
@@ -288,7 +326,9 @@ function startNextElimAnim(g) {
   }
   // ★ Combo里程碑：仅保留视觉特效提示，不再给予隐藏的buff/护盾/回血
   // 粒子数量根据 tier 递增，并整体加重爆发感
-  const pCount = (tier >= 4 ? 30 : tier >= 3 ? 24 : tier >= 2 ? 18 : tier >= 1 ? 13 : 8) + (isTierBreak ? 12 : 0)
+  const fxBudget = _getBattleFxBudget(g)
+  const basePCount = (tier >= 4 ? 30 : tier >= 3 ? 24 : tier >= 2 ? 18 : tier >= 1 ? 13 : 8) + (isTierBreak ? 12 : 0)
+  const pCount = Math.min(fxBudget.comboParticleMax, Math.round(basePCount * fxBudget.comboParticleMul))
   const pCx = W * 0.5, pCy = g.boardY + (ROWS * g.cellSize) * 0.32
   const pColors = tier >= 4 ? ['#ff2050','#ff6040','#ffaa00','#fff','#ff80aa']
     : tier >= 3 ? ['#ff4d6a','#ff8060','#ffd700','#fff']
@@ -300,12 +340,13 @@ function startNextElimAnim(g) {
   const starChance = tier >= 2 ? 0.42 : 0.3
   for (let i = 0; i < pCount; i++) {
     const angle = Math.random() * Math.PI * 2
-    const speed = (2.4 + Math.random() * 4.6) * S * speedMul
+    const speed = (2.4 + Math.random() * 4.6) * S * speedMul * fxBudget.comboSpeedMul
+    const size = Math.min((2.4 + Math.random() * 3.2) * S * sizeMul, fxBudget.comboParticleSizeMax * S)
     g._comboParticles.push({
       x: pCx, y: pCy,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - (1.2 + Math.random() * 2.3) * S,
-      size: (2.4 + Math.random() * 3.2) * S * sizeMul,
+      size,
       color: pColors[Math.floor(Math.random() * pColors.length)],
       life: 24 + Math.floor(Math.random() * 22),
       t: 0, gravity: 0.14 * S,
@@ -313,12 +354,15 @@ function startNextElimAnim(g) {
     })
   }
   if (isTierBreak) {
-    const ringCount = tier >= 4 ? 28 : tier >= 3 ? 24 : tier >= 2 ? 20 : 14
+    const baseRingCount = tier >= 4 ? 28 : tier >= 3 ? 24 : tier >= 2 ? 20 : 14
+    const ringCount = Math.min(fxBudget.ringMax, Math.round(baseRingCount * fxBudget.ringMul))
     const ringColors = tier >= 4 ? ['#fff','#ff80aa','#ffcc00','#ff4060'] : tier >= 3 ? ['#fff','#9d4dff','#ffd700'] : tier >= 2 ? ['#fff','#ffd700','#ff6080'] : ['#fff','#4d88ff','#ffd700']
     Particles.ring({
       x: pCx, y: pCy,
-      count: ringCount, speed: (6 + g.combo * 0.34) * S,
-      size: (5 + g.combo * 0.22) * S, life: 34, gravity: 0.03 * S,
+      count: ringCount,
+      speed: Math.min((6 + g.combo * 0.34) * S, fxBudget.ringSpeedMax * S),
+      size: Math.min((5 + g.combo * 0.22) * S, fxBudget.ringSizeMax * S),
+      life: 34, gravity: 0.03 * S,
       colors: ringColors, shape: 'star', drag: 0.97,
     })
   }
@@ -502,9 +546,9 @@ function findMatchesSeparate(g) {
     for (let c = 0; c < COLS; c++) {
       if (!marked[r][c] || visited[r][c]) continue
       const attr = cellAttr(g,r,c)
-      const cells = []; const q = [{r,c}]; visited[r][c] = true
-      while (q.length) {
-        const {r:cr,c:cc} = q.shift(); cells.push({r:cr,c:cc})
+      const cells = []; const q = [{r,c}]; let head = 0; visited[r][c] = true
+      while (head < q.length) {
+        const {r:cr,c:cc} = q[head++]; cells.push({r:cr,c:cc})
         for (const [dr,dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
           const nr=cr+dr, nc=cc+dc
           if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!visited[nr][nc]&&marked[nr][nc]&&cellAttr(g,nr,nc)===attr) {

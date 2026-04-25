@@ -24,21 +24,42 @@ function _drawStar(ctx, x, y, r) {
 
 
 // ===== 敌人 Debuff 染色离屏canvas =====
-let _debuffOC = null
-let _debuffOCCtx = null
+let _debuffImgIdSeed = 1
+const _debuffImgIds = typeof WeakMap !== 'undefined' ? new WeakMap() : null
+const _debuffTintCache = {}
+const _debuffTintOrder = []
+const DEBUFF_TINT_CACHE_MAX = 8
+
+function _getDebuffImgId(enemyImg) {
+  if (!enemyImg) return 'none'
+  if (_debuffImgIds) {
+    if (!_debuffImgIds.has(enemyImg)) _debuffImgIds.set(enemyImg, _debuffImgIdSeed++)
+    return _debuffImgIds.get(enemyImg)
+  }
+  if (!enemyImg.__debuffTintId) enemyImg.__debuffTintId = _debuffImgIdSeed++
+  return enemyImg.__debuffTintId
+}
+
+function _rememberDebuffTintKey(key) {
+  _debuffTintOrder.push(key)
+  while (_debuffTintOrder.length > DEBUFF_TINT_CACHE_MAX) {
+    const oldKey = _debuffTintOrder.shift()
+    if (oldKey && !_debuffTintOrder.includes(oldKey)) delete _debuffTintCache[oldKey]
+  }
+}
+
 function _getDebuffTintCanvas(enemyImg, w, h, tintColor) {
   if (!enemyImg || !enemyImg.width) return null
   // 微信小游戏环境下创建离屏canvas
   try {
     const iw = Math.ceil(w)
     const ih = Math.ceil(h)
-    if (!_debuffOC || _debuffOC.width !== iw || _debuffOC.height !== ih) {
-      const P = V.P
-      _debuffOC = P && P.createOffscreenCanvas ? P.createOffscreenCanvas({ type: '2d', width: iw, height: ih }) : null
-      if (!_debuffOC) return null
-      _debuffOCCtx = _debuffOC.getContext('2d')
-    }
-    const oc = _debuffOCCtx
+    const key = `${_getDebuffImgId(enemyImg)}|${iw}|${ih}|${tintColor}`
+    if (_debuffTintCache[key]) return _debuffTintCache[key]
+    const P = V.P
+    const canvas = P && P.createOffscreenCanvas ? P.createOffscreenCanvas({ type: '2d', width: iw, height: ih }) : null
+    if (!canvas) return null
+    const oc = canvas.getContext('2d')
     oc.clearRect(0, 0, iw, ih)
     oc.globalCompositeOperation = 'source-over'
     oc.globalAlpha = 1
@@ -48,7 +69,9 @@ function _getDebuffTintCanvas(enemyImg, w, h, tintColor) {
     oc.fillStyle = tintColor
     oc.fillRect(0, 0, iw, ih)
     oc.globalCompositeOperation = 'source-over'
-    return _debuffOC
+    _rememberDebuffTintKey(key)
+    _debuffTintCache[key] = canvas
+    return canvas
   } catch (e) {
     return null
   }

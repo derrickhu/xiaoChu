@@ -9,6 +9,10 @@ const MAX_ACTIVE = 180
 const _pool = []
 const _active = []
 
+const TEX_RADIUS_LEVELS = [4, 6, 8, 10, 12, 16, 20, 24, 32]
+const TEX_CACHE_MAX = 72
+const _texCacheOrder = []
+
 // ===== 粒子对象池 =====
 function _makeParticle() {
   return {
@@ -42,6 +46,22 @@ function _capActive() {
 // ===== 纹理缓存（离屏 Canvas 预渲染） =====
 const _texCache = {}
 
+function quantizeRadius(radius) {
+  const r = Math.max(1, Math.ceil(radius || 1))
+  for (let i = 0; i < TEX_RADIUS_LEVELS.length; i++) {
+    if (r <= TEX_RADIUS_LEVELS[i]) return TEX_RADIUS_LEVELS[i]
+  }
+  return TEX_RADIUS_LEVELS[TEX_RADIUS_LEVELS.length - 1]
+}
+
+function _rememberTexKey(key) {
+  _texCacheOrder.push(key)
+  while (_texCacheOrder.length > TEX_CACHE_MAX) {
+    const oldKey = _texCacheOrder.shift()
+    if (oldKey && !_texCacheOrder.includes(oldKey)) delete _texCache[oldKey]
+  }
+}
+
 /**
  * 生成圆形光点纹理
  * @param {string} color - 主色
@@ -49,9 +69,10 @@ const _texCache = {}
  * @returns {object} 离屏 canvas
  */
 function getGlowTexture(color, radius) {
-  const key = `glow_${color}_${radius}`
+  const r = quantizeRadius(radius)
+  const key = `glow_${color}_${r}`
   if (_texCache[key]) return _texCache[key]
-  const sz = radius * 2
+  const sz = r * 2
   let canvas
   if (P.createOffscreenCanvas) {
     canvas = P.createOffscreenCanvas({ type: '2d', width: sz, height: sz })
@@ -59,13 +80,14 @@ function getGlowTexture(color, radius) {
     return null
   }
   const c = canvas.getContext('2d')
-  const g = c.createRadialGradient(radius, radius, 0, radius, radius, radius)
+  const g = c.createRadialGradient(r, r, 0, r, r, r)
   g.addColorStop(0, '#ffffffcc')
   g.addColorStop(0.3, color + 'aa')
   g.addColorStop(0.7, color + '44')
   g.addColorStop(1, 'transparent')
   c.fillStyle = g
-  c.beginPath(); c.arc(radius, radius, radius, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.arc(r, r, r, 0, Math.PI * 2); c.fill()
+  _rememberTexKey(key)
   _texCache[key] = canvas
   return canvas
 }
@@ -76,9 +98,10 @@ function getGlowTexture(color, radius) {
  * @param {number} radius - 外半径
  */
 function getStarTexture(color, radius) {
-  const key = `star_${color}_${radius}`
+  const r = quantizeRadius(radius)
+  const key = `star_${color}_${r}`
   if (_texCache[key]) return _texCache[key]
-  const sz = radius * 2 + 4
+  const sz = r * 2 + 4
   let canvas
   if (P.createOffscreenCanvas) {
     canvas = P.createOffscreenCanvas({ type: '2d', width: sz, height: sz })
@@ -92,10 +115,10 @@ function getStarTexture(color, radius) {
   for (let i = 0; i < 5; i++) {
     const outerAngle = (i * 72 - 90) * Math.PI / 180
     const innerAngle = ((i * 72) + 36 - 90) * Math.PI / 180
-    const ox = cx + Math.cos(outerAngle) * radius
-    const oy = cy + Math.sin(outerAngle) * radius
-    const ix = cx + Math.cos(innerAngle) * radius * 0.4
-    const iy = cy + Math.sin(innerAngle) * radius * 0.4
+    const ox = cx + Math.cos(outerAngle) * r
+    const oy = cy + Math.sin(outerAngle) * r
+    const ix = cx + Math.cos(innerAngle) * r * 0.4
+    const iy = cy + Math.sin(innerAngle) * r * 0.4
     if (i === 0) c.moveTo(ox, oy)
     else c.lineTo(ox, oy)
     c.lineTo(ix, iy)
@@ -103,7 +126,8 @@ function getStarTexture(color, radius) {
   c.closePath(); c.fill()
   // 中心高光
   c.fillStyle = '#ffffff88'
-  c.beginPath(); c.arc(cx, cy, radius * 0.25, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.arc(cx, cy, r * 0.25, 0, Math.PI * 2); c.fill()
+  _rememberTexKey(key)
   _texCache[key] = canvas
   return canvas
 }
@@ -242,9 +266,30 @@ function clear() {
 /** 清理纹理缓存（场景切换时调用，释放离屏 Canvas 内存） */
 function clearTexCache() {
   for (const key in _texCache) delete _texCache[key]
+  _texCacheOrder.length = 0
+}
+
+/** 纹理缓存快照，用于排查长局是否出现离屏 Canvas 增长 */
+function getTexCacheStats() {
+  return {
+    count: Object.keys(_texCache).length,
+    max: TEX_CACHE_MAX,
+  }
 }
 
 /** 当前活跃粒子数 */
 function count() { return _active.length }
 
-module.exports = { burst, ring, update, draw, clear, clearTexCache, count, getGlowTexture, getStarTexture }
+module.exports = {
+  burst,
+  ring,
+  update,
+  draw,
+  clear,
+  clearTexCache,
+  count,
+  getTexCacheStats,
+  quantizeRadius,
+  getGlowTexture,
+  getStarTexture,
+}

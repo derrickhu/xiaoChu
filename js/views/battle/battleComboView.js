@@ -85,7 +85,9 @@ function _getComboCritBurstSprite(meta, S) {
 }
 
 function drawComboBgEffects(cs) {
-  const { ctx, S, W, comboCx, comboCy, baseSz, comboAlpha, isSuper, isMega, glowColor, ca } = cs
+  const { ctx, S, W, comboCx, comboCy, baseSz, comboAlpha, isSuper, isMega, glowColor, ca, quality } = cs
+  const isLite = quality === 'lite'
+  const isMedium = quality === 'medium'
   const maskH = baseSz * 3.3
   const maskCy = comboCy + baseSz * 0.28
   const maskGrd = ctx.createLinearGradient(0, maskCy - maskH * 0.5, 0, maskCy + maskH * 0.5)
@@ -106,9 +108,9 @@ function drawComboBgEffects(cs) {
   if (isSuper && ca.timer < 24) {
     ctx.save()
     ctx.translate(comboCx, comboCy)
-    const rayCount = isMega ? 24 : 16
+    const rayCount = isLite ? (isMega ? 12 : 8) : isMedium ? (isMega ? 16 : 12) : (isMega ? 24 : 16)
     const rayLen = baseSz * 2.35 * Math.min(1, ca.timer / 8)
-    const rayAlpha = Math.max(0, 1 - ca.timer / 24) * 0.8
+    const rayAlpha = Math.max(0, 1 - ca.timer / 24) * (isLite ? 0.55 : 0.8)
     ctx.globalAlpha = comboAlpha * rayAlpha
     for (let r = 0; r < rayCount; r++) {
       const angle = (r / rayCount) * Math.PI * 2 + ca.timer * 0.09
@@ -285,13 +287,16 @@ function drawComboVFX(g) {
       ctx.globalAlpha = alpha * 0.9
       if (p.type === 'star') {
         ctx.fillStyle = p.color
-        const tex = Particles.getStarTexture(p.color, Math.ceil(sz * 1.2))
+        if (!p._tex) {
+          p._tex = Particles.getStarTexture(p.color, Math.ceil((p.size || sz) * 1.2))
+        }
+        const tex = p._tex
         if (tex) {
           ctx.save()
           ctx.translate(p.x, p.y)
           ctx.rotate(p.t * 0.15)
-          const tw = tex.width || sz * 2.4
-          ctx.drawImage(tex, -tw / 2, -tw / 2)
+          const tw = sz * 2.4
+          ctx.drawImage(tex, -tw / 2, -tw / 2, tw, tw)
           ctx.restore()
         } else {
           ctx.save()
@@ -306,10 +311,13 @@ function drawComboVFX(g) {
           ctx.restore()
         }
       } else {
-        const tex = Particles.getGlowTexture(p.color, Math.ceil(sz))
+        if (!p._tex) {
+          p._tex = Particles.getGlowTexture(p.color, Math.ceil(p.size || sz))
+        }
+        const tex = p._tex
         if (tex) {
-          const tw = tex.width || sz * 2
-          ctx.drawImage(tex, p.x - tw / 2, p.y - tw / 2)
+          const tw = sz * 2
+          ctx.drawImage(tex, p.x - tw / 2, p.y - tw / 2, tw, tw)
         } else {
           ctx.fillStyle = p.color
           ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, Math.PI * 2); ctx.fill()
@@ -474,7 +482,7 @@ function drawCombo(g, cellSize, boardTop) {
       ctx, S, W, H, ROWS, comboCx, comboCy, baseSz, comboScale, comboAlpha, lowAlphaMul,
       mainColor, glowColor, comboFont,
       isLow, isHigh, isSuper, isMega,
-      ca, combo: g.combo
+      ca, combo: g.combo, quality: g._battleFxQuality || 'full'
     }
 
     ctx.save()
