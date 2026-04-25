@@ -1047,7 +1047,7 @@ class Storage {
     }
     if (awakenCost > 0) this._d.awakenStone -= awakenCost
     entry.star = nextStar
-    // 记账：累计用掉的万能碎片。供"返还培养"反推可返还的万能碎片数量
+    // 记账：累计用掉的万能碎片。供"归元重修"反推可返还的万能碎片数量
     // 老存档升星时没写该字段，后续只有"新升星"会计入；功能公告需告知玩家
     if (usedUniversal > 0) entry.universalUsed = (entry.universalUsed || 0) + usedUniversal
     this._save()
@@ -1079,7 +1079,7 @@ class Storage {
   }
 
   /**
-   * 返还培养 · 功能是否对当前玩家解锁
+   * 归元重修 · 功能是否对当前玩家解锁
    *   解锁条件：已打到第 POOL_RESET_UNLOCK_CHAPTER 章（玩家此时才真正积累了可观养成成本）
    */
   isPoolResetUnlocked() {
@@ -1103,12 +1103,11 @@ class Storage {
     return canResetPoolPet(entry, {
       awakenStone: this._d.awakenStone || 0,
       isDispatched: this.isPoolPetDispatched(petId),
-      isInTeam: this.isPoolPetInAnyTeam(petId),
     })
   }
 
   /**
-   * 执行"返还培养"：扣闸门觉醒石 + 按档返还 + 宠物等级星级归 1
+   * 执行"归元重修"：扣闸门觉醒石 + 按档返还 + 宠物等级星级归 1
    *   · 专属碎片 100% 返回 poolPet.fragments（保留本宠属性）
    *   · 灵石/万能碎片/觉醒石按 useAd 档位返给全局资源池
    *   · 重置后写 entry.resetAt 用于 10 分钟冷却

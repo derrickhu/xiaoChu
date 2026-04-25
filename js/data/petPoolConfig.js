@@ -210,7 +210,7 @@ function isLevelGatedByStarUp(poolPet, awakenStone, soulStone, universalFragment
 }
 
 /**
- * 计算"返还培养"的返还清单与闸门消耗
+ * 计算"归元重修"的返还清单与闸门消耗
  *   · 反推历史灵石投入：按 petExpToNextLevel 从 Lv1 累加到当前 level
  *   · 反推升星消耗：专属碎片、觉醒石按 POOL_STAR_* 表累加；万能碎片按 poolPet.universalUsed 记账
  *     （老存档未记录 universalUsed 时按 0 计，玩家只拿专属碎片返还 —— 上线公告需说明）
@@ -258,8 +258,8 @@ function calcPoolPetResetRefund(poolPet, useAd) {
 }
 
 /**
- * 判断是否可以对该宠物执行"返还培养"
- *   不可重置场景：派遣中 / 在编队 / 在冷却期
+ * 判断是否可以对该宠物执行"归元重修"
+ *   不可重置场景：派遣中 / 在冷却期 / 闸门觉醒石不足 / 没有培养投入
  *   所有原因以 reason 字符串返回给 UI 做差异化提示
  * @returns {{ ok:boolean, reason?:string, cooldownMs?:number }}
  */
@@ -271,7 +271,6 @@ function canResetPoolPet(poolPet, ctx) {
     return { ok: false, reason: 'gate_short', required: gateCost }
   }
   if (ctx && ctx.isDispatched) return { ok: false, reason: 'dispatched' }
-  if (ctx && ctx.isInTeam) return { ok: false, reason: 'in_team' }
   if (poolPet.resetAt) {
     const leftMs = POOL_RESET_COOLDOWN_MS - (Date.now() - poolPet.resetAt)
     if (leftMs > 0) return { ok: false, reason: 'cooldown', cooldownMs: leftMs }

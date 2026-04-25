@@ -9,11 +9,12 @@ const { RARITY_VISUAL } = require('../data/economyConfig')
 const { wrapText: _uiWrapText } = require('./uiUtils')
 const { drawBottomBar, getLayout: _getDexLayout, drawPageTitle } = require('./bottomBar')
 const { drawPanel, drawRibbonIcon, drawCelebrationBackdrop, drawRewardRow, drawBuffCard, drawLingCard, wrapText } = require('./uiComponents')
+const inkUI = require('./inkUiComponents')
 const { LING } = require('../data/lingIdentity')
 const { getDexProgress, getDexProgressByAttr, getPetDexTier, DEX_ATTRS, DEX_ATTR_LABEL, TOTAL_PET_COUNT,
   ELEM_MILESTONES, TOTAL_MILESTONES, RARITY_MILESTONES,
   hasUnclaimedMilestones } = require('../data/dexConfig')
-const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { ROLE, getPetRole } = require('../data/petRoleConfig')
 const { formatRankStageProgressSubtitle } = require('../data/stages')
 const { DEX_LAYOUT, getDexContentTop, WEAPON_ACQUIRE_HINT_UNOWNED } = require('../data/constants')
 
@@ -2129,10 +2130,70 @@ function drawNewRunConfirm(g) {
 // ===== Dex（灵兽图鉴 — 三层收集 + 里程碑 / 法宝图鉴） =====
 
 const { WEAPONS, getWeaponById, getWeaponRarity } = require('../data/weapons')
-const { drawCornerRarityBadge, drawInlineRarityBadge } = require('./rarityBadge')
+const { drawCornerRarityBadge } = require('./rarityBadge')
 
 const _DEX_TAB_KEYS = ['all', ...DEX_ATTRS, 'milestone']
 const _DEX_TAB_LABELS = { all:'全部', metal:'金', wood:'木', water:'水', fire:'火', earth:'土', milestone:'里程碑' }
+const _DEX_ATTR_TAB_KEYS = ['all', ...DEX_ATTRS]
+const _DEX_ROLE_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: ROLE.ATTACK, label: '攻击' },
+  { key: ROLE.BURST, label: '爆发' },
+  { key: ROLE.HEAL, label: '恢复' },
+  { key: ROLE.SHIELD, label: '护盾' },
+  { key: ROLE.CONVERT, label: '转珠' },
+  { key: ROLE.CONTROL, label: '控制' },
+  { key: ROLE.SUPPORT, label: '辅助' },
+]
+const _DEX_TIER_LABELS = { unknown: '未知', discovered: '发现', collected: '收录', mastered: '精通' }
+const _DEX_WEAPON_RARITY_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'R', label: 'R' },
+  { key: 'SR', label: 'SR' },
+  { key: 'SSR', label: 'SSR' },
+]
+
+function _getDexCollectionGridLayout(W, S) {
+  const wide = W >= 640 * S
+  const cols = wide ? 5 : 3
+  const padX = wide ? 26 * S : 16 * S
+  const cellGap = wide ? 12 * S : 8 * S
+  const cellW = (W - padX * 2 - (cols - 1) * cellGap) / cols
+  return {
+    cols,
+    padX,
+    cellGap,
+    cellW,
+    cellH: cellW * 1.18,
+  }
+}
+
+function _drawDexTitlePlaque(ctx, R, W, S, x, y, text) {
+  const plaqueW = Math.min(W * 0.48, 172 * S)
+  const plaqueH = 46 * S
+  const px = x - plaqueW / 2
+  const py = y - plaqueH / 2
+  const img = R.getImg('assets/ui/dex_title_plaque.png')
+  ctx.save()
+  if (img && img.width > 0) {
+    ctx.drawImage(img, px, py, plaqueW, plaqueH)
+  } else {
+    inkUI.drawScrollPanel(ctx, R, S, px, py + 4 * S, plaqueW, plaqueH - 8 * S, {
+      radius: 15 * S,
+      top: 'rgba(252,242,226,0.86)',
+      bottom: 'rgba(224,199,158,0.76)',
+      border: 'rgba(183,135,72,0.62)',
+    })
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.font = `bold ${18 * S}px "STKaiti","PingFang SC",serif`
+  ctx.strokeStyle = 'rgba(255,247,226,0.78)'
+  ctx.lineWidth = 2 * S
+  ctx.strokeText(text, x, y + 1 * S)
+  ctx.fillStyle = '#3b281a'
+  ctx.fillText(text, x, y + 1 * S)
+  ctx.restore()
+}
 
 /** 灵兽图鉴子 Tab 红点：未查看详情（与格子红点一致）或可领里程碑 */
 function _dexPetTabShowDot(tabKey, pool, seenIds, claimedMilestoneIds) {
@@ -2158,7 +2219,11 @@ const _TIER_COLORS = {
 
 function rDex(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
-  R.drawHomeBg(g.af)
+  inkUI.drawInkPageBg(ctx, R, W, H, {
+    bgPath: 'assets/backgrounds/petpool_ink_bg.jpg',
+    af: g.af,
+    wash: 'rgba(255,248,232,0.08)',
+  })
 
   if (!g._dexTab) g._dexTab = 'all'
   if (!g._dexMode) g._dexMode = 'pet'
@@ -2171,8 +2236,8 @@ function rDex(g) {
   }
 
   // 标题
-  drawPageTitle(ctx, R, W, S, W * 0.5, safeTop + DEX_LAYOUT.titleCenterBelowSafePt * S,
-    isWeaponMode ? '法宝图鉴' : '灵兽图鉴')
+  _drawDexTitlePlaque(ctx, R, W, S, W * 0.5, safeTop + DEX_LAYOUT.titleCenterBelowSafePt * S,
+    isWeaponMode ? '法宝阁' : '灵兽图鉴')
   const titleBottom = safeTop + (DEX_LAYOUT.titleCenterBelowSafePt + DEX_LAYOUT.nameBgHalfHPt) * S
 
   // 一级模式切换：灵宠图鉴 / 法宝图鉴
@@ -2220,60 +2285,95 @@ function rDex(g) {
 }
 
 function _drawDexPetMode(g, ctx, R, TH, W, S, sdivY) {
-  const safeTop = V.safeTop
-  // 三层进度摘要
+  // 三层进度摘要：卷轴统计条
   const progress = getDexProgress(g.storage.petPool)
-  const summaryY = sdivY + DEX_LAYOUT.gapDividerToSummaryPt * S
-  ctx.font = `${10 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
+  const summaryY = sdivY + 8 * S
+  const summaryX = 14 * S
+  const summaryW = W - 28 * S
+  const summaryH = 34 * S
+  inkUI.drawScrollPanel(ctx, R, S, summaryX, summaryY, summaryW, summaryH, {
+    radius: 12 * S,
+    insetX: 12 * S,
+    insetY: 6 * S,
+    top: 'rgba(250,239,208,0.76)',
+    bottom: 'rgba(222,199,156,0.62)',
+  })
+  ctx.save()
+  ctx.font = `bold ${11 * S}px "PingFang SC",serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   const labels = [
     { text: `发现 ${progress.discovered.length}`, color: '#4d4236' },
     { text: `收录 ${progress.collected.length}`, color: '#7a5200' },
-    { text: `精通 ${progress.mastered.length}`, color: '#6a4200' },
+    { text: `精通 ${progress.mastered.length}/${TOTAL_PET_COUNT}`, color: '#7b431b' },
   ]
-  const segW = W * 0.25
-  const segStart = W * 0.5 - segW * 1.5
   labels.forEach((l, i) => {
     ctx.fillStyle = l.color
-    ctx.fillText(l.text, segStart + segW * i + segW * 0.5, summaryY)
+    ctx.fillText(l.text, summaryX + summaryW * (i + 0.5) / labels.length, summaryY + summaryH / 2 + 0.5 * S)
   })
-  ctx.fillStyle = '#6d6054'
-  ctx.fillText(`/ ${TOTAL_PET_COUNT}`, segStart + segW * 3 - 4 * S, summaryY)
+  ctx.restore()
 
-  // Tab 栏
-  const tabY = summaryY + DEX_LAYOUT.gapSummaryToTabPt * S
-  const tabH = DEX_LAYOUT.tabHPt * S
-  const tabCount = _DEX_TAB_KEYS.length
-  const tabPad = 6 * S
-  const tabTotalW = W - tabPad * 2
-  const tabItemW = tabTotalW / tabCount
-  g._dexTabRects = []
+  // 右上图鉴奖励入口：替代横向里程碑 Tab
   const pool = g.storage.petPool || []
   const seen = g.storage.petDexSeen || []
   const claimed = g.storage.dexMilestonesClaimed
-  for (let i = 0; i < tabCount; i++) {
-    const key = _DEX_TAB_KEYS[i]
-    const tx = tabPad + i * tabItemW
-    const active = g._dexTab === key
-    if (active) {
-      ctx.fillStyle = 'rgba(212,175,55,0.2)'
-      ctx.beginPath(); R.rr(tx + 1, tabY, tabItemW - 2, tabH, 4 * S); ctx.fill()
-      ctx.strokeStyle = 'rgba(212,175,55,0.5)'; ctx.lineWidth = 1 * S
-      ctx.beginPath(); R.rr(tx + 1, tabY, tabItemW - 2, tabH, 4 * S); ctx.stroke()
-    }
-    ctx.fillStyle = active ? '#7a5200' : '#4a3d32'
-    ctx.font = `${active ? 'bold ' : ''}${10 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'
-    ctx.fillText(_DEX_TAB_LABELS[key], tx + tabItemW / 2, tabY + tabH * 0.65)
-    g._dexTabRects.push({ key, x: tx, y: tabY, w: tabItemW, h: tabH })
-    if (_dexPetTabShowDot(key, pool, seen, claimed)) {
-      const dr = 3.5 * S
-      ctx.fillStyle = '#e04040'
-      ctx.beginPath(); ctx.arc(tx + tabItemW - 6 * S, tabY + 6 * S, dr, 0, Math.PI * 2); ctx.fill()
-    }
+  const rewardW = 70 * S
+  const rewardH = 24 * S
+  const rewardX = W - rewardW - 12 * S
+  const rewardY = summaryY - rewardH - 5 * S
+  g._dexTopActionRects = [{ key: 'milestone', x: rewardX, y: rewardY, w: rewardW, h: rewardH }]
+  inkUI.drawInkActionButton(ctx, R, S, rewardX, rewardY, rewardW, rewardH, '图鉴奖励', {
+    fontSize: 9.5,
+    top: '#d7b45d',
+    bottom: '#9b6830',
+    radius: 8 * S,
+  })
+  if (hasUnclaimedMilestones(pool, claimed)) {
+    inkUI.drawRedDot(ctx, S, rewardX + rewardW - 4 * S, rewardY + 4 * S, { r: 3.6 * S })
   }
 
-  const contentTop = tabY + tabH + DEX_LAYOUT.contentGapBelowTabPt * S
+  // 属性筛选 + 默认收起的类型筛选
+  const tabY = summaryY + summaryH + 7 * S
+  const tabH = 24 * S
+  const typeBtnW = 46 * S
+  const typeBtnGap = 6 * S
+  const typeBtnX = W - 10 * S - typeBtnW
+  g._dexTabRects = inkUI.drawInkFilterTabs(ctx, R, S,
+    _DEX_ATTR_TAB_KEYS.map(key => ({
+      key,
+      label: _DEX_TAB_LABELS[key],
+      dot: _dexPetTabShowDot(key, pool, seen, claimed),
+    })),
+    DEX_ATTRS.includes(g._dexTab) ? g._dexTab : 'all',
+    10 * S,
+    tabY,
+    W - 20 * S - typeBtnW - typeBtnGap,
+    tabH,
+    { fontSize: 9.5, gap: 4 * S, activeBg: 'rgba(74,145,122,0.62)' })
+  g._dexTopActionRects.push({ key: 'roleToggle', x: typeBtnX, y: tabY, w: typeBtnW, h: tabH })
+  inkUI.drawInkActionButton(ctx, R, S, typeBtnX, tabY, typeBtnW, tabH, '类型', {
+    fontSize: 9,
+    top: g._dexRoleFilterOpen ? '#b85a3a' : '#b99362',
+    bottom: g._dexRoleFilterOpen ? '#7e3024' : '#77624c',
+    radius: 7 * S,
+  })
+
+  const roleY = tabY + tabH + 5 * S
+  const roleH = 22 * S
+  g._dexRoleRects = []
+  if (g._dexRoleFilterOpen) {
+    g._dexRoleRects = inkUI.drawInkFilterTabs(ctx, R, S, _DEX_ROLE_FILTERS, g._dexRoleFilter || 'all',
+      10 * S, roleY, W - 20 * S, roleH, {
+        fontSize: 8.2,
+        gap: 3 * S,
+        activeBg: 'rgba(162,64,38,0.62)',
+        activeBorder: 'rgba(247,207,112,0.88)',
+      })
+  }
+
+  const contentTop = (g._dexRoleFilterOpen ? roleY + roleH : tabY + tabH) + 8 * S
   const contentBottom = _getDexLayout().bottomBarY - 4 * S
+  g._dexContentTop = contentTop
+  g._dexContentBottom = contentBottom
 
   if (g._dexTab === 'milestone') {
     _drawDexMilestones(g, contentTop, contentBottom)
@@ -2286,15 +2386,63 @@ function _drawDexWeaponMode(g, ctx, R, W, S, sdivY) {
   const collection = g.storage.weaponCollection || []
   const collSet = new Set(collection)
 
-  const summaryY = sdivY + DEX_LAYOUT.gapDividerToSummaryPt * S
-  ctx.font = `${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillStyle = '#5c4330'
-  ctx.fillText(`已收集 ${collection.length} / ${WEAPONS.length}`, W * 0.5, summaryY)
+  const summaryY = sdivY + 8 * S
+  const summaryX = 18 * S
+  const summaryW = W - 36 * S
+  const summaryH = 30 * S
+  inkUI.drawScrollPanel(ctx, R, S, summaryX, summaryY, summaryW, summaryH, {
+    radius: 13 * S,
+    insetX: 12 * S,
+    insetY: 6 * S,
+    top: 'rgba(250,239,208,0.72)',
+    bottom: 'rgba(222,199,156,0.58)',
+  })
+  ctx.save()
+  ctx.font = `bold ${12 * S}px "STKaiti","PingFang SC",serif`
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#4f3928'
+  ctx.fillText('云阁藏宝录', summaryX + 14 * S, summaryY + summaryH / 2)
+  const progW = 66 * S
+  const progH = 22 * S
+  const progX = summaryX + summaryW - progW - 7 * S
+  const progY = summaryY + (summaryH - progH) / 2
+  const progGrad = ctx.createLinearGradient(progX, progY, progX, progY + progH)
+  progGrad.addColorStop(0, 'rgba(72,62,50,0.78)')
+  progGrad.addColorStop(1, 'rgba(34,31,28,0.82)')
+  ctx.fillStyle = progGrad
+  R.rr(progX, progY, progW, progH, progH / 2); ctx.fill()
+  ctx.strokeStyle = 'rgba(255,232,164,0.52)'
+  ctx.lineWidth = 1 * S
+  R.rr(progX, progY, progW, progH, progH / 2); ctx.stroke()
+  ctx.fillStyle = '#f5d978'
+  ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.fillText(`${collection.length} / ${WEAPONS.length}`, progX + progW / 2, progY + progH / 2 + 0.5 * S)
+  ctx.restore()
 
-  g._dexWpnTabRects = []
+  if (!g._dexWpnRarityFilter) g._dexWpnRarityFilter = 'all'
+  const tabY = summaryY + summaryH + 8 * S
+  const tabH = 26 * S
+  g._dexWpnTabRects = inkUI.drawInkFilterTabs(ctx, R, S,
+    _DEX_WEAPON_RARITY_FILTERS,
+    g._dexWpnRarityFilter || 'all',
+    18 * S,
+    tabY,
+    W - 36 * S,
+    tabH,
+    {
+      fontSize: 10.5,
+      gap: 7 * S,
+      activeBg: 'rgba(212,156,48,0.72)',
+      activeBorder: 'rgba(255,235,162,0.92)',
+      bg: 'rgba(245,231,196,0.42)',
+      radius: 8 * S,
+    })
 
-  const contentTop = summaryY + DEX_LAYOUT.gapSummaryToTabPt * S
+  const contentTop = tabY + tabH + 12 * S
   const contentBottom = _getDexLayout().bottomBarY - 4 * S
+  g._dexContentTop = contentTop
+  g._dexContentBottom = contentBottom
   _drawDexWeaponGrid(g, contentTop, contentBottom, collSet)
 }
 
@@ -2302,27 +2450,34 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
   const { ctx, R, W, S } = V
   const scrollY = g._dexScrollY || 0
 
+  inkUI.drawScrollPanel(ctx, R, S, 8 * S, contentTop - 4 * S, W - 16 * S, contentBottom - contentTop + 8 * S, {
+    radius: 14 * S,
+    top: 'rgba(252,244,224,0.50)',
+    bottom: 'rgba(229,212,177,0.42)',
+    border: 'rgba(174,132,74,0.30)',
+    lineWidth: 1 * S,
+  })
+
   ctx.save()
   ctx.beginPath(); ctx.rect(0, contentTop, W, contentBottom - contentTop); ctx.clip()
 
-  const padX = 12 * S
-  const cols = 5
-  const cellGap = 4 * S
-  const cellW = (W - padX * 2 - (cols - 1) * cellGap) / cols
-  const cellH = cellW + 18 * S
+  const grid = _getDexCollectionGridLayout(W, S)
+  const { padX, cols, cellGap, cellW, cellH } = grid
 
-  const wpnList = WEAPONS.slice()
+  const rarityFilter = g._dexWpnRarityFilter || 'all'
+  const wpnList = rarityFilter === 'all'
+    ? WEAPONS.slice()
+    : WEAPONS.filter(wpn => getWeaponRarity(wpn.id) === rarityFilter)
 
   g._dexWpnCellRects = []
   g._dexTotalH = 0
 
-  let y = contentTop + scrollY
   for (let idx = 0; idx < wpnList.length; idx++) {
     const wpn = wpnList[idx]
     const row = Math.floor(idx / cols)
     const col = idx % cols
     const cx = padX + col * (cellW + cellGap)
-    const cy = contentTop + row * (cellH + cellGap) + cellGap + scrollY
+    const cy = contentTop + row * (cellH + cellGap) + scrollY
 
     if (cy + cellH < contentTop || cy > contentBottom) {
       g._dexWpnCellRects.push({ id: wpn.id, x: cx, y: cy, w: cellW, h: cellH })
@@ -2332,32 +2487,43 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
     const owned = collSet.has(wpn.id)
     const rarityKey = getWeaponRarity(wpn.id) || 'R'
 
-    ctx.fillStyle = owned ? 'rgba(255,252,248,0.9)' : 'rgba(32,28,22,0.42)'
-    R.rr(cx, cy, cellW, cellH, 4 * S); ctx.fill()
-    ctx.strokeStyle = owned ? 'rgba(212,175,55,0.55)' : 'rgba(90,75,55,0.45)'
-    ctx.lineWidth = owned ? 1.5 * S : 0.5 * S
-    R.rr(cx, cy, cellW, cellH, 4 * S); ctx.stroke()
-    const iconH = cellW
+    inkUI.drawDexCardFrame(ctx, R, S, cx, cy, cellW, cellH, owned ? 'collected' : 'unknown')
+    const iconSz = Math.min(cellW - 12 * S, cellH - 36 * S)
+    const iconX = cx + (cellW - iconSz) / 2
+    const iconY = cy + 6 * S
     if (owned) {
-      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), cx + 2, cy + 2, cellW - 4, iconH - 4, { radius: 4 * S })
-      drawCornerRarityBadge(ctx, R, S, cx + 3 * S, cy + 3 * S, rarityKey, wpn.attr, {
-        minWidth: 18 * S,
-        height: 10 * S,
-        fontSize: 6.4 * S,
-        radius: 2.6 * S,
+      R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), iconX, iconY, iconSz, iconSz, { radius: 7 * S })
+      R.drawWeaponFrame(iconX, iconY, iconSz)
+      drawCornerRarityBadge(ctx, R, S, cx + 5 * S, cy + 5 * S, rarityKey, wpn.attr, {
+        minWidth: 20 * S,
+        height: 12 * S,
+        fontSize: 7.2 * S,
+        radius: 3 * S,
       })
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'
-      ctx.font = `${cellW * 0.4}px "PingFang SC",sans-serif`
+      ctx.save()
+      ctx.fillStyle = 'rgba(18,18,18,0.28)'
+      R.rr(iconX, iconY, iconSz, iconSz, 7 * S); ctx.fill()
+      ctx.fillStyle = 'rgba(245,235,210,0.20)'
+      ctx.font = `bold ${cellW * 0.34}px "STKaiti","PingFang SC",serif`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText('?', cx + cellW / 2, cy + iconH / 2)
+      ctx.fillText('?', cx + cellW / 2, iconY + iconSz / 2)
+      ctx.restore()
     }
 
     // 名称
+    if (owned) {
+      ctx.fillStyle = 'rgba(246,232,196,0.82)'
+      R.rr(cx + 8 * S, cy + cellH - 25 * S, cellW - 16 * S, 20 * S, 6 * S); ctx.fill()
+      ctx.strokeStyle = 'rgba(180,140,66,0.28)'
+      ctx.lineWidth = 0.8 * S
+      R.rr(cx + 8 * S, cy + cellH - 25 * S, cellW - 16 * S, 20 * S, 6 * S); ctx.stroke()
+    }
     ctx.fillStyle = owned ? '#3a2f24' : 'rgba(255,255,255,0.55)'
-    ctx.font = `${8*S}px "PingFang SC",sans-serif`
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(owned ? wpn.name : '???', cx + cellW / 2, cy + iconH + 9 * S)
+    const displayName = owned ? (wpn.name.length > 5 ? wpn.name.substring(0, 5) : wpn.name) : '???'
+    ctx.fillText(displayName, cx + cellW / 2, cy + cellH - 14 * S)
 
     g._dexWpnCellRects.push({ id: wpn.id, x: cx, y: cy, w: cellW, h: cellH })
   }
@@ -2369,7 +2535,7 @@ function _drawDexWeaponGrid(g, contentTop, contentBottom, collSet) {
 }
 
 function _drawDexWeaponDetail(g) {
-  const { ctx, R, W, H, S } = V
+  const { ctx, R, W, H, S, safeTop } = V
   const wpnId = g._dexDetailWpnId
   const wpn = getWeaponById(wpnId)
   if (!wpn) return
@@ -2379,74 +2545,79 @@ function _drawDexWeaponDetail(g) {
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
 
-  const pw = W * 0.78
-  const innerPad = 14 * S
-  const iconSz = 64 * S
+  const pw = W * 0.82
+  const innerPad = 16 * S
+  const iconSz = Math.min(pw * 0.42, 92 * S)
   const descText = owned ? wpn.desc : WEAPON_ACQUIRE_HINT_UNOWNED
-  ctx.font = `${11*S}px "PingFang SC",sans-serif`
   const maxW = pw - innerPad * 2
-  let descLines = 1
-  let line = ''
-  for (let ci = 0; ci < descText.length; ci++) {
-    if (ctx.measureText(line + descText[ci]).width > maxW) {
-      descLines++
-      line = descText[ci]
-    } else {
-      line += descText[ci]
-    }
-  }
-  const ph = innerPad * 2 + 70 * S + iconSz + 14 * S + descLines * 15 * S + 24 * S
+  const allDescLines = _wrapTextDex(descText, maxW, 11)
+  const descLines = allDescLines.slice(0, 3)
+  if (descLines.length >= 3 && allDescLines.length > 3) descLines[2] += '…'
+  const ph = Math.min(314 * S + descLines.length * 8 * S, H - safeTop - 18 * S)
   const px = (W - pw) / 2
-  const py = (H - ph) / 2
+  const py = Math.max(safeTop + 8 * S, (H - ph) / 2)
+  inkUI.drawScrollPanel(ctx, R, S, px, py, pw, ph, {
+    radius: 16 * S,
+    insetX: innerPad,
+    insetY: innerPad,
+    border: owned ? 'rgba(212,175,55,0.72)' : 'rgba(120,102,78,0.58)',
+    lineWidth: owned ? 2 * S : 1.4 * S,
+    top: 'rgba(250,243,225,0.97)',
+    bottom: 'rgba(229,214,185,0.96)',
+  })
 
-  const grad = ctx.createLinearGradient(px, py, px, py + ph)
-  grad.addColorStop(0, 'rgba(252,247,238,0.97)')
-  grad.addColorStop(1, 'rgba(244,237,222,0.97)')
-  ctx.fillStyle = grad
-  R.rr(px, py, pw, ph, 12 * S); ctx.fill()
-  ctx.strokeStyle = 'rgba(212,175,55,0.55)'; ctx.lineWidth = 2 * S
-  R.rr(px, py, pw, ph, 12 * S); ctx.stroke()
-
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = '#3a1a00'
-  ctx.font = `bold ${14*S}px "PingFang SC",sans-serif`
-  ctx.fillText(owned ? wpn.name : '???', px + pw / 2, py + innerPad + 22 * S)
+  let curY = py + innerPad
   if (owned) {
-    drawInlineRarityBadge(ctx, R, S, px + pw / 2, py + innerPad + 28 * S, rarityKey, wpn.attr, {
-      minWidth: 30 * S,
-      height: 14 * S,
-      fontSize: 8 * S,
+    inkUI.drawInkActionButton(ctx, R, S, px + innerPad, curY, 38 * S, 18 * S, rarityKey, {
+      fontSize: 8.5,
+      top: 'rgba(166,76,42,0.95)',
+      bottom: 'rgba(113,48,32,0.94)',
+      radius: 5 * S,
     })
   }
 
   const iconX = px + (pw - iconSz) / 2
-  const iconY = py + innerPad + 48 * S
-
+  const iconY = curY + 24 * S
   if (owned) {
-    R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), iconX, iconY, iconSz, iconSz, { radius: 8 * S })
+    R.drawCoverImg(R.getImg(`assets/equipment/fabao_${wpn.id}.png`), iconX, iconY, iconSz, iconSz, { radius: 10 * S })
+    R.drawWeaponFrame(iconX, iconY, iconSz)
   } else {
-    ctx.fillStyle = 'rgba(100,90,70,0.2)'
-    R.rr(iconX, iconY, iconSz, iconSz, 8 * S); ctx.fill()
-    ctx.fillStyle = '#bbb'; ctx.font = `${iconSz * 0.5}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('?', iconX + iconSz / 2, iconY + iconSz / 2)
+    inkUI.drawUnknownInkSlot(ctx, R, S, iconX, iconY, iconSz, iconSz)
   }
-  R.drawWeaponFrame(iconX, iconY, iconSz)
+  curY = iconY + iconSz + 12 * S
 
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = owned ? '#5c4330' : '#999'
-  ctx.font = `${11*S}px "PingFang SC",sans-serif`
-  let descY = iconY + iconSz + 14 * S
-  line = ''
-  for (let ci = 0; ci < descText.length; ci++) {
-    if (ctx.measureText(line + descText[ci]).width > maxW) {
-      ctx.fillText(line, px + innerPad, descY)
-      line = descText[ci]; descY += 15 * S
-    } else {
-      line += descText[ci]
-    }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#3D2B1F'
+  ctx.font = `bold ${17*S}px "STKaiti","PingFang SC",serif`
+  ctx.fillText(owned ? wpn.name : '未知法宝', W / 2, curY + 9 * S)
+  curY += 30 * S
+
+  const stateText = owned ? '已收录 · 可在法宝页装备' : '尚未收录 · 继续探索可解锁'
+  inkUI.drawRolePill(ctx, R, S, W / 2 - 58 * S, curY, stateText, {
+    w: 116 * S,
+    h: 17 * S,
+    fontSize: 8,
+  })
+  curY += 30 * S
+
+  ctx.fillStyle = owned ? '#7A5C30' : '#766958'
+  ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+  ctx.fillText(owned ? '法宝效果' : '获取线索', px + innerPad, curY)
+  curY += 17 * S
+  ctx.fillStyle = owned ? '#5C4A3A' : '#766958'
+  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  descLines.forEach(line => {
+    ctx.fillText(line, px + innerPad + 3 * S, curY)
+    curY += 15 * S
+  })
+
+  if (!owned) {
+    ctx.fillStyle = 'rgba(80,64,42,0.55)'
+    ctx.font = `${9 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText('未知法宝暂不展示完整效果', W / 2, Math.min(curY + 10 * S, py + ph - 28 * S))
   }
-  if (line) ctx.fillText(line, px + innerPad, descY)
 
   ctx.fillStyle = '#999'; ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
@@ -2456,111 +2627,121 @@ function _drawDexWeaponDetail(g) {
   ctx.restore()
 }
 
-// ===== 宠物网格（全部 / 单属性） =====
+function _dexPetMatchesRole(pet, roleFilter) {
+  if (!roleFilter || roleFilter === 'all') return true
+  const role = getPetRole(pet)
+  return role && role.key === roleFilter
+}
+
+function _drawDexPetCard(g, pet, attr, tier, x, y, w, h, contentTop, contentBottom) {
+  const { ctx, R, S } = V
+  if (y + h < contentTop || y > contentBottom) return
+  const imgSz = Math.min(w - 12 * S, h - 36 * S)
+  const imgX = x + (w - imgSz) / 2
+  const imgY = y + 6 * S
+  const nameY = y + h - 13 * S
+
+  if (tier === 'unknown') {
+    inkUI.drawUnknownInkSlot(ctx, R, S, x, y, w, h)
+  } else {
+    inkUI.drawDexCardFrame(ctx, R, S, x, y, w, h, tier)
+    const poolPet = g.storage.petPool.find(p => p.id === pet.id)
+    const displayStar = poolPet ? poolPet.star : 1
+    const avatarPath = getPetAvatarPath({ id: pet.id, star: displayStar })
+    R.drawCoverImg(R.getImg(avatarPath), imgX, imgY, imgSz, imgSz, { radius: 7 * S })
+    if (tier === 'discovered') {
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'
+      R.rr(imgX, imgY, imgSz, imgSz, 7 * S); ctx.fill()
+    }
+    if (tier === 'mastered') {
+      ctx.save()
+      ctx.fillStyle = 'rgba(150,65,38,0.86)'
+      R.rr(x + w - 30 * S, y + 5 * S, 25 * S, 15 * S, 5 * S); ctx.fill()
+      ctx.fillStyle = '#ffe8b0'
+      ctx.font = `bold ${8 * S}px "PingFang SC",sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('精通', x + w - 17.5 * S, y + 12.5 * S)
+      ctx.restore()
+    }
+    const orbPath = `assets/orbs/orb_${attr}.png`
+    const orb = R.getImg(orbPath)
+    if (orb && orb.width > 0) cDrawImageSafe(ctx, orb, x + 6 * S, y + 6 * S, 16 * S, 16 * S)
+    const seen = g.storage.petDexSeen || []
+    if (!seen.includes(pet.id)) inkUI.drawRedDot(ctx, S, x + w - 8 * S, y + 8 * S, { r: 4 * S })
+    ctx.fillStyle = 'rgba(246,232,196,0.82)'
+    R.rr(x + 8 * S, y + h - 25 * S, w - 16 * S, 20 * S, 6 * S); ctx.fill()
+    ctx.strokeStyle = 'rgba(180,140,66,0.28)'
+    ctx.lineWidth = 0.8 * S
+    R.rr(x + 8 * S, y + h - 25 * S, w - 16 * S, 20 * S, 6 * S); ctx.stroke()
+    ctx.fillStyle = (tier === 'mastered') ? '#4a3206' : '#3b2617'
+    ctx.font = `bold ${10 * S}px "PingFang SC",serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    const shortName = pet.name.length > 5 ? pet.name.substring(0, 5) : pet.name
+    ctx.fillText(shortName, x + w / 2, nameY)
+  }
+  if (y + h > contentTop && y < contentBottom) {
+    g._dexCellRects.push({ id: pet.id, attr, x, y, w, h })
+  }
+}
+
+function cDrawImageSafe(ctx, img, x, y, w, h) {
+  if (img && img.width > 0) ctx.drawImage(img, x, y, w, h)
+}
+
+// ===== 宠物网格（全部 / 单属性 / 定位筛选） =====
 function _drawDexPetGrid(g, contentTop, contentBottom) {
-  const { ctx, R, TH, W, S } = V
+  const { ctx, R, W, S } = V
   const scrollY = g._dexScrollY || 0
+
+  inkUI.drawScrollPanel(ctx, R, S, 8 * S, contentTop - 4 * S, W - 16 * S, contentBottom - contentTop + 8 * S, {
+    radius: 14 * S,
+    top: 'rgba(252,244,224,0.50)',
+    bottom: 'rgba(229,212,177,0.42)',
+    border: 'rgba(174,132,74,0.30)',
+    lineWidth: 1 * S,
+  })
 
   ctx.save()
   ctx.beginPath(); ctx.rect(0, contentTop, W, contentBottom - contentTop); ctx.clip()
 
-  const padX = 12 * S
-  const cols = 5
-  const cellGap = 4 * S
-  const cellW = (W - padX * 2 - (cols - 1) * cellGap) / cols
-  const cellH = cellW + 18 * S
+  const grid = _getDexCollectionGridLayout(W, S)
+  const { padX, cols, cellGap, cellW, cellH } = grid
 
-  let y = contentTop + scrollY
+  let y = contentTop + scrollY + 2 * S
   g._dexTotalH = 0
   g._dexCellRects = []
 
-  const filterAttrs = g._dexTab === 'all' ? DEX_ATTRS : [g._dexTab]
+  const filterAttrs = g._dexTab === 'all' || g._dexTab === 'milestone' ? DEX_ATTRS : [g._dexTab]
   const attrProgress = getDexProgressByAttr(g.storage.petPool)
+  const roleFilter = g._dexRoleFilter || 'all'
 
   for (const attr of filterAttrs) {
-    const pets = PETS[attr]
+    const allPets = (PETS[attr] || []).filter(p => _dexPetMatchesRole({ ...p, attr }, roleFilter))
+    if (allPets.length === 0) continue
     const ac = ATTR_COLOR[attr]
     const ap = attrProgress[attr]
 
-    ctx.fillStyle = ac.main; ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText(`${DEX_ATTR_LABEL[attr]}属性 (${ap.discovered}/${ap.total})`, padX, y + 13 * S)
-    y += 20 * S
+    ctx.save()
+    ctx.fillStyle = 'rgba(245,232,198,0.72)'
+    R.rr(padX, y, W - padX * 2, 18 * S, 8 * S); ctx.fill()
+    ctx.strokeStyle = 'rgba(180,140,66,0.36)'; ctx.lineWidth = 1 * S
+    R.rr(padX, y, W - padX * 2, 18 * S, 8 * S); ctx.stroke()
+    ctx.fillStyle = ac && ac.main ? ac.main : '#6b4a2a'
+    ctx.font = `bold ${11 * S}px "PingFang SC",serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText(`${DEX_ATTR_LABEL[attr]}属性（${ap.discovered}/${ap.total}）`, padX + 10 * S, y + 9 * S)
+    ctx.restore()
+    y += 24 * S
 
-    const rows = Math.ceil(pets.length / cols)
+    const rows = Math.ceil(allPets.length / cols)
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const idx = r * cols + c
-        if (idx >= pets.length) break
-        const pet = pets[idx]
+        if (idx >= allPets.length) break
+        const pet = allPets[idx]
         const cx = padX + c * (cellW + cellGap)
         const cy = y + r * (cellH + cellGap)
-        // 屏外格子不绘制、不触发 getImg，避免「全部」Tab 单帧登记过多纹理导致 LRU 与真机解码跟不上
-        if (cy + cellH < contentTop || cy > contentBottom) continue
         const tier = getPetDexTier(pet.id, g.storage.petPool)
-        const tc = _TIER_COLORS[tier]
-        const imgPad = 3 * S
-        const imgSz = cellW - imgPad * 2
-
-        // 卡片背景
-        ctx.fillStyle = tc.bg
-        ctx.beginPath(); R.rr(cx, cy, cellW, cellH, 4 * S); ctx.fill()
-
-        if (tier === 'unknown') {
-          // 问号剪影
-          ctx.fillStyle = 'rgba(255,255,255,0.06)'
-          ctx.beginPath(); ctx.arc(cx + cellW / 2, cy + cellW * 0.4, cellW * 0.25, 0, Math.PI * 2); ctx.fill()
-          ctx.fillStyle = TH.dim; ctx.font = `bold ${18 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-          ctx.fillText('?', cx + cellW / 2, cy + cellW * 0.4 + 6 * S)
-          ctx.fillStyle = tc.nameColor; ctx.font = `${8 * S}px "PingFang SC",sans-serif`
-          ctx.fillText('???', cx + cellW / 2, cy + cellW + 10 * S)
-        } else {
-          // 头像
-          const poolPet = g.storage.petPool.find(p => p.id === pet.id)
-          const displayStar = poolPet ? poolPet.star : 1
-          const fakePet = { id: pet.id, star: displayStar }
-          const avatarPath = getPetAvatarPath(fakePet)
-          R.drawCoverImg(R.getImg(avatarPath), cx + imgPad, cy + imgPad, imgSz, imgSz, { radius: 3 * S })
-
-          if (tier === 'discovered') {
-            // 半透明遮罩表示未完全收录
-            ctx.fillStyle = 'rgba(0,0,0,0.35)'
-            ctx.beginPath(); R.rr(cx + imgPad, cy + imgPad, imgSz, imgSz, 3 * S); ctx.fill()
-            // 星级标记
-            ctx.fillStyle = '#4a3828'; ctx.font = `bold ${7 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-            ctx.fillText(`★${displayStar}`, cx + cellW / 2, cy + imgSz - 1 * S)
-          }
-
-          if (tier === 'mastered') {
-            // 金色边框
-            ctx.strokeStyle = '#C8A832'; ctx.lineWidth = 1.5 * S
-            ctx.beginPath(); R.rr(cx, cy, cellW, cellH, 4 * S); ctx.stroke()
-          } else {
-            ctx.strokeStyle = tc.border; ctx.lineWidth = 1 * S
-            ctx.beginPath(); R.rr(cx, cy, cellW, cellH, 4 * S); ctx.stroke()
-          }
-
-          // 名字
-          ctx.fillStyle = tc.nameColor; ctx.font = `${8 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-          const shortName = pet.name.length > 4 ? pet.name.substring(0, 4) : pet.name
-          ctx.fillText(shortName, cx + cellW / 2, cy + cellW - imgPad + 14 * S)
-
-          // 可点击区域
-          if (cy + cellH > contentTop && cy < contentBottom) {
-            g._dexCellRects.push({ id: pet.id, attr, x: cx, y: cy, w: cellW, h: cellH })
-          }
-
-          // 新入池未查看的红点（仅发现及以上层级）
-          const seen = g.storage.petDexSeen
-          if (!seen.includes(pet.id)) {
-            const dotR = 4 * S
-            const dotX = cx + cellW - imgPad - dotR + 2 * S
-            const dotY2 = cy + imgPad + dotR - 2 * S
-            ctx.fillStyle = '#e04040'
-            ctx.beginPath(); ctx.arc(dotX, dotY2, dotR, 0, Math.PI * 2); ctx.fill()
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 * S
-            ctx.beginPath(); ctx.arc(dotX, dotY2, dotR, 0, Math.PI * 2); ctx.stroke()
-          }
-        }
+        _drawDexPetCard(g, pet, attr, tier, cx, cy, cellW, cellH, contentTop, contentBottom)
       }
     }
     y += rows * (cellH + cellGap) + 8 * S
@@ -2572,7 +2753,7 @@ function _drawDexPetGrid(g, contentTop, contentBottom) {
 
 // ===== 里程碑面板 =====
 function _drawDexMilestones(g, contentTop, contentBottom) {
-  const { ctx, R, TH, W, S } = V
+  const { ctx, R, W, S } = V
   const scrollY = g._dexMilestoneScrollY || 0
   const claimed = new Set(g.storage.dexMilestonesClaimed || [])
   const adRewardClaimed = new Set(g.storage.dexMilestonesAdRewardClaimed || [])
@@ -2583,8 +2764,8 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
 
   const padX = 14 * S
   const cardW = W - padX * 2
-  const cardH = 52 * S
-  const cardGap = 6 * S
+  const cardH = 58 * S
+  const cardGap = 7 * S
   let y = contentTop + scrollY + 4 * S
   g._dexMilestoneRects = []
   g._dexMilestoneTotalH = 0
@@ -2596,9 +2777,15 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
   ]
 
   for (const sec of sections) {
-    ctx.fillStyle = '#5a3a08'; ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText(sec.title, padX, y + 12 * S)
-    y += 18 * S
+    ctx.save()
+    ctx.fillStyle = 'rgba(245,232,198,0.74)'
+    R.rr(padX, y, cardW, 20 * S, 9 * S); ctx.fill()
+    ctx.strokeStyle = 'rgba(180,140,66,0.36)'; ctx.lineWidth = 1 * S
+    R.rr(padX, y, cardW, 20 * S, 9 * S); ctx.stroke()
+    ctx.fillStyle = '#5a3a08'; ctx.font = `bold ${12 * S}px "PingFang SC",serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText(sec.title, padX + 10 * S, y + 10 * S)
+    ctx.restore()
+    y += 26 * S
 
     for (const m of sec.milestones) {
       const isClaimed = claimed.has(m.id)
@@ -2606,23 +2793,22 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
       const reached = isMilestoneReached(m, pool)
       const mx = padX, my = y
 
-      // 卡片背景（浅色实底 + 描边，避免装饰底图冲淡文字）
-      if (isClaimed) {
-        ctx.fillStyle = 'rgba(246,242,234,0.96)'
-      } else if (reached) {
-        ctx.fillStyle = 'rgba(255,250,232,0.98)'
-      } else {
-        ctx.fillStyle = 'rgba(252,249,242,0.96)'
-      }
-      ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.fill()
-
+      inkUI.drawScrollPanel(ctx, R, S, mx, my, cardW, cardH, {
+        radius: 9 * S,
+        insetX: 8 * S,
+        insetY: 6 * S,
+        top: isClaimed ? 'rgba(235,229,216,0.88)' : 'rgba(252,244,222,0.96)',
+        bottom: reached && !isClaimed ? 'rgba(238,211,154,0.88)' : 'rgba(226,211,180,0.76)',
+        border: reached && !isClaimed ? 'rgba(215,174,58,0.9)' : 'rgba(146,114,66,0.38)',
+        lineWidth: reached && !isClaimed ? 1.8 * S : 1 * S,
+      })
       if (reached && !isClaimed) {
-        ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 1.5 * S
-        ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.stroke()
-      } else {
-        ctx.strokeStyle = isClaimed ? 'rgba(100,85,70,0.28)' : 'rgba(90,72,52,0.35)'
-        ctx.lineWidth = 1 * S
-        ctx.beginPath(); R.rr(mx, my, cardW, cardH, 6 * S); ctx.stroke()
+        ctx.save()
+        ctx.globalAlpha = 0.2 + 0.18 * Math.sin((g.af || 0) * 0.1)
+        ctx.strokeStyle = 'rgba(255,232,138,0.9)'
+        ctx.lineWidth = 3 * S
+        R.rr(mx - 1 * S, my - 1 * S, cardW + 2 * S, cardH + 2 * S, 10 * S); ctx.stroke()
+        ctx.restore()
       }
 
       // 描述
@@ -2662,12 +2848,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
         ctx.textAlign = 'center'
         ctx.fillText('已领取', btnX + btnW / 2, btnY + btnH2 * 0.65)
       } else if (reached) {
-        const bg = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH2)
-        bg.addColorStop(0, '#d4a840'); bg.addColorStop(1, '#b8922e')
-        ctx.fillStyle = bg
-        ctx.beginPath(); R.rr(btnX, btnY, btnW, btnH2, 4 * S); ctx.fill()
-        ctx.fillStyle = '#fff'; ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-        ctx.fillText('领取', btnX + btnW / 2, btnY + btnH2 * 0.68)
+        inkUI.drawInkActionButton(ctx, R, S, btnX, btnY, btnW, btnH2, '领取', { fontSize: 9.5, radius: 5 * S })
         if (my + cardH > contentTop && my < contentBottom) {
           g._dexMilestoneRects.push({ id: m.id, x: btnX, y: btnY, w: btnW, h: btnH2 })
         }
@@ -2679,7 +2860,12 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
 
       // IAA 翻倍：已达成、有货币奖励、且本档广告额外奖励未领过（先领基础或先看广告均可，各档仅一次额外）
       if (showAdDouble) {
-        R.drawDialogBtn(adX, adY, adW, adH, '翻倍', 'adReward')
+        inkUI.drawInkActionButton(ctx, R, S, adX, adY, adW, adH, '翻倍', {
+          fontSize: 8.5,
+          top: '#c04c2e',
+          bottom: '#7f3025',
+          radius: 5 * S,
+        })
         if (my + cardH > contentTop && my < contentBottom) {
           g._dexMilestoneRects.push({ id: `ad_${m.id}`, type: 'ad_double', milestoneId: m.id, x: adX, y: adY, w: adW, h: adH })
         }
@@ -2696,7 +2882,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
 
 // ===== 图鉴宠物详情弹窗（重设计版） =====
 function _drawDexPetDetail(g) {
-  const { ctx, R, TH, W, H, S, safeTop } = V
+  const { ctx, R, W, H, S, safeTop } = V
   const petId = g._dexDetailPetId
   let pet = null, petAttr = ''
   for (const attr of DEX_ATTRS) {
@@ -2707,168 +2893,134 @@ function _drawDexPetDetail(g) {
 
   const tier = getPetDexTier(petId, g.storage.petPool)
   const poolPet = g.storage.petPool.find(p => p.id === petId)
-  const ac = ATTR_COLOR[petAttr]
   const rarity = getPetRarity(petId)
   const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
-
-  // 根据层级决定展示内容
   const displayStar = poolPet ? poolPet.star : 1
-  const fakePet = { id: petId, star: displayStar, attr: petAttr, skill: pet.skill, atk: pet.atk, cd: pet.cd }
-  const showSkill = tier === 'collected' || tier === 'mastered'
-  // 轶事与旧版图鉴一致：只要已发现（入池）即可阅读，不限制「精通」层
-  const showLore = tier !== 'unknown'
-  const showAtk = tier !== 'unknown'
+  const fakePet = { id: petId, star: displayStar, attr: petAttr, skill: pet.skill }
+  const role = getPetRole(fakePet)
+  const tierLabel = _DEX_TIER_LABELS[tier] || '未知'
 
-  const lore = showLore ? getPetLore(petId) : ''
-  const skillDesc = showSkill ? (getPetSkillDesc(fakePet) || pet.skill.desc) : ''
-
-  // 遮罩
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
   ctx.fillRect(0, 0, W, H)
 
-  const panelW = W * 0.88
+  const panelW = W * 0.84
   const panelX = (W - panelW) / 2
-  const pad = 14 * S
-  const maxTextW = panelW - pad * 2
-  const imgSize = Math.min(panelW * 0.45, H * 0.26)
-  const gapH = 6 * S
-
-  const loreLines = showLore ? _wrapTextDex(lore, maxTextW, 11) : []
-  const skillLines = showSkill ? _wrapTextDex(skillDesc, maxTextW - 8 * S, 10) : []
-
-  // 计算面板高度
-  let panelH = pad + imgSize + gapH + 18 * S + 14 * S + gapH
-  if (showSkill) panelH += 16 * S + skillLines.length * 12 * S + gapH
-  if (showLore && loreLines.length > 0) panelH += gapH + 16 * S + loreLines.length * 13 * S + gapH
-  panelH += 36 * S + 18 * S + pad
-
-  const maxPanelH = H - safeTop - 10 * S
-  const finalH = Math.min(panelH, maxPanelH)
+  const pad = 16 * S
+  const maxTextW = panelW - pad * 2 - 4 * S
+  const imgSize = Math.min(panelW * 0.34, H * 0.16)
+  const buttonReservedH = 66 * S
+  const rawLoreLines = tier !== 'unknown' ? _wrapTextDex(getPetLore(petId), maxTextW, 10.5) : []
+  const loreLines = rawLoreLines.slice(0, 3)
+  if (rawLoreLines.length > 3 && loreLines.length > 0) loreLines[loreLines.length - 1] += '…'
+  const finalH = Math.min(tier === 'unknown' ? 286 * S : 376 * S, H - safeTop - 16 * S)
   const panelY = Math.max(safeTop + 5 * S, (H - finalH) / 2)
-  const rad = 14 * S
-
-  const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + finalH)
-  bgGrad.addColorStop(0, 'rgba(248,242,230,0.97)')
-  bgGrad.addColorStop(0.5, 'rgba(244,237,224,0.97)')
-  bgGrad.addColorStop(1, 'rgba(238,230,218,0.97)')
-  ctx.fillStyle = bgGrad
-  ctx.beginPath(); R.rr(panelX, panelY, panelW, finalH, rad); ctx.fill()
-  ctx.strokeStyle = tier === 'mastered' ? 'rgba(200,168,50,0.6)' : 'rgba(201,168,76,0.4)'
-  ctx.lineWidth = tier === 'mastered' ? 2 * S : 1.5 * S
-  ctx.beginPath(); R.rr(panelX, panelY, panelW, finalH, rad); ctx.stroke()
-
+  inkUI.drawScrollPanel(ctx, R, S, panelX, panelY, panelW, finalH, {
+    radius: 16 * S,
+    insetX: pad,
+    insetY: pad,
+    border: tier === 'mastered' ? 'rgba(215,174,58,0.85)' : 'rgba(176,132,54,0.62)',
+    lineWidth: tier === 'mastered' ? 2 * S : 1.5 * S,
+  })
   g._dexDetailRect = [panelX, panelY, panelW, finalH]
+  g._dexDetailBtnRect = null
+  g._dexAdHintBtnRect = null
 
   ctx.save()
-  ctx.beginPath(); R.rr(panelX, panelY, panelW, finalH, rad); ctx.clip()
+  ctx.beginPath(); R.rr(panelX, panelY, panelW, finalH, 16 * S); ctx.clip()
 
   let curY = panelY + pad
+  const badgeH = 18 * S
+  const badgeW = 42 * S
 
-  // 层级标签
-  const tierLabels = { mastered: '精通', collected: '收录', discovered: '发现' }
-  const tierLabel = tierLabels[tier] || '未知'
-  const tierBadgeW = 40 * S, tierBadgeH = 18 * S
-  const tierBadgeX = panelX + panelW - pad - tierBadgeW
-  ctx.fillStyle = tier === 'mastered' ? 'rgba(200,160,40,0.2)' : tier === 'collected' ? 'rgba(160,140,100,0.15)' : 'rgba(120,100,80,0.1)'
-  ctx.beginPath(); R.rr(tierBadgeX, curY, tierBadgeW, tierBadgeH, 3 * S); ctx.fill()
-  ctx.fillStyle = tier === 'mastered' ? '#C89510' : tier === 'collected' ? '#a08060' : '#807060'
-  ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText(tierLabel, tierBadgeX + tierBadgeW / 2, curY + tierBadgeH * 0.68)
+  if (tier !== 'unknown') {
+    inkUI.drawInkActionButton(ctx, R, S, panelX + pad, curY, 34 * S, badgeH, rv.label || rarity, {
+      fontSize: 8.5,
+      top: 'rgba(166,76,42,0.95)',
+      bottom: 'rgba(113,48,32,0.94)',
+      radius: 5 * S,
+    })
+    inkUI.drawInkActionButton(ctx, R, S, panelX + panelW - pad - badgeW, curY, badgeW, badgeH, tierLabel, {
+      fontSize: 8.5,
+      top: tier === 'mastered' ? '#d7b45d' : '#b99362',
+      bottom: tier === 'mastered' ? '#986728' : '#77624c',
+      radius: 5 * S,
+    })
+  }
 
-  // 品质标签
-  const rarBadgeX = panelX + pad
-  ctx.fillStyle = rv.tagBg || 'rgba(100,80,60,0.15)'
-  ctx.beginPath(); R.rr(rarBadgeX, curY, 30 * S, tierBadgeH, 3 * S); ctx.fill()
-  ctx.fillStyle = rv.color || '#a08060'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'center'
-  ctx.fillText(rv.label || rarity, rarBadgeX + 15 * S, curY + tierBadgeH * 0.68)
-
-  const avatarPath = getPetAvatarPath(fakePet)
   const imgX = (W - imgSize) / 2
-  const imgY = curY + tierBadgeH + 4 * S
-  R.drawCoverImg(R.getImg(avatarPath), imgX, imgY, imgSize, imgSize, { radius: 8 * S })
-  if (tier === 'discovered') {
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'
-    ctx.beginPath(); R.rr(imgX, imgY, imgSize, imgSize, 8 * S); ctx.fill()
+  const imgY = curY + (tier === 'unknown' ? 2 * S : badgeH + 6 * S)
+  if (tier === 'unknown') {
+    inkUI.drawUnknownInkSlot(ctx, R, S, imgX, imgY, imgSize, imgSize)
+  } else {
+    R.drawCoverImg(R.getImg(getPetAvatarPath(fakePet)), imgX, imgY, imgSize, imgSize, { radius: 10 * S })
+    if (tier === 'discovered') {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'
+      R.rr(imgX, imgY, imgSize, imgSize, 10 * S); ctx.fill()
+    }
   }
-  curY = imgY + imgSize + gapH
+  curY = imgY + imgSize + 8 * S
 
-  // 名称 + 星级
-  const nameFs = 14 * S
-  const starStr = '★'.repeat(displayStar)
-  ctx.font = `bold ${nameFs}px "PingFang SC",sans-serif`
-  const nameW = ctx.measureText(pet.name).width
-  ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-  const starW = ctx.measureText(starStr).width
-  const totalNameW = nameW + 4 * S + starW
-  const nameStartX = W * 0.5 - totalNameW / 2
-  ctx.fillStyle = '#3D2B1F'; ctx.font = `bold ${nameFs}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-  ctx.fillText(pet.name, nameStartX, curY + 13 * S)
-  ctx.fillStyle = '#C89510'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-  ctx.fillText(starStr, nameStartX + nameW + 4 * S, curY + 13 * S)
-  curY += 18 * S
-
-  // 属性 + ATK
-  if (showAtk) {
-    const orbR = 6 * S
-    const atkStr = poolPet ? String(getPoolPetAtk(poolPet)) : String(pet.atk)
-    ctx.font = `${10 * S}px "PingFang SC",sans-serif`
-    const atkLabelW = ctx.measureText('ATK：').width
-    ctx.font = `bold ${10 * S}px "PingFang SC",sans-serif`
-    const atkValW = ctx.measureText(atkStr).width
-    const blockW = orbR * 2 + 6 * S + atkLabelW + atkValW
-    const startX = W * 0.5 - blockW / 2
-    R.drawBead(startX + orbR, curY + 8 * S, orbR, petAttr, 0)
-    ctx.fillStyle = '#6B5B50'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText('ATK：', startX + orbR * 2 + 6 * S, curY + 11 * S)
-    ctx.fillStyle = '#c06020'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-    ctx.fillText(atkStr, startX + orbR * 2 + 6 * S + atkLabelW, curY + 11 * S)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#3D2B1F'
+  ctx.font = `bold ${16 * S}px "STKaiti","PingFang SC",serif`
+  ctx.fillText(tier === 'unknown' ? '未知灵兽' : pet.name, W / 2, curY + 8 * S)
+  if (tier !== 'unknown') {
+    ctx.fillStyle = '#C89510'
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillText(`★${displayStar}`, W / 2, curY + 24 * S)
   }
-  curY += 14 * S + gapH
+  curY += 34 * S
+  if (tier !== 'unknown') {
+    const roleW = Math.min(panelW - pad * 2, 92 * S)
+    inkUI.drawRolePill(ctx, R, S, W / 2 - roleW / 2, curY, `${DEX_ATTR_LABEL[petAttr]} · ${tierLabel}`, {
+      w: roleW,
+      h: 16 * S,
+      fontSize: 8.5,
+    })
+    curY += 22 * S
+    const rolePillW = Math.min(panelW - pad * 2, 70 * S)
+    inkUI.drawRolePill(ctx, R, S, W / 2 - rolePillW / 2, curY, role.label, {
+      w: rolePillW,
+      h: 16 * S,
+      fontSize: 8.5,
+    })
+    curY += 26 * S
+  }
 
-  // 技能（收录及以上）
-  if (showSkill) {
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText(`技能：${pet.skill.name}  CD ${pet.cd}`, panelX + pad, curY + 11 * S)
+  const btnH = 34 * S, btnW = panelW * 0.6, btnBtnX = (W - btnW) / 2
+  const btnY = panelY + finalH - btnH - 16 * S
+  const textBottom = btnY - 12 * S
+  if (tier === 'unknown') {
+    ctx.fillStyle = '#766958'
+    ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillText('尚未发现，继续探索可解锁图鉴记录', W / 2, Math.min(curY, textBottom - 18 * S))
+  } else if (loreLines.length > 0) {
+    ctx.fillStyle = '#7A5C30'
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.fillText('轶事', panelX + pad, curY)
     curY += 16 * S
-    _drawHighlightedLines(ctx, skillLines, panelX + pad + 4 * S, curY, 12 * S, 10 * S, S)
-    curY += skillLines.length * 12 * S + gapH
-    ctx.strokeStyle = 'rgba(160,140,100,0.25)'; ctx.lineWidth = 1 * S
-    ctx.beginPath(); ctx.moveTo(panelX + pad, curY); ctx.lineTo(panelX + panelW - pad, curY); ctx.stroke()
-    curY += gapH
-  }
-
-  // 轶事 / 小故事（已发现即可）
-  if (showLore && loreLines.length > 0) {
-    ctx.fillStyle = '#7A5C30'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`; ctx.textAlign = 'left'
-    ctx.fillText('轶事', panelX + pad, curY + 11 * S)
-    curY += 16 * S
-    ctx.fillStyle = '#5C4A3A'; ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#5C4A3A'
+    ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
     loreLines.forEach(line => {
-      ctx.fillText(line, panelX + pad, curY + 10 * S)
+      if (curY + 13 * S <= textBottom) {
+        ctx.fillText(line, panelX + pad + 3 * S, curY)
+      }
       curY += 13 * S
     })
-    curY += gapH
   }
 
-  // 底部按钮：查看详情（跳转灵宠池）
-  const btnH = 34 * S, btnW = panelW * 0.6, btnBtnX = (W - btnW) / 2
   if (tier !== 'unknown') {
-    const bg = ctx.createLinearGradient(btnBtnX, curY, btnBtnX, curY + btnH)
-    bg.addColorStop(0, '#d4a840'); bg.addColorStop(1, '#b8922e')
-    ctx.fillStyle = bg
-    ctx.beginPath(); R.rr(btnBtnX, curY, btnW, btnH, 8 * S); ctx.fill()
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('查看详情', W * 0.5, curY + btnH * 0.5)
-    ctx.textBaseline = 'alphabetic'
-    g._dexDetailBtnRect = [btnBtnX, curY, btnW, btnH]
+    inkUI.drawInkActionButton(ctx, R, S, btnBtnX, btnY, btnW, btnH, '去灵宠查看')
+    g._dexDetailBtnRect = [btnBtnX, btnY, btnW, btnH]
   } else {
-    // 未发现：激励/模板广告入口
-    g._dexDetailBtnRect = null
-    R.drawDialogBtn(btnBtnX, curY, btnW, btnH, '查看获取途径', 'adReward')
-    ctx.textBaseline = 'alphabetic'
-    g._dexAdHintBtnRect = [btnBtnX, curY, btnW, btnH]
+    inkUI.drawInkActionButton(ctx, R, S, btnBtnX, btnY, btnW, btnH, '查看获取途径', {
+      top: '#bfa36c',
+      bottom: '#806446',
+    })
+    g._dexAdHintBtnRect = [btnBtnX, btnY, btnW, btnH]
   }
 
   ctx.restore()

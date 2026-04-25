@@ -947,9 +947,9 @@ function drawPoolPetDetailPopup(g, petId, storage) {
   c.restore()
 }
 
-// ===== 返还培养·按钮 helper =====
+// ===== 归元重修·按钮 helper =====
 /**
- * 返还档按钮（卷轴胶囊 · 与 drawDialogBtn / drawShareIconBtn 同款美术语言）
+ * 归元返还档按钮（卷轴胶囊 · 与 drawDialogBtn / drawShareIconBtn 同款美术语言）
  *   · 底图：淡青 btn_cancel.png（基础档） / 纯金 btn_reward_confirm.png（广告档）
  *   · 单行布局："动作名 · [灵石icon] +数字"，居中偏右（0.56w）避让左侧云纹
  *   · 可选 glow：金色呼吸描边（只在广告档开启，正向 CTA 引导）
@@ -1056,9 +1056,9 @@ function _drawRefundCapsule(c, R, S, x, y, w, h, opts) {
   c.restore()
 }
 
-// ===== 返还培养·单屏对比弹窗（方案 A） =====
+// ===== 归元重修·单屏对比弹窗（方案 A） =====
 /**
- * 「返还培养」确认弹窗
+ * 「归元重修」确认弹窗
  *   · 顶部：宠物头像 + 名称 + 星级 + 等级
  *   · 闸门胶囊：橙红底 + 觉醒石图标 + 消耗数
  *   · 返还明细：每条资源一行，右侧同时展示"基础 / 广告"两档，数值不等时广告档高亮金色
@@ -1128,7 +1128,7 @@ function drawPoolPetResetDialog(g) {
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillStyle = '#7B5A1F'
   c.font = `bold ${17 * S}px "PingFang SC",sans-serif`
-  c.fillText('返 还 培 养', px + pw / 2, cy)
+  c.fillText('归 元 重 修', px + pw / 2, cy)
   cy += 20 * S
 
   // ── 右上角 × 关闭钮（半透明黑圆 + 白叉，24S，与标题水平大致对齐） ──
@@ -1287,7 +1287,7 @@ function drawPoolPetResetDialog(g) {
   c.fillText('专属碎片 100% 返回本宠，随时可再培养', px + pw / 2, cy)
   cy += 14 * S
   c.fillStyle = '#C0392B'
-  c.fillText('重置后回到 ★1 Lv.1，10 分钟内不可再次返还', px + pw / 2, cy)
+  c.fillText('归元后回到 ★1 Lv.1，10 分钟内不可再次归元', px + pw / 2, cy)
 
   // ── 底部两个主按钮（与游戏统一卷轴胶囊语言，复用美术预制底图） ──
   //  · 左：btn_cancel 淡青卷轴（基础档，次要视觉）

@@ -8,6 +8,7 @@ const { getPetById, getPetRarity, getPetAvatarPath } = require('../data/pets')
 const { getPoolPetAtk, computePetPoolBadge } = require('../data/petPoolConfig')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { rarityVisualForAttr } = require('../data/rewardVisual')
+const { ROLE, getPetRole } = require('../data/petRoleConfig')
 const { drawBottomBar, getLayout: getTitleLayout, drawPageTitle } = require('./bottomBar')
 const MusicMgr = require('../runtime/music')
 const P = require('../platform')
@@ -31,10 +32,29 @@ const RARITY_FILTERS = [
   { key: 'SSR', label: 'SSR' },
 ]
 
+const ROLE_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: ROLE.ATTACK, label: '攻击' },
+  { key: ROLE.BURST, label: '爆发' },
+  { key: ROLE.HEAL, label: '恢复' },
+  { key: ROLE.SHIELD, label: '护盾' },
+  { key: ROLE.CONVERT, label: '转珠' },
+  { key: ROLE.CONTROL, label: '控制' },
+  { key: ROLE.SUPPORT, label: '辅助' },
+]
+
+const PET_POOL_SCROLL_ART = {
+  bg: 'assets/backgrounds/petpool_ink_bg.jpg',
+  card: 'assets/ui/pet_card_scroll_bg.png',
+  filter: 'assets/ui/pet_filter_scroll_bg.png',
+  idleBtn: 'assets/ui/btn_pet_idle_scroll.png',
+}
+
 // 模块内触摸区域（不污染 g）
 const _rects = {
   filterRects: [],        // 属性筛选 [{ key, rect: [x,y,w,h] }]
   rarityFilterRects: [],  // 品质筛选 [{ key, rect: [x,y,w,h] }]
+  roleFilterRects: [],    // 定位筛选 [{ key, rect: [x,y,w,h] }]
   favToggleRect: null,    // 「仅看收藏」toggle [x,y,w,h]
   chipRects: [],          // 摘要 chip [{ key:'star'|'new'|'level', rect }]
   cardRects: [],          // [{ petId, rect: [x,y,w,h] }]
@@ -49,11 +69,57 @@ const _rects = {
 // · cardLabel：卡片右上角的文字；业界主流「AFK / 原神 / 明日方舟」都用 2-3 字中文提示可操作
 // 可升星文字颜色与星星一致（STAR_VISUAL[2/3].color = '#ffd700'），视觉风格统一
 const CHIP_STYLES = {
-  star: { chipLabel: '⭐ 可升星', cardLabel: '可升星', bg: 'rgba(255,180,60,0.96)', border: 'rgba(255,235,160,0.98)', fg: '#5a2d0c', textColor: '#ffd700', desc: '升星可推进' },
+  star: { chipLabel: '可升星', cardLabel: '可升星', bg: 'rgba(176,58,32,0.92)', border: 'rgba(255,218,132,0.92)', fg: '#fff3cf', textColor: '#ffd86a', desc: '升星可推进' },
   new:  { chipLabel: 'NEW',     cardLabel: 'NEW',    bg: 'rgba(230,48,48,0.94)', border: 'rgba(255,205,205,0.95)', fg: '#ffffff', textColor: '#ffffff', desc: '新入池未查看' },
 }
 
 const _getFilteredPool = _getFilteredPoolUtil
+
+function _drawInkText(c, text, x, y, opt) {
+  const o = opt || {}
+  c.save()
+  c.textAlign = o.align || 'center'
+  c.textBaseline = o.baseline || 'middle'
+  c.font = o.font || 'bold 14px "PingFang SC",serif'
+  if (o.stroke) {
+    c.strokeStyle = o.stroke
+    c.lineWidth = o.lineWidth || 2
+    c.strokeText(text, x, y)
+  }
+  c.fillStyle = o.fill || '#3b2617'
+  c.fillText(text, x, y)
+  c.restore()
+}
+
+function _drawResourcePlaque(c, R, S, x, cy, iconPath, text, dim) {
+  const icon = R.getImg(iconPath)
+  const iconSz = 28 * S
+  c.save()
+  if (dim) c.globalAlpha = 0.55
+  c.font = `bold ${13 * S}px "PingFang SC",serif`
+  const txtW = c.measureText(`${text}`).width
+  const w = iconSz + txtW + 18 * S
+  const h = 27 * S
+  const y = cy - h / 2
+  const grad = c.createLinearGradient(x, y, x + w, y + h)
+  grad.addColorStop(0, 'rgba(34,75,64,0.82)')
+  grad.addColorStop(0.55, 'rgba(71,118,92,0.76)')
+  grad.addColorStop(1, 'rgba(37,70,58,0.82)')
+  c.fillStyle = grad
+  R.rr(x, y, w, h, 10 * S); c.fill()
+  c.strokeStyle = 'rgba(231,199,116,0.68)'
+  c.lineWidth = 1.2 * S
+  R.rr(x, y, w, h, 10 * S); c.stroke()
+  if (icon && icon.width > 0) c.drawImage(icon, x - 3 * S, cy - iconSz / 2, iconSz, iconSz)
+  _drawInkText(c, `${text}`, x + iconSz + txtW / 2 + 6 * S, cy + 0.5 * S, {
+    font: `bold ${13 * S}px "PingFang SC",serif`,
+    fill: '#fff1cc',
+    stroke: 'rgba(18,28,22,0.78)',
+    lineWidth: 2 * S,
+  })
+  c.restore()
+  return w
+}
 
 // ===== 统计池内两档角标数量（基于"过滤后"的池，避免跨 Tab 时数量对不上）=====
 function _countBadges(g, pool) {
@@ -83,12 +149,14 @@ function _drawSummaryChips(c, R, S, W, chipY, chipH, g) {
 
   c.save()
   if (chips.length === 0) {
-    c.fillStyle = 'rgba(255,255,255,0.12)'
+    c.fillStyle = 'rgba(222,205,164,0.22)'
     R.rr(12 * S, chipY, W - 24 * S, chipH, chipH / 2); c.fill()
-    c.fillStyle = 'rgba(255,245,200,0.72)'
-    c.font = `${10.5 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.fillText('✓ 灵宠状态整齐，暂无紧急操作', W / 2, chipY + chipH / 2)
+    _drawInkText(c, '灵宠状态整齐，暂无紧急操作', W / 2, chipY + chipH / 2, {
+      font: `${10.5 * S}px "PingFang SC",serif`,
+      fill: 'rgba(255,245,210,0.78)',
+      stroke: 'rgba(32,22,12,0.52)',
+      lineWidth: 1.8 * S,
+    })
     c.restore()
     return
   }
@@ -177,6 +245,35 @@ function _drawCardBadge(c, R, S, x, y, w, badgeKey) {
   c.restore()
 }
 
+function _drawRolePill(c, R, S, x, y, w, h, roleMeta) {
+  if (!roleMeta) return
+  const text = roleMeta.short || roleMeta.label || '定位'
+  c.save()
+  c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
+  const padX = 5 * S
+  const tw = c.measureText(text).width
+  const pillW = Math.min(w - 10 * S, tw + padX * 2)
+  const pillH = 14 * S
+  const pillX = x + (w - pillW) / 2
+  const pillY = y + h - 21 * S
+  const grad = c.createLinearGradient(pillX, pillY, pillX + pillW, pillY + pillH)
+  grad.addColorStop(0, 'rgba(40,88,70,0.78)')
+  grad.addColorStop(0.5, 'rgba(86,134,98,0.72)')
+  grad.addColorStop(1, 'rgba(112,48,34,0.72)')
+  c.fillStyle = grad
+  R.rr(pillX, pillY, pillW, pillH, pillH / 2); c.fill()
+  c.strokeStyle = 'rgba(246,218,142,0.72)'
+  c.lineWidth = 0.9 * S
+  R.rr(pillX, pillY, pillW, pillH, pillH / 2); c.stroke()
+  c.fillStyle = '#fff2cf'
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.strokeStyle = 'rgba(45,24,12,0.65)'
+  c.lineWidth = 1.5 * S
+  c.strokeText(text, pillX + pillW / 2, pillY + pillH / 2 + 0.4 * S)
+  c.fillText(text, pillX + pillW / 2, pillY + pillH / 2 + 0.4 * S)
+  c.restore()
+}
+
 // ===== 点击 chip 后，循环定位到"下一只该状态的宠物"并短暂高亮 =====
 function _focusNextBadgePet(g, badgeKey) {
   const pool = _getFilteredPool(g)
@@ -220,8 +317,8 @@ function rPetPool(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
   _tryTriggerBadgeIntro(g)
 
-  // 背景：优先使用专属背景图，fallback 到首页背景
-  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  // 背景：灵宠池使用水墨卷轴专属背景，保持其它共用页面不受影响
+  const poolBg = R.getImg(PET_POOL_SCROLL_ART.bg)
   if (poolBg && poolBg.width > 0) {
     R._drawCoverImg(poolBg, 0, 0, W, H)
   } else {
@@ -244,79 +341,12 @@ function rPetPool(g) {
 
   drawPageTitle(c, R, W, S, W * 0.5, topY + 24 * S, '灵宠池')
 
-  // 灵石图标和余额（左上角显示）
+  // 顶部资源改成玉牌式，弱化现代黑胶囊感
   const expPool = g.storage.soulStone || 0
-  const expIcon = R.getImg('assets/ui/icon_soul_stone.png')
-  if (expIcon && expIcon.width > 0) {
-    const iconSz = 32 * S
-    const centerY = topY + 17 * S
-    const iconX = 10 * S
-    const iconY = centerY - iconSz / 2
-
-    // 先量文字宽度，画胶囊（从图标中心延伸到数字右侧），再画图标压上去
-    const txtX = iconX + iconSz + 4 * S
-    c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    const txtW = c.measureText(`${expPool}`).width
-    const padX = 8 * S
-    const capH = 26 * S, capR = capH / 2
-    const capX = iconX + iconSz * 0.38   // 从图标中心偏左处开始
-    const capW = txtX + txtW + padX - capX
-    const capY = centerY - capH / 2
-    c.save()
-    c.beginPath()
-    c.moveTo(capX + capR, capY); c.lineTo(capX + capW - capR, capY)
-    c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
-    c.lineTo(capX + capW, capY + capH - capR)
-    c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
-    c.lineTo(capX + capR, capY + capH)
-    c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
-    c.lineTo(capX, capY + capR)
-    c.quadraticCurveTo(capX, capY, capX + capR, capY)
-    c.closePath()
-    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
-    c.restore()
-
-    // 数字
-    c.fillStyle = '#fff'
-    c.fillText(`${expPool}`, txtX, centerY)
-
-    // 图标压在胶囊上方
-    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
-
-    // 万能碎片胶囊（紧跟灵石右侧，=0 时半透明占位，建立认知）
-    const uniCount = g.storage.universalFragment || 0
-    const uniIcon = R.getImg('assets/ui/icon_universal_frag.png')
-    if (uniIcon && uniIcon.width > 0) {
-      const uIconSz = iconSz
-      const uIconX = capX + capW + 10 * S
-      const uIconY = iconY
-      const uTxtX = uIconX + uIconSz + 4 * S
-      c.font = `bold ${14*S}px "PingFang SC",sans-serif`
-      c.textAlign = 'left'; c.textBaseline = 'middle'
-      const uTxtW = c.measureText(`${uniCount}`).width
-      const uCapX = uIconX + uIconSz * 0.38
-      const uCapW = uTxtX + uTxtW + padX - uCapX
-      const uCapY = centerY - capH / 2
-      c.save()
-      if (uniCount === 0) c.globalAlpha = 0.45
-      c.beginPath()
-      c.moveTo(uCapX + capR, uCapY); c.lineTo(uCapX + uCapW - capR, uCapY)
-      c.quadraticCurveTo(uCapX + uCapW, uCapY, uCapX + uCapW, uCapY + capR)
-      c.lineTo(uCapX + uCapW, uCapY + capH - capR)
-      c.quadraticCurveTo(uCapX + uCapW, uCapY + capH, uCapX + uCapW - capR, uCapY + capH)
-      c.lineTo(uCapX + capR, uCapY + capH)
-      c.quadraticCurveTo(uCapX, uCapY + capH, uCapX, uCapY + capH - capR)
-      c.lineTo(uCapX, uCapY + capR)
-      c.quadraticCurveTo(uCapX, uCapY, uCapX + capR, uCapY)
-      c.closePath()
-      c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
-      c.fillStyle = '#fff'
-      c.fillText(`${uniCount}`, uTxtX, centerY)
-      c.drawImage(uniIcon, uIconX, uIconY, uIconSz, uIconSz)
-      c.restore()
-    }
-  }
+  const uniCount = g.storage.universalFragment || 0
+  const resY = topY + 17 * S
+  const firstW = _drawResourcePlaque(c, R, S, 9 * S, resY, 'assets/ui/icon_soul_stone.png', expPool, false)
+  _drawResourcePlaque(c, R, S, 9 * S + firstW + 8 * S, resY, 'assets/ui/icon_universal_frag.png', uniCount, uniCount === 0)
 
   c.restore()
 
@@ -326,25 +356,36 @@ function rPetPool(g) {
   const filterW = (W - 24 * S) / ATTR_FILTERS.length
   _rects.filterRects = []
   _rects.rarityFilterRects = []
+  _rects.roleFilterRects = []
   c.save()
+  const filterBg = R.getImg(PET_POOL_SCROLL_ART.filter)
+  const filterBgX = 6 * S
+  const filterBgY = filterY - 12 * S
+  const filterBgW = W - 12 * S
+  const roleH = 22 * S
+  const filterBgH = filterH * 2 + roleH + 42 * S
+  if (filterBg && filterBg.width > 0) {
+    c.drawImage(filterBg, filterBgX, filterBgY, filterBgW, filterBgH)
+  } else {
+    c.fillStyle = 'rgba(222,205,164,0.28)'
+    R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 18 * S); c.fill()
+  }
   for (let i = 0; i < ATTR_FILTERS.length; i++) {
     const f = ATTR_FILTERS[i]
     const fx = 12 * S + i * filterW
     const isActive = (g._petPoolFilter || 'all') === f.key
-    // 标签背景色改为与背景色一致的碧翠色系
-    c.fillStyle = isActive ? 'rgba(70,180,160,0.5)' : 'rgba(70,180,160,0.2)'
+    // 属性签采用宣纸 + 青绿灵气选中态
+    c.fillStyle = isActive ? 'rgba(74,145,122,0.62)' : 'rgba(236,219,178,0.34)'
     R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.fill()
     if (isActive) {
-      c.strokeStyle = 'rgba(70,180,160,0.9)'; c.lineWidth = 2 * S
+      c.strokeStyle = 'rgba(212,190,118,0.9)'; c.lineWidth = 1.6 * S
       R.rr(fx, filterY, filterW - 4 * S, filterH, 6 * S); c.stroke()
     }
-    // 文字改为白色，更清晰
-    c.fillStyle = isActive ? '#fff' : 'rgba(255,255,255,0.8)'
+    c.fillStyle = isActive ? '#fff6d6' : 'rgba(70,42,22,0.92)'
     c.font = `bold ${11*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    // 加黑色描边
-    c.strokeStyle = 'rgba(0,0,0,0.4)'
-    c.lineWidth = 2.5 * S
+    c.strokeStyle = isActive ? 'rgba(22,35,29,0.58)' : 'rgba(255,245,210,0.42)'
+    c.lineWidth = isActive ? 2.2 * S : 1.2 * S
     c.strokeText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     c.fillText(f.label, fx + (filterW - 4 * S) / 2, filterY + filterH / 2)
     _rects.filterRects.push({ key: f.key, rect: [fx, filterY, filterW - 4 * S, filterH] })
@@ -352,38 +393,38 @@ function rPetPool(g) {
 
   const rarityY = filterY + filterH + 6 * S
   const rarityGap = 6 * S
-  // 行右侧预留圆形「仅看收藏」toggle（直径 = filterH），品质 chip 均分剩余宽度
-  const favToggleSize = filterH
+  // 行右侧预留圆形「仅看收藏」toggle，并向内收一点避开卷轴木轴
+  const favToggleSize = filterH * 0.92
   const favToggleGap = 8 * S
-  const rarityRowWidth = W - 24 * S - favToggleSize - favToggleGap
+  const favToggleX = W - 32 * S - favToggleSize
+  const rarityRowWidth = favToggleX - 12 * S - favToggleGap
   const rarityW = (rarityRowWidth - rarityGap * (RARITY_FILTERS.length - 1)) / RARITY_FILTERS.length
   for (let i = 0; i < RARITY_FILTERS.length; i++) {
     const f = RARITY_FILTERS[i]
     const fx = 12 * S + i * (rarityW + rarityGap)
     const isActive = (g._petPoolRarityFilter || 'all') === f.key
-    c.fillStyle = isActive ? 'rgba(235,190,90,0.45)' : 'rgba(235,190,90,0.15)'
+    c.fillStyle = isActive ? 'rgba(162,64,38,0.64)' : 'rgba(236,219,178,0.30)'
     R.rr(fx, rarityY, rarityW, filterH, 6 * S); c.fill()
     if (isActive) {
-      c.strokeStyle = 'rgba(255,215,120,0.85)'; c.lineWidth = 2 * S
+      c.strokeStyle = 'rgba(247,207,112,0.88)'; c.lineWidth = 1.6 * S
       R.rr(fx, rarityY, rarityW, filterH, 6 * S); c.stroke()
     }
-    c.fillStyle = isActive ? '#fff8e0' : 'rgba(255,245,220,0.82)'
+    c.fillStyle = isActive ? '#fff4d2' : 'rgba(70,42,22,0.88)'
     c.font = `bold ${(f.key === 'all' ? 9.5 : 11) * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
-    c.strokeStyle = 'rgba(0,0,0,0.35)'
-    c.lineWidth = 2.2 * S
+    c.strokeStyle = isActive ? 'rgba(56,20,12,0.56)' : 'rgba(255,245,210,0.35)'
+    c.lineWidth = isActive ? 2 * S : 1.1 * S
     c.strokeText(f.label, fx + rarityW / 2, rarityY + filterH / 2)
     c.fillText(f.label, fx + rarityW / 2, rarityY + filterH / 2)
     _rects.rarityFilterRects.push({ key: f.key, rect: [fx, rarityY, rarityW, filterH] })
   }
 
   // 「⭐ 仅看收藏」toggle：圆形按钮，激活态金色描边 + 内金星，未激活态灰色底 + 描边星
-  const favToggleX = W - 12 * S - favToggleSize
-  const favToggleY = rarityY
+  const favToggleY = rarityY + (filterH - favToggleSize) / 2
   const favOnly = !!g._petPoolFavOnly
-  c.fillStyle = favOnly ? 'rgba(235,190,90,0.55)' : 'rgba(80,70,40,0.3)'
+  c.fillStyle = favOnly ? 'rgba(162,64,38,0.64)' : 'rgba(236,219,178,0.28)'
   R.rr(favToggleX, favToggleY, favToggleSize, favToggleSize, favToggleSize / 2); c.fill()
-  c.strokeStyle = favOnly ? 'rgba(255,215,120,0.95)' : 'rgba(200,170,90,0.35)'
+  c.strokeStyle = favOnly ? 'rgba(247,207,112,0.95)' : 'rgba(130,92,45,0.38)'
   c.lineWidth = favOnly ? 2 * S : 1 * S
   R.rr(favToggleX, favToggleY, favToggleSize, favToggleSize, favToggleSize / 2); c.stroke()
   drawFavStar(c, favToggleX + favToggleSize / 2, favToggleY + favToggleSize / 2 + 0.3 * S, favToggleSize * 0.55, {
@@ -392,11 +433,36 @@ function rPetPool(g) {
   })
   _rects.favToggleRect = [favToggleX, favToggleY, favToggleSize, favToggleSize]
 
+  const roleY = rarityY + filterH + 6 * S
+  const roleGap = 4 * S
+  const roleX0 = 12 * S
+  const roleW = (W - 24 * S - roleGap * (ROLE_FILTERS.length - 1)) / ROLE_FILTERS.length
+  for (let i = 0; i < ROLE_FILTERS.length; i++) {
+    const f = ROLE_FILTERS[i]
+    const fx = roleX0 + i * (roleW + roleGap)
+    const isActive = (g._petPoolRoleFilter || 'all') === f.key
+    c.fillStyle = isActive ? 'rgba(52,112,88,0.70)' : 'rgba(236,219,178,0.25)'
+    R.rr(fx, roleY, roleW, roleH, 5 * S); c.fill()
+    if (isActive) {
+      c.strokeStyle = 'rgba(231,205,128,0.9)'
+      c.lineWidth = 1.4 * S
+      R.rr(fx, roleY, roleW, roleH, 5 * S); c.stroke()
+    }
+    c.fillStyle = isActive ? '#fff5d0' : 'rgba(70,42,22,0.86)'
+    c.font = `bold ${(f.key === 'all' ? 8.2 : 8.8) * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.strokeStyle = isActive ? 'rgba(22,35,29,0.55)' : 'rgba(255,245,210,0.30)'
+    c.lineWidth = isActive ? 1.6 * S : 0.9 * S
+    c.strokeText(f.label, fx + roleW / 2, roleY + roleH / 2)
+    c.fillText(f.label, fx + roleW / 2, roleY + roleH / 2)
+    _rects.roleFilterRects.push({ key: f.key, rect: [fx, roleY, roleW, roleH] })
+  }
+
   c.restore()
 
   // === 摘要 Chip 条（聚合红点数量，点击循环定位）===
   const chipH = 22 * S
-  const chipY = rarityY + filterH + 6 * S
+  const chipY = roleY + roleH + 6 * S
   _drawSummaryChips(c, R, S, W, chipY, chipH, g)
 
   // 派遣按钮 rect 占位（实际绘制在卡片网格下方）
@@ -449,9 +515,10 @@ function rPetPool(g) {
   // 幽灵卡片：碎片银行中有碎片的未拥有宠物（半透明）
   // 开启「仅看收藏」时隐藏 ghost（未入池无法收藏，展示会产生语义冲突）
   const bank = g.storage.fragmentBank || {}
-  const ownedIds = new Set(pool.map(p => p.id))
+  const ownedIds = new Set((g.storage.petPool || []).map(p => p.id))
   const filter = g._petPoolFilter || 'all'
   const rarityFilter = g._petPoolRarityFilter || 'all'
+  const roleFilter = g._petPoolRoleFilter || 'all'
   const ghostPets = g._petPoolFavOnly ? [] : Object.keys(bank)
     .filter(id => !ownedIds.has(id) && bank[id] > 0)
     .filter(id => {
@@ -459,6 +526,10 @@ function rPetPool(g) {
       if (!bp) return false
       if (filter !== 'all' && bp.attr !== filter) return false
       if (rarityFilter !== 'all' && getPetRarity(id) !== rarityFilter) return false
+      if (roleFilter !== 'all') {
+        const role = getPetRole(bp)
+        if (!role || role.key !== roleFilter) return false
+      }
       return true
     })
   const ghostStart = pool.length
@@ -495,35 +566,35 @@ function rPetPool(g) {
   g._namedRects['idle_btn'] = { x: idleBtnX, y: idleBtnY, w: idleBtnW, h: idleBtnH }
 
   c.save()
-  // 渐变背景
-  const ibGrd = c.createLinearGradient(idleBtnX, idleBtnY, idleBtnX + idleBtnW, idleBtnY)
-  if (hasIdleReward) {
-    ibGrd.addColorStop(0, 'rgba(255,160,40,0.95)')
-    ibGrd.addColorStop(0.5, 'rgba(255,200,60,1)')
-    ibGrd.addColorStop(1, 'rgba(255,160,40,0.95)')
+  const idleBtnImg = R.getImg(PET_POOL_SCROLL_ART.idleBtn)
+  // 主按钮加一层底部投影和外描边，避免符箓横幅被误认为装饰条
+  c.fillStyle = 'rgba(35,14,6,0.34)'
+  R.rr(idleBtnX + 5 * S, idleBtnY + 8 * S, idleBtnW - 10 * S, idleBtnH, idleBtnH / 2); c.fill()
+  if (idleBtnImg && idleBtnImg.width > 0) {
+    c.drawImage(idleBtnImg, idleBtnX - 4 * S, idleBtnY - 10 * S, idleBtnW + 8 * S, idleBtnH + 20 * S)
   } else {
-    ibGrd.addColorStop(0, 'rgba(100,70,170,0.85)')
-    ibGrd.addColorStop(0.5, 'rgba(130,90,210,0.9)')
-    ibGrd.addColorStop(1, 'rgba(100,70,170,0.85)')
+    c.fillStyle = hasIdleReward ? 'rgba(176,58,32,0.94)' : 'rgba(126,34,25,0.88)'
+    R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.fill()
+    c.strokeStyle = 'rgba(247,207,112,0.88)'
+    c.lineWidth = 2 * S
+    R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.stroke()
   }
-  c.fillStyle = ibGrd
-  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.fill()
-  // 边框
-  c.strokeStyle = hasIdleReward ? 'rgba(255,220,80,0.9)' : 'rgba(180,160,240,0.6)'
-  c.lineWidth = 2 * S
-  R.rr(idleBtnX, idleBtnY, idleBtnW, idleBtnH, idleBtnH / 2); c.stroke()
-  // 文字
-  c.fillStyle = hasIdleReward ? '#5a2d0c' : '#fff'
-  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  var idleBtnLabel = hasIdleReward ? '🎁 派遣修行（有奖励可领！）' : '✨ 派遣灵宠自动修行'
-  c.fillText(idleBtnLabel, idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2)
+  var idleBtnLabel = hasIdleReward ? '派遣修行  有奖励可领' : '派遣灵宠自动修行'
+  _drawInkText(c, idleBtnLabel, idleBtnX + idleBtnW / 2, idleBtnY + idleBtnH / 2 + 0.5 * S, {
+    font: `bold ${15*S}px "PingFang SC",serif`,
+    fill: '#fff3cf',
+    stroke: 'rgba(70,18,10,0.78)',
+    lineWidth: 3 * S,
+  })
+  c.strokeStyle = 'rgba(255,232,150,0.72)'
+  c.lineWidth = 1.4 * S
+  R.rr(idleBtnX + 7 * S, idleBtnY + 5 * S, idleBtnW - 14 * S, idleBtnH - 10 * S, (idleBtnH - 10 * S) / 2); c.stroke()
   // 呼吸脉冲边框（引导阶段更醒目）
   if (hasIdleReward) {
     var ibPulse = 0.3 + 0.3 * Math.sin((g.af || 0) * 0.08)
     c.globalAlpha = ibPulse
-    c.strokeStyle = '#fff'
-    c.lineWidth = 3 * S
+    c.strokeStyle = 'rgba(255,236,166,0.9)'
+    c.lineWidth = 2.5 * S
     R.rr(idleBtnX - 2 * S, idleBtnY - 2 * S, idleBtnW + 4 * S, idleBtnH + 4 * S, (idleBtnH + 4 * S) / 2); c.stroke()
   }
   c.restore()
@@ -558,19 +629,19 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
 
   c.save()
 
-  // 卡片底图（优先使用资源图，fallback 到绘制）
-  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  // 卡片底图：水墨纸札，文字仍由 Canvas 绘制保证清晰
+  const cardBg = R.getImg(PET_POOL_SCROLL_ART.card)
   if (cardBg && cardBg.width > 0) {
     c.drawImage(cardBg, x, y, w, h)
   } else {
-    c.fillStyle = 'rgba(30,20,10,0.75)'
+    c.fillStyle = 'rgba(222,205,164,0.86)'
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
 
-  // 品质渐变背景叠加
-  const rarityGrad = c.createLinearGradient(x, y, x, y + h)
-  rarityGrad.addColorStop(0, rv.bgGradient[0] + 'cc')
-  rarityGrad.addColorStop(1, rv.bgGradient[1] + '88')
+  // 品质色只做淡淡灵气，避免压过纸札质感
+  const rarityGrad = c.createRadialGradient(x + w / 2, y + h * 0.35, w * 0.1, x + w / 2, y + h * 0.35, w * 0.68)
+  rarityGrad.addColorStop(0, rv.bgGradient[0] + '44')
+  rarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
   c.fillStyle = rarityGrad
   R.rr(x, y, w, h, 8 * S); c.fill()
 
@@ -585,9 +656,9 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
     c.restore()
   }
 
-  // 品质色边框
-  c.strokeStyle = rv.borderColor
-  c.lineWidth = 2 * S
+  // 品质色边框收敛为纸札内描边
+  c.strokeStyle = rv.borderColor + 'cc'
+  c.lineWidth = 1.4 * S
   R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 左上角五行珠子图标（调整位置，贴合卡片内侧）
@@ -653,15 +724,15 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
 
   // 去掉宠物头像框，让宠物图片直接显示
 
-  // 名称（加深色描边，增强可读性）
+  // 名称：纸札上用深墨色，弱描边防止压在头像边缘时发糊
   const nameY = avatarY + avatarSize + 6 * S
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   const displayName = basePet.name.length > 4 ? basePet.name.slice(0, 4) + '…' : basePet.name
-  c.strokeStyle = 'rgba(0,0,0,0.7)'
-  c.lineWidth = 3 * S
+  c.strokeStyle = 'rgba(255,240,205,0.68)'
+  c.lineWidth = 2 * S
   c.strokeText(displayName, x + w / 2, nameY)
-  c.fillStyle = '#fff'
+  c.fillStyle = '#3b2414'
   c.fillText(displayName, x + w / 2, nameY)
 
   // 星级（根据 STAR_VISUAL 着色，★4 光环，★5 彩虹）
@@ -695,16 +766,18 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.restore()
   c.textAlign = 'center'
 
-  // 等级 + ATK（加深色描边）
+  // 等级 + ATK
   const infoY = starY + 14 * S
   c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.strokeStyle = 'rgba(0,0,0,0.7)'
-  c.lineWidth = 2.5 * S
+  c.strokeStyle = 'rgba(255,240,205,0.65)'
+  c.lineWidth = 1.8 * S
   c.strokeText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
-  c.fillStyle = '#fff'
+  c.fillStyle = '#4a2f1a'
   c.fillText(`Lv.${poolPet.level}  ATK:${atk}`, x + w / 2, infoY)
 
-  // 品质徽标（左上角，与 rarityBadge 同源浅色底）
+  _drawRolePill(c, R, S, x, y, w, h, getPetRole(basePet))
+
+  // 品质徽标：小印章风格
   const rvBadge = rarityVisualForAttr(rarity, poolPet.attr || 'metal')
   const badgeText = rvBadge.label
   c.save()
@@ -712,11 +785,11 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   const tw = c.measureText(badgeText).width
   const bw = tw + 6 * S, bh = 14 * S
   const bx = x + 2 * S, by = y + 2 * S
-  c.fillStyle = rvBadge.badgeBg
+  c.fillStyle = rarity === 'SSR' ? 'rgba(142,64,28,0.88)' : 'rgba(112,44,32,0.82)'
   R.rr(bx, by, bw, bh, 3 * S); c.fill()
-  c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
+  c.strokeStyle = 'rgba(255,228,148,0.58)'; c.lineWidth = 0.9 * S
   R.rr(bx, by, bw, bh, 3 * S); c.stroke()
-  c.fillStyle = rvBadge.badgeColor
+  c.fillStyle = rarity === 'SSR' ? '#ffe68c' : rvBadge.badgeColor
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(badgeText, bx + 3 * S, by + 2 * S)
   c.restore()
@@ -793,24 +866,24 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.save()
   c.globalAlpha = 0.5
 
-  const cardBg = R.getImg('assets/ui/pet_card_bg.png')
+  const cardBg = R.getImg(PET_POOL_SCROLL_ART.card)
   if (cardBg && cardBg.width > 0) {
     c.drawImage(cardBg, x, y, w, h)
   } else {
-    c.fillStyle = 'rgba(30,20,10,0.75)'
+    c.fillStyle = 'rgba(222,205,164,0.86)'
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
 
-  // 品质渐变背景叠加
-  const gRarityGrad = c.createLinearGradient(x, y, x, y + h)
-  gRarityGrad.addColorStop(0, rv.bgGradient[0] + 'cc')
-  gRarityGrad.addColorStop(1, rv.bgGradient[1] + '88')
+  // 未入池纸札保留淡淡品质灵气
+  const gRarityGrad = c.createRadialGradient(x + w / 2, y + h * 0.35, w * 0.1, x + w / 2, y + h * 0.35, w * 0.68)
+  gRarityGrad.addColorStop(0, rv.bgGradient[0] + '34')
+  gRarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
   c.fillStyle = gRarityGrad
   R.rr(x, y, w, h, 8 * S); c.fill()
 
   // 品质色边框
-  c.strokeStyle = rv.borderColor
-  c.lineWidth = 2 * S
+  c.strokeStyle = rv.borderColor + 'aa'
+  c.lineWidth = 1.4 * S
   R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 头像
@@ -827,9 +900,9 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   const displayName = basePet.name.length > 4 ? basePet.name.slice(0, 4) + '…' : basePet.name
-  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
+  c.strokeStyle = 'rgba(255,240,205,0.68)'; c.lineWidth = 2 * S
   c.strokeText(displayName, x + w / 2, nameY)
-  c.fillStyle = 'rgba(200,200,220,0.8)'
+  c.fillStyle = 'rgba(58,36,20,0.78)'
   c.fillText(displayName, x + w / 2, nameY)
 
   // 右上角「收集中」角标
@@ -842,9 +915,9 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   const tagH = 13 * S
   const tagX = x + w - tagW - 4 * S
   const tagY = y + 4 * S
-  c.fillStyle = 'rgba(80,130,180,0.85)'
+  c.fillStyle = 'rgba(74,145,122,0.74)'
   R.rr(tagX, tagY, tagW, tagH, tagH / 2); c.fill()
-  c.strokeStyle = 'rgba(180,210,240,0.9)'
+  c.strokeStyle = 'rgba(213,193,116,0.78)'
   c.lineWidth = 1 * S
   R.rr(tagX, tagY, tagW, tagH, tagH / 2); c.stroke()
   c.fillStyle = '#fff'
@@ -857,7 +930,7 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   const barH2 = 8 * S
   const barX = x + (w - barW) / 2
   const subTipY = nameY + 16 * S
-  c.fillStyle = 'rgba(200,200,220,0.75)'
+  c.fillStyle = 'rgba(58,36,20,0.66)'
   c.font = `${8*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.fillText('集齐可召唤入队', x + w / 2, subTipY)
@@ -869,17 +942,19 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   R.rr(barX, barY2, barW, barH2, barH2 / 2); c.fill()
   if (progress > 0) {
     const fillGrad = c.createLinearGradient(barX, barY2, barX + barW * progress, barY2)
-    fillGrad.addColorStop(0, '#9b7aff')
-    fillGrad.addColorStop(1, '#6b4adf')
+    fillGrad.addColorStop(0, '#4a917a')
+    fillGrad.addColorStop(1, '#b03a20')
     c.fillStyle = fillGrad
     R.rr(barX, barY2, barW * progress, barH2, barH2 / 2); c.fill()
   }
 
   // 碎片数字
-  c.fillStyle = fragCount >= cost ? '#7ecf6a' : 'rgba(200,200,220,0.7)'
+  c.fillStyle = fragCount >= cost ? '#2f8f60' : 'rgba(58,36,20,0.66)'
   c.font = `${9*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'top'
   c.fillText(`${fragCount}/${cost}`, x + w / 2, barY2 + barH2 + 3 * S)
+
+  _drawRolePill(c, R, S, x, y, w, h, getPetRole(basePet))
 
   c.globalAlpha = 1
   const rvGBadge = rarityVisualForAttr(rarity, basePet.attr || 'metal')
@@ -888,11 +963,11 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.font = `bold ${10 * S}px sans-serif`
   const gTw = c.measureText(gBadgeText).width
   const gBw = gTw + 6 * S, gBh = 14 * S
-  c.fillStyle = rvGBadge.badgeBg
+  c.fillStyle = rarity === 'SSR' ? 'rgba(142,64,28,0.88)' : 'rgba(112,44,32,0.82)'
   R.rr(x + 2 * S, y + 2 * S, gBw, gBh, 3 * S); c.fill()
-  c.strokeStyle = 'rgba(255,248,225,0.4)'; c.lineWidth = 0.9 * S
+  c.strokeStyle = 'rgba(255,228,148,0.58)'; c.lineWidth = 0.9 * S
   R.rr(x + 2 * S, y + 2 * S, gBw, gBh, 3 * S); c.stroke()
-  c.fillStyle = rvGBadge.badgeColor
+  c.fillStyle = rarity === 'SSR' ? '#ffe68c' : rvGBadge.badgeColor
   c.textAlign = 'left'; c.textBaseline = 'top'
   c.fillText(gBadgeText, x + 5 * S, y + 4 * S)
   c.restore()
@@ -1033,6 +1108,14 @@ function tPetPool(g, x, y, type) {
     for (const f of _rects.rarityFilterRects) {
       if (g._hitRect(x, y, ...f.rect)) {
         g._petPoolRarityFilter = f.key
+        g._petPoolScroll = 0
+        return
+      }
+    }
+
+    for (const f of _rects.roleFilterRects) {
+      if (g._hitRect(x, y, ...f.rect)) {
+        g._petPoolRoleFilter = f.key
         g._petPoolScroll = 0
         return
       }

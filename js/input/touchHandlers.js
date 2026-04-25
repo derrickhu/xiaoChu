@@ -443,8 +443,9 @@ function tDex(g, type, x, y) {
     const { getLayout: getDexLayout } = require('../views/bottomBar')
     const L = getDexLayout()
     const { safeTop } = V
-    const tabBottom = getDexContentTop(safeTop, V.S)
-    const contentH = L.bottomBarY - tabBottom
+    const tabBottom = g._dexContentTop || getDexContentTop(safeTop, V.S)
+    const contentBottom = g._dexContentBottom || L.bottomBarY
+    const contentH = contentBottom - tabBottom
 
     if (!isWeaponMode && g._dexTab === 'milestone') {
       const maxS = 0
@@ -506,6 +507,19 @@ function tDex(g, type, x, y) {
   }
 
   if (isWeaponMode) {
+    if (g._dexWpnTabRects) {
+      for (const tab of g._dexWpnTabRects) {
+        if (x >= tab.x && x <= tab.x + tab.w && y >= tab.y && y <= tab.y + tab.h) {
+          if ((g._dexWpnRarityFilter || 'all') !== tab.key) {
+            g._dexWpnRarityFilter = tab.key
+            g._dexScrollY = 0
+            g._dirty = true
+          }
+          return
+        }
+      }
+    }
+
     // 法宝卡片点击
     const dragDy = Math.abs(y - (g._dexTouchStartY || y))
     if (dragDy > 10 * V.S) return
@@ -518,6 +532,24 @@ function tDex(g, type, x, y) {
       }
     }
   } else {
+    if (g._dexTopActionRects) {
+      for (const ar of g._dexTopActionRects) {
+        if (x >= ar.x && x <= ar.x + ar.w && y >= ar.y && y <= ar.y + ar.h) {
+          if (ar.key === 'milestone') {
+            g._dexTab = 'milestone'
+            g._dexScrollY = 0
+            g._dexMilestoneScrollY = 0
+            g._dirty = true
+          } else if (ar.key === 'roleToggle') {
+            g._dexRoleFilterOpen = !g._dexRoleFilterOpen
+            g._dexScrollY = 0
+            g._dirty = true
+          }
+          return
+        }
+      }
+    }
+
     // 灵宠 Tab 栏点击
     if (g._dexTabRects) {
       for (const tab of g._dexTabRects) {
@@ -526,6 +558,19 @@ function tDex(g, type, x, y) {
             g._dexTab = tab.key
             g._dexScrollY = 0
             g._dexMilestoneScrollY = 0
+            g._dirty = true
+          }
+          return
+        }
+      }
+    }
+
+    if (g._dexRoleRects) {
+      for (const rr of g._dexRoleRects) {
+        if (x >= rr.x && x <= rr.x + rr.w && y >= rr.y && y <= rr.y + rr.h) {
+          if ((g._dexRoleFilter || 'all') !== rr.key) {
+            g._dexRoleFilter = rr.key
+            g._dexScrollY = 0
             g._dirty = true
           }
           return

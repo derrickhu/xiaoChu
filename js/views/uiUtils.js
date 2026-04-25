@@ -3,6 +3,7 @@
  */
 const V = require('./env')
 const { getPoolPetAtk } = require('../data/petPoolConfig')
+const { getPetRole } = require('../data/petRoleConfig')
 
 // ===== 渐变分隔线 =====
 // color: RGB 字符串如 '201,168,76'; alpha: 中间段不透明度; fadeStart/fadeEnd: 渐变起止比例
@@ -224,6 +225,7 @@ function getFilteredPool(g) {
   const pool = g.storage.petPool || []
   const attrFilter = g._petPoolFilter || 'all'
   const rarityFilter = g._petPoolRarityFilter || 'all'
+  const roleFilter = g._petPoolRoleFilter || 'all'
   const favOnly = !!g._petPoolFavOnly
   const origIndex = new Map()
   for (let i = 0; i < pool.length; i++) origIndex.set(pool[i].id, i)
@@ -237,6 +239,12 @@ function getFilteredPool(g) {
     if (rarityFilter !== 'all') {
       const { getPetRarity } = require('../data/pets')
       if (getPetRarity(p.id) !== rarityFilter) return false
+    }
+    if (roleFilter !== 'all') {
+      const { getPetById } = require('../data/pets')
+      const basePet = getPetById(p.id)
+      const role = getPetRole(basePet)
+      if (!role || role.key !== roleFilter) return false
     }
     return true
   })

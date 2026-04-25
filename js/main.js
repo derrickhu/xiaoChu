@@ -460,6 +460,21 @@ class Main {
       'assets/ui/task_sidetab_active.png',
       'assets/ui/task_sidetab_dim.png',
       'assets/ui/task_btn_wood.png',
+      // 灵宠池水墨卷轴改版资源
+      'assets/backgrounds/petpool_ink_bg.jpg',
+      'assets/ui/pet_card_scroll_bg.png',
+      'assets/ui/pet_filter_scroll_bg.png',
+      'assets/ui/btn_pet_idle_scroll.png',
+      // 图鉴统一版式资源
+      'assets/ui/dex_title_plaque.png',
+      'assets/ui/dex_card_frame.png',
+      'assets/ui/dex_unknown_slot.png',
+      // 灵宠详情页水墨修仙风资源
+      'assets/backgrounds/petdetail_ink_bg.jpg',
+      'assets/ui/pet_detail_platform.png',
+      'assets/ui/pet_detail_panel_scroll.png',
+      'assets/ui/pet_detail_action_badge.png',
+      'assets/ui/pet_detail_name_scroll.png',
       // 签到弹窗（花华 CheckIn 贴图）
       'assets/ui/checkin_huahua/checkin_title_banner.png',
       'assets/ui/checkin_huahua/checkin_milestone_panel.png',

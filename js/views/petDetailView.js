@@ -20,9 +20,22 @@ const { LING } = require('../data/lingIdentity')
 const shareHooks = require('../data/shareHooks')
 const { RARITY_VISUAL, STAR_VISUAL } = require('../data/economyConfig')
 const { POOL_STAR_LV_CAP } = require('../data/petPoolConfig')
+const { getPetRoleTags, getPetRoleSummary } = require('../data/petRoleConfig')
 
 /** 已拥有详情页头像占屏宽比例（rPetDetail 翻页箭头垂直位置须与此一致；无头像框时可略大） */
-const PET_DETAIL_AVATAR_FRAC = 0.38
+const PET_DETAIL_AVATAR_FRAC = 0.34
+
+const PET_DETAIL_INK_ART = {
+  bg: 'assets/backgrounds/petdetail_ink_bg.jpg',
+  platform: 'assets/ui/pet_detail_platform.png',
+  panel: 'assets/ui/pet_detail_panel_scroll.png',
+  actionBadge: 'assets/ui/pet_detail_action_badge.png',
+  nameScroll: 'assets/ui/pet_detail_name_scroll.png',
+}
+
+const PET_DETAIL_ACTIONS = [
+  { key: 'resetPet', title: '归元', sub: '重修' },
+]
 
 /** 详情顶栏（返回 / 灵石 / 收藏）的顶部 Y，避让微信右上角胶囊，与 canvas 坐标一致 */
 function _petDetailHeaderRowTop(safeTop, S) {
@@ -44,6 +57,24 @@ function _petDetailHeaderRowTop(safeTop, S) {
   return top
 }
 
+function _petDetailFavoriteX(W, S, favBtnW) {
+  let x = W - 118 * S - favBtnW
+  if (P.isWeChat && typeof wx !== 'undefined' && typeof wx.getMenuButtonBoundingClientRect === 'function') {
+    try {
+      const m = wx.getMenuButtonBoundingClientRect()
+      const wi = P.getWindowInfo()
+      const scale = wi && wi.windowWidth ? (W / wi.windowWidth) : 1
+      if (m && typeof m.left === 'number' && m.left > 0) {
+        x = Math.min(x, m.left * scale - favBtnW - 10 * S)
+      }
+    } catch (_e) {}
+  } else if (P.isWeChat) {
+    // 无胶囊坐标时预留右侧系统按钮区域，避免收藏星被遮住。
+    x = Math.min(x, W - 118 * S - favBtnW)
+  }
+  return Math.max(8 * S, x)
+}
+
 // 触摸区域
 const _rects = {
   backBtnRect: null,
@@ -51,7 +82,7 @@ const _rects = {
   levelUpBtnRect: null,
   starUpBtnRect: null,
   decomposeBtnRect: null,
-  resetBtnRect: null,          // 返还培养按钮（通关第 4 章后解锁）
+  resetBtnRect: null,
   summonBtnRect: null,
   leftArrowRect: null,
   rightArrowRect: null,
@@ -61,6 +92,7 @@ const _rects = {
   // 这里记录面板边界 + 当前滚动偏移，供内容 clip/translate 与触摸命中换算使用
   panelRect: null,        // [x, y, w, h] 卡片内容可视区（不含滚动条）
   panelContentH: 0,       // 内容总高度（展开态下可能 > 面板高）
+  actionRects: [],        // 右侧玉牌操作 [{ key, rect, disabled }]
 }
 
 // 面板滚动状态（模块级：切换宠物时 reset）
@@ -504,6 +536,164 @@ const _getFilteredPool = getFilteredPool
 
 // 当前按下的按钮 id（用于渲染按下态）
 let _pressedBtnId = null
+
+function _drawDetailText(c, text, x, y, opt) {
+  const o = opt || {}
+  c.save()
+  c.textAlign = o.align || 'center'
+  c.textBaseline = o.baseline || 'middle'
+  c.font = o.font || 'bold 14px "PingFang SC",serif'
+  if (o.stroke) {
+    c.strokeStyle = o.stroke
+    c.lineWidth = o.lineWidth || 2
+    c.strokeText(text, x, y)
+  }
+  c.fillStyle = o.fill || '#4a2f1a'
+  c.fillText(text, x, y)
+  c.restore()
+}
+
+function _drawDetailResourcePlaque(c, R, S, x, cy, iconPath, text) {
+  const icon = R.getImg(iconPath)
+  const iconSz = 30 * S
+  c.save()
+  c.font = `bold ${15 * S}px "PingFang SC",serif`
+  const txtW = c.measureText(`${text}`).width
+  const w = iconSz + txtW + 18 * S
+  const h = 28 * S
+  const y = cy - h / 2
+  const grad = c.createLinearGradient(x, y, x + w, y + h)
+  grad.addColorStop(0, 'rgba(34,75,64,0.78)')
+  grad.addColorStop(0.55, 'rgba(76,128,106,0.76)')
+  grad.addColorStop(1, 'rgba(37,70,58,0.78)')
+  c.fillStyle = grad
+  R.rr(x, y, w, h, 10 * S); c.fill()
+  c.strokeStyle = 'rgba(235,210,132,0.7)'
+  c.lineWidth = 1.2 * S
+  R.rr(x, y, w, h, 10 * S); c.stroke()
+  if (icon && icon.width > 0) c.drawImage(icon, x - 3 * S, cy - iconSz / 2, iconSz, iconSz)
+  _drawDetailText(c, `${text}`, x + iconSz + txtW / 2 + 6 * S, cy + 0.5 * S, {
+    font: `bold ${15 * S}px "PingFang SC",serif`,
+    fill: '#fff1cc',
+    stroke: 'rgba(18,28,22,0.75)',
+    lineWidth: 2 * S,
+  })
+  c.restore()
+}
+
+function _drawVerticalNameScroll(c, R, S, opts) {
+  const { x, y, w, h, name, attrName, rarity, starName, roleLabel, orbImg } = opts
+  const bg = R.getImg(PET_DETAIL_INK_ART.nameScroll)
+  c.save()
+  if (bg && bg.width > 0) c.drawImage(bg, x, y, w, h)
+  else {
+    c.fillStyle = 'rgba(232,214,174,0.82)'
+    R.rr(x, y, w, h, 18 * S); c.fill()
+    c.strokeStyle = 'rgba(190,145,70,0.65)'; c.lineWidth = 2 * S
+    R.rr(x, y, w, h, 18 * S); c.stroke()
+  }
+  if (orbImg && orbImg.width > 0) c.drawImage(orbImg, x + w / 2 - 10 * S, y + 22 * S, 20 * S, 20 * S)
+
+  const chars = String(name || '').split('')
+  const fs = chars.length >= 5 ? 22 * S : 24 * S
+  const lineGap = fs * 0.98
+  let ty = y + 58 * S
+  c.textAlign = 'center'
+  c.textBaseline = 'top'
+  c.font = `bold ${fs}px "STKaiti","PingFang SC",serif`
+  for (const ch of chars) {
+    c.strokeStyle = 'rgba(255,244,210,0.72)'
+    c.lineWidth = 2 * S
+    c.strokeText(ch, x + w / 2, ty)
+    c.fillStyle = '#6b431f'
+    c.fillText(ch, x + w / 2, ty)
+    ty += lineGap
+  }
+  c.fillStyle = 'rgba(132,46,32,0.9)'
+  R.rr(x + w - 18 * S, y + h * 0.34, 16 * S, 34 * S, 6 * S); c.fill()
+  _drawDetailText(c, rarity, x + w - 10 * S, y + h * 0.34 + 17 * S, {
+    font: `bold ${8 * S}px "PingFang SC",serif`,
+    fill: '#ffe8b0',
+  })
+  c.font = `${9 * S}px "PingFang SC",serif`
+  c.fillStyle = 'rgba(84,58,31,0.75)'
+  c.fillText(`${attrName || ''} · ${roleLabel || starName || ''}`, x + w / 2, y + h - 52 * S)
+  c.fillStyle = 'rgba(132,46,32,0.86)'
+  c.font = `bold ${9 * S}px "PingFang SC",serif`
+  c.fillText(starName || '', x + w / 2, y + h - 36 * S)
+  c.restore()
+}
+
+function _drawRightActionBar(g, c, R, S, opts) {
+  const { x, y, size, gap, canReset } = opts
+  const badge = R.getImg(PET_DETAIL_INK_ART.actionBadge)
+  _rects.actionRects = []
+  c.save()
+  for (let i = 0; i < PET_DETAIL_ACTIONS.length; i++) {
+    const action = PET_DETAIL_ACTIONS[i]
+    const by = y + i * (size + gap)
+    const disabled = !!action.disabled || (action.key === 'resetPet' && !canReset)
+    if (badge && badge.width > 0) c.drawImage(badge, x, by, size, size)
+    else {
+      c.fillStyle = 'rgba(220,232,205,0.86)'
+      c.beginPath(); c.arc(x + size / 2, by + size / 2, size / 2, 0, Math.PI * 2); c.fill()
+      c.strokeStyle = 'rgba(180,142,70,0.7)'; c.lineWidth = 2 * S
+      c.beginPath(); c.arc(x + size / 2, by + size / 2, size * 0.46, 0, Math.PI * 2); c.stroke()
+    }
+    if (_pressedBtnId === action.key && !disabled) {
+      c.fillStyle = 'rgba(255,236,170,0.20)'
+      c.beginPath(); c.arc(x + size / 2, by + size / 2, size * 0.43, 0, Math.PI * 2); c.fill()
+    }
+    c.globalAlpha = disabled ? 0.48 : 1
+    _drawDetailText(c, action.title, x + size / 2, by + size * 0.43, {
+      font: `bold ${11 * S}px "PingFang SC",serif`,
+      fill: '#4a2a14',
+      stroke: 'rgba(255,244,210,0.55)',
+      lineWidth: 1.4 * S,
+    })
+    _drawDetailText(c, action.sub, x + size / 2, by + size * 0.62, {
+      font: `${8.5 * S}px "PingFang SC",serif`,
+      fill: 'rgba(64,42,24,0.75)',
+    })
+    c.globalAlpha = 1
+    _rects.actionRects.push({ key: action.key, rect: [x, by, size, size], disabled })
+  }
+  c.restore()
+}
+
+function _hitAction(g, x, y, key) {
+  if (!_rects.actionRects || _rects.actionRects.length === 0) return null
+  for (const item of _rects.actionRects) {
+    if (key && item.key !== key) continue
+    if (g._hitRect(x, y, ...item.rect)) return item
+  }
+  return null
+}
+
+function _isRightActionKey(key) {
+  return key === 'resetPet'
+}
+
+function _getDetailPanelLayout(W, S, cardTop, cardBottom) {
+  const panelX = 8 * S
+  const panelW = W - 16 * S
+  const panelH = Math.max(80 * S, cardBottom - cardTop)
+  const drawRect = [panelX - 5 * S, cardTop - 8 * S, panelW + 10 * S, panelH + 18 * S]
+  const clipRect = [panelX + 7 * S, cardTop + 10 * S, panelW - 14 * S, panelH - 18 * S]
+  const contentRect = [
+    panelX + 34 * S,
+    cardTop + 20 * S,
+    panelW - 68 * S,
+    panelH - 40 * S,
+  ]
+  return {
+    panelDrawRect: drawRect,
+    panelClipRect: clipRect,
+    contentRect,
+    radius: 12 * S,
+    padBottom: 12 * S,
+  }
+}
 
 function _getCurrentIndex(g) {
   const pool = _getFilteredPool(g)
@@ -1153,7 +1343,7 @@ function rPetDetail(g) {
   _rects.favoriteBtnRect = null
   if (!isUnowned) {
     const favBtnW = 36 * S
-    const favBtnX = W - 12 * S - favBtnW
+    const favBtnX = _petDetailFavoriteX(W, S, favBtnW)
     const favBtnY = headerRowTop
     const petNow = g._petDetailId
     const isFav = petNow && g.storage.isPetPoolFavorite && g.storage.isPetPoolFavorite(petNow)
@@ -1161,10 +1351,19 @@ function rPetDetail(g) {
     if (_pressedBtnId === 'favorite') c.globalAlpha = 0.82
     const favCx = favBtnX + favBtnW / 2
     const favCy = favBtnY + favBtnW / 2 + 0.5 * S
-    drawFavStar(c, favCx, favCy, 26 * S, {
+    c.fillStyle = isFav ? 'rgba(132,58,28,0.78)' : 'rgba(0,0,0,0.34)'
+    c.beginPath()
+    c.arc(favCx, favCy, favBtnW * 0.5, 0, Math.PI * 2)
+    c.fill()
+    c.strokeStyle = isFav ? 'rgba(255,226,132,0.92)' : 'rgba(255,245,220,0.72)'
+    c.lineWidth = 1.5 * S
+    c.beginPath()
+    c.arc(favCx, favCy, favBtnW * 0.5 - 1 * S, 0, Math.PI * 2)
+    c.stroke()
+    drawFavStar(c, favCx, favCy, 22 * S, {
       filled: !!isFav,
-      alpha: isFav ? 1 : 0.55,
-      stroke: isFav ? 'rgba(60,35,5,0.85)' : 'rgba(255,235,180,0.85)',
+      alpha: isFav ? 1 : 0.88,
+      stroke: isFav ? 'rgba(60,35,5,0.85)' : 'rgba(255,245,220,0.95)',
       lineWidth: 1.6 * S,
       shadow: { blur: 4 * S, offsetY: 1 * S, color: 'rgba(0,0,0,0.35)' },
     })
@@ -1237,7 +1436,7 @@ function rPetDetail(g) {
     _drawStar5SkillPopup(g, c, R)
   }
 
-  // 返还培养确认弹窗（最顶层，遮住所有详情页交互）
+  // 归元重修确认弹窗（最顶层，遮住所有详情页交互）
   if (g._poolPetResetDialog) {
     const { drawPoolPetResetDialog } = require('./dialogs')
     drawPoolPetResetDialog(g)
@@ -1501,7 +1700,7 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
 
   const rowTop = headerRowTop != null ? headerRowTop : _petDetailHeaderRowTop(safeTop, S)
   const expIconCenterY = rowTop + 18 * S
-  const avatarAreaTop = rowTop + 58 * S
+  const avatarAreaTop = rowTop + 62 * S
 
   const rarity = getPetRarity(petId)
   const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
@@ -1522,62 +1721,22 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const isCurrentPet = (petId === g._petDetailId && !_slideAnim)
 
   // === 背景 ===
-  const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
+  const poolBg = R.getImg(PET_DETAIL_INK_ART.bg)
   if (poolBg && poolBg.width > 0) {
     R._drawCoverImg(poolBg, 0, 0, W, H)
   } else {
     R.drawHomeBg(0)
   }
-  c.fillStyle = 'rgba(0,0,0,0.15)'
+  c.fillStyle = 'rgba(255,248,232,0.08)'
   c.fillRect(0, 0, W, H)
 
-  // === 灵石图标+数值（返回按钮右侧） ===
-  const expIcon = R.getImg('assets/ui/icon_soul_stone.png')
-  if (expIcon && expIcon.width > 0) {
-    const iconSz = 32 * S
-    const iconX = 52 * S
-    const iconY = expIconCenterY - iconSz / 2
-    // 先量文字宽度，画胶囊（从图标中心延伸到数字右侧），再画图标压上去
-    const txtX = iconX + iconSz + 4 * S
-    c.font = `bold ${15*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    const txtW = c.measureText(`${expPool}`).width
-    const padX = 8 * S
-    const capH = 26 * S, capR = capH / 2
-    const capX = iconX + iconSz * 0.38
-    const capW = txtX + txtW + padX - capX
-    const capY = expIconCenterY - capH / 2
-    c.save()
-    c.beginPath()
-    c.moveTo(capX + capR, capY); c.lineTo(capX + capW - capR, capY)
-    c.quadraticCurveTo(capX + capW, capY, capX + capW, capY + capR)
-    c.lineTo(capX + capW, capY + capH - capR)
-    c.quadraticCurveTo(capX + capW, capY + capH, capX + capW - capR, capY + capH)
-    c.lineTo(capX + capR, capY + capH)
-    c.quadraticCurveTo(capX, capY + capH, capX, capY + capH - capR)
-    c.lineTo(capX, capY + capR)
-    c.quadraticCurveTo(capX, capY, capX + capR, capY)
-    c.closePath()
-    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fill()
-    c.restore()
-
-    // 数字
-    c.fillStyle = '#fff'
-    c.fillText(`${expPool}`, txtX, expIconCenterY)
-
-    // 图标压在胶囊上方
-    c.drawImage(expIcon, iconX, iconY, iconSz, iconSz)
-  } else {
-    c.fillStyle = '#fff'
-    c.font = `bold ${15*S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'middle'
-    c.fillText(`${expPool}`, 56 * S, expIconCenterY)
-  }
+  // === 灵石玉牌（返回按钮右侧） ===
+  _drawDetailResourcePlaque(c, R, S, 52 * S, expIconCenterY, 'assets/ui/icon_soul_stone.png', expPool)
 
   // === 顶部大图展示区 ===
-  const avatarSize = W * PET_DETAIL_AVATAR_FRAC
+  const avatarSize = W * 0.34
   const avatarX = (W - avatarSize) / 2
-  const avatarY = avatarAreaTop
+  const avatarY = avatarAreaTop + 8 * S
 
   // 属性色光环
   c.save()
@@ -1595,6 +1754,52 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const avatarStar = poolPet.star || 1
   const avatarPath = getPetAvatarPath({ ...basePet, star: poolPet.star })
   const avatarOpts = { petId, star: avatarStar, avatarX, avatarY, avatarSize }
+
+  // 中央法阵台座先垫在灵宠身后，强化“召灵”主视觉
+  const platformImg = R.getImg(PET_DETAIL_INK_ART.platform)
+  const platformW = avatarSize * 2.35
+  const platformH = platformW * 0.58
+  const platformX = avatarX + avatarSize / 2 - platformW / 2
+  const platformY = avatarY + avatarSize * 0.50
+  if (platformImg && platformImg.width > 0) {
+    c.drawImage(platformImg, platformX, platformY, platformW, platformH)
+  } else {
+    c.save()
+    c.globalAlpha = 0.55
+    c.strokeStyle = 'rgba(235,218,150,0.75)'
+    c.lineWidth = 2 * S
+    c.beginPath(); c.ellipse(avatarX + avatarSize / 2, platformY + platformH * 0.35, platformW * 0.34, platformH * 0.18, 0, 0, Math.PI * 2); c.stroke()
+    c.restore()
+  }
+
+  // 左侧竖名卷与右侧玉牌操作栏
+  const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
+  const orbImg = R.getImg(orbPath)
+  const curStar = poolPet.star || 1
+  const sv = STAR_VISUAL[curStar] || STAR_VISUAL[1]
+  const roleTags = getPetRoleTags(basePet)
+  const mainRole = roleTags[0]
+  _drawVerticalNameScroll(c, R, S, {
+    x: 8 * S,
+    y: avatarY - 4 * S,
+    w: 72 * S,
+    h: 212 * S,
+    name: basePet.name,
+    attrName: ATTR_NAME[poolPet.attr] || poolPet.attr,
+    rarity: rv.label,
+    starName: sv.name,
+    roleLabel: mainRole && mainRole.label,
+    orbImg,
+  })
+  const resetUnlocked = g.storage.isPoolResetUnlocked && g.storage.isPoolResetUnlocked()
+  const canResetEntry = resetUnlocked && ((poolPet.star || 1) > 1 || (poolPet.level || 1) > 1)
+  _drawRightActionBar(g, c, R, S, {
+    x: W - 60 * S,
+    y: avatarY + 4 * S,
+    size: 45 * S,
+    gap: 8 * S,
+    canReset: !!canResetEntry,
+  })
 
   // ★5 满星金色光环（垫在主头像下方）
   _drawMaxStarAura(c, S, avatarOpts)
@@ -1625,73 +1830,25 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
     _rects.awakenPreviewBtnRect = null
   }
 
-  // === 名称区域（头像下方）：转珠 + 名称 + 等级 ===
-  //   注意：头像底部有觉醒预览/★5 超越绶带按钮（约 22S 高，1/3 嵌在头像内），
-  //   名称行需在按钮之下，留 10S 间距以保证视觉呼吸
-  let cy = avatarY + avatarSize + 22 * S * 0.65 + 10 * S
-
-  const orbPath = `assets/orbs/orb_${poolPet.attr || 'metal'}.png`
-  const orbImg = R.getImg(orbPath)
-  const orbSz = 22 * S
-  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
-  const nameW = c.measureText(basePet.name).width
-  // 等级标签
+  // === 中央等级与星阶：名称已移到左侧竖卷，这里只保留战斗状态摘要 ===
+  let cy = avatarY + avatarSize + 52 * S
   const lvLabel = `Lv.${poolPet.level}`
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  const lvLabelTagW = c.measureText(lvLabel).width + 10 * S
-  const tierTagW = lvLabelTagW
-  const tierTagH = 17 * S
-  const nameGap = 6 * S
-  const orbGap = 4 * S
-  // 品质标签尺寸
-  const badgeText = `[${rv.label}]`
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  const badgeW = c.measureText(badgeText).width
-  const badgeGap = 4 * S
-  const totalNameW = orbSz + orbGap + nameW + badgeGap + badgeW + nameGap + tierTagW
-  const nameStartX = (W - totalNameW) / 2
+  const lvW = 58 * S
+  const lvH = 20 * S
+  c.fillStyle = 'rgba(73,92,74,0.86)'
+  R.rr(W / 2 - lvW / 2, cy - 3 * S, lvW, lvH, 8 * S); c.fill()
+  c.strokeStyle = 'rgba(239,220,144,0.78)'; c.lineWidth = 1.2 * S
+  R.rr(W / 2 - lvW / 2, cy - 3 * S, lvW, lvH, 8 * S); c.stroke()
+  _drawDetailText(c, lvLabel, W / 2, cy + lvH / 2 - 3 * S, {
+    font: `bold ${11 * S}px "PingFang SC",serif`,
+    fill: '#fff5cc',
+    stroke: 'rgba(35,45,35,0.72)',
+    lineWidth: 1.6 * S,
+  })
+  cy += 22 * S
 
-  // 转珠图标（名称前面）
-  if (orbImg && orbImg.width > 0) {
-    c.drawImage(orbImg, nameStartX, cy - 1 * S, orbSz, orbSz)
-  }
-
-  // 名称
-  const nameX = nameStartX + orbSz + orbGap
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.font = `bold ${20*S}px "PingFang SC",sans-serif`
-  c.strokeStyle = 'rgba(0,0,0,0.6)'
-  c.lineWidth = 4 * S
-  c.strokeText(basePet.name, nameX, cy)
-  c.fillStyle = '#fff'
-  c.fillText(basePet.name, nameX, cy)
-
-  // 品质标签（名字右侧）
-  c.save()
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
-  c.fillStyle = rv.badgeColor
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText(badgeText, nameX + nameW + badgeGap, cy + 5 * S)
-  c.restore()
-
-  // 等级标签（品质标签右侧，醒目白底深色字）
-  const tierTagX = nameX + nameW + badgeGap + badgeW + nameGap
-  const tierTagY = cy + 3 * S
-  c.fillStyle = 'rgba(255,255,255,0.85)'
-  R.rr(tierTagX, tierTagY, tierTagW, tierTagH, 4 * S); c.fill()
-  c.strokeStyle = 'rgba(0,0,0,0.2)'; c.lineWidth = 1 * S
-  R.rr(tierTagX, tierTagY, tierTagW, tierTagH, 4 * S); c.stroke()
-  c.fillStyle = '#5A4530'
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText(lvLabel, tierTagX + tierTagW / 2, tierTagY + tierTagH / 2)
-
-  cy += 26 * S
-
-  // === 星星（名称下方；统一金黄色，未满星为浅金半透明） ===
+  // === 星星（中央台座下方；统一金黄色，未满星为浅金半透明） ===
   const starSize = 14 * S
-  const curStar = poolPet.star || 1
-  const sv = STAR_VISUAL[curStar] || STAR_VISUAL[1]
   c.font = `${starSize}px "PingFang SC",sans-serif`
   c.textAlign = 'left'; c.textBaseline = 'top'
   const singleStarW = c.measureText('★').width
@@ -1714,35 +1871,38 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
 
   cy += starSize + 5 * S
 
-  // === 下方信息区：纯色淡底 + 细金边（不用卷轴图，避免装饰边框挤占内容导致溢出） ===
-  const cardX = 8 * S
-  const cardW = W - 16 * S
+  // === 下方信息区：宣纸卷面，承载成长信息 ===
   const cardTop = cy + 3 * S
   const cardBottom = H - safeTop - 17 * S
-  const cardH = Math.max(80 * S, cardBottom - cardTop)
-  const cardRad = 12 * S
+  const panelLayout = _getDetailPanelLayout(W, S, cardTop, cardBottom)
+  const [panelDrawX, panelDrawY, panelDrawW, panelDrawH] = panelLayout.panelDrawRect
+  const [clipX, clipY, clipW, clipH] = panelLayout.panelClipRect
+  const [contentX, contentY, contentW, contentH] = panelLayout.contentRect
+  const cardRad = panelLayout.radius
 
-  c.fillStyle = 'rgba(255,252,245,0.92)'
-  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.fill()
-  c.strokeStyle = 'rgba(201,168,76,0.5)'; c.lineWidth = 1.2 * S
-  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.stroke()
+  const panelImg = R.getImg(PET_DETAIL_INK_ART.panel)
+  if (panelImg && panelImg.width > 0) {
+    c.drawImage(panelImg, panelDrawX, panelDrawY, panelDrawW, panelDrawH)
+  } else {
+    c.fillStyle = 'rgba(255,252,245,0.92)'
+    R.rr(panelDrawX, panelDrawY, panelDrawW, panelDrawH, cardRad); c.fill()
+    c.strokeStyle = 'rgba(201,168,76,0.5)'; c.lineWidth = 1.2 * S
+    R.rr(panelDrawX, panelDrawY, panelDrawW, panelDrawH, cardRad); c.stroke()
+  }
 
   c.save()
-  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.clip()
-  const rarityGradPanel = c.createLinearGradient(cardX, cardTop, cardX, cardTop + cardH * 0.45)
+  R.rr(clipX, clipY, clipW, clipH, cardRad); c.clip()
+  const rarityGradPanel = c.createLinearGradient(clipX, clipY, clipX, clipY + clipH * 0.45)
   rarityGradPanel.addColorStop(0, rv.bgGradient[0] + '18')
   rarityGradPanel.addColorStop(1, rv.bgGradient[1] + '00')
   c.fillStyle = rarityGradPanel
-  c.fillRect(cardX, cardTop, cardW, cardH)
+  c.fillRect(clipX, clipY, clipW, clipH)
   c.restore()
 
-  const padX = 12 * S
-  const padY = 8 * S
-  const indent = cardX + padX
-  const rightEdge = cardX + cardW - padX
-  const contentW = rightEdge - indent
-  const innerTop = cardTop + padY
-  const panelInnerH = cardH - padY * 2
+  const indent = contentX
+  const rightEdge = contentX + contentW
+  const innerTop = contentY
+  const panelInnerH = contentH
 
   const fBtnPanel = 12 * S
   const lvBarH = 12 * S
@@ -1750,13 +1910,20 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
 
   // 记录面板可视区（触摸换算用），clip + 按滚动偏移平移
   if (isCurrentPet) {
-    _rects.panelRect = [cardX, cardTop, cardW, cardH]
+    _rects.panelRect = [clipX, clipY, clipW, clipH]
   }
   c.save()
-  R.rr(cardX, cardTop, cardW, cardH, cardRad); c.clip()
+  R.rr(clipX, clipY, clipW, clipH, cardRad); c.clip()
   c.translate(0, -_panelScrollY)
 
   cy = innerTop
+
+  // ── 定位说明：来自 petRoleConfig，避免详情页硬编码技能类型 ──
+  c.fillStyle = 'rgba(132,46,32,0.86)'
+  c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  const roleLineCount = wrapTextDraw(c, `定位：${getPetRoleSummary(basePet)}`, indent, cy, contentW, 14 * S)
+  cy += Math.max(1, roleLineCount) * 14 * S + 3 * S
 
   // ── 攻击力（左标签右数值） ──
   c.fillStyle = '#5A4530'
@@ -2050,56 +2217,15 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
     cy += 14 * S
   }
 
-  // ── 返还培养（通关第 4 章后解锁；有可返还内容才画） ──
-  //   · 业界对标原神/FGO 圣杯转移：用稀缺道具（觉醒石）做闸门 + 返还打心理税
-  //   · 星级=★1 且等级=1 时投入为 0，整行隐藏避免"零返还"按钮骚扰玩家
-  if (g.storage.isPoolResetUnlocked && g.storage.isPoolResetUnlocked()
-      && ((poolPet.star || 1) > 1 || (poolPet.level || 1) > 1)) {
-    drawSeparator(c, indent, cy, rightEdge, '180,140,60')
-    cy += 7 * S
-    const resetStatus = g.storage.checkPoolPetResetStatus(poolPet.id)
-    const resetEnabled = !!resetStatus.ok
-    c.fillStyle = 'rgba(90,70,40,0.78)'
-    c.font = `${11 * S}px "PingFang SC",sans-serif`
-    c.textAlign = 'left'; c.textBaseline = 'top'
-    c.fillText('返还培养：将等级/星级重置，按比例退还灵石、碎片、觉醒石', indent, cy)
-    cy += 14 * S
-    const rBtnW = Math.min(contentW, rightEdge - indent)
-    const rBtnH = Math.max(starBtnH, 30 * S)
-    const rBtnRect = [indent, cy, rBtnW, rBtnH]
-    let resetBtnText = '🔄 返 还 培 养'
-    let resetSubText = null
-    if (resetStatus.reason === 'gate_short') {
-      resetSubText = `需觉醒石 ${resetStatus.required}`
-    } else if (resetStatus.reason === 'in_team') {
-      resetSubText = '请先移出编队'
-    } else if (resetStatus.reason === 'dispatched') {
-      resetSubText = '派遣中无法重置'
-    } else if (resetStatus.reason === 'cooldown') {
-      const mins = Math.max(1, Math.ceil(resetStatus.cooldownMs / 60000))
-      resetSubText = `冷却 ${mins} 分钟`
-    }
-    const resetFirstSeen = resetEnabled
-      && g.storage.isGuideShown && !g.storage.isGuideShown('pool_reset_seen')
-    drawPrimaryButton(c, S, indent, cy, rBtnW, rBtnH, {
-      text: resetBtnText,
-      subText: resetSubText,
-      style: 'silver',
-      enabled: resetEnabled,
-      pressed: _pressedBtnId === 'resetPet',
-      glow: resetFirstSeen,
-      flashT: buttonFx.getFlashT(rBtnRect),
-    })
-    if (isCurrentPet) _rects.resetBtnRect = rBtnRect
-    cy += rBtnH + 6 * S
-  }
+  if (isCurrentPet) _rects.resetBtnRect = null
 
   // === 内容测量：记录内容总高度、更新滚动上限 ===
-  const contentBottomY = cy + padY
-  const contentTotalH = Math.max(panelInnerH, contentBottomY - cardTop)
+  const contentBottomY = cy + panelLayout.padBottom
+  const visibleBottomY = clipY + clipH
+  const contentTotalH = Math.max(panelInnerH, contentBottomY - clipY)
   if (isCurrentPet) {
     _rects.panelContentH = contentTotalH
-    _panelMaxScrollY = Math.max(0, contentTotalH - cardH)
+    _panelMaxScrollY = Math.max(0, contentBottomY - visibleBottomY)
     if (_panelScrollY > _panelMaxScrollY) _panelScrollY = _panelMaxScrollY
     if (_panelScrollY < 0) _panelScrollY = 0
   }
@@ -2109,12 +2235,12 @@ function _drawDetailPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   // === 滚动条（内容超长才出现）===
   if (isCurrentPet && _panelMaxScrollY > 0) {
     const barW = 3 * S
-    const barTrackH = cardH - 8 * S
-    const barTrackY = cardTop + 4 * S
-    const barH = Math.max(28 * S, barTrackH * cardH / contentTotalH)
+    const barTrackH = clipH - 8 * S
+    const barTrackY = clipY + 4 * S
+    const barH = Math.max(28 * S, barTrackH * clipH / contentTotalH)
     const barRatio = _panelScrollY / _panelMaxScrollY
     const barY = barTrackY + barRatio * (barTrackH - barH)
-    const barX = cardX + cardW - barW - 3 * S
+    const barX = clipX + clipW - barW - 3 * S
     c.save()
     c.globalAlpha = 0.55
     c.fillStyle = '#9A7A40'
@@ -2151,7 +2277,7 @@ function tPetDetail(g, x, y, type) {
   }
   if (g._star3Celebration) return
 
-  // 返还培养弹窗：优先级最高，拦截所有其他触摸
+  // 归元重修弹窗：优先级最高，拦截所有其他触摸
   //   · 命中右上角 × / 遮罩 → 关闭
   //   · 命中「基础返还」 → 直接执行
   //   · 命中「看广告返还」→ 先播广告，成功后执行
@@ -2216,7 +2342,9 @@ function tPetDetail(g, x, y, type) {
     }
 
     // 按下态标记（点击面板内按钮/返回按钮时立即给出视觉反馈）
-    if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) _pressedBtnId = 'levelUp'
+    const hitAction = !g._petDetailUnowned ? _hitAction(g, x, y) : null
+    if (hitAction && !hitAction.disabled) _pressedBtnId = hitAction.key
+    else if (_hitInsidePanel(g, x, y, _rects.levelUpBtnRect)) _pressedBtnId = 'levelUp'
     else if (_hitInsidePanel(g, x, y, _rects.starUpBtnRect)) _pressedBtnId = 'starUp'
     else if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) _pressedBtnId = 'decompose'
     else if (_hitInsidePanel(g, x, y, _rects.resetBtnRect)) _pressedBtnId = 'resetPet'
@@ -2232,6 +2360,14 @@ function tPetDetail(g, x, y, type) {
   if (type === 'move') {
     const dx = x - _swipeStartX
     const dy = y - _swipeStartY
+    // 右侧玉牌按钮只响应点击，不参与横向切宠，避免在按钮区拖动时误翻页
+    if (_pressedBtnId && _isRightActionKey(_pressedBtnId)) {
+      if (Math.abs(dx) > 3 * S || Math.abs(dy) > 3 * S) {
+        _pressedBtnId = null
+        g._dirty = true
+      }
+      return
+    }
     // 水平滑动判定
     if (!_swiping && Math.abs(dx) > 8 * S && Math.abs(dx) > Math.abs(dy) * 1.2) {
       _swiping = true
@@ -2270,6 +2406,20 @@ function tPetDetail(g, x, y, type) {
     if (didScroll) {
       _swiping = false; _swipeDeltaX = 0
       return
+    }
+
+    const endedAction = !g._petDetailUnowned ? _hitAction(g, x, y) : null
+    if (endedAction) {
+      _swiping = false
+      _swipeDeltaX = 0
+      if (endedAction.disabled) {
+        if (P.showGameToast) P.showGameToast('暂无可归元培养', { type: 'info' })
+        return
+      }
+      if (endedAction.key === 'resetPet') {
+        _openResetDialog(g)
+        return
+      }
     }
 
     // 召唤按钮（未拥有宠物）— 优先检测，避免被 _swiping 误拦截
@@ -2387,12 +2537,6 @@ function tPetDetail(g, x, y, type) {
     // 分解
     if (_hitInsidePanel(g, x, y, _rects.decomposeBtnRect)) {
       _doDecompose(g)
-      return
-    }
-
-    // 返还培养
-    if (_hitInsidePanel(g, x, y, _rects.resetBtnRect)) {
-      _openResetDialog(g)
       return
     }
 
@@ -2548,10 +2692,10 @@ function _doDecompose(g) {
   }
 }
 
-// ===== 返还培养 =====
+// ===== 归元重修 =====
 /**
- * 打开"返还培养"双档确认弹窗
- *   · 预检失败（冷却/在编队/闸门短缺/未解锁）→ Toast 解释，不开弹窗
+ * 打开"归元重修"双档确认弹窗
+ *   · 预检失败（冷却/派遣中/闸门短缺/未解锁）→ Toast 解释，不开弹窗
  *   · 预检通过 → 两档返还清单预算 + 弹窗显示
  */
 function _openResetDialog(g) {
@@ -2562,13 +2706,12 @@ function _openResetDialog(g) {
     const msgMap = {
       locked: `通关第 ${status.unlockChapter} 章后解锁`,
       gate_short: `需要 ${status.required} 颗觉醒石作为闸门`,
-      in_team: '该宠物仍在编队中，请先更换编队',
       dispatched: '该宠物正在派遣，请先收回',
       cooldown: `冷却中，剩约 ${Math.max(1, Math.ceil((status.cooldownMs || 0) / 60000))} 分钟`,
-      nothing_to_refund: '该宠物还没有可返还的培养投入',
+      nothing_to_refund: '该宠物还没有可归元的培养投入',
       not_found: '灵宠数据异常',
     }
-    const msg = msgMap[status.reason] || '暂不可返还'
+    const msg = msgMap[status.reason] || '暂不可归元'
     if (P.showGameToast) P.showGameToast(msg, { type: 'warn' })
     return
   }
@@ -2608,8 +2751,8 @@ function _closeResetDialog(g) {
 }
 
 /**
- * 执行基础档返还：扣闸门 + 按基础比例发资源 + 宠物归 ★1 Lv.1
- *   失败时（稀有竞态：判定后刚好被出战/派遣）再弹一次 Toast
+ * 执行基础档归元：扣闸门 + 按基础比例发资源 + 宠物归 ★1 Lv.1
+ *   失败时（稀有竞态：判定后刚好派遣或资源变化）再弹一次 Toast
  */
 function _doPoolPetReset(g, useAd) {
   const petId = g._petDetailId
@@ -2618,7 +2761,7 @@ function _doPoolPetReset(g, useAd) {
   if (!result.ok) {
     const msg = result.reason === 'gate_short'
       ? `觉醒石不足，需要 ${result.required}`
-      : '返还失败，请稍后再试'
+      : '归元失败，请稍后再试'
     if (P.showGameToast) P.showGameToast(msg, { type: 'warn' })
     return
   }
@@ -2678,7 +2821,7 @@ function _doPoolPetResetWithAd(g) {
       _doPoolPetReset(g, true)
     },
     onSkipped: () => {
-      if (P.showGameToast) P.showGameToast('未完成广告，已取消返还', { type: 'warn' })
+      if (P.showGameToast) P.showGameToast('未完成广告，已取消归元', { type: 'warn' })
     },
     fallbackToShare: true,
     rewardPopup: null,
