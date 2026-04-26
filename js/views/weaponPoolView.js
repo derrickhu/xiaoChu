@@ -12,7 +12,7 @@ const inkUI = require('./inkUiComponents')
 const OWNED_CARD_BORDER = 'rgba(212,175,55,0.65)'
 const WEAPON_POOL_ART = {
   bg: 'assets/backgrounds/petpool_ink_bg.jpg',
-  card: 'assets/ui/pet_card_scroll_bg.png',
+  card: 'assets/ui/pet_card_bg.png',
   filter: 'assets/ui/pet_filter_scroll_bg.png',
 }
 const FILTERS = [
@@ -83,17 +83,20 @@ function rWeaponPool(g) {
 
   const filterY = contentTop + 10 * S
   const filterH = 26 * S
-  const filterBg = R.getImg(WEAPON_POOL_ART.filter)
   const filterBgX = 6 * S
   const filterBgY = filterY - 12 * S
   const filterBgW = W - 12 * S
   const filterBgH = filterH + 30 * S
-  if (filterBg && filterBg.width > 0) {
-    c.drawImage(filterBg, filterBgX, filterBgY, filterBgW, filterBgH)
-  } else {
-    c.fillStyle = 'rgba(222,205,164,0.28)'
-    R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 18 * S); c.fill()
-  }
+  // 原卷轴底图横线过密，缩放后影响筛选文字可读性；改为干净宣纸底板。
+  const filterGrad = c.createLinearGradient(filterBgX, filterBgY, filterBgX, filterBgY + filterBgH)
+  filterGrad.addColorStop(0, 'rgba(255,247,218,0.88)')
+  filterGrad.addColorStop(0.5, 'rgba(236,216,174,0.78)')
+  filterGrad.addColorStop(1, 'rgba(216,187,132,0.72)')
+  c.fillStyle = filterGrad
+  R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 16 * S); c.fill()
+  c.strokeStyle = 'rgba(170,117,46,0.72)'
+  c.lineWidth = 1.4 * S
+  R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 16 * S); c.stroke()
   _rects.filterRects = inkUI.drawInkFilterTabs(c, R, S, FILTERS, g._weaponPoolFilter || 'all',
     12 * S, filterY, W - 24 * S, filterH, {
       fontSize: 10.5,
@@ -170,6 +173,9 @@ function _drawWeaponCard(c, R, S, x, y, w, h, wpn, owned, equipped) {
     c.globalAlpha = owned ? 1 : 0.42
     c.drawImage(cardBg, x, y, w, h)
     c.globalAlpha = 1
+    c.strokeStyle = owned ? 'rgba(173,125,50,0.82)' : 'rgba(173,125,50,0.45)'
+    c.lineWidth = owned ? 1.2 * S : 0.9 * S
+    R.rr(x, y, w, h, 8 * S); c.stroke()
   } else {
     const grad = c.createLinearGradient(x, y, x, y + h)
     grad.addColorStop(0, owned ? 'rgba(250,239,208,0.82)' : 'rgba(234,224,200,0.32)')

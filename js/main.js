@@ -24,6 +24,9 @@ const stageTeamView = require('./views/stageTeamView')
 const stageResultView = require('./views/stageResultView')
 const towerVictoryView = require('./views/towerVictoryView')
 const towerTeamView = require('./views/towerTeamView')
+const towerDetailView = require('./views/towerDetailView')
+const trialDetailView = require('./views/trialDetailView')
+const trialResultView = require('./views/trialResultView')
 const idleView = require('./views/idleView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
@@ -450,6 +453,15 @@ class Main {
       'assets/ui/icon_soul_stone.png',
       'assets/ui/icon_awaken_stone.png',
       'assets/ui/icon_chest.png',
+      'assets/ui/trial_panel_rule.png',
+      'assets/ui/trial_panel_reward.png',
+      'assets/ui/trial_panel_result.png',
+      'assets/ui/challenge_hub_panel_trial.png',
+      'assets/ui/challenge_hub_panel_tower.png',
+      'assets/ui/challenge_hub_icon_trial.png',
+      'assets/ui/challenge_hub_icon_tower.png',
+      'assets/ui/challenge_hub_btn_gold.png',
+      'assets/ui/challenge_hub_btn_purple.png',
       'assets/ui/daily_sign_icon.png',
       'assets/ui/daily_task_icon.png',
       'assets/ui/newbie_gift_icon.png',
@@ -514,7 +526,11 @@ class Main {
   }
 
   _preloadOwnedAssets() {
-    const paths = []
+    const paths = [
+      // 挑战大厅大图走 CDN，清单就绪后提前拉取，避免首次切换时空白过久。
+      'assets/backgrounds/challenge_hub_trial_scene.jpg',
+      'assets/backgrounds/challenge_hub_tower_scene.jpg',
+    ]
     const pool = this.storage.petPool || []
     for (const p of pool) {
       paths.push(`assets/pets/pet_${p.id}.png`)
@@ -532,6 +548,7 @@ class Main {
 
   // ===== Run管理（委托到 runManager）=====
   _startRun(petIds) { runMgr.startRun(this, petIds) }
+  _startTrialRun(petIds) { runMgr.startTrialRun(this, petIds) }
   _nextFloor() { runMgr.nextFloor(this) }
   _restoreBattleHpMax() { runMgr.restoreBattleHpMax(this) }
   _claimTowerFloorMilestones(floor) { return runMgr.claimTowerFloorMilestones(this, floor) }
@@ -845,8 +862,8 @@ class Main {
         if (p && p.id) paths.push(`assets/pets/pet_${p.id}.png`)
       }
     }
-    if (this.enemy && this.enemy.customBg) {
-      paths.push(`assets/${this.enemy.customBg}.jpg`)
+    if (this.enemy && (this.enemy.customBg || this.enemy.battleBg)) {
+      paths.push(`assets/${this.enemy.customBg || this.enemy.battleBg}.jpg`)
     }
     if (paths.length > 0) {
       AssetLoader.preloadPaths(paths)
@@ -905,6 +922,9 @@ class Main {
       case 'stageResult': stageResultView.rStageResult(this); break
       case 'towerVictory': towerVictoryView.rTowerVictory(this); break
       case 'towerTeam': towerTeamView.rTowerTeam(this); break
+      case 'towerDetail': towerDetailView.rTowerDetail(this); break
+      case 'trialDetail': trialDetailView.rTrialDetail(this); break
+      case 'trialResult': trialResultView.rTrialResult(this); break
       case 'idle': idleView.rIdle(this); break
     }
     // 粒子系统绘制
@@ -1032,6 +1052,9 @@ class Main {
       case 'stageResult': stageResultView.tStageResult(this,x,y,type); break
       case 'towerVictory': towerVictoryView.tTowerVictory(this,x,y,type); break
       case 'towerTeam': towerTeamView.tTowerTeam(this,x,y,type); break
+      case 'towerDetail': towerDetailView.tTowerDetail(this,x,y,type); break
+      case 'trialDetail': trialDetailView.tTrialDetail(this,x,y,type); break
+      case 'trialResult': trialResultView.tTrialResult(this,x,y,type); break
       case 'idle': idleView.tIdle(this,type,x,y); break
     }
   }

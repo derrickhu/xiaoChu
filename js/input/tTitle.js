@@ -275,7 +275,21 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ④c 本周挑战 SSR 头像 → 宠物详情（未获得时展示与灵宠页一致的成长路线）
+  // ④c 挑战大厅卡片
+  if (!isStageMode && g._challengeTowerRect && g._hitRect(x, y, ...g._challengeTowerRect)) {
+    g.setScene('towerDetail')
+    return
+  }
+  if (!isStageMode && g._challengeTrialRect && g._hitRect(x, y, ...g._challengeTrialRect)) {
+    if (!g.storage.isTrialUnlocked || !g.storage.isTrialUnlocked()) {
+      P.showGameToast('通关 2-8 后开放天机试炼', { type: 'warn' })
+      return
+    }
+    g.setScene('trialDetail')
+    return
+  }
+
+  // ④d 本周挑战 SSR 头像 → 宠物详情（未获得时展示与灵宠页一致的成长路线）
   if (!isStageMode && g._towerWeeklySsrAvatarRect && g._towerWeeklySsrPetId
       && g._hitRect(x, y, ...g._towerWeeklySsrAvatarRect)) {
     const petId = g._towerWeeklySsrPetId

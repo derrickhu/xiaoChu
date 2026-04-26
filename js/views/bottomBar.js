@@ -7,7 +7,7 @@ const { TITLE_LOGO } = require('../data/constants')
 
 /** 首页底栏中心钮：文案显示当前所在大厅模式（与 titleView MODE_CFG.name 一致） */
 const TITLE_CENTER_LABEL = {
-  tower: '通天塔',
+  tower: '挑战',
   stage: '灵兽秘境',
 }
 
@@ -20,7 +20,7 @@ const BAR_ITEMS = [
   { key: 'cultivation', label: '修炼', icon: '☯', img: 'assets/ui/nav_hero.png' },
   { key: 'pets',   label: '灵宠',  icon: '🐾', img: 'assets/ui/nav_icons.png' },
   { key: 'dex',    label: '图鉴',  icon: '📖', img: 'assets/ui/nav_dex.png' },
-  { key: 'stage', label: '通天塔', icon: '⇆', center: true },
+  { key: 'stage', label: '挑战', icon: '⇆', center: true },
   { key: 'weapons', label: '法宝', icon: '🔮', img: 'assets/ui/nav_weapon.png' },
   { key: 'rank',   label: '排行',  icon: '🏆', img: 'assets/ui/nav_rank.png' },
   { key: 'more',   label: '更多',  icon: '⚙',  img: 'assets/ui/nav_more.png' },

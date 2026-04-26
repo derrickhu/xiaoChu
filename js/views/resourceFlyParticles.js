@@ -33,10 +33,14 @@ function _itemsFromReward(reward) {
   if (reward.type === 'stamina')           items.push({ icon: 'assets/ui/icon_stamina.png' })
   if (reward.type === 'awakenStone')       items.push({ icon: 'assets/ui/icon_awaken_stone.png' })
   if (reward.type === 'universalFragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
-  if (reward.type === 'ssrFragment' || reward.type === 'fragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  if (reward.type === 'ssrFragment' || reward.type === 'fragment' || reward.type === 'randomFragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
   if (reward.type === 'weaponTicket')      items.push({ icon: 'assets/ui/icon_universal_frag.png' })
   // SSR 法宝（章节 24★ 里程碑直接发放）：与首页底栏「法宝」Tab 同款 nav_weapon
   if (reward.type === 'ssrWeapon')         items.push({ icon: 'assets/ui/nav_weapon.png' })
+  // 试炼专属法宝：新获得飞法宝图标，重复转灵石则飞灵石图标
+  if (reward.type === 'weapon') {
+    items.push({ icon: reward.duplicateSoulStone ? 'assets/ui/icon_soul_stone.png' : 'assets/ui/nav_weapon.png' })
+  }
   return items
 }
 

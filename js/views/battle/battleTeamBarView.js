@@ -11,6 +11,7 @@ const P = require('../../platform')
 const FXComposer = require('../../engine/effectComposer')
 const { BUFF_LABELS, DEBUFF_KEYS, getBuffIcon, shortBuffLabel } = require('../../data/buffConfig')
 const { resolvePetFloatAnchor } = require('../../engine/dmgFloat')
+const { isPetSealed } = require('../../engine/battle/petSeal')
 
 const _slotBadgeCache = {}
 
@@ -311,7 +312,8 @@ function drawTeamBar(g, topY, barH, iconSize) {
       if (petIdx < g.pets.length) {
         const p = g.pets[petIdx]
         const ac = ATTR_COLOR[p.attr]
-        const ready = petHasSkill(p) && p.currentCd <= 0
+        const sealed = isPetSealed(g, p, petIdx)
+        const ready = petHasSkill(p) && !sealed && p.currentCd <= 0
         ctx.save()
         ctx.fillStyle = ac ? ac.bg : '#1a1a2e'
         ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
@@ -361,6 +363,18 @@ function drawTeamBar(g, topY, barH, iconSize) {
           ctx.fillStyle = starClr
           ctx.fillText(starText, ix + 2*S, iconY + iconSize - 2*S)
           ctx.textBaseline = 'alphabetic'
+          ctx.restore()
+        }
+        if (sealed) {
+          ctx.save()
+          ctx.fillStyle = 'rgba(50,0,80,0.55)'
+          ctx.fillRect(ix + 1, iconY + 1, iconSize - 2, iconSize - 2)
+          ctx.fillStyle = '#f0c8ff'
+          ctx.font = `bold ${iconSize*0.18}px "PingFang SC",sans-serif`
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2*S
+          ctx.strokeText('封印', cx, cy)
+          ctx.fillText('封印', cx, cy)
           ctx.restore()
         }
         if (!ready && petHasSkill(p) && p.currentCd > 0) {

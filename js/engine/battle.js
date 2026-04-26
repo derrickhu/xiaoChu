@@ -39,6 +39,7 @@ const {
 } = require('./battle/damageFormula')
 const { getCritFxPlan } = require('./battle/critFxConfig')
 const { applyStunToEnemy, applyStunToHero, findEnemyControlBuff } = require('./battle/stunResolver')
+const { isPetSealed } = require('./battle/petSeal')
 const { commitBattleVictory } = require('./battle/victoryResolver')
 const {
   COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
@@ -415,7 +416,7 @@ function startNextElimAnim(g) {
     elimDisplayColor = '#d4607a'
   } else {
     // 同属性所有宠物的攻击力都参与计算
-    const matchPets = g.pets.filter(p => p.attr === attr)
+    const matchPets = g.pets.filter((p, idx) => p.attr === attr && !isPetSealed(g, p, idx))
     if (matchPets.length > 0) {
       let totalAtk = 0
       matchPets.forEach(p => { totalAtk += getPetStarAtk(p) })
@@ -684,6 +685,7 @@ function applyFinalDamage(g, dmgMap, heal) {
 
   const counterAttr = result.attrBreakdown.find(item => item.isCounter)
   if (counterAttr && (!g._counterFlash || g._counterFlash.timer <= 0)) {
+    if (g.battleMode === 'trial') g._trialCounterHits = (g._trialCounterHits || 0) + 1
     const cac = ATTR_COLOR[counterAttr.attr]
     emitFlash(g, 'counter', { color: cac ? cac.main : '#ffd700', timer: 10 })
   }
@@ -824,11 +826,6 @@ function applyFinalDamage(g, dmgMap, heal) {
         }
       }
     })
-    if (g.runBuffs.postBattleHealPct > 0) {
-      g.heroHp = Math.min(g.heroMaxHp, g.heroHp + Math.round(g.heroMaxHp * g.runBuffs.postBattleHealPct / 100))
-    }
-    g.runBuffs.nextDmgReducePct = 0
-    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReducePct')
     return
   }
   settle(g)
@@ -1211,7 +1208,7 @@ function applyEnemySkill(g, skillKey) {
   const sk = ENEMY_SKILLS[skillKey]
   if (!sk) return
   // 法宝immuneDebuff：免疫所有负面效果（dot/debuff/stun/seal等，不拦截buff/selfHeal/convert/breakBead/aoe）
-  const negTypes = ['dot','debuff','stun','seal','sealRow','sealAttr','sealAll']
+  const negTypes = ['dot','debuff','stun','seal','sealRow','sealAttr','sealAll','petSeal']
   if (g.weapon && g.weapon.type === 'immuneDebuff' && negTypes.includes(sk.type)) {
     emitNotice(g, { x:W*0.5, y:H*0.5, text:'免疫！', color:'#40e8ff' })
     return
@@ -1255,6 +1252,24 @@ function applyEnemySkill(g, skillKey) {
     case 'stun':
       applyStunToHero(g, sk.dur)
       break
+    case 'petSeal': {
+      const available = (g.pets || [])
+        .map((p, idx) => ({ p, idx }))
+        .filter(item => item.p && !isPetSealed(g, item.p, item.idx))
+      if (available.length > 0) {
+        const pick = available[Math.floor(Math.random() * available.length)]
+        g.heroBuffs.push({
+          type: 'petSeal',
+          name: sk.name,
+          petId: pick.p.id,
+          petIdx: pick.idx,
+          dur: sk.dur || 2,
+          bad: true,
+        })
+        emitNotice(g, { x:W*0.5, y:H*0.5, text:`${pick.p.name}被封印！`, color:'#b44dff', scale:1.5, _initScale:1.5 })
+      }
+      break
+    }
     case 'selfHeal':
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + Math.round(g.enemy.maxHp * (sk.pct || ENEMY_SELF_HEAL_DEFAULT_PCT) / 100)); break
     case 'breakBead':
@@ -1492,6 +1507,7 @@ function enterBattle(g, enemyData) {
     ? g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
     : null
   g.lastSpeedKill = false; g.lastTurnCount = 0
+  g._postBattleRunBuffsApplied = false
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null
   g._pendingEnemyAtk = null
   g.elimQueue = []; g.elimAnimCells = null

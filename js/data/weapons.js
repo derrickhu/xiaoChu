@@ -80,6 +80,9 @@ const WEAPONS = [
   { id:'w48', name:'镇岳金印',   desc:'每5层，全队攻击+5%',                type:'perFloorBuff',  per:5, pct:5, field:'atk' },
   { id:'w49', name:'九鼎神印',   desc:'每5层血量上限+5%',                  type:'perFloorBuff',  per:5, pct:5, field:'hpMax' },
   { id:'w50', name:'玄冰琉璃',   desc:'每回合概率挡一次伤害',              type:'blockChance',   chance:20 },
+
+  // --- 天机试炼专属 ---
+  { id:'w51', name:'天机罗盘',   desc:'克制伤害+18%；5 Combo以上伤害+10%', type:'counterComboDmgUp', counterPct:18, comboPct:10, minCombo:5 },
 ]
 
 // ===== 从 balance/weaponBase.js 同步数值面板 =====
@@ -114,9 +117,12 @@ const WEAPON_RARITY = {
 
 // w48/w49 为通天塔专属（perFloorBuff），不纳入固定关卡掉落
 const TOWER_ONLY_WEAPONS = ['w48', 'w49']
+// w51 为天机试炼专属，不纳入固定关卡掉落
+const TRIAL_ONLY_WEAPONS = ['w51']
 
 // 获取法宝品质
 function getWeaponRarity(id) {
+  if (TRIAL_ONLY_WEAPONS.includes(id)) return 'SSR'
   if (WEAPON_RARITY.SSR.includes(id)) return 'SSR'
   if (WEAPON_RARITY.SR.includes(id)) return 'SR'
   if (WEAPON_RARITY.R.includes(id)) return 'R'
@@ -132,7 +138,7 @@ function getWeaponsByRarity(rarity) {
 
 // 获取固定关卡可掉落的法宝池（排除通天塔专属）
 function getStageWeaponPool() {
-  return WEAPONS.filter(w => !TOWER_ONLY_WEAPONS.includes(w.id))
+  return WEAPONS.filter(w => !TOWER_ONLY_WEAPONS.includes(w.id) && !TRIAL_ONLY_WEAPONS.includes(w.id))
 }
 
 // 获取所有法宝
@@ -156,11 +162,13 @@ function getDefaultWeaponPickerPreviewId(storage) {
 
 // 随机获取一件法宝（可传入排除ID集合）
 function randomWeapon(excludeIds) {
+  const isBlocked = (id) => TRIAL_ONLY_WEAPONS.includes(id) || (excludeIds && excludeIds.has(id))
   if (excludeIds && excludeIds.size > 0) {
-    const pool = WEAPONS.filter(w => !excludeIds.has(w.id))
+    const pool = WEAPONS.filter(w => !isBlocked(w.id))
     if (pool.length > 0) return { ...pool[Math.floor(Math.random() * pool.length)] }
   }
-  return { ...WEAPONS[Math.floor(Math.random() * WEAPONS.length)] }
+  const pool = WEAPONS.filter(w => !isBlocked(w.id))
+  return { ...pool[Math.floor(Math.random() * pool.length)] }
 }
 
 // 按品质随机一件法宝（用于固定关卡掉落）
@@ -183,6 +191,7 @@ module.exports = {
   WEAPONS,
   WEAPON_RARITY,
   TOWER_ONLY_WEAPONS,
+  TRIAL_ONLY_WEAPONS,
   getAllWeapons,
   getWeaponById,
   getDefaultWeaponPickerPreviewId,

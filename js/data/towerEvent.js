@@ -65,6 +65,27 @@ function getSeasonSRPet() {
   return getPetById(s.sr)
 }
 
+function getMilestoneRewards(milestone) {
+  if (!milestone) return []
+  if (Array.isArray(milestone.rewards) && milestone.rewards.length > 0) {
+    return milestone.rewards.map(r => ({ ...r }))
+  }
+  return [{ type: milestone.type, count: milestone.count }]
+}
+
+function getTowerMilestoneRewardLabel(milestone) {
+  if (!milestone) return ''
+  const ssrPet = getSeasonSSRPet()
+  const srPet = getSeasonSRPet()
+  return getMilestoneRewards(milestone).map(reward => {
+    if (reward.type === 'soulStone') return `灵石×${reward.count || 0}`
+    if (reward.type === 'srFrag') return `${srPet ? srPet.name : '本周SR'}碎片×${reward.count || 0}`
+    if (reward.type === 'ssrFrag') return `SSR随机碎片×${reward.count || 0}`
+    if (reward.type === 'ssrPet') return `${ssrPet ? ssrPet.name : '本周SSR'}整宠×1`
+    return '奖励'
+  }).join(' + ')
+}
+
 /**
  * 给定已达楼层和已领取列表，返回可领取的新里程碑数组
  */
@@ -90,6 +111,8 @@ function getNextMilestonePreview(progressFloor, claimedFloors) {
   if (!next) return null
   return {
     ...next,
+    rewards: getMilestoneRewards(next),
+    rewardLabel: getTowerMilestoneRewardLabel(next),
     floorsLeft: Math.max(0, next.floor - progressFloor),
   }
 }
@@ -111,6 +134,8 @@ module.exports = {
   getTowerEventCountdownLabel,
   getSeasonSSRPet,
   getSeasonSRPet,
+  getMilestoneRewards,
+  getTowerMilestoneRewardLabel,
   getClaimableMilestones,
   getMilestonesAtFloor,
   getNextMilestonePreview,

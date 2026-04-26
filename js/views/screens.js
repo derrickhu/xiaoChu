@@ -698,7 +698,12 @@ function _drawTowerRewardPanel(g, c, R, W, H, S, panelTop, at, fadeIn) {
       }
 
       c.textAlign = 'left'; c.textBaseline = 'middle'
-      if (er.type === 'ssrPet') {
+      if (er.type === 'soulStone') {
+        c.fillStyle = '#2E8B57'; c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+        c.fillText(`灵石 ×${er.count}`, iconX + iconSz + 8 * S, iconCY + iconSz / 2)
+        c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${9*S}px "PingFang SC",sans-serif`
+        c.fillText(`${er.floor}层 里程碑`, px + pw - pad, iconCY + iconSz / 2)
+      } else if (er.type === 'ssrPet') {
         c.fillStyle = '#FFD700'; c.font = `bold ${12*S}px "PingFang SC",sans-serif`
         c.fillText(`SSR 整宠「${petName}」`, iconX + iconSz + 8 * S, iconCY + iconSz / 2)
         c.textAlign = 'right'; c.fillStyle = '#E8C547'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`

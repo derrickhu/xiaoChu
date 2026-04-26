@@ -22,7 +22,24 @@ GEMINI_IMAGE_REST_ONLY=1 python3 ~/.cursor/skills/gemini-image-gen/scripts/gener
   --model gemini-3.1-flash-image-preview
 ```
 
-脚本参数见 `~/.cursor/skills/gemini-image-gen/SKILL.md`（代理、NO_PROXY、REST_ONLY 等）。
+脚本参数见 `~/.cursor/skills/gemini-image-gen/SKILL.md`（代理、NO_PROXY、REST_ONLY、参考图 `--image` 等）。
+
+## 参考图生图规范
+
+用户提供 UI 原型、截图、风格参考图、角色参考图时，默认必须使用参考图生图：
+
+```bash
+GEMINI_IMAGE_REST_ONLY=1 python3 ~/.cursor/skills/gemini-image-gen/scripts/generate_images.py \
+  --prompt-file docs/prompt/xxx_prompt.txt \
+  --image /path/to/reference.png \
+  --output /Users/huyi/dk_proj/game_assets/xiaochu/assets/backgrounds/sources/xxx_source.png \
+  --aspect-ratio 16:9 \
+  --model gemini-3.1-flash-image-preview
+```
+
+- 高质量 UI / 宣传图优先用 `gemini-3-pro-image-preview` 试一次，不稳定再退回 `gemini-3.1-flash-image-preview`。
+- UI 底图、卡面、背景图默认写入：`NO TEXT, no labels, no captions, no writing anywhere in the image`。
+- 多张参考图先做 contact sheet，再作为单张 `--image` 输入，避免模型只看其中一张。
 
 ## 每日任务图标
 

@@ -47,6 +47,7 @@ function findEnemyControlBuff(g) {
 function applyStunToEnemy(g, baseDur, opts) {
   opts = opts || {}
   if (!g.enemy || g.enemy.hp <= 0) return 'skipped'
+  if (g.enemy.immuneControl) return 'immune'
   let dur = baseDur | 0
   if (dur <= 0) return 'skipped'
   const controlType = CONTROL_TYPES.includes(opts.controlType) ? opts.controlType : 'stun'

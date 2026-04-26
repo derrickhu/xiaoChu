@@ -198,12 +198,18 @@ function calcAttrPreDefense(ctx, attr, baseDmg, options) {
     const enemyAttr = ctx.enemy.attr
     if (COUNTER_MAP[attr] === enemyAttr) {
       dmg *= COUNTER_MUL
+      if (ctx.weapon && ctx.weapon.type === 'counterComboDmgUp') {
+        dmg *= 1 + (ctx.weapon.counterPct || 0) / 100
+      }
       dmg *= 1 + ((ctx.runBuffs && ctx.runBuffs.counterDmgPct) || 0) / 100
       isCounter = true
     } else if (COUNTER_BY[attr] === enemyAttr) {
       dmg *= COUNTERED_MUL
       isCountered = true
     }
+  }
+  if (ctx.weapon && ctx.weapon.type === 'counterComboDmgUp' && ctx.combo >= (ctx.weapon.minCombo || 5)) {
+    dmg *= 1 + (ctx.weapon.comboPct || 0) / 100
   }
 
   return {

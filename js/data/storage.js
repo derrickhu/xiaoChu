@@ -56,7 +56,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 27
+const CURRENT_VERSION = 29
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -170,6 +170,16 @@ function defaultPersist() {
     towerEvent: {
       seasonIndex: -1,         // 当前赛季序号（-1 表示从未初始化）
       claimed: [],             // 已领取的里程碑层数: [5, 10, ...]
+    },
+    // 天机试炼：双周赛季玩法进度
+    trial: {
+      seasonId: '',
+      seasonScore: 0,
+      bestScore: 0,
+      bestFloor: 0,
+      bestRun: null,
+      claimed: [],
+      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
     },
     // 万能碎片：可用于任意灵宠升星的通用材料
     universalFragment: 0,
@@ -475,6 +485,38 @@ const migrations = {
     if ((cult.level || 0) >= 60) {
       d.cultMigrationCeremonyPending = true
     }
+  },
+  // v27→v28：天机试炼赛季进度
+  27: (d) => {
+    if (!d.trial) {
+      d.trial = {
+        seasonId: '',
+        seasonScore: 0,
+        bestScore: 0,
+        bestFloor: 0,
+        bestRun: null,
+        claimed: [],
+        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+      }
+    }
+  },
+  // v28→v29：天机试炼奖励轨道改为赛季累计分，每日只计入当日最佳增量
+  28: (d) => {
+    if (!d.trial) {
+      d.trial = {
+        seasonId: '',
+        seasonScore: 0,
+        bestScore: 0,
+        bestFloor: 0,
+        bestRun: null,
+        claimed: [],
+        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+      }
+    }
+    if (typeof d.trial.seasonScore !== 'number') d.trial.seasonScore = 0
+    if (!d.trial.daily) d.trial.daily = { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} }
+    if (typeof d.trial.daily.bestScore !== 'number') d.trial.daily.bestScore = 0
+    if (!d.trial.daily.questDone) d.trial.daily.questDone = {}
   },
 }
 
@@ -2168,6 +2210,127 @@ class Storage {
     }
   }
 
+  // ===== 天机试炼 =====
+
+  _defaultTrialState(seasonId) {
+    return {
+      seasonId: seasonId || '',
+      seasonScore: 0,
+      bestScore: 0,
+      bestFloor: 0,
+      bestRun: null,
+      claimed: [],
+      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+    }
+  }
+
+  _refreshTrial(seasonId) {
+    const sid = seasonId || (require('./trialSeason').getCurrentTrialSeason().id)
+    if (!this._d.trial || this._d.trial.seasonId !== sid) {
+      this._d.trial = this._defaultTrialState(sid)
+    }
+    const today = localDateKey()
+    if (!this._d.trial.daily || this._d.trial.daily.date !== today) {
+      this._d.trial.daily = { date: today, runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} }
+    }
+    if (typeof this._d.trial.seasonScore !== 'number') this._d.trial.seasonScore = 0
+    if (typeof this._d.trial.daily.bestScore !== 'number') this._d.trial.daily.bestScore = 0
+    if (!this._d.trial.daily.questDone) this._d.trial.daily.questDone = {}
+    if (!Array.isArray(this._d.trial.claimed)) this._d.trial.claimed = []
+    return this._d.trial
+  }
+
+  getTrialState(seasonId) {
+    return this._refreshTrial(seasonId)
+  }
+
+  isTrialUnlocked() {
+    const season = require('./trialSeason').getCurrentTrialSeason()
+    return this.isStageCleared(season.unlockStageId)
+  }
+
+  isTrialFirstRunToday(seasonId) {
+    const st = this._refreshTrial(seasonId)
+    return !st.daily.firstHalfUsed && (st.daily.runs || 0) === 0
+  }
+
+  startTrialRun(seasonId) {
+    const trialSeason = require('./trialSeason')
+    const season = trialSeason.getCurrentTrialSeason()
+    const sid = seasonId || season.id
+    if (!this.isTrialUnlocked()) return { ok: false, reason: 'locked' }
+    const cost = trialSeason.getTrialStaminaCost(this)
+    if (!this.consumeStamina(cost)) return { ok: false, reason: 'stamina', cost }
+    const st = this._refreshTrial(sid)
+    st.daily.runs = (st.daily.runs || 0) + 1
+    if (cost === season.firstDailyStaminaCost) st.daily.firstHalfUsed = true
+    this._save()
+    return { ok: true, cost }
+  }
+
+  grantTrialRewards(tiers) {
+    const granted = []
+    const trialSeason = require('./trialSeason')
+    const trialAttrs = (trialSeason.getDailyAttrTheme().enemyAttrs || []).filter(Boolean)
+    for (const tier of tiers || []) {
+      for (const reward of tier.rewards || []) {
+        const item = { ...reward }
+        if (reward.type === 'soulStone') this.addSoulStone(reward.count || 0)
+        else if (reward.type === 'universalFragment') this.addUniversalFragment(reward.count || 0)
+        else if (reward.type === 'awakenStone') this.addAwakenStone(reward.count || 0)
+        else if (reward.type === 'randomFragment') {
+          const got = this.addRandomFragmentsByAttrs(reward.count || 0, trialAttrs)
+          item.attrs = trialAttrs.slice()
+          item.petId = got && got.petId
+          item.attr = got && got.attr
+        } else if (reward.type === 'weapon') {
+          item.isNew = this.addWeapon(reward.id)
+          if (!item.isNew) {
+            item.duplicateSoulStone = 500
+            this.addSoulStone(item.duplicateSoulStone)
+          }
+        }
+        granted.push(item)
+      }
+    }
+    return granted
+  }
+
+  settleTrialRun(seasonId, result) {
+    const trialSeason = require('./trialSeason')
+    const st = this._refreshTrial(seasonId)
+    const score = (result && result.score) || 0
+    const scoreParts = (result && result.scoreParts) || {}
+    const battleScore = Math.max(0, score - (scoreParts.dailyQuest || 0))
+    const prevDailyBest = st.daily.bestScore || 0
+    const battleScoreAdded = Math.max(0, battleScore - prevDailyBest)
+    if (battleScoreAdded > 0) {
+      st.daily.bestScore = battleScore
+    }
+    let questScoreAdded = 0
+    st.daily.questDone = st.daily.questDone || {}
+    for (const quest of (result && result.dailyQuestResults) || []) {
+      if (quest && quest.done && !st.daily.questDone[quest.id]) {
+        st.daily.questDone[quest.id] = true
+        questScoreAdded += quest.score || 0
+      }
+    }
+    const scoreAdded = battleScoreAdded + questScoreAdded
+    if (scoreAdded > 0) {
+      st.seasonScore = (st.seasonScore || 0) + scoreAdded
+    }
+    if (score > (st.bestScore || 0)) {
+      st.bestScore = score
+      st.bestFloor = (result && result.floor) || 0
+      st.bestRun = result
+    }
+    const tiers = trialSeason.getClaimableTrialRewards(st.seasonScore || 0, st.claimed)
+    for (const tier of tiers) st.claimed.push(tier.score)
+    this._save()
+    const rewards = this.grantTrialRewards(tiers)
+    return { tiers, rewards, bestScore: st.bestScore, seasonScore: st.seasonScore || 0, scoreAdded }
+  }
+
   // ===== 持久化编队 =====
 
   get savedStageTeam() {
@@ -2552,6 +2715,31 @@ class Storage {
     const petId = rollPetByRarity(rarityWeights)
     this.addFragmentSmart(petId, count)
     return { petId, count }
+  }
+
+  /**
+   * 按指定属性池随机发放碎片，供属性主题活动使用。
+   */
+  addRandomFragmentsByAttrs(count, attrs, rarityWeights) {
+    const { PETS, getPetRarity } = require('./pets')
+    const { DEFAULT_RANDOM_FRAG_WEIGHTS } = require('./chestConfig')
+    const attrList = (attrs || []).filter(attr => PETS[attr] && PETS[attr].length > 0)
+    if (attrList.length === 0) return this.addRandomFragments(count, rarityWeights)
+    const weights = rarityWeights || DEFAULT_RANDOM_FRAG_WEIGHTS
+    const totalW = (weights.R || 0) + (weights.SR || 0) + (weights.SSR || 0)
+    let rarity = 'R'
+    if (totalW > 0) {
+      const roll = Math.random() * totalW
+      if (roll < (weights.SSR || 0)) rarity = 'SSR'
+      else if (roll < (weights.SSR || 0) + (weights.SR || 0)) rarity = 'SR'
+    }
+    let candidates = attrList.flatMap(attr => PETS[attr].filter(p => getPetRarity(p.id) === rarity))
+    if (candidates.length === 0) candidates = attrList.flatMap(attr => PETS[attr])
+    const pet = candidates[Math.floor(Math.random() * candidates.length)]
+    const petId = pet && pet.id
+    if (!petId) return this.addRandomFragments(count, rarityWeights)
+    this.addFragmentSmart(petId, count)
+    return { petId, count, attr: pet.attr }
   }
 
   /** 获取碎片银行全部数据 */

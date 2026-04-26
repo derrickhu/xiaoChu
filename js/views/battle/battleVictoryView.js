@@ -14,6 +14,7 @@ const MusicMgr = require('../../runtime/music')
 
 /** 通天塔至少胜一层则计「挑战通天塔1次」日任（每日进度封顶 1，避免多层刷显示） */
 function _bumpTowerDailyTaskOnce(g) {
+  if (g.battleMode === 'trial') return
   if (!g.storage || !g.storage.addDailyTaskProgress) return
   const prog = g.storage.dailyTaskProgress
   if ((prog.tasks.tower_1 || 0) >= 1) return
@@ -122,6 +123,15 @@ function _handleTowerFloorVictory(g) {
   g.setScene('towerVictory')
 }
 
+// ===== 天机试炼非最终层胜利：不发随机加成，直接推进短流程 =====
+function _handleTrialFloorVictory(g) {
+  if (g._towerFloorSettlePending) return
+  if (g._enemyDeathAnim) return
+  g._towerFloorSettlePending = true
+  g._victoryAnimTimer = null
+  g._nextFloor()
+}
+
 // ===== 通天塔最终层胜利：等死亡动画后直接结算 =====
 function _handleTowerClearVictory(g) {
   if (g._towerClearSettlePending) return
@@ -144,8 +154,16 @@ function drawVictoryOverlay(g) {
     return
   }
 
-  if (g.floor >= MAX_FLOOR) {
+  const maxFloor = g.battleMode === 'trial'
+    ? ((g._trialRun && g._trialRun.maxFloor) || 10)
+    : MAX_FLOOR
+  if (g.floor >= maxFloor) {
     _handleTowerClearVictory(g)
+    return
+  }
+
+  if (g.battleMode === 'trial') {
+    _handleTrialFloorVictory(g)
     return
   }
 

@@ -30,8 +30,11 @@ const memoryGuard = require('./battleMemoryGuard')
 const ViewEnv = require('../views/env')
 const { isCurrentUserGM } = require('../data/gmConfig')
 const {
-  getCurrentSeason, getClaimableMilestones, getMilestonesAtFloor, pickRandomReservedSSR,
+  getCurrentSeason, getClaimableMilestones, getMilestonesAtFloor, getMilestoneRewards, pickRandomReservedSSR,
 } = require('../data/towerEvent')
+const {
+  getCurrentTrialSeason, getDailyQuestForDate, generateTrialFloorEvent, calcTrialScore,
+} = require('../data/trialSeason')
 
 /** 轻量深拷贝（仅用于可 JSON 序列化的游戏状态对象） */
 function _deepClone(obj) {
@@ -118,12 +121,26 @@ function syncPoolLinkedRunPet(g, pet) {
   }
 }
 
-function startRun(g, petIds) {
+function _getRunMaxFloor(g) {
+  return g.battleMode === 'trial' ? ((g._trialRun && g._trialRun.maxFloor) || getCurrentTrialSeason().maxFloor) : MAX_FLOOR
+}
+
+function startRun(g, petIds, opts) {
+  opts = opts || {}
+  const isTrial = opts.mode === 'trial'
   memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'start_run' })
   g._battleFxLowMemory = false
-  g.battleMode = 'roguelike'
+  g.battleMode = isTrial ? 'trial' : 'roguelike'
   g.floor = 0
   g.cleared = false
+  g._maxCombo = 0
+  g._trialCounterHits = 0
+  g._trialResult = null
+  g._trialRun = isTrial ? {
+    seasonId: opts.seasonId || getCurrentTrialSeason().id,
+    maxFloor: opts.maxFloor || getCurrentTrialSeason().maxFloor,
+    dailyQuestId: opts.dailyQuestId || null,
+  } : null
   g._isGM = isCurrentUserGM()
   g._towerFloorResult = null
   g._towerFloorSettlePending = false
@@ -153,6 +170,10 @@ function startRun(g, petIds) {
   g.realmLevel = 1
   g.heroBuffs = []; g.enemyBuffs = []
   g.runBuffs = makeDefaultRunBuffs()
+  if (isTrial) {
+    const season = getCurrentTrialSeason()
+    g.runBuffs.counterDmgPct += (season.rules && season.rules.counterDmgPct) || 0
+  }
   g.runBuffLog = []
   g.skipNextBattle = false; g.nextStunEnemy = false; g.nextDmgDouble = false
   g.tempRevive = false; g.immuneOnce = false; g.comboNeverBreak = false
@@ -193,6 +214,25 @@ function startRun(g, petIds) {
   nextFloor(g)
 }
 
+function startTrialRun(g, petIds) {
+  const season = getCurrentTrialSeason()
+  const dailyQuest = getDailyQuestForDate()
+  const started = g.storage.startTrialRun(season.id)
+  if (!started || !started.ok) {
+    if (started && started.reason === 'stamina') P.showGameToast(`体力不足，需要 ${started.cost} 点`, { type: 'warn' })
+    else P.showGameToast('天机试炼尚未解锁', { type: 'warn' })
+    g.setScene('trialDetail')
+    return false
+  }
+  startRun(g, petIds, {
+    mode: 'trial',
+    seasonId: season.id,
+    maxFloor: season.maxFloor,
+    dailyQuestId: dailyQuest && dailyQuest.id,
+  })
+  return true
+}
+
 function nextFloor(g) {
   memoryGuard.clearBattleTransientState(g, { clearTex: g.floor > 0 && g.floor % 5 === 0, reason: 'next_floor' })
   restoreBattleHpMax(g)
@@ -207,7 +247,8 @@ function nextFloor(g) {
   g.rewards = null; g.selectedReward = -1; g._rewardDetailShow = null  // 清除奖励状态
   g.floor++
   // 通关检测：超过最大层数即为通关
-  if (g.floor > MAX_FLOOR) {
+  const runMaxFloor = _getRunMaxFloor(g)
+  if (g.floor > runMaxFloor) {
     g.cleared = true
     endRun(g)
     return
@@ -241,7 +282,7 @@ function nextFloor(g) {
       g.heroMaxHp += inc; g.heroHp += inc
     }
   }
-  g.curEvent = generateFloorEvent(g.floor)
+  g.curEvent = g.battleMode === 'trial' ? generateTrialFloorEvent(g.floor) : generateFloorEvent(g.floor)
   if (g.skipNextBattle && (g.curEvent.type === 'battle' || g.curEvent.type === 'elite')) {
     g.skipNextBattle = false
     g.curEvent = { type: EVENT_TYPE.ADVENTURE, data: ADVENTURES[Math.floor(Math.random()*ADVENTURES.length)] }
@@ -257,6 +298,12 @@ function nextFloor(g) {
   g._floorStartExp = g.runExp || 0
   g._floorStartCombatExp = (g._runElimExp || 0) + (g._runComboExp || 0) + (g._runKillExp || 0)
   g._expFloats = []
+  if (g.battleMode === 'trial' && g.curEvent
+    && (g.curEvent.type === EVENT_TYPE.BATTLE || g.curEvent.type === EVENT_TYPE.ELITE || g.curEvent.type === EVENT_TYPE.BOSS)
+    && typeof g._enterBattle === 'function') {
+    g._enterBattle(g.curEvent.data)
+    return
+  }
   g.setScene('event')
 }
 
@@ -275,7 +322,7 @@ function restoreBattleHpMax(g) {
  */
 function settleExp(g) {
   const cfg = TOWER_SETTLE
-  const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+  const finalFloor = g.cleared ? _getRunMaxFloor(g) : g.floor
   const layerExp = finalFloor * cfg.cultExp.perFloor
   const clearBonus = g.cleared ? cfg.cultExp.clearBonus : 0
   const rawTotal = (g.runExp || 0) + layerExp + clearBonus
@@ -327,30 +374,36 @@ function _grantTowerEventMilestones(g, milestones, opts = {}) {
 
   const granted = []
   for (const m of milestones) {
-    const reward = { floor: m.floor, type: m.type, count: m.count }
+    const milestoneRewards = getMilestoneRewards(m)
+    for (const cfg of milestoneRewards) {
+      const reward = { floor: m.floor, type: cfg.type, count: cfg.count || 0 }
 
-    if (m.type === 'srFrag') {
-      g.storage.addFragmentSmart(season.sr, m.count)
-      reward.petId = season.sr
-    } else if (m.type === 'ssrFrag') {
-      const targetId = pickRandomReservedSSR()
-      g.storage.addFragmentSmart(targetId, m.count)
-      reward.petId = targetId
-    } else if (m.type === 'ssrPet') {
-      g.storage.addToPetPool(season.ssr, 'towerEvent')
-      reward.petId = season.ssr
+      if (cfg.type === 'soulStone') {
+        g.storage.addSoulStone(cfg.count || 0)
+      } else if (cfg.type === 'srFrag') {
+        g.storage.addFragmentSmart(season.sr, cfg.count || 0)
+        reward.petId = season.sr
+      } else if (cfg.type === 'ssrFrag') {
+        const targetId = pickRandomReservedSSR()
+        g.storage.addFragmentSmart(targetId, cfg.count || 0)
+        reward.petId = targetId
+      } else if (cfg.type === 'ssrPet') {
+        g.storage.addToPetPool(season.ssr, 'towerEvent')
+        reward.petId = season.ssr
+      }
+      granted.push(reward)
     }
 
     g.storage.claimTowerMilestone(m.floor)
-    granted.push(reward)
   }
 
   if (recordRun && granted.length > 0) {
-    const existingFloors = new Set((g._towerJustClaimedMilestones || []).map(item => item.floor))
+    const existingKeys = new Set((g._towerJustClaimedMilestones || []).map(item => `${item.floor}_${item.type}_${item.petId || ''}`))
     granted.forEach((reward) => {
-      if (!existingFloors.has(reward.floor)) {
+      const key = `${reward.floor}_${reward.type}_${reward.petId || ''}`
+      if (!existingKeys.has(key)) {
         g._towerJustClaimedMilestones.push(reward)
-        existingFloors.add(reward.floor)
+        existingKeys.add(key)
       }
     })
   }
@@ -465,7 +518,45 @@ function endRun(g) {
   // 阵亡结算 / 最终层通关都会直接走到这里，绕过 nextFloor 的 restoreBattleHpMax；
   // 主动清一次，防止 _baseHeroMaxHp / heroMaxHp 膨胀状态遗留到下一局 startRun
   restoreBattleHpMax(g)
-  const finalFloor = g.cleared ? MAX_FLOOR : g.floor
+  const finalFloor = g.cleared ? _getRunMaxFloor(g) : g.floor
+  if (g.battleMode === 'trial') {
+    const season = getCurrentTrialSeason()
+    const runStats = {
+      seasonId: season.id,
+      floor: finalFloor,
+      cleared: !!g.cleared,
+      totalTurns: g.runTotalTurns || 0,
+      maxCombo: g._maxCombo || 0,
+      counterHits: g._trialCounterHits || 0,
+      dailyQuestId: g._trialRun && g._trialRun.dailyQuestId,
+    }
+    const scoreInfo = calcTrialScore(runStats)
+    const settle = g.storage.settleTrialRun(season.id, {
+      ...runStats,
+      score: scoreInfo.total,
+      scoreParts: scoreInfo.parts,
+      dailyQuestDone: scoreInfo.dailyQuestDone,
+      dailyQuestResults: scoreInfo.dailyQuestResults,
+      endedAt: Date.now(),
+    })
+    g.storage.clearRunState()
+    g._trialResult = {
+      ...runStats,
+      score: scoreInfo.total,
+      scoreParts: scoreInfo.parts,
+      dailyQuestDone: scoreInfo.dailyQuestDone,
+      dailyQuestResults: scoreInfo.dailyQuestResults,
+      seasonScore: settle.seasonScore || 0,
+      scoreAdded: settle.scoreAdded || 0,
+      rewardTiers: settle.tiers || [],
+      rewards: settle.rewards || [],
+      bestScore: settle.bestScore || scoreInfo.total,
+    }
+    MusicMgr.playGameOver()
+    g.setScene('trialResult')
+    if (g.events) g.events.emit('trial:end', g._trialResult)
+    return
+  }
   // 记录旧纪录用于判断新高：updateBestFloor 内部只更新不返回，这里先比对
   const prevBestFloor = g.storage.bestFloor || 0
   g.storage.updateBestFloor(finalFloor, g.pets, g.weapon, g.cleared ? g.runTotalTurns : 0)
@@ -519,6 +610,13 @@ function saveAndExit(g) {
     g.showExitDialog = false
     g.bState = 'none'
     g.setScene('title')
+    return
+  }
+  if (g.battleMode === 'trial') {
+    g.showExitDialog = false
+    g.bState = 'none'
+    g._trialResult = null
+    g.setScene('trialDetail')
     return
   }
   restoreBattleHpMax(g)
@@ -808,6 +906,7 @@ function _safeRun(fn) {
 module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
   startRun: _safeRun(startRun),
+  startTrialRun: _safeRun(startTrialRun),
   nextFloor: _safeRun(nextFloor),
   restoreBattleHpMax,
   settleExp: _safeRun(settleExp),

@@ -6,7 +6,7 @@
  */
 const V = require('./env')
 const { ATTR_COLOR } = require('../data/tower')
-const { getCurrentSeason } = require('../data/towerEvent')
+const { getCurrentSeason, getTowerMilestoneRewardLabel } = require('../data/towerEvent')
 const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { drawCelebrationBackdrop, drawRewardRow, drawBuffCard, drawShareIconBtn } = require('./uiComponents')
 const shareCelebrate = require('./shareCelebrate')
@@ -32,7 +32,7 @@ function _getMilestoneHintData(d) {
       const pet = season ? getPetById(season.sr) : null
       return {
         badge: '本层里程碑',
-        title: pet ? `SR「${pet.name}」碎片 ×${current.count}` : `SR 碎片 ×${current.count}`,
+        title: getTowerMilestoneRewardLabel(current) || (pet ? `SR「${pet.name}」碎片 ×${current.count}` : `SR 碎片 ×${current.count}`),
         detail: '确认奖励后立即发放',
         highlight: true,
         pet: pet,
@@ -41,7 +41,7 @@ function _getMilestoneHintData(d) {
     if (current.type === 'ssrFrag') {
       return {
         badge: '本层里程碑',
-        title: `SSR 随机碎片 ×${current.count}`,
+        title: getTowerMilestoneRewardLabel(current) || `SSR 随机碎片 ×${current.count}`,
         detail: '确认奖励后立即发放',
         highlight: true,
         pet: null,
@@ -51,7 +51,7 @@ function _getMilestoneHintData(d) {
     const pet = season ? getPetById(season.ssr) : null
     return {
       badge: '本层里程碑',
-      title: pet ? `SSR「${pet.name}」整宠` : 'SSR 整宠 ×1',
+      title: getTowerMilestoneRewardLabel(current) || (pet ? `SSR「${pet.name}」整宠` : 'SSR 整宠 ×1'),
       detail: '确认奖励后立即发放',
       highlight: true,
       pet: pet,
@@ -64,7 +64,7 @@ function _getMilestoneHintData(d) {
     const pet = season ? getPetById(season.sr) : null
     return {
       badge: '下一档奖励',
-      title: pet ? `第${next.floor}层 · SR「${pet.name}」碎片 ×${next.count}` : `第${next.floor}层 · SR 碎片 ×${next.count}`,
+      title: `第${next.floor}层 · ${getTowerMilestoneRewardLabel(next) || (pet ? `SR「${pet.name}」碎片 ×${next.count}` : `SR 碎片 ×${next.count}`)}`,
       detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
       highlight: false,
       pet: pet,
@@ -73,7 +73,7 @@ function _getMilestoneHintData(d) {
   if (next.type === 'ssrFrag') {
     return {
       badge: '下一档奖励',
-      title: `第${next.floor}层 · SSR 随机碎片 ×${next.count}`,
+      title: `第${next.floor}层 · ${getTowerMilestoneRewardLabel(next) || `SSR 随机碎片 ×${next.count}`}`,
       detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
       highlight: false,
       pet: null,
@@ -83,7 +83,7 @@ function _getMilestoneHintData(d) {
   const pet = season ? getPetById(season.ssr) : null
   return {
     badge: '下一档奖励',
-    title: pet ? `第${next.floor}层 · SSR「${pet.name}」整宠` : `第${next.floor}层 · SSR 整宠 ×1`,
+    title: `第${next.floor}层 · ${getTowerMilestoneRewardLabel(next) || (pet ? `SSR「${pet.name}」整宠` : `SSR 整宠 ×1`)}`,
     detail: next.floorsLeft > 0 ? `再过${next.floorsLeft}层可领取` : '达成后立即领取',
     highlight: false,
     pet: pet,
@@ -196,10 +196,11 @@ function _drawTowerMilestonePopup(g) {
     }
 
     c.textAlign = 'left'
-    c.fillStyle = reward.type === 'ssrPet' ? '#D89C1D' : (reward.type === 'ssrFrag' ? '#D89C1D' : '#7E5BC6')
+    c.fillStyle = reward.type === 'soulStone' ? '#2E8B57' : (reward.type === 'ssrPet' ? '#D89C1D' : (reward.type === 'ssrFrag' ? '#D89C1D' : '#7E5BC6'))
     c.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
     let text = ''
-    if (reward.type === 'ssrPet') text = `SSR「${pet ? pet.name : '灵宠'}」整宠`
+    if (reward.type === 'soulStone') text = `灵石 ×${reward.count}`
+    else if (reward.type === 'ssrPet') text = `SSR「${pet ? pet.name : '灵宠'}」整宠`
     else if (reward.type === 'ssrFrag') text = `SSR「${pet ? pet.name : '随机灵宠'}」碎片 ×${reward.count}`
     else text = `SR「${pet ? pet.name : '灵宠'}」碎片 ×${reward.count}`
     c.fillText(text, iconX + iconSz + 8 * S, cy)
@@ -207,7 +208,7 @@ function _drawTowerMilestonePopup(g) {
     c.textAlign = 'right'
     c.fillStyle = '#A09070'
     c.font = `${9 * S}px "PingFang SC",sans-serif`
-    c.fillText(reward.type === 'ssrPet' ? '已加入灵宠池' : '已加入灵宠碎片库', panelX + panelW - pad, cy)
+    c.fillText(reward.type === 'soulStone' ? '已加入背包' : (reward.type === 'ssrPet' ? '已加入灵宠池' : '已加入灵宠碎片库'), panelX + panelW - pad, cy)
     cy += lineH
   })
 

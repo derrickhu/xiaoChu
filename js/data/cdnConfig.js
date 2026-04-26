@@ -14,6 +14,7 @@ module.exports = {
     'assets/ui',
     'assets/orbs',
     'assets/battle',
+    'assets/enemies/trial',
     'assets/hero',
     'assets/share',
     'audio',

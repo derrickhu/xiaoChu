@@ -11,6 +11,7 @@ const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
 const { HELP_PAGE_COUNT, dismissStageIntroCard } = require('../views/battleView')
 const { SWAP_ANIM_FRAMES, SWAP_LOGIC_LOCK_FRAMES } = require('../data/battleConfig')
+const { isPetSealed } = require('../engine/battle/petSeal')
 
 function _swapLogicLocked(g) {
   return g.swapAnim && g.swapAnim.t < SWAP_LOGIC_LOCK_FRAMES
@@ -336,7 +337,7 @@ function tBattle(g, type, x, y) {
     for (let i = 0; i < g._petBtnRects.length; i++) {
       if (i < g.pets.length && g._hitRect(x,y,...g._petBtnRects[i])) {
         const pet = g.pets[i]
-        const skillReady = g.bState === 'playerTurn' && !g.dragging && petHasSkill(pet) && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
+        const skillReady = g.bState === 'playerTurn' && !g.dragging && petHasSkill(pet) && !isPetSealed(g, pet, i) && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
         if (type === 'start') {
           g._petSwipeIndex = i
           g._petSwipeStartX = x
@@ -388,7 +389,7 @@ function tBattle(g, type, x, y) {
     }
     if (type === 'move' && g._petSwipeIndex >= 0) {
       const pet = g.pets[g._petSwipeIndex]
-      const skillReady = g.bState === 'playerTurn' && !g.dragging && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
+      const skillReady = g.bState === 'playerTurn' && !g.dragging && !isPetSealed(g, pet, g._petSwipeIndex) && pet.currentCd <= 0 && !g._petSkillWave && !g._skillFlash
       if (skillReady && !g._petSwipeTriggered) {
         const dy = g._petSwipeStartY - y
         if (dy > 30 * V.S) {

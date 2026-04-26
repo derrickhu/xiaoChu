@@ -17,6 +17,26 @@ const { SPEED_KILL_TURNS } = require('../../data/balance/combat')
 
 const DEATH_ANIM_DURATION = 45
 
+function applyPostBattleRunBuffs(g) {
+  if (!g || g._postBattleRunBuffsApplied) return
+  g._postBattleRunBuffsApplied = true
+
+  const rb = g.runBuffs || {}
+  if (rb.postBattleHealPct > 0 && g.heroHp < g.heroMaxHp) {
+    const oldHp = g.heroHp
+    const heal = Math.round(g.heroMaxHp * rb.postBattleHealPct / 100)
+    g.heroHp = Math.min(g.heroMaxHp, g.heroHp + heal)
+    if (g.heroHp > oldHp) {
+      g._heroHpGain = { fromPct: oldHp / g.heroMaxHp, timer: 0 }
+    }
+  }
+
+  if (rb.nextDmgReducePct > 0) {
+    rb.nextDmgReducePct = 0
+    if (g.runBuffLog) g.runBuffLog = g.runBuffLog.filter(e => e.buff !== 'nextDmgReducePct')
+  }
+}
+
 /**
  * 结算战斗胜利。调用方需自行确认 enemy.hp <= 0。
  *
@@ -29,11 +49,14 @@ const DEATH_ANIM_DURATION = 45
  */
 function commitBattleVictory(g, opts) {
   opts = opts || {}
+  if (g.bState === 'victory') return
   // 玩家视角：打了几合就是几合。turnCount 是内部完整 round 计数，需 +1 才对齐玩家直觉。
   const battleTurns = (g.turnCount | 0) + 1
   g.lastTurnCount = battleTurns
   g.lastSpeedKill = opts.speedKillEligible === false ? false : (battleTurns <= SPEED_KILL_TURNS)
   g.runTotalTurns = (g.runTotalTurns || 0) + battleTurns
+
+  applyPostBattleRunBuffs(g)
 
   if (opts.giveExp !== false) {
     // 延迟 require 避开 battle.js ↔ victoryResolver 的循环依赖
@@ -49,4 +72,5 @@ function commitBattleVictory(g, opts) {
 
 module.exports = {
   commitBattleVictory,
+  applyPostBattleRunBuffs,
 }

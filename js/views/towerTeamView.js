@@ -11,6 +11,7 @@ const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = requ
 const { drawGoldBtn } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
 const { TOWER_DAILY } = require('../data/economyConfig')
+const { getTrialStaminaCost } = require('../data/trialSeason')
 const teamPresetBar = require('./teamPresetBar')
 const guideMgr = require('../engine/guideManager')
 const { TEAM_PRESET_MAX } = require('../data/constants')
@@ -120,6 +121,7 @@ function _ensureSelected(g) {
 // ===== 渲染 =====
 function rTowerTeam(g) {
   const { ctx: c, R, W, H, S, safeTop } = V
+  const isTrial = g._towerTeamMode === 'trial'
 
   const poolBg = R.getImg('assets/backgrounds/petpool_bg.jpg')
   if (poolBg && poolBg.width > 0) {
@@ -158,15 +160,15 @@ function rTowerTeam(g) {
   c.fillStyle = '#F5E6C8'; c.font = `bold ${15*S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3 * S
-  c.strokeText('编队', W / 2, cy + 18 * S)
-  c.fillText('编队', W / 2, cy + 18 * S)
+  c.strokeText(isTrial ? '试炼编队' : '编队', W / 2, cy + 18 * S)
+  c.fillText(isTrial ? '试炼编队' : '编队', W / 2, cy + 18 * S)
 
-  const usedRuns = g.storage.getTowerDailyRuns()
+  const usedRuns = isTrial ? ((g.storage.getTrialState().daily || {}).runs || 0) : g.storage.getTowerDailyRuns()
   const freeLeft = Math.max(0, TOWER_DAILY.freeRuns - usedRuns)
-  c.fillStyle = freeLeft > 0 ? 'rgba(255,240,200,0.7)' : 'rgba(255,120,80,0.8)'
+  c.fillStyle = isTrial || freeLeft > 0 ? 'rgba(255,240,200,0.7)' : 'rgba(255,120,80,0.8)'
   c.font = `${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'right'
-  c.fillText(`今日 ${usedRuns}/${TOWER_DAILY.freeRuns}`, W - px, cy + 18 * S)
+  c.fillText(isTrial ? `今日试炼 ${usedRuns} 次` : `今日 ${usedRuns}/${TOWER_DAILY.freeRuns}`, W - px, cy + 18 * S)
   c.restore()
   cy += 40 * S
 
@@ -390,8 +392,33 @@ function rTowerTeam(g) {
     c.fillStyle = '#FFF5E0'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2 * S
-    c.strokeText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
-    c.fillText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+    if (isTrial) {
+      const cost = getTrialStaminaCost(g.storage)
+      const icon = R.getImg('assets/ui/icon_stamina.png')
+      const label = '出发'
+      const costText = String(cost)
+      c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      const labelW = c.measureText(label).width
+      c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      const costW = c.measureText(costText).width
+      const iconSz = 17 * S
+      const gap = 8 * S
+      const totalW = labelW + gap + iconSz + 3 * S + costW
+      let tx = goBtnX + (goBtnW - totalW) / 2
+      const midY = goBtnY + goBtnH / 2
+      c.font = `bold ${16*S}px "PingFang SC",sans-serif`
+      c.strokeText(label, tx + labelW / 2, midY)
+      c.fillText(label, tx + labelW / 2, midY)
+      tx += labelW + gap
+      if (icon && icon.width > 0) c.drawImage(icon, tx, midY - iconSz / 2, iconSz, iconSz)
+      tx += iconSz + 3 * S
+      c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.strokeText(costText, tx + costW / 2, midY)
+      c.fillText(costText, tx + costW / 2, midY)
+    } else {
+      c.strokeText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+      c.fillText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+    }
     if (suggestCompleteTeam) {
       c.save()
       const subPulse = 0.72 + 0.28 * Math.sin(Date.now() / TEAM_GUIDE_PULSE_PERIOD)
@@ -900,6 +927,13 @@ function tTowerTeam(g, x, y, type) {
       return
     }
     const sel = _ensureSelected(g)
+    if (g._towerTeamMode === 'trial') {
+      const cost = getTrialStaminaCost(g.storage)
+      if ((g.storage.currentStamina || 0) < cost) {
+        P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })
+        return
+      }
+    }
     const needConfirmIncomplete =
       sel.length < MAX_TEAM && _hasUnpickedPetsInPool(g, sel)
     if (needConfirmIncomplete) {
@@ -912,11 +946,12 @@ function tTowerTeam(g, x, y, type) {
         confirmText: '继续出发',
         cancelText: '去补充',
         timer: 0,
-        onConfirm() { g._startRun(sel) },
+        onConfirm() { if (g._towerTeamMode === 'trial') g._startTrialRun(sel); else g._startRun(sel) },
       }
       return
     }
-    g._startRun(sel)
+    if (g._towerTeamMode === 'trial') g._startTrialRun(sel)
+    else g._startRun(sel)
     return
   }
 
@@ -924,7 +959,12 @@ function tTowerTeam(g, x, y, type) {
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g._towerTeamSelected = null
     g._towerTeamFilter = 'all'
-    g.setScene('title')
+    if (g._towerTeamMode === 'trial') {
+      g._towerTeamMode = null
+      g.setScene('trialDetail')
+    } else {
+      g.setScene('title')
+    }
     return
   }
 

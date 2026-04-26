@@ -45,7 +45,7 @@ const ROLE_FILTERS = [
 
 const PET_POOL_SCROLL_ART = {
   bg: 'assets/backgrounds/petpool_ink_bg.jpg',
-  card: 'assets/ui/pet_card_scroll_bg.png',
+  card: 'assets/ui/pet_card_bg.png',
   filter: 'assets/ui/pet_filter_scroll_bg.png',
   idleBtn: 'assets/ui/btn_pet_idle_scroll.png',
 }
@@ -358,18 +358,21 @@ function rPetPool(g) {
   _rects.rarityFilterRects = []
   _rects.roleFilterRects = []
   c.save()
-  const filterBg = R.getImg(PET_POOL_SCROLL_ART.filter)
   const filterBgX = 6 * S
   const filterBgY = filterY - 12 * S
   const filterBgW = W - 12 * S
   const roleH = 22 * S
   const filterBgH = filterH * 2 + roleH + 42 * S
-  if (filterBg && filterBg.width > 0) {
-    c.drawImage(filterBg, filterBgX, filterBgY, filterBgW, filterBgH)
-  } else {
-    c.fillStyle = 'rgba(222,205,164,0.28)'
-    R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 18 * S); c.fill()
-  }
+  // 原卷轴图纸纹过密，缩放后会形成横向噪声；这里改为干净底板保证筛选文字清晰。
+  const filterGrad = c.createLinearGradient(filterBgX, filterBgY, filterBgX, filterBgY + filterBgH)
+  filterGrad.addColorStop(0, 'rgba(255,247,218,0.88)')
+  filterGrad.addColorStop(0.5, 'rgba(236,216,174,0.78)')
+  filterGrad.addColorStop(1, 'rgba(216,187,132,0.72)')
+  c.fillStyle = filterGrad
+  R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 16 * S); c.fill()
+  c.strokeStyle = 'rgba(170,117,46,0.72)'
+  c.lineWidth = 1.4 * S
+  R.rr(filterBgX, filterBgY, filterBgW, filterBgH, 16 * S); c.stroke()
   for (let i = 0; i < ATTR_FILTERS.length; i++) {
     const f = ATTR_FILTERS[i]
     const fx = 12 * S + i * filterW
@@ -638,27 +641,27 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
     R.rr(x, y, w, h, 8 * S); c.fill()
   }
 
-  // 品质色只做淡淡灵气，避免压过纸札质感
-  const rarityGrad = c.createRadialGradient(x + w / 2, y + h * 0.35, w * 0.1, x + w / 2, y + h * 0.35, w * 0.68)
-  rarityGrad.addColorStop(0, rv.bgGradient[0] + '44')
-  rarityGrad.addColorStop(1, rv.bgGradient[1] + '00')
-  c.fillStyle = rarityGrad
+  // 卡片统一用宣纸金边，品质只放在角标，避免整屏绿/紫/金边过于杂乱。
+  const cardInnerGrad = c.createRadialGradient(x + w / 2, y + h * 0.35, w * 0.08, x + w / 2, y + h * 0.35, w * 0.74)
+  cardInnerGrad.addColorStop(0, 'rgba(255,250,230,0.30)')
+  cardInnerGrad.addColorStop(1, 'rgba(255,250,230,0)')
+  c.fillStyle = cardInnerGrad
   R.rr(x, y, w, h, 8 * S); c.fill()
 
-  // SSR 金色发光效果
+  // 只有 SSR 保留很轻的金色内光，强调稀有但不破坏整体统一感。
   if (rarity === 'SSR' && rv.hasParticles) {
     c.save()
-    c.shadowColor = rv.glowColor
-    c.shadowBlur = 12 * S
-    c.strokeStyle = rv.borderColor
-    c.lineWidth = 2.5 * S
-    R.rr(x, y, w, h, 8 * S); c.stroke()
+    c.shadowColor = 'rgba(255,210,80,0.36)'
+    c.shadowBlur = 8 * S
+    c.strokeStyle = 'rgba(224,164,42,0.72)'
+    c.lineWidth = 1.8 * S
+    R.rr(x + 2 * S, y + 2 * S, w - 4 * S, h - 4 * S, 7 * S); c.stroke()
     c.restore()
   }
 
-  // 品质色边框收敛为纸札内描边
-  c.strokeStyle = rv.borderColor + 'cc'
-  c.lineWidth = 1.4 * S
+  // 统一外框更贴合卷轴/画册风格，品质信息由左上角印章承载。
+  c.strokeStyle = 'rgba(173,125,50,0.82)'
+  c.lineWidth = 1.2 * S
   R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 左上角五行珠子图标（调整位置，贴合卡片内侧）
@@ -881,9 +884,9 @@ function _drawGhostCard(c, R, S, W, x, y, w, h, petId, fragCount) {
   c.fillStyle = gRarityGrad
   R.rr(x, y, w, h, 8 * S); c.fill()
 
-  // 品质色边框
-  c.strokeStyle = rv.borderColor + 'aa'
-  c.lineWidth = 1.4 * S
+  // 未拥有卡片也使用统一金边，只通过透明度和碎片进度表达状态。
+  c.strokeStyle = 'rgba(173,125,50,0.68)'
+  c.lineWidth = 1.2 * S
   R.rr(x, y, w, h, 8 * S); c.stroke()
 
   // 头像

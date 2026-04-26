@@ -54,6 +54,7 @@ const WEAPON_BASE_STATS = {
   w48: { type: "perFloorBuff", per: 5, pct: 5, field: "atk" },
   w49: { type: "perFloorBuff", per: 5, pct: 5, field: "hpMax" },
   w50: { type: "blockChance", chance: 20 },
+  w51: { type: "counterComboDmgUp", counterPct: 18, comboPct: 10, minCombo: 5 },
 }
 
 module.exports = { WEAPON_BASE_STATS }

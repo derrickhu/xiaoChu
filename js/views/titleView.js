@@ -11,7 +11,8 @@ const { getBrowsableStages, getStageBossAvatar, getStageBossName, RATING_ORDER, 
 const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../data/constants')
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
-const { getCurrentSeason, getSeasonSSRPet, getSeasonSRPet, getTowerEventCountdownLabel, getNextMilestonePreview } = require('../data/towerEvent')
+const { getCurrentSeason, getSeasonSSRPet, getTowerEventCountdownLabel, getNextMilestonePreview } = require('../data/towerEvent')
+const { getTrialStaminaCost, getTrialSeasonProgress, getDailyAttrTheme } = require('../data/trialSeason')
 const { getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { ATTR_COLOR } = require('../data/tower')
 const { isCurrentUserGM } = require('../data/gmConfig')
@@ -68,10 +69,28 @@ const HOME_RIGHT_ENTRY_UI = {
   topOffsetPt: 52,
 }
 
+// 挑战大厅分层卡面布局：所有坐标基于 1200x430 设计坐标再等比缩放。
+const CHALLENGE_HUB_CARD_SPEC = {
+  marginPt: 14,
+  gapPt: 8,
+  w: 1200,
+  h: 430,
+  minCardHPt: 118,
+  maxCardHPt: 150,
+  radiusPt: 18,
+  panel: { x: 36, y: 34, w: 390, h: 360 },
+  icon: { cx: 318, cy: 209, size: 86 },
+  title: { x: 78, y: 88, size: 54, maxW: 305 },
+  subtitle: { x: 78, y: 132, size: 28, maxW: 310 },
+  line1: { x: 78, y: 292, size: 31, maxW: 315 },
+  line2: { x: 78, y: 334, size: 31, maxW: 315 },
+  button: { cx: 820, cy: 356, w: 360, h: 80, textSize: 38 },
+}
+
 const MODE_CFG = {
   tower: {
-    name: '通天塔',
-    entryLabel: '通天塔',
+    name: '挑战',
+    entryLabel: '挑战',
     img: 'assets/ui/tower_rogue.png',
     icon: '⚔',
     entryIcon: 'assets/ui/tower_entry_icon_v1.png',
@@ -199,35 +218,203 @@ function drawSceneArea(g) {
   const mode = g.titleMode || 'tower'
 
   if (mode === 'stage') {
+    g._challengeBackRect = null
+    g._challengeTowerRect = null
+    g._challengeTrialRect = null
     _drawStageSceneArea(g, ctx, R, W, S, L)
     return
   }
 
   g._stageOverrideBtnY = null
+  _drawChallengeHubScene(g, ctx, R, W, S, L)
+  return
+}
 
-  const imgPath = MODE_CFG[mode].img
-  const towerImg = R.getImg(imgPath)
-  const sceneH = L.petRowY - L.topBarBottom
+function _drawChallengeHubScene(g, ctx, R, W, S, L) {
+  const attrTheme = getDailyAttrTheme()
+  const seasonProgress = getTrialSeasonProgress()
+  const towerSsrPet = getSeasonSSRPet()
+  const unlocked = g.storage.isTrialUnlocked && g.storage.isTrialUnlocked()
+  const spec = CHALLENGE_HUB_CARD_SPEC
+  const cardW = W - spec.marginPt * 2 * S
+  const cardX = (W - cardW) / 2
+  const headerBottom = V.safeTop + (HOME_STATUS_UI.avatarRowTopPt + HOME_STATUS_UI.avatarSizePt + 26) * S
+  // 挑战大厅不绘制首页 Logo，卡组按资源栏底部到导航栏顶部的空间居中。
+  const availableTop = headerBottom + 4 * S
+  const availableBottom = L.bottomBarY - 12 * S
+  const gap = spec.gapPt * S
+  const aspectCardH = cardW * spec.h / spec.w
+  const fitCardH = (availableBottom - availableTop - gap) / 2
+  const cardH = Math.min(spec.maxCardHPt * S, Math.max(spec.minCardHPt * S, Math.min(aspectCardH, fitCardH)))
+  const totalCardH = cardH * 2 + gap
+  const startY = availableTop + Math.max(0, (availableBottom - availableTop - totalCardH) / 2)
+  const scale = cardH / spec.h
 
-  if (towerImg && towerImg.width > 0) {
-    const targetH = sceneH * TITLE_HOME.towerImgHeightSceneFrac
-    const ratioW = towerImg.width / towerImg.height
-    const imgW = Math.min(targetH * ratioW, W * TITLE_HOME.towerImgMaxScreenWidthFrac)
-    const imgH = imgW / ratioW
-    const imgX = (W - imgW) / 2
-    const imgY = L.petRowY - imgH + 14 * S - TITLE_HOME.towerImgLiftPt * S
-    const towerShiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
-    ctx.drawImage(towerImg, imgX, imgY - towerShiftUp, imgW, imgH)
-  } else {
+  ctx.save()
+  g._challengeBackRect = null
+
+  function fitText(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text
+    let out = text
+    while (out.length > 1 && ctx.measureText(out + '…').width > maxW) out = out.slice(0, -1)
+    return out + '…'
+  }
+
+  function fitValueLine(prefix, value, maxW) {
+    const label = prefix || ''
+    const remainW = Math.max(12 * S, maxW - ctx.measureText(label).width)
+    return label + fitText(value || '', remainW)
+  }
+
+  function drawFallbackScene(y, cfg) {
+    const x = cardX
+    const w = cardW
+    const h = cardH
+    const grad = ctx.createLinearGradient(x, y, x + w, y + h)
+    grad.addColorStop(0, cfg.fallbackLeft)
+    grad.addColorStop(0.58, cfg.fallbackMid)
+    grad.addColorStop(1, cfg.fallbackRight)
+    ctx.fillStyle = grad
+    R.rr(x, y, w, h, spec.radiusPt * S); ctx.fill()
+  }
+
+  function drawDesignImage(img, y, box, alpha) {
+    if (!img || img.width <= 0) return false
     ctx.save()
-    const towerShiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
-    ctx.font = `${80*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.globalAlpha = 0.6
-    ctx.fillText('🏯', W / 2, L.topBarBottom + sceneH * 0.45 - towerShiftUp)
-    ctx.globalAlpha = 1
+    ctx.globalAlpha = alpha == null ? 1 : alpha
+    ctx.drawImage(
+      img,
+      cardX + box.x * scale,
+      y + box.y * scale,
+      box.w * scale,
+      box.h * scale
+    )
+    ctx.restore()
+    return true
+  }
+
+  function drawBanner(y, cfg) {
+    ctx.save()
+    R.rr(cardX, y, cardW, cardH, spec.radiusPt * S); ctx.clip()
+    const bg = R.getImg(cfg.scene)
+    if (bg && bg.width > 0) {
+      ctx.drawImage(bg, cardX, y, cardW, cardH)
+    } else {
+      const homeBg = R.getImg('assets/backgrounds/home_bg.jpg')
+      if (homeBg && homeBg.width > 0) R.drawCoverImg(homeBg, cardX, y, cardW, cardH, { radius: spec.radiusPt * S })
+      else drawFallbackScene(y, cfg)
+    }
+    const shade = ctx.createLinearGradient(cardX, y, cardX + cardW, y)
+    shade.addColorStop(0, 'rgba(0,0,0,0.20)')
+    shade.addColorStop(0.38, 'rgba(0,0,0,0)')
+    shade.addColorStop(1, 'rgba(0,0,0,0.02)')
+    ctx.fillStyle = shade
+    ctx.fillRect(cardX, y, cardW, cardH)
+    ctx.restore()
+
+    ctx.save()
+    drawDesignImage(R.getImg(cfg.panel), y, spec.panel)
+    const iconSize = cfg.iconSize || spec.icon.size
+    drawDesignImage(R.getImg(cfg.icon), y, {
+      x: spec.icon.cx - iconSize / 2,
+      y: spec.icon.cy - iconSize / 2 + (cfg.iconDy || 0),
+      w: iconSize,
+      h: iconSize,
+    })
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.font = `bold ${spec.title.size * scale}px "STKaiti","PingFang SC",serif`
+    ctx.strokeStyle = 'rgba(26,16,8,0.80)'
+    ctx.lineWidth = 7 * scale
+    const titleX = cardX + spec.title.x * scale
+    const titleY = y + spec.title.y * scale
+    ctx.strokeText(fitText(cfg.title, spec.title.maxW * scale), titleX, titleY)
+    ctx.fillStyle = '#FFE9A8'
+    ctx.fillText(fitText(cfg.title, spec.title.maxW * scale), titleX, titleY)
+
+    ctx.font = `bold ${spec.subtitle.size * scale}px "PingFang SC",sans-serif`
+    ctx.fillStyle = cfg.subtitleColor
+    ctx.fillText(
+      fitText(cfg.subtitle, spec.subtitle.maxW * scale),
+      cardX + spec.subtitle.x * scale,
+      y + spec.subtitle.y * scale
+    )
+
+    ctx.font = `bold ${spec.line1.size * scale}px "PingFang SC",sans-serif`
+    ctx.fillStyle = '#FFF4D2'
+    ctx.fillText(
+      fitText(cfg.line1, spec.line1.maxW * scale),
+      cardX + spec.line1.x * scale,
+      y + spec.line1.y * scale
+    )
+    ctx.fillStyle = cfg.highlightColor
+    const line2Text = cfg.line2Prefix
+      ? fitValueLine(cfg.line2Prefix, cfg.line2Value, spec.line2.maxW * scale)
+      : fitText(cfg.line2, spec.line2.maxW * scale)
+    ctx.fillText(line2Text, cardX + spec.line2.x * scale, y + spec.line2.y * scale)
+
+    drawDesignImage(R.getImg(cfg.button), y, {
+      x: spec.button.cx - spec.button.w / 2,
+      y: spec.button.cy - spec.button.h / 2,
+      w: spec.button.w,
+      h: spec.button.h,
+    })
+
+    ctx.fillStyle = '#FFF4C8'
+    ctx.font = `bold ${spec.button.textSize * scale}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.shadowColor = 'rgba(46,23,5,0.55)'
+    ctx.shadowBlur = 3 * S
+    ctx.fillText(cfg.btnText, cardX + spec.button.cx * scale, y + (spec.button.cy + 2) * scale)
+
+    ctx.strokeStyle = 'rgba(255,228,150,0.72)'
+    ctx.lineWidth = 1.4 * S
+    R.rr(cardX, y, cardW, cardH, spec.radiusPt * S); ctx.stroke()
     ctx.restore()
   }
+
+  const trialCost = getTrialStaminaCost(g.storage)
+  const trialY = startY
+  drawBanner(trialY, {
+    scene: 'assets/backgrounds/challenge_hub_trial_scene.jpg',
+    panel: 'assets/ui/challenge_hub_panel_trial.png',
+    icon: 'assets/ui/challenge_hub_icon_trial.png',
+    button: 'assets/ui/challenge_hub_btn_gold.png',
+    title: '天机试炼',
+    subtitle: '五行克制 · 今日',
+    line1: `剩余${seasonProgress.daysLeft}天`,
+    line2: `${attrTheme.enemyName} · 体力${trialCost}`,
+    highlightColor: '#FFE28A',
+    subtitleColor: '#BDEBFF',
+    btnText: unlocked ? '进入试炼' : '暂未开放',
+    fallbackLeft: 'rgba(20,54,86,0.96)',
+    fallbackMid: 'rgba(238,209,118,0.88)',
+    fallbackRight: 'rgba(255,237,180,0.96)',
+  })
+  g._challengeTrialRect = [cardX, trialY, cardW, cardH]
+
+  const towerY = trialY + cardH + gap
+  drawBanner(towerY, {
+    scene: 'assets/backgrounds/challenge_hub_tower_scene.jpg',
+    panel: 'assets/ui/challenge_hub_panel_tower.png',
+    icon: 'assets/ui/challenge_hub_icon_tower.png',
+    button: 'assets/ui/challenge_hub_btn_purple.png',
+    title: '通天塔',
+    subtitle: getTowerEventCountdownLabel ? getTowerEventCountdownLabel() : '周回奖励',
+    line1: `最高第${g.storage.bestFloor || 0}层`,
+    line2Prefix: 'SSR：',
+    line2Value: towerSsrPet ? towerSsrPet.name : '轮换',
+    highlightColor: '#EAD2FF',
+    subtitleColor: '#D8C0FF',
+    btnText: '进入通天塔',
+    iconSize: 84,
+    iconDy: 2,
+    fallbackLeft: 'rgba(40,30,76,0.96)',
+    fallbackMid: 'rgba(218,190,140,0.88)',
+    fallbackRight: 'rgba(246,226,172,0.96)',
+  })
+  g._challengeTowerRect = [cardX, towerY, cardW, cardH]
+  ctx.restore()
 }
 
 // ===== 通天塔活动横幅（绘在「开始挑战」按钮与进度文字下方）=====
@@ -237,7 +424,6 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
   const season = getCurrentSeason()
   if (!season) return
   const ssrPet = getSeasonSSRPet()
-  const srPet = getSeasonSRPet()
   if (!ssrPet) return
 
   const claimedFloors = (g.storage.getTowerEventState() || {}).claimed || []
@@ -337,13 +523,7 @@ function _drawTowerEventBanner(g, c, R, W, S, L, progressMidY) {
   // 第4行：下一档里程碑预告
   let nextLine = '本周里程碑已全部达成'
   if (nextMilestone) {
-    if (nextMilestone.type === 'srFrag') {
-      nextLine = `下一档：${nextMilestone.floor}层 · ${srPet ? srPet.name : 'SR'}碎片×${nextMilestone.count}`
-    } else if (nextMilestone.type === 'ssrFrag') {
-      nextLine = `下一档：${nextMilestone.floor}层 · SSR随机碎片×${nextMilestone.count}`
-    } else {
-      nextLine = `下一档：${nextMilestone.floor}层 · ${ssrPet.name}整宠`
-    }
+    nextLine = `下一档：${nextMilestone.floor}层 · ${nextMilestone.rewardLabel || ''}`
     if (nextMilestone.floorsLeft > 0) nextLine += `（差${nextMilestone.floorsLeft}层）`
   }
   c.fillStyle = '#7B5A28'
@@ -959,83 +1139,8 @@ function drawStartBtn(g) {
   ctx.save()
 
   if (mode === 'tower') {
-    const clusterDy = TITLE_HOME.towerStartClusterDownPt * S
-    const shiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
-    const btnW = W * 0.60
-    const btnH = L.startBtnH
-    const btnX = (W - btnW) / 2
-    const btnY = L.startBtnY + clusterDy - shiftUp
-
-    // 使用 btn_start.png 资源，fallback 到渐变色
-    const btnImg = R.getImg('assets/ui/btn_start.png')
-    if (btnImg && btnImg.width > 0) {
-      ctx.drawImage(btnImg, btnX, btnY, btnW, btnH)
-    } else {
-      const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH)
-      grad.addColorStop(0, '#f5d98a')
-      grad.addColorStop(0.5, '#d4a84b')
-      grad.addColorStop(1, '#b8862d')
-      ctx.fillStyle = grad
-      R.rr(btnX, btnY, btnW, btnH, btnH * 0.4); ctx.fill()
-    }
-
-    // 按钮文字叠在图片上
-    const hasSave = g.storage.hasSavedRun()
-    ctx.fillStyle = '#5a2d0c'
-    ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(hasSave ? '继续挑战' : '开始挑战', btnX + btnW / 2, btnY + btnH / 2)
-
-    g._startBtnRect = [btnX, btnY, btnW, btnH]
-
-    // 每日剩余次数
-    const { TOWER_DAILY } = require('../data/economyConfig')
-    const usedRuns = g.storage.getTowerDailyRuns()
-    const usedAdRuns = g.storage.getTowerDailyAdRuns()
-    const freeLeft = Math.max(0, TOWER_DAILY.freeRuns - usedRuns)
-    const adLeft = Math.max(0, TOWER_DAILY.adExtraRuns - usedAdRuns)
-    const canRun = g.storage.canStartTowerRun()
-
-    const dailyText = freeLeft > 0
-      ? `今日 ${usedRuns}/${TOWER_DAILY.freeRuns}`
-      : adLeft > 0
-        ? `免费次数已用完 · 看广告+1次(${adLeft})`
-        : '今日次数已用完 · 明日刷新'
-    ctx.fillStyle = canRun ? 'rgba(80,50,20,0.7)' : 'rgba(180,60,40,0.8)'
-    ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'center'
-    const dailyTextY = btnY - 10 * S
-    ctx.fillText(dailyText, W / 2, dailyTextY)
-
-    // 小「?」图标：点击弹 toast 说明重置时间
-    const dailyTextW = ctx.measureText(dailyText).width
-    const qR = 7 * S
-    const qX = W / 2 + dailyTextW / 2 + qR + 4 * S
-    const qY = dailyTextY
-    ctx.beginPath()
-    ctx.arc(qX, qY, qR, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(100,80,40,0.6)'; ctx.fill()
-    ctx.fillStyle = '#fff'
-    ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
-    ctx.fillText('?', qX, qY + 0.5 * S)
-    g._towerHelpRect = [qX - qR, qY - qR, qR * 2, qR * 2]
-
-    // 进度文字
-    let progressText = ''
-    if (hasSave) {
-      const saved = g.storage.loadRunState()
-      progressText = `继续第 ${saved.floor} 层  ·  历史最高 ${g.storage.bestFloor} 层`
-    } else {
-      const best = g.storage.bestFloor
-      progressText = best > 0 ? `历史最高第 ${best} 层` : '开始你的第一次冒险'
-    }
-    ctx.fillStyle = 'rgba(80,50,20,0.7)'
-    ctx.font = `${10*S}px "PingFang SC",sans-serif`
-    ctx.textBaseline = 'middle'
-    const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
-    ctx.fillText(progressText, W / 2, progressMidY)
+    g._startBtnRect = null
+    g._towerHelpRect = null
   } else {
     // 灵兽秘境模式 — 内嵌选关
     const entry = _getDisplayStage(g)
@@ -1489,6 +1594,34 @@ function drawModeSwitchBtn(g) {
     fallbackText: targetCfg.icon,
     fallbackColor: '#8A5A1E',
   })
+
+  if (targetMode === 'tower' && g.storage.isTrialUnlocked && g.storage.isTrialUnlocked()) {
+    const text = '新试炼'
+    const badgeW = 46 * S
+    const badgeH = 18 * S
+    const badgeX = bx - 14 * S
+    const badgeY = by + geo.ringSz * 0.15
+    ctx.save()
+    ctx.shadowColor = 'rgba(80,20,0,0.35)'
+    ctx.shadowBlur = 5 * S
+    const grad = ctx.createLinearGradient(badgeX, badgeY, badgeX, badgeY + badgeH)
+    grad.addColorStop(0, '#FF7A3A')
+    grad.addColorStop(1, '#D9361E')
+    ctx.fillStyle = grad
+    R.rr(badgeX, badgeY, badgeW, badgeH, badgeH / 2); ctx.fill()
+    ctx.strokeStyle = 'rgba(255,245,210,0.95)'
+    ctx.lineWidth = 1.1 * S
+    R.rr(badgeX, badgeY, badgeW, badgeH, badgeH / 2); ctx.stroke()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `bold ${8.5*S}px "PingFang SC",sans-serif`
+    ctx.strokeStyle = 'rgba(80,20,0,0.5)'
+    ctx.lineWidth = 1.4 * S
+    ctx.strokeText(text, badgeX + badgeW / 2, badgeY + badgeH / 2)
+    ctx.fillStyle = '#FFF7D6'
+    ctx.fillText(text, badgeX + badgeW / 2, badgeY + badgeH / 2)
+    ctx.restore()
+  }
 
   g._modeSwitchRect = [bx, by, geo.btnW, geo.btnH]
 }
@@ -2219,30 +2352,34 @@ function drawGameClubBtn(g) {
 function rTitle(g) {
   g._towerWeeklySsrAvatarRect = null
   g._towerWeeklySsrPetId = null
+  const isChallengeMode = (g.titleMode || 'tower') === 'tower'
   drawSceneArea(g)
-  drawTopBar(g)
+  if (!isChallengeMode) drawTopBar(g)
   drawStartBtn(g)
-  drawModeSwitchBtn(g)
-  drawSidebarBtn(g)
+  if (isChallengeMode) {
+    g._modeSwitchRect = null
+    g._sidebarBtnRect = null
+    g._dailySignBtnRect = null
+    g._dailyTaskBtnRect = null
+    g._gameClubBtnRect = null
+    g._gameClubNativeRect = null
+    g._homeDailyTaskRect = null
+  } else {
+    drawModeSwitchBtn(g)
+    drawSidebarBtn(g)
+  }
   drawBottomBar(g)
   drawAvatarWidget(g)
   drawStaminaBar(g)
   // 新手尚未通关 1-1 时隐藏签到/任务入口，避免干扰引导流程
   const showDailyEntries = g.storage.isStageCleared('stage_1_1')
-  if (showDailyEntries) {
+  if (showDailyEntries && !isChallengeMode) {
     drawDailySignBtn(g)
     drawGameClubBtn(g)
     drawDailyTaskBtn(g)
   }
-  if ((g.titleMode || 'tower') === 'tower') {
-    const { ctx, R, W, S } = V
-    const L = getLayout()
-    const clusterDy = TITLE_HOME.towerStartClusterDownPt * S
-    const shiftUp = (TITLE_HOME.towerUiShiftUpPt || 0) * S
-    const progressMidY = L.progressY + L.progressH / 2 + clusterDy - shiftUp
-    _drawTowerEventBanner(g, ctx, R, W, S, L, progressMidY)
-  }
-  if (showDailyEntries) drawHomeDailyTaskTracker(g)
+  // 挑战大厅已改为卡片入口，通天塔活动信息收敛到通天塔卡片内。
+  if (showDailyEntries && !isChallengeMode) drawHomeDailyTaskTracker(g)
   // 注：原有「目标追踪器」浮标已移除 —— 业界手游（原神/星铁/阴阳师）主页不堆多余浮层；
   //     章节目标信息改由 stageInfoView 顶部的 drawGoalBar 承担（玩家点入关卡前 0.5 秒可见），
   //     主屏只保留「选关 + 出发」的核心视觉，参考方案 A。

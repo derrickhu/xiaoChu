@@ -304,14 +304,14 @@ const TOWER_EVENT_SEASONS = [
   { season: 10, ssr: 'm20', sr: 's20' }, // 万钧金神 + 冰凰神鸟
 ]
 
-// 活动里程碑：floor → 奖励, type: srFrag / ssrFrag / ssrPet
+// 活动里程碑：floor → 奖励；保留 type/count 兼容旧展示，rewards 用于多奖励发放
 const TOWER_EVENT_MILESTONES = [
-  { floor:  5, type: 'srFrag',  count: 3  },
-  { floor: 10, type: 'srFrag',  count: 5  },
-  { floor: 15, type: 'srFrag',  count: 7  },
-  { floor: 20, type: 'ssrFrag', count: 4  },
-  { floor: 25, type: 'ssrFrag', count: 6  },
-  { floor: 30, type: 'ssrPet',  count: 1  },
+  { floor:  5, type: 'srFrag',  count: 5,  rewards: [{ type: 'soulStone', count: 100 }, { type: 'srFrag',  count: 5  }] },
+  { floor: 10, type: 'srFrag',  count: 8,  rewards: [{ type: 'soulStone', count: 150 }, { type: 'srFrag',  count: 8  }] },
+  { floor: 15, type: 'srFrag',  count: 12, rewards: [{ type: 'soulStone', count: 200 }, { type: 'srFrag',  count: 12 }] },
+  { floor: 20, type: 'ssrFrag', count: 6,  rewards: [{ type: 'soulStone', count: 250 }, { type: 'ssrFrag', count: 6  }] },
+  { floor: 25, type: 'ssrFrag', count: 10, rewards: [{ type: 'soulStone', count: 300 }, { type: 'ssrFrag', count: 10 }] },
+  { floor: 30, type: 'ssrPet',  count: 1,  rewards: [{ type: 'soulStone', count: 500 }, { type: 'ssrPet',  count: 1  }] },
 ]
 
 // 活动起始基准日（第1期开始的周一 0:00 UTC+8）
