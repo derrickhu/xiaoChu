@@ -1,0 +1,12 @@
+Create ONE 9:16 vertical high-CTR Chinese mobile game advertising poster based on the provided gameplay reference screenshot. Use the reference for the real game UI feeling: chibi fantasy enemy at top, pet team cards in the middle, colorful five-element orb board at bottom, combo and damage effects. But IMPORTANT: do NOT reuse the previous stone/rock boss design. Replace the boss with a different ice-themed enemy: a chibi cold tide demon general, blue-white ice crown, glowing cyan eyes, dark frost armor, long icy sword, underwater ancient palace background, jellyfish-like ghost lights, cold mist and frozen slash effects.
+
+Theme: ice boss, elemental counter, one-line orb drag burst. Make it feel like a polished mobile game ad poster, exaggerated and clickable, strong blue/cyan/gold contrast, huge readable damage numbers, dynamic slash, orb board with glowing drag path.
+
+Typography must be integrated into the artwork, not a flat overlay. Use simplified Chinese ONLY. Render the following exact phrases, each once, clean and readable:
+寒潮魔将
+克制一触发
+冰封Boss秒破
+转珠连击爆伤
+立即试玩
+
+Do not add other Chinese or English text. Do not draw App Store, Google Play, phone status bar, watermarks, fake logos, or video player controls. Avoid Traditional Chinese characters. Make the main title 寒潮魔将 large and icy at the top, with 克制一触发 and 冰封Boss秒破 as punchy mid-screen slogans, 转珠连击爆伤 near the orb board, and 立即试玩 as a bottom button.

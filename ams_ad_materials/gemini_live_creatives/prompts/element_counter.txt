@@ -1,0 +1,9 @@
+Create a 9:16 vertical Chinese mobile game advertising poster based on the provided reference sheet of real gameplay screenshots. Preserve the core game identity: chibi fantasy boss battle at the top, pet team cards in the middle, colorful five-element orb board at the bottom, combo and damage numbers, Chinese xianxia/cute fantasy style. Do NOT copy the reference sheet layout as three panels; transform it into ONE cohesive high-CTR promotional poster.
+
+Advertising style reference: exaggerated mobile game ad poster, huge integrated Chinese typography, bold 3D glossy characters, thick white/gold/dark outline, dramatic glow, fireworks/speed lines, treasure light, big damage numbers, clear focal hierarchy, readable on a phone feed. The typography must be part of the generated poster design, not a flat overlay.
+
+Chinese text rules are strict: render the listed Chinese phrases EXACTLY, each phrase once. Do not add other Chinese text, do not invent logos, do not duplicate phrases, do not garble characters. If showing UI labels from the game reference, simplify them into abstract shapes so they do not compete with the poster text.
+
+Theme: elemental counter system.
+Required exact Chinese phrases: 属性克制, 木克土 火克木, 看弱点转珠, 立即试玩.
+Composition: center shows a clear five-element counter chain using colored orbs and arrows: wood green, fire red, water blue, earth brown, metal gold. The boss has visible weak-point aura and gets hit by a green wood-element strike. Bottom board shows the player dragging green wood orbs into a combo. Main title 属性克制 is premium jade-gold typography, with elemental particles wrapped around the letters.

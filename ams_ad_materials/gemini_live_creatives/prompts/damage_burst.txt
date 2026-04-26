@@ -1,0 +1,9 @@
+Create a 9:16 vertical Chinese mobile game advertising poster based on the provided reference sheet of real gameplay screenshots. Preserve the core game identity: chibi fantasy boss battle at the top, pet team cards in the middle, colorful five-element orb board at the bottom, combo and damage numbers, Chinese xianxia/cute fantasy style. Do NOT copy the reference sheet layout as three panels; transform it into ONE cohesive high-CTR promotional poster.
+
+Advertising style reference: exaggerated mobile game ad poster, huge integrated Chinese typography, bold 3D glossy characters, thick white/gold/dark outline, dramatic glow, fireworks/speed lines, treasure light, big damage numbers, clear focal hierarchy, readable on a phone feed. The typography must be part of the generated poster design, not a flat overlay.
+
+Chinese text rules are strict: render the listed Chinese phrases EXACTLY, each phrase once. Do not add other Chinese text, do not invent logos, do not duplicate phrases, do not garble characters. If showing UI labels from the game reference, simplify them into abstract shapes so they do not compete with the poster text.
+
+Theme: damage explosion and combo satisfaction.
+Required exact Chinese phrases: 伤害炸裂, 13连击秒屏, 五行转珠一波带走, 立即试玩.
+Composition: top half shows the stone boss being hit by a golden-green explosion beam, giant readable damage numbers flying out, pet cards glowing below, bottom shows the orb board with a bright drag path and multiple matched orbs. Main title 伤害炸裂 should dominate the upper third, integrated with lightning and cracked gold type. Make the feeling extremely satisfying and explosive.

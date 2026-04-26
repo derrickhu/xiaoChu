@@ -1,0 +1,9 @@
+Create a 9:16 vertical Chinese mobile game advertising poster based on the provided reference sheet of real gameplay screenshots. Preserve the core game identity: chibi fantasy boss battle at the top, pet team cards in the middle, colorful five-element orb board at the bottom, combo and damage numbers, Chinese xianxia/cute fantasy style. Do NOT copy the reference sheet layout as three panels; transform it into ONE cohesive high-CTR promotional poster.
+
+Advertising style reference: exaggerated mobile game ad poster, huge integrated Chinese typography, bold 3D glossy characters, thick white/gold/dark outline, dramatic glow, fireworks/speed lines, treasure light, big damage numbers, clear focal hierarchy, readable on a phone feed. The typography must be part of the generated poster design, not a flat overlay.
+
+Chinese text rules are strict: render the listed Chinese phrases EXACTLY, each phrase once. Do not add other Chinese text, do not invent logos, do not duplicate phrases, do not garble characters. If showing UI labels from the game reference, simplify them into abstract shapes so they do not compete with the poster text.
+
+Theme: low HP instant kill, comeback execution.
+Required exact Chinese phrases: 残血秒杀, 只差一珠就翻盘, 克制一触发 Boss归零, 立即试玩.
+Composition: boss HP bar is almost empty and then shatters to 0, huge finishing strike in the center, player side has a dramatic last-move drag trail on the orb board. Use red-gold slash light, cracked screen effect, urgent countdown feeling. Main title 残血秒杀 is huge and aggressive with blade-like strokes.
