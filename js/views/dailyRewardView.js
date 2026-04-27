@@ -1606,6 +1606,21 @@ function rDailySign(g) {
   // 签到和翻倍共用同一个按钮区域
   _signRects.signBtnRect = canSign ? btnRect.slice() : null
   _signRects.signAdRect = canDouble ? btnRect.slice() : null
+
+  // 与华华 7 日区卡片几何一致，供「签到领取/翻倍」与 resourceFlyParticles 飞效起点共用（与新手礼包同逻辑）
+  const dayForFly = canSign
+    ? (consecState.previewDay | 0)
+    : Math.max(1, consecState.currentDay | 0)
+  const dFly = Math.min(7, Math.max(1, dayForFly))
+  if (dFly <= 6) {
+    const row = Math.floor((dFly - 1) / 3)
+    const col = (dFly - 1) % 3
+    const rx = cardAreaX + col * (cellW + gap)
+    const ry = consecGridTop + row * (cellH + gap)
+    g._signRewardFlySource = { x: rx + cellW / 2, y: ry + cellH * 0.56 }
+  } else {
+    g._signRewardFlySource = { x: cardAreaX + cardAreaW / 2, y: day7Y + featureH * 0.52 }
+  }
   y += 64 * u
 
   c.fillStyle = 'rgba(255,255,255,0.88)'
@@ -2022,6 +2037,25 @@ function rDailyTasks(g) {
   c.restore()
 }
 
+/** 合并签到一次返回的多段奖励，用于与新手礼包一致的顶栏飞入粒子 */
+function _mergeLoginClaimRewardsForFly(result) {
+  const m = {}
+  const add = (r) => {
+    if (!r) return
+    if (r.soulStone) m.soulStone = (m.soulStone || 0) + r.soulStone
+    if (r.stamina) m.stamina = (m.stamina || 0) + r.stamina
+    if (r.awakenStone) m.awakenStone = (m.awakenStone || 0) + r.awakenStone
+    if (r.fragment) m.fragment = (m.fragment || 0) + r.fragment
+    if (r.petId) m.petId = r.petId
+    if (r.petDuplicateFragment) m.petDuplicateFragment = r.petDuplicateFragment
+    if (r.petFragment) m.petFragment = r.petFragment
+  }
+  add(result.rewards)
+  add(result.milestoneRewards)
+  add(result.consecutiveRewards)
+  return m
+}
+
 function tDailySign(g, x, y, type) {
   if (!g._showDailySign || type !== 'end') return false
 
@@ -2092,12 +2126,18 @@ function tDailySign(g, x, y, type) {
       }
       return true
     }
-  }  if (_signRects.signBtnRect && g._hitRect(x, y, ..._signRects.signBtnRect)) {
+  }
+  if (_signRects.signBtnRect && g._hitRect(x, y, ..._signRects.signBtnRect)) {
     const signRect = _signRects.signBtnRect.slice()
     const result = g.storage.claimLoginReward()
     if (result) {
       MusicMgr.playReward && MusicMgr.playReward()
       buttonFx.trigger(signRect, 'upgrade')
+      const src = g._signRewardFlySource
+      if (src) {
+        const flyParticles = require('./resourceFlyParticles')
+        flyParticles.spawnFromGiftBundle(g, _mergeLoginClaimRewardsForFly(result), src.x, src.y)
+      }
       const rewardText = _rewardText(result.rewards)
       const milestoneText = result.milestoneRewards ? _rewardText(result.milestoneRewards) : ''
       const consecText = result.consecutiveRewards ? _rewardText(result.consecutiveRewards) : ''
@@ -2120,6 +2160,11 @@ function tDailySign(g, x, y, type) {
         if (result) {
           MusicMgr.playReward && MusicMgr.playReward()
           g._toast && g._toast(`翻倍到账：${_rewardText(result.rewards)}`)
+          const src = g._signRewardFlySource
+          if (src) {
+            const flyParticles = require('./resourceFlyParticles')
+            flyParticles.spawnFromGiftBundle(g, result.rewards, src.x, src.y)
+          }
         }
         g._dirty = true
       },
