@@ -2969,59 +2969,139 @@ class Storage {
     }
   }
 
+  /**
+   * 从已授权状态拉取并校验昵称头像（与 _loadUserInfo 门槛一致，避免只存占位图）
+   */
+  _applyUserInfoFromGetUserInfoResult(infoRes, callback) {
+    const u = infoRes && infoRes.userInfo
+    if (u && u.nickName && u.nickName !== '微信用户' && u.avatarUrl && u.avatarUrl.length > 10) {
+      const info = { nickName: u.nickName, avatarUrl: u.avatarUrl }
+      this._saveUserInfo(info)
+      if (callback) callback(true, info)
+    } else {
+      if (callback) callback(false, null)
+    }
+  }
+
+  /**
+   * 用户曾点「拒绝」后：WeChat 不会再弹系统授权，只能进设置或走页面黄条 createUserInfoButton
+   */
+  _showUserInfoOpenSettingModal(callback) {
+    P.showModal({
+      title: '授权提示',
+      content: '好友榜与完整排行展示需要获取您的昵称和头像。若曾拒绝，请在微信设置中重新开启',
+      confirmText: '去设置',
+      cancelText: '暂不',
+      success: (modalRes) => {
+        if (!modalRes.confirm) {
+          if (callback) callback(false, null)
+          return
+        }
+        P.openSetting({
+          success: (openRes) => {
+            console.log('[UserInfo] openSetting result:', JSON.stringify(openRes.authSetting))
+            if (openRes.authSetting['scope.userInfo']) {
+              P.getUserInfo({
+                withCredentials: false,
+                success: (infoRes) => { this._applyUserInfoFromGetUserInfoResult(infoRes, callback) },
+                fail: () => { if (callback) callback(false, null) },
+              })
+            } else {
+              if (callback) callback(false, null)
+            }
+          },
+          fail: () => { if (callback) callback(false, null) },
+        })
+      },
+      fail: () => { if (callback) callback(false, null) },
+    })
+  }
+
+  /**
+   * 从未询问过（scope 为 undefined）：先试 wx.authorize，失败再与「已拒绝」同路径去设置
+   */
+  _tryAuthorizeUserInfoThenSetting(callback) {
+    const base = typeof wx !== 'undefined' ? wx : null
+    const fallback = () => { this._showUserInfoOpenSettingModal(callback) }
+    if (base && typeof base.authorize === 'function') {
+      try {
+        base.authorize({
+          scope: 'scope.userInfo',
+          success: () => {
+            P.getUserInfo({
+              withCredentials: false,
+              success: (infoRes) => {
+                if (infoRes && infoRes.userInfo && infoRes.userInfo.nickName && infoRes.userInfo.nickName !== '微信用户') {
+                  this._applyUserInfoFromGetUserInfoResult(infoRes, callback)
+                } else {
+                  fallback()
+                }
+              },
+              fail: fallback,
+            })
+          },
+          fail: fallback,
+        })
+      } catch (e) {
+        console.warn('[UserInfo] authorize 不可用，改走设置页', e)
+        fallback()
+      }
+    } else {
+      fallback()
+    }
+  }
+
   // 引导用户到设置页开启 userInfo 授权
   _tryOpenSetting(callback) {
     P.getSetting({
       success: (settingRes) => {
         console.log('[UserInfo] getSetting:', JSON.stringify(settingRes.authSetting))
-        if (settingRes.authSetting['scope.userInfo'] === false) {
-          // 之前明确拒绝过，需要引导到设置页
-          P.showModal({
-            title: '授权提示',
-            content: '需要获取您的昵称和头像用于排行榜展示，请在设置中开启',
-            confirmText: '去设置',
-            cancelText: '暂不',
-            success: (modalRes) => {
-              if (modalRes.confirm) {
-                P.openSetting({
-                  success: (openRes) => {
-                    console.log('[UserInfo] openSetting result:', JSON.stringify(openRes.authSetting))
-                    if (openRes.authSetting['scope.userInfo']) {
-                      // 用户在设置中开启了授权，重新获取信息
-                      P.getUserInfo({
-                        success: (infoRes) => {
-                          if (infoRes.userInfo && infoRes.userInfo.nickName !== '微信用户') {
-                            const info = {
-                              nickName: infoRes.userInfo.nickName,
-                              avatarUrl: infoRes.userInfo.avatarUrl,
-                            }
-                            this._saveUserInfo(info)
-                            if (callback) callback(true, info)
-                          } else {
-                            if (callback) callback(false, null)
-                          }
-                        },
-                        fail: () => { if (callback) callback(false, null) }
-                      })
-                    } else {
-                      if (callback) callback(false, null)
-                    }
-                  },
-                  fail: () => { if (callback) callback(false, null) }
-                })
-              } else {
-                if (callback) callback(false, null)
-              }
-            },
-            fail: () => { if (callback) callback(false, null) }
+        const su = settingRes.authSetting && settingRes.authSetting['scope.userInfo']
+        if (su === false) {
+          this._showUserInfoOpenSettingModal(callback)
+        } else if (su === true) {
+          P.getUserInfo({
+            withCredentials: false,
+            success: (infoRes) => { this._applyUserInfoFromGetUserInfoResult(infoRes, callback) },
+            fail: () => { if (callback) callback(false, null) },
           })
         } else {
-          // 未被明确拒绝，可能是首次（但 userInfo 为空），直接放行
-          console.warn('[UserInfo] 授权状态非拒绝但信息为空，跳过')
-          if (callback) callback(false, null)
+          this._tryAuthorizeUserInfoThenSetting(callback)
         }
       },
-      fail: () => { if (callback) callback(false, null) }
+      fail: () => { if (callback) callback(false, null) },
+    })
+  }
+
+  /**
+   * 排行页切到「好友」数据源时：未同意则每次给出引导（拒绝后 WeChat 不会自动再弹，由本处统一拉起设置/authorize）
+   * @param {object} g Main 实例
+   */
+  promptFriendRankUserInfo(g) {
+    if (!P.isWeChat || !g) return
+    P.getSetting({
+      success: (res) => {
+        const su = res.authSetting && res.authSetting['scope.userInfo']
+        if (su === true) {
+          if (!this.needsRealNameCta()) return
+          try { P.showToast && P.showToast({ title: '请轻触上方黄条完成授权', icon: 'none', duration: 2200 }) } catch (_) {}
+          return
+        }
+        this._tryOpenSetting((ok) => {
+          if (ok) {
+            try {
+              const snap = this._ranking && this._ranking.getContextSnapshot && this._ranking.getContextSnapshot()
+              if (snap) {
+                const fr = require('./friendRanking')
+                fr.uploadScores(snap, { force: true })
+              }
+            } catch (e) { console.warn('[FriendRank] 授权后补传分数失败', e) }
+            g._rankFriendForceRefresh = true
+            g._dirty = true
+          }
+        })
+      },
+      fail: () => {},
     })
   }
 

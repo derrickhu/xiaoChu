@@ -307,9 +307,15 @@ function tRanking(g, type, x, y) {
               if (snap) require('../data/friendRanking').uploadScores(snap, { force: true })
             } catch (_) {}
             g._rankFriendForceRefresh = true
+            // 未同意用户信息时每次切到好友都弹引导（拒绝后系统不再自动弹，由本处 openSetting/authorize 兜底）
+            try { g.storage.promptFriendRankUserInfo && g.storage.promptFriendRankUserInfo(g) } catch (_) {}
           } else {
             g.storage.fetchRanking(_towerFetchTab(g), false, _effectiveScope(g))
           }
+        } else if (k === 'friend') {
+          g._rankFriendForceRefresh = true
+          g._dirty = true
+          try { g.storage.promptFriendRankUserInfo && g.storage.promptFriendRankUserInfo(g) } catch (_) {}
         }
         return
       }
