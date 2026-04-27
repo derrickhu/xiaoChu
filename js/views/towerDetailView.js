@@ -13,7 +13,7 @@ const {
   getSeasonSRPet,
   getTowerEventCountdownLabel,
   getNextMilestonePreview,
-  getTowerMilestoneRewardLabel,
+  getMilestoneRewards,
   TOWER_EVENT_MILESTONES,
 } = require('../data/towerEvent')
 
@@ -71,6 +71,49 @@ function _fitText(c, text, maxW) {
   return s ? `${s}…` : '…'
 }
 
+function _towerRewardMeta(reward, ssrPet, srPet) {
+  if (!reward) return { icon: null, label: '奖励', amount: '' }
+  if (reward.type === 'soulStone') {
+    return { icon: 'assets/ui/icon_soul_stone.png', label: '灵石', amount: `×${reward.count || 0}` }
+  }
+  if (reward.type === 'srFrag') {
+    return {
+      icon: srPet ? getPetAvatarPath({ ...srPet, star: 1 }) : 'assets/ui/icon_universal_frag.png',
+      label: `${srPet ? srPet.name : '本周SR'}碎片`,
+      amount: `×${reward.count || 0}`,
+    }
+  }
+  if (reward.type === 'ssrFrag') {
+    return { icon: 'assets/ui/frame_fragment.png', label: 'SSR随机碎片', amount: `×${reward.count || 0}` }
+  }
+  if (reward.type === 'ssrPet') {
+    return {
+      icon: ssrPet ? getPetAvatarPath({ ...ssrPet, star: 1 }) : 'assets/ui/icon_universal_frag.png',
+      label: `${ssrPet ? ssrPet.name : '本周SSR'}整宠`,
+      amount: '×1',
+    }
+  }
+  return { icon: null, label: '奖励', amount: '' }
+}
+
+function _drawRewardLine(c, R, S, reward, x, y, maxW, ssrPet, srPet) {
+  const meta = _towerRewardMeta(reward, ssrPet, srPet)
+  const iconSize = 12 * S
+  const img = meta.icon ? R.getImg(meta.icon) : null
+  if (img && img.width > 0) {
+    R.drawCoverImg(img, x, y - iconSize / 2, iconSize, iconSize, { radius: 3 * S })
+  } else {
+    c.fillStyle = 'rgba(255,255,255,0.22)'
+    R.rr(x, y - iconSize / 2, iconSize, iconSize, 3 * S); c.fill()
+  }
+  c.textAlign = 'left'
+  c.textBaseline = 'middle'
+  c.fillStyle = reward && reward.type === 'ssrPet' ? '#B86414' : (reward && reward.type !== 'soulStone' ? '#2F72A8' : '#6A4A1C')
+  c.font = `bold ${7.6 * S}px "PingFang SC",sans-serif`
+  const text = `${meta.label}${meta.amount}`
+  c.fillText(_fitText(c, text, maxW - iconSize - 6 * S), x + iconSize + 5 * S, y)
+}
+
 function _drawRewardCard(c, R, S, tier, x, y, w, h, bestFloor, claimedSet) {
   const done = bestFloor >= tier.floor
   const got = claimedSet.has(tier.floor)
@@ -95,11 +138,14 @@ function _drawRewardCard(c, R, S, tier, x, y, w, h, bestFloor, claimedSet) {
   c.textAlign = 'center'
   c.fillText(badge, x + w - badgeW / 2 - 8 * S, y + 16 * S)
 
-  c.textAlign = 'left'
-  c.fillStyle = '#5D4630'
-  c.font = `bold ${8.5 * S}px "PingFang SC",sans-serif`
-  const label = getTowerMilestoneRewardLabel(tier)
-  c.fillText(_fitText(c, label, w - 20 * S), x + 10 * S, y + 42 * S)
+  const ssrPet = getSeasonSSRPet()
+  const srPet = getSeasonSRPet()
+  const rewards = getMilestoneRewards(tier).slice(0, 2)
+  let ry = y + 35 * S
+  for (const reward of rewards) {
+    _drawRewardLine(c, R, S, reward, x + 10 * S, ry, w - 20 * S, ssrPet, srPet)
+    ry += 14 * S
+  }
   c.restore()
 }
 
@@ -175,6 +221,8 @@ function rTowerDetail(g) {
   const petX = W / 2 - avatarSize / 2
   const petY = y + 76 * S
   _drawSsrRewardPet(c, R, S, ssrPet, petX, petY, avatarSize)
+  g._towerDetailSsrAvatarRect = ssrPet ? [petX - 6 * S, petY - 6 * S, avatarSize + 12 * S, avatarSize + 12 * S] : null
+  g._towerDetailSsrPetId = ssrPet && ssrPet.id
   c.textAlign = 'center'
   c.fillStyle = '#2E8B57'
   c.font = `bold ${12 * S}px "PingFang SC",sans-serif`
@@ -216,6 +264,17 @@ function tTowerDetail(g, x, y, type) {
   if (type !== 'end') return
   if (g._towerDetailBackRect && g._hitRect(x, y, ...g._towerDetailBackRect)) {
     g.setScene('title')
+    return
+  }
+  if (g._towerDetailSsrAvatarRect && g._towerDetailSsrPetId
+      && g._hitRect(x, y, ...g._towerDetailSsrAvatarRect)) {
+    const petId = g._towerDetailSsrPetId
+    const owned = !!g.storage.getPoolPet(petId)
+    g._petDetailId = petId
+    g._petDetailUnowned = !owned
+    g._petDetailUnownedFullRoadmap = !owned
+    g._petDetailReturnScene = 'towerDetail'
+    g.setScene('petDetail')
     return
   }
   if (!g._towerDetailStartRect || !g._hitRect(x, y, ...g._towerDetailStartRect)) return

@@ -5,6 +5,7 @@
 const V = require('./env')
 const P = require('../platform')
 const { getCurrentTrialSeason, getTrialStaminaCost, getTrialSeasonProgress, getTrialSeasonLabel, getDailyQuestsForDate, getDailyAttrTheme } = require('../data/trialSeason')
+const { getWeaponById } = require('../data/weapons')
 
 function _rewardIcon(reward) {
   if (!reward) return null
@@ -35,6 +36,24 @@ function _rewardLabel(reward, attrTheme) {
   if (reward.type === 'randomFragment') return `${(attrTheme && attrTheme.enemyName) || '属性'}宠碎`
   if (reward.type === 'weapon') return 'SSR法宝'
   return '奖励'
+}
+
+function _wrapText(c, text, maxW, fontSize) {
+  const chars = String(text || '').split('')
+  const lines = []
+  let line = ''
+  c.font = `${fontSize}px "PingFang SC",sans-serif`
+  chars.forEach((ch) => {
+    const test = line + ch
+    if (line && c.measureText(test).width > maxW) {
+      lines.push(line)
+      line = ch
+    } else {
+      line = test
+    }
+  })
+  if (line) lines.push(line)
+  return lines
 }
 
 function _questPoolLabel(quest) {
@@ -113,6 +132,25 @@ function _drawRewardCard(c, R, S, tier, x, y, w, h, seasonScore, got, attrTheme)
   c.textAlign = 'center'
   c.fillText(badge, x + w - badgeW / 2 - 8 * S, y + 15 * S)
 
+  const weaponReward = (tier.rewards || []).find(reward => reward.type === 'weapon')
+  if (weaponReward) {
+    const wpn = getWeaponById(weaponReward.id)
+    const iconSize = 28 * S
+    const iconX = x + 10 * S
+    const iconY = y + 28 * S
+    const img = R.getImg(`assets/equipment/fabao_${weaponReward.id}.png`)
+    if (img && img.width > 0) R.drawCoverImg(img, iconX, iconY, iconSize, iconSize, { radius: 6 * S })
+    R.drawWeaponFrame && R.drawWeaponFrame(iconX, iconY, iconSize)
+    c.textAlign = 'left'
+    c.fillStyle = '#B86414'
+    c.font = `bold ${8.8*S}px "PingFang SC",sans-serif`
+    c.fillText(wpn ? wpn.name : 'SSR法宝', iconX + iconSize + 7 * S, iconY + 10 * S)
+    c.fillStyle = '#8A5A16'
+    c.font = `bold ${7*S}px "PingFang SC",sans-serif`
+    c.fillText('点击查看效果', iconX + iconSize + 7 * S, iconY + 24 * S)
+    return
+  }
+
   let ry = y + 31 * S
   for (const reward of (tier.rewards || []).slice(0, 3)) {
     const iconSize = 12 * S
@@ -134,11 +172,48 @@ function _drawRewardCard(c, R, S, tier, x, y, w, h, seasonScore, got, attrTheme)
   c.restore()
 }
 
-function _todayCreditedScore(state, dailyQuests) {
-  const daily = (state && state.daily) || {}
-  const questDone = daily.questDone || {}
-  const questScore = (dailyQuests || []).reduce((sum, q) => sum + (questDone[q.id] ? (q.score || 0) : 0), 0)
-  return (daily.bestScore || 0) + questScore
+function _drawTrialWeaponDetailPopup(g) {
+  const weaponId = g._trialWeaponDetailId
+  if (!weaponId) return
+  const wpn = getWeaponById(weaponId)
+  if (!wpn) { g._trialWeaponDetailId = null; return }
+  const { ctx: c, R, W, H, S } = V
+  const panelW = W * 0.84
+  const iconSize = 60 * S
+  const padX = 18 * S
+  const descLines = _wrapText(c, wpn.desc || '无', panelW - padX * 2, 11 * S)
+  const panelH = 154 * S + descLines.length * 18 * S
+  const panelX = (W - panelW) / 2
+  const panelY = (H - panelH) / 2
+  c.save()
+  c.fillStyle = 'rgba(0,0,0,0.48)'
+  c.fillRect(0, 0, W, H)
+  R.drawInfoPanel(panelX, panelY, panelW, panelH)
+  const img = R.getImg(`assets/equipment/fabao_${weaponId}.png`)
+  const iconX = panelX + (panelW - iconSize) / 2
+  const iconY = panelY + 16 * S
+  if (img && img.width > 0) R.drawCoverImg(img, iconX, iconY, iconSize, iconSize, { radius: 8 * S })
+  R.drawWeaponFrame && R.drawWeaponFrame(iconX, iconY, iconSize)
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = '#8B6914'
+  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
+  c.fillText(wpn.name, W / 2, iconY + iconSize + 20 * S)
+  c.textAlign = 'left'
+  c.fillStyle = '#8B6914'
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.fillText('法宝效果：', panelX + padX, iconY + iconSize + 42 * S)
+  c.fillStyle = '#3D2B1F'
+  c.font = `${11*S}px "PingFang SC",sans-serif`
+  let dy = iconY + iconSize + 64 * S
+  descLines.forEach((line) => {
+    c.fillText(line, panelX + padX, dy)
+    dy += 18 * S
+  })
+  c.textAlign = 'center'
+  c.fillStyle = '#9B8B80'
+  c.font = `${9*S}px "PingFang SC",sans-serif`
+  c.fillText('点击任意位置关闭', W / 2, panelY + panelH - 12 * S)
+  c.restore()
 }
 
 function rTrialDetail(g) {
@@ -149,9 +224,9 @@ function rTrialDetail(g) {
   const attrTheme = getDailyAttrTheme()
   const seasonProgress = getTrialSeasonProgress()
   const seasonLabel = getTrialSeasonLabel()
-  const todayCredited = _todayCreditedScore(state, dailyQuests)
   const cost = getTrialStaminaCost(g.storage)
   const unlocked = g.storage.isTrialUnlocked()
+  const savedTrial = g.storage.loadRunState && g.storage.loadRunState('trial')
 
   R.drawHomeBg(g.af || 0)
   c.fillStyle = 'rgba(20,12,36,0.52)'
@@ -202,23 +277,20 @@ function rTrialDetail(g) {
   }
   const ruleW = 132 * S
   const ruleX = panelX + panelW - ruleW - 34 * S
-  const ruleY = y + 58 * S
-  const ruleH = 38 * S
+  const ruleY = attrY - 13 * S
+  const ruleH = 26 * S
   c.fillStyle = 'rgba(255,248,226,0.82)'
   R.rr(ruleX, ruleY, ruleW, ruleH, 10 * S); c.fill()
   c.strokeStyle = 'rgba(214,154,46,0.5)'; c.lineWidth = 1
   R.rr(ruleX, ruleY, ruleW, ruleH, 10 * S); c.stroke()
   c.fillStyle = '#8A5A16'
-  c.font = `bold ${8*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'center'
-  c.fillText('试炼特殊加成', ruleX + ruleW / 2, ruleY + 13 * S)
-  c.fillStyle = '#4C3A28'
   c.font = `bold ${7.6*S}px "PingFang SC",sans-serif`
-  c.fillText('克制攻击 +15%', ruleX + ruleW / 2, ruleY + 28 * S)
+  c.textAlign = 'center'
+  c.fillText('试炼特殊加成 · 克制攻击 +15%', ruleX + ruleW / 2, ruleY + ruleH / 2)
   c.textAlign = 'left'
 
-  const questY = y + 102 * S
-  const questH = 82 * S
+  const questY = y + 94 * S
+  const questH = 100 * S
   const qGrad = c.createLinearGradient(innerX, questY, innerX, questY + questH)
   qGrad.addColorStop(0, 'rgba(255,246,220,0.96)')
   qGrad.addColorStop(1, 'rgba(255,235,196,0.88)')
@@ -240,29 +312,42 @@ function rTrialDetail(g) {
     })
     qy += 18 * S
   }
+  c.fillStyle = '#3F3022'
+  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+  c.fillText('今日最高层数计分', innerX + 12 * S, qy)
+  _drawPill(c, R, innerX + innerW - 90 * S, qy - 11 * S, 80 * S, 20 * S, '每层+80分', '#4EA96B', {
+    bg: 'rgba(225,255,232,0.88)', textColor: '#267B40', fontSize: 7.4 * S,
+  })
+  _drawPill(c, R, innerX + innerW - 176 * S, qy - 11 * S, 82 * S, 20 * S, '通关+300分', '#4EA96B', {
+    bg: 'rgba(225,255,232,0.88)', textColor: '#267B40', fontSize: 7.4 * S,
+  })
 
-  c.fillStyle = 'rgba(255,245,205,0.82)'
-  R.rr(innerX, y + 188 * S, 126 * S, 24 * S, 12 * S); c.fill()
-  c.strokeStyle = 'rgba(208,150,54,0.46)'; c.lineWidth = 1
-  R.rr(innerX, y + 188 * S, 126 * S, 24 * S, 12 * S); c.stroke()
-  c.fillStyle = '#8A4E12'
-  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  c.fillText('每层+80  通关+300', innerX + 10 * S, y + 200 * S)
-  c.fillStyle = '#5D4630'
-  c.font = `${9*S}px "PingFang SC",sans-serif`
-  c.fillText(todayCredited > 0 ? `今日已计入 ${todayCredited} 分` : '今日最高可推进约 1600 分', innerX, y + 216 * S)
-  c.textAlign = 'right'
+  const ruleTagY = y + 197 * S
+  const fragTagX = innerX
   const stIcon = R.getImg('assets/ui/icon_stamina.png')
   const stText = `${cost}${cost < season.staminaCost ? ' 首战半价' : ''}`
-  const stY = y + 200 * S
-  const stIconSize = 14 * S
+  const stIconSize = 15 * S
   c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  const stTextW = c.measureText(stText).width
-  const stRight = panelX + panelW - 34 * S
-  const stIconX = stRight - stTextW - stIconSize - 4 * S
+  const stPillW = Math.min(104 * S, Math.max(62 * S, c.measureText(stText).width + stIconSize + 20 * S))
+  const fragTagW = Math.max(126 * S, innerW - stPillW - 10 * S)
+  c.fillStyle = 'rgba(232,243,255,0.92)'
+  R.rr(fragTagX, ruleTagY, fragTagW, 24 * S, 12 * S); c.fill()
+  c.strokeStyle = 'rgba(62,133,197,0.52)'
+  R.rr(fragTagX, ruleTagY, fragTagW, 24 * S, 12 * S); c.stroke()
+  c.fillStyle = '#2F72A8'
+  c.font = `bold ${8.4*S}px "PingFang SC",sans-serif`
+  c.fillText('每次挑战得同属性碎片', fragTagX + 10 * S, ruleTagY + 12 * S)
+  const stPillX = fragTagX + fragTagW + 10 * S
+  const stY = ruleTagY + 12 * S
+  c.fillStyle = 'rgba(255,246,210,0.94)'
+  R.rr(stPillX, ruleTagY, stPillW, 24 * S, 12 * S); c.fill()
+  c.strokeStyle = 'rgba(214,154,46,0.6)'
+  R.rr(stPillX, ruleTagY, stPillW, 24 * S, 12 * S); c.stroke()
+  const stIconX = stPillX + 10 * S
   if (stIcon && stIcon.width > 0) c.drawImage(stIcon, stIconX, stY - stIconSize / 2, stIconSize, stIconSize)
   c.fillStyle = '#6A4A1C'
-  c.fillText(stText, stRight, stY)
+  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+  c.fillText(stText, stIconX + stIconSize + 4 * S, stY)
   c.textAlign = 'left'
 
   y += panelH + 12 * S
@@ -270,6 +355,7 @@ function rTrialDetail(g) {
   _drawTrialPanel(c, R, 'assets/ui/trial_panel_reward.png', panelX, y, panelW, rewardH)
   const seasonScore = state.seasonScore || 0
   const maxRewardScore = season.rewardTrack[season.rewardTrack.length - 1].score
+  g._trialWeaponRewardRects = []
   c.fillStyle = '#7A4A12'
   c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   c.fillText('积分奖励轨道', innerX, y + 52 * S)
@@ -304,24 +390,44 @@ function rTrialDetail(g) {
     const cx = innerX + col * (cardW + cardGap)
     const cy = cardsY + row * (cardH + cardGap)
     _drawRewardCard(c, R, S, tier, cx, cy, cardW, cardH, seasonScore, got, attrTheme)
+    const weaponReward = (tier.rewards || []).find(reward => reward.type === 'weapon')
+    if (weaponReward) g._trialWeaponRewardRects.push({ id: weaponReward.id, rect: [cx + 8 * S, cy + 26 * S, 88 * S, 34 * S] })
   }
 
   const btnW = W * 0.62
   const btnH = 44 * S
   const btnX = (W - btnW) / 2
   const btnY = H - 72 * S
-  const btnLabel = unlocked ? '进入编队' : '通关 2-8 后开放'
+  const btnLabel = unlocked
+    ? (savedTrial ? `继续试炼（第${savedTrial.floor || 1}层）` : '进入编队')
+    : '通关第 1 章后开放'
   R.drawDialogBtn(btnX, btnY, btnW, btnH, btnLabel, unlocked ? 'confirm' : 'disabled')
   g._trialStartRect = unlocked ? [btnX, btnY, btnW, btnH] : null
+  _drawTrialWeaponDetailPopup(g)
 }
 
 function tTrialDetail(g, x, y, type) {
   if (type !== 'end') return
+  if (g._trialWeaponDetailId) {
+    g._trialWeaponDetailId = null
+    return
+  }
   if (g._trialBackRect && g._hitRect(x, y, ...g._trialBackRect)) {
     g.setScene('title')
     return
   }
+  for (const item of g._trialWeaponRewardRects || []) {
+    if (g._hitRect(x, y, ...item.rect)) {
+      g._trialWeaponDetailId = item.id
+      return
+    }
+  }
   if (g._trialStartRect && g._hitRect(x, y, ...g._trialStartRect)) {
+    const savedTrial = g.storage.loadRunState && g.storage.loadRunState('trial')
+    if (savedTrial) {
+      g._resumeRun('trial')
+      return
+    }
     const cost = getTrialStaminaCost(g.storage)
     if (g.storage.currentStamina < cost) {
       P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })

@@ -33,7 +33,7 @@ function _itemsFromReward(reward) {
   if (reward.type === 'stamina')           items.push({ icon: 'assets/ui/icon_stamina.png' })
   if (reward.type === 'awakenStone')       items.push({ icon: 'assets/ui/icon_awaken_stone.png' })
   if (reward.type === 'universalFragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
-  if (reward.type === 'ssrFragment' || reward.type === 'fragment' || reward.type === 'randomFragment') items.push({ icon: 'assets/ui/icon_universal_frag.png' })
+  if (reward.type === 'ssrFragment' || reward.type === 'fragment' || reward.type === 'randomFragment') items.push({ icon: 'assets/ui/frame_fragment.png' })
   if (reward.type === 'weaponTicket')      items.push({ icon: 'assets/ui/icon_universal_frag.png' })
   // SSR 法宝（章节 24★ 里程碑直接发放）：与首页底栏「法宝」Tab 同款 nav_weapon
   if (reward.type === 'ssrWeapon')         items.push({ icon: 'assets/ui/nav_weapon.png' })

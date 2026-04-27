@@ -4,6 +4,7 @@
 const V = require('./env')
 const flyParticles = require('./resourceFlyParticles')
 const { getTrialSeasonLabel, getDailyAttrTheme } = require('../data/trialSeason')
+const { getPetById, getPetAvatarPath } = require('../data/pets')
 
 const ATTR_NAME = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
 
@@ -12,13 +13,13 @@ function _rewardIcon(reward) {
   if (reward.type === 'soulStone') return 'assets/ui/icon_soul_stone.png'
   if (reward.type === 'universalFragment') return 'assets/ui/icon_universal_frag.png'
   if (reward.type === 'awakenStone') return 'assets/ui/icon_awaken_stone.png'
+  if (reward.type === 'randomFragment') return 'assets/ui/frame_fragment.png'
   if (reward.type === 'weapon') return reward.duplicateSoulStone ? 'assets/ui/icon_soul_stone.png' : 'assets/ui/nav_weapon.png'
   return null
 }
 
 function _rewardEmoji(reward) {
   if (!reward) return null
-  if (reward.type === 'randomFragment') return '💠'
   return null
 }
 
@@ -28,6 +29,8 @@ function _rewardLabel(reward, attrTheme) {
   if (reward.type === 'universalFragment') return '万能碎'
   if (reward.type === 'awakenStone') return '觉醒石'
   if (reward.type === 'randomFragment') {
+    const pet = reward.petId ? getPetById(reward.petId) : null
+    if (pet) return `${pet.name}碎片`
     const attrName = reward.attrs && reward.attrs.length
       ? reward.attrs.map(attr => ATTR_NAME[attr] || attr).join('/')
       : (reward.attr ? ATTR_NAME[reward.attr] : (attrTheme && attrTheme.enemyName))
@@ -60,8 +63,21 @@ function _drawRewardChip(c, R, S, reward, x, y, w, h, attrTheme) {
   const iconSize = 22 * S
   const iconX = x + 10 * S
   const iconY = y + h / 2
+  const pet = reward && reward.type === 'randomFragment' && reward.petId ? getPetById(reward.petId) : null
   const emoji = _rewardEmoji(reward)
-  if (emoji) {
+  if (pet) {
+    const avatarPath = getPetAvatarPath({ ...pet, star: 1 })
+    const img = R.getImg(avatarPath)
+    if (img && img.width > 0) {
+      R.drawCoverImg(img, iconX, iconY - iconSize / 2, iconSize, iconSize, {
+        radius: 4 * S,
+        strokeStyle: '#b8860b',
+        strokeWidth: 1,
+      })
+    } else {
+      _drawFallbackIcon(c, R, S, iconX, iconY, iconSize)
+    }
+  } else if (emoji) {
     c.font = `${iconSize}px "PingFang SC",sans-serif`
     c.fillStyle = '#7a5028'
     c.textAlign = 'center'; c.textBaseline = 'middle'
@@ -79,6 +95,11 @@ function _drawRewardChip(c, R, S, reward, x, y, w, h, attrTheme) {
   c.font = `bold ${11*S}px "PingFang SC",sans-serif`
   c.fillText(_rewardAmount(reward), x + 38 * S, y + h * 0.68)
   c.restore()
+}
+
+function _drawFallbackIcon(c, R, S, x, y, size) {
+  c.fillStyle = 'rgba(255,255,255,0.24)'
+  R.rr(x, y - size / 2, size, size, 4 * S); c.fill()
 }
 
 function _spawnRewardFlyOnce(g, rewards, sx, sy) {
@@ -107,23 +128,23 @@ function rTrialResult(g) {
   c.textAlign = 'center'; c.textBaseline = 'middle'
   c.fillStyle = '#D89C1D'
   c.font = `bold ${22*S}px "PingFang SC",sans-serif`
-  c.fillText('试炼结算', W / 2, panelY + 38 * S)
+  c.fillText('试炼结算', W / 2, panelY + 49 * S)
   c.fillStyle = '#5A2B0F'
   c.font = `bold ${28*S}px "PingFang SC",sans-serif`
-  c.fillText(`${d.score || 0} 分`, W / 2, panelY + 84 * S)
+  c.fillText(`${d.score || 0} 分`, W / 2, panelY + 91 * S)
   c.fillStyle = '#7A4A12'
   c.font = `${11*S}px "PingFang SC",sans-serif`
-  c.fillText(`赛季累计 +${d.scoreAdded || 0} / ${d.seasonScore || 0}`, W / 2, panelY + 108 * S)
+  c.fillText(`赛季累计 +${d.scoreAdded || 0} / ${d.seasonScore || 0}`, W / 2, panelY + 113 * S)
   c.fillStyle = '#8B6A36'
   c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  c.fillText(seasonLabel, W / 2, panelY + 126 * S)
+  c.fillText(seasonLabel, W / 2, panelY + 129 * S)
 
-  const innerX = panelX + 30 * S
-  const innerW = panelW - 60 * S
+  const innerX = panelX + 42 * S
+  const innerW = panelW - 84 * S
   c.textAlign = 'left'
-  c.font = `${11*S}px "PingFang SC",sans-serif`
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
   c.fillStyle = '#5D4630'
-  let y = panelY + 154 * S
+  let y = panelY + 148 * S
   const parts = d.scoreParts || {}
   const questResults = d.dailyQuestResults || []
   const rows = [
@@ -135,30 +156,32 @@ function rTrialResult(g) {
     ['今日课题', `+${parts.dailyQuest || 0}`],
   ]
   for (const row of rows) {
+    c.fillStyle = '#5D4630'
+    c.font = `bold ${12*S}px "PingFang SC",sans-serif`
     c.fillText(row[0], innerX, y)
     c.textAlign = 'right'
     c.fillText(String(row[1]), innerX + innerW, y)
     c.textAlign = 'left'
-    y += 22 * S
+    y += 17 * S
   }
   c.strokeStyle = 'rgba(190,150,80,0.28)'
   c.lineWidth = 1
-  c.beginPath(); c.moveTo(innerX, y - 8 * S); c.lineTo(innerX + innerW, y - 8 * S); c.stroke()
+  c.beginPath(); c.moveTo(innerX, y - 6 * S); c.lineTo(innerX + innerW, y - 6 * S); c.stroke()
   for (const quest of questResults) {
     c.fillStyle = quest.done ? '#2E8B57' : '#8B7B70'
-    c.font = `${9*S}px "PingFang SC",sans-serif`
-    c.fillText(quest.label, innerX + 10 * S, y)
+    c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+    c.fillText(quest.label, innerX + 8 * S, y)
     c.textAlign = 'right'
     c.fillText(quest.done ? `完成 +${quest.score || 0}` : '未完成', innerX + innerW, y)
     c.textAlign = 'left'
-    y += 17 * S
+    y += 13 * S
   }
 
-  y += 12 * S
+  y += 8 * S
   c.fillStyle = '#7A4A12'
-  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   c.fillText('本次已领取', innerX, y)
-  y += 22 * S
+  y += 18 * S
   const rewards = d.rewards || []
   if (rewards.length === 0) {
     c.fillStyle = '#8B7B70'

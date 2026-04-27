@@ -29,6 +29,7 @@ function drawExitDialog(g) {
   g._exitCancelRect = [0, 0, W, H]
 
   const isStage = g.battleMode === 'stage'
+  const isTrial = g.battleMode === 'trial'
   // 秘境关卡：计算是否免体力，决定红字文案
   let stageRestartHint = '重新挑战将重新开始本关'
   if (isStage) {
@@ -39,6 +40,11 @@ function drawExitDialog(g) {
       const cost = g._stageStaminaCost ?? STAMINA_COST
       stageRestartHint = `重新挑战将消耗 ${cost} 点体力`
     }
+  }
+  let restartHint = isStage ? stageRestartHint : '重新开局将清空当前战斗进度'
+  if (isTrial) {
+    const { getTrialStaminaCost } = require('../data/trialSeason')
+    restartHint = `重新开始将消耗 ${getTrialStaminaCost(g.storage)} 点体力`
   }
 
   // 标题
@@ -53,7 +59,7 @@ function drawExitDialog(g) {
   ctx.fillText('请选择退出方式', px + pw*0.5, py + 60*S)
   ctx.fillStyle = '#C0392B'
   ctx.font = `bold ${11*S}px "PingFang SC",sans-serif`
-  ctx.fillText(isStage ? stageRestartHint : '重新开局将清空当前战斗进度', px + pw*0.5, py + 78*S)
+  ctx.fillText(restartHint, px + pw*0.5, py + 78*S)
   ctx.fillStyle = '#8A7A62'
   ctx.font = `${9*S}px "PingFang SC",sans-serif`
   ctx.fillText('点击任意位置取消', px + pw*0.5, py + 94*S)
@@ -65,7 +71,7 @@ function drawExitDialog(g) {
   const btnY = py + 106*S
   R.drawDialogBtn(btn1X, btnY, btnW, btnH, isStage ? '返回' : '暂存退出', 'cancel')
   g._exitSaveRect = [btn1X, btnY, btnW, btnH]
-  R.drawDialogBtn(btn2X, btnY, btnW, btnH, isStage ? '重新挑战' : '重新开局', 'confirm')
+  R.drawDialogBtn(btn2X, btnY, btnW, btnH, isStage ? '重新挑战' : (isTrial ? '重新开始' : '重新开局'), 'confirm')
   g._exitRestartRect = [btn2X, btnY, btnW, btnH]
 }
 

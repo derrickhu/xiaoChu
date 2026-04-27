@@ -978,7 +978,7 @@ function _drawGrowthRoadmapSection(c, R, S, opts) {
   return cy
 }
 
-/** 未获得周 SSR 预览：与灵宠详情相同的 ★1～★5 成长路线 + 碎片召唤 */
+/** 未获得周 SSR 预览：与灵宠详情相同的 ★1～★5 成长路线 */
 function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRowTop) {
   const basePet = getPetById(petId)
   if (!basePet) return
@@ -986,11 +986,6 @@ function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRow
   const rv = RARITY_VISUAL[rarity] || RARITY_VISUAL.R
   const attrColor = ATTR_COLOR[basePet.attr]
   const ac = attrColor ? attrColor.main : '#666'
-  const { SUMMON_FRAG_COST } = require('../data/chestConfig')
-  const cost = SUMMON_FRAG_COST[rarity] || 15
-  const bankFrag = g.storage.getBankFragments(petId)
-  const canSummon = bankFrag >= cost
-
   const poolFake = {
     id: petId,
     level: 1,
@@ -1075,7 +1070,11 @@ function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRow
   c.font = `${10*S}px "PingFang SC",sans-serif`
   c.fillStyle = 'rgba(255,248,220,0.9)'
   c.fillText('本周通天塔 SSR · 点击星阶展开技能详情', W / 2, cy)
-  cy += 22 * S
+  cy += 19 * S
+  c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+  c.fillStyle = '#FFE9A8'
+  c.fillText(`初始攻击力 ${basePet.atk}`, W / 2, cy)
+  cy += 23 * S
 
   const cardX = 6 * S
   const cardW2 = W - 12 * S
@@ -1136,66 +1135,8 @@ function _drawUnownedFullRoadmapPage(g, petId, c, R, W, H, S, safeTop, headerRow
     cy: contentCy,
     registerHits: true,
   })
-
-  drawSeparator(c, indent, cy, rightEdge, '180,140,60')
+  _rects.summonBtnRect = null
   cy += 10 * S
-
-  c.fillStyle = '#5A4530'
-  c.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  c.textAlign = 'left'; c.textBaseline = 'top'
-  c.fillText('碎片召唤', indent, cy)
-  cy += 22 * S
-
-  const barH3 = 14 * S
-  const barX2 = indent
-  const gapMid = 8 * S
-  const marginR = 14 * S
-  const fragStr = `${bankFrag} / ${cost}`
-  const textRight = rightEdge - marginR
-  let fragFs = 13 * S
-  c.font = `${fragFs}px "PingFang SC",sans-serif`
-  let fragW = c.measureText(fragStr).width
-  let availForBar = contentW - marginR - fragW - gapMid
-  if (availForBar < 36 * S && fragFs > 11 * S) {
-    fragFs = 11 * S
-    c.font = `${fragFs}px "PingFang SC",sans-serif`
-    fragW = c.measureText(fragStr).width
-    availForBar = contentW - marginR - fragW - gapMid
-  }
-  const barW2 = Math.min(contentW * 0.6, Math.max(0, availForBar))
-  const progress = Math.min(1, bankFrag / cost)
-  c.fillStyle = 'rgba(0,0,0,0.15)'
-  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.fill()
-  if (progress > 0) {
-    const fillGrad = c.createLinearGradient(barX2, cy, barX2 + barW2 * progress, cy)
-    fillGrad.addColorStop(0, '#9b7aff')
-    fillGrad.addColorStop(1, '#6b4adf')
-    c.fillStyle = fillGrad
-    R.rr(barX2, cy, barW2 * progress, barH3, barH3 / 2); c.fill()
-  }
-  c.strokeStyle = 'rgba(120,100,200,0.4)'; c.lineWidth = 1 * S
-  R.rr(barX2, cy, barW2, barH3, barH3 / 2); c.stroke()
-
-  c.fillStyle = canSummon ? '#7ecf6a' : 'rgba(90,70,40,0.75)'
-  c.font = `${fragFs}px "PingFang SC",sans-serif`
-  c.textAlign = 'right'; c.textBaseline = 'top'
-  c.fillText(fragStr, textRight, cy + (barH3 - fragFs) * 0.15)
-  cy += barH3 + 16 * S
-
-  const sBtnW = 120 * S
-  const sBtnH = 38 * S
-  const sBtnX = indent
-  const sRect = [sBtnX, cy, sBtnW, sBtnH]
-  drawPrimaryButton(c, S, sBtnX, cy, sBtnW, sBtnH, {
-    text: canSummon ? '召唤灵宠' : '碎片不足',
-    style: canSummon ? 'milestone' : 'ghost',
-    enabled: canSummon,
-    pressed: _pressedBtnId === 'summon',
-    glow: canSummon,
-    flashT: buttonFx.getFlashT(sRect),
-  })
-  _rects.summonBtnRect = sRect
-  cy += sBtnH + 10 * S
 
   const contentTotalH = Math.max(1, cy - cardTop)
   _rects.panelContentH = contentTotalH

@@ -26,7 +26,7 @@ const TRIAL_ELITE_NAMES = {
 }
 
 const TRIAL_SPECIAL_FLOOR = {
-  5: {
+  8: {
     name: '玄甲灵龟·破壁',
     avatar: 'enemies/trial/trial_guard_defense_earth',
     title: '高防低血',
@@ -34,13 +34,13 @@ const TRIAL_SPECIAL_FLOOR = {
     hpMul: 0.28,
     atkMul: 0.82,
     defMul: 7.2,
-    skills: ['trialDefGuard', 'breakBead'],
+    skills: ['breakBead'],
     variants: {
-      metal: { name: '镜甲金龟·折锋', avatar: 'enemies/trial/trial_guard_defense_metal', title: '金甲反制', desc: '防御极高但血量偏低，会短暂反弹伤害，适合破防后集中爆发。', hpMul: 0.26, atkMul: 0.78, defMul: 7.4, skills: ['trialDefGuard', 'trialArmorMirror'] },
-      wood:  { name: '藤甲灵龟·回根', avatar: 'enemies/trial/trial_guard_defense_wood', title: '木甲回复', desc: '防御高且会小幅回血，不能慢慢磨，优先带破防和高爆发。', hpMul: 0.32, atkMul: 0.72, defMul: 6.2, skills: ['trialDefGuard', 'trialArmorRegen'] },
-      water: { name: '寒甲灵龟·凝流', avatar: 'enemies/trial/trial_guard_defense_water', title: '水甲封行', desc: '防御高并会封锁一行灵珠，需要预留转珠空间后再爆发。', hpMul: 0.30, atkMul: 0.74, defMul: 6.6, skills: ['trialDefGuard', 'trialArmorFrost'] },
-      fire:  { name: '熔甲灵龟·灼壳', avatar: 'enemies/trial/trial_guard_defense_fire', title: '火甲灼烧', desc: '血量最低但会灼烧压血，适合快速破防击杀。', hpMul: 0.24, atkMul: 0.88, defMul: 6.8, skills: ['trialDefGuard', 'trialArmorBurn'] },
-      earth: { name: '玄甲灵龟·破壁', avatar: 'enemies/trial/trial_guard_defense_earth', title: '土甲碎盘', desc: '防御最高并会破坏灵珠，破防灵宠是最稳定的解法。', hpMul: 0.28, atkMul: 0.82, defMul: 7.8, skills: ['trialDefGuard', 'trialArmorShatter'] },
+      metal: { name: '镜甲金龟·折锋', avatar: 'enemies/trial/trial_guard_defense_metal', title: '金甲反制', desc: '防御极高但血量偏低，会短暂反弹伤害，适合破防后集中爆发。', hpMul: 0.26, atkMul: 0.78, defMul: 7.4, skills: ['trialArmorMirror'] },
+      wood:  { name: '藤甲灵龟·回根', avatar: 'enemies/trial/trial_guard_defense_wood', title: '木甲回复', desc: '防御高且会小幅回血，不能慢慢磨，优先带破防和高爆发。', hpMul: 0.32, atkMul: 0.72, defMul: 6.2, skills: ['trialArmorRegen'] },
+      water: { name: '寒甲灵龟·凝流', avatar: 'enemies/trial/trial_guard_defense_water', title: '水甲封行', desc: '防御高并会封锁一行灵珠，需要预留转珠空间后再爆发。', hpMul: 0.30, atkMul: 0.74, defMul: 6.6, skills: ['trialArmorFrost'] },
+      fire:  { name: '熔甲灵龟·灼壳', avatar: 'enemies/trial/trial_guard_defense_fire', title: '火甲灼烧', desc: '血量最低但会灼烧压血，适合快速破防击杀。', hpMul: 0.24, atkMul: 0.88, defMul: 6.8, skills: ['trialArmorBurn'] },
+      earth: { name: '玄甲灵龟·破壁', avatar: 'enemies/trial/trial_guard_defense_earth', title: '土甲碎盘', desc: '防御最高并会破坏灵珠，破防灵宠是最稳定的解法。', hpMul: 0.28, atkMul: 0.82, defMul: 7.8, skills: ['trialArmorShatter'] },
     },
   },
   9: {
@@ -65,18 +65,18 @@ const TRIAL_SPECIAL_FLOOR = {
     name: '锁灵天将·封阵',
     avatar: 'enemies/trial/trial_guard_seal_metal',
     title: '封印灵宠',
-    desc: '会短暂封印1只灵宠，队伍属性越分散越不容易被单点卡死。',
+    desc: '会短暂封印1只灵宠，并根据属性追加不同干扰。',
     hpMul: 0.62,
     atkMul: 0.72,
     defMul: 0.95,
     skills: ['trialPetSeal', 'bossConvert'],
     isBoss: true,
     variants: {
-      metal: { name: '金锁妖将·断刃', avatar: 'enemies/trial/trial_guard_seal_metal', title: '金锁点杀', desc: '封印1只灵宠后补一次低倍率攻击，考验队伍续航和替补输出。', hpMul: 0.58, atkMul: 0.76, defMul: 1.0, skills: ['trialPetSeal', 'trialSealMetal'] },
-      wood:  { name: '木锁妖将·缠魂', avatar: 'enemies/trial/trial_guard_seal_wood', title: '木锁禁疗', desc: '封印1只灵宠并压低心珠回复，不能只靠治疗拖过封印期。', hpMul: 0.64, atkMul: 0.66, defMul: 0.95, skills: ['trialPetSeal', 'trialSealWood'] },
-      water: { name: '水锁妖将·乱流', avatar: 'enemies/trial/trial_guard_seal_water', title: '水锁乱珠', desc: '封印1只灵宠并扰乱灵珠，需要更稳的盘面整理能力。', hpMul: 0.62, atkMul: 0.68, defMul: 0.92, skills: ['trialPetSeal', 'trialSealWater'] },
-      fire:  { name: '火锁妖将·焚阵', avatar: 'enemies/trial/trial_guard_seal_fire', title: '火锁灼烧', desc: '封印1只灵宠并施加灼烧，适合用爆发缩短战斗。', hpMul: 0.56, atkMul: 0.78, defMul: 0.9, skills: ['trialPetSeal', 'trialSealFire'] },
-      earth: { name: '土锁妖将·压阵', avatar: 'enemies/trial/trial_guard_seal_earth', title: '土锁破珠', desc: '封印1只灵宠并破坏少量灵珠，队伍属性分散更容易渡过封印。', hpMul: 0.66, atkMul: 0.64, defMul: 1.05, skills: ['trialPetSeal', 'trialSealEarth'] },
+      metal: { name: '金锁妖将·断刃', avatar: 'enemies/trial/trial_guard_seal_metal', title: '金锁点杀', desc: '会封印1只灵宠，并追加低倍率直接伤害。', hpMul: 0.58, atkMul: 0.76, defMul: 1.0, skills: ['trialPetSeal', 'trialSealMetal'] },
+      wood:  { name: '木锁妖将·缠魂', avatar: 'enemies/trial/trial_guard_seal_wood', title: '木锁禁疗', desc: '会封印1只灵宠，并降低心珠回复。', hpMul: 0.64, atkMul: 0.66, defMul: 0.95, skills: ['trialPetSeal', 'trialSealWood'] },
+      water: { name: '水锁妖将·乱流', avatar: 'enemies/trial/trial_guard_seal_water', title: '水锁乱珠', desc: '会封印1只灵宠，并扰乱灵珠属性。', hpMul: 0.62, atkMul: 0.68, defMul: 0.92, skills: ['trialPetSeal', 'trialSealWater'] },
+      fire:  { name: '火锁妖将·焚阵', avatar: 'enemies/trial/trial_guard_seal_fire', title: '火锁灼烧', desc: '会封印1只灵宠，并施加灼烧。', hpMul: 0.56, atkMul: 0.78, defMul: 0.9, skills: ['trialPetSeal', 'trialSealFire'] },
+      earth: { name: '土锁妖将·压阵', avatar: 'enemies/trial/trial_guard_seal_earth', title: '土锁破珠', desc: '会封印1只灵宠，并破坏少量灵珠。', hpMul: 0.66, atkMul: 0.64, defMul: 1.05, skills: ['trialPetSeal', 'trialSealEarth'] },
     },
   },
 }
@@ -94,7 +94,7 @@ const TRIAL_MODE = {
   id: 'trial_counter_break_004',
   name: '五行克制·破阵试炼',
   shortName: '破阵试炼',
-  unlockStageId: 'stage_2_8',
+  unlockStageId: 'stage_1_8',
   maxFloor: 10,
   staminaCost: 10,
   firstDailyStaminaCost: 5,
@@ -113,18 +113,23 @@ const TRIAL_MODE = {
     speedTurn: 5,
     dailyQuest: 0,
   },
+  runFragmentReward: {
+    startFloor: 4,
+    floorStep: 3,
+    maxCount: 3,
+  },
   rewardTrack: [
-    { score: 1200, rewards: [{ type: 'soulStone', count: 300 }, { type: 'randomFragment', count: 5 }] },
-    { score: 3200, rewards: [{ type: 'soulStone', count: 500 }, { type: 'universalFragment', count: 5 }] },
-    { score: 5600, rewards: [{ type: 'soulStone', count: 800 }, { type: 'awakenStone', count: 2 }] },
-    { score: 8400, rewards: [{ type: 'soulStone', count: 1100 }, { type: 'randomFragment', count: 16 }] },
-    { score: 11200, rewards: [{ type: 'weapon', id: 'w51' }, { type: 'soulStone', count: 1200 }, { type: 'universalFragment', count: 8 }] },
-    { score: 15000, rewards: [{ type: 'soulStone', count: 1600 }, { type: 'universalFragment', count: 12 }, { type: 'awakenStone', count: 3 }] },
+    { score: 1200, rewards: [{ type: 'soulStone', count: 300 }] },
+    { score: 3200, rewards: [{ type: 'soulStone', count: 700 }, { type: 'universalFragment', count: 8 }] },
+    { score: 5600, rewards: [{ type: 'soulStone', count: 1000 }, { type: 'awakenStone', count: 2 }] },
+    { score: 8400, rewards: [{ type: 'soulStone', count: 1400 }, { type: 'universalFragment', count: 12 }] },
+    { score: 11200, rewards: [{ type: 'soulStone', count: 2100 }, { type: 'universalFragment', count: 26 }, { type: 'awakenStone', count: 3 }] },
+    { score: 13200, rewards: [{ type: 'weapon', id: 'w51' }] },
   ],
   dailyQuests: [
     { id: 'combo5', label: '单场达成 5 Combo', desc: '试炼中任意战斗达成 5 Combo', score: 30 },
-    { id: 'counter12', label: '造成属性克制伤害 12 次', desc: '用优势属性攻击敌人', target: 12, score: 80 },
-    { id: 'floor8', label: '抵达第 8 层', desc: '冲进高压区即可完成', score: 60 },
+    { id: 'counter12', label: '造成属性克制伤害 12 次', desc: '用优势属性攻击敌人', target: 12, score: 60 },
+    { id: 'floor8', label: '抵达第 8 层', desc: '冲进高压区即可完成', score: 80 },
   ],
 }
 
@@ -424,6 +429,17 @@ function getClaimableTrialRewards(score, claimed) {
   return getCurrentTrialSeason().rewardTrack.filter(tier => score >= tier.score && !claimedSet.has(tier.score))
 }
 
+function calcTrialRunFragmentReward(floor) {
+  const cfg = getCurrentTrialSeason().runFragmentReward || {}
+  const reachedFloor = Math.max(0, floor || 0)
+  const startFloor = cfg.startFloor || 4
+  const floorStep = cfg.floorStep || 3
+  const maxCount = cfg.maxCount || 3
+  if (reachedFloor < startFloor) return null
+  const count = Math.min(maxCount, 1 + Math.floor((reachedFloor - startFloor) / Math.max(1, floorStep)))
+  return count > 0 ? { type: 'randomFragment', count } : null
+}
+
 module.exports = {
   getCurrentTrialSeason,
   getTrialSpecialFloors,
@@ -436,4 +452,5 @@ module.exports = {
   generateTrialFloorEvent,
   calcTrialScore,
   getClaimableTrialRewards,
+  calcTrialRunFragmentReward,
 }

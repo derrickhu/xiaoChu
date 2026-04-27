@@ -157,6 +157,13 @@ function getScaledDailyAllBonus(chapter) {
   return r
 }
 
+function getAvailableDailyTasks(storage) {
+  return DAILY_TASKS.filter((task) => {
+    if (!task.unlockStageId) return true
+    return !!(storage && storage.isStageCleared && storage.isStageCleared(task.unlockStageId))
+  })
+}
+
 // 分享/邀请/回归/补偿数值已迁移至 balance/economy.js
 
 /**
@@ -195,6 +202,7 @@ module.exports = {
   getLoginPageData,
   DAILY_TASKS,
   DAILY_ALL_COMPLETE_BONUS,
+  getAvailableDailyTasks,
   getScaledDailyTaskReward,
   getScaledDailyAllBonus,
   SHARE_DAILY_MAX,

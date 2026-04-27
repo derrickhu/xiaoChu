@@ -34,6 +34,8 @@ let _cacheAccessLog = {}
 let _cacheAccessFrame = 0
 
 function _isCdnPath(path) {
+  // 子目录声明为 bundled 时，优先按本地包资源处理，避免被父级 CDN 目录误判。
+  if (_isBundledPath(path)) return false
   for (let i = 0; i < CDN_DIRS.length; i++) {
     if (path.startsWith(CDN_DIRS[i])) return true
   }

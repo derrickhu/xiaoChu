@@ -1675,12 +1675,13 @@ class Storage {
   get hasDailyTaskEntryBadge() {
     this._ensureDailyTask()
     const p = this._d.dailyTaskProgress
-    const { DAILY_TASKS } = require('./giftConfig')
-    for (const task of DAILY_TASKS) {
+    const { getAvailableDailyTasks } = require('./giftConfig')
+    const dailyTasks = getAvailableDailyTasks(this)
+    for (const task of dailyTasks) {
       const cur = p.tasks[task.id] || 0
       if (cur >= task.condition.count && !p.claimed[task.id]) return true
     }
-    const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
+    const allDone = dailyTasks.every(t => p.claimed[t.id])
     if (allDone && !p.allClaimed) return true
     if (allDone && p.allClaimed && !p.allBonusAdClaimed) {
       this.syncDailyAllBonusAdFlagFromAdLog()
@@ -1707,8 +1708,8 @@ class Storage {
     this._ensureDailyTask()
     const p = this._d.dailyTaskProgress
     if (p.claimed[taskId]) return false
-    const { DAILY_TASKS, getScaledDailyTaskReward } = require('./giftConfig')
-    const task = DAILY_TASKS.find(t => t.id === taskId)
+    const { getAvailableDailyTasks, getScaledDailyTaskReward } = require('./giftConfig')
+    const task = getAvailableDailyTasks(this).find(t => t.id === taskId)
     if (!task) return false
     if ((p.tasks[taskId] || 0) < task.condition.count) return false
     p.claimed[taskId] = true
@@ -1722,8 +1723,8 @@ class Storage {
     this._ensureDailyTask()
     const p = this._d.dailyTaskProgress
     if (p.allClaimed) return false
-    const { DAILY_TASKS, getScaledDailyAllBonus } = require('./giftConfig')
-    const allDone = DAILY_TASKS.every(t => p.claimed[t.id])
+    const { getAvailableDailyTasks, getScaledDailyAllBonus } = require('./giftConfig')
+    const allDone = getAvailableDailyTasks(this).every(t => p.claimed[t.id])
     if (!allDone) return false
     p.allClaimed = true
     const r = getScaledDailyAllBonus(this.currentChapter)
@@ -2264,6 +2265,7 @@ class Storage {
     const st = this._refreshTrial(sid)
     st.daily.runs = (st.daily.runs || 0) + 1
     if (cost === season.firstDailyStaminaCost) st.daily.firstHalfUsed = true
+    this.addDailyTaskProgress('trial_1', 1)
     this._save()
     return { ok: true, cost }
   }
@@ -2294,6 +2296,21 @@ class Storage {
       }
     }
     return granted
+  }
+
+  grantTrialRunFragmentReward(result) {
+    const trialSeason = require('./trialSeason')
+    const passedFloor = result && result.cleared
+      ? (result.floor || 0)
+      : Math.max(0, ((result && result.floor) || 0) - 1)
+    const reward = trialSeason.calcTrialRunFragmentReward(passedFloor)
+    if (!reward || !reward.count) return []
+    const trialAttrs = (trialSeason.getDailyAttrTheme().enemyAttrs || []).filter(Boolean)
+    const item = { ...reward, attrs: trialAttrs.slice() }
+    const got = this.addRandomFragmentsByAttrs(reward.count || 0, trialAttrs)
+    item.petId = got && got.petId
+    item.attr = got && got.attr
+    return [item]
   }
 
   settleTrialRun(seasonId, result) {
@@ -2327,7 +2344,7 @@ class Storage {
     const tiers = trialSeason.getClaimableTrialRewards(st.seasonScore || 0, st.claimed)
     for (const tier of tiers) st.claimed.push(tier.score)
     this._save()
-    const rewards = this.grantTrialRewards(tiers)
+    const rewards = this.grantTrialRunFragmentReward(result).concat(this.grantTrialRewards(tiers))
     return { tiers, rewards, bestScore: st.bestScore, seasonScore: st.seasonScore || 0, scoreAdded }
   }
 
@@ -2781,21 +2798,30 @@ class Storage {
 
   // ===== 局内暂存（暂存退出用）=====
   saveRunState(runState) {
-    this._d.savedRun = runState
+    if (runState && runState.mode === 'trial') this._d.savedTrialRun = runState
+    else this._d.savedRun = runState
     this._save()
   }
 
-  loadRunState() {
-    return this._d.savedRun || null
+  loadRunState(mode) {
+    if (mode === 'trial') return this._d.savedTrialRun || (this._d.savedRun && this._d.savedRun.mode === 'trial' ? this._d.savedRun : null)
+    return this._d.savedRun && this._d.savedRun.mode !== 'trial' ? this._d.savedRun : null
   }
 
-  clearRunState() {
+  clearRunState(mode) {
+    if (mode === 'trial') {
+      delete this._d.savedTrialRun
+      if (this._d.savedRun && this._d.savedRun.mode === 'trial') delete this._d.savedRun
+      this._save()
+      return
+    }
     delete this._d.savedRun
     this._save()
   }
 
-  hasSavedRun() {
-    return !!this._d.savedRun
+  hasSavedRun(mode) {
+    if (mode === 'trial') return !!(this._d.savedTrialRun || (this._d.savedRun && this._d.savedRun.mode === 'trial'))
+    return !!(this._d.savedRun && this._d.savedRun.mode !== 'trial')
   }
 
   // 彻底重置

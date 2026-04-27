@@ -220,7 +220,7 @@ function startTrialRun(g, petIds) {
   const started = g.storage.startTrialRun(season.id)
   if (!started || !started.ok) {
     if (started && started.reason === 'stamina') P.showGameToast(`体力不足，需要 ${started.cost} 点`, { type: 'warn' })
-    else P.showGameToast('天机试炼尚未解锁', { type: 'warn' })
+    else P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
     g.setScene('trialDetail')
     return false
   }
@@ -539,7 +539,7 @@ function endRun(g) {
       dailyQuestResults: scoreInfo.dailyQuestResults,
       endedAt: Date.now(),
     })
-    g.storage.clearRunState()
+    g.storage.clearRunState('trial')
     g._trialResult = {
       ...runStats,
       score: scoreInfo.total,
@@ -613,14 +613,12 @@ function saveAndExit(g) {
     return
   }
   if (g.battleMode === 'trial') {
-    g.showExitDialog = false
-    g.bState = 'none'
-    g._trialResult = null
-    g.setScene('trialDetail')
-    return
+    restoreBattleHpMax(g)
+  } else {
+    restoreBattleHpMax(g)
   }
-  restoreBattleHpMax(g)
   const runState = _deepClone({
+    mode: g.battleMode || 'roguelike',
     floor: g.floor,
     pets: g.pets,
     weapon: g.weapon,
@@ -640,19 +638,23 @@ function saveAndExit(g) {
     itemResetObtained: g.itemResetObtained, itemResetUsed: g.itemResetUsed,
     itemHealObtained: g.itemHealObtained, itemHealUsed: g.itemHealUsed,
     curEvent: g.curEvent || null,
+    trialRun: g._trialRun || null,
+    trialCounterHits: g._trialCounterHits || 0,
+    maxCombo: g._maxCombo || 0,
     towerJustClaimedMilestones: g._towerJustClaimedMilestones || [],
   })
   g.storage.saveRunState(runState)
   g.showExitDialog = false
   g.bState = 'none'
-  g.setScene('title')
+  g.setScene(g.battleMode === 'trial' ? 'trialDetail' : 'title')
 }
 
-function resumeRun(g) {
-  const s = g.storage.loadRunState()
+function resumeRun(g, mode) {
+  const s = g.storage.loadRunState(mode)
   if (!s) return
   memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'resume_run' })
-  g.battleMode = 'roguelike'
+  const savedMode = s.mode || 'roguelike'
+  g.battleMode = savedMode === 'trial' ? 'trial' : 'roguelike'
   g.floor = s.floor
   g.pets = (s.pets || []).map(p => syncPoolLinkedRunPet(g, p))
   g.weapon = s.weapon
@@ -677,6 +679,13 @@ function resumeRun(g) {
   g.weaponReviveUsed = s.weaponReviveUsed || false
   g.goodBeadsNextTurn = s.goodBeadsNextTurn || false
   g.runTotalTurns = s.runTotalTurns || 0
+  g._trialRun = g.battleMode === 'trial' ? (s.trialRun || {
+    seasonId: getCurrentTrialSeason().id,
+    maxFloor: getCurrentTrialSeason().maxFloor,
+    dailyQuestId: null,
+  }) : null
+  g._trialCounterHits = s.trialCounterHits || 0
+  g._maxCombo = s.maxCombo || 0
   g._towerJustClaimedMilestones = s.towerJustClaimedMilestones || []
   g._towerMilestoneRewardPopup = null
   g._towerMilestonePopupBtnRect = null
@@ -702,8 +711,14 @@ function resumeRun(g) {
   if (!g.curEvent) {
     g.curEvent = generateFloorEvent(g.floor)
   }
-  g.storage.clearRunState()
+  g.storage.clearRunState(savedMode)
   _resetFloorEventState(g)
+  if (g.battleMode === 'trial' && g.curEvent
+    && (g.curEvent.type === EVENT_TYPE.BATTLE || g.curEvent.type === EVENT_TYPE.ELITE || g.curEvent.type === EVENT_TYPE.BOSS)
+    && typeof g._enterBattle === 'function') {
+    g._enterBattle(g.curEvent.data)
+    return
+  }
   g.setScene('event')
 }
 

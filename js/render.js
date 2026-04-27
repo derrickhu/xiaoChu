@@ -32,6 +32,7 @@ class Render {
     this._P = P
     this._imgCache = {}
     this._imgAccess = {}   // path → 最后访问帧号，用于 LRU 淘汰
+    this._imgRetryAt = {}   // path → 最近一次请求加载帧号，避免 CDN 空图永久卡住
     this._imgFrame = 0     // 全局帧计数器（每次 getImg 时递增）
     this._IMG_CACHE_MAX = RENDER_IMG_CACHE_MAX
     this._gradCache = {}
@@ -77,28 +78,37 @@ class Render {
     this._imgFrame++
     if (this._imgCache[path]) {
       this._imgAccess[path] = this._imgFrame
+      const img = this._imgCache[path]
+      if ((!img.width || img.width <= 0) && this._imgFrame - (this._imgRetryAt[path] || 0) > 60) {
+        this._loadImagePath(path, img)
+      }
       return this._imgCache[path]
     }
-    const resolved = AssetLoader.resolveAsset(path)
     const img = P.createImage()
     img.onload = () => { if (this._onImageLoad) this._onImageLoad() }
-    if (resolved) {
-      img.src = resolved
-    } else {
-      // 本地和缓存都没有 → 不设 src（避免模拟器报错），等 CDN 下载完再加载
-      AssetLoader.downloadAndNotify(path, () => {
-        const cached = AssetLoader.resolveAsset(path)
-        if (cached) {
-          img.src = cached
-        }
-      })
-    }
+    this._loadImagePath(path, img)
     this._imgCache[path] = img
     this._imgAccess[path] = this._imgFrame
     if (Object.keys(this._imgCache).length > this._IMG_CACHE_MAX) {
       this._evictLRU()
     }
     return img
+  }
+
+  _loadImagePath(path, img) {
+    this._imgRetryAt[path] = this._imgFrame
+    const resolved = AssetLoader.resolveAsset(path)
+    if (resolved) {
+      if (img.src !== resolved) img.src = resolved
+      return
+    }
+    // 本地和缓存都没有 → 不设 src（避免模拟器报错），等 CDN 下载完再加载
+    AssetLoader.downloadAndNotify(path, () => {
+      const cached = AssetLoader.resolveAsset(path)
+      if (cached && img.src !== cached) {
+        img.src = cached
+      }
+    })
   }
 
   /**

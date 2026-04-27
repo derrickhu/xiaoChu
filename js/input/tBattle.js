@@ -2,6 +2,7 @@
  * 触摸处理：战斗 (battle) 场景
  */
 const V = require('../views/env')
+const P = require('../platform')
 const MusicMgr = require('../runtime/music')
 const { petHasSkill } = require('../data/pets')
 const tutorial = require('../engine/tutorial')
@@ -12,6 +13,7 @@ const { killExpBase } = require('../data/cultivationConfig')
 const { HELP_PAGE_COUNT, dismissStageIntroCard } = require('../views/battleView')
 const { SWAP_ANIM_FRAMES, SWAP_LOGIC_LOCK_FRAMES } = require('../data/battleConfig')
 const { isPetSealed } = require('../engine/battle/petSeal')
+const { getTrialStaminaCost } = require('../data/trialSeason')
 
 function _swapLogicLocked(g) {
   return g.swapAnim && g.swapAnim.t < SWAP_LOGIC_LOCK_FRAMES
@@ -133,6 +135,30 @@ function _handleStageRestart(g) {
   }
 }
 
+function _handleTrialRestart(g) {
+  const cost = getTrialStaminaCost(g.storage)
+  const team = (g.pets || []).map(p => p && (p._poolId || p.id)).filter(Boolean)
+  g.showExitDialog = false
+  if (g.storage.currentStamina < cost) {
+    P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })
+    return
+  }
+  g._confirmDialog = {
+    title: '重新开始试炼',
+    content: `重新开始将消耗 ${cost} 点体力\n当前试炼进度作废，并从第 1 层开始`,
+    confirmText: '重新开始',
+    cancelText: '取消',
+    timer: 0,
+    onConfirm: () => {
+      MusicMgr.stopBossBgm()
+      g.storage.clearRunState('trial')
+      if (!runMgr.startTrialRun(g, team)) {
+        P.showGameToast('重新开始失败', { type: 'warn' })
+      }
+    },
+  }
+}
+
 function tBattle(g, type, x, y) {
   const { S, W, H, COLS, ROWS } = V
   // === 小灵讲堂阻塞卡拦截（1-2/1-3 首通）：最高优先级，遮挡所有其它交互 ===
@@ -215,6 +241,9 @@ function tBattle(g, type, x, y) {
         g.showExitDialog = false
         g.bState = 'none'
         g.setScene('title')
+      } else if (g.battleMode === 'trial') {
+        g._saveAndExit()
+        P.showGameToast('试炼进度已暂存', { type: 'success' })
       } else {
         g._saveAndExit()
       }
@@ -224,6 +253,8 @@ function tBattle(g, type, x, y) {
       // 秘境模式：重新挑战会再次扣体力，需要二次确认 / 体力不足引导
       if (g.battleMode === 'stage' && g._stageId && g._stageTeam) {
         _handleStageRestart(g)
+      } else if (g.battleMode === 'trial') {
+        _handleTrialRestart(g)
       } else {
         // 肉鸽模式：重新开局（保持原行为：先结算经验再清档重启）
         g.showExitDialog = false

@@ -14,9 +14,10 @@ const guideMgr = require('../engine/guideManager')
 const { getCurrentSeason, getSeasonSSRPet, getTowerEventCountdownLabel, getNextMilestonePreview } = require('../data/towerEvent')
 const { getTrialStaminaCost, getTrialSeasonProgress, getDailyAttrTheme } = require('../data/trialSeason')
 const { getPetAvatarPath, getPetRarity } = require('../data/pets')
+const { getWeaponById } = require('../data/weapons')
 const { ATTR_COLOR } = require('../data/tower')
 const { isCurrentUserGM } = require('../data/gmConfig')
-const { DAILY_TASKS, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
+const { getAvailableDailyTasks, getScaledDailyTaskReward, getScaledDailyAllBonus } = require('../data/giftConfig')
 
 // 首页布局配置：把关键尺寸集中到一处，避免后续继续散落魔法数字
 const HOME_STATUS_UI = {
@@ -234,6 +235,7 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
   const attrTheme = getDailyAttrTheme()
   const seasonProgress = getTrialSeasonProgress()
   const towerSsrPet = getSeasonSSRPet()
+  const trialSsrWeapon = getWeaponById('w51')
   const unlocked = g.storage.isTrialUnlocked && g.storage.isTrialUnlocked()
   const spec = CHALLENGE_HUB_CARD_SPEC
   const cardW = W - spec.marginPt * 2 * S
@@ -373,7 +375,6 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     ctx.restore()
   }
 
-  const trialCost = getTrialStaminaCost(g.storage)
   const trialY = startY
   drawBanner(trialY, {
     scene: 'assets/backgrounds/challenge_hub_trial_scene.jpg',
@@ -381,9 +382,10 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     icon: 'assets/ui/challenge_hub_icon_trial.png',
     button: 'assets/ui/challenge_hub_btn_gold.png',
     title: '天机试炼',
-    subtitle: '五行克制 · 今日',
-    line1: `剩余${seasonProgress.daysLeft}天`,
-    line2: `${attrTheme.enemyName} · 体力${trialCost}`,
+    subtitle: `五行克制 · 剩${seasonProgress.daysLeft}天`,
+    line1: `今日${attrTheme.enemyName}`,
+    line2Prefix: 'SSR：',
+    line2Value: trialSsrWeapon ? trialSsrWeapon.name : '天机法宝',
     highlightColor: '#FFE28A',
     subtitleColor: '#BDEBFF',
     btnText: unlocked ? '进入试炼' : '暂未开放',
@@ -1913,12 +1915,13 @@ function _getHomeDailyTaskTracker(g) {
   g.storage.syncDailyAllBonusAdFlagFromAdLog()
   const prog = g.storage.dailyTaskProgress
   const chapter = g.storage.currentChapter
-  const total = DAILY_TASKS.length
+  const dailyTasks = getAvailableDailyTasks(g.storage)
+  const total = dailyTasks.length
   let completedCount = 0
   let claimableTask = null
   let activeTask = null
 
-  DAILY_TASKS.forEach((task) => {
+  dailyTasks.forEach((task) => {
     const cur = prog.tasks[task.id] || 0
     const need = task.condition.count
     const done = cur >= need
@@ -1938,7 +1941,7 @@ function _getHomeDailyTaskTracker(g) {
     }
   })
 
-  const allTaskRewardsClaimed = DAILY_TASKS.every(task => !!prog.claimed[task.id])
+  const allTaskRewardsClaimed = dailyTasks.every(task => !!prog.claimed[task.id])
   const allBonusClaimed = !!prog.allClaimed
   const allBonusAdDone = !!prog.allBonusAdClaimed
   let canDoubleBonus = false
@@ -2000,7 +2003,9 @@ function _getHomeDailyTaskTracker(g) {
       : ((condType === 'stageBattle' || condType === 'anyBattle') ? 'stage' : null)
     const entryAction = condType === 'share'
       ? 'share'
-      : (targetMode ? 'mode' : 'tasks')
+      : (condType === 'trialRun'
+        ? 'trial'
+        : (targetMode ? 'mode' : 'tasks'))
     return {
       badge: '进行中',
       title: '今日任务',
@@ -2219,7 +2224,7 @@ function drawHomeDailyTaskTracker(g) {
   c.fillText(_fitSingleLineText(c, mainText, textMaxW), textX, y + 17 * S)
   c.restore()
 
-  const dotCount = (DAILY_TASKS && DAILY_TASKS.length) || 6
+  const dotCount = Math.max(1, parseInt(String(tracker.overallText || '').split('/')[1], 10) || 6)
   const completedCount = Math.min(dotCount, _parseOverallCompleted(tracker.overallText))
   const dotR = 1.7 * S
   const dotGap = Math.min(4.4 * S, Math.max(1.8 * S, (textMaxW - dotR * 2 * dotCount) / Math.max(1, dotCount - 1)))

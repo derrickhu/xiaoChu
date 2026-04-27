@@ -26,6 +26,15 @@ function getComboMul(combo) {
   return mul
 }
 
+function isPetSealedInContext(ctx, pet, index) {
+  if (!pet) return false
+  return (ctx.heroBuffs || []).some(b => (
+    b &&
+    b.type === 'petSeal' &&
+    (b.petIdx === index || (b.petIdx == null && b.petId === pet.id))
+  ))
+}
+
 function collectBuffMultipliers(ctx) {
   let buffAllDmgPct = 0
   let buffAllAtkPct = 0
@@ -380,6 +389,7 @@ function calcPetDisplayBreakdown(ctx, options) {
 
   const petsByAttr = {}
   pets.forEach((pet, index) => {
+    if (isPetSealedInContext(ctx, pet, index)) return
     if (!petsByAttr[pet.attr]) petsByAttr[pet.attr] = []
     petsByAttr[pet.attr].push({ pet, index })
   })

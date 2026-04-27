@@ -47,6 +47,8 @@ function _openHomeDailyTaskPanel(g, target) {
   g._showDailyTasks = true
   g._dailyTaskFocusId = target && target.taskId ? target.taskId : null
   g._dailyTaskFocusSection = target && target.section ? target.section : null
+  g._dailyTaskFocusScrollDone = false
+  if (!g._dailyTaskFocusId) g._taskListScrollY = 0
 }
 
 function _handleHomeDailyTaskClick(g) {
@@ -66,6 +68,17 @@ function _handleHomeDailyTaskClick(g) {
     g._dailyTaskFocusId = null
     g._dailyTaskFocusSection = null
     g.titleMode = target.mode
+    return
+  }
+  if (action === 'trial') {
+    g._showDailyTasks = false
+    g._dailyTaskFocusId = null
+    g._dailyTaskFocusSection = null
+    if (!g.storage.isTrialUnlocked || !g.storage.isTrialUnlocked()) {
+      P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
+      return
+    }
+    g.setScene('trialDetail')
     return
   }
   _openHomeDailyTaskPanel(g, target)
@@ -282,7 +295,7 @@ function tTitle(g, type, x, y) {
   }
   if (!isStageMode && g._challengeTrialRect && g._hitRect(x, y, ...g._challengeTrialRect)) {
     if (!g.storage.isTrialUnlocked || !g.storage.isTrialUnlocked()) {
-      P.showGameToast('通关 2-8 后开放天机试炼', { type: 'warn' })
+      P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
       return
     }
     g.setScene('trialDetail')
@@ -336,6 +349,8 @@ function tTitle(g, type, x, y) {
     g._showDailySign = true
     g._dailyTaskFocusId = null
     g._dailyTaskFocusSection = null
+    g._dailyTaskFocusScrollDone = false
+    g._taskListScrollY = 0
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }
@@ -353,6 +368,8 @@ function tTitle(g, type, x, y) {
     g._showDailyTasks = true
     g._dailyTaskFocusId = null
     g._dailyTaskFocusSection = null
+    g._dailyTaskFocusScrollDone = false
+    g._taskListScrollY = 0
     MusicMgr.playClick && MusicMgr.playClick()
     return
   }

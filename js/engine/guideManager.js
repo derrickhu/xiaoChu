@@ -183,6 +183,14 @@ const GUIDE_DEFS = {
       { text: '每天 0 点刷新免费次数和奖励，\n记得回来领塔券～', position: 'center' },
     ],
   },
+  // 第 1 章通关后解锁天机试炼：提示挑战大厅新增体力赛季玩法
+  trial_unlock: {
+    steps: [
+      { text: '主人，挑战大厅里又开启新试炼啦～\n天机试炼已经解锁！', position: 'center' },
+      { text: '这里每天的属性课题会变化，\n用克制属性出战更容易拿高分哦', position: 'center' },
+      { text: '试炼会消耗体力，但能累积赛季积分，\n还有专属法宝奖励等主人来拿～', position: 'center' },
+    ],
+  },
   // 每日任务 / 签到入口首次说明
   daily_entry_intro: {
     steps: [

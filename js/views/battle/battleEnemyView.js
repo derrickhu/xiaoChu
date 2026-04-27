@@ -22,6 +22,14 @@ function _drawStar(ctx, x, y, r) {
   ctx.fill()
 }
 
+function _fitBattleLabelText(ctx, text, maxW) {
+  if (!text) return ''
+  if (ctx.measureText(text).width <= maxW) return text
+  let out = text
+  while (out.length > 1 && ctx.measureText(out + '…').width > maxW) out = out.slice(0, -1)
+  return out + '…'
+}
+
 
 // ===== 敌人 Debuff 染色离屏canvas =====
 let _debuffImgIdSeed = 1
@@ -583,14 +591,7 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   const skillCdBlockH = hasSkillCd ? 28*S : 0
 
   const nameY = imgDrawY - 20*S - skillCdBlockH
-  const nameFontSize = 14*S
   ctx.textAlign = 'center'
-  ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4*S
-  ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${nameFontSize}px "PingFang SC",sans-serif`
-  ctx.fillText(g.enemy.name, W*0.5, nameY)
-  ctx.restore()
 
   if (hasSkillCd) {
     const cdNum = g.enemySkillCd
@@ -712,6 +713,18 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     ctx.drawImage(floorLabelImg, labelX, labelY, labelW, labelH)
   }
   const labelCY = labelY + labelH * 0.52
+  const labelMaxW = labelW - 22 * S
+  function drawEnemyTitle(subTitle, subColor) {
+    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
+    const enemyTitle = _fitBattleLabelText(ctx, (g.enemy && g.enemy.name) || '敌人', labelMaxW)
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
+    ctx.fillText(enemyTitle, W*0.5, labelCY - 2*S)
+    ctx.restore()
+    if (subTitle) {
+      ctx.fillStyle = subColor || '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      ctx.fillText(_fitBattleLabelText(ctx, subTitle, labelMaxW), W*0.5, labelCY + 9*S)
+    }
+  }
   const _isTutorial = tutorial.isActive()
   if (_isTutorial) {
     const tData = tutorial.getGuideData()
@@ -725,7 +738,6 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   } else if (g.battleMode === 'stage') {
     const { getStageById } = require('../../data/stages')
     const stageData = getStageById(g._stageId)
-    const stageName = stageData ? stageData.name : '关卡'
     const waveTotal = g._stageWaves ? g._stageWaves.length : 1
     const waveCur = (g._stageWaveIdx || 0) + 1
     const chapterOrderText = stageData && stageData.chapter != null && stageData.order != null
@@ -734,33 +746,16 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     const subTitle = waveTotal > 1
       ? `${chapterOrderText ? `${chapterOrderText} · ` : ''}第 ${waveCur}/${waveTotal} 波`
       : (chapterOrderText || '当前关卡')
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-    ctx.fillText(stageName, W*0.5, labelCY - 2*S)
-    ctx.restore()
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(subTitle, W*0.5, labelCY + 9*S)
+    drawEnemyTitle(subTitle, '#ffd700')
   } else if (evType === 'boss') {
-    const floorText = `第 ${g.floor} 层`
-    const bossTag = '⚠ BOSS ⚠'
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-    ctx.fillText(floorText, W*0.5, labelCY - 2*S)
-    ctx.restore()
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(bossTag, W*0.5, labelCY + 9*S)
+    const floorText = g.battleMode === 'trial' ? `天机试炼 · 第 ${g.floor} 层` : `第 ${g.floor} 层`
+    drawEnemyTitle(`${floorText} · BOSS`, '#ffd700')
   } else if (evType === 'elite') {
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${12*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-    ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY - 2*S)
-    ctx.restore()
-    ctx.fillStyle = '#e0c0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText('★ 精英战斗', W*0.5, labelCY + 9*S)
+    const floorText = g.battleMode === 'trial' ? `天机试炼 · 第 ${g.floor} 层` : `第 ${g.floor} 层`
+    drawEnemyTitle(`${floorText} · 精英`, '#e0c0ff')
   } else {
-    ctx.fillStyle = '#f0e0c0'; ctx.font = `bold ${13*S}px "PingFang SC",sans-serif`
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2*S
-    ctx.fillText(`第 ${g.floor} 层`, W*0.5, labelCY)
-    ctx.restore()
+    const subTitle = g.battleMode === 'trial' ? `天机试炼 · 第 ${g.floor} 层` : `第 ${g.floor} 层`
+    drawEnemyTitle(subTitle, '#ffd700')
   }
 
   g._enemyAreaRect = [0, eAreaTop, W, eAreaBottom - eAreaTop]

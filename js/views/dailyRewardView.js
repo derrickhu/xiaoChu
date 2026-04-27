@@ -10,7 +10,7 @@ const {
   LOGIN_MILESTONE_PETS,
   CONSECUTIVE_CYCLE_DAYS,
   getConsecutiveLoginReward,
-  DAILY_TASKS,
+  getAvailableDailyTasks,
   getLoginMilestoneReward,
   getLoginPageData,
   getLoginPageIndex,
@@ -41,11 +41,12 @@ const _taskRects = {
   tabAchievementRect: null,
 }
 
-// 任务分类竹牌文字（对应 DAILY_TASKS 六项）
+// 任务分类竹牌文字（对应每日任务配置）
 const _TASK_TAG_BY_ID = {
   battle_1: '秘境',
   battle_3: '征战',
   tower_1: '通天',
+  trial_1: '试炼',
   idle_collect: '派遣',
   pet_feed: '育灵',
   share_1: '传音',
@@ -1627,6 +1628,7 @@ function rDailyTasks(g) {
   if (!g._showDailyTasks) return
   g.storage.syncDailyAllBonusAdFlagFromAdLog()
   const { ctx: c, R, W, H, S } = V
+  const dailyTasks = getAvailableDailyTasks(g.storage)
 
   c.save()
   // 任务面板是弹窗性质：底下应该是主页画面 + 半透明遮罩，而不是另外绘制的山水云雾
@@ -1653,13 +1655,16 @@ function rDailyTasks(g) {
   const frameInsetX = pw * 0.17
   // 纵向 inset 需要基于"实际 ph"计算；先算内容所需高度 contentCore，
   // 再反推 ph = contentCore / (1 - 2 × 13.5%)，保证任务/横幅都落在纸张区内
-  const _rowCount = DAILY_TASKS.length
+  const _rowCount = dailyTasks.length
+  const _visibleRowCount = Math.min(_rowCount, 6)
   const _rowH = 36 * S            // 行高再收：标题 10 + pill 12 + 上下各 6pt 呼吸空间
   const _rowGap = 3 * S
+  const _taskListFullH = _rowCount * (_rowH + _rowGap) - _rowGap
+  const _taskListClipH = _visibleRowCount * (_rowH + _rowGap) - _rowGap
   const _bonusBeforeGap = 4 * S
   const _bonusBlockH = 72 * S     // 横幅高：pad(7*2) + header(13) + gap(2) + subtitle(10) + gap(6) + chipRow(22) = 67*S，留 5*S 余量
   const _contentCore =
-    _rowCount * (_rowH + _rowGap) - _rowGap + _bonusBeforeGap + _bonusBlockH
+    _taskListClipH + _bonusBeforeGap + _bonusBlockH
   // 反推 ph：纸张区 y 占 74.2%，顶/底各 13.0% + 0.5% 安全余量
   const _paperYRatio = 1 - 2 * 0.135  // = 0.73，留了 1% 安全边
   const _phWant = _contentCore / _paperYRatio
@@ -1727,19 +1732,33 @@ function rDailyTasks(g) {
 
   // 任务区裁切 + 预留滚动位移：
   //   - 裁切框 = 画布纸张区（innerL, cy, innerW, clipH），即便未来任务数超过面板高度也不会越界到木框外
-  //   - scrollY：当前保持 0；后续加任务需要滚动时，只需在 touchmove 里累加 g._taskListScrollY（向上滑为正）
   //   - 触达矩形(_taskRects)在 task 循环里本就用 cy 即时写入，会自动带 scrollY 偏移，保持点击正确
   const taskListTop = cy
-  const taskListH = _rowCount * (_rowH + _rowGap) - _rowGap
-  const scrollY = Math.max(0, g._taskListScrollY || 0)
+  const taskListFullH = _taskListFullH
+  const taskListClipH = _taskListClipH
+  const scrollMax = Math.max(0, taskListFullH - taskListClipH)
+  let scrollY = Math.max(0, Math.min(scrollMax, g._taskListScrollY || 0))
+  const focusIndex = g._dailyTaskFocusId ? dailyTasks.findIndex(t => t.id === g._dailyTaskFocusId) : -1
+  if (focusIndex >= 0 && !g._dailyTaskFocusScrollDone) {
+    const focusTop = focusIndex * (_rowH + _rowGap)
+    if (focusTop + _rowH > scrollY + taskListClipH) {
+      scrollY = Math.min(scrollMax, focusTop - (taskListClipH - _rowH))
+    } else if (focusTop < scrollY) {
+      scrollY = focusTop
+    }
+    g._taskListScrollY = scrollY
+    g._dailyTaskFocusScrollDone = true
+  }
+  g._taskListScrollMax = scrollMax
+  g._taskListRect = [innerL - 4 * S, taskListTop - 3 * S, innerW + 8 * S, taskListClipH + 6 * S]
   c.save()
   c.beginPath()
   // 裁切区略放大 4*S 容纳焦点辉光描边
-  c.rect(innerL - 4 * S, taskListTop - 3 * S, innerW + 8 * S, taskListH + 6 * S)
+  c.rect(innerL - 4 * S, taskListTop - 3 * S, innerW + 8 * S, taskListClipH + 6 * S)
   c.clip()
   cy -= scrollY
 
-  for (const task of DAILY_TASKS) {
+  for (const task of dailyTasks) {
     const cur = prog.tasks[task.id] || 0
     const need = task.condition.count
     const done = cur >= need
@@ -1762,6 +1781,7 @@ function rDailyTasks(g) {
     // 行底「直接画在宣纸上」：不要阴影、不要粗边框，也不要金色内描边——那些会让行看起来"浮"在面板上
     // 只保留一个极淡的色块（区分可点击状态）和一条极淡的底部分隔线（像宣纸上的墨线）
     // 原型图里的任务行就是"直接写在宣纸上"的，没有独立卡片
+    const rowVisible = cy + rowH >= taskListTop && cy <= taskListTop + taskListClipH
     if (done && !claimed) {
       // done 未领取：一抹极浅的金黄提示"可领"，引导点击
       c.fillStyle = 'rgba(255,230,150,0.28)'
@@ -1773,7 +1793,7 @@ function rDailyTasks(g) {
     }
     // claimed 状态不画行底，让已领取的任务彻底"退"到纸面中
     // 行底部极淡水平分隔线（仿宣纸上的淡墨横线），最后一行不画
-    const isLastRow = (DAILY_TASKS[DAILY_TASKS.length - 1] === task)
+    const isLastRow = (dailyTasks[dailyTasks.length - 1] === task)
     if (!isLastRow) {
       c.save()
       c.strokeStyle = 'rgba(120,85,35,0.22)'
@@ -1827,7 +1847,7 @@ function rDailyTasks(g) {
       drawRewardSlotChips(c, R, reward, rewardCenterX, rowChipCy, rewardW, S, { ...taskChipOpts, state: rowState })
     }
 
-    if (done && !claimed) {
+    if (rowVisible && done && !claimed) {
       const tbW = 46 * S, tbH = 22 * S
       const tbX = innerL + innerW - tbW - 6 * S
       const tbY = cy + (rowH - tbH) / 2
@@ -1846,11 +1866,25 @@ function rDailyTasks(g) {
 
   c.restore()
   // 裁切结束后，把 cy 还原到"任务区底部"（不带 scrollY 偏移），让底部横幅正常居中
-  cy = taskListTop + taskListH
+  if (scrollMax > 1 * S) {
+    const trackW = 2.4 * S
+    const trackH = taskListClipH - 6 * S
+    const trackX = innerL + innerW - trackW - 2 * S
+    const trackY = taskListTop + 3 * S
+    const thumbH = Math.max(14 * S, trackH * taskListClipH / Math.max(taskListClipH, taskListFullH))
+    const thumbY = trackY + (trackH - thumbH) * (scrollY / scrollMax)
+    c.save()
+    c.fillStyle = 'rgba(112,78,36,0.16)'
+    R.rr(trackX, trackY, trackW, trackH, trackW / 2); c.fill()
+    c.fillStyle = 'rgba(136,92,38,0.55)'
+    R.rr(trackX, thumbY, trackW, thumbH, trackW / 2); c.fill()
+    c.restore()
+  }
+  cy = taskListTop + taskListClipH
 
   // 底部横幅前间距（与上面 contentH 公式里的 _bonusBeforeGap 对齐）
   cy += _bonusBeforeGap
-  const allDone = DAILY_TASKS.every(t => prog.claimed[t.id])
+  const allDone = dailyTasks.every(t => prog.claimed[t.id])
   const allClaimed = prog.allClaimed
   const allBonusAdDone = !!prog.allBonusAdClaimed
   const allBonus = getScaledDailyAllBonus(_ch)
@@ -2103,7 +2137,35 @@ function tDailySign(g, x, y, type) {
 }
 
 function tDailyTasks(g, x, y, type) {
-  if (!g._showDailyTasks || type !== 'end') return false
+  if (!g._showDailyTasks) return false
+
+  if (type === 'start') {
+    g._taskListTouchActive = !!(g._taskListRect && g._hitRect(x, y, ...g._taskListRect))
+    g._taskListTouchStartY = y
+    g._taskListScrollStartY = g._taskListScrollY || 0
+    g._taskListMoved = false
+    return true
+  }
+
+  if (type === 'move') {
+    if (g._taskListTouchActive) {
+      const dy = y - (g._taskListTouchStartY || y)
+      if (Math.abs(dy) > 4 * V.S) g._taskListMoved = true
+      const maxScroll = g._taskListScrollMax || 0
+      g._taskListScrollY = Math.max(0, Math.min(maxScroll, (g._taskListScrollStartY || 0) - dy))
+      return true
+    }
+    return true
+  }
+
+  if (type !== 'end') return false
+
+  const movedList = !!g._taskListMoved
+  g._taskListTouchActive = false
+  g._taskListTouchStartY = 0
+  g._taskListScrollStartY = 0
+  g._taskListMoved = false
+  if (movedList) return true
 
   if (_taskRects.closeBtnRect && g._hitRect(x, y, ..._taskRects.closeBtnRect)) {
     g._showDailyTasks = false
@@ -2134,7 +2196,7 @@ function tDailyTasks(g, x, y, type) {
       if (ok) {
         MusicMgr.playReward && MusicMgr.playReward()
         buttonFx.trigger(taskRect, 'reward')
-        const task = DAILY_TASKS.find(t => t.id === tb.id)
+        const task = getAvailableDailyTasks(g.storage).find(t => t.id === tb.id)
         if (task) g._toast && g._toast(`${task.name}：${_rewardText(getScaledDailyTaskReward(task, _tch))}`)
         if (layout && layout.entries && layout.entries.length) {
           startRewardChipFlyAnim(g, layout.entries, { type: 'dailyTask', taskId: tb.id })

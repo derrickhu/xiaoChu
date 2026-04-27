@@ -1124,6 +1124,16 @@ function _emitPreloadActiveBadges(g, dmgMap, isCrit) {
   }
 }
 
+function _formatEnemySkillDesc(g, sk) {
+  let desc = (sk && sk.desc) || ''
+  if (!desc || desc.indexOf('{val}') < 0) return desc
+  const enemyAtk = (g && g.enemy && g.enemy.atk) || 0
+  const val = sk.type === 'dot'
+    ? Math.round(enemyAtk * ENEMY_DOT_ATK_RATIO)
+    : Math.round(enemyAtk * (sk.atkPct || ENEMY_AOE_DEFAULT_ATK_PCT))
+  return desc.replace(/\{val\}/g, val)
+}
+
 function _emitEnemySkillVfx(g, sk, skillKey) {
   if (!g || !sk) return
   const { W, S } = V
@@ -1151,7 +1161,7 @@ function _emitEnemySkillVfx(g, sk, skillKey) {
     casterX: W * 0.5,
     casterY: enemyCenterY,
     skillName: sk.name || '',
-    skillDesc: sk.desc || '',
+    skillDesc: _formatEnemySkillDesc(g, sk),
     attr: (g.enemy && g.enemy.attr) || null,
     kind,
     tier: 'normal',
@@ -1213,7 +1223,8 @@ function applyEnemySkill(g, skillKey) {
     emitNotice(g, { x:W*0.5, y:H*0.5, text:'免疫！', color:'#40e8ff' })
     return
   }
-  emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()+30*S, text:sk.name, desc:sk.desc||'', color:TH.danger, scale:1.8, _initScale:1.8, big:true })
+  const skillDesc = _formatEnemySkillDesc(g, sk)
+  emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()+30*S, text:sk.name, desc:skillDesc, color:TH.danger, scale:1.8, _initScale:1.8, big:true })
   _emitEnemySkillVfx(g, sk, skillKey)
   switch(sk.type) {
     case 'buff':
@@ -1263,7 +1274,8 @@ function applyEnemySkill(g, skillKey) {
           name: sk.name,
           petId: pick.p.id,
           petIdx: pick.idx,
-          dur: sk.dur || 2,
+          // 敌方回合结束会统一递减 heroBuff，入栈时补 1 回合，保证玩家侧完整封印 2 个行动回合。
+          dur: (sk.dur || 2) + 1,
           bad: true,
         })
         emitNotice(g, { x:W*0.5, y:H*0.5, text:`${pick.p.name}被封印！`, color:'#b44dff', scale:1.5, _initScale:1.5 })

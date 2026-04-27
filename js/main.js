@@ -297,10 +297,18 @@ class Main {
               guideMgr.trigger(this, 'tower_unlock')
               slotTaken = true
             }
+            // 天机试炼解锁提示：排在通天塔说明之后，避免同一批挑战信息挤在一起
+            else if (this.storage.isStageCleared('stage_1_8')
+                     && this.storage.isGuideShown('tower_unlock')
+                     && !this.storage.isGuideShown('trial_unlock')) {
+              guideMgr.trigger(this, 'trial_unlock')
+              slotTaken = true
+            }
             // 新手引导结束
             else if (this.storage.isStageCleared('stage_1_8')
                      && this.storage.isGuideShown('chapter1_grow_summary')
                      && this.storage.isGuideShown('tower_unlock')
+                     && this.storage.isGuideShown('trial_unlock')
                      && this.storage.isGuideShown('newbie_team_ready')
                      && !this.storage.isGuideShown('newbie_after_cult')) {
               guideMgr.trigger(this, 'newbie_after_cult')
@@ -554,7 +562,7 @@ class Main {
   _claimTowerFloorMilestones(floor) { return runMgr.claimTowerFloorMilestones(this, floor) }
   _endRun() { runMgr.endRun(this) }
   _saveAndExit() { runMgr.saveAndExit(this) }
-  _resumeRun() { runMgr.resumeRun(this) }
+  _resumeRun(mode) { runMgr.resumeRun(this, mode) }
 
   // ===== 更新 =====
   update() {
