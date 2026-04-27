@@ -24,14 +24,14 @@ const CULT_KILL_NORMAL_BASE = 5
 const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 
 // ===== 修炼树配置（加点制）=====
-//   · type=percent：perLv 单位是"百分比"，最终值会再乘当前境界的 blessing 乘数（见 CULT_REALMS）
+//   · type=percent/defense：最终值会再乘当前境界的 blessing 乘数（见 CULT_REALMS）
 //   · type=flat   ：perLv 直接累加；spirit/wisdom 是离散值（心珠回复 / 秒），不参与境界乘数
 //
 //   v2 调整（Lv.60→Lv.80 扩容 + 百分比化）：
 //     body  20→28（+8）  perLv 5→5      老 +5 HP 固定 → 新 +5% HP 上限（HERO_BASE_HP=100 时数字 1:1 对齐）
 //     spirit 15→19（+4） perLv 1 不变    心珠回复仍为绝对值
 //     wisdom 5 不变      perLv 0.15 不变 转珠时间，避免后期溢出
-//     defense 10→14（+4）perLv 2→1      老 -2 固定 → 新 +1% 减伤（% 对高伤 hit 更值）
+//     defense 10→14（+4）perLv 2 不变    显示为防御值，按 150/(150+防御) 换算直伤减免
 //     sense  8→12（+4）  perLv 8→2.5    老 +8 固定护盾 → 新 +2.5% HP 作护盾（2.5% 是为了"不叠一倍血"的克制调参）
 //   累计 78 = Lv.1 起步 + 79 次升级共 80 点 → 还差 2 点（Lv.60 历史遗留的两个闲置点正好补上）
 //
@@ -43,7 +43,7 @@ const CULT_CONFIG = {
   body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:5,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
   spirit:  { name:'灵力', theme:'通脉', maxLv:19, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
   wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
-  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:1,    type:'percent', unit:'%减伤',   desc:'受到的所有伤害减少' },
+  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:2,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
   sense:   { name:'神识', theme:'开窍', maxLv:12, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
 }
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
@@ -60,7 +60,7 @@ const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 // 避免老玩家"境界倒退"；后 10 档是容量扩展，支持 MAX_LEVEL 提升到 260+。
 //
 // blessing 字段（境界祝福乘数）：
-//   · 仅作用于 type=percent 的修炼属性（body/defense/sense），是这些属性的全局倍率。
+//   · 仅作用于 type=percent/defense 的修炼属性（body/defense/sense），是这些属性的全局倍率。
 //   · 设计意图：玩家跨入大境界时即便不分修炼点，"有效加成"也会自动放大一波，
 //     还原仙侠题材"境界跃迁就是变强"的爽点。具体计算见 cultivationConfig.effectValueWithBlessing。
 //   · 化神之上（炼虚 80+）目前不开放（MAX_LEVEL=80 卡在化神圆满），blessing 暂沿用 1.50。

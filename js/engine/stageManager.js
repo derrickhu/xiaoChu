@@ -118,7 +118,7 @@ function startStage(g, stageId, teamPetIds) {
   g.heroShield = 0
 
   // 应用修炼加成（v2 后统一走 calcCultBonuses，已包含境界祝福乘数）
-  //   · body/defense/sense → 百分比，按队伍 HP 基数换算成绝对值
+  //   · body/sense → 百分比，defense → 防御值
   //   · spirit/wisdom → 绝对值，沿用旧口径
   const cult = g.storage.cultivation
   const cb = calcCultBonuses(cult)
@@ -129,8 +129,10 @@ function startStage(g, stageId, teamPetIds) {
   g._heroMinHpRatio = 1
   g.heroShield = Math.round(g.heroMaxHp * cb.sensePct / 100)
   g.dragTimeLimit = (DRAG_BASE_SEC + cb.wisdomFlat) * 60
-  g._cultDmgReducePct = cb.defPct
-  g._cultDmgReduce = 0  // 旧字段保留为 0，battle.js 已切到 _cultDmgReducePct，残留逻辑不再触发
+  g.heroDefense = cb.defValue || 0
+  g._cultDefenseValue = g.heroDefense
+  g._cultDmgReducePct = 0
+  g._cultDmgReduce = 0
   g._cultHeartBase = cb.spiritFlat
 
   // 加载玩家装备的法宝（固定关卡持久化装备）
@@ -247,7 +249,9 @@ function startStageNewbie(g, stageId) {
   g._heroMinHpRatio = 1
   g.heroShield = Math.round(g.heroMaxHp * cb.sensePct / 100)
   g.dragTimeLimit = (DRAG_BASE_SEC + cb.wisdomFlat) * 60
-  g._cultDmgReducePct = cb.defPct
+  g.heroDefense = cb.defValue || 0
+  g._cultDefenseValue = g.heroDefense
+  g._cultDmgReducePct = 0
   g._cultDmgReduce = 0
   g._cultHeartBase = cb.spiritFlat
 

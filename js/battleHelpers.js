@@ -12,7 +12,7 @@ const {
   emitFlash,
   emitCast,
 } = require('./engine/battle/fxEmitter')
-const { DMG_IMMUNE_MIN, WEAPON_SHIELD_BOOST_DEFAULT } = require('./data/balance/combat')
+const { DMG_IMMUNE_MIN, WEAPON_SHIELD_BOOST_DEFAULT, HERO_DEFENSE_REDUCTION_K } = require('./data/balance/combat')
 
 /** 与战斗界面共用布局（含 eAreaBottom）；此处保留旧字段子集以兼容既有调用 */
 function getBattleLayout() {
@@ -50,13 +50,78 @@ function addShield(g, val) {
   emitFloat(g, 'heroShieldGain', { val })
 }
 
+function getEffectiveHeroDefense(g) {
+  if (!g) return 0
+  let def = Math.max(0, Math.round(g.heroDefense || g._cultDefenseValue || 0))
+  let buffPct = 0
+  let downRate = 0
+  ;(g.heroBuffs || []).forEach(b => {
+    if (!b) return
+    if (b.type === 'allDefUp') buffPct += b.pct || 0
+    if (b.type === 'debuff' && b.field === 'def') downRate += b.rate || 0
+  })
+  if (buffPct > 0) def = Math.round(def * (1 + buffPct / 100))
+  if (downRate > 0) def = Math.round(def * Math.max(0, 1 - downRate))
+  return Math.max(0, def)
+}
+
+function applyHeroDefenseToDamage(g, dmg) {
+  const raw = Math.max(0, Math.round(dmg || 0))
+  if (raw <= 0) return { damage: 0, defense: getEffectiveHeroDefense(g), reduced: 0 }
+  const defense = getEffectiveHeroDefense(g)
+  if (defense <= 0) return { damage: raw, defense, reduced: 0 }
+  const damage = Math.max(1, Math.ceil(raw * HERO_DEFENSE_REDUCTION_K / (HERO_DEFENSE_REDUCTION_K + defense)))
+  return { damage, defense, reduced: Math.max(0, raw - damage) }
+}
+
+function getIncomingReducePct(g, opts) {
+  if (opts && opts.applyReduce === false) return 0
+  let pct = 0
+  ;(g.heroBuffs || []).forEach(b => { if (b.type === 'reduceDmg') pct += b.pct || 0 })
+  if (g.weapon && g.weapon.type === 'reduceDmg') pct += g.weapon.pct || 0
+  if (g.weapon && g.weapon.type === 'reduceAttrAtkDmg' && g.enemy && g.enemy.attr === g.weapon.attr) pct += g.weapon.pct || 0
+  if (g.runBuffs) {
+    pct += g.runBuffs.dmgReducePct || 0
+    if (g.runBuffs.nextDmgReducePct > 0) pct += g.runBuffs.nextDmgReducePct
+  }
+  if (opts && opts.source === 'skill' && g.weapon && g.weapon.type === 'reduceSkillDmg') {
+    pct += g.weapon.pct || 0
+  }
+  return Math.max(0, Math.min(95, pct))
+}
+
+function resolveIncomingDamage(g, dmg, opts) {
+  const o = opts || {}
+  const defendable = o.defendable !== false
+  const raw = Math.max(0, Math.round(dmg || 0))
+  const defenseResult = defendable
+    ? applyHeroDefenseToDamage(g, raw)
+    : { damage: raw, defense: getEffectiveHeroDefense(g), reduced: 0 }
+  const reducePct = getIncomingReducePct(g, o)
+  const afterPct = reducePct > 0
+    ? Math.max(0, Math.round(defenseResult.damage * (1 - reducePct / 100)))
+    : defenseResult.damage
+  return {
+    rawDamage: raw,
+    defense: defenseResult.defense,
+    defenseReduced: defenseResult.reduced,
+    reducePct,
+    damage: afterPct,
+  }
+}
+
 /** 对英雄造成伤害（含护盾、绝对防御、飘字） */
-function dealDmgToHero(g, dmg) {
+function dealDmgToHero(g, dmg, opts) {
   const immune = g.heroBuffs && g.heroBuffs.find(b => b.type === 'dmgImmune')
-  let resolvedDmg = Math.max(0, dmg || 0)
+  const resolved = resolveIncomingDamage(g, dmg, opts)
+  let resolvedDmg = resolved.damage
   if (immune && resolvedDmg > DMG_IMMUNE_MIN) resolvedDmg = DMG_IMMUNE_MIN
   const result = {
     incomingDamage: resolvedDmg,
+    rawDamage: resolved.rawDamage,
+    heroDefense: resolved.defense,
+    defenseReduced: resolved.defenseReduced,
+    reducePct: resolved.reducePct,
     actualDamage: 0,
     blockedByShield: false,
     fullyBlocked: false,
@@ -107,4 +172,15 @@ function dealDmgToHero(g, dmg) {
   return result
 }
 
-module.exports = { getBattleLayout, getEnemyCenterY, playHeroAttack, playEnemyAttack, playHealEffect, addShield, dealDmgToHero }
+module.exports = {
+  getBattleLayout,
+  getEnemyCenterY,
+  playHeroAttack,
+  playEnemyAttack,
+  playHealEffect,
+  addShield,
+  getEffectiveHeroDefense,
+  applyHeroDefenseToDamage,
+  resolveIncomingDamage,
+  dealDmgToHero,
+}

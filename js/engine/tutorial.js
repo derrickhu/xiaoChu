@@ -503,7 +503,7 @@ function finish(g) {
 
   // 重新正式开始（从第1层）
   const runMgr = require('./runManager')
-  g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0
+  g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0; g.heroDefense = 0; g._cultDefenseValue = 0
   g._baseHeroMaxHp = null
   g.heroBuffs = []; g.enemyBuffs = []
   g.enemy = null

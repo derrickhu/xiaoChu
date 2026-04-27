@@ -1147,9 +1147,8 @@ function rEvent(g) {
     const lines = []
     if (cb.bodyBonus > 0) lines.push(`HP+${cb.bodyBonus}`)
     if (cb.senseBonus > 0) lines.push(`护盾+${cb.senseBonus}`)
-    // v2 起 defense 改为百分比口径（defBonusPct），老字段 defBonus 兜底
-    const defPct = (cb.defBonusPct != null) ? cb.defBonusPct : cb.defBonus
-    if (defPct > 0) lines.push(`减伤+${defPct}%`)
+    const defValue = (cb.defBonusValue != null) ? cb.defBonusValue : (cb.defBonus || 0)
+    if (defValue > 0) lines.push(`防御+${defValue}`)
     if (cb.spiritBonus > 0) lines.push(`心珠+${cb.spiritBonus}`)
     if (cb.wisdomBonus > 0) lines.push(`转珠+${cb.wisdomBonus.toFixed(1)}s`)
     if (cb.blessing && cb.blessing > 1) lines.push(`境界×${cb.blessing.toFixed(2)}`)

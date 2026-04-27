@@ -309,7 +309,7 @@ function buildHelpPages() {
         }
         _row('🏺 装备法宝', '主角仅装备 1 件，全局被动生效')
         _row('⚔ 攻击增伤', '提升属性伤害 / 全队攻击 / Combo', '#ffd700')
-        _row('🛡 防御减伤', '减少受到的伤害 / 反弹伤害')
+        _row('🛡 防御值', '降低直接伤害 / 反弹伤害')
         _row('💊 回血治疗', '消珠回血 / 击杀回血 / 每回合回血', '#ff88aa')
         _row('🔮 暴击强化', '提升暴击率 / 暴击伤害', '#ff9966')
         _row('🌀 珠率提升', '指定属性珠出现概率大幅提升')
@@ -340,7 +340,7 @@ function buildHelpPages() {
         }
         for (const c of d.cultConfig) {
           const icon = c.key === 'body' ? '💪' : c.key === 'spirit' ? '🔮' : c.key === 'wisdom' ? '🧠' : c.key === 'defense' ? '🛡' : '👁'
-          // unit 里以 '%' 开头的为百分比类（%HP / %减伤 / %护盾），"+0.6%HP" 比 "+0.6 %HP" 读起来更顺
+          // unit 里以 '%' 开头的为百分比类（%HP / %护盾），"+0.6%HP" 比 "+0.6 %HP" 读起来更顺
           const unitStr = c.unit && c.unit.charAt(0) === '%' ? c.unit : ` ${c.unit}`
           _row(`${icon} ${c.name}`, `每级 +${c.perLv}${unitStr}（满${c.maxLv}级）`)
         }
@@ -350,7 +350,7 @@ function buildHelpPages() {
         ctx.textAlign = 'center'
         ctx.fillText('打关卡和通天塔获得修炼经验', cx, y)
         y += lineH * 0.7
-        ctx.fillText('升级后获得修炼点，分配到各属性加成', cx, y)
+        ctx.fillText('根骨会提高防御值，降低受到的直接伤害', cx, y)
       },
     },
     {

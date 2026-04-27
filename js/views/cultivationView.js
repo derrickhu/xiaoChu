@@ -653,7 +653,7 @@ const _STAT_ROWS = [
   { key: 'body',    label: 'HP',      color: '#E85050', icon: '体', pctMode: true  },
   { key: 'sense',   label: '护盾',    color: '#A070D0', icon: '识', pctMode: true  },
   { key: 'spirit',  label: '心珠回复', color: '#50C878', icon: '灵', pctMode: false },
-  { key: 'defense', label: '减伤',    color: '#C89648', icon: '根', pctMode: true  },
+  { key: 'defense', label: '防御',    color: '#C89648', icon: '根', pctMode: false },
   { key: 'wisdom',  label: '转珠',    color: '#5098E8', icon: '悟', pctMode: false },
 ]
 
@@ -705,7 +705,7 @@ function _drawStatsSummary(c, S, startY, cult) {
     // 五行各自的"战斗起手值"（玩家能直接对应战斗界面数字）
     //   · body  → 英雄 HP 上限（HERO_BASE_HP 受 body% 提升）
     //   · sense → 起手护盾 = startHp × sense%
-    //   · defense → 减伤百分比本身
+    //   · defense → 防御值（战斗中按公式换算直接伤害减免）
     //   · spirit → HEAL_BASE + spiritFlat（心珠回复基数）
     //   · wisdom → DRAG_BASE_SEC + wisdomFlat（转珠时间）
     let mainText, maxVal, curVal
@@ -719,11 +719,11 @@ function _drawStatsSummary(c, S, startY, cult) {
       curVal = startShield; maxVal = startShieldMax
       subText = `+${Math.round(cb.sensePct)}%`
     } else if (row.key === 'defense') {
-      const pctNow = Math.round(cb.defPct)
-      const pctMax = Math.round(cbMax.defPct)
-      mainText = `减伤 ${pctNow}%`
-      curVal = pctNow; maxVal = pctMax
-      subText = `+${pctNow}%`
+      const defNow = Math.round(cb.defValue || 0)
+      const defMax = Math.round(cbMax.defValue || 0)
+      mainText = `防御 ${defNow}`
+      curVal = defNow; maxVal = defMax
+      subText = defNow > 0 ? `+${defNow}` : ''
     } else if (row.key === 'spirit') {
       const cur = _HEART_DISPLAY_BASE + cb.spiritFlat
       const max = _HEART_DISPLAY_BASE + cbMax.spiritFlat
@@ -775,7 +775,7 @@ function _drawStatsSummary(c, S, startY, cult) {
     }
 
     // 数值区：
-    //   顶行（白粗）= 战斗起手实际值，例如 "HP 310" / "护盾 56" / "减伤 21%"
+    //   顶行（白粗）= 战斗起手实际值，例如 "HP 310" / "护盾 56" / "防御 42"
     //   底行（灰小）= +X% / +X 心珠 / +Xs，修炼加成的增量
     //   投入进度（Lv X/Y）已经由左侧进度条传达，不再冗余显示
     const valX = barX + barW + 4 * S

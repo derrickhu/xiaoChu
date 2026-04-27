@@ -58,7 +58,7 @@ const TRIAL_SPECIAL_FLOOR = {
       wood:  { name: '木魇幻狐·缠息', avatar: 'enemies/trial/trial_guard_mind_wood', title: '木魇毒息', desc: '免疫控制并施加持续伤害，适合用护盾或快速克制输出压制。', hpMul: 0.60, atkMul: 0.70, defMul: 1.0, skills: ['trialMindGuard', 'trialMindPoison'] },
       water: { name: '水魇幻狐·迟流', avatar: 'enemies/trial/trial_guard_mind_water', title: '水魇限时', desc: '免疫控制并缩短拖拽时间，要求更稳定的转珠路线。', hpMul: 0.58, atkMul: 0.72, defMul: 1.05, skills: ['trialMindGuard', 'trialMindTide'] },
       fire:  { name: '火魇幻狐·连焰', avatar: 'enemies/trial/trial_guard_mind_fire', title: '火魇连击', desc: '免疫控制并进行低倍率连击，不能只依赖眩晕拖回合。', hpMul: 0.54, atkMul: 0.84, defMul: 0.95, skills: ['trialMindGuard', 'trialMindFlare'] },
-      earth: { name: '土魇幻狐·裂甲', avatar: 'enemies/trial/trial_guard_mind_earth', title: '土魇破防', desc: '免疫控制并降低修士防御，适合带减伤或尽快击杀。', hpMul: 0.62, atkMul: 0.68, defMul: 1.15, skills: ['trialMindGuard', 'trialMindQuake'] },
+      earth: { name: '土魇幻狐·裂甲', avatar: 'enemies/trial/trial_guard_mind_earth', title: '土魇破防', desc: '免疫控制并降低修士防御值，适合带防御或尽快击杀。', hpMul: 0.62, atkMul: 0.68, defMul: 1.15, skills: ['trialMindGuard', 'trialMindQuake'] },
     },
   },
   10: {

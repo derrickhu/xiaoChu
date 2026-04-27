@@ -1146,7 +1146,7 @@ class Main {
   _playEnemyAttack() { bh.playEnemyAttack(this) }
   _playHealEffect() { bh.playHealEffect(this) }
   _addShield(val) { bh.addShield(this, val) }
-  _dealDmgToHero(dmg) { bh.dealDmgToHero(this, dmg) }
+  _dealDmgToHero(dmg, opts) { return bh.dealDmgToHero(this, dmg, opts) }
 
   // ===== 战斗引擎委托（仅保留被外部模块通过 g._xxx() 调用的方法）=====
   _showSkillPreview(pet, index) { skillEngine.showSkillPreview(this, pet, index) }

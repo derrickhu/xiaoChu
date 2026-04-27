@@ -50,7 +50,7 @@ function getBlessingMultiplier(cultLv) {
 
 /**
  * 战斗 / 数值消费的统一出口：返回乘上境界祝福后的"有效"加成。
- *   · type=percent → 基础百分比 × blessing
+ *   · type=percent/defense → 基础数值 × blessing
  *   · type=flat    → 不乘 blessing（spirit/wisdom 是离散值，乘小数会变成奇怪的 0.x 心珠）
  *   · 上层调用约定：拿到的数值就是"实际生效"的最终值，不要再额外乘任何系数
  */
@@ -58,28 +58,30 @@ function effectValueWithBlessing(key, level, cultLv) {
   const base = effectValue(key, level)
   if (base === 0) return 0
   const cfg = CULT_CONFIG[key]
-  if (!cfg || cfg.type !== 'percent') return base
+  if (!cfg || (cfg.type !== 'percent' && cfg.type !== 'defense')) return base
   const mul = getBlessingMultiplier(cultLv)
   return +(base * mul).toFixed(2)
 }
 
 /**
  * 根据 cultivation 持久化数据，统一算出战斗端要消费的修炼加成。
- *   返回 { bodyPct, defPct, sensePct, spiritFlat, wisdomFlat, blessing, cultLv }
- *   · bodyPct/defPct/sensePct 是"已经乘过境界祝福"的最终百分比
+ *   返回 { bodyPct, defValue, sensePct, spiritFlat, wisdomFlat, blessing, cultLv }
+ *   · bodyPct/sensePct 是"已经乘过境界祝福"的最终百分比，defValue 是最终防御值
  *   · spiritFlat/wisdomFlat 是绝对值（保持旧口径）
  *   · 战斗端在 stageManager / runManager 入口调用一次，写入 g._cultBonus*
  */
 function calcCultBonuses(cult) {
   if (!cult || !cult.levels) {
-    return { bodyPct: 0, defPct: 0, sensePct: 0, spiritFlat: 0, wisdomFlat: 0, blessing: 1, cultLv: 0 }
+    return { bodyPct: 0, defPct: 0, defValue: 0, sensePct: 0, spiritFlat: 0, wisdomFlat: 0, blessing: 1, cultLv: 0 }
   }
   const cultLv = cult.level || 0
   return {
     cultLv,
     blessing: getBlessingMultiplier(cultLv),
     bodyPct:    effectValueWithBlessing('body',    cult.levels.body    || 0, cultLv),
-    defPct:     effectValueWithBlessing('defense', cult.levels.defense || 0, cultLv),
+    // 兼容旧调用保留 defPct，但新战斗/展示统一读取 defValue
+    defPct:     0,
+    defValue:   Math.round(effectValueWithBlessing('defense', cult.levels.defense || 0, cultLv)),
     sensePct:   effectValueWithBlessing('sense',   cult.levels.sense   || 0, cultLv),
     spiritFlat: effectValueWithBlessing('spirit',  cult.levels.spirit  || 0, cultLv),
     wisdomFlat: effectValueWithBlessing('wisdom',  cult.levels.wisdom  || 0, cultLv),

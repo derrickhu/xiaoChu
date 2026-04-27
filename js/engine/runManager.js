@@ -184,7 +184,7 @@ function startRun(g, petIds, opts) {
   for (const k of EXP_FIELDS) g[k] = 0
   g._floorStartExp = 0; g._floorStartCombatExp = 0; g._floorExpSummary = null; g._expFloats = []
 
-  // 应用修炼加成（v2 后统一走 calcCultBonuses，已包含境界祝福乘数）
+    // 应用修炼加成（v2 后统一走 calcCultBonuses，已包含境界祝福乘数）
   {
     const cult = g.storage.cultivation
     const cb = calcCultBonuses(cult)
@@ -193,13 +193,15 @@ function startRun(g, petIds, opts) {
     g.heroHp      = g.heroMaxHp
     g.heroShield  = Math.round(g.heroMaxHp * cb.sensePct / 100)
     g.dragTimeLimit += Math.round(cb.wisdomFlat * 60)
-    g._cultDmgReducePct = cb.defPct
+    g.heroDefense = cb.defValue || 0
+    g._cultDefenseValue = g.heroDefense
+    g._cultDmgReducePct = 0
     g._cultDmgReduce = 0
     g._cultHeartBase = cb.spiritFlat
-    if ((bodyBonus + g.heroShield + cb.defPct) > 0) {
-      // UI summary：保留旧字段名，含义升级为"百分比/绝对值已乘祝福后的最终值"
+    if ((bodyBonus + g.heroShield + g.heroDefense) > 0) {
+      // UI summary：保留旧字段名兼容旧绘制，根骨展示改读 defBonusValue
       g._cultBonusSummary = {
-        bodyBonus, senseBonus: g.heroShield, defBonusPct: cb.defPct,
+        bodyBonus, senseBonus: g.heroShield, defBonusPct: 0, defBonusValue: g.heroDefense,
         spiritBonus: cb.spiritFlat, wisdomBonus: cb.wisdomFlat,
         blessing: cb.blessing,
         timer: 180,
@@ -733,11 +735,13 @@ function resumeRun(g, mode) {
   g.turnCount = 0; g.combo = 0
   // 恢复修炼经验累积
   for (const k of EXP_FIELDS) g[k] = s[k] || 0
-  // 肉鸽模式恢复修炼加成（100%；只恢复战斗内会用到的减伤/心珠回复，body/sense 由存档 heroMaxHp 决定）
+  // 肉鸽模式恢复修炼加成（100%；只恢复战斗内会用到的防御/心珠回复，body/sense 由存档 heroMaxHp 决定）
   {
     const cult = g.storage.cultivation
     const cb = calcCultBonuses(cult)
-    g._cultDmgReducePct = cb.defPct
+    g.heroDefense = cb.defValue || 0
+    g._cultDefenseValue = g.heroDefense
+    g._cultDmgReducePct = 0
     g._cultDmgReduce = 0
     g._cultHeartBase = cb.spiritFlat
   }

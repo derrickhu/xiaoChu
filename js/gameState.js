@@ -77,6 +77,8 @@ function initState(g) {
   g.weaponBag = []
   g.heroHp = 0; g.heroMaxHp = 60
   g.heroShield = 0
+  g.heroDefense = 0
+  g._cultDefenseValue = 0
   g.heroBuffs = []; g.enemyBuffs = []
   g.enemy = null
   g.curEvent = null
@@ -284,7 +286,7 @@ function _createDomainProxies(g) {
 
   _createDomainProxy(g, 'run', [
     'floor', 'pets', 'weapon', 'petBag', 'weaponBag',
-    'heroHp', 'heroMaxHp', 'heroShield', 'heroBuffs', 'enemyBuffs',
+    'heroHp', 'heroMaxHp', 'heroShield', 'heroDefense', 'heroBuffs', 'enemyBuffs',
     'enemy', 'curEvent', 'rewards', 'shopItems', 'restOpts',
     'adventureData', 'selectedReward', 'rewardPetSlot',
   ])

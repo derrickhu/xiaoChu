@@ -41,6 +41,7 @@ const { getCritFxPlan } = require('./battle/critFxConfig')
 const { applyStunToEnemy, applyStunToHero, findEnemyControlBuff } = require('./battle/stunResolver')
 const { isPetSealed } = require('./battle/petSeal')
 const { commitBattleVictory } = require('./battle/victoryResolver')
+const { resolveIncomingDamage } = require('../battleHelpers')
 const {
   COMBO_MUL_BREAKPOINTS, ELIM_MUL_4, ELIM_MUL_5,
   HEAL_BASE, HEAL_FLOOR_COEFF,
@@ -775,7 +776,7 @@ function applyFinalDamage(g, dmgMap, heal) {
     if (mirrorBuff && totalDmg > 0) {
       const reflectDmg = Math.round(totalDmg * (mirrorBuff.reflectPct || 30) / 100)
       if (reflectDmg > 0) {
-        g._dealDmgToHero(reflectDmg)
+        g._dealDmgToHero(reflectDmg, { defendable: false, applyReduce: false, source: 'reflect' })
         emitNotice(g, { x:W*0.5, y:H*0.6, text:`反弹${reflectDmg}`, color:'#ff60ff', scale:1.3, _initScale:1.3 })
       }
     }
@@ -965,26 +966,8 @@ function enemyTurn(g) {
   let atkDmg = g.enemy.atk
   const atkBuff = g.enemyBuffs.find(b => b.type === 'buff' && b.field === 'atk')
   if (atkBuff) atkDmg = Math.round(atkDmg * (1 + atkBuff.rate))
-  let reducePct = 0
-  g.heroBuffs.forEach(b => { if (b.type === 'reduceDmg') reducePct += b.pct })
-  // 宠物技能allDefUp buff：全队防御加成转化为减伤
-  g.heroBuffs.forEach(b => { if (b.type === 'allDefUp') reducePct += b.pct })
-  // 怪物debuff defDown：降低防御 → 增加受到的伤害
-  g.heroBuffs.forEach(b => {
-    if (b.type === 'debuff' && b.field === 'def') reducePct -= b.rate * 100
-  })
-  if (g.weapon && g.weapon.type === 'reduceDmg') reducePct += g.weapon.pct
-  if (g.weapon && g.weapon.type === 'reduceAttrAtkDmg' && g.enemy && g.enemy.attr === g.weapon.attr) reducePct += g.weapon.pct
-  reducePct += g.runBuffs.dmgReducePct
-  if (g.runBuffs.nextDmgReducePct > 0) reducePct += g.runBuffs.nextDmgReducePct
-  // 修炼根骨：v2 起为百分比减伤（已乘境界祝福）；与其他百分比减伤同口径合并
-  if (g._cultDmgReducePct > 0) reducePct += g._cultDmgReducePct
-  atkDmg = Math.round(atkDmg * (1 - reducePct / 100))
-  // 兼容旧字段：v1 时代 _cultDmgReduce 是固定值减伤（v2 后始终置 0，此分支不再触发）
-  if (g._cultDmgReduce > 0) atkDmg -= g._cultDmgReduce
-  atkDmg = Math.max(0, atkDmg)
   if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
-    const blocked = atkDmg
+    const blocked = resolveIncomingDamage(g, atkDmg, { source: 'attack' }).damage
     atkDmg = 0
     // 大字格挡特效：缩放弹跳 + 显示抵挡伤害数值
     emitNotice(g, { x:W*0.5, y:H*0.5, text:'格 挡 ！', color:'#40e8ff', scale:3.0, _initScale:3.0, big:true })
@@ -994,12 +977,14 @@ function enemyTurn(g) {
     MusicMgr.playBlock()
   }
   const immune = g.heroBuffs.find(b => b.type === 'dmgImmune')
-  if (immune) atkDmg = 1
+  const attackPreview = atkDmg > 0
+    ? (immune ? { damage: 1 } : resolveIncomingDamage(g, atkDmg, { source: 'attack' }))
+    : { damage: 0 }
   let reflectPct = 0
   g.heroBuffs.forEach(b => { if (b.type === 'reflectPct') reflectPct += b.pct })
   if (g.weapon && g.weapon.type === 'reflectPct') reflectPct += g.weapon.pct
-  if (reflectPct > 0 && atkDmg > 0) {
-    const refDmg = Math.round(atkDmg * reflectPct / 100)
+  if (reflectPct > 0 && attackPreview.damage > 0) {
+    const refDmg = Math.round(attackPreview.damage * reflectPct / 100)
     g.enemy.hp = Math.max(0, g.enemy.hp - refDmg)
     emitFloat(g, 'reflectToEnemy', { dmg: refDmg, color: TH.info })
   }
@@ -1007,7 +992,7 @@ function enemyTurn(g) {
     applyStunToEnemy(g, 1, { source: 'weaponCounter' })
   }
   if (atkDmg > 0) {
-    const hitResult = g._dealDmgToHero(atkDmg) || {}
+    const hitResult = g._dealDmgToHero(atkDmg, { source: 'attack' }) || {}
     const actualDamage = hitResult.actualDamage || 0
     emitCast(g, { kind: 'enemyAttack', heroReact: actualDamage > 0 })
     if (actualDamage > 0) {
@@ -1025,7 +1010,7 @@ function enemyTurn(g) {
       if (g.weapon && g.weapon.type === 'immuneDot') return
       // 宠物技能immuneCtrl也能免疫持续伤害
       if (g.heroBuffs.some(hb => hb.type === 'immuneCtrl')) return
-      g._dealDmgToHero(b.dmg)
+      g._dealDmgToHero(b.dmg, { defendable: false, applyReduce: false, source: 'dot' })
       MusicMgr.playDotDmg()  // DOT音效
     }
   })
@@ -1255,8 +1240,7 @@ function applyEnemySkill(g, skillKey) {
     }
     case 'aoe': {
       let aoeDmg = Math.round(g.enemy.atk * (sk.atkPct || ENEMY_AOE_DEFAULT_ATK_PCT))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') aoeDmg = Math.round(aoeDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(aoeDmg); break
+      g._dealDmgToHero(aoeDmg, { source: 'skill' }); break
     }
     case 'debuff':
       g.heroBuffs.push({ type:'debuff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:true }); break
@@ -1378,8 +1362,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossQuake': {
       // 震天裂地：AOE伤害 + 封锁整行灵珠
       let qDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_QUAKE_DEFAULT_ATK_PCT))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') qDmg = Math.round(qDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(qDmg)
+      g._dealDmgToHero(qDmg, { source: 'skill' })
       if (sk.sealType === 'row') {
         const sr = Math.floor(Math.random() * ROWS)
         for (let c = 0; c < COLS; c++) {
@@ -1396,8 +1379,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossDevour': {
       // 噬魂夺魄：造成伤害 + 窃取治疗（加healBlock debuff）
       let dDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DEVOUR_DEFAULTS.atkPct))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') dDmg = Math.round(dDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(dDmg)
+      g._dealDmgToHero(dDmg, { source: 'skill' })
       g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:BOSS_DEVOUR_DEFAULTS.healRate, dur:BOSS_DEVOUR_DEFAULTS.dur, bad:true })
       break
     }
@@ -1429,16 +1411,15 @@ function applyEnemySkill(g, skillKey) {
       const hits = sk.hits || BOSS_BLITZ_DEFAULTS.hits
       for (let i = 0; i < hits; i++) {
         let bDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_BLITZ_DEFAULTS.atkPct))
-        if (g.weapon && g.weapon.type === 'reduceSkillDmg') bDmg = Math.round(bDmg * (1 - g.weapon.pct / 100))
-        g._dealDmgToHero(bDmg)
+        g._dealDmgToHero(bDmg, { source: 'skill' })
       }
       break
     }
     case 'bossDrain': {
       // 吸星大法：造成伤害并回复等量生命
       let drDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DRAIN_DEFAULT_ATK_PCT))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') drDmg = Math.round(drDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(drDmg)
+      const drainHit = g._dealDmgToHero(drDmg, { source: 'skill' }) || {}
+      drDmg = drainHit.actualDamage || 0
       g.enemy.hp = Math.min(g.enemy.maxHp, g.enemy.hp + drDmg)
       emitFloat(g, 'enemyHeal', { amt: drDmg })
       break
@@ -1446,8 +1427,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossAnnihil': {
       // 灭世天劫：大伤害 + 碎珠
       let aDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ANNIHIL_DEFAULTS.atkPct))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') aDmg = Math.round(aDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(aDmg)
+      g._dealDmgToHero(aDmg, { source: 'skill' })
       for (let i = 0; i < (sk.breakCount || BOSS_ANNIHIL_DEFAULTS.breakCount); i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
         g.board[r][c] = null
@@ -1463,8 +1443,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossUltimate': {
       // 超越·终焉：大伤害 + 封锁（全场或随机） + 眩晕
       let uDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ULTIMATE_DEFAULTS.atkPct))
-      if (g.weapon && g.weapon.type === 'reduceSkillDmg') uDmg = Math.round(uDmg * (1 - g.weapon.pct / 100))
-      g._dealDmgToHero(uDmg)
+      g._dealDmgToHero(uDmg, { source: 'skill' })
       if (sk.sealType === 'all') {
         // 封锁外围灵珠（保留中心区域可操作，避免卡死）
         for (let r = 0; r < ROWS; r++) {

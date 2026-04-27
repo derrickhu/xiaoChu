@@ -10,7 +10,8 @@ const { drawPrimaryButton } = require('./uiComponents')
 const buttonFx = require('./buttonFx')
 
 // ===== 修炼属性数值格式化 =====
-//   · type=percent  ：基础显示百分号；当 cultLv 提供时，二行展示"基础 +X% / 祝福 ×Y → 有效 +Z%"
+//   · type=percent  ：基础显示百分号；当 cultLv 提供时，展示乘境界祝福后的有效值
+//   · type=defense  ：显示防御值；同样乘境界祝福
 //   · wisdom        ：保留 "+X.XXs"（负向加成在 desc 已写明）
 //   · 其他 flat     ：直接显示数值（心珠回复等）
 function _formatEffect(key, lv, cultLv) {
@@ -24,7 +25,7 @@ function _formatEffect(key, lv, cultLv) {
   return `+${base}`
 }
 
-// 拿"有效"加成字符串（已乘境界祝福），仅 type=percent 才与基础不同
+// 拿"有效"加成字符串（已乘境界祝福）
 function _formatEffective(key, lv, cultLv) {
   const cfg = CULT_CONFIG[key]
   if (!cfg || lv <= 0) return ''
@@ -667,7 +668,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   const maxAdd = canUpgrade ? Math.min(cfg.maxLv - lv, pts) : 0
   const amt = canUpgrade ? Math.min(Math.max(1, upgradeAmount || 1), maxAdd) : 0
   const cultLv = (cult && cult.level) || 0
-  const isPercent = cfg.type === 'percent'
+  const isBlessedValue = cfg.type === 'percent' || cfg.type === 'defense'
   // 详情面板不再展开"基础/祝福/有效"三层：境界加成已经体现在"实际数值"里，
   // 顶部祝福徽章已经告诉玩家境界带来多少倍加成，这里再列出过程玩家反馈"难懂"
 
@@ -738,7 +739,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   curY += 8*S
 
   // 当前效果（只显示实际数值，含境界加成；不再展开"基础/祝福/有效"三层）
-  //   · 百分比类 → effectValueWithBlessing（已含境界乘数）
+  //   · 百分比/防御值 → effectValueWithBlessing（已含境界乘数）
   //   · flat 类   → effectValue（没有境界乘数）
   //   玩家只需要看到一句话："这个属性现在给我多少"
   c.save()
@@ -746,7 +747,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   c.fillStyle = '#8a7a58'
   c.font = `${11*S}px "PingFang SC",sans-serif`
   c.fillText('当前效果', panelX + pad, curY + 6*S)
-  const effStr = isPercent ? _formatEffective(key, lv, cultLv) : _formatEffect(key, lv, cultLv)
+  const effStr = isBlessedValue ? _formatEffective(key, lv, cultLv) : _formatEffect(key, lv, cultLv)
   const effectStr = lv > 0
     ? `${cfg.desc}  ${effStr}`
     : `${cfg.desc}（未激活）`
@@ -759,7 +760,7 @@ function drawDetailPanel(c, W, H, S, key, cult, pts, rects, animFrame, upgradeAm
   // 加点后预览（同样只显示"加完之后实际是多少"）
   if (!isMax && amt > 0) {
     const newLv = lv + amt
-    const newStr = isPercent ? _formatEffective(key, newLv, cultLv) : _formatEffect(key, newLv, cultLv)
+    const newStr = isBlessedValue ? _formatEffective(key, newLv, cultLv) : _formatEffect(key, newLv, cultLv)
     c.save()
     c.textAlign = 'left'; c.textBaseline = 'middle'
     c.fillStyle = style.color
