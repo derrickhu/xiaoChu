@@ -591,7 +591,7 @@ function isGuideActive() {
   return !!(rd && rd.guide && rd.guide.path)
 }
 
-// 拖珠松手时检查：未走完路径则重置棋盘，返回 true 表示已拦截（禁止消除）
+// 拖珠松手时检查：未走完路径则自动补完剩余路径，避免新手卡死
 function onDragEnd(g) {
   if (!_active || _guideDone) return false
   const rd = _getCurRound()
@@ -599,9 +599,24 @@ function onDragEnd(g) {
   const path = rd.guide.path
   const last = path[path.length - 1]
   if (g.dragR === last[0] && g.dragC === last[1]) return false
-  _setupRoundBoard(g)
-  P.showGameToast('请沿发光路径拖到终点再松手哦')
-  return true
+  const curIdx = path.findIndex(([pr, pc]) => pr === g.dragR && pc === g.dragC)
+  if (curIdx < 0) {
+    _setupRoundBoard(g)
+    P.showGameToast('按住发光灵珠，小灵再带主人走一次～')
+    return true
+  }
+  for (let i = curIdx; i < path.length - 1; i++) {
+    const [r1, c1] = path[i]
+    const [r2, c2] = path[i + 1]
+    if (!g.board[r1] || !g.board[r2]) break
+    const tmp = g.board[r1][c1]
+    g.board[r1][c1] = g.board[r2][c2]
+    g.board[r2][c2] = tmp
+  }
+  g.dragR = last[0]
+  g.dragC = last[1]
+  P.showGameToast('小灵帮主人补到终点，看看三连消除！')
+  return false
 }
 
 // 教学中敌人攻击行为

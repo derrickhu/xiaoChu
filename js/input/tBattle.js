@@ -139,22 +139,16 @@ function _handleTrialRestart(g) {
   const cost = getTrialStaminaCost(g.storage)
   const team = (g.pets || []).map(p => p && (p._poolId || p.id)).filter(Boolean)
   g.showExitDialog = false
-  if (g.storage.currentStamina < cost) {
-    P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })
-    return
-  }
   g._confirmDialog = {
     title: '重新开始试炼',
-    content: `重新开始将消耗 ${cost} 点体力\n当前试炼进度作废，并从第 1 层开始`,
-    confirmText: '重新开始',
+    content: `将先结算当前试炼奖励\n之后可重新开始并消耗 ${cost} 点体力`,
+    confirmText: '先结算',
     cancelText: '取消',
     timer: 0,
     onConfirm: () => {
       MusicMgr.stopBossBgm()
-      g.storage.clearRunState('trial')
-      if (!runMgr.startTrialRun(g, team)) {
-        P.showGameToast('重新开始失败', { type: 'warn' })
-      }
+      g._trialRestartTeam = team
+      runMgr.endRun(g)
     },
   }
 }
@@ -256,11 +250,11 @@ function tBattle(g, type, x, y) {
       } else if (g.battleMode === 'trial') {
         _handleTrialRestart(g)
       } else {
-        // 肉鸽模式：重新开局（保持原行为：先结算经验再清档重启）
+        // 肉鸽模式：重新开局前先完整结算当前局奖励，再由结算页承接重新挑战
         g.showExitDialog = false
         MusicMgr.stopBossBgm()
-        runMgr.settleExp(g)
-        g.storage.clearRunState(); g._startRun()
+        g._towerRestartTeam = (g.pets || []).map(p => p && (p._poolId || p.id)).filter(Boolean)
+        runMgr.endRun(g)
       }
       return
     }

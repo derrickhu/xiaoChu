@@ -557,6 +557,7 @@ class Main {
   // ===== Run管理（委托到 runManager）=====
   _startRun(petIds) { runMgr.startRun(this, petIds) }
   _startTrialRun(petIds) { runMgr.startTrialRun(this, petIds) }
+  _startTrialContinueRun(petIds, startFloor) { runMgr.startTrialContinueRun(this, petIds, startFloor) }
   _nextFloor() { runMgr.nextFloor(this) }
   _restoreBattleHpMax() { runMgr.restoreBattleHpMax(this) }
   _claimTowerFloorMilestones(floor) { return runMgr.claimTowerFloorMilestones(this, floor) }

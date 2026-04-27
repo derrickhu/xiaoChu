@@ -1039,9 +1039,9 @@ function _drawHuahuaMilestoneBar(c, R, x, y, blockW, progressDays, u, milestoneC
   const mileSpan = Math.max(40 * u, trackW - MILESTONE_X_INSET * 2)
   const claimedSet = milestoneClaimedSet || new Set()
 
-  H.milestoneThresholds.forEach((threshold, mi) => {
+  LOGIN_MILESTONE_PETS.forEach((milestone) => {
+    const threshold = milestone.day
     const nodeX = trackLeft + MILESTONE_X_INSET + (threshold / MAX_D) * mileSpan
-    const milestone = LOGIN_MILESTONE_PETS[mi]
     if (!milestone) return
 
     const pet = getPetById(milestone.petId)

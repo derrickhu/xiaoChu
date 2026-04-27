@@ -128,6 +128,7 @@ function _getRunMaxFloor(g) {
 function startRun(g, petIds, opts) {
   opts = opts || {}
   const isTrial = opts.mode === 'trial'
+  const startFloor = Math.max(1, Math.floor(opts.startFloor || 1))
   memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'start_run' })
   g._battleFxLowMemory = false
   g.battleMode = isTrial ? 'trial' : 'roguelike'
@@ -206,6 +207,20 @@ function startRun(g, petIds, opts) {
     }
   }
 
+  if (isTrial && startFloor > 1) {
+    // 广告续打从历史层数后继续，需补齐跳过楼层本应获得的局内成长。
+    for (let f = 2; f < startFloor; f++) {
+      const realm = getRealmInfo(f)
+      if (realm && realm.hpUp > 0) {
+        g.heroMaxHp += realm.hpUp
+        g.heroHp += realm.hpUp
+      }
+      if (f % 5 === 1) g.runBuffs.allAtkPct += calcFloorAtkBonus(f)
+    }
+    g.floor = startFloor - 1
+    g.realmLevel = Math.max(1, g.floor)
+  }
+
   // 加载玩家装备的法宝（带自己的法宝冲塔）
   const eqId = g.storage.equippedWeaponId
   g.weapon = eqId ? { ...getWeaponById(eqId) } : null
@@ -229,6 +244,26 @@ function startTrialRun(g, petIds) {
     seasonId: season.id,
     maxFloor: season.maxFloor,
     dailyQuestId: dailyQuest && dailyQuest.id,
+  })
+  return true
+}
+
+function startTrialContinueRun(g, petIds, startFloor) {
+  const season = getCurrentTrialSeason()
+  const dailyQuest = getDailyQuestForDate()
+  const floor = Math.max(2, Math.min(season.maxFloor, Math.floor(startFloor || 2)))
+  const started = g.storage.startTrialContinueRun(season.id)
+  if (!started || !started.ok) {
+    P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
+    g.setScene('trialDetail')
+    return false
+  }
+  startRun(g, petIds, {
+    mode: 'trial',
+    seasonId: season.id,
+    maxFloor: season.maxFloor,
+    dailyQuestId: dailyQuest && dailyQuest.id,
+    startFloor: floor,
   })
   return true
 }
@@ -922,6 +957,7 @@ module.exports = {
   DEFAULT_RUN_BUFFS, makeDefaultRunBuffs,
   startRun: _safeRun(startRun),
   startTrialRun: _safeRun(startTrialRun),
+  startTrialContinueRun: _safeRun(startTrialContinueRun),
   nextFloor: _safeRun(nextFloor),
   restoreBattleHpMax,
   settleExp: _safeRun(settleExp),

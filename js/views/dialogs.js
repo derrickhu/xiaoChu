@@ -41,10 +41,10 @@ function drawExitDialog(g) {
       stageRestartHint = `重新挑战将消耗 ${cost} 点体力`
     }
   }
-  let restartHint = isStage ? stageRestartHint : '重新开局将清空当前战斗进度'
+  let restartHint = isStage ? stageRestartHint : '重新开局前会先结算当前奖励'
   if (isTrial) {
     const { getTrialStaminaCost } = require('../data/trialSeason')
-    restartHint = `重新开始将消耗 ${getTrialStaminaCost(g.storage)} 点体力`
+    restartHint = `先结算当前奖励，再重新开始消耗 ${getTrialStaminaCost(g.storage)} 点体力`
   }
 
   // 标题

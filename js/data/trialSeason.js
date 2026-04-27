@@ -197,7 +197,14 @@ function _getSpecialCfgForFloor(floor, enemyAttr) {
 }
 
 function _getTrialMonsterIndex(floor, max) {
-  return Math.max(0, Math.min(max - 1, Math.floor((floor + 5) / 5)))
+  const safeMax = Math.max(1, max || 1)
+  let normalEncounterNo = 0
+  for (let f = 1; f <= floor; f++) {
+    if (f >= TRIAL_MODE.maxFloor) continue
+    if (f === 5 || f === 8 || f === 9) continue
+    normalEncounterNo++
+  }
+  return Math.max(0, (normalEncounterNo - 1) % safeMax)
 }
 
 function _bindEnemyAttrVisual(enemy, floor, enemyAttr, eventType) {

@@ -102,6 +102,35 @@ function _drawPill(c, R, x, y, w, h, text, color, opts) {
   c.restore()
 }
 
+function _drawTodayStat(c, R, S, x, y, w, label, value, tone) {
+  const h = 35 * S
+  c.save()
+  const grad = c.createLinearGradient(x, y, x, y + h)
+  if (tone === 'gold') {
+    grad.addColorStop(0, 'rgba(255,246,214,0.94)')
+    grad.addColorStop(1, 'rgba(244,218,154,0.88)')
+  } else if (tone === 'green') {
+    grad.addColorStop(0, 'rgba(229,250,231,0.94)')
+    grad.addColorStop(1, 'rgba(193,232,199,0.88)')
+  } else {
+    grad.addColorStop(0, 'rgba(238,244,255,0.94)')
+    grad.addColorStop(1, 'rgba(209,225,246,0.88)')
+  }
+  c.fillStyle = grad
+  R.rr(x, y, w, h, 10 * S); c.fill()
+  c.strokeStyle = tone === 'gold' ? 'rgba(203,143,33,0.45)' : 'rgba(83,142,110,0.35)'
+  c.lineWidth = 1
+  R.rr(x, y, w, h, 10 * S); c.stroke()
+  c.textAlign = 'center'; c.textBaseline = 'middle'
+  c.fillStyle = tone === 'green' ? '#2E7D47' : (tone === 'gold' ? '#8A5A16' : '#3B5F8A')
+  c.font = `bold ${7.8*S}px "PingFang SC",sans-serif`
+  c.fillText(label, x + w / 2, y + 10 * S)
+  c.fillStyle = tone === 'green' ? '#1F6E38' : (tone === 'gold' ? '#6A3F09' : '#2F4E78')
+  c.font = `bold ${12*S}px "PingFang SC",sans-serif`
+  c.fillText(value, x + w / 2, y + 24 * S)
+  c.restore()
+}
+
 function _trialName(attrTheme) {
   return `${(attrTheme.enemyName || '').replace(/\//g, '')}试炼`
 }
@@ -227,6 +256,13 @@ function rTrialDetail(g) {
   const cost = getTrialStaminaCost(g.storage)
   const unlocked = g.storage.isTrialUnlocked()
   const savedTrial = g.storage.loadRunState && g.storage.loadRunState('trial')
+  const daily = state.daily || {}
+  const todayQuestScore = dailyQuests.reduce((sum, quest) => (
+    sum + (daily.questDone && daily.questDone[quest.id] ? (quest.score || 0) : 0)
+  ), 0)
+  const todayScore = (daily.bestScore || 0) + todayQuestScore
+  const todayBestFloor = daily.bestFloor || 0
+  const todayRuns = daily.runs || 0
 
   R.drawHomeBg(g.af || 0)
   c.fillStyle = 'rgba(20,12,36,0.52)'
@@ -249,7 +285,7 @@ function rTrialDetail(g) {
   const panelX = pad
   let y = topY + 54 * S
   const panelW = W - pad * 2
-  const panelH = 232 * S
+  const panelH = 252 * S
   _drawTrialPanel(c, R, 'assets/ui/trial_panel_rule.png', panelX, y, panelW, panelH)
 
   const innerX = panelX + 28 * S
@@ -262,9 +298,16 @@ function rTrialDetail(g) {
   c.font = `bold ${9*S}px "PingFang SC",sans-serif`
   c.fillText(`${seasonLabel} · ${seasonProgress.endLabel}结束`, panelX + panelW / 2, y + 43 * S)
 
+  const statGap = 6 * S
+  const statY = y + 54 * S
+  const statW = (innerW - statGap * 2) / 3
+  _drawTodayStat(c, R, S, innerX, statY, statW, '今日已计入', `${todayScore}分`, 'gold')
+  _drawTodayStat(c, R, S, innerX + (statW + statGap), statY, statW, '今日最高', `第${todayBestFloor}/${season.maxFloor}层`, 'green')
+  _drawTodayStat(c, R, S, innerX + (statW + statGap) * 2, statY, statW, '已挑战', `${todayRuns}次`, 'blue')
+
   // 推荐编队只展示玩家应该带的属性，避免把敌方属性也混在一起。
   const orbSize = 22 * S
-  const attrY = y + 68 * S
+  const attrY = y + 102 * S
   c.fillStyle = '#6A4A1C'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.textAlign = 'left'
@@ -289,8 +332,8 @@ function rTrialDetail(g) {
   c.fillText('试炼特殊加成 · 克制攻击 +15%', ruleX + ruleW / 2, ruleY + ruleH / 2)
   c.textAlign = 'left'
 
-  const questY = y + 94 * S
-  const questH = 100 * S
+  const questY = y + 126 * S
+  const questH = 82 * S
   const qGrad = c.createLinearGradient(innerX, questY, innerX, questY + questH)
   qGrad.addColorStop(0, 'rgba(255,246,220,0.96)')
   qGrad.addColorStop(1, 'rgba(255,235,196,0.88)')
@@ -301,53 +344,48 @@ function rTrialDetail(g) {
   c.textAlign = 'left'
   c.fillStyle = '#8A5A16'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.fillText('今日课题（每日首次计分）', innerX + 12 * S, questY + 18 * S)
-  let qy = questY + 36 * S
+  c.fillText('今日课题（每日首次计分）', innerX + 12 * S, questY + 15 * S)
+  let qy = questY + 32 * S
   for (const quest of dailyQuests.slice(0, 3)) {
+    const done = !!(daily.questDone && daily.questDone[quest.id])
     c.fillStyle = '#3F3022'
-    c.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    c.font = `bold ${9.6*S}px "PingFang SC",sans-serif`
     c.fillText(_questPoolLabel(quest), innerX + 12 * S, qy)
-    _drawPill(c, R, innerX + innerW - 64 * S, qy - 11 * S, 54 * S, 20 * S, `+${quest.score || 0}分`, '#4EA96B', {
-      bg: 'rgba(225,255,232,0.88)', textColor: '#267B40', fontSize: 8 * S,
+    _drawPill(c, R, innerX + innerW - 68 * S, qy - 9 * S, 58 * S, 18 * S, done ? `已得+${quest.score || 0}` : `+${quest.score || 0}分`, done ? '#4EA96B' : '#C7A46C', {
+      bg: done ? 'rgba(225,255,232,0.88)' : 'rgba(240,232,214,0.88)',
+      textColor: done ? '#267B40' : '#8A7A62',
+      fontSize: 7.2 * S,
     })
-    qy += 18 * S
+    qy += 20 * S
   }
-  c.fillStyle = '#3F3022'
-  c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-  c.fillText('今日最高层数计分', innerX + 12 * S, qy)
-  _drawPill(c, R, innerX + innerW - 90 * S, qy - 11 * S, 80 * S, 20 * S, '每层+80分', '#4EA96B', {
-    bg: 'rgba(225,255,232,0.88)', textColor: '#267B40', fontSize: 7.4 * S,
-  })
-  _drawPill(c, R, innerX + innerW - 176 * S, qy - 11 * S, 82 * S, 20 * S, '通关+300分', '#4EA96B', {
-    bg: 'rgba(225,255,232,0.88)', textColor: '#267B40', fontSize: 7.4 * S,
-  })
 
-  const ruleTagY = y + 197 * S
+  const ruleTagY = y + 214 * S
   const fragTagX = innerX
   const stIcon = R.getImg('assets/ui/icon_stamina.png')
   const stText = `${cost}${cost < season.staminaCost ? ' 首战半价' : ''}`
   const stIconSize = 15 * S
   c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  const stPillW = Math.min(104 * S, Math.max(62 * S, c.measureText(stText).width + stIconSize + 20 * S))
-  const fragTagW = Math.max(126 * S, innerW - stPillW - 10 * S)
+  const tagGap = 8 * S
+  const stPillW = Math.min(90 * S, Math.max(58 * S, c.measureText(stText).width + stIconSize + 16 * S))
+  const fragTagW = innerW - stPillW - tagGap
   c.fillStyle = 'rgba(232,243,255,0.92)'
-  R.rr(fragTagX, ruleTagY, fragTagW, 24 * S, 12 * S); c.fill()
+  R.rr(fragTagX, ruleTagY, fragTagW, 22 * S, 11 * S); c.fill()
   c.strokeStyle = 'rgba(62,133,197,0.52)'
-  R.rr(fragTagX, ruleTagY, fragTagW, 24 * S, 12 * S); c.stroke()
+  R.rr(fragTagX, ruleTagY, fragTagW, 22 * S, 11 * S); c.stroke()
   c.fillStyle = '#2F72A8'
-  c.font = `bold ${8.4*S}px "PingFang SC",sans-serif`
-  c.fillText('每次挑战得同属性碎片', fragTagX + 10 * S, ruleTagY + 12 * S)
-  const stPillX = fragTagX + fragTagW + 10 * S
-  const stY = ruleTagY + 12 * S
+  c.font = `bold ${7.8*S}px "PingFang SC",sans-serif`
+  c.fillText('层数计分：每层+80，通关+300；另得同属性碎片', fragTagX + 9 * S, ruleTagY + 11 * S)
+  const stPillX = fragTagX + fragTagW + tagGap
+  const stY = ruleTagY + 11 * S
   c.fillStyle = 'rgba(255,246,210,0.94)'
-  R.rr(stPillX, ruleTagY, stPillW, 24 * S, 12 * S); c.fill()
+  R.rr(stPillX, ruleTagY, stPillW, 22 * S, 11 * S); c.fill()
   c.strokeStyle = 'rgba(214,154,46,0.6)'
-  R.rr(stPillX, ruleTagY, stPillW, 24 * S, 12 * S); c.stroke()
-  const stIconX = stPillX + 10 * S
+  R.rr(stPillX, ruleTagY, stPillW, 22 * S, 11 * S); c.stroke()
+  const stIconX = stPillX + 7 * S
   if (stIcon && stIcon.width > 0) c.drawImage(stIcon, stIconX, stY - stIconSize / 2, stIconSize, stIconSize)
   c.fillStyle = '#6A4A1C'
-  c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  c.fillText(stText, stIconX + stIconSize + 4 * S, stY)
+  c.font = `bold ${8.2*S}px "PingFang SC",sans-serif`
+  c.fillText(stText, stIconX + stIconSize + 3 * S, stY)
   c.textAlign = 'left'
 
   y += panelH + 12 * S
@@ -355,6 +393,8 @@ function rTrialDetail(g) {
   _drawTrialPanel(c, R, 'assets/ui/trial_panel_reward.png', panelX, y, panelW, rewardH)
   const seasonScore = state.seasonScore || 0
   const maxRewardScore = season.rewardTrack[season.rewardTrack.length - 1].score
+  const nextTier = season.rewardTrack.find(tier => seasonScore < tier.score)
+  const nextDiff = nextTier ? Math.max(0, nextTier.score - seasonScore) : 0
   g._trialWeaponRewardRects = []
   c.fillStyle = '#7A4A12'
   c.font = `bold ${13*S}px "PingFang SC",sans-serif`
@@ -376,11 +416,15 @@ function rTrialDetail(g) {
   grad.addColorStop(1, '#F1C45D')
   c.fillStyle = grad
   R.rr(barX, barY, fillW, barH, barH / 2); c.fill()
+  c.textAlign = 'left'
+  c.fillStyle = nextTier ? '#8A6A36' : '#2E8B57'
+  c.font = `bold ${8.5*S}px "PingFang SC",sans-serif`
+  c.fillText(nextTier ? `距下一档还差 ${nextDiff} 分` : '本期奖励已全部达成', barX, barY + 23 * S)
 
   const cardGap = 8 * S
   const cardW = (innerW - cardGap) / 2
   const cardH = 62 * S
-  const cardsY = y + 88 * S
+  const cardsY = y + 96 * S
   const claimed = new Set(state.claimed || [])
   for (let i = 0; i < season.rewardTrack.length; i++) {
     const tier = season.rewardTrack[i]

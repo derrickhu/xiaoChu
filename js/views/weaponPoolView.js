@@ -11,7 +11,7 @@ const inkUI = require('./inkUiComponents')
 
 const OWNED_CARD_BORDER = 'rgba(212,175,55,0.65)'
 const WEAPON_POOL_ART = {
-  bg: 'assets/backgrounds/petpool_ink_bg.jpg',
+  bg: 'assets/backgrounds/petpool_bg.jpg',
   card: 'assets/ui/pet_card_bg.png',
   filter: 'assets/ui/pet_filter_scroll_bg.png',
 }

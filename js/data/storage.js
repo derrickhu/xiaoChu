@@ -179,7 +179,7 @@ function defaultPersist() {
       bestFloor: 0,
       bestRun: null,
       claimed: [],
-      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} },
     },
     // 万能碎片：可用于任意灵宠升星的通用材料
     universalFragment: 0,
@@ -496,7 +496,7 @@ const migrations = {
         bestFloor: 0,
         bestRun: null,
         claimed: [],
-        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} },
       }
     }
   },
@@ -510,7 +510,7 @@ const migrations = {
         bestFloor: 0,
         bestRun: null,
         claimed: [],
-        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+        daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} },
       }
     }
     if (typeof d.trial.seasonScore !== 'number') d.trial.seasonScore = 0
@@ -1474,7 +1474,11 @@ class Storage {
     if (rewards.petId) {
       const petId = rewards.petId
       if (this.getPoolPet(petId)) {
-        const duplicate = rewards.petDuplicateFragment
+        const { LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS } = require('./giftConfig')
+        const duplicate = rewards.petDuplicateFragment || {
+          petId,
+          count: rewards.duplicateFragments || LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS,
+        }
         if (duplicate && duplicate.petId && duplicate.count > 0) {
           this.addFragmentSmart(duplicate.petId, duplicate.count)
           granted.petDuplicateFragment = { petId: duplicate.petId, count: duplicate.count }
@@ -2221,7 +2225,7 @@ class Storage {
       bestFloor: 0,
       bestRun: null,
       claimed: [],
-      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} },
+      daily: { date: '', runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} },
     }
   }
 
@@ -2232,10 +2236,11 @@ class Storage {
     }
     const today = localDateKey()
     if (!this._d.trial.daily || this._d.trial.daily.date !== today) {
-      this._d.trial.daily = { date: today, runs: 0, firstHalfUsed: false, bestScore: 0, questDone: {} }
+      this._d.trial.daily = { date: today, runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} }
     }
     if (typeof this._d.trial.seasonScore !== 'number') this._d.trial.seasonScore = 0
     if (typeof this._d.trial.daily.bestScore !== 'number') this._d.trial.daily.bestScore = 0
+    if (typeof this._d.trial.daily.bestFloor !== 'number') this._d.trial.daily.bestFloor = 0
     if (!this._d.trial.daily.questDone) this._d.trial.daily.questDone = {}
     if (!Array.isArray(this._d.trial.claimed)) this._d.trial.claimed = []
     return this._d.trial
@@ -2268,6 +2273,18 @@ class Storage {
     this.addDailyTaskProgress('trial_1', 1)
     this._save()
     return { ok: true, cost }
+  }
+
+  startTrialContinueRun(seasonId) {
+    const trialSeason = require('./trialSeason')
+    const season = trialSeason.getCurrentTrialSeason()
+    const sid = seasonId || season.id
+    if (!this.isTrialUnlocked()) return { ok: false, reason: 'locked' }
+    const st = this._refreshTrial(sid)
+    st.daily.runs = (st.daily.runs || 0) + 1
+    this.addDailyTaskProgress('trial_1', 1)
+    this._save()
+    return { ok: true, cost: 0 }
   }
 
   grantTrialRewards(tiers) {
@@ -2324,6 +2341,10 @@ class Storage {
     if (battleScoreAdded > 0) {
       st.daily.bestScore = battleScore
     }
+    const reachedFloor = (result && result.floor) || 0
+    if (reachedFloor > (st.daily.bestFloor || 0)) {
+      st.daily.bestFloor = reachedFloor
+    }
     let questScoreAdded = 0
     st.daily.questDone = st.daily.questDone || {}
     for (const quest of (result && result.dailyQuestResults) || []) {
@@ -2338,7 +2359,7 @@ class Storage {
     }
     if (score > (st.bestScore || 0)) {
       st.bestScore = score
-      st.bestFloor = (result && result.floor) || 0
+      st.bestFloor = reachedFloor
       st.bestRun = result
     }
     const tiers = trialSeason.getClaimableTrialRewards(st.seasonScore || 0, st.claimed)

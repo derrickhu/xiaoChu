@@ -44,7 +44,7 @@ const ROLE_FILTERS = [
 ]
 
 const PET_POOL_SCROLL_ART = {
-  bg: 'assets/backgrounds/petpool_ink_bg.jpg',
+  bg: 'assets/backgrounds/petpool_bg.jpg',
   card: 'assets/ui/pet_card_bg.png',
   filter: 'assets/ui/pet_filter_scroll_bg.png',
   idleBtn: 'assets/ui/btn_pet_idle_scroll.png',
@@ -317,7 +317,7 @@ function rPetPool(g) {
   const { ctx: c, R, TH, W, H, S, safeTop } = V
   _tryTriggerBadgeIntro(g)
 
-  // 背景：灵宠池使用水墨卷轴专属背景，保持其它共用页面不受影响
+  // 背景：灵宠池使用明亮灵泉旧底图，保持其它共用页面不受影响
   const poolBg = R.getImg(PET_POOL_SCROLL_ART.bg)
   if (poolBg && poolBg.width > 0) {
     R._drawCoverImg(poolBg, 0, 0, W, H)

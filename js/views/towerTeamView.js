@@ -4,6 +4,7 @@
  */
 const V = require('./env')
 const P = require('../platform')
+const AdManager = require('../adManager')
 const { ATTR_COLOR } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPoolEntryAttr, getPetRarity } = require('../data/pets')
 const { getPoolPetAtk, comparePoolPetsFormationOrder } = require('../data/petPoolConfig')
@@ -11,7 +12,7 @@ const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = requ
 const { drawGoldBtn } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
 const { TOWER_DAILY } = require('../data/economyConfig')
-const { getTrialStaminaCost } = require('../data/trialSeason')
+const { getCurrentTrialSeason, getTrialStaminaCost } = require('../data/trialSeason')
 const teamPresetBar = require('./teamPresetBar')
 const guideMgr = require('../engine/guideManager')
 const { TEAM_PRESET_MAX } = require('../data/constants')
@@ -74,6 +75,7 @@ const _rects = {
   filterRects: [],
   petCardRects: [],
   startBtnRect: null,
+  trialContinueBtnRect: null,
   backBtnRect: null,
 }
 
@@ -86,6 +88,36 @@ let _holdStartTime = 0
 let _holdTarget = null
 let _weaponPickerTouchInGrid = false
 let _framePetMap = null
+
+function _drawTrialContinueAdBtn(c, R, S, x, y, w, h, label) {
+  if (R.drawDialogBtn) {
+    R.drawDialogBtn(x, y, w, h, '', 'adReward')
+  } else {
+    drawGoldBtn(c, R, S, x, y, w, h, '', false, 12)
+  }
+  const icon = R.getImg('assets/ui/icon_ad_video.png')
+  const iconSz = Math.min(28 * S, h * 0.72)
+  c.save()
+  c.font = `bold ${11.5*S}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const textW = c.measureText(label).width
+  const gap = 4 * S
+  const totalW = iconSz + gap + textW
+  let tx = x + (w - totalW) / 2
+  const cy = y + h / 2
+  if (icon && icon.width > 0) {
+    c.drawImage(icon, tx, cy - iconSz / 2, iconSz, iconSz)
+  }
+  tx += iconSz + gap
+  c.fillStyle = '#FFF4C8'
+  c.strokeStyle = 'rgba(70,28,8,0.55)'
+  c.lineWidth = 2 * S
+  c.strokeText(label, tx + textW / 2, cy + 0.5 * S)
+  c.fillText(label, tx + textW / 2, cy + 0.5 * S)
+  c.restore()
+}
+
 function _getFramePetMap(R) {
   if (!_framePetMap) {
     _framePetMap = {
@@ -134,6 +166,11 @@ function rTowerTeam(g) {
 
   const selected = _ensureSelected(g)
   const framePetMap = _getFramePetMap(R)
+  const trialState = isTrial && g.storage.getTrialState ? g.storage.getTrialState() : null
+  const trialDaily = (trialState && trialState.daily) || {}
+  const trialMaxFloor = getCurrentTrialSeason().maxFloor
+  const trialContinueFloor = Math.min(trialMaxFloor, (trialDaily.bestFloor || 0) + 1)
+  const canTrialContinue = isTrial && (trialDaily.bestFloor || 0) > 0 && trialContinueFloor <= trialMaxFloor
 
   const topY = safeTop + 4 * S
   const px = 14 * S
@@ -163,7 +200,7 @@ function rTowerTeam(g) {
   c.strokeText(isTrial ? '试炼编队' : '编队', W / 2, cy + 18 * S)
   c.fillText(isTrial ? '试炼编队' : '编队', W / 2, cy + 18 * S)
 
-  const usedRuns = isTrial ? ((g.storage.getTrialState().daily || {}).runs || 0) : g.storage.getTowerDailyRuns()
+  const usedRuns = isTrial ? ((trialDaily || {}).runs || 0) : g.storage.getTowerDailyRuns()
   const freeLeft = Math.max(0, TOWER_DAILY.freeRuns - usedRuns)
   c.fillStyle = isTrial || freeLeft > 0 ? 'rgba(255,240,200,0.7)' : 'rgba(255,120,80,0.8)'
   c.font = `${10*S}px "PingFang SC",sans-serif`
@@ -366,7 +403,7 @@ function rTowerTeam(g) {
     canGo && selected.length < MAX_TEAM && _hasUnpickedPetsInPool(g, selected)
   const BTN_BAR_H_NORMAL = 72
   const BTN_BAR_H_WITH_FOOT_HINT = 82
-  const btnBarH = (!canGo || suggestCompleteTeam ? BTN_BAR_H_WITH_FOOT_HINT : BTN_BAR_H_NORMAL) * S
+  const btnBarH = (canTrialContinue ? 88 : (!canGo || suggestCompleteTeam ? BTN_BAR_H_WITH_FOOT_HINT : BTN_BAR_H_NORMAL)) * S
   const btnBarY = H - btnBarH
 
   // ── 底部按钮栏（与秘境编队同结构）──
@@ -380,19 +417,38 @@ function rTowerTeam(g) {
   c.beginPath(); c.moveTo(0, btnBarY); c.lineTo(W, btnBarY); c.stroke()
 
   const goBtnW = W * 0.6, goBtnH = 44 * S
-  const goBtnX = (W - goBtnW) / 2, goBtnY = btnBarY + 20 * S
+  const goBtnX = (W - goBtnW) / 2, goBtnY = btnBarY + (canTrialContinue ? 32 * S : 20 * S)
+  _rects.startBtnRect = null
+  _rects.trialContinueBtnRect = null
 
   if (canGo) {
-    const btnImg = R.getImg('assets/ui/btn_start.png')
-    if (btnImg && btnImg.width > 0) {
-      c.drawImage(btnImg, goBtnX, goBtnY, goBtnW, goBtnH)
-    } else {
-      drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '出发', false, 13)
-    }
     c.fillStyle = '#FFF5E0'; c.font = `bold ${16*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 2 * S
-    if (isTrial) {
+    if (canTrialContinue) {
+      c.save()
+      c.fillStyle = '#F5E0A8'
+      c.font = `bold ${9*S}px "PingFang SC",sans-serif`
+      c.fillText(`今日最高第${trialDaily.bestFloor || 0}层，可从第${trialContinueFloor}层继续挑战`, W / 2, btnBarY + 16 * S)
+      c.restore()
+      const gap = 10 * S
+      const halfW = (W - 32 * S - gap) / 2
+      const leftX = 16 * S
+      const rightX = leftX + halfW + gap
+      if (R.drawDialogBtn) R.drawDialogBtn(leftX, goBtnY, halfW, goBtnH, '从头开始', 'confirm')
+      else drawGoldBtn(c, R, S, leftX, goBtnY, halfW, goBtnH, '从头开始', false, 12)
+      _drawTrialContinueAdBtn(c, R, S, rightX, goBtnY, halfW, goBtnH, `续打第${trialContinueFloor}层`)
+      _rects.startBtnRect = [leftX, goBtnY, halfW, goBtnH]
+      _rects.trialContinueBtnRect = [rightX, goBtnY, halfW, goBtnH]
+    } else {
+      const btnImg = R.getImg('assets/ui/btn_start.png')
+      if (btnImg && btnImg.width > 0) {
+        c.drawImage(btnImg, goBtnX, goBtnY, goBtnW, goBtnH)
+      } else {
+        drawGoldBtn(c, R, S, goBtnX, goBtnY, goBtnW, goBtnH, '出发', false, 13)
+      }
+    }
+    if (isTrial && !canTrialContinue) {
       const cost = getTrialStaminaCost(g.storage)
       const icon = R.getImg('assets/ui/icon_stamina.png')
       const label = '出发'
@@ -416,8 +472,10 @@ function rTowerTeam(g) {
       c.strokeText(costText, tx + costW / 2, midY)
       c.fillText(costText, tx + costW / 2, midY)
     } else {
-      c.strokeText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
-      c.fillText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+      if (!canTrialContinue) {
+        c.strokeText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+        c.fillText('出发', goBtnX + goBtnW / 2, goBtnY + goBtnH / 2)
+      }
     }
     if (suggestCompleteTeam) {
       c.save()
@@ -456,7 +514,7 @@ function rTowerTeam(g) {
     c.fillText(footHint, W / 2, footY)
     c.restore()
   }
-  _rects.startBtnRect = canGo ? [goBtnX, goBtnY, goBtnW, goBtnH] : null
+  if (!canTrialContinue) _rects.startBtnRect = canGo ? [goBtnX, goBtnY, goBtnW, goBtnH] : null
 
   // ── 灵宠列表（可滚动） ──
   const listTop = cy
@@ -919,19 +977,47 @@ function tTowerTeam(g, x, y, type) {
   })
   if (presetHandled) return
 
-  // 出发按钮（与秘境：先校验法宝，未满编时二次确认）
-  if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
+  function _tryStartFromTeam(opts) {
+    opts = opts || {}
     const wCol = g.storage.weaponCollection || []
     if (wCol.length > 0 && !g.storage.equippedWeaponId) {
       P.showGameToast('请先点击左侧法宝槽，查看说明并装备一件法宝后再出发', { type: 'warn' })
-      return
+      return true
     }
     const sel = _ensureSelected(g)
-    if (g._towerTeamMode === 'trial') {
+    if (g._towerTeamMode === 'trial' && !opts.continueTrial) {
       const cost = getTrialStaminaCost(g.storage)
       if ((g.storage.currentStamina || 0) < cost) {
         P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })
-        return
+        return true
+      }
+    }
+    const startAction = () => {
+      if (opts.continueTrial) {
+        const season = getCurrentTrialSeason()
+        const daily = (g.storage.getTrialState(season.id).daily || {})
+        const continueFloor = Math.min(season.maxFloor, (daily.bestFloor || 0) + 1)
+        if (continueFloor <= 1 || continueFloor > season.maxFloor) {
+          P.showGameToast('今日暂无可续打层数', { type: 'warn' })
+          return
+        }
+        if (!AdManager.canShow('trialContinue')) {
+          P.showGameToast('今日续打广告次数已用完', { type: 'warn' })
+          return
+        }
+        AdManager.showRewardedVideo('trialContinue', {
+          fallbackToShare: true,
+          onRewarded: () => {
+            g._startTrialContinueRun(sel, continueFloor)
+          },
+          onSkipped: () => {
+            P.showGameToast('需完整观看广告才可续打', { type: 'warn' })
+          },
+        })
+      } else if (g._towerTeamMode === 'trial') {
+        g._startTrialRun(sel)
+      } else {
+        g._startRun(sel)
       }
     }
     const needConfirmIncomplete =
@@ -946,12 +1032,21 @@ function tTowerTeam(g, x, y, type) {
         confirmText: '继续出发',
         cancelText: '去补充',
         timer: 0,
-        onConfirm() { if (g._towerTeamMode === 'trial') g._startTrialRun(sel); else g._startRun(sel) },
+        onConfirm() { startAction() },
       }
-      return
+      return true
     }
-    if (g._towerTeamMode === 'trial') g._startTrialRun(sel)
-    else g._startRun(sel)
+    startAction()
+    return true
+  }
+
+  // 出发按钮（与秘境：先校验法宝，未满编时二次确认）
+  if (_rects.startBtnRect && g._hitRect(x, y, ..._rects.startBtnRect)) {
+    _tryStartFromTeam({ continueTrial: false })
+    return
+  }
+  if (_rects.trialContinueBtnRect && g._hitRect(x, y, ..._rects.trialContinueBtnRect)) {
+    _tryStartFromTeam({ continueTrial: true })
     return
   }
 

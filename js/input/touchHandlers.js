@@ -182,7 +182,18 @@ function tGameover(g, type, x, y) {
   }
   if (g._backBtnRect && g._hitRect(x,y,...g._backBtnRect)) { _drainRank(); g._handleBackToTitle(); return }
   if (g._goHomeBtnRect && g._hitRect(x,y,...g._goHomeBtnRect)) { _drainRank(); g._handleBackToTitle(); return }
-  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) { _drainRank(); g.setScene('title'); return }
+  if (g._goBtnRect && g._hitRect(x,y,...g._goBtnRect)) {
+    _drainRank()
+    if (g._towerRestartTeam && g._towerRestartTeam.length) {
+      g._towerTeamMode = null
+      g._towerTeamSelected = g._towerRestartTeam.slice()
+      g._towerRestartTeam = null
+      g.setScene('towerTeam')
+      return
+    }
+    g.setScene('title')
+    return
+  }
   if (g._cultBtnRect && g._hitRect(x,y,...g._cultBtnRect)) {
     const cultView = require('../views/cultivationView')
     cultView.resetScroll()

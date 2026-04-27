@@ -2225,7 +2225,7 @@ const _TIER_COLORS = {
 function rDex(g) {
   const { ctx, R, TH, W, H, S, safeTop } = V
   inkUI.drawInkPageBg(ctx, R, W, H, {
-    bgPath: 'assets/backgrounds/petpool_ink_bg.jpg',
+    bgPath: 'assets/backgrounds/petpool_bg.jpg',
     af: g.af,
     wash: 'rgba(255,248,232,0.08)',
   })

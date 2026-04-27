@@ -295,6 +295,53 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     return true
   }
 
+  function drawCostBadge(y, cfg) {
+    if (!cfg.costBadgeText) return
+    const badgeH = 22 * S
+    const padX = 8 * S
+    const iconSize = cfg.costBadgeIcon ? 13 * S : 0
+    const iconGap = cfg.costBadgeIcon ? 4 * S : 0
+    ctx.save()
+    ctx.font = `bold ${10*S}px "PingFang SC",sans-serif`
+    const textW = ctx.measureText(cfg.costBadgeText).width
+    const badgeW = Math.min(cardW * 0.42, textW + iconSize + iconGap + padX * 2)
+    const badgeX = cardX + cardW - badgeW - 10 * S
+    const badgeY = y + 10 * S
+    const tone = cfg.costBadgeTone || 'green'
+    const grad = ctx.createLinearGradient(badgeX, badgeY, badgeX, badgeY + badgeH)
+    if (tone === 'warn') {
+      grad.addColorStop(0, 'rgba(255,235,216,0.96)')
+      grad.addColorStop(1, 'rgba(224,94,73,0.88)')
+    } else if (tone === 'gold') {
+      grad.addColorStop(0, 'rgba(255,245,202,0.96)')
+      grad.addColorStop(1, 'rgba(205,142,34,0.88)')
+    } else {
+      grad.addColorStop(0, 'rgba(225,250,226,0.96)')
+      grad.addColorStop(1, 'rgba(62,145,96,0.88)')
+    }
+    ctx.fillStyle = grad
+    R.rr(badgeX, badgeY, badgeW, badgeH, 10 * S); ctx.fill()
+    ctx.strokeStyle = tone === 'warn' ? 'rgba(255,230,190,0.82)' : 'rgba(255,239,178,0.74)'
+    ctx.lineWidth = 1 * S
+    R.rr(badgeX, badgeY, badgeW, badgeH, 10 * S); ctx.stroke()
+    let tx = badgeX + badgeW / 2
+    if (cfg.costBadgeIcon) {
+      const totalW = iconSize + iconGap + textW
+      const iconX = badgeX + (badgeW - totalW) / 2
+      const icon = R.getImg(cfg.costBadgeIcon)
+      if (icon && icon.width > 0) ctx.drawImage(icon, iconX, badgeY + (badgeH - iconSize) / 2, iconSize, iconSize)
+      tx = iconX + iconSize + iconGap + textW / 2
+    }
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#FFF8D8'
+    ctx.strokeStyle = 'rgba(40,24,10,0.55)'
+    ctx.lineWidth = 2 * S
+    ctx.strokeText(cfg.costBadgeText, tx, badgeY + badgeH / 2 + 0.5 * S)
+    ctx.fillText(cfg.costBadgeText, tx, badgeY + badgeH / 2 + 0.5 * S)
+    ctx.restore()
+  }
+
   function drawBanner(y, cfg) {
     ctx.save()
     R.rr(cardX, y, cardW, cardH, spec.radiusPt * S); ctx.clip()
@@ -323,6 +370,7 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
       w: iconSize,
       h: iconSize,
     })
+    drawCostBadge(y, cfg)
 
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     ctx.font = `bold ${spec.title.size * scale}px "STKaiti","PingFang SC",serif`
@@ -375,6 +423,8 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     ctx.restore()
   }
 
+  const trialCost = getTrialStaminaCost(g.storage)
+  const trialCostEnough = (g.storage.currentStamina || 0) >= trialCost
   const trialY = startY
   drawBanner(trialY, {
     scene: 'assets/backgrounds/challenge_hub_trial_scene.jpg',
@@ -389,6 +439,9 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     highlightColor: '#FFE28A',
     subtitleColor: '#BDEBFF',
     btnText: unlocked ? '进入试炼' : '暂未开放',
+    costBadgeText: `消耗体力 ${trialCost}`,
+    costBadgeIcon: 'assets/ui/icon_stamina.png',
+    costBadgeTone: trialCostEnough ? 'gold' : 'warn',
     fallbackLeft: 'rgba(20,54,86,0.96)',
     fallbackMid: 'rgba(238,209,118,0.88)',
     fallbackRight: 'rgba(255,237,180,0.96)',
@@ -409,6 +462,8 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     highlightColor: '#EAD2FF',
     subtitleColor: '#D8C0FF',
     btnText: '进入通天塔',
+    costBadgeText: '不消耗体力',
+    costBadgeTone: 'green',
     iconSize: 84,
     iconDy: 2,
     fallbackLeft: 'rgba(40,30,76,0.96)',
