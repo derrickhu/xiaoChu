@@ -2823,16 +2823,10 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
 
       // 奖励/加成描述
       let rewardText = ''
-      if (m.buff) {
-        const parts = []
-        if (m.buff.atkPct) parts.push(`ATK+${m.buff.atkPct}%`)
-        if (m.buff.hpPct) parts.push(`HP+${m.buff.hpPct}%`)
-        if (m.buff.defPct) parts.push(`DEF+${m.buff.defPct}%`)
-        rewardText = parts.join(' ')
-      }
       if (m.reward) {
         const parts = []
         if (m.reward.soulStone) parts.push(`${m.reward.soulStone}灵石`)
+        if (m.reward.universalFragment) parts.push(`${m.reward.universalFragment}万能碎片`)
         if (m.reward.awakenStone) parts.push(`${m.reward.awakenStone}觉醒石`)
         rewardText = parts.join(' + ')
       }
@@ -2847,7 +2841,7 @@ function _drawDexMilestones(g, contentTop, contentBottom) {
       const adW = 40 * S, adH = 20 * S
       const adX = btnX - adW - 4 * S
       const adY = my + (cardH - adH) / 2
-      const showAdDouble = reached && m.reward && !adRewardClaimed.has(m.id)
+      const showAdDouble = reached && m.reward && m.adDouble !== false && !adRewardClaimed.has(m.id)
       if (isClaimed) {
         ctx.fillStyle = '#5c5046'; ctx.font = `bold ${9 * S}px "PingFang SC",sans-serif`
         ctx.textAlign = 'center'

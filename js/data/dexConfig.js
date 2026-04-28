@@ -1,16 +1,17 @@
 /**
- * 灵兽图鉴配置 — 三层收集 + 里程碑永久加成 + IAA预埋
+ * 灵兽图鉴配置 — 三层收集 + 里程碑资源奖励 + IAA预埋
  *
  * 三层收集：发现(入池) → 收录(★3) → 精通(★5/MAX_STAR)
- * 里程碑：属性/总量/稀有度 三维度永久加成
+ * 里程碑：属性/总量/稀有度 三维度资源奖励
  */
 
 const { PETS, PET_RARITY, MAX_STAR, getPetRarity } = require('./pets')
-const { DEX_ELEM_MILESTONE_BUFFS, DEX_RARITY_MILESTONE_BUFFS } = require('./balance/economy')
 const {
   DEX_COLLECT_STAR,
   DEX_ELEM_MILESTONE_NEEDS,
+  DEX_ELEM_MILESTONE_REWARDS,
   DEX_TOTAL_MILESTONES: _DEX_TOTAL_MS,
+  DEX_RARITY_MILESTONE_REWARDS,
 } = require('./balance/dex')
 const DEX_ATTRS = ['metal', 'wood', 'water', 'fire', 'earth']
 const DEX_ATTR_LABEL = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' }
@@ -23,13 +24,13 @@ function _buildElemMilestones() {
   for (const attr of DEX_ATTRS) {
     const label = DEX_ATTR_LABEL[attr]
     const total = PETS[attr].length
-    const b = DEX_ELEM_MILESTONE_BUFFS
+    const r = DEX_ELEM_MILESTONE_REWARDS
     const needs = DEX_ELEM_MILESTONE_NEEDS
     ms.push(
-      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: needs[0],    buff: { scope: attr, ...b.discovered5 },     desc: `${label}属性${needs[0]}只发现 → ${label}宠ATK+${b.discovered5.atkPct}%` },
-      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: needs[1],    buff: { scope: attr, ...b.discovered10 },    desc: `${label}属性${needs[1]}只发现 → ${label}宠HP+${b.discovered10.hpPct}%` },
-      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: needs[2],    buff: { scope: attr, ...b.collected15 },     desc: `${label}属性${needs[2]}只收录 → ${label}宠ATK+${b.collected15.atkPct}%` },
-      { id: `elem_${attr}_20`, attr, tier: 'mastered',   need: total,       buff: { scope: attr, ...b.masteredAll },     desc: `${label}属性${total}只精通 → ${label}宠ATK+${b.masteredAll.atkPct}% HP+${b.masteredAll.hpPct}%` },
+      { id: `elem_${attr}_5`,  attr, tier: 'discovered', need: needs[0], reward: { ...r.discovered5 },  desc: `${label}属性${needs[0]}只发现 → 灵石×${r.discovered5.soulStone}` },
+      { id: `elem_${attr}_10`, attr, tier: 'discovered', need: needs[1], reward: { ...r.discovered10 }, desc: `${label}属性${needs[1]}只发现 → 灵石×${r.discovered10.soulStone}` },
+      { id: `elem_${attr}_15`, attr, tier: 'collected',  need: needs[2], reward: { ...r.collected15 },  desc: `${label}属性${needs[2]}只收录 → 灵石×${r.collected15.soulStone}` },
+      { id: `elem_${attr}_20`, attr, tier: 'mastered',   need: total,    reward: { ...r.masteredAll },  desc: `${label}属性${total}只精通 → 灵石×${r.masteredAll.soulStone}` },
     )
   }
   return ms
@@ -53,9 +54,9 @@ const TOTAL_MILESTONES = _DEX_TOTAL_MS.map(m => {
 
 // ===== 稀有度里程碑（3档）=====
 const RARITY_MILESTONES = [
-  { id: 'rarity_R',   rarity: 'R',   tier: 'collected', need: PET_RARITY.R.length,   buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.R },   desc: `全R收录(${PET_RARITY.R.length}只★3) → 全队DEF+${DEX_RARITY_MILESTONE_BUFFS.R.defPct}%` },
-  { id: 'rarity_SR',  rarity: 'SR',  tier: 'collected', need: PET_RARITY.SR.length,  buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.SR },  desc: `全SR收录(${PET_RARITY.SR.length}只★3) → 全队HP+${DEX_RARITY_MILESTONE_BUFFS.SR.hpPct}%` },
-  { id: 'rarity_SSR', rarity: 'SSR', tier: 'collected', need: PET_RARITY.SSR.length, buff: { scope: 'all', ...DEX_RARITY_MILESTONE_BUFFS.SSR }, desc: `全SSR收录(${PET_RARITY.SSR.length}只★3) → 全队ATK+${DEX_RARITY_MILESTONE_BUFFS.SSR.atkPct}%` },
+  { id: 'rarity_R',   rarity: 'R',   tier: 'collected', need: PET_RARITY.R.length,   reward: { ...DEX_RARITY_MILESTONE_REWARDS.R },   adDouble: false, desc: `全R收录(${PET_RARITY.R.length}只★3) → 万能碎片×${DEX_RARITY_MILESTONE_REWARDS.R.universalFragment}` },
+  { id: 'rarity_SR',  rarity: 'SR',  tier: 'collected', need: PET_RARITY.SR.length,  reward: { ...DEX_RARITY_MILESTONE_REWARDS.SR },  adDouble: false, desc: `全SR收录(${PET_RARITY.SR.length}只★3) → 万能碎片×${DEX_RARITY_MILESTONE_REWARDS.SR.universalFragment}+觉醒石×${DEX_RARITY_MILESTONE_REWARDS.SR.awakenStone}` },
+  { id: 'rarity_SSR', rarity: 'SSR', tier: 'collected', need: PET_RARITY.SSR.length, reward: { ...DEX_RARITY_MILESTONE_REWARDS.SSR }, adDouble: false, desc: `全SSR收录(${PET_RARITY.SSR.length}只★3) → 万能碎片×${DEX_RARITY_MILESTONE_REWARDS.SSR.universalFragment}+觉醒石×${DEX_RARITY_MILESTONE_REWARDS.SSR.awakenStone}` },
 ]
 
 const ELEM_MILESTONES = _buildElemMilestones()
@@ -156,12 +157,13 @@ function getClaimableMilestones(petPool, claimedIds) {
 }
 
 /**
- * 计算已领取里程碑带来的永久属性加成
+ * 图鉴里程碑已不再提供隐藏永久属性加成。
+ * 保留空结构用于兼容既有 getPoolPetAtk 调用链。
  * @returns {{ all: {atkPct,hpPct,defPct}, metal: {...}, ... }}
  */
 function getDexBuffs(claimedIds) {
-  const claimed = new Set(claimedIds || [])
-  const buffs = {
+  void claimedIds
+  return {
     all:   { atkPct: 0, hpPct: 0, defPct: 0 },
     metal: { atkPct: 0, hpPct: 0, defPct: 0 },
     wood:  { atkPct: 0, hpPct: 0, defPct: 0 },
@@ -169,17 +171,6 @@ function getDexBuffs(claimedIds) {
     fire:  { atkPct: 0, hpPct: 0, defPct: 0 },
     earth: { atkPct: 0, hpPct: 0, defPct: 0 },
   }
-
-  for (const m of ALL_MILESTONES) {
-    if (!claimed.has(m.id) || !m.buff) continue
-    const scope = m.buff.scope || 'all'
-    const target = buffs[scope] || buffs.all
-    if (m.buff.atkPct) target.atkPct += m.buff.atkPct
-    if (m.buff.hpPct)  target.hpPct  += m.buff.hpPct
-    if (m.buff.defPct) target.defPct += m.buff.defPct
-  }
-
-  return buffs
 }
 
 /**

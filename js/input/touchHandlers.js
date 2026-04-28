@@ -631,7 +631,7 @@ function tDex(g, type, x, y) {
             if (result.success) {
               g._dexMilestoneClaimPopup = { milestone: mr.id, reward: result.reward, buff: result.buff, timer: 0 }
               g._dirty = true
-              // 图鉴里程碑是永久加成型奖励，配一条小灵横条让"永久 buff"更有仪式感
+              // 图鉴里程碑现在发放显性资源，配一条小灵横条强化领取反馈
               const lingCheer = require('../views/lingCheer')
               const { LING } = require('../data/lingIdentity')
               lingCheer.show(LING.cheer.dexMilestone(''), { tone: 'epic', duration: 2200 })

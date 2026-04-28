@@ -56,7 +56,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 29
+const CURRENT_VERSION = 30
 
 // 持久化数据（跨局保留）
 function defaultPersist() {
@@ -82,6 +82,7 @@ function defaultPersist() {
     petPoolFavoriteIds: [], // 灵宠池：玩家收藏的宠物 ID（顺序决定同组内排序）
     dexMilestonesClaimed: [],  // 图鉴里程碑：已领取的里程碑ID列表
     dexMilestonesAdRewardClaimed: [],  // 图鉴里程碑：已领过广告额外一份货币奖励的里程碑ID
+    dexRewardCompV: 1, // 图鉴隐藏加成改资源后的老玩家补发版本
     cultivation: {
       level: 1,              // 人物等级（从1级起始）
       exp: 0,                // 当前等级已积累经验
@@ -219,6 +220,45 @@ function ensureTeamPresets(d) {
   }
   if (d.teamPresetSlotUnlocked > TEAM_PRESET_MAX) d.teamPresetSlotUnlocked = TEAM_PRESET_MAX
   if (!d.teamPresetActiveId) d.teamPresetActiveId = d.teamPresets[0].id
+}
+
+function grantDexRewardToData(d, reward) {
+  if (!reward) return null
+  const granted = {}
+  if (reward.soulStone) {
+    d.soulStone = (d.soulStone || 0) + reward.soulStone
+    granted.soulStone = reward.soulStone
+  }
+  if (reward.awakenStone) {
+    d.awakenStone = (d.awakenStone || 0) + reward.awakenStone
+    granted.awakenStone = reward.awakenStone
+  }
+  if (reward.universalFragment) {
+    d.universalFragment = (d.universalFragment || 0) + reward.universalFragment
+    granted.universalFragment = reward.universalFragment
+  }
+  return Object.keys(granted).length > 0 ? granted : null
+}
+
+function grantDexRewardCompensation(d) {
+  if (d.dexRewardCompV >= 1) return null
+  const claimed = new Set(d.dexMilestonesClaimed || [])
+  if (claimed.size === 0) {
+    d.dexRewardCompV = 1
+    return null
+  }
+  const { ALL_MILESTONES } = require('./dexConfig')
+  const total = {}
+  for (const m of ALL_MILESTONES) {
+    if (!claimed.has(m.id)) continue
+    // 只补发旧版隐藏加成里程碑；总量里程碑旧版本已经发过资源，不能重复补。
+    if (!m.id.startsWith('elem_') && !m.id.startsWith('rarity_')) continue
+    const granted = grantDexRewardToData(d, m.reward)
+    if (!granted) continue
+    for (const [k, v] of Object.entries(granted)) total[k] = (total[k] || 0) + v
+  }
+  d.dexRewardCompV = 1
+  return Object.keys(total).length > 0 ? total : null
 }
 
 /**
@@ -518,6 +558,15 @@ const migrations = {
     if (typeof d.trial.daily.bestScore !== 'number') d.trial.daily.bestScore = 0
     if (!d.trial.daily.questDone) d.trial.daily.questDone = {}
   },
+  // v29→v30：图鉴隐藏永久加成改为资源奖励
+  //   · 老玩家已领取的属性/稀有度里程碑需要一次性补发新资源
+  //   · 总量里程碑本来就是资源奖励，不能重复补发
+  29: (d) => {
+    // _load 会先用 defaultPersist 补默认字段，这里强制回到未补发状态，
+    // 确保所有从 v29 升上来的老存档都能拿到一次补发。
+    d.dexRewardCompV = 0
+    grantDexRewardCompensation(d)
+  },
 }
 
 /** 从 oldVer 逐步迁移到 CURRENT_VERSION */
@@ -745,12 +794,9 @@ class Storage {
     if (this._d.dexMilestonesClaimed.includes(milestoneId)) return { success: false, message: '已领取' }
     if (!isMilestoneReached(m, this._d.petPool || [])) return { success: false, message: '未达成' }
     this._d.dexMilestonesClaimed.push(milestoneId)
-    if (m.reward) {
-      if (m.reward.soulStone) this._d.soulStone = (this._d.soulStone || 0) + m.reward.soulStone
-      if (m.reward.awakenStone) this._d.awakenStone = (this._d.awakenStone || 0) + m.reward.awakenStone
-    }
+    const granted = grantDexRewardToData(this._d, m.reward)
     this._save()
-    return { success: true, reward: m.reward || null, buff: m.buff || null }
+    return { success: true, reward: m.reward || null, granted, buff: null }
   }
 
   /** 图鉴里程碑「翻倍」广告：额外发放一份货币奖励，每档里程碑仅一次 */
@@ -758,14 +804,14 @@ class Storage {
     const { ALL_MILESTONES, isMilestoneReached } = require('./dexConfig')
     const m = ALL_MILESTONES.find(ms => ms.id === milestoneId)
     if (!m || !m.reward) return { success: false, message: '无广告奖励' }
+    if (m.adDouble === false) return { success: false, message: '该奖励不可翻倍' }
     if (!isMilestoneReached(m, this._d.petPool || [])) return { success: false, message: '未达成' }
     if (!this._d.dexMilestonesAdRewardClaimed) this._d.dexMilestonesAdRewardClaimed = []
     if (this._d.dexMilestonesAdRewardClaimed.includes(milestoneId)) return { success: false, message: '已领过' }
     this._d.dexMilestonesAdRewardClaimed.push(milestoneId)
-    if (m.reward.soulStone) this._d.soulStone = (this._d.soulStone || 0) + m.reward.soulStone
-    if (m.reward.awakenStone) this._d.awakenStone = (this._d.awakenStone || 0) + m.reward.awakenStone
+    const granted = grantDexRewardToData(this._d, m.reward)
     this._save()
-    return { success: true, reward: m.reward }
+    return { success: true, reward: m.reward, granted }
   }
 
   getDexBuffs() {
@@ -3589,6 +3635,7 @@ class Storage {
     if (!this._d.adWatchLog) this._d.adWatchLog = {}
     if (!this._d.towerDaily) this._d.towerDaily = { date: '', runs: 0, adRuns: 0 }
     if (!this._d.towerEvent) this._d.towerEvent = { seasonIndex: -1, claimed: [] }
+    if (this._d.dexRewardCompV == null) this._d.dexRewardCompV = 1
   }
 
   // ===== GM 调试方法（仅白名单用户可调用）=====

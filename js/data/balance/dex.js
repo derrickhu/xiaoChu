@@ -9,6 +9,14 @@ const DEX_COLLECT_STAR = 3
 // ===== 属性里程碑阶梯需求 =====
 const DEX_ELEM_MILESTONE_NEEDS = [5, 10, 15]
 
+// ===== 属性里程碑奖励 =====
+const DEX_ELEM_MILESTONE_REWARDS = {
+  discovered5:  { soulStone: 150 },
+  discovered10: { soulStone: 300 },
+  collected15:  { soulStone: 800 },
+  masteredAll:  { soulStone: 1600 },
+}
+
 // ===== 总量里程碑 =====
 const DEX_TOTAL_MILESTONES = [
   { need: 10,  tier: 'discovered', reward: { soulStone: 300 } },
@@ -19,8 +27,17 @@ const DEX_TOTAL_MILESTONES = [
   { need: 100, tier: 'mastered',   reward: { soulStone: 5000, awakenStone: 15 } },
 ]
 
+// ===== 稀有度全收录奖励 =====
+const DEX_RARITY_MILESTONE_REWARDS = {
+  R:   { universalFragment: 20 },
+  SR:  { universalFragment: 30, awakenStone: 5 },
+  SSR: { universalFragment: 50, awakenStone: 10 },
+}
+
 module.exports = {
   DEX_COLLECT_STAR,
   DEX_ELEM_MILESTONE_NEEDS,
+  DEX_ELEM_MILESTONE_REWARDS,
   DEX_TOTAL_MILESTONES,
+  DEX_RARITY_MILESTONE_REWARDS,
 }

@@ -247,19 +247,6 @@ const WIPE_COMPENSATION = { soulStone: 2000, fragment: 40, awakenStone: 5, stami
 const SUMMON_FRAG_COST = { R: 10, SR: 15, SSR: 25 }
 const DEFAULT_RANDOM_FRAG_WEIGHTS = { R: 80, SR: 20, SSR: 0 }
 
-// ===== 图鉴里程碑 buff 数值 =====
-const DEX_ELEM_MILESTONE_BUFFS = {
-  discovered5:  { atkPct: 2 },
-  discovered10: { hpPct: 3 },
-  collected15:  { atkPct: 5 },
-  masteredAll:  { atkPct: 8, hpPct: 5 },
-}
-const DEX_RARITY_MILESTONE_BUFFS = {
-  R:   { defPct: 5 },
-  SR:  { hpPct: 8 },
-  SSR: { atkPct: 10 },
-}
-
 // ===== 关卡奖励生成系数（从 economyConfig.js 迁入） =====
 const DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
 const REWARD_DIST_W = [0.7, 0.8, 0.85, 0.95, 1.0, 1.1, 1.25, 1.4]
@@ -371,8 +358,6 @@ module.exports = {
   WIPE_COMPENSATION,
   SUMMON_FRAG_COST,
   DEFAULT_RANDOM_FRAG_WEIGHTS,
-  DEX_ELEM_MILESTONE_BUFFS,
-  DEX_RARITY_MILESTONE_BUFFS,
   DAILY_STAGE_EST,
   REWARD_DIST_W,
   REWARD_FIRST_CLEAR_MUL,
