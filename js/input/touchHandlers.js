@@ -634,7 +634,12 @@ function tDex(g, type, x, y) {
               // 图鉴里程碑现在发放显性资源，配一条小灵横条强化领取反馈
               const lingCheer = require('../views/lingCheer')
               const { LING } = require('../data/lingIdentity')
-              lingCheer.show(LING.cheer.dexMilestone(''), { tone: 'epic', duration: 2200 })
+              const reward = result.reward || {}
+              const parts = []
+              if (reward.soulStone) parts.push(`灵石×${reward.soulStone}`)
+              if (reward.universalFragment) parts.push(`万能碎片×${reward.universalFragment}`)
+              if (reward.awakenStone) parts.push(`觉醒石×${reward.awakenStone}`)
+              lingCheer.show(LING.cheer.dexMilestone('', parts.join('、')), { tone: 'epic', duration: 2200 })
             }
             return
           }

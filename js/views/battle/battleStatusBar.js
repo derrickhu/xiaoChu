@@ -37,6 +37,7 @@ function _resolveStatusKey(buff) {
   if (t === 'freeze') return 'freeze'
   if (t === 'seal') return 'seal'
   if (t === 'vulnerable') return 'vulnerable'
+  if (t === 'breakDef') return 'defDown'
   if (t === 'buff' && field === 'atk' && !bad) return 'atkBuff'
   if (t === 'buff' && field === 'def' && !bad) return 'defBuff'
   if (t === 'debuff' && field === 'def') return 'defDown'

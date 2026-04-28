@@ -100,6 +100,51 @@ function drawGoldBtn(c, R, S, x, y, w, h, text, disabled, fontSize) {
   c.shadowBlur = 0
 }
 
+// ===== 宠物星级：固定显示 5 个星位，空间不足时自动缩小 =====
+function drawPetStars(c, S, x, y, star, opts) {
+  opts = opts || {}
+  const maxStar = opts.maxStar || 5
+  const filled = Math.max(0, Math.min(maxStar, star || 1))
+  const maxW = opts.maxW || 0
+  const baseFontSize = opts.fontSize || 10
+  const minFontSize = opts.minFontSize || 6
+  const baseline = opts.baseline || 'top'
+  const align = opts.align || 'center'
+  const fillColor = opts.fillColor || '#ffd700'
+  const emptyColor = opts.emptyColor || 'rgba(120,120,120,0.5)'
+  const strokeColor = opts.strokeColor || null
+  const strokeWidth = opts.strokeWidth || 0
+  const starText = '★'.repeat(maxStar)
+
+  c.save()
+  let fontSize = baseFontSize
+  c.font = `${fontSize*S}px "PingFang SC",sans-serif`
+  while (maxW > 0 && fontSize > minFontSize && c.measureText(starText).width > maxW) {
+    fontSize -= 0.5
+    c.font = `${fontSize*S}px "PingFang SC",sans-serif`
+  }
+
+  const totalW = c.measureText(starText).width
+  let starX = x
+  if (align === 'center') starX = x - totalW / 2
+  else if (align === 'right') starX = x - totalW
+
+  c.textAlign = 'left'
+  c.textBaseline = baseline
+  for (let i = 0; i < maxStar; i++) {
+    const ch = '★'
+    if (strokeColor && strokeWidth > 0) {
+      c.strokeStyle = strokeColor
+      c.lineWidth = strokeWidth
+      c.strokeText(ch, starX, y)
+    }
+    c.fillStyle = i < filled ? fillColor : emptyColor
+    c.fillText(ch, starX, y)
+    starX += c.measureText(ch).width
+  }
+  c.restore()
+}
+
 // ===== 心形图标（中心点 cx,cy；size = 外接圆直径，心形对称、纵向比例接近圆内接） =====
 function drawHeartIcon(c, cx, cy, size, opts) {
   opts = opts || {}
@@ -272,4 +317,4 @@ function hitRect(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
 }
 
-module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, drawHeartIcon, drawHeartEmoji, drawFavStar, getFilteredPool, hitRect }
+module.exports = { drawSeparator, wrapText, wrapTextDraw, drawGoldBtn, drawPetStars, drawHeartIcon, drawHeartEmoji, drawFavStar, getFilteredPool, hitRect }

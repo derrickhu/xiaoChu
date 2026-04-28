@@ -18,7 +18,7 @@ const PET_BASE_STATS = {
   m10: { atk: 12, cd: 7, skill: { type: "revivePlus", healPct: 50 } },
   m11: { atk: 11, cd: 4, skill: { type: "multiHit", attr: "metal", hits: 3, pct: 100 } },
   m12: { atk: 11, cd: 4, skill: { type: "replaceBeads", fromAttr: "wood", toAttr: "metal", dmgBoost: 30 } },
-  m13: { atk: 12, cd: 3, skill: { type: "guaranteeCrit", attr: "metal", critDmgBonus: 50 } },
+  m13: { atk: 12, cd: 4, skill: { type: "guaranteeCrit", attr: "metal", critDmgBonus: 50 } },
   m14: { atk: 10, cd: 5, skill: { type: "allAtkUp", pct: 35, dur: 2 } },
   m15: { atk: 12, cd: 4, skill: { type: "convertCross", attr: "metal" } },
   m16: { atk: 11, cd: 6, skill: { type: "allAtkUp", pct: 50, dur: 2 } },
@@ -103,9 +103,9 @@ const PET_BASE_STATS = {
   e11: { atk: 11, cd: 4, skill: { type: "convertBead", attr: "earth", count: 8, beadBoost: true } },
   e12: { atk: 12, cd: 4, skill: { type: "multiHit", attr: "earth", hits: 3, pct: 120 } },
   e13: { atk: 11, cd: 5, skill: { type: "allDefUp", pct: 40, dur: 2 } },
-  e14: { atk: 12, cd: 5, skill: { type: "stunBreakDef", stunDur: 1 } },
+  e14: { atk: 12, cd: 5, skill: { type: "stunBreakDef", stunDur: 1, breakDefPct: 100 } },
   e15: { atk: 11, cd: 4, skill: { type: "replaceBeads", fromAttr: "water", toAttr: "earth", beadBoost: true } },
-  e16: { atk: 11, cd: 4, skill: { type: "stunBreakDef", stunDur: 1 } },
+  e16: { atk: 11, cd: 4, skill: { type: "stunBreakDef", stunDur: 1, extraDmgPct: 20 } },
   e17: { atk: 10, cd: 4, skill: { type: "convertCross", attr: "earth" } },
   e18: { atk: 14, cd: 5, skill: { type: "instantDmg", attr: "earth", pct: 500 } },
   e19: { atk: 11, cd: 5, skill: { type: "replaceBeads", fromAttr: "water", toAttr: "earth", defBoost: 20 } },
@@ -115,7 +115,7 @@ const PET_BASE_STATS = {
 // ===== ★3 通灵技能强化数值（不含 desc，desc 保留在 pets.js） =====
 const STAR3_SKILL_NUMS = {
   // --- 金属性 ---
-  m1: { pct: 200, dur: 2 },
+  m1: { pct: 150, dur: 2 },
   m2: { extra: 3 },
   m3: { val: 20, reducePct: 35, reflectPct: 15 },
   m4: { pct: 350, ignoreDefPct: 50 },
@@ -126,7 +126,7 @@ const STAR3_SKILL_NUMS = {
   m9: { dmgMul: 100 },
   m10: { healPct: 80, immuneDur: 1 },
   m11: { hits: 4, pct: 120 },
-  m12: { dmgBoost: 50 },
+  m12: { dmgBoost: 40 },
   m13: { critDmgBonus: 80 },
   m14: { pct: 45, dur: 3 },
   m15: { dmgBoost: 40 },
@@ -169,7 +169,7 @@ const STAR3_SKILL_NUMS = {
   s10: { count: 18, dmgBoost: 30 },
   s11: { count: 12 },
   s12: { hits: 4, pct: 140 },
-  s13: { stunDur: 2, pct: 200 },
+  s13: { stunDur: 2, pct: 150 },
   s14: { stunDur: 3, pct: 200 },
   s15: { sec: 5, bonusCombo: 1 },
   s16: { pct: 40, dur: 3 },
@@ -178,7 +178,7 @@ const STAR3_SKILL_NUMS = {
   s19: { dmgBoost: 25 },
   s20: { immuneDur: 3, shieldVal: 35 },
   // --- 火属性 ---
-  f1: { pct: 200, dur: 2 },
+  f1: { pct: 150, dur: 2 },
   f2: { extra: 3 },
   f3: { pct: 500 },
   f4: { critDmgBonus: 130 },
@@ -212,9 +212,9 @@ const STAR3_SKILL_NUMS = {
   e11: { count: 12 },
   e12: { hits: 4, pct: 140 },
   e13: { pct: 55, dur: 3 },
-  e14: { stunDur: 2, extraDmgPct: 20 },
+  e14: { stunDur: 2, breakDefPct: 100 },
   e15: { dmgBoost: 25 },
-  e16: { stunDur: 2 },
+  e16: { stunDur: 2, extraDmgPct: 30 },
   e17: { dmgBoost: 40 },
   e18: { pct: 700, stunDur: 1 },
   e19: { defBoost: 30 },
@@ -224,7 +224,7 @@ const STAR3_SKILL_NUMS = {
 // ===== ★5 超越技能数值（不含 desc） =====
 const STAR5_SKILL_NUMS = {
   // --- 金属性 ---
-  m1: { pct: 300, dur: 3 },
+  m1: { pct: 250, dur: 2 },
   m4: { pct: 500, ignoreDefPct: 75 },
   m10: { healPct: 100, immuneDur: 2 },
   m18: { pct: 70, dur: 5, critDur: 3 },

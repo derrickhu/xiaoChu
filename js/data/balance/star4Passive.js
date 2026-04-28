@@ -9,47 +9,47 @@
 
 const PASSIVE_BY_RARITY = {
   R: {
+    skillDmgPct: 5,
+    attrDmgPct: 5,
+    controlDmgPct: 5,
+    swiftCdReduce: 1,
+    swiftMinCd: 3,
+    guardShieldPct: 3,
+    guardShieldFlat: 6,
+    dominanceShieldPct: 2,
+    dominanceShieldFlat: 4,
+  },
+  SR: {
     skillDmgPct: 8,
     attrDmgPct: 8,
     controlDmgPct: 8,
     swiftCdReduce: 1,
-    swiftMinCd: 2,
-    guardShieldPct: 5,
+    swiftMinCd: 3,
+    guardShieldPct: 4,
     guardShieldFlat: 10,
-    dominanceShieldPct: 4,
+    dominanceShieldPct: 3,
     dominanceShieldFlat: 8,
   },
-  SR: {
-    skillDmgPct: 12,
-    attrDmgPct: 12,
-    controlDmgPct: 12,
-    swiftCdReduce: 1,
-    swiftMinCd: 2,
-    guardShieldPct: 7,
-    guardShieldFlat: 16,
-    dominanceShieldPct: 5,
-    dominanceShieldFlat: 12,
-  },
   SSR: {
-    skillDmgPct: 16,
-    attrDmgPct: 16,
-    controlDmgPct: 15,
+    skillDmgPct: 10,
+    attrDmgPct: 10,
+    controlDmgPct: 10,
     swiftCdReduce: 1,
-    swiftMinCd: 2,
-    guardShieldPct: 9,
-    guardShieldFlat: 24,
-    dominanceShieldPct: 7,
-    dominanceShieldFlat: 18,
+    swiftMinCd: 3,
+    guardShieldPct: 5,
+    guardShieldFlat: 14,
+    dominanceShieldPct: 4,
+    dominanceShieldFlat: 12,
   },
 }
 
 const STAR4_LIMITS = {
-  attrDmgPct: 40,
-  controlDmgPct: 30,
-  guardShieldPct: 25,
-  guardShieldFlat: 120,
-  dominanceShieldPct: 14,
-  dominanceShieldFlat: 60,
+  attrDmgPct: 25,
+  controlDmgPct: 20,
+  guardShieldPct: 15,
+  guardShieldFlat: 70,
+  dominanceShieldPct: 8,
+  dominanceShieldFlat: 35,
 }
 
 const CONTROL_TYPES = new Set(['stun', 'stunDot', 'stunPlusDmg', 'stunBreakDef'])
@@ -89,7 +89,8 @@ function getStar4PassiveKind(pet) {
   if (GUARD_TYPES.has(type)) return 'guard'
   if (CONTROL_TYPES.has(type)) return 'control'
   if (skill.toAttr === 'heart' || skill.defBoost || skill.regen || skill.heartBoost || skill.healPct) return 'guard'
-  if (SWIFT_TYPES.has(type) || skill.dmgBoost || skill.atkBoost || skill.comboDmgPct) return 'swift'
+  // 短 CD 技能吃不到“迅捷”的最低冷却收益，归为“专精”避免出现无效被动。
+  if ((SWIFT_TYPES.has(type) || skill.dmgBoost || skill.atkBoost || skill.comboDmgPct) && (pet.cd || 0) > 3) return 'swift'
   if (SPECIALIST_TYPES.has(type)) return 'specialist'
   if (STRONG_TYPES.has(type)) return 'strong'
   return 'specialist'

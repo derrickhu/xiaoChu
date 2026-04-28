@@ -13,7 +13,7 @@ const { getPoolPetAtk, comparePoolPetsFormationOrder } = require('../data/petPoo
 const { getStageById, getEffectiveStageTeamMin, getEnemyPortraitPath } = require('../data/stages')
 const { STAMINA_COST } = require('../data/constants')
 const { getWeaponById, getWeaponRarity, getDefaultWeaponPickerPreviewId } = require('../data/weapons')
-const { drawGoldBtn } = require('./uiUtils')
+const { drawGoldBtn, drawPetStars } = require('./uiUtils')
 const { drawCornerRarityBadge } = require('./rarityBadge')
 const teamPresetBar = require('./teamPresetBar')
 const guideMgr = require('../engine/guideManager')
@@ -388,12 +388,13 @@ function rStageTeam(g) {
 
 
         // 星级
-        const starStr = '★'.repeat(poolPet.star)
-        c.fillStyle = '#ffd700'; c.font = `${7*S}px "PingFang SC",sans-serif`
-        c.textAlign = 'center'; c.textBaseline = 'top'
-        c.strokeStyle = 'rgba(0,0,0,0.8)'; c.lineWidth = 1.5*S
-        c.strokeText(starStr, sx + slotSize / 2, slotY + slotSize - 10*S)
-        c.fillText(starStr, sx + slotSize / 2, slotY + slotSize - 10*S)
+        drawPetStars(c, S, sx + slotSize / 2, slotY + slotSize - 10*S, poolPet.star, {
+          maxW: slotSize - 4*S,
+          fontSize: 7,
+          minFontSize: 5.5,
+          strokeColor: 'rgba(0,0,0,0.8)',
+          strokeWidth: 1.5*S,
+        })
       }
     } else {
       // 空槽
@@ -684,18 +685,11 @@ function rStageTeam(g) {
 
     // 星级
     const starY = nameY + 14 * S
-    c.font = `${10*S}px "PingFang SC",sans-serif`
-    let starStr = ''
-    for (let si = 0; si < 3; si++) starStr += '★'
-    const totalStarW = c.measureText(starStr).width
-    let starX = cx + cw / 2 - totalStarW / 2
-    c.textAlign = 'left'
-    for (let si = 0; si < 3; si++) {
-      c.fillStyle = si < pp.star ? '#ffd700' : 'rgba(120,120,120,0.5)'
-      c.fillText('★', starX, starY)
-      starX += c.measureText('★').width
-    }
-    c.textAlign = 'center'
+    drawPetStars(c, S, cx + cw / 2, starY, pp.star, {
+      maxW: cw - 8*S,
+      fontSize: 8.5,
+      minFontSize: 6,
+    })
 
     // ATK（红色）
     const atkY = starY + 14 * S

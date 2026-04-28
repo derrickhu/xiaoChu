@@ -69,7 +69,18 @@ function getEnemyDefense(ctx, options) {
   if (opts.includeBuff === false) return eDef
   const defBuff = (ctx.enemyBuffs || []).find(b => b.type === 'buff' && b.field === 'def')
   if (defBuff) eDef = Math.round(eDef * (1 + defBuff.rate))
+  const breakDefPct = (ctx.enemyBuffs || [])
+    .filter(b => b.type === 'breakDef')
+    .reduce((max, b) => Math.max(max, b.pct || 100), 0)
+  if (breakDefPct > 0) eDef = Math.round(eDef * (1 - Math.min(100, breakDefPct) / 100))
   return eDef
+}
+
+function getEnemyVulnerableMul(ctx) {
+  const pct = (ctx.enemyBuffs || [])
+    .filter(b => b.type === 'vulnerable')
+    .reduce((max, b) => Math.max(max, b.pct || 0), 0)
+  return 1 + Math.max(0, pct) / 100
 }
 
 function calcCritFromCtx(ctx) {
@@ -204,6 +215,7 @@ function calcAttrPreDefense(ctx, attr, baseDmg, options) {
   if (ctx.weapon && ctx.weapon.type === 'stunBonusDmg' && (ctx.enemyBuffs || []).some(isEnemyControlBuff)) dmg *= 1 + ctx.weapon.pct / 100
   // 冰冻差异化：期间敌人受到的水属性伤害额外 +30%（主题契合，鼓励水系阵容）
   if (attr === 'water' && (ctx.enemyBuffs || []).some(b => b.type === 'freeze')) dmg *= 1 + FREEZE_WATER_DMG_BONUS_PCT / 100
+  dmg *= getEnemyVulnerableMul(ctx)
   if (((ctx.runBuffs && ctx.runBuffs.weaponBoostPct) || 0) > 0) dmg *= 1 + ctx.runBuffs.weaponBoostPct / 100
   if (ctx.nextDmgDouble) dmg *= NEXT_DMG_DOUBLE_MUL
 
@@ -461,6 +473,7 @@ module.exports = {
   getComboMul,
   collectBuffMultipliers,
   getEnemyDefense,
+  getEnemyVulnerableMul,
   calcCritFromCtx,
   resolveCritFromCtx,
   calcDamagePerAttr,

@@ -10,7 +10,7 @@ const {
   SKILL_INSTANT_DOT_TICK_DEFAULT,
 } = require('../../data/balance/combat')
 const { buildDamageContext } = require('./damageContext')
-const { getEnemyDefense } = require('./damageFormula')
+const { getEnemyDefense, getEnemyVulnerableMul } = require('./damageFormula')
 const { emitCast, emitFloat, emitShake } = require('./fxEmitter')
 const { applyStunToEnemy, isEnemyControlBuff } = require('./stunResolver')
 const { commitBattleVictory } = require('./victoryResolver')
@@ -69,6 +69,7 @@ function resolveInstantDmg(g, payload) {
     const ignoreDef = Math.round(((ctx.enemy && ctx.enemy.def) || 0) * sk.ignoreDefPct / 100)
     dmg = Math.max(0, dmg + ignoreDef)
   }
+  dmg = Math.round(dmg * getEnemyVulnerableMul(ctx))
 
   result.totalDmg = dmg
   result.entries.push({ dmg, color: getSkillColor(sk.attr), petIdx: payload.idx })
@@ -88,6 +89,7 @@ function resolveInstantDmgDot(g, payload) {
   let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_INSTANT_DMG_DOT_DEFAULT_PCT) / 100)
   dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
   dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, pet))
+  dmg = Math.round(dmg * getEnemyVulnerableMul(ctx))
 
   result.totalDmg = dmg
   result.entries.push({ dmg, color: getSkillColor(sk.attr || pet.attr), petIdx: payload.idx, attr: sk.attr || pet.attr })
@@ -117,6 +119,7 @@ function resolveMultiHit(g, payload) {
     let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_MULTI_HIT_DEFAULT_PCT) / 100)
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
     dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, pet))
+    dmg = Math.round(dmg * getEnemyVulnerableMul(ctx))
     totalDmg += dmg
     result.entries.push({ dmg, color, hitIdx, totalHits: hits, petIdx: payload.idx, attr: sk.attr || pet.attr })
   }
@@ -144,6 +147,7 @@ function resolveTeamAttack(g, payload) {
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
     dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, caster))
     dmg = Math.max(0, dmg - enemyDefense)
+    dmg = Math.round(dmg * getEnemyVulnerableMul(ctx))
     totalDmg += dmg
     result.entries.push({ dmg, color: getSkillColor(p.attr), petIdx, totalPets, attr: p.attr })
   })

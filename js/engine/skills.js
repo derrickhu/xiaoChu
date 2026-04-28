@@ -339,8 +339,16 @@ function triggerPetSkill(g, pet, idx) {
       break
     case 'stunBreakDef':
       applyStunToEnemy(g, sk.stunDur || 1, { source: 'petSkill', controlType: sk.controlType })
-      if (g.enemy) g.enemy.def = 0
-      // ★3附加易伤
+      if (sk.breakDefPct) {
+        g.enemyBuffs.push({
+          type:'breakDef',
+          name:`破甲（防御-${sk.breakDefPct}%）`,
+          pct:sk.breakDefPct,
+          dur:sk.breakDefDur || sk.stunDur || 1,
+          bad:true,
+        })
+      }
+      // 易伤与破甲可独立配置，用来区分控制宠定位
       if (sk.extraDmgPct) g.enemyBuffs.push({ type:'vulnerable', name:'易伤', pct:sk.extraDmgPct, dur:sk.stunDur||1, bad:true })
       break
     case 'comboPlus':

@@ -94,8 +94,9 @@ const LING = {
       return `主人～ 这趟小家伙们挑了 ${fragments} 枚碎片、${soulStone} 灵石回来！`
     },
     /** 图鉴里程碑（元素/品阶收录达成） */
-    dexMilestone(title) {
-      return title ? `图鉴「${title}」达成～ 永久加成到手！` : '图鉴里程碑达成～ 永久加成到手！'
+    dexMilestone(title, rewardText) {
+      if (rewardText) return `图鉴里程碑达成～ ${rewardText}到手！`
+      return title ? `图鉴「${title}」达成～ 奖励到手！` : '图鉴里程碑达成～ 奖励到手！'
     },
     /** 通天塔破纪录 */
     towerNewBest(floor) {

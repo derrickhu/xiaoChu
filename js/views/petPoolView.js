@@ -738,7 +738,7 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.fillStyle = '#3b2414'
   c.fillText(displayName, x + w / 2, nameY)
 
-  // 星级（根据 STAR_VISUAL 着色，★4 光环，★5 彩虹）
+  // 星级（根据 STAR_VISUAL 着色，满星只保留静态柔光，避免列表中持续闪烁干扰）
   const starY = nameY + 14 * S
   const curStar = poolPet.star || 1
   const sv = STAR_VISUAL[curStar] || STAR_VISUAL[1]
@@ -752,10 +752,8 @@ function _drawPetCard(c, R, S, W, x, y, w, h, poolPet, g) {
   c.textAlign = 'left'
   c.save()
   if (curStar >= 5) {
-    // ★5 彩虹光效
-    const hue = (Date.now() * 0.1) % 360
-    c.shadowColor = `hsl(${hue}, 100%, 60%)`
-    c.shadowBlur = 6 * S
+    c.shadowColor = 'rgba(255,210,80,0.65)'
+    c.shadowBlur = 4 * S
   } else if (curStar >= 4) {
     // ★4 紫色微弱光环
     c.shadowColor = '#b44dff'

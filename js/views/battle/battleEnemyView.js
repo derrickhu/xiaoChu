@@ -88,7 +88,7 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
   const { ctx, R, S } = V
   const bufs = g.enemyBuffs
   const hasBuffs = bufs && bufs.length > 0
-  const hasBreakDef = g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0
+  const hasBreakDef = (hasBuffs && bufs.some(b => b.type === 'breakDef')) || (g.enemy && g.enemy.def === 0 && g.enemy.baseDef > 0)
   if (!hasBuffs && !hasBreakDef) return
   if (g._enemyDeathAnim) return
 
@@ -232,7 +232,7 @@ function _drawEnemyDebuffVFX(g, imgX, imgY, imgW, imgH, enemyImg) {
     ctx.restore()
   }
 
-  // --- 3. 破甲（防御为0）---
+  // --- 3. 破甲 ---
   if (hasBreakDef) {
     ctx.save()
     const bkPulse = 0.7 + 0.3 * Math.sin(af * 0.12)
