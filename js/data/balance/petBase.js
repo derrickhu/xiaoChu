@@ -221,13 +221,6 @@ const STAR3_SKILL_NUMS = {
   e20: { stunDur: 3, pct: 300 },
 }
 
-// ===== ★4 觉醒被动数值（不含 name/desc） =====
-const STAR4_PASSIVE_NUMS = {
-  R: { type: "lastStand" },
-  SR: { type: "attrDmgUp", pct: 15 },
-  SSR: { type: "immuneFirstCC" },
-}
-
 // ===== ★5 超越技能数值（不含 desc） =====
 const STAR5_SKILL_NUMS = {
   // --- 金属性 ---
@@ -256,6 +249,5 @@ const STAR5_SKILL_NUMS = {
 module.exports = {
   PET_BASE_STATS,
   STAR3_SKILL_NUMS,
-  STAR4_PASSIVE_NUMS,
   STAR5_SKILL_NUMS,
 }

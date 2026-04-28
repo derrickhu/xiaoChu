@@ -42,6 +42,7 @@ function buildDamageContext(g, overrides) {
     pendingAttrMaxCount: cloneMap(pickOverride(opts, 'pendingAttrMaxCount', g._pendingAttrMaxCount || {})),
     nextDmgDouble: !!pickOverride(opts, 'nextDmgDouble', g.nextDmgDouble),
     pets: cloneList(pickOverride(opts, 'pets', g.pets || [])),
+    star4Passives: cloneObject(pickOverride(opts, 'star4Passives', g.star4Passives || null)),
   }
 
   return Object.freeze(ctx)

@@ -13,6 +13,7 @@
  */
 const STUN_BUFF_NAME = '\u7729\u6655' // 眩晕
 const FREEZE_BUFF_NAME = '\u51b0\u51bb' // 冰冻
+const { consumeStar4Dominance } = require('../../data/balance/star4Passive')
 
 const CONTROL_TYPES = ['stun', 'freeze']
 
@@ -84,6 +85,7 @@ function applyStunToHero(g, dur) {
   if (g.weapon && g.weapon.type === 'immuneStun') return 'immune'
   if (g.heroBuffs.some(b => b.type === 'immuneCtrl')) return 'immune'
   if (g.immuneOnce) { g.immuneOnce = false; return 'immune' }
+  if (consumeStar4Dominance(g)) return 'immune'
   if (g.heroBuffs.some(b => b.type === 'heroStun')) return 'skipped'
   g.heroBuffs.push({ type: 'heroStun', name: STUN_BUFF_NAME, dur: dur | 0, bad: true })
   return 'applied'

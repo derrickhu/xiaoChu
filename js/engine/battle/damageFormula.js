@@ -179,6 +179,12 @@ function calcAttrPreDefense(ctx, attr, baseDmg, options) {
   dmg *= 1 + buff.buffAllDmgPct / 100
   dmg *= 1 + buff.buffAllAtkPct / 100
   dmg *= 1 + (buff.buffAttrDmgPct[attr] || 0) / 100
+  const star4 = ctx.star4Passives || {}
+  const star4AttrPct = (star4.attrDmgPct && star4.attrDmgPct[attr]) || 0
+  if (star4AttrPct > 0) dmg *= 1 + star4AttrPct / 100
+  if ((star4.controlDmgPct || 0) > 0 && (ctx.enemyBuffs || []).some(isEnemyControlBuff)) {
+    dmg *= 1 + star4.controlDmgPct / 100
+  }
   if (buff.buffComboDmgPct > 0 && ctx.combo > 1) dmg *= 1 + buff.buffComboDmgPct / 100
   if (buff.buffLowHpDmgPct > 0 && hpRatio <= 0.3) dmg *= 1 + buff.buffLowHpDmgPct / 100
 

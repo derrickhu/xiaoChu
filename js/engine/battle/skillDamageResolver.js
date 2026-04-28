@@ -12,11 +12,23 @@ const {
 const { buildDamageContext } = require('./damageContext')
 const { getEnemyDefense } = require('./damageFormula')
 const { emitCast, emitFloat, emitShake } = require('./fxEmitter')
-const { applyStunToEnemy } = require('./stunResolver')
+const { applyStunToEnemy, isEnemyControlBuff } = require('./stunResolver')
 const { commitBattleVictory } = require('./victoryResolver')
 
 function getSkillColor(attr) {
   return (ATTR_COLOR[attr] && ATTR_COLOR[attr].main) || V.TH.danger
+}
+
+function getStar4SkillDamageMul(ctx, pet) {
+  const star4 = ctx.star4Passives || {}
+  let pct = 0
+  if (pet && pet.id && star4.skillDmgPctByPetId) {
+    pct += star4.skillDmgPctByPetId[pet.id] || 0
+  }
+  if ((star4.controlDmgPct || 0) > 0 && (ctx.enemyBuffs || []).some(isEnemyControlBuff)) {
+    pct += star4.controlDmgPct
+  }
+  return 1 + pct / 100
 }
 
 function createBaseResult(ctx, payload, type) {
@@ -52,6 +64,7 @@ function resolveInstantDmg(g, payload) {
 
   let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_INSTANT_DMG_DEFAULT_PCT) / 100)
   dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
+  dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, pet))
   if (sk.ignoreDefPct) {
     const ignoreDef = Math.round(((ctx.enemy && ctx.enemy.def) || 0) * sk.ignoreDefPct / 100)
     dmg = Math.max(0, dmg + ignoreDef)
@@ -74,6 +87,7 @@ function resolveInstantDmgDot(g, payload) {
 
   let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_INSTANT_DMG_DOT_DEFAULT_PCT) / 100)
   dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
+  dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, pet))
 
   result.totalDmg = dmg
   result.entries.push({ dmg, color: getSkillColor(sk.attr || pet.attr), petIdx: payload.idx, attr: sk.attr || pet.attr })
@@ -102,6 +116,7 @@ function resolveMultiHit(g, payload) {
   for (let hitIdx = 0; hitIdx < hits; hitIdx++) {
     let dmg = Math.round(getPetStarAtk(pet) * (sk.pct || SKILL_MULTI_HIT_DEFAULT_PCT) / 100)
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
+    dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, pet))
     totalDmg += dmg
     result.entries.push({ dmg, color, hitIdx, totalHits: hits, petIdx: payload.idx, attr: sk.attr || pet.attr })
   }
@@ -114,6 +129,7 @@ function resolveMultiHit(g, payload) {
 function resolveTeamAttack(g, payload) {
   const ctx = buildDamageContext(g)
   const sk = payload.sk || {}
+  const caster = payload.pet || {}
   const result = createBaseResult(ctx, payload, 'team')
   if (!ctx.enemy) return result
 
@@ -126,6 +142,7 @@ function resolveTeamAttack(g, payload) {
     let dmg = Math.round(getPetStarAtk(p) * (sk.pct || SKILL_TEAM_ATTACK_DEFAULT_PCT) / 100)
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.allAtkPct) || 0) / 100))
     dmg = Math.round(dmg * (1 + ((ctx.runBuffs && ctx.runBuffs.skillDmgPct) || 0) / 100))
+    dmg = Math.round(dmg * getStar4SkillDamageMul(ctx, caster))
     dmg = Math.max(0, dmg - enemyDefense)
     totalDmg += dmg
     result.entries.push({ dmg, color: getSkillColor(p.attr), petIdx, totalPets, attr: p.attr })

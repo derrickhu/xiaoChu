@@ -8,7 +8,8 @@ const {
   ATTR_COLOR, ATTR_NAME, BEAD_ATTRS, COUNTER_MAP, COUNTER_BY, COUNTER_MUL, COUNTERED_MUL,
   ENEMY_SKILLS, EVENT_TYPE, ADVENTURES, getBeadWeights,
 } = require('../data/tower')
-const { getPetStarAtk, petHasSkill } = require('../data/pets')
+const { getPetStarAtk, petHasSkill, getPetRarity } = require('../data/pets')
+const { buildStar4PassiveState, consumeStar4Dominance } = require('../data/balance/star4Passive')
 const tutorial = require('./tutorial')
 const { tween, Ease } = require('./tween')
 const Particles = require('./particles')
@@ -1247,7 +1248,7 @@ function applyEnemySkill(g, skillKey) {
       g._dealDmgToHero(aoeDmg, { source: 'skill' }); break
     }
     case 'debuff':
-      g.heroBuffs.push({ type:'debuff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:true }); break
+      _applyHeroDebuffs(g, { type:'debuff', name:sk.name, field:sk.field, rate:sk.rate, dur:sk.dur, bad:true }); break
     case 'stun':
       applyStunToHero(g, sk.dur)
       break
@@ -1384,7 +1385,7 @@ function applyEnemySkill(g, skillKey) {
       // 噬魂夺魄：造成伤害 + 窃取治疗（加healBlock debuff）
       let dDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_DEVOUR_DEFAULTS.atkPct))
       g._dealDmgToHero(dDmg, { source: 'skill' })
-      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:BOSS_DEVOUR_DEFAULTS.healRate, dur:BOSS_DEVOUR_DEFAULTS.dur, bad:true })
+      _applyHeroDebuffs(g, { type:'debuff', name:sk.name, field:'healRate', rate:BOSS_DEVOUR_DEFAULTS.healRate, dur:BOSS_DEVOUR_DEFAULTS.dur, bad:true })
       break
     }
     case 'bossDot': {
@@ -1407,8 +1408,10 @@ function applyEnemySkill(g, skillKey) {
       break
     case 'bossWeaken':
       // 天罡镇压：同时降低攻击和防御
-      g.heroBuffs.push({ type:'debuff', name:sk.name+'(攻)', field:'atk', rate:sk.atkRate || BOSS_WEAKEN_DEFAULTS.atkRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true })
-      g.heroBuffs.push({ type:'debuff', name:sk.name+'(防)', field:'def', rate:sk.defRate || BOSS_WEAKEN_DEFAULTS.defRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true })
+      _applyHeroDebuffs(g, [
+        { type:'debuff', name:sk.name+'(攻)', field:'atk', rate:sk.atkRate || BOSS_WEAKEN_DEFAULTS.atkRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true },
+        { type:'debuff', name:sk.name+'(防)', field:'def', rate:sk.defRate || BOSS_WEAKEN_DEFAULTS.defRate, dur:sk.dur || BOSS_WEAKEN_DEFAULTS.dur, bad:true },
+      ])
       break
     case 'bossBlitz': {
       // 连环妖击：多段攻击
@@ -1442,7 +1445,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossCurse':
       // 万妖诅咒：固定DOT + 心珠回复减半
       g.heroBuffs.push({ type:'dot', name:sk.name, dmg:sk.dmg || BOSS_CURSE_DEFAULTS.dmg, dur:sk.dur || BOSS_CURSE_DEFAULTS.dur, bad:true })
-      g.heroBuffs.push({ type:'debuff', name:sk.name, field:'healRate', rate:BOSS_CURSE_DEFAULTS.healRate, dur:sk.dur || BOSS_CURSE_DEFAULTS.dur, bad:true })
+      _applyHeroDebuffs(g, { type:'debuff', name:sk.name, field:'healRate', rate:BOSS_CURSE_DEFAULTS.healRate, dur:sk.dur || BOSS_CURSE_DEFAULTS.dur, bad:true })
       break
     case 'bossUltimate': {
       // 超越·终焉：大伤害 + 封锁（全场或随机） + 眩晕
@@ -1467,6 +1470,23 @@ function applyEnemySkill(g, skillKey) {
       break
     }
   }
+}
+
+function _emitStar4DominanceImmune(g) {
+  const { W, H } = V
+  emitNotice(g, { x:W*0.5, y:H*0.5, text:'霸体免疫！', color:'#ffd86b', scale:1.6, _initScale:1.6 })
+}
+
+function _applyHeroDebuffs(g, debuffs) {
+  const list = Array.isArray(debuffs) ? debuffs : [debuffs]
+  if (consumeStar4Dominance(g)) {
+    _emitStar4DominanceImmune(g)
+    return 'immune'
+  }
+  list.forEach(buff => {
+    if (buff) g.heroBuffs.push(buff)
+  })
+  return 'applied'
 }
 
 // ===== 战斗进入 =====
@@ -1515,6 +1535,10 @@ function enterBattle(g, enemyData) {
     g.nextStunEnemy = false
     // 战前事件眩晕：不叠 stunDurBonus，保持策划标定的 1 回合
     applyStunToEnemy(g, 1, { source: 'preBattle', applyBonus: false })
+  }
+  g.star4Passives = buildStar4PassiveState(g.pets, getPetRarity, g.heroMaxHp)
+  if (g.star4Passives.guardShield > 0) {
+    g.heroShield = (g.heroShield || 0) + g.star4Passives.guardShield
   }
   g.setScene('battle')
   if (g.enemy && g.enemy.isBoss) {

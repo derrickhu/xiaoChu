@@ -8,8 +8,9 @@
  */
 
 const {
-  PET_BASE_STATS, STAR3_SKILL_NUMS, STAR4_PASSIVE_NUMS, STAR5_SKILL_NUMS,
+  PET_BASE_STATS, STAR3_SKILL_NUMS, STAR5_SKILL_NUMS,
 } = require('./balance/petBase')
+const { getStar4PassiveForPet } = require('./balance/star4Passive')
 
 // ===== 技能效果类型 =====
 // dmgBoost  — 下次该属性伤害×N倍（改为倍率制，体感更强）
@@ -355,17 +356,20 @@ const STAR3_SKILL_OVERRIDE = {
   e20: { desc:'眩晕3回合+土伤×4倍', stunDur:3, pct:300 },
 }
 
-// ===== ★4 觉醒被动（按品质模板批量分配） =====
+// ===== ★4 觉醒被动（按技能定位分配，品质只影响数值） =====
 const STAR4_PASSIVE = {
-  R:   { name: '韧性', desc: '受到致死伤害时保留1HP（每局1次）', ...STAR4_PASSIVE_NUMS.R },
-  SR:  { name: '专精', desc: '该属性消除伤害+15%', ...STAR4_PASSIVE_NUMS.SR },
-  SSR: { name: '霸体', desc: '免疫首次控制效果', ...STAR4_PASSIVE_NUMS.SSR },
+  strong: { name: '强攻', type: 'skillDmgUp' },
+  specialist: { name: '专精', type: 'attrDmgUp' },
+  control: { name: '镇魂', type: 'controlDmgUp' },
+  guard: { name: '守护', type: 'startShield' },
+  dominance: { name: '霸体', type: 'debuffImmuneOnce' },
 }
 
-// 获取宠物 ★4 觉醒被动（根据品质）
+// 获取宠物 ★4 觉醒被动
 function getStar4Passive(petId) {
+  const pet = getPetById(petId)
   const rarity = getPetRarity(petId)
-  return STAR4_PASSIVE[rarity] || STAR4_PASSIVE.R
+  return getStar4PassiveForPet(pet, rarity)
 }
 
 // ===== ★5 超越技能覆写（在 ★3 基础上进一步强化 ~30-50%） =====

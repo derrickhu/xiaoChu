@@ -21,6 +21,7 @@ const gameToast = require('./gameToast')
 const { pickBestPresetCached, RECOMMEND_MIN_SCORE } = require('../engine/presetScorer')
 const guideMgr = require('../engine/guideManager')
 const goalHint = require('./goalHintView')
+const teamPresetBar = require('./teamPresetBar')
 
 const _rects = {
   backBtnRect: null,
@@ -627,8 +628,17 @@ function rStageInfo(g) {
   c.fillStyle = '#FFF5E0'
   c.fillText('我的编队', px + 4 * S, teamLabelY + 10 * S)
 
+  // 详情页只用于快速切换已保存预设；保存/解锁/细调仍从「调整编队」进入完整编队页。
+  const presetBarX = px + 4 * S
+  const presetBarY = teamLabelY + 24 * S
+  const presetBarW = W - 2 * presetBarX
+  teamPresetBar.draw(g, presetBarX, presetBarY, presetBarW, {
+    hideSave: true,
+    highlightPresetId: g._recommendedPresetId || null,
+  })
+
   // 宠物头像槽（标签下方留足间距）
-  const iconY = teamLabelY + 32 * S
+  const iconY = presetBarY + teamPresetBar.getBarHeight() + 8 * S
   _rects.petSlotRects = []
 
   for (let i = 0; i < maxSlots; i++) {
@@ -795,6 +805,26 @@ function tStageInfo(g, x, y, type) {
     g.setScene('chapterMap')
     return
   }
+
+  const presetHandled = teamPresetBar.onTouch(g, x, y, 'end', {
+    hideSave: true,
+    getCurrentFormationSnapshot: () => ({
+      petIds: g.storage.getValidSavedTeam(),
+      weaponId: g.storage.equippedWeaponId || null,
+    }),
+    onApply: () => {
+      g._recommendedPresetId = null
+      g._dirty = true
+    },
+    onActiveChanged: () => {
+      g._recommendedPresetId = null
+      g._dirty = true
+    },
+    onUnlockClick: () => {
+      gameToast.show('进「调整编队」可解锁更多预设')
+    },
+  })
+  if (presetHandled) return
 
   // "本关推荐"一键应用：把推荐预设直接应用为当前编队，用户还能再点开始战斗
   if (_rects.recommendApplyRect && g._hitRect(x, y, ..._rects.recommendApplyRect)) {

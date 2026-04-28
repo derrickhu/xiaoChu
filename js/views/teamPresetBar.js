@@ -49,11 +49,13 @@ const _rects = {
  *   返回绘制占用的高度（S 后的像素），方便调用方继续往下排版。
  */
 function draw(g, x, y, w, opts) {
+  opts = opts || {}
   const { ctx: c, R, S } = V
   const storage = g.storage
   const presets = storage.getTeamPresetsForView()
   const unlocked = storage.teamPresetSlotUnlocked
   const activeId = storage.teamPresetActiveId
+  const hideSave = !!opts.hideSave
   const hPx = BAR_H * S
 
   // 底板：深色衬底 + 细金边
@@ -66,12 +68,13 @@ function draw(g, x, y, w, opts) {
   // 去掉左侧的"预设"文字标签：玩家看 tab 样式就懂，留出宝贵横向空间给 5 个 tab。
   const tabsStartX = x + SIDE_PAD * S
 
-  // 右侧"保存"按钮（图标化，缩小占用）
+  // 右侧"保存"按钮（图标化，缩小占用）；详情页只用于切预设时可隐藏。
   const saveBtnW = SAVE_BTN_W * S
   const saveBtnH = TAB_H * S
   const saveBtnX = x + w - SIDE_PAD * S - saveBtnW
   const saveBtnY = y + (hPx - saveBtnH) / 2
-  const tabsMaxX = saveBtnX - 4 * S   // 与保存按钮之间留一点气口
+  const tabsMaxX = hideSave ? (x + w - SIDE_PAD * S) : (saveBtnX - 4 * S)   // 与保存按钮之间留一点气口
+  _rects.saveBtnRect = null
 
   // tab 区：在有限宽度内平均分配；绝对不允许越过 tabsMaxX 盖住保存按钮。
   const tabsAreaW = Math.max(0, tabsMaxX - tabsStartX)
@@ -162,7 +165,7 @@ function draw(g, x, y, w, opts) {
   }
 
   // 保存按钮：金色描边 + "保存"二字；按钮本身做得窄些，给 tab 区让空间。
-  {
+  if (!hideSave) {
     c.fillStyle = 'rgba(60,45,25,0.9)'
     R.rr(saveBtnX, saveBtnY, saveBtnW, saveBtnH, TAB_ROUND * S); c.fill()
     c.strokeStyle = 'rgba(232,197,71,0.9)'; c.lineWidth = 1.2 * S
@@ -229,7 +232,7 @@ function onTouch(g, x, y, type, opts) {
         g.storage.applyTeamPreset(t.id) // 空预设内部只改 activeId，不动当前编队
         if (opts.onActiveChanged) opts.onActiveChanged(t.id)
       }
-      gameToast.show('这套还没保存·点右边「保存」存入当前队伍')
+      gameToast.show(opts.hideSave ? '这套还没保存，点「调整编队」后可保存' : '这套还没保存·点右边「保存」存入当前队伍')
       return true
     }
     const activeId = g.storage.teamPresetActiveId
