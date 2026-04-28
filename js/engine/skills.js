@@ -63,6 +63,15 @@ function _mergePetAndDex(g, allPets, newPet) {
 }
 
 // ===== 宠物技能 =====
+function _calcPetCooldownAfterCast(g, pet, baseCd) {
+  const state = g && g.star4Passives
+  const petId = pet && pet.id
+  const reduce = petId && state && state.cdReduceByPetId ? (state.cdReduceByPetId[petId] || 0) : 0
+  if (reduce <= 0) return baseCd
+  const minCd = petId && state && state.cdMinByPetId ? (state.cdMinByPetId[petId] || 1) : 1
+  return Math.max(minCd, baseCd - reduce)
+}
+
 // 辅助：从棋盘随机挑选N颗非目标属性的珠子
 function _pickRandomCells(g, count, targetAttr) {
   const { ROWS, COLS } = V
@@ -159,7 +168,7 @@ function triggerPetSkill(g, pet, idx) {
   const sk = override ? { ...baseSk, ...override } : baseSk
   let cd = pet.cd
   if (g.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - g.runBuffs.skillCdReducePct / 100)))
-  pet.currentCd = cd
+  pet.currentCd = _calcPetCooldownAfterCast(g, pet, cd)
   const attrColor = (ATTR_COLOR[pet.attr] && ATTR_COLOR[pet.attr].main) || V.TH.accent
 
   // ===== L1/L2 视觉分层 =====

@@ -360,6 +360,7 @@ const STAR3_SKILL_OVERRIDE = {
 const STAR4_PASSIVE = {
   strong: { name: '强攻', type: 'skillDmgUp' },
   specialist: { name: '专精', type: 'attrDmgUp' },
+  swift: { name: '迅捷', type: 'skillCdAfterCastDown' },
   control: { name: '镇魂', type: 'controlDmgUp' },
   guard: { name: '守护', type: 'startShield' },
   dominance: { name: '霸体', type: 'debuffImmuneOnce' },

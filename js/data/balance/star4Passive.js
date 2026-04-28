@@ -12,6 +12,8 @@ const PASSIVE_BY_RARITY = {
     skillDmgPct: 8,
     attrDmgPct: 8,
     controlDmgPct: 8,
+    swiftCdReduce: 1,
+    swiftMinCd: 2,
     guardShieldPct: 5,
     guardShieldFlat: 10,
     dominanceShieldPct: 4,
@@ -21,6 +23,8 @@ const PASSIVE_BY_RARITY = {
     skillDmgPct: 12,
     attrDmgPct: 12,
     controlDmgPct: 12,
+    swiftCdReduce: 1,
+    swiftMinCd: 2,
     guardShieldPct: 7,
     guardShieldFlat: 16,
     dominanceShieldPct: 5,
@@ -30,6 +34,8 @@ const PASSIVE_BY_RARITY = {
     skillDmgPct: 16,
     attrDmgPct: 16,
     controlDmgPct: 15,
+    swiftCdReduce: 1,
+    swiftMinCd: 2,
     guardShieldPct: 9,
     guardShieldFlat: 24,
     dominanceShieldPct: 7,
@@ -58,8 +64,11 @@ const SPECIALIST_TYPES = new Set([
   'comboPlus', 'comboPlusNeverBreak', 'comboNeverBreakPlus',
   'comboNeverBreak',
 ])
+// 只有这些类型会进入主动技能直伤结算，才能吃到“强攻”的技能伤害乘区。
 const STRONG_TYPES = new Set([
   'instantDmg', 'instantDmgDot', 'multiHit', 'teamAttack',
+])
+const SWIFT_TYPES = new Set([
   'dmgBoost', 'ignoreDefFull', 'allDmgUp', 'allAtkUp',
   'critBoost', 'critDmgUp', 'guaranteeCrit', 'lowHpDmgUp',
   'warGod', 'comboDmgUp', 'dot',
@@ -75,9 +84,12 @@ function getPassiveValues(rarity) {
 
 function getStar4PassiveKind(pet) {
   const type = pet && pet.skill && pet.skill.type
+  const skill = (pet && pet.skill) || {}
   if (DOMINANCE_TYPES.has(type)) return 'dominance'
   if (GUARD_TYPES.has(type)) return 'guard'
   if (CONTROL_TYPES.has(type)) return 'control'
+  if (skill.toAttr === 'heart' || skill.defBoost || skill.regen || skill.heartBoost || skill.healPct) return 'guard'
+  if (SWIFT_TYPES.has(type) || skill.dmgBoost || skill.atkBoost || skill.comboDmgPct) return 'swift'
   if (SPECIALIST_TYPES.has(type)) return 'specialist'
   if (STRONG_TYPES.has(type)) return 'strong'
   return 'specialist'
@@ -105,6 +117,16 @@ function getStar4PassiveForPet(pet, rarity) {
       pct: values.controlDmgPct,
       cap: STAR4_LIMITS.controlDmgPct,
       desc: `敌人被眩晕或冰冻时，全队伤害+${values.controlDmgPct}%（上限${STAR4_LIMITS.controlDmgPct}%）`,
+    }
+  }
+  if (kind === 'swift') {
+    return {
+      type: 'skillCdAfterCastDown',
+      kind,
+      name: '迅捷',
+      cdReduce: values.swiftCdReduce,
+      minCd: values.swiftMinCd,
+      desc: `主动技能使用后，冷却-${values.swiftCdReduce}回合（最低${values.swiftMinCd}回合）`,
     }
   }
   if (kind === 'guard') {
@@ -141,6 +163,8 @@ function getStar4PassiveForPet(pet, rarity) {
 function makeEmptyStar4PassiveState() {
   return {
     skillDmgPctByPetId: {},
+    cdReduceByPetId: {},
+    cdMinByPetId: {},
     attrDmgPct: { metal: 0, wood: 0, water: 0, fire: 0, earth: 0 },
     controlDmgPct: 0,
     guardShield: 0,
@@ -169,6 +193,9 @@ function buildStar4PassiveState(pets, getRarity, heroMaxHp) {
 
     if (passive.type === 'skillDmgUp') {
       state.skillDmgPctByPetId[pet.id] = Math.max(state.skillDmgPctByPetId[pet.id] || 0, passive.pct || 0)
+    } else if (passive.type === 'skillCdAfterCastDown') {
+      state.cdReduceByPetId[pet.id] = Math.max(state.cdReduceByPetId[pet.id] || 0, passive.cdReduce || 0)
+      state.cdMinByPetId[pet.id] = Math.max(state.cdMinByPetId[pet.id] || 0, passive.minCd || 0)
     } else if (passive.type === 'attrDmgUp' && pet.attr) {
       state.attrDmgPct[pet.attr] = clamp((state.attrDmgPct[pet.attr] || 0) + (passive.pct || 0), STAR4_LIMITS.attrDmgPct)
     } else if (passive.type === 'controlDmgUp') {
