@@ -8,7 +8,7 @@ const guideMgr = require('./guideManager')
 const {
   ATTR_COLOR, REWARD_TYPES, generateRewards,
 } = require('../data/tower')
-const { randomPet, randomPetFromPool, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
+const { randomPet, randomPetFromPool, getPetStarSkillMul, tryMergePet, MAX_STAR, getStar3Override, getStar5Override, getPetSkillDesc, getMaxedPetIds, petHasSkill } = require('../data/pets')
 const { randomWeapon } = require('../data/weapons')
 const {
   resolveSkillDamage,
@@ -153,9 +153,9 @@ function triggerPetSkill(g, pet, idx) {
     const { emitNotice } = require('./battle/fxEmitter')
     emitNotice(g, { x:W*0.5, y:H*0.4, text:g._mechanicFocus.battleTip, color:'#ffab40', scale:1.8, _initScale:1.8 })
   }
-  // ★3强化：合并覆写数据到技能对象
+  // ★3/★5 覆写数值即最终实战值，避免再叠星级倍率导致文案与伤害不一致。
   const star = pet.star || 1
-  const override = (star >= 3) ? getStar3Override(pet.id) : null
+  const override = (star >= 5 && getStar5Override(pet.id)) || (star >= 3 && getStar3Override(pet.id)) || null
   const sk = override ? { ...baseSk, ...override } : baseSk
   let cd = pet.cd
   if (g.runBuffs.skillCdReducePct > 0) cd = Math.max(1, Math.round(cd * (1 - g.runBuffs.skillCdReducePct / 100)))
@@ -220,8 +220,7 @@ function triggerPetSkill(g, pet, idx) {
       style: 'preload',
     })
   }
-  // 星级技能数值倍率（★1=1.0, ★2=1.25, ★3≈1.56）
-  const sMul = getPetStarSkillMul(pet)
+  const sMul = override ? 1 : getPetStarSkillMul(pet)
 
   switch(sk.type) {
     case 'dmgBoost':

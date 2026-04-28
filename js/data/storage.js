@@ -2233,10 +2233,12 @@ class Storage {
     const sid = seasonId || (require('./trialSeason').getCurrentTrialSeason().id)
     if (!this._d.trial || this._d.trial.seasonId !== sid) {
       this._d.trial = this._defaultTrialState(sid)
+      this._clearSavedTrialRunInMemory()
     }
     const today = localDateKey()
     if (!this._d.trial.daily || this._d.trial.daily.date !== today) {
       this._d.trial.daily = { date: today, runs: 0, firstHalfUsed: false, bestScore: 0, bestFloor: 0, questDone: {} }
+      this._clearSavedTrialRunInMemory()
     }
     if (typeof this._d.trial.seasonScore !== 'number') this._d.trial.seasonScore = 0
     if (typeof this._d.trial.daily.bestScore !== 'number') this._d.trial.daily.bestScore = 0
@@ -2280,11 +2282,14 @@ class Storage {
     const season = trialSeason.getCurrentTrialSeason()
     const sid = seasonId || season.id
     if (!this.isTrialUnlocked()) return { ok: false, reason: 'locked' }
+    const cost = trialSeason.getTrialStaminaCost(this)
+    if (!this.consumeStamina(cost)) return { ok: false, reason: 'stamina', cost }
     const st = this._refreshTrial(sid)
     st.daily.runs = (st.daily.runs || 0) + 1
+    if (cost === season.firstDailyStaminaCost) st.daily.firstHalfUsed = true
     this.addDailyTaskProgress('trial_1', 1)
     this._save()
-    return { ok: true, cost: 0 }
+    return { ok: true, cost }
   }
 
   grantTrialRewards(tiers) {
@@ -2317,9 +2322,7 @@ class Storage {
 
   grantTrialRunFragmentReward(result) {
     const trialSeason = require('./trialSeason')
-    const passedFloor = result && result.cleared
-      ? (result.floor || 0)
-      : Math.max(0, ((result && result.floor) || 0) - 1)
+    const passedFloor = Math.max(0, (result && result.floor) || 0)
     const reward = trialSeason.calcTrialRunFragmentReward(passedFloor)
     if (!reward || !reward.count) return []
     const trialAttrs = (trialSeason.getDailyAttrTheme().enemyAttrs || []).filter(Boolean)
@@ -2818,21 +2821,39 @@ class Storage {
   }
 
   // ===== 局内暂存（暂存退出用）=====
+  _clearSavedTrialRunInMemory() {
+    delete this._d.savedTrialRun
+    if (this._d.savedRun && this._d.savedRun.mode === 'trial') delete this._d.savedRun
+  }
+
   saveRunState(runState) {
-    if (runState && runState.mode === 'trial') this._d.savedTrialRun = runState
+    if (runState && runState.mode === 'trial') {
+      this._d.savedTrialRun = { ...runState, trialDate: localDateKey() }
+    }
     else this._d.savedRun = runState
     this._save()
   }
 
   loadRunState(mode) {
-    if (mode === 'trial') return this._d.savedTrialRun || (this._d.savedRun && this._d.savedRun.mode === 'trial' ? this._d.savedRun : null)
+    if (mode === 'trial') {
+      const saved = this._d.savedTrialRun || (this._d.savedRun && this._d.savedRun.mode === 'trial' ? this._d.savedRun : null)
+      if (!saved) return null
+      const today = localDateKey()
+      const season = require('./trialSeason').getCurrentTrialSeason()
+      const savedSeasonId = saved.trialRun && saved.trialRun.seasonId
+      if ((saved.trialDate && saved.trialDate !== today) || (savedSeasonId && savedSeasonId !== season.id)) {
+        this._clearSavedTrialRunInMemory()
+        this._save()
+        return null
+      }
+      return saved
+    }
     return this._d.savedRun && this._d.savedRun.mode !== 'trial' ? this._d.savedRun : null
   }
 
   clearRunState(mode) {
     if (mode === 'trial') {
-      delete this._d.savedTrialRun
-      if (this._d.savedRun && this._d.savedRun.mode === 'trial') delete this._d.savedRun
+      this._clearSavedTrialRunInMemory()
       this._save()
       return
     }

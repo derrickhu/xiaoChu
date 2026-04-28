@@ -256,7 +256,8 @@ function startTrialContinueRun(g, petIds, startFloor) {
   const floor = Math.max(2, Math.min(season.maxFloor, Math.floor(startFloor || 2)))
   const started = g.storage.startTrialContinueRun(season.id)
   if (!started || !started.ok) {
-    P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
+    if (started && started.reason === 'stamina') P.showGameToast(`体力不足，需要 ${started.cost} 点`, { type: 'warn' })
+    else P.showGameToast('通关第 1 章后开放天机试炼', { type: 'warn' })
     g.setScene('trialDetail')
     return false
   }
@@ -359,7 +360,7 @@ function restoreBattleHpMax(g) {
  */
 function settleExp(g) {
   const cfg = TOWER_SETTLE
-  const finalFloor = g.cleared ? _getRunMaxFloor(g) : g.floor
+  const finalFloor = g.cleared ? _getRunMaxFloor(g) : (g.battleMode === 'trial' ? Math.max(0, (g.floor || 0) - 1) : g.floor)
   const layerExp = finalFloor * cfg.cultExp.perFloor
   const clearBonus = g.cleared ? cfg.cultExp.clearBonus : 0
   const rawTotal = (g.runExp || 0) + layerExp + clearBonus
@@ -555,7 +556,7 @@ function endRun(g) {
   // 阵亡结算 / 最终层通关都会直接走到这里，绕过 nextFloor 的 restoreBattleHpMax；
   // 主动清一次，防止 _baseHeroMaxHp / heroMaxHp 膨胀状态遗留到下一局 startRun
   restoreBattleHpMax(g)
-  const finalFloor = g.cleared ? _getRunMaxFloor(g) : g.floor
+  const finalFloor = g.cleared ? _getRunMaxFloor(g) : (g.battleMode === 'trial' ? Math.max(0, (g.floor || 0) - 1) : g.floor)
   if (g.battleMode === 'trial') {
     const season = getCurrentTrialSeason()
     const runStats = {

@@ -429,7 +429,7 @@ function rTowerTeam(g) {
       c.save()
       c.fillStyle = '#F5E0A8'
       c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-      c.fillText(`今日最高第${trialDaily.bestFloor || 0}层，可从第${trialContinueFloor}层继续挑战`, W / 2, btnBarY + 16 * S)
+      c.fillText(`今日已通第${trialDaily.bestFloor || 0}层，可从第${trialContinueFloor}层继续挑战`, W / 2, btnBarY + 16 * S)
       c.restore()
       const gap = 10 * S
       const halfW = (W - 32 * S - gap) / 2
@@ -985,7 +985,7 @@ function tTowerTeam(g, x, y, type) {
       return true
     }
     const sel = _ensureSelected(g)
-    if (g._towerTeamMode === 'trial' && !opts.continueTrial) {
+    if (g._towerTeamMode === 'trial') {
       const cost = getTrialStaminaCost(g.storage)
       if ((g.storage.currentStamina || 0) < cost) {
         P.showGameToast(`体力不足，需要 ${cost} 点`, { type: 'warn' })
@@ -999,10 +999,6 @@ function tTowerTeam(g, x, y, type) {
         const continueFloor = Math.min(season.maxFloor, (daily.bestFloor || 0) + 1)
         if (continueFloor <= 1 || continueFloor > season.maxFloor) {
           P.showGameToast('今日暂无可续打层数', { type: 'warn' })
-          return
-        }
-        if (!AdManager.canShow('trialContinue')) {
-          P.showGameToast('今日续打广告次数已用完', { type: 'warn' })
           return
         }
         AdManager.showRewardedVideo('trialContinue', {

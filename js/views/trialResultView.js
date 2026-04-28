@@ -249,7 +249,7 @@ function rTrialResult(g) {
   let y = scoreCardY + scoreCardH + 14 * S
   const pillGap = 8 * S
   const pillW = (innerW - pillGap) / 2
-  _drawSummaryPill(c, R, S, innerX, y, pillW, '抵达', `第 ${floor}/${maxFloor} 层`, 'gold')
+  _drawSummaryPill(c, R, S, innerX, y, pillW, '通关', `第 ${floor}/${maxFloor} 层`, 'gold')
   _drawSummaryPill(c, R, S, innerX + pillW + pillGap, y, pillW, '赛季', scoreAdded > 0 ? `+${scoreAdded}` : '未刷新', scoreAdded > 0 ? 'green' : 'gold')
 
   y += 43 * S

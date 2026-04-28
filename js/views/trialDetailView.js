@@ -302,7 +302,7 @@ function rTrialDetail(g) {
   const statY = y + 54 * S
   const statW = (innerW - statGap * 2) / 3
   _drawTodayStat(c, R, S, innerX, statY, statW, '今日已计入', `${todayScore}分`, 'gold')
-  _drawTodayStat(c, R, S, innerX + (statW + statGap), statY, statW, '今日最高', `第${todayBestFloor}/${season.maxFloor}层`, 'green')
+  _drawTodayStat(c, R, S, innerX + (statW + statGap), statY, statW, '今日已通', `第${todayBestFloor}/${season.maxFloor}层`, 'green')
   _drawTodayStat(c, R, S, innerX + (statW + statGap) * 2, statY, statW, '已挑战', `${todayRuns}次`, 'blue')
 
   // 推荐编队只展示玩家应该带的属性，避免把敌方属性也混在一起。
