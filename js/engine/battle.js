@@ -58,7 +58,7 @@ const {
   BOSS_DEVOUR_DEFAULTS, BOSS_DOT_DEFAULTS, BOSS_MIRROR_DEFAULTS,
   BOSS_WEAKEN_DEFAULTS, BOSS_BLITZ_DEFAULTS, BOSS_DRAIN_DEFAULT_ATK_PCT,
   BOSS_ANNIHIL_DEFAULTS, BOSS_CURSE_DEFAULTS, BOSS_ULTIMATE_DEFAULTS,
-  PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
+  calcPetInitialCd,
 } = require('../data/balance/combat')
 
 function _getBattleFxBudget(g) {
@@ -963,46 +963,55 @@ function enemyTurn(g) {
     g._enemyTurnWait = true; g.bState = 'enemyTurn'; g._stateTimer = 0
     return
   }
-  let atkDmg = g.enemy.atk
-  const atkBuff = g.enemyBuffs.find(b => b.type === 'buff' && b.field === 'atk')
-  if (atkBuff) atkDmg = Math.round(atkDmg * (1 + atkBuff.rate))
-  if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
-    const blocked = resolveIncomingDamage(g, atkDmg, { source: 'attack' }).damage
-    atkDmg = 0
-    // 大字格挡特效：缩放弹跳 + 显示抵挡伤害数值
-    emitNotice(g, { x:W*0.5, y:H*0.5, text:'格 挡 ！', color:'#40e8ff', scale:3.0, _initScale:3.0, big:true })
-    emitNotice(g, { x:W*0.5, y:H*0.57, text:`抵挡 ${blocked} 伤害`, color:'#7ddfff', scale:1.8, _initScale:1.8 })
-    emitShake(g, { t: 8, i: 5 })
-    emitFlash(g, 'block', { timer: 12 })
-    MusicMgr.playBlock()
+  let skillToCast = null
+  if (g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0) {
+    g.enemySkillCd--
+    if (g.enemySkillCd <= 0) {
+      skillToCast = g._nextEnemySkill || g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+    }
   }
-  const immune = g.heroBuffs.find(b => b.type === 'dmgImmune')
-  const attackPreview = atkDmg > 0
-    ? (immune ? { damage: 1 } : resolveIncomingDamage(g, atkDmg, { source: 'attack' }))
-    : { damage: 0 }
-  let reflectPct = 0
-  g.heroBuffs.forEach(b => { if (b.type === 'reflectPct') reflectPct += b.pct })
-  if (g.weapon && g.weapon.type === 'reflectPct') reflectPct += g.weapon.pct
-  if (reflectPct > 0 && attackPreview.damage > 0) {
-    const refDmg = Math.round(attackPreview.damage * reflectPct / 100)
-    g.enemy.hp = Math.max(0, g.enemy.hp - refDmg)
-    emitFloat(g, 'reflectToEnemy', { dmg: refDmg, color: TH.info })
-  }
-  if (g.weapon && g.weapon.type === 'counterStun' && Math.random()*100 < g.weapon.chance) {
-    applyStunToEnemy(g, 1, { source: 'weaponCounter' })
-  }
-  if (atkDmg > 0) {
-    const hitResult = g._dealDmgToHero(atkDmg, { source: 'attack' }) || {}
-    const actualDamage = hitResult.actualDamage || 0
-    emitCast(g, { kind: 'enemyAttack', heroReact: actualDamage > 0 })
-    if (actualDamage > 0) {
-      const dmgRatio = actualDamage / g.heroMaxHp
-      MusicMgr.playEnemyAttack(dmgRatio)
-      setTimeout(() => {
-        if (g.scene !== 'battle' || g.bState === 'victory' || g.bState === 'defeat') return
-        MusicMgr.playHeroHurt(dmgRatio)
-      }, 100)
-      emitShake(g, { t: 10, i: 6 })
+  if (!skillToCast) {
+    let atkDmg = g.enemy.atk
+    const atkBuff = g.enemyBuffs.find(b => b.type === 'buff' && b.field === 'atk')
+    if (atkBuff) atkDmg = Math.round(atkDmg * (1 + atkBuff.rate))
+    if (g.weapon && g.weapon.type === 'blockChance' && Math.random()*100 < g.weapon.chance) {
+      const blocked = resolveIncomingDamage(g, atkDmg, { source: 'attack' }).damage
+      atkDmg = 0
+      // 大字格挡特效：缩放弹跳 + 显示抵挡伤害数值
+      emitNotice(g, { x:W*0.5, y:H*0.5, text:'格 挡 ！', color:'#40e8ff', scale:3.0, _initScale:3.0, big:true })
+      emitNotice(g, { x:W*0.5, y:H*0.57, text:`抵挡 ${blocked} 伤害`, color:'#7ddfff', scale:1.8, _initScale:1.8 })
+      emitShake(g, { t: 8, i: 5 })
+      emitFlash(g, 'block', { timer: 12 })
+      MusicMgr.playBlock()
+    }
+    const immune = g.heroBuffs.find(b => b.type === 'dmgImmune')
+    const attackPreview = atkDmg > 0
+      ? (immune ? { damage: 1 } : resolveIncomingDamage(g, atkDmg, { source: 'attack' }))
+      : { damage: 0 }
+    let reflectPct = 0
+    g.heroBuffs.forEach(b => { if (b.type === 'reflectPct') reflectPct += b.pct })
+    if (g.weapon && g.weapon.type === 'reflectPct') reflectPct += g.weapon.pct
+    if (reflectPct > 0 && attackPreview.damage > 0) {
+      const refDmg = Math.round(attackPreview.damage * reflectPct / 100)
+      g.enemy.hp = Math.max(0, g.enemy.hp - refDmg)
+      emitFloat(g, 'reflectToEnemy', { dmg: refDmg, color: TH.info })
+    }
+    if (g.weapon && g.weapon.type === 'counterStun' && Math.random()*100 < g.weapon.chance) {
+      applyStunToEnemy(g, 1, { source: 'weaponCounter' })
+    }
+    if (atkDmg > 0) {
+      const hitResult = g._dealDmgToHero(atkDmg, { source: 'attack' }) || {}
+      const actualDamage = hitResult.actualDamage || 0
+      emitCast(g, { kind: 'enemyAttack', heroReact: actualDamage > 0 })
+      if (actualDamage > 0) {
+        const dmgRatio = actualDamage / g.heroMaxHp
+        MusicMgr.playEnemyAttack(dmgRatio)
+        setTimeout(() => {
+          if (g.scene !== 'battle' || g.bState === 'victory' || g.bState === 'defeat') return
+          MusicMgr.playHeroHurt(dmgRatio)
+        }, 100)
+        emitShake(g, { t: 10, i: 6 })
+      }
     }
   }
   g.heroBuffs.forEach(b => {
@@ -1014,18 +1023,13 @@ function enemyTurn(g) {
       MusicMgr.playDotDmg()  // DOT音效
     }
   })
-  // ===== 怪物技能释放：由倒计时驱动 =====
-  if (g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0) {
-    g.enemySkillCd--
-    if (g.enemySkillCd <= 0) {
-      // 释放预选的技能（或随机选一个）
-      const sk = g._nextEnemySkill || g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
-      MusicMgr.playEnemySkill()
-      applyEnemySkill(g, sk)
-      g.enemySkillCd = ENEMY_SKILL_CD_RESET  // 重置倒计时
-      // 预选下一个技能（用于UI预警）
-      g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
-    }
+  // 技能回合默认替代普攻，避免 Boss 隐形双动造成尖峰伤害。
+  if (skillToCast) {
+    MusicMgr.playEnemySkill()
+    applyEnemySkill(g, skillToCast)
+    g.enemySkillCd = ENEMY_SKILL_CD_RESET  // 重置倒计时
+    // 预选下一个技能（用于UI预警）
+    g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
   }
   let dotIdx2 = 0
   g.enemyBuffs.forEach(b => {
@@ -1520,7 +1524,7 @@ function enterBattle(g, enemyData) {
     emitFlash(g, 'combo', { timer: 15, focus: 'enemy', y: V.H * 0.35, radius: 150 * S, color: '#fff0f0', alphaMul: 1.2, allowLowCombo: true })  // Boss入场白闪
     emitNotice(g, { x:V.W*0.5, y:V.H*0.35, text:'⚠ BOSS ⚠', color:'#ff4040', scale:3.0, _initScale:3.0, big:true })
   }
-  g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? Math.max(0, Math.ceil(p.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0 })
+  g.pets.forEach(p => { p.currentCd = petHasSkill(p) ? calcPetInitialCd(p.cd) : 0 })
   initBoard(g)
   let extraTime = g.runBuffs.extraTimeSec
   if (g.weapon && g.weapon.type === 'extraTime') extraTime += g.weapon.sec

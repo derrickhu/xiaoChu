@@ -39,12 +39,20 @@ const HERO_DEFENSE_REDUCTION_K = 150
 // B. 局内机制常量
 // =====================================================
 
-const HERO_BASE_HP = 100
+const HERO_BASE_HP = 120
 const DRAG_BASE_SEC = 8
 const SPEED_KILL_TURNS = 5
 
-const PET_CD_INIT_RATIO = 0.4
-const PET_CD_INIT_OFFSET = 1
+const PET_CD_INIT_RATIO = 0.5
+const PET_CD_INIT_OFFSET = 0
+const PET_CD_INIT_MIN = 1
+
+function calcPetInitialCd(cd) {
+  const base = Math.max(0, Math.floor(cd || 0))
+  if (base <= 0) return 0
+  const scaled = Math.ceil(base * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET
+  return Math.max(0, Math.min(base, Math.max(PET_CD_INIT_MIN, scaled)))
+}
 
 const SHIELD_ON_ELIM_DEFAULT = 15
 const WEAPON_SHIELD_BOOST_DEFAULT = 50
@@ -157,7 +165,7 @@ module.exports = {
   HEART_BOOST_DEFAULT_MUL, HERO_DEFENSE_REDUCTION_K,
 
   HERO_BASE_HP, DRAG_BASE_SEC, SPEED_KILL_TURNS,
-  PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
+  PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET, PET_CD_INIT_MIN, calcPetInitialCd,
   SHIELD_ON_ELIM_DEFAULT, WEAPON_SHIELD_BOOST_DEFAULT,
   EXECUTE_DEFAULT_THRESHOLD, LOW_HP_DMG_UP_DEFAULT_THRESHOLD,
   AOE_ON_ELIM_HP_RATIO, AOE_ON_ELIM_MIN_COUNT,

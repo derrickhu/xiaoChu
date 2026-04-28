@@ -885,7 +885,11 @@ function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {
   const pad = 16 * S
 
   // 技能列表
-  const skillList = (enemy.skills || []).map(sk => ENEMY_SKILLS[sk]).filter(Boolean)
+  const passiveSkillList = (enemy.passiveSkills || []).map(sk => ENEMY_SKILLS[sk]).filter(Boolean)
+  const skillList = [
+    ...passiveSkillList.map(sk => ({ ...sk, passive: true })),
+    ...(enemy.skills || []).map(sk => ENEMY_SKILLS[sk]).filter(Boolean),
+  ]
   const skillLineH = 16 * S
 
   // 动态计算面板高度
@@ -962,7 +966,7 @@ function _drawEnemyDetailPopup(c, R, S, W, H, enemy) {
     dy += 18 * S
     for (const sk of skillList) {
       c.fillStyle = '#B8860B'; c.font = `bold ${10*S}px "PingFang SC",sans-serif`
-      const dotText = `· ${sk.name}`
+      const dotText = `· ${sk.name}${sk.passive ? '（被动技能）' : ''}`
       c.fillText(dotText, fullTextX + 4 * S, dy)
       const nameW = c.measureText(dotText).width
       c.fillStyle = '#6A5A4A'; c.font = `${9*S}px "PingFang SC",sans-serif`

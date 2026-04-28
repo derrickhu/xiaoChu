@@ -16,6 +16,7 @@ const {
   getMilestoneRewards,
   TOWER_EVENT_MILESTONES,
 } = require('../data/towerEvent')
+const runMgr = require('../engine/runManager')
 
 function _drawPetBadge(c, R, S, pet, x, y, size, rarityLabel) {
   if (!pet) return
@@ -251,13 +252,25 @@ function rTowerDetail(g) {
     _drawRewardCard(c, R, S, tier, innerX + col * (cardW + gap), cardsY + row * (cardH + gap), cardW, cardH, bestFloor, claimedSet)
   }
 
-  const btnW = W * 0.62
   const btnH = 44 * S
-  const btnX = (W - btnW) / 2
   const btnY = H - 72 * S
-  const btnLabel = g.storage.hasSavedRun && g.storage.hasSavedRun() ? '继续登塔' : '进入编队'
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, btnLabel, 'confirm')
-  g._towerDetailStartRect = [btnX, btnY, btnW, btnH]
+  const hasSave = g.storage.hasSavedRun && g.storage.hasSavedRun()
+  g._towerDetailRestartRect = null
+  if (hasSave) {
+    const gap = 10 * S
+    const halfW = (W - 32 * S - gap) / 2
+    const leftX = 16 * S
+    const rightX = leftX + halfW + gap
+    R.drawDialogBtn(leftX, btnY, halfW, btnH, '重新开始', 'cancel')
+    R.drawDialogBtn(rightX, btnY, halfW, btnH, '继续登塔', 'confirm')
+    g._towerDetailRestartRect = [leftX, btnY, halfW, btnH]
+    g._towerDetailStartRect = [rightX, btnY, halfW, btnH]
+  } else {
+    const btnW = W * 0.62
+    const btnX = (W - btnW) / 2
+    R.drawDialogBtn(btnX, btnY, btnW, btnH, '进入编队', 'confirm')
+    g._towerDetailStartRect = [btnX, btnY, btnW, btnH]
+  }
 }
 
 function tTowerDetail(g, x, y, type) {
@@ -275,6 +288,30 @@ function tTowerDetail(g, x, y, type) {
     g._petDetailUnownedFullRoadmap = !owned
     g._petDetailReturnScene = 'towerDetail'
     g.setScene('petDetail')
+    return
+  }
+  if (g._towerDetailRestartRect && g._hitRect(x, y, ...g._towerDetailRestartRect)) {
+    const minPool = STAGE_FORMATION_MIN_PETS
+    const cur = g.storage.petPoolCount
+    if (cur < minPool) {
+      P.showGameToast(`挑战通天塔需灵宠池至少 ${minPool} 只（当前 ${cur} 只）`, { type: 'warn' })
+      return
+    }
+    if (!_checkTowerDailyLimit(g)) return
+    const saved = g.storage.loadRunState()
+    if (saved) {
+      g.battleMode = saved.mode === 'trial' ? 'trial' : 'roguelike'
+      g.floor = saved.floor
+      g.cleared = false
+      g.runExp = saved.runExp || 0
+      g._runElimExp = saved._runElimExp || 0
+      g._runComboExp = saved._runComboExp || 0
+      g._runKillExp = saved._runKillExp || 0
+      runMgr.settleExp(g)
+    }
+    g.storage.clearRunState()
+    g._towerTeamMode = null
+    g.setScene('towerTeam')
     return
   }
   if (!g._towerDetailStartRect || !g._hitRect(x, y, ...g._towerDetailStartRect)) return

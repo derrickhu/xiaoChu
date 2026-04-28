@@ -29,7 +29,7 @@ const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
 const { NEWBIE_ENEMY_OVERRIDE } = require('../data/balance/enemy')
-const { HERO_BASE_HP, DRAG_BASE_SEC, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET } = require('../data/balance/combat')
+const { HERO_BASE_HP, DRAG_BASE_SEC, calcPetInitialCd } = require('../data/balance/combat')
 
 /** 秘境本关是否存在 Boss 波（如守关关第一波小怪、第二波才是真 Boss） */
 function _stageHasBossWave(g) {
@@ -107,7 +107,7 @@ function startStage(g, stageId, teamPetIds) {
       ...basePet,
       star: poolPet.star,
       atk: getPoolPetAtk(poolPet, dexBuffs),
-      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET) : 0,
+      currentCd: petHasSkill({ ...basePet, star: poolPet.star }) ? calcPetInitialCd(basePet.cd) : 0,
       _poolId: id,
     }
   }).filter(Boolean)

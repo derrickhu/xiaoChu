@@ -28,22 +28,21 @@ const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 //   · type=flat   ：perLv 直接累加；spirit/wisdom 是离散值（心珠回复 / 秒），不参与境界乘数
 //
 //   v2 调整（Lv.60→Lv.80 扩容 + 百分比化）：
-//     body  20→28（+8）  perLv 5→5      老 +5 HP 固定 → 新 +5% HP 上限（HERO_BASE_HP=100 时数字 1:1 对齐）
+//     body  20→28（+8）  perLv 5→6      提升全局血量成长，避免高级战斗两回合内被打穿
 //     spirit 15→19（+4） perLv 1 不变    心珠回复仍为绝对值
 //     wisdom 5 不变      perLv 0.15 不变 转珠时间，避免后期溢出
-//     defense 10→14（+4）perLv 2 不变    显示为防御值，按 150/(150+防御) 换算直伤减免
+//     defense 10→14（+4）perLv 2→3      根骨随高级怪物攻击成长同步增强
 //     sense  8→12（+4）  perLv 8→2.5    老 +8 固定护盾 → 新 +2.5% HP 作护盾（2.5% 是为了"不叠一倍血"的克制调参）
 //   累计 78 = Lv.1 起步 + 79 次升级共 80 点 → 还差 2 点（Lv.60 历史遗留的两个闲置点正好补上）
 //
-//   perLv 校准说明（为什么不是 0.6/1/1 那一版）：
-//     HERO_BASE_HP 实际只有 100。若 body perLv=0.6%，老玩家 Lv.60 满（body 20 pts）
-//     只能拿到 20 × 0.6 × 1.5 = 18% HP = +18 HP，被原版"+100 HP 固定"削穿 41%。
-//     本版以"老 Lv.60 满保不缩水 + 新 Lv.80 再 +20~25%"为准，才有下面这组数。
+//   perLv 校准说明：
+//     本版以"高级战斗至少能撑到关键技能窗口"为准，温和增强体魄/根骨；
+//     保留神识的开局护盾定位，避免把战斗拖成全程拉锯。
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:5,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
+  body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:6,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
   spirit:  { name:'灵力', theme:'通脉', maxLv:19, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
   wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
-  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:2,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
+  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:3,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
   sense:   { name:'神识', theme:'开窍', maxLv:12, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
 }
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']

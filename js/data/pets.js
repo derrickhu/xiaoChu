@@ -81,7 +81,7 @@ const PETS = {
 
   // ===== （二）木属性宠物（20只） =====
   wood: [
-    { id:'w1',  name:'青灵木鹿',  atk:8,  skill:{ name:'春回大地', desc:'立即回复30%血量', type:'healPct', pct:30 }, cd:3 },
+    { id:'w1',  name:'青灵木鹿',  atk:8,  skill:{ name:'春回大地', desc:'立即回复25%血量', type:'healPct', pct:25 }, cd:3 },
     { id:'w2',  name:'藤萝灵蛇',  atk:8,  skill:{ name:'剧毒蛇牙', desc:'剧毒：每回合25点，持续3回合', type:'dot', dmg:25, dur:3 }, cd:3 },
     { id:'w3',  name:'苍木灵熊',  atk:9,  skill:{ name:'熊力化愈', desc:'全部土珠转为心珠', type:'replaceBeads', fromAttr:'earth', toAttr:'heart' }, cd:4 },
     { id:'w4',  name:'万木灵狐',  atk:9,  skill:{ name:'万木化珠', desc:'整列珠子变木珠', type:'convertCol', attr:'wood' }, cd:4 },
@@ -270,7 +270,7 @@ const STAR3_SKILL_OVERRIDE = {
   m19: { desc:'眩晕3回合+下次金伤×4倍', stunDur:3, pct:300 },
   m20: { desc:'700%金属性爆裂伤害+溅射全体30%', pct:700, splash:30 },
   // --- 木属性 ---
-  w1:  { desc:'回复50%血量+清除1个负面', pct:50, cleanse:1 },
+  w1:  { desc:'回复40%血量+清除1个负面', pct:40, cleanse:1 },
   w2:  { desc:'剧毒40点/回合，持续4回合', dmg:40, dur:4 },
   w3:  { desc:'全部土珠转心珠+心珠回复+40%', heartBoost:40 },
   w4:  { desc:'整列变木珠+额外随机3颗变木珠', extra:3 },
@@ -378,7 +378,7 @@ const STAR5_SKILL_OVERRIDE = {
   m18: { desc:'全队攻击+70%持续5回合+必暴击3回合', pct:70, dur:5, critDur:3 },
   m20: { desc:'900%金属性爆裂伤害+溅射全体50%', pct:900, splash:50 },
   // --- 木属性 ---
-  w1:  { desc:'回复70%血量+清除所有负面', pct:70, cleanse:99 },
+  w1:  { desc:'回复50%血量+清除所有负面', pct:50, cleanse:99 },
   w10: { desc:'全队全属性伤害+70%持续5回合', pct:70, dur:5 },
   w20: { desc:'900%木属性爆裂伤害+全体回复25%', pct:900, teamHealPct:25 },
   // --- 水属性 ---

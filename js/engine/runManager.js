@@ -19,7 +19,7 @@ const { resetPrepBagScroll } = require('../views/prepareView')
 const { diffRealmUp, calcCultBonuses } = require('../data/cultivationConfig')
 const { calcRoguelikeSoulStone } = require('../data/petPoolConfig')
 const {
-  HERO_BASE_HP, PET_CD_INIT_RATIO, PET_CD_INIT_OFFSET,
+  HERO_BASE_HP, calcPetInitialCd,
   REVIVE_HEAL_PCT, EXTRA_REVIVE_HEAL_PCT, WEAPON_REVIVE_HEAL_PCT,
   FLOOR_ATK_BONUS_BASE, FLOOR_ATK_BONUS_PER_TIER, FLOOR_ATK_BONUS_INTERVAL,
 } = require('../data/balance/combat')
@@ -84,7 +84,7 @@ function makePoolRunPet(g, poolPetId) {
     star,
     atk: getPoolPetAtk(poolPet, dexBuffs),
     currentCd: petHasSkill({ ...basePet, star })
-      ? Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET)
+      ? calcPetInitialCd(basePet.cd)
       : 0,
     _poolId: poolPetId,
   }
@@ -106,7 +106,7 @@ function syncPoolLinkedRunPet(g, pet) {
   if (!hasSkillNow) {
     currentCd = 0
   } else if (hasSkillNow && !hadSkill) {
-    currentCd = Math.max(0, Math.ceil(basePet.cd * PET_CD_INIT_RATIO) - PET_CD_INIT_OFFSET)
+    currentCd = calcPetInitialCd(basePet.cd)
   }
   // 续档时以当前配置覆盖静态字段，避免旧存档里的技能文案/效果和详情页不一致。
   return {

@@ -153,10 +153,20 @@ function drawEnemyDetailDialog(g) {
   lines.push({ text: `__ATTR_ORB__${e.attr}　　第 ${g.floor} 层`, color: '#6B5B50', size: 10, h: smallLineH, attrOrb: e.attr })
   lines.push({ text: `HP：${Math.round(e.hp)} / ${Math.round(e.maxHp)}　ATK：${e.atk}　DEF：${e.def || 0}`, color: '#3D2B1F', size: 10, h: smallLineH })
 
-  if (e.skills && e.skills.length > 0) {
+  if ((e.passiveSkills && e.passiveSkills.length > 0) || (e.skills && e.skills.length > 0)) {
     lines.push({ text: '', size: 0, h: 4*S })
     lines.push({ text: '技能列表：', color: '#8B6914', bold: true, size: 11, h: smallLineH })
-    e.skills.forEach(sk => {
+    ;(e.passiveSkills || []).forEach(sk => {
+      const skData = ENEMY_SKILLS[sk]
+      if (skData) {
+        lines.push({ text: `· ${skData.name}（被动技能）`, color: '#7A5C30', bold: true, size: 10, h: smallLineH })
+        const descLines = _wrapTextDialog(skData.desc || '', maxTextW - 8*S, 9)
+        descLines.forEach(dl => {
+          lines.push({ text: `  ${dl}`, color: '#6B5B50', size: 9, h: smallLineH - 2*S })
+        })
+      }
+    })
+    ;(e.skills || []).forEach(sk => {
       const skData = ENEMY_SKILLS[sk]
       if (skData) {
         lines.push({ text: `· ${skData.name}`, color: '#7A5C30', bold: true, size: 10, h: smallLineH })
