@@ -39,7 +39,7 @@ const HERO_DEFENSE_REDUCTION_K = 150
 // B. 局内机制常量
 // =====================================================
 
-const HERO_BASE_HP = 120
+const HERO_BASE_HP = 135
 const DRAG_BASE_SEC = 8
 const SPEED_KILL_TURNS = 5
 
