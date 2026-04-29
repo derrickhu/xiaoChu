@@ -142,21 +142,13 @@ function _drawSummaryChips(c, R, S, W, chipY, chipH, g) {
   const pool = _getFilteredPool(g)
   const counts = _countBadges(g, pool)
 
-  // 组装待显示 chip；全 0 时显示"状态整齐"提示条，给玩家正反馈
+  // 组装待显示 chip；全 0 时不显示占位文案，避免和底部入口状态形成重复噪声。
   const chips = []
   if (counts.star > 0) chips.push({ key: 'star', count: counts.star })
   if (counts.new > 0) chips.push({ key: 'new', count: counts.new })
 
   c.save()
   if (chips.length === 0) {
-    c.fillStyle = 'rgba(222,205,164,0.22)'
-    R.rr(12 * S, chipY, W - 24 * S, chipH, chipH / 2); c.fill()
-    _drawInkText(c, '灵宠状态整齐，暂无紧急操作', W / 2, chipY + chipH / 2, {
-      font: `${10.5 * S}px "PingFang SC",serif`,
-      fill: 'rgba(255,245,210,0.78)',
-      stroke: 'rgba(32,22,12,0.52)',
-      lineWidth: 1.8 * S,
-    })
     c.restore()
     return
   }
