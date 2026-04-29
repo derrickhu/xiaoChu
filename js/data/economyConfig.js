@@ -204,7 +204,7 @@ function getStarRewardConfig(chapter, order) {
 
 // ===== IAA 广告位配置 =====
 const AD_REWARDS = {
-  revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1  },
+  revive:          { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: -1 },
   staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: AD_REWARDS_NUMS.staminaRecoveryAmount } },
   signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.signMultiplier },
   dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.dailyTaskMultiplier },

@@ -813,7 +813,7 @@ function doAdRevive(g, W, H) {
   const AdManager = require('../adManager')
   if (AdManager.canShow('revive')) {
     AdManager.showRewardedVideo('revive', {
-      fallbackToShare: true,
+      fallbackToShare: false,
       onRewarded: () => { adReviveCallback(g, W, H) },
       rewardPopup: {
         title: '复活成功',
@@ -822,15 +822,11 @@ function doAdRevive(g, W, H) {
       },
       onSkipped: () => { /* 中途关闭不发奖 */ },
       onError: () => {
-        const { doShare } = require('../share')
-        doShare(g, 'towerDefeat', { floor: g.floor })
-        adReviveCallback(g, W, H)
+        // 通天塔复活只能通过激励视频获得，广告失败不再降级为分享复活。
       },
     })
   } else {
-    const { doShare } = require('../share')
-    doShare(g, 'towerDefeat', { floor: g.floor })
-    adReviveCallback(g, W, H)
+    P.showGameToast('今日广告复活次数已用完', { type: 'warn' })
   }
 }
 

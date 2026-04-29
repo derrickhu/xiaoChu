@@ -209,7 +209,7 @@ function drawAdReviveOverlay(g) {
   const AdManager = require('../../adManager')
   const adAvail = AdManager.canShow('revive')
   ctx.fillStyle = '#6B5014'; ctx.font = `bold ${15*S}px "PingFang SC",sans-serif`
-  ctx.fillText(adAvail ? '观看广告，获得满血复活！' : '分享给好友，获得满血复活！', W*0.5, panelY + 72*S)
+  ctx.fillText(adAvail ? '观看广告，获得满血复活！' : '今日广告复活次数已用完', W*0.5, panelY + 72*S)
   ctx.fillStyle = TH.sub; ctx.font = `${11*S}px "PingFang SC",sans-serif`
   ctx.fillText(`当前第 ${g.floor} 层，复活后从本层继续挑战`, W*0.5, panelY + 98*S)
   ctx.fillStyle = TH.dim; ctx.font = `${10*S}px "PingFang SC",sans-serif`
@@ -219,7 +219,7 @@ function drawAdReviveOverlay(g) {
   const btnH = L.primaryHeightPt * S
   const btnX = (W - btnW) / 2
   const btnY = panelY + L.groupTopPt * S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, adAvail ? '▶ 观看广告复活' : '📤 分享复活', adAvail ? 'adReward' : 'confirm')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, adAvail ? '▶ 观看广告复活' : '广告次数已用完', adAvail ? 'adReward' : 'disabled')
   g._adReviveBtnRect = [btnX, btnY, btnW, btnH]
   const skipW = btnW
   const skipH = L.skipHeightPt * S
