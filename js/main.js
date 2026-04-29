@@ -555,7 +555,7 @@ class Main {
   }
 
   // ===== Run管理（委托到 runManager）=====
-  _startRun(petIds) { runMgr.startRun(this, petIds) }
+  _startRun(petIds, opts) { runMgr.startRun(this, petIds, opts) }
   _startTrialRun(petIds) { runMgr.startTrialRun(this, petIds) }
   _startTrialContinueRun(petIds, startFloor) { runMgr.startTrialContinueRun(this, petIds, startFloor) }
   _nextFloor() { runMgr.nextFloor(this) }

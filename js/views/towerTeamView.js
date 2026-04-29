@@ -41,6 +41,7 @@ const FILTERS = [
 
 const MAX_TEAM = 5
 const MIN_TEAM = 1
+const BENCH_MAX_PETS = 3
 
 /** 与秘境编队 stageTeamView 一致的引导描边闪烁周期 */
 const TEAM_GUIDE_PULSE_PERIOD = 420
@@ -72,6 +73,9 @@ const _rects = {
   weaponPreviewBackRect: null,
   weaponPickerRect: null,
   weaponPickerGridRect: null,
+  benchUnlockBtnRect: null,
+  benchWeaponSlotRect: null,
+  benchPetSlotRects: [],
   filterRects: [],
   petCardRects: [],
   startBtnRect: null,
@@ -150,6 +154,45 @@ function _ensureSelected(g) {
   return g._towerTeamSelected
 }
 
+function _removeBenchPet(g, petId) {
+  if (!petId || !g._towerBenchPetIds) return
+  const idx = g._towerBenchPetIds.indexOf(petId)
+  if (idx >= 0) g._towerBenchPetIds.splice(idx, 1)
+}
+
+function _ensureBenchState(g, selected) {
+  if (!g._towerBenchPetIds) g._towerBenchPetIds = []
+  const poolIds = new Set((g.storage.petPool || []).map(p => p.id))
+  g._towerBenchPetIds = g._towerBenchPetIds
+    .filter(id => poolIds.has(id) && selected.indexOf(id) < 0)
+    .slice(0, BENCH_MAX_PETS)
+
+  const collection = g.storage.weaponCollection || []
+  if (g._towerBenchWeaponId) {
+    const equippedId = g.storage.equippedWeaponId || null
+    if (g._towerBenchWeaponId === equippedId || collection.indexOf(g._towerBenchWeaponId) < 0) {
+      g._towerBenchWeaponId = null
+    }
+  }
+  return g._towerBenchPetIds
+}
+
+function _clearTowerBenchState(g) {
+  g._towerBenchUnlocked = false
+  g._towerBenchPetIds = []
+  g._towerBenchWeaponId = null
+  g._towerBenchPickType = null
+  g._towerBenchPickIndex = null
+  g._towerBenchWeaponPicking = false
+}
+
+function _getDefaultBenchWeaponPreviewId(g) {
+  const collection = g.storage.weaponCollection || []
+  const eqId = g.storage.equippedWeaponId || null
+  const benchId = g._towerBenchWeaponId || null
+  return collection.find(id => id && id !== eqId && id !== benchId) || collection.find(id => id && id !== eqId) || null
+}
+
 // ===== 渲染 =====
 function rTowerTeam(g) {
   const { ctx: c, R, W, H, S, safeTop } = V
@@ -165,6 +208,9 @@ function rTowerTeam(g) {
   c.fillRect(0, 0, W, H)
 
   const selected = _ensureSelected(g)
+  const showBench = !isTrial
+  const benchUnlocked = showBench && !!g._towerBenchUnlocked
+  const benchPetIds = showBench ? _ensureBenchState(g, selected) : []
   const framePetMap = _getFramePetMap(R)
   const trialState = isTrial && g.storage.getTrialState ? g.storage.getTrialState() : null
   const trialDaily = (trialState && trialState.daily) || {}
@@ -223,8 +269,10 @@ function rTowerTeam(g) {
   // ── 编队槽位面板（高度含提示行 + 筛选 Tab，与秘境视觉一致）──
   const panelTop = cy
   const hintExtraPt = needPickWeapon || teamNeedMore ? UPPER_PANEL.hintRowPt : 0
+  const benchExtraPt = showBench ? (benchUnlocked ? 78 : 42) : 0
   const panelH =
     UPPER_PANEL.slotBlockStepPt * S +
+    benchExtraPt * S +
     hintExtraPt * S +
     UPPER_PANEL.gapBeforeFiltersPt * S +
     UPPER_PANEL.filterRowPt * S +
@@ -244,6 +292,9 @@ function rTowerTeam(g) {
   const slotFrameSz = slotSize * slotFrameScale
   const slotFrameOf = (slotFrameSz - slotSize) / 2
   _rects.slotRects = []
+  _rects.benchUnlockBtnRect = null
+  _rects.benchWeaponSlotRect = null
+  _rects.benchPetSlotRects = []
 
   // 法宝槽
   {
@@ -335,6 +386,90 @@ function rTowerTeam(g) {
     }
   }
   cy += 64 * S
+
+  if (showBench) {
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    if (!benchUnlocked) {
+      const btnW = 150 * S
+      const btnH = 28 * S
+      const btnX = (W - btnW) / 2
+      const btnY = cy + 4 * S
+      _drawTrialContinueAdBtn(c, R, S, btnX, btnY, btnW, btnH, '解锁候补位')
+      _rects.benchUnlockBtnRect = [btnX, btnY, btnW, btnH]
+      c.fillStyle = 'rgba(245,224,168,0.82)'
+      c.font = `${9*S}px "PingFang SC",sans-serif`
+      c.fillText('本局可多带 3 只灵宠 + 1 件法宝，层间拖拽替换', W / 2, btnY + btnH + 9 * S)
+      cy += benchExtraPt * S
+    } else {
+      const benchSlotSize = 42 * S
+      const benchGap = 8 * S
+      const benchWpnGap = 12 * S
+      const benchSlotsW = benchSlotSize + benchWpnGap + BENCH_MAX_PETS * benchSlotSize + (BENCH_MAX_PETS - 1) * benchGap
+      const benchStartX = (W - benchSlotsW) / 2
+      const benchSlotY = cy + 25 * S
+      const activePick = g._towerBenchPickType === 'pet'
+
+      c.fillStyle = '#EED6AE'
+      c.font = `bold ${11*S}px "PingFang SC",sans-serif`
+      c.fillText('候补位', W / 2, cy + 10 * S)
+      c.fillStyle = activePick ? '#B8E8C8' : 'rgba(220,195,154,0.86)'
+      c.font = `${8.5*S}px "PingFang SC",sans-serif`
+      c.fillText(activePick ? '点击下方灵宠卡片放入候补' : '点击候补槽选择；层间可拖拽上阵', W / 2, cy + 22 * S)
+
+      const bwx = benchStartX
+      const benchWeapon = g._towerBenchWeaponId ? getWeaponById(g._towerBenchWeaponId) : null
+      c.fillStyle = benchWeapon ? '#1a1510' : 'rgba(25,22,18,0.8)'
+      c.fillRect(bwx + 1, benchSlotY + 1, benchSlotSize - 2, benchSlotSize - 2)
+      if (benchWeapon) {
+        R.drawCoverImg(R.getImg(`assets/equipment/fabao_${benchWeapon.id}.png`), bwx + 1, benchSlotY + 1, benchSlotSize - 2, benchSlotSize - 2, { radius: 4 * S })
+      } else {
+        c.fillStyle = 'rgba(80,70,50,0.5)'
+        R.rr(bwx, benchSlotY, benchSlotSize, benchSlotSize, 8*S); c.fill()
+        c.fillStyle = '#777'; c.font = `${7*S}px "PingFang SC",sans-serif`
+        c.fillText('+法宝', bwx + benchSlotSize / 2, benchSlotY + benchSlotSize / 2)
+      }
+      R.drawWeaponFrame(bwx, benchSlotY, benchSlotSize)
+      if (g._towerBenchWeaponPicking) {
+        c.strokeStyle = '#ffd700'; c.lineWidth = 2 * S
+        c.strokeRect(bwx - 2 * S, benchSlotY - 2 * S, benchSlotSize + 4 * S, benchSlotSize + 4 * S)
+      }
+      _rects.benchWeaponSlotRect = [bwx, benchSlotY, benchSlotSize, benchSlotSize]
+
+      const benchPetStartX = benchStartX + benchSlotSize + benchWpnGap
+      for (let i = 0; i < BENCH_MAX_PETS; i++) {
+        const sx = benchPetStartX + i * (benchSlotSize + benchGap)
+        const pid = benchPetIds[i]
+        const pet = pid ? getPetById(pid) : null
+        const poolPet = pid ? g.storage.getPoolPet(pid) : null
+        if (pet && poolPet) {
+          const pAttrColor = ATTR_COLOR[pet.attr]
+          c.fillStyle = pAttrColor ? pAttrColor.bg || pAttrColor.main + '30' : '#1a1a2e'
+          c.fillRect(sx, benchSlotY, benchSlotSize, benchSlotSize)
+          R.drawCoverImg(R.getImg(getPetAvatarPath({ ...pet, star: poolPet.star })), sx + 1, benchSlotY + 1, benchSlotSize - 2, benchSlotSize - 2, { radius: 4 * S })
+          const petFrame = framePetMap[pet.attr] || framePetMap.metal
+          if (petFrame && petFrame.width > 0) {
+            const frameSz = benchSlotSize * 1.12
+            const frameOf = (frameSz - benchSlotSize) / 2
+            c.drawImage(petFrame, sx - frameOf, benchSlotY - frameOf, frameSz, frameSz)
+          }
+        } else {
+          c.fillStyle = 'rgba(80,70,50,0.5)'
+          R.rr(sx, benchSlotY, benchSlotSize, benchSlotSize, 8*S); c.fill()
+          c.strokeStyle = 'rgba(200,180,120,0.25)'; c.lineWidth = 1*S
+          R.rr(sx, benchSlotY, benchSlotSize, benchSlotSize, 8*S); c.stroke()
+          c.fillStyle = '#666'; c.font = `${18*S}px "PingFang SC",sans-serif`
+          c.fillText('+', sx + benchSlotSize / 2, benchSlotY + benchSlotSize / 2)
+        }
+        if (g._towerBenchPickType === 'pet' && g._towerBenchPickIndex === i) {
+          c.strokeStyle = '#ffd700'; c.lineWidth = 2 * S
+          c.strokeRect(sx - 2 * S, benchSlotY - 2 * S, benchSlotSize + 4 * S, benchSlotSize + 4 * S)
+        }
+        _rects.benchPetSlotRects.push([sx, benchSlotY, benchSlotSize, benchSlotSize])
+      }
+      cy += benchExtraPt * S
+    }
+  }
 
   if (needPickWeapon) {
     c.textAlign = 'center'
@@ -553,6 +688,7 @@ function rTowerTeam(g) {
     const pet = getPetById(pp.id)
     if (!pet) continue
     const isSelected = selected.includes(pp.id)
+    const isBenchPet = benchPetIds.includes(pp.id)
     const cardAttr = getPoolEntryAttr(pp)
     const pAttrColor = ATTR_COLOR[cardAttr]
     const atk = getPoolPetAtk(pp)
@@ -565,10 +701,10 @@ function rTowerTeam(g) {
       R.rr(cardX, cardY, cw, ch, 8*S); c.fill()
     }
 
-    if (isSelected) {
+    if (isSelected || isBenchPet) {
       c.save()
-      c.shadowColor = 'rgba(255,255,255,0.6)'; c.shadowBlur = 6 * S
-      c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 2 * S
+      c.shadowColor = isSelected ? 'rgba(255,255,255,0.6)' : 'rgba(232,197,71,0.5)'; c.shadowBlur = 6 * S
+      c.strokeStyle = isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(232,197,71,0.92)'; c.lineWidth = 2 * S
       R.rr(cardX, cardY, cw, ch, 8*S); c.stroke()
       c.restore()
     }
@@ -596,12 +732,12 @@ function rTowerTeam(g) {
     const avatarPath = getPetAvatarPath({ ...pet, star: pp.star })
     R.drawCoverImg(R.getImg(avatarPath), avatarX, avatarY, avatarSize, avatarSize, { radius: 6 * S })
 
-    if (isSelected) {
+    if (isSelected || isBenchPet) {
       c.fillStyle = 'rgba(0,0,0,0.55)'
       R.rr(cardX + cw/2 - 18*S, cardY + 3*S, 36*S, 13*S, 4*S); c.fill()
-      c.fillStyle = '#7ECF6A'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
+      c.fillStyle = isSelected ? '#7ECF6A' : '#E8C547'; c.font = `bold ${8*S}px "PingFang SC",sans-serif`
       c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillText('已上阵', cardX + cw / 2, cardY + 9.5*S)
+      c.fillText(isSelected ? '已上阵' : '候补', cardX + cw / 2, cardY + 9.5*S)
     }
 
     // 名称
@@ -611,7 +747,7 @@ function rTowerTeam(g) {
     const displayName = pet.name.length > 4 ? pet.name.slice(0, 4) + '…' : pet.name
     c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 3 * S
     c.strokeText(displayName, cardX + cw / 2, nameY)
-    c.fillStyle = isSelected ? '#ffd700' : '#fff'
+    c.fillStyle = isSelected ? '#ffd700' : isBenchPet ? '#E8C547' : '#fff'
     c.fillText(displayName, cardX + cw / 2, nameY)
 
     // 星级
@@ -677,6 +813,7 @@ function _wrapWeaponDescLines(c, text, maxW, fontPx) {
 
 // ===== 法宝选择浮层（四列网格 + 底部说明，与原先一致）=====
 function _drawWeaponPicker(g, c, R, S, W, H) {
+  const pickingBenchWeapon = !!g._towerBenchWeaponPicking
   c.fillStyle = 'rgba(0,0,0,0.6)'
   c.fillRect(0, 0, W, H)
 
@@ -709,10 +846,10 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
 
   c.fillStyle = '#F5E6C8'; c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
   c.textAlign = 'center'; c.textBaseline = 'middle'
-  c.fillText('选择法宝', W / 2, py + 20 * S)
+  c.fillText(pickingBenchWeapon ? '选择候补法宝' : '选择法宝', W / 2, py + 20 * S)
 
   c.fillStyle = '#a89868'; c.font = `${9 * S}px "PingFang SC",sans-serif`
-  c.fillText('点击法宝查看完整效果，下方确认后再装备', W / 2, py + 34 * S)
+  c.fillText(pickingBenchWeapon ? '候补法宝会进入局内背包，层间可拖拽替换' : '点击法宝查看完整效果，下方确认后再装备', W / 2, py + 34 * S)
 
   const eqId = g.storage.equippedWeaponId
   const cols = 4
@@ -839,19 +976,19 @@ function _drawWeaponPicker(g, c, R, S, W, H) {
       c.fillText('返回', bx1 + btnW / 2, btnY + btnH / 2)
       _rects.weaponPreviewBackRect = [bx1, btnY, btnW, btnH]
 
-      const already = pwpn.id === eqId
+      const already = pickingBenchWeapon ? pwpn.id === g._towerBenchWeaponId : pwpn.id === eqId
       if (already) {
         c.fillStyle = 'rgba(80,75,70,0.85)'
         R.rr(bx2, btnY, btnW, btnH, 6 * S); c.fill()
         c.fillStyle = '#888'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-        c.fillText('已装备', bx2 + btnW / 2, btnY + btnH / 2)
+        c.fillText(pickingBenchWeapon ? '已设候补' : '已装备', bx2 + btnW / 2, btnY + btnH / 2)
       } else {
         c.fillStyle = 'rgba(100,140,80,0.45)'
         R.rr(bx2, btnY, btnW, btnH, 6 * S); c.fill()
         c.strokeStyle = 'rgba(160,220,120,0.5)'; c.lineWidth = 1 * S
         R.rr(bx2, btnY, btnW, btnH, 6 * S); c.stroke()
         c.fillStyle = '#d4ffc4'; c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
-        c.fillText('装备此法宝', bx2 + btnW / 2, btnY + btnH / 2)
+        c.fillText(pickingBenchWeapon ? '设为候补' : '装备此法宝', bx2 + btnW / 2, btnY + btnH / 2)
       }
       _rects.weaponPreviewEquipRect = [bx2, btnY, btnW, btnH]
     }
@@ -900,9 +1037,21 @@ function tTowerTeam(g, x, y, type) {
       if (_rects.weaponPreviewBackRect && g._hitRect(x, y, ..._rects.weaponPreviewBackRect)) {
         g._weaponPickerPreviewId = null
         g._showWeaponPicker = false
+        g._towerBenchWeaponPicking = false
         return
       }
       if (_rects.weaponPreviewEquipRect && g._hitRect(x, y, ..._rects.weaponPreviewEquipRect)) {
+        if (g._towerBenchWeaponPicking) {
+          if (g.storage.equippedWeaponId === prevId) {
+            P.showGameToast('当前装备中的法宝不能同时作为候补', { type: 'warn' })
+            return
+          }
+          g._towerBenchWeaponId = prevId
+          g._towerBenchWeaponPicking = false
+          g._weaponPickerPreviewId = null
+          g._showWeaponPicker = false
+          return
+        }
         if (g.storage.equippedWeaponId === prevId) {
           g._weaponPickerPreviewId = null
           g._showWeaponPicker = false
@@ -923,6 +1072,7 @@ function tTowerTeam(g, x, y, type) {
     if (_rects.weaponPickerRect && !g._hitRect(x, y, ..._rects.weaponPickerRect)) {
       g._showWeaponPicker = false
       g._weaponPickerPreviewId = null
+      g._towerBenchWeaponPicking = false
     }
     return
   }
@@ -955,6 +1105,7 @@ function tTowerTeam(g, x, y, type) {
     onApply: (_pid, applied) => {
       const filtered = (applied.petIds || []).slice(0, MAX_TEAM)
       g._towerTeamSelected = filtered
+      _ensureBenchState(g, filtered)
       _scrollY = 0
     },
     onActiveChanged: () => {
@@ -970,6 +1121,57 @@ function tTowerTeam(g, x, y, type) {
     },
   })
   if (presetHandled) return
+
+  if (_rects.benchUnlockBtnRect && g._hitRect(x, y, ..._rects.benchUnlockBtnRect)) {
+    if (!AdManager.canShow('towerBenchUnlock')) {
+      P.showGameToast('暂时无法解锁候补位', { type: 'warn' })
+      return
+    }
+    AdManager.showRewardedVideo('towerBenchUnlock', {
+      fallbackToShare: true,
+      onRewarded: () => {
+        g._towerBenchUnlocked = true
+        _ensureBenchState(g, selected)
+        P.showGameToast('本局候补位已解锁')
+      },
+      onSkipped: () => {
+        P.showGameToast('需完整观看广告才可解锁候补位', { type: 'warn' })
+      },
+    })
+    return
+  }
+
+  if (_rects.benchWeaponSlotRect && g._hitRect(x, y, ..._rects.benchWeaponSlotRect)) {
+    if (!g._towerBenchUnlocked) return
+    if (g._towerBenchWeaponId) {
+      g._towerBenchWeaponId = null
+      return
+    }
+    if (!_getDefaultBenchWeaponPreviewId(g)) {
+      P.showGameToast('暂无可作为候补的法宝', { type: 'warn' })
+      return
+    }
+    g._towerBenchWeaponPicking = true
+    g._weaponPickerPreviewId = _getDefaultBenchWeaponPreviewId(g)
+    g._weaponPickerScroll = 0
+    g._showWeaponPicker = true
+    return
+  }
+
+  for (let i = 0; i < _rects.benchPetSlotRects.length; i++) {
+    if (g._hitRect(x, y, ..._rects.benchPetSlotRects[i])) {
+      if (!g._towerBenchUnlocked) return
+      const bench = _ensureBenchState(g, selected)
+      if (bench[i]) {
+        bench.splice(i, 1)
+      } else {
+        g._towerBenchPickType = 'pet'
+        g._towerBenchPickIndex = i
+        P.showGameToast('请选择下方灵宠作为候补')
+      }
+      return
+    }
+  }
 
   function _tryStartFromTeam(opts) {
     opts = opts || {}
@@ -1007,7 +1209,10 @@ function tTowerTeam(g, x, y, type) {
       } else if (g._towerTeamMode === 'trial') {
         g._startTrialRun(sel)
       } else {
-        g._startRun(sel)
+        const benchPetIds = g._towerBenchUnlocked ? _ensureBenchState(g, sel).slice(0, BENCH_MAX_PETS) : []
+        const benchWeaponId = g._towerBenchUnlocked ? (g._towerBenchWeaponId || null) : null
+        g._startRun(sel, { benchPetIds, benchWeaponId })
+        _clearTowerBenchState(g)
       }
     }
     const needConfirmIncomplete =
@@ -1044,6 +1249,7 @@ function tTowerTeam(g, x, y, type) {
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
     g._towerTeamSelected = null
     g._towerTeamFilter = 'all'
+    _clearTowerBenchState(g)
     if (g._towerTeamMode === 'trial') {
       g._towerTeamMode = null
       g.setScene('trialDetail')
@@ -1055,6 +1261,7 @@ function tTowerTeam(g, x, y, type) {
 
   // 法宝槽
   if (_rects.weaponSlotRect && g._hitRect(x, y, ..._rects.weaponSlotRect)) {
+    g._towerBenchWeaponPicking = false
     g._weaponPickerPreviewId = getDefaultWeaponPickerPreviewId(g.storage)
     g._weaponPickerScroll = 0
     g._showWeaponPicker = true
@@ -1065,6 +1272,7 @@ function tTowerTeam(g, x, y, type) {
   for (let i = 0; i < _rects.slotRects.length; i++) {
     if (i < selected.length && g._hitRect(x, y, ..._rects.slotRects[i])) {
       selected.splice(i, 1)
+      _ensureBenchState(g, selected)
       return
     }
   }
@@ -1080,12 +1288,30 @@ function tTowerTeam(g, x, y, type) {
   // 宠物卡片
   for (const item of _rects.petCardRects) {
     if (g._hitRect(x, y, ...item.rect)) {
+      if (g._towerBenchPickType === 'pet') {
+        if (!g._towerBenchUnlocked) return
+        if (selected.indexOf(item.petId) >= 0) {
+          P.showGameToast('已上阵的灵宠不能放入候补', { type: 'warn' })
+          return
+        }
+        const bench = _ensureBenchState(g, selected)
+        const oldIdx = bench.indexOf(item.petId)
+        if (oldIdx >= 0) bench.splice(oldIdx, 1)
+        const targetIdx = Math.max(0, Math.min(BENCH_MAX_PETS - 1, g._towerBenchPickIndex || 0))
+        bench[targetIdx] = item.petId
+        g._towerBenchPetIds = bench.filter(Boolean).slice(0, BENCH_MAX_PETS)
+        g._towerBenchPickType = null
+        g._towerBenchPickIndex = null
+        return
+      }
       const idx = selected.indexOf(item.petId)
       if (idx >= 0) {
         selected.splice(idx, 1)
+        _ensureBenchState(g, selected)
         return
       }
       if (selected.length < MAX_TEAM) {
+        _removeBenchPet(g, item.petId)
         selected.push(item.petId)
       } else {
         P.showGameToast('编队已满（最多5只）', { type: 'warn' })

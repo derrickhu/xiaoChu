@@ -161,8 +161,17 @@ function startRun(g, petIds, opts) {
   g.pets = teamIds.map(id => makePoolRunPet(g, id)).filter(Boolean)
 
   g.sessionPetPool = []
-  g.petBag = []
-  g.weaponBag = []
+  const teamIdSet = new Set(g.pets.map(p => p.id))
+  const benchPetIds = isTrial ? [] : (opts.benchPetIds || [])
+  g.petBag = benchPetIds
+    .filter(id => id && !teamIdSet.has(id))
+    .slice(0, 3)
+    .map(id => makePoolRunPet(g, id))
+    .filter(Boolean)
+  const benchWeaponId = isTrial ? null : opts.benchWeaponId
+  const eqId = g.storage.equippedWeaponId
+  const benchWeapon = benchWeaponId && benchWeaponId !== eqId ? getWeaponById(benchWeaponId) : null
+  g.weaponBag = benchWeapon ? [{ ...benchWeapon }] : []
   g.heroHp = HERO_BASE_HP; g.heroMaxHp = HERO_BASE_HP; g.heroShield = 0
   // 清空上一局战斗态残留：enterBattle 曾把 heroMaxHp 快照写入 _baseHeroMaxHp，
   // 若上一局走"阵亡结算"或"最终层通关"路径直接 endRun，未经过 nextFloor 的 restoreBattleHpMax，
@@ -224,7 +233,6 @@ function startRun(g, petIds, opts) {
   }
 
   // 加载玩家装备的法宝（带自己的法宝冲塔）
-  const eqId = g.storage.equippedWeaponId
   g.weapon = eqId ? { ...getWeaponById(eqId) } : null
 
   if (g.events) g.events.emit('run:start')
