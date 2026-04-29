@@ -72,6 +72,15 @@ function _calcPetCooldownAfterCast(g, pet, baseCd) {
   return Math.max(minCd, baseCd - reduce)
 }
 
+function _enableComboCarry(g, cap) {
+  if (!g) return
+  g.comboNeverBreak = true
+  if (cap > 0) {
+    if (g._comboCarryBase == null) g._comboCarryBase = g.combo || 0
+    g._comboCarryCap = Math.max(g._comboCarryCap || 0, cap)
+  }
+}
+
 // 辅助：从棋盘随机挑选N颗非目标属性的珠子
 function _pickRandomCells(g, count, targetAttr) {
   const { ROWS, COLS } = V
@@ -354,13 +363,13 @@ function triggerPetSkill(g, pet, idx) {
     case 'comboPlus':
       g.combo += sk.count || SKILL_COMBO_PLUS_DEFAULT; break
     case 'comboPlusNeverBreak':
+      _enableComboCarry(g, sk.comboCarryCap)
       g.combo += sk.count || SKILL_COMBO_NEVER_BREAK_DEFAULT
-      g.comboNeverBreak = true
       // ★3附加Combo伤害加成
       if (sk.comboDmgPct) g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round(sk.comboDmgPct * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'comboNeverBreakPlus':
-      g.comboNeverBreak = true
+      _enableComboCarry(g, sk.comboCarryCap)
       g.heroBuffs.push({ type:'comboDmgUp', pct:Math.round((sk.comboDmgPct||SKILL_COMBO_DMG_PCT_DEFAULT) * sMul), dur:1, bad:false, name:sk.name })
       break
     case 'extraTime':
@@ -368,7 +377,7 @@ function triggerPetSkill(g, pet, idx) {
     case 'extraTimePlus':
       g.dragTimeLimit += (sk.sec || SKILL_EXTRA_TIME_DEFAULTS.secPlus) * 60
       if (sk.attr) g.goodBeadsNextTurn = true
-      if (sk.comboNeverBreak) g.comboNeverBreak = true
+      if (sk.comboNeverBreak) _enableComboCarry(g, sk.comboCarryCap)
       // ★3附加Combo
       if (sk.bonusCombo) g.combo += sk.bonusCombo
       break
@@ -518,7 +527,7 @@ function triggerPetSkill(g, pet, idx) {
     case 'beadRateUp':
       g.goodBeadsNextTurn = true; break
     case 'comboNeverBreak':
-      g.comboNeverBreak = true; break
+      _enableComboCarry(g, sk.comboCarryCap); break
     case 'healOnElim':
       g.heroBuffs.push({ type:'healOnElim', attr:sk.attr, pct:Math.round(sk.pct * sMul), dur:3, bad:false, name:sk.name }); break
     case 'shieldOnElim':

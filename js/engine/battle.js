@@ -241,10 +241,26 @@ function _startDropTween(g, cell, dropDist, col) {
 }
 
 // ===== 消除核心 =====
+function _applyComboCarryCap(g) {
+  const cap = g._comboCarryCap || 0
+  if (!g.comboNeverBreak || cap <= 0) return
+  const base = g._comboCarryBase == null ? (g.combo || 0) : g._comboCarryBase
+  const skillBonus = Math.max(0, (g.combo || 0) - base)
+  g.combo = Math.min(base, cap) + skillBonus
+  g._comboCarryBase = null
+  g._comboCarryCap = 0
+}
+
 function checkAndElim(g) {
   const groups = findMatchesSeparate(g)
   if (groups.length > 0) {
-    if (!g._pendingDmgMap) { g._pendingDmgMap = {}; g._pendingHeal = 0; if (!g.comboNeverBreak) g.combo = 0; g._pendingAttrMaxCount = {} }
+    if (!g._pendingDmgMap) {
+      g._pendingDmgMap = {}
+      g._pendingHeal = 0
+      if (g.comboNeverBreak) _applyComboCarryCap(g)
+      else g.combo = 0
+      g._pendingAttrMaxCount = {}
+    }
     g.elimQueue = groups
     if (tutorial.isActive()) tutorial.onElim(g)
     startNextElimAnim(g)
@@ -907,6 +923,8 @@ function settle(g) {
     }
   }
   g.comboNeverBreak = false
+  g._comboCarryBase = null
+  g._comboCarryCap = 0
   // 每回合回血（万寿青莲/regen buff等）
   onPlayerTurnStart(g)
   // 立即进入玩家回合，敌人攻击延迟在背景执行
