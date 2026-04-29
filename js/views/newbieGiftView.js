@@ -4,8 +4,10 @@
  */
 const V = require('./env')
 const { NEWBIE_GIFT_REWARDS } = require('../data/constants')
+const { getPetById, getPetAvatarPath } = require('../data/pets')
 const { LING } = require('../data/lingIdentity')
 const buttonFx = require('./buttonFx')
+const lingCheer = require('./lingCheer')
 
 const ANIM_SCROLL_DUR = 18
 const ANIM_ITEM_DELAY = 8
@@ -23,6 +25,13 @@ function _easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
 
 function _buildItems() {
   const items = []
+  const mainPetCfg = NEWBIE_GIFT_REWARDS.mainPet
+  if (mainPetCfg && mainPetCfg.petId && mainPetCfg.fragment) {
+    const pet = getPetById(mainPetCfg.petId)
+    const icon = pet ? getPetAvatarPath({ ...pet, star: 1 }) : 'assets/ui/icon_universal_frag.png'
+    const name = pet ? pet.name : '主宠'
+    items.push({ icon, label: `${name}碎片`, amount: `×${mainPetCfg.fragment}`, num: mainPetCfg.fragment })
+  }
   if (NEWBIE_GIFT_REWARDS.soulStone) {
     items.push({ icon: 'assets/ui/icon_soul_stone.png', label: '灵石', amount: `×${NEWBIE_GIFT_REWARDS.soulStone}`, num: NEWBIE_GIFT_REWARDS.soulStone })
   }
@@ -134,7 +143,7 @@ function draw(g) {
     c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'
     c.textBaseline = 'middle'
-    c.fillText('冒险者礼包', W / 2, bannerY + bannerH * 0.48)
+    c.fillText('主宠养成包', W / 2, bannerY + bannerH * 0.48)
 
     // 副文案 —— 小灵欢迎语（左侧小头像 + 右侧两行软糯文字）
     const subtitleY = bannerY + bannerH + 14 * S
@@ -142,7 +151,7 @@ function draw(g) {
     const ar = 12 * S
     // 整体两行文字块高 ~32*S；头像置中对齐
     const line1 = '主人～ 我是小灵，以后就由我陪着你啦！'
-    const line2 = '先收下这份见面礼，踏上修仙之路吧～'
+    const line2 = '主养金锋灵猫，前期推关会更有爆发感～'
     // 文字放中间显示，头像画在第一行左侧
     c.font = `${11 * S}px "PingFang SC",sans-serif`
     const line1W = c.measureText(line1).width
@@ -386,6 +395,10 @@ function onTouch(g, x, y, type) {
 
   // 已领取且弹跳动画结束后，点击任意位置关闭
   if (d.claimed && d.claimTimer > CLAIM_BOUNCE_DUR + d.items.length * 6) {
+    if (!d._upgradeCheered) {
+      d._upgradeCheered = true
+      lingCheer.show('主人～金锋灵猫的养成材料准备好啦，去灵宠池把它升起来吧！', { tone: 'warm', duration: 3200 })
+    }
     d.phase = 'closing'
     return true
   }
@@ -395,6 +408,10 @@ function onTouch(g, x, y, type) {
 
 function _claimRewards(g) {
   const r = NEWBIE_GIFT_REWARDS
+  if (r.mainPet && r.mainPet.petId && r.mainPet.fragment) {
+    g.storage.addToPetPool(r.mainPet.petId, 'newbieGift')
+    g.storage.addFragmentSmart(r.mainPet.petId, r.mainPet.fragment)
+  }
   if (r.soulStone) g.storage.addSoulStone(r.soulStone)
   if (r.stamina) g.storage.noticeStaminaOverflow(g.storage.addBonusStamina(r.stamina))
   if (r.universalFragment) g.storage.addUniversalFragment(r.universalFragment)
