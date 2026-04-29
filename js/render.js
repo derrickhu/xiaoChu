@@ -86,6 +86,17 @@ class Render {
     }
     const img = P.createImage()
     img.onload = () => { if (this._onImageLoad) this._onImageLoad() }
+    img.onerror = () => {
+      console.warn('[Render] image load error', path, { src: img.src, cdnPath: AssetLoader.isCdnPath(path), fallbackTried: !!img._cdnFallbackTried })
+      if (!AssetLoader.isCdnPath(path) || img._cdnFallbackTried) return
+      img._cdnFallbackTried = true
+      console.warn('[Render] try CDN fallback', path)
+      AssetLoader.downloadAndNotify(path, () => {
+        const cached = AssetLoader.resolveAsset(path, { skipLocal: true })
+        console.log('[Render] CDN fallback done', path, { cached })
+        if (cached && img.src !== cached) img.src = cached
+      })
+    }
     this._loadImagePath(path, img)
     this._imgCache[path] = img
     this._imgAccess[path] = this._imgFrame
@@ -99,6 +110,7 @@ class Render {
     this._imgRetryAt[path] = this._imgFrame
     const resolved = AssetLoader.resolveAsset(path)
     if (resolved) {
+      img._cdnFallbackTried = false
       if (img.src !== resolved) img.src = resolved
       return
     }
@@ -239,13 +251,24 @@ class Render {
           if (loaded >= total && !settled) { settled = true; clearTimeout(timeout); resolve() }
           return
         }
+        let done = false
+        const prevOnload = img.onload
+        const prevOnerror = img.onerror
         const onDone = () => {
+          if (done) return
+          done = true
           loaded++
           if (onProgress) onProgress(loaded, total)
           if (loaded >= total && !settled) { settled = true; clearTimeout(timeout); resolve() }
         }
-        img.onload = onDone
-        img.onerror = onDone  // 加载失败也继续
+        img.onload = (e) => {
+          if (prevOnload) prevOnload(e)
+          onDone()
+        }
+        img.onerror = (e) => {
+          if (prevOnerror) prevOnerror(e)
+          onDone()  // 加载失败也继续
+        }
       })
     })
   }

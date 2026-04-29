@@ -429,17 +429,17 @@ class MusicManager {
     }
     const resolved = AssetLoader.resolveAsset(audioPath)
     if (resolved) {
-      this._createAndPlayBgm(resolved, instanceKey, volume, rate)
+      this._createAndPlayBgm(resolved, instanceKey, volume, rate, audioPath)
     } else {
       AssetLoader.downloadAndNotify(audioPath, (ok) => {
         if (!ok || !this.bgmEnabled) return
-        const cached = AssetLoader.resolveAsset(audioPath)
-        if (cached) this._createAndPlayBgm(cached, instanceKey, volume, rate)
+        const cached = AssetLoader.resolveAsset(audioPath, { skipLocal: true })
+        if (cached) this._createAndPlayBgm(cached, instanceKey, volume, rate, audioPath)
       })
     }
   }
 
-  _createAndPlayBgm(src, instanceKey, volume, rate) {
+  _createAndPlayBgm(src, instanceKey, volume, rate, logicalPath) {
     const ctx = P.createInnerAudioContext()
     this[instanceKey] = ctx
     ctx.src = src
@@ -448,7 +448,24 @@ class MusicManager {
     ctx.playbackRate = rate
     ctx.onCanplay(() => { ctx.playbackRate = rate })
     ctx.onPlay(() => { ctx.playbackRate = rate })
-    ctx.onError((e) => console.warn('[Music] bgm error', e))
+    ctx.onError((e) => {
+      console.warn('[Music] bgm error', { src, logicalPath, err: e })
+      if (!logicalPath || !AssetLoader.isCdnPath(logicalPath) || ctx._cdnFallbackTried) return
+      ctx._cdnFallbackTried = true
+      console.warn('[Music] try CDN fallback', logicalPath)
+      AssetLoader.downloadAndNotify(logicalPath, (ok) => {
+        if (!ok || !this.bgmEnabled) return
+        const cached = AssetLoader.resolveAsset(logicalPath, { skipLocal: true })
+        console.log('[Music] CDN fallback done', logicalPath, { cached })
+        if (cached) {
+          if (this[instanceKey]) {
+            try { this[instanceKey].stop() } catch (_) {}
+            try { this[instanceKey].destroy() } catch (_) {}
+          }
+          this._createAndPlayBgm(cached, instanceKey, volume, rate, null)
+        }
+      })
+    })
     ctx.play()
     setTimeout(() => { if (this[instanceKey]) this[instanceKey].playbackRate = rate }, 50)
   }

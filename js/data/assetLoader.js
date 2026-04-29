@@ -3,7 +3,7 @@
  * 本地优先 + 微信云存储 CDN 按需下载 + 本地缓存
  *
  * 核心原则：无模式开关，靠"本地文件是否存在"自动判定
- * - 开发时资源在本地 → 直接用本地路径
+ * - 开发时如需本地资源，可把目录移出打包忽略；当前瘦包模式下 CDN 目录默认走缓存/云端
  * - 线上包已排除 CDN 资源 → 自动走云端下载 + 本地缓存
  */
 
@@ -32,6 +32,17 @@ let _localFileExistsCache = {}
 let _downloadQueue = {}
 let _cacheAccessLog = {}
 let _cacheAccessFrame = 0
+const _debugLogged = {}
+
+function _debugOnce(key, ...args) {
+  if (_debugLogged[key]) return
+  _debugLogged[key] = true
+  console.log(...args)
+}
+
+function _debugWarn(...args) {
+  console.warn(...args)
+}
 
 function _isCdnPath(path) {
   // 子目录声明为 bundled 时，优先按本地包资源处理，避免被父级 CDN 目录误判。
@@ -114,10 +125,10 @@ function _isCacheValid(logicalPath) {
 /**
  * 解析资源路径：
  * - bundled 目录 → 直接返回原路径
- * - CDN 目录 → 跳过本地检查（避免模拟器警告），直接查 CDN 缓存
+ * - CDN 目录 → 直接查 CDN 缓存；未缓存则由调用方触发下载
  * - 其他路径 → 返回原路径
  */
-function resolveAsset(path) {
+function resolveAsset(path, opts) {
   if (_isBundledPath(path)) return path
   if (!_isCdnPath(path)) return path
 
@@ -125,8 +136,19 @@ function resolveAsset(path) {
   _cacheAccessLog[path] = _cacheAccessFrame
 
   if (_isCacheValid(path)) {
+    _debugOnce('cache_hit:' + path, '[AssetLoader] cache hit', path, '=>', _getCachePath(path))
     return _getCachePath(path)
   }
+  _debugOnce(
+    'cache_miss:' + path,
+    '[AssetLoader] cache miss',
+    path,
+    {
+      manifestReady: _manifestReady,
+      hasManifestEntry: !!(_manifest && _manifest.files && _manifest.files[path]),
+      cachePath: _getCachePath(path),
+    }
+  )
   return null
 }
 
@@ -143,18 +165,21 @@ function downloadAndNotify(logicalPath, onComplete) {
   const fileID = _getCloudFileID(logicalPath)
   const cachePath = _getCachePath(logicalPath)
   _ensureCacheDir(cachePath)
+  console.log('[CDN] download start', logicalPath, fileID)
 
   let retries = 0
   const maxRetries = 2
 
   function doDownload() {
     if (!P.cloud || typeof P.cloud.downloadFile !== 'function') {
+      _debugWarn('[CDN] download unavailable: cloud API missing', logicalPath)
       _finishDownload(logicalPath, false)
       return
     }
     P.cloud.downloadFile({
       fileID: fileID,
       success: function(res) {
+        console.log('[CDN] download success callback', logicalPath, { hasTempFilePath: !!(res && res.tempFilePath) })
         if (res.tempFilePath) {
           try {
             _fs.copyFileSync(res.tempFilePath, cachePath)
@@ -163,23 +188,30 @@ function downloadAndNotify(logicalPath, onComplete) {
               const hash = _manifest.files[logicalPath].hash || ''
               try { _fs.writeFileSync(cachePath + '.meta', hash, 'utf-8') } catch (_) {}
             }
+            console.log('[CDN] cached', logicalPath, '=>', cachePath)
             _finishDownload(logicalPath, true)
-          } catch (_) {
-            _retryOrFail(logicalPath)
+          } catch (e) {
+            _debugWarn('[CDN] cache write failed', logicalPath, e)
+            _retryOrFail(logicalPath, e)
           }
         } else {
-          _retryOrFail(logicalPath)
+          _retryOrFail(logicalPath, { errMsg: 'missing tempFilePath' })
         }
       },
-      fail: function() { _retryOrFail(logicalPath) },
+      fail: function(err) {
+        _debugWarn('[CDN] download fail callback', logicalPath, err)
+        _retryOrFail(logicalPath, err)
+      },
     })
   }
 
-  function _retryOrFail(lp) {
+  function _retryOrFail(lp, err) {
     retries++
     if (retries <= maxRetries) {
+      _debugWarn('[CDN] download retry', lp, { retries, err })
       setTimeout(doDownload, 500 * retries)
     } else {
+      _debugWarn('[CDN] download failed final', lp, { retries, err, fileID })
       _finishDownload(lp, false)
     }
   }
@@ -342,6 +374,7 @@ function clearCache() {
 
 function isManifestReady() { return _manifestReady }
 function getManifest() { return _manifest }
+function isCdnPath(path) { return _isCdnPath(path) }
 
 module.exports = {
   resolveAsset,
@@ -353,6 +386,7 @@ module.exports = {
   clearCache,
   isManifestReady,
   getManifest,
+  isCdnPath,
   BUNDLED_PREFIXES,
   CDN_DIRS,
 }
