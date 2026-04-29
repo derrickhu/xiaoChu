@@ -62,6 +62,31 @@ const {
   calcPetInitialCd,
 } = require('../data/balance/combat')
 
+function _pickEnemySkill(g) {
+  const skills = g.enemy && g.enemy.skills
+  if (!skills || skills.length <= 0) return null
+  if (g.enemy.isBoss) {
+    const idx = Number.isInteger(g._enemySkillSeqIdx) ? g._enemySkillSeqIdx : 0
+    return skills[idx % skills.length]
+  }
+  return skills[Math.floor(Math.random() * skills.length)]
+}
+
+function _advanceEnemySkill(g) {
+  const skills = g.enemy && g.enemy.skills
+  if (!skills || skills.length <= 0) {
+    g._enemySkillSeqIdx = 0
+    g._nextEnemySkill = null
+    return
+  }
+  if (g.enemy.isBoss) {
+    g._enemySkillSeqIdx = ((g._enemySkillSeqIdx || 0) + 1) % skills.length
+    g._nextEnemySkill = skills[g._enemySkillSeqIdx]
+    return
+  }
+  g._nextEnemySkill = skills[Math.floor(Math.random() * skills.length)]
+}
+
 function _getBattleFxBudget(g) {
   const quality = g && (g._battleFxQuality || (g._battleFxLowMemory ? 'lite' : 'full'))
   if (quality === 'lite') {
@@ -986,7 +1011,7 @@ function enemyTurn(g) {
   if (g.enemy.skills && g.enemy.skills.length > 0 && g.enemySkillCd >= 0) {
     g.enemySkillCd--
     if (g.enemySkillCd <= 0) {
-      skillToCast = g._nextEnemySkill || g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+      skillToCast = g._nextEnemySkill || _pickEnemySkill(g)
     }
   }
   if (!skillToCast) {
@@ -1048,7 +1073,7 @@ function enemyTurn(g) {
     applyEnemySkill(g, skillToCast)
     g.enemySkillCd = ENEMY_SKILL_CD_RESET  // 重置倒计时
     // 预选下一个技能（用于UI预警）
-    g._nextEnemySkill = g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
+    _advanceEnemySkill(g)
   }
   let dotIdx2 = 0
   g.enemyBuffs.forEach(b => {
@@ -1535,10 +1560,9 @@ function enterBattle(g, enemyData) {
   g.enemySkillCd = (g.enemy.skills && g.enemy.skills.length > 0)
     ? (g.enemy.isBoss ? ENEMY_FIRST_SKILL_DELAY.boss : ENEMY_FIRST_SKILL_DELAY.normal)  // Boss 第1回合末即释放技能；普通怪第3回合
     : -1
+  g._enemySkillSeqIdx = 0
   // 预选首次释放的技能（用于UI预警）
-  g._nextEnemySkill = (g.enemy.skills && g.enemy.skills.length > 0)
-    ? g.enemy.skills[Math.floor(Math.random()*g.enemy.skills.length)]
-    : null
+  g._nextEnemySkill = _pickEnemySkill(g)
   g.lastSpeedKill = false; g.lastTurnCount = 0
   g._postBattleRunBuffsApplied = false
   g._pendingDmgMap = null; g._pendingHeal = 0; g._pendingAttrMaxCount = null

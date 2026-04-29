@@ -118,17 +118,17 @@ const BOSS_POOL_30 = [
 // ===== BOSS专属技能组（每个BOSS有独立的2-3个技能） =====
 // 技能组用 bossNum 索引；30层新增的2个变体用 'name' 作为额外key
 const BOSS_SKILL_SETS = {
-  // --- 10层BOSS池（2个技能） ---
-  1: ['bossRage',    'bossBlitz'],     // 炼狱守卫·妖兵统领：狂暴+连击，纯攻击型
-  2: ['bossConvert', 'bossWeaken'],    // 五行妖将·破阵：五行逆乱+双降，控制削弱型
-  3: ['bossQuake',   'bossInferno'],   // 天罡妖帝·噬天：震地封行+业火，AOE持续伤害型
-  4: ['bossDevour',  'bossDrain'],     // 混沌魔神·灭世：噬魂+吸血，续航消耗型
-  // --- 20层BOSS池（2个技能） ---
-  5: ['bossVoidSeal','bossBlitz'],     // 太古凶兽·吞天：封锁整行+连击，控制突击型
-  6: ['bossMirror',  'bossSealAttr'],  // 九天妖皇·逆仙：反弹+属性封印，反打控制型
-  7: ['bossQuake',   'bossDrain'],     // 混沌始祖·鸿蒙：震地封行+吸血，坦克型
-  8: ['bossWeaken',  'bossAnnihil'],   // 天道化身·审判：双降+灭世，终极审判型
-  // --- 30层BOSS池（3个技能） ---
+  // --- 10层BOSS池：建立基础原型 ---
+  1: ['bossRage',    'bossBlitz',    'timeSqueeze'], // 炼狱守卫·妖兵统领：爆发抢血，压缩操作窗口
+  2: ['bossConvert', 'counterSeal',  'bossWeaken'],  // 五行妖将·破阵：扰乱珠盘，克制单属性队
+  3: ['bossQuake',   'sealColumn',   'bossInferno'], // 天罡妖帝·噬天：封盘+灼烧，考验清盘节奏
+  4: ['bossDevour',  'healBlock',    'bossDrain'],   // 混沌魔神·灭世：压治疗+吸血，拉长消耗战
+  // --- 20层BOSS池：强化反制和阵容检查 ---
+  5: ['bossVoidSeal','bossBlitz',    'bossPetSeal'], // 太古凶兽·吞天：封行突击，限制宠物爆发
+  6: ['bossMirror',  'bossSealAttr', 'bossRage'],     // 九天妖皇·逆仙：反伤+属性封印，反制无脑爆发
+  7: ['bossQuake',   'attrAbsorb',   'bossDrain'],    // 混沌始祖·鸿蒙：封盘吸珠，偏坦克续航
+  8: ['bossWeaken',  'bossAnnihil',  'bossSealAll'],  // 天道化身·审判：削弱后破盘，要求预留恢复
+  // --- 30层BOSS池：终局复合机制 ---
   9:  ['bossCurse',   'bossSealAll',  'bossAnnihil'],  // 万妖之主·通天：诅咒+全场封珠+灭世
   10: ['bossUltimate','bossDrain',    'bossRage'],     // 无上大妖·超越：终焉全封+吸血+狂暴
   '太虚妖祖·混元': ['bossVoidSeal', 'bossCurse',  'bossSealAttr'],   // 封行+诅咒+属性封

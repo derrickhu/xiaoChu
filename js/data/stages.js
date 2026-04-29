@@ -8,7 +8,10 @@ const { STAGE_REWARDS, CHAPTER_REP_FRAG } = require('./economyConfig')
 const { STAMINA_COST } = require('./balance/economy')
 const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
-const { STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE } = require('./balance/enemy')
+const {
+  STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_BOSS_SKILL_SETS,
+  STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
+} = require('./balance/enemy')
 const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
@@ -20,6 +23,17 @@ const { getPetRarity } = require('./pets')
 const BOSS_STAT_FLOOR = STAGE_BOSS_STAT_FLOOR
 
 const ELITE_MULTIPLIERS = STAGE_ELITE_MULTIPLIERS
+
+function _uniqueSkills(skills) {
+  return Array.from(new Set((skills || []).filter(Boolean)))
+}
+
+function _getStageEnemySkills(ch, ord, fallbackSkills) {
+  if (ord === 8) {
+    return _uniqueSkills(STAGE_BOSS_SKILL_SETS[ch] || fallbackSkills)
+  }
+  return _uniqueSkills(fallbackSkills)
+}
 
 /**
  * 章节元信息（含主题色、副标题、徽章 key）
@@ -217,8 +231,11 @@ function buildAllStages() {
       else prevStage = `stage_${ch}_${ord - 1}`
 
       // Boss 保底：扫描同章前 7 关最强敌人，确保 Boss 数值有足够优势
+      const isStageBoss = ord === 8
+      const stageEnemySkills = _getStageEnemySkills(ch, ord, enemyData.skills)
+
       let bossHp = enemyData.hp, bossAtk = enemyData.atk, bossDef = enemyData.def
-      if (ord === 8 && enemyData.isBoss) {
+      if (isStageBoss) {
         const ids = CHAPTER_ENEMY_IDS[ch]
         let maxPrevHp = 0, maxPrevAtk = 0, maxPrevDef = 0
         for (let j = 0; j < 7; j++) {
@@ -254,11 +271,11 @@ function buildAllStages() {
         hp: stageHp,
         atk: bossAtk,
         def: bossDef,
-        skills: [...enemyData.skills],
+        skills: [...stageEnemySkills],
         avatar: enemyData.avatar,
       }
       if (enemyData.newbieOverride) normalEnemy.newbieOverride = { ...enemyData.newbieOverride }
-      if (enemyData.isBoss) normalEnemy.isBoss = true
+      if (isStageBoss || enemyData.isBoss) normalEnemy.isBoss = true
 
       let normalWaves = [{ enemies: [normalEnemy] }]
       if (ord === 8 && i >= 2) {
@@ -300,10 +317,10 @@ function buildAllStages() {
         hp: Math.round(bossHp * mult.hp),
         atk: Math.round(bossAtk * mult.atk),
         def: Math.round(bossDef * mult.def),
-        skills: [...enemyData.skills, ...(s.eSkills || [])],
+        skills: _uniqueSkills([...stageEnemySkills, ...(s.eSkills || [])]),
         avatar: enemyData.avatar,
       }
-      if (enemyData.isBoss) eliteEnemy.isBoss = true
+      if (isStageBoss || enemyData.isBoss) eliteEnemy.isBoss = true
 
       let eliteWaves = [{ enemies: [eliteEnemy] }]
       if (ord === 8 && i >= 2) {

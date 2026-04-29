@@ -100,6 +100,7 @@ const ENEMY_SKILLS = {
   bossUltimate:  { name:'超越·终焉', desc:'造成180%攻击力伤害+封锁外围灵珠+眩晕1回合', type:'bossUltimate', atkPct:1.8, sealType:'all', sealDur:2 },
   bossSealAll:   { name:'万象封灵', desc:'以井字封阵封锁灵珠,持续1回合', type:'sealAll', dur:1 },
   bossSealAttr:  { name:'五行禁锢', desc:'封锁全场指定属性灵珠,持续3回合', type:'sealAttr', dur:3 },
+  bossPetSeal:   { name:'锁灵夺魄', desc:'封印1只灵宠，2回合内不能普攻和释放技能', type:'petSeal', count:1, dur:2 },
   trialDefGuard: { name:'玄甲守势', desc:'防御提升20%,持续2回合', type:'buff', field:'def', rate:0.2, dur:2 },
   trialMindGuard:{ name:'定魂无惑', desc:'免疫眩晕与冰冻', type:'passive' },
   trialMindRift: { name:'幻心裂隙', desc:'造成110%攻击力伤害+破坏3颗灵珠', type:'bossAnnihil', atkPct:1.1, breakCount:3 },
@@ -140,6 +141,23 @@ const STAGE_ELITE_MULTIPLIERS = {
 // Boss 保底倍率
 const STAGE_BOSS_STAT_FLOOR = { hp: 1.3, atk: 1.15, def: 1.1 }
 
+// 关卡守关 Boss 专属技能组：按章节主题分型，避免所有关底只沿用普通怪技能。
+// 前期保留 2 个核心技能，中后期提升到 3 个技能，让玩家逐章建立应对策略。
+const STAGE_BOSS_SKILL_SETS = {
+  1: ['atkBuff', 'convert'],
+  2: ['bossQuake', 'defBuff'],
+  3: ['bossBlitz', 'defBuff', 'breakBead'],
+  4: ['bossDevour', 'healBlock', 'sealColumn'],
+  5: ['counterSeal', 'bossWeaken', 'bossDrain'],
+  6: ['bossQuake', 'defBuff', 'bossWeaken'],
+  7: ['attrAbsorb', 'bossDrain', 'sealColumn'],
+  8: ['bossRage', 'bossInferno', 'bossBlitz'],
+  9: ['bossMirror', 'bossSealAttr', 'bossBlitz'],
+  10: ['bossRage', 'bossInferno', 'bossAnnihil'],
+  11: ['bossCurse', 'bossSealAttr', 'bossDrain'],
+  12: ['bossUltimate', 'bossSealAll', 'bossAnnihil'],
+}
+
 // 全局递增保底：每关 hp/atk/def 至少为前一关的此比例，消除跨章断崖
 const STAGE_MIN_GROWTH_RATE = { hp: 1.03, atk: 1.02, def: 1.01 }
 
@@ -170,6 +188,7 @@ module.exports = {
   ENEMY_SKILLS,
   STAGE_ELITE_MULTIPLIERS,
   STAGE_BOSS_STAT_FLOOR,
+  STAGE_BOSS_SKILL_SETS,
   STAGE_MIN_GROWTH_RATE,
   STAGE_MINION_HP_RATIO,
   NEWBIE_ENEMY_OVERRIDE,
