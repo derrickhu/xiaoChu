@@ -218,7 +218,7 @@ const CONSECUTIVE_LOGIN_REWARDS = [
 const DAILY_TASKS = [
   { id: 'battle_1',    name: '秘境战斗1场',  condition: { type: 'stageBattle', count: 1 }, reward: { soulStone: 20 } },
   { id: 'battle_3',    name: '战斗3场',      condition: { type: 'anyBattle', count: 3 },   reward: { soulStone: 8, staminaFixed: 10 } },
-  { id: 'tower_1',     name: '挑战通天塔1次', condition: { type: 'towerRun', count: 1 },   reward: { soulStone: 14 } },
+  { id: 'tower_1',     name: '挑战通天塔1次', condition: { type: 'towerRun', count: 1 },   reward: { soulStone: 14 }, unlockStageId: 'stage_1_8' },
   { id: 'trial_1',     name: '挑战天机试炼1次', condition: { type: 'trialRun', count: 1 },  reward: { soulStone: 14 }, unlockStageId: 'stage_1_8' },
   { id: 'idle_collect', name: '派遣灵宠1次',  condition: { type: 'idleAssign', count: 1 },  reward: { soulStone: 13 } },
   { id: 'pet_feed',    name: '宠物升级1次',  condition: { type: 'petFeed', count: 1 },     reward: { soulStone: 10 } },

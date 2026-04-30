@@ -2410,6 +2410,10 @@ function drawGameClubBtn(g) {
 
 // ===== 主入口 =====
 function rTitle(g) {
+  if ((g.titleMode || 'tower') === 'tower' && !g.storage.isStageCleared('stage_1_8')) {
+    // 未解锁通天塔时兜底拉回秘境，防止旧状态或任务入口停在挑战大厅。
+    g.titleMode = 'stage'
+  }
   g._towerWeeklySsrAvatarRect = null
   g._towerWeeklySsrPetId = null
   const isChallengeMode = (g.titleMode || 'tower') === 'tower'

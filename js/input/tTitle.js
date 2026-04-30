@@ -13,6 +13,16 @@ const { STAGE_FORMATION_MIN_PETS, TITLE_HOME, STAMINA_COST } = require('../data/
 
 const SWIPE_THRESHOLD = 40
 
+function _isTowerUnlocked(g) {
+  return !!(g && g.storage && g.storage.isStageCleared && g.storage.isStageCleared('stage_1_8'))
+}
+
+function _warnTowerLocked(g) {
+  // 未通第 1 章时强制留在秘境，避免任务追踪把玩家带进未开放的挑战大厅。
+  if (g) g.titleMode = 'stage'
+  P.showGameToast('通关第 1 章解锁通天塔', { type: 'warn' })
+}
+
 function _checkTowerDailyLimit(g) {
   if (g.storage.canStartTowerRunFree()) return true
   const adLeft = Math.max(0, TOWER_DAILY.adExtraRuns - g.storage.getTowerDailyAdRuns())
@@ -67,6 +77,10 @@ function _handleHomeDailyTaskClick(g) {
     g._showDailyTasks = false
     g._dailyTaskFocusId = null
     g._dailyTaskFocusSection = null
+    if (target.mode === 'tower' && !_isTowerUnlocked(g)) {
+      _warnTowerLocked(g)
+      return
+    }
     g.titleMode = target.mode
     return
   }
@@ -290,6 +304,10 @@ function tTitle(g, type, x, y) {
 
   // ④c 挑战大厅卡片
   if (!isStageMode && g._challengeTowerRect && g._hitRect(x, y, ...g._challengeTowerRect)) {
+    if (!_isTowerUnlocked(g)) {
+      _warnTowerLocked(g)
+      return
+    }
     g.setScene('towerDetail')
     return
   }
@@ -320,6 +338,10 @@ function tTitle(g, type, x, y) {
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
     if (isStageMode) {
       _handleStageStart(g)
+      return
+    }
+    if (!_isTowerUnlocked(g)) {
+      _warnTowerLocked(g)
       return
     }
     // 通天塔：灵宠池达到编队下限即可（与秘境上阵最少只数一致；≥5 只解锁的是灵兽秘境入口，不是通天塔）
