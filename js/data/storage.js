@@ -58,6 +58,48 @@ function localDateKey(d) {
 // 当前存档版本号，每次结构变更时递增
 const CURRENT_VERSION = 30
 
+function createAnalyticsSummary() {
+  return {
+    firstSeenDate: '',
+    firstSeenAt: 0,
+    firstSession: {
+      events: {},
+      stageStart: {},
+      stageClear: {},
+      stageFail: {},
+      stageExit: {},
+      adEntryShow: {},
+      adClick: {},
+      adShowSuccess: {},
+      adComplete: {},
+      adSkip: {},
+      adError: {},
+    },
+  }
+}
+
+function _analyticsBucketForEvent(eventId) {
+  const map = {
+    stage_start: 'stageStart',
+    stage_clear: 'stageClear',
+    stage_fail: 'stageFail',
+    stage_exit: 'stageExit',
+    ad_entry_show: 'adEntryShow',
+    ad_click: 'adClick',
+    ad_show_success: 'adShowSuccess',
+    ad_complete: 'adComplete',
+    ad_skip: 'adSkip',
+    ad_error: 'adError',
+  }
+  return map[eventId] || 'events'
+}
+
+function _analyticsKeyForEvent(eventId, params) {
+  if (eventId && eventId.indexOf('stage_') === 0) return (params && params.stageId) || 'unknown_stage'
+  if (eventId && eventId.indexOf('ad_') === 0) return (params && params.slotId) || 'unknown_slot'
+  return eventId || 'unknown_event'
+}
+
 // 持久化数据（跨局保留）
 function defaultPersist() {
   return {
@@ -167,6 +209,8 @@ function defaultPersist() {
     invitedBy: null,
     // 广告观看记录（每日频控）
     adWatchLog: {},            // { [slotId]: { date: 'YYYY-MM-DD', count: N } }
+    // 商业化首日漏斗汇总：只存聚合计数，详细事件走微信自定义分析
+    analyticsSummary: createAnalyticsSummary(),
     // 通天塔活动赛季
     towerEvent: {
       seasonIndex: -1,         // 当前赛季序号（-1 表示从未初始化）
@@ -586,6 +630,7 @@ function runMigrations(data) {
 class Storage {
   constructor() {
     this._d = null          // 持久化数据
+    this._sessionStartAt = Date.now()
     // 用户信息（微信授权）
     this.userInfo = null      // { nickName, avatarUrl }
     this.userAuthorized = false
@@ -633,6 +678,7 @@ class Storage {
       },
       markDirty: () => { if (this._eventBus) this._eventBus.emit('ranking:dirty') },
     })
+    this._recordFirstEnterIfNeeded()
     this._initCloud()
   }
 
@@ -944,7 +990,63 @@ class Storage {
   isGuideShown(id) { return !!(this._d.guideFlags && this._d.guideFlags[id]) }
   markGuideShown(id) {
     if (!this._d.guideFlags) this._d.guideFlags = {}
+    const wasShown = !!this._d.guideFlags[id]
     this._d.guideFlags[id] = true
+    if (!wasShown && id === 'intro_done') {
+      this.recordFunnelEvent('intro_done')
+    }
+    this._save()
+  }
+
+  // ===== 首日漏斗 / 商业化埋点 =====
+
+  _ensureAnalyticsSummary() {
+    const tpl = createAnalyticsSummary()
+    const s = this._d.analyticsSummary || (this._d.analyticsSummary = tpl)
+    if (!s.firstSession || typeof s.firstSession !== 'object') s.firstSession = tpl.firstSession
+    Object.keys(tpl.firstSession).forEach((k) => {
+      if (!s.firstSession[k] || typeof s.firstSession[k] !== 'object') s.firstSession[k] = {}
+    })
+    if (typeof s.firstSeenDate !== 'string') s.firstSeenDate = ''
+    if (typeof s.firstSeenAt !== 'number') s.firstSeenAt = 0
+    return s
+  }
+
+  _recordFirstEnterIfNeeded() {
+    const s = this._ensureAnalyticsSummary()
+    if (s.firstSeenDate) return
+    if (this.hasGameplayProgress()) return
+    this.recordFunnelEvent('new_user_enter', { scene: 'startup' })
+  }
+
+  recordFunnelEvent(eventId, params = {}) {
+    if (!eventId) return
+    const now = Date.now()
+    const summary = this._ensureAnalyticsSummary()
+    const firstDateBefore = summary.firstSeenDate
+    if (!summary.firstSeenDate) summary.firstSeenDate = localDateKey(new Date(now))
+    if (!summary.firstSeenAt) summary.firstSeenAt = now
+
+    const sessionAgeSec = Math.max(0, Math.round((now - (this._sessionStartAt || now)) / 1000))
+    const isNewUser = firstDateBefore ? summary.firstSeenDate === localDateKey(new Date(now)) : true
+    const safeParams = Object.assign({}, params, {
+      isNewUser,
+      sessionAgeSec,
+    })
+    try {
+      const analytics = require('./analytics')
+      analytics.track(eventId, safeParams)
+    } catch (_e) {}
+
+    const bucketName = _analyticsBucketForEvent(eventId)
+    const bucket = summary.firstSession[bucketName] || (summary.firstSession[bucketName] = {})
+    const key = _analyticsKeyForEvent(eventId, params)
+    bucket[key] = (bucket[key] || 0) + 1
+    if (eventId !== key) {
+      const events = summary.firstSession.events || (summary.firstSession.events = {})
+      events[eventId] = (events[eventId] || 0) + 1
+    }
+    summary.lastEventAt = now
     this._save()
   }
 

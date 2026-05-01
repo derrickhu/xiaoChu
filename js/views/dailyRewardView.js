@@ -41,6 +41,19 @@ const _taskRects = {
   tabAchievementRect: null,
 }
 
+function _recordAdEntryShowOnce(g, slotId, scene) {
+  if (!g || !g.storage || !g.storage.recordFunnelEvent || !slotId) return
+  if (!g._dailyAdEntryShown) g._dailyAdEntryShown = {}
+  const day = (g.storage.getCalendarDateKey && g.storage.getCalendarDateKey()) || ''
+  const key = `${day}:${slotId}:${scene || slotId}`
+  if (g._dailyAdEntryShown[key]) return
+  g._dailyAdEntryShown[key] = true
+  g.storage.recordFunnelEvent('ad_entry_show', {
+    slotId,
+    scene: scene || slotId,
+  })
+}
+
 // 任务分类竹牌文字（对应每日任务配置）
 const _TASK_TAG_BY_ID = {
   battle_1: '秘境',
@@ -1606,6 +1619,7 @@ function rDailySign(g) {
   // 签到和翻倍共用同一个按钮区域
   _signRects.signBtnRect = canSign ? btnRect.slice() : null
   _signRects.signAdRect = canDouble ? btnRect.slice() : null
+  if (canDouble) _recordAdEntryShowOnce(g, 'signDouble', 'daily_sign')
 
   // 与华华 7 日区卡片几何一致，供「签到领取/翻倍」与 resourceFlyParticles 飞效起点共用（与新手礼包同逻辑）
   const dayForFly = canSign
@@ -2030,6 +2044,7 @@ function rDailyTasks(g) {
   } else if (showAdBtn) {
     _drawWoodenActionBtn(c, btnX, btnY, btnW, btnH, '看广告翻倍', 'ad', S)
     _taskRects.allBonusAdRect = [btnX, btnY, btnW, btnH]
+    _recordAdEntryShowOnce(g, 'dailyTaskBonus', 'daily_task_all_bonus')
   }
 
   drawRewardChipFlyLayer(c, R, g, S)
@@ -2154,6 +2169,7 @@ function tDailySign(g, x, y, type) {
   if (_signRects.signAdRect && g._hitRect(x, y, ..._signRects.signAdRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('signDouble', {
+      scene: 'daily_sign',
       fallbackToShare: true,
       onRewarded: () => {
         const result = g.storage.claimLoginAdDouble()
@@ -2269,6 +2285,7 @@ function tDailyTasks(g, x, y, type) {
   if (_taskRects.allBonusAdRect && g._hitRect(x, y, ..._taskRects.allBonusAdRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('dailyTaskBonus', {
+      scene: 'daily_task_all_bonus',
       fallbackToShare: true,
       onRewarded: () => {
         const bonus = getScaledDailyAllBonus(_tch)

@@ -38,6 +38,19 @@ const _rects = {
   rankWidget: null,      // 排行榜入口挂件命中区（{rect, tab}）
 }
 
+function _recordAdEntryShowOnce(g, result, slotId, scene) {
+  if (!g || !g.storage || !g.storage.recordFunnelEvent || !result || !slotId) return
+  if (!result._adEntryShown) result._adEntryShown = {}
+  const key = `${slotId}:${scene || slotId}`
+  if (result._adEntryShown[key]) return
+  result._adEntryShown[key] = true
+  g.storage.recordFunnelEvent('ad_entry_show', {
+    slotId,
+    scene: scene || slotId,
+    stageId: result.stageId || '',
+  })
+}
+
 let _animTimer = 0
 // 以 result 对象引用变化作为"首次进入结算页"的判据：
 //   每次 settleStage 都会构造新的 g._stageResult 对象，引用必然变化；
@@ -1279,6 +1292,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
 
   // ── 看广告退还体力 ──
   if (canRefund) {
+    _recordAdEntryShowOnce(g, result, 'staminaRefund', 'stage_defeat_refund')
     const rfBtnW = innerW * 0.7, rfBtnH = 36 * S
     const rfBtnX = (W - rfBtnW) / 2, rfBtnY = cy
     R.drawDialogBtn(rfBtnX, rfBtnY, rfBtnW, rfBtnH, `▶ 看广告 退还${result.staminaCost}体力`, 'adReward')
@@ -1541,9 +1555,23 @@ function _computeVictoryScrollContentHeight(result, S, pad) {
   return contentH
 }
 
-// Boss 关"看广告翻倍"是否处于可点状态（用于固定操作区预留空间）
+function _isNewbieFirstClearDouble(result) {
+  return !!(result && result.victory && result.isFirstClear && result.stageId === 'stage_1_1')
+}
+
+function _adDoubleSlotForResult(result) {
+  return _isNewbieFirstClearDouble(result) ? 'newbieFirstClearDouble' : 'settleDouble'
+}
+
+function _adDoubleSceneForResult(result) {
+  return _isNewbieFirstClearDouble(result) ? 'stage_1_1_first_clear' : 'stage_boss_clear'
+}
+
+// Boss 关 / 1-1 首通"看广告翻倍"是否处于可点状态（用于固定操作区预留空间）
 function _hasAdDoubleBtn(result) {
-  return !!(result && result.victory && result.isBossStage && !result.adDoubled && AdManager.canShow('settleDouble'))
+  if (!result || !result.victory || result.adDoubled) return false
+  if (!_isNewbieFirstClearDouble(result) && !result.isBossStage) return false
+  return AdManager.canShow(_adDoubleSlotForResult(result))
 }
 
 // 固定操作区高度：
@@ -2104,6 +2132,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   }
 
   if (_hasAdDoubleBtn(result)) {
+    _recordAdEntryShowOnce(g, result, _adDoubleSlotForResult(result), _adDoubleSceneForResult(result))
     const adBtnW = innerW * 0.7, adBtnH = 36 * S
     const adBtnX = (W - adBtnW) / 2, adBtnY = actionsCy
     _drawAdDoubleRewardBtn(c, R, S, adBtnX, adBtnY, adBtnW, adBtnH, result)
@@ -2752,6 +2781,7 @@ function tStageResult(g, x, y, type) {
   if (_rects.staminaRefundBtnRect && g._hitRect(x, y, ..._rects.staminaRefundBtnRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
     AdManager.showRewardedVideo('staminaRefund', {
+      scene: 'stage_defeat_refund',
       fallbackToShare: true,
       onRewarded: () => {
         const r = g._stageResult
@@ -2788,10 +2818,13 @@ function tStageResult(g, x, y, type) {
     return
   }
 
-  // 看广告翻倍（仅 Boss 关胜利）
+  // 看广告翻倍（1-1 首通 / Boss 关胜利）
   if (_rects.adDoubleBtnRect && g._hitRect(x, y, ..._rects.adDoubleBtnRect)) {
     MusicMgr.playClick && MusicMgr.playClick()
-    AdManager.showRewardedVideo('settleDouble', {
+    const adSlot = _adDoubleSlotForResult(result)
+    const adScene = _adDoubleSceneForResult(result)
+    AdManager.showRewardedVideo(adSlot, {
+      scene: adScene,
       fallbackToShare: true,
       onRewarded: () => {
         g._stageSettleAdJustGranted = false
@@ -2820,7 +2853,7 @@ function tStageResult(g, x, y, type) {
         if (frag > 0) lines.push({ icon: 'icon_fragment', label: '碎片', amount: '+' + frag })
         return {
           title: '奖励翻倍',
-          subtitle: 'Boss 关额外奖励',
+          subtitle: _isNewbieFirstClearDouble(r) ? '首胜额外奖励' : 'Boss 关额外奖励',
           lines,
         }
       },

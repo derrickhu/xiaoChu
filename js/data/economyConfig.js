@@ -208,6 +208,7 @@ const AD_REWARDS = {
   staminaRecovery: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 3, reward: { stamina: AD_REWARDS_NUMS.staminaRecoveryAmount } },
   signDouble:      { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.signMultiplier },
   dailyTaskBonus:  { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.dailyTaskMultiplier },
+  newbieFirstClearDouble: { enabled: true, adUnitId: _AD_UNIT_A, dailyLimit: 1, multiplier: AD_REWARDS_NUMS.settleMultiplier },
   settleDouble:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: AD_REWARDS_NUMS.settleMultiplier },
   dexMilestone:    { enabled: true, adUnitId: _AD_UNIT_B, dailyLimit: -1, multiplier: AD_REWARDS_NUMS.dexMultiplier },
   dexAcquireHint:  { enabled: true, adUnitId: _AD_UNIT_C },

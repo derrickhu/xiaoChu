@@ -56,6 +56,14 @@ function _incLog(slotId) {
   _storage._save()
 }
 
+function _trackAdEvent(eventId, slotId, extra) {
+  if (!_storage || !_storage.recordFunnelEvent) return
+  _storage.recordFunnelEvent(eventId, Object.assign({
+    slotId,
+    scene: slotId,
+  }, extra || {}))
+}
+
 function _createRV(adUnitId) {
   if (_rvInstances[adUnitId]) return _rvInstances[adUnitId]
   try {
@@ -97,9 +105,11 @@ function _maybeRewardPopup(callbacks) {
 function _doShareFallback(slotId, callbacks) {
   const { doShare } = require('./share')
   console.log('[Ad] 广告不可用，降级为分享:', slotId)
+  _trackAdEvent('ad_error', slotId, { errorCode: 'fallback_to_share' })
   P.showGameToast('分享成功即可领取奖励')
   doShare(_gameRef, 'passive', {})
   _incLog(slotId)
+  _trackAdEvent('ad_complete', slotId, { fallback: true })
   if (callbacks.onRewarded) callbacks.onRewarded()
   _maybeRewardPopup(callbacks)
 }
@@ -167,6 +177,7 @@ const AdManager = {
     // 实际确认后优先走 showRewardedVideo。仅鸿蒙在广告已判定失败后以分享为主路径。
     const staminaAmount = (AD_REWARDS.staminaRecovery && AD_REWARDS.staminaRecovery.reward && AD_REWARDS.staminaRecovery.reward.stamina) || 30
     const sharePrimary = P.isOHOS && _adShowFailed
+    _trackAdEvent('ad_entry_show', 'staminaRecovery', { scene: 'stamina_recovery_confirm' })
     g._confirmDialog = {
       title: '体力不足',
       content: sharePrimary ? `分享小游戏可恢复${staminaAmount}点体力` : `观看广告可恢复${staminaAmount}点体力`,
@@ -211,6 +222,7 @@ const AdManager = {
       if (callbacks.onError) callbacks.onError({ errMsg: 'slot_not_configured' })
       return
     }
+    _trackAdEvent('ad_click', slotId, { scene: callbacks.scene || slotId })
     if (!this.canShow(slotId)) {
       P.showGameToast('今日观看次数已用完，明日再来', { type: 'warn' })
       if (callbacks.onSkipped) callbacks.onSkipped()
@@ -242,20 +254,30 @@ const AdManager = {
       const ended = !!(res && res.isEnded)
       if (ended) {
         _incLog(slotId)
+        _trackAdEvent('ad_complete', slotId, { scene: callbacks.scene || slotId })
         if (callbacks.onRewarded) callbacks.onRewarded()
         _maybeRewardPopup(callbacks)
       } else {
+        _trackAdEvent('ad_skip', slotId, { scene: callbacks.scene || slotId })
         if (callbacks.onSkipped) callbacks.onSkipped()
       }
     }
     ad.onClose(_onClose)
 
-    ad.show().catch(() => {
-      ad.load().then(() => ad.show()).catch((err) => {
+    ad.show().then(() => {
+      _trackAdEvent('ad_show_success', slotId, { scene: callbacks.scene || slotId })
+    }).catch(() => {
+      ad.load().then(() => ad.show().then(() => {
+        _trackAdEvent('ad_show_success', slotId, { scene: callbacks.scene || slotId })
+      })).catch((err) => {
         ad.offClose(_onClose)
         _adShowFailed = true
         _adReady[cfg.adUnitId] = false
         console.warn('[Ad] 激励视频展示失败:', err)
+        _trackAdEvent('ad_error', slotId, {
+          scene: callbacks.scene || slotId,
+          errorCode: (err && (err.errCode || err.errMsg)) || 'show_failed',
+        })
         if (shouldFallback) {
           _doShareFallback(slotId, callbacks)
         } else {

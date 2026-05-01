@@ -653,6 +653,12 @@ function saveAndExit(g) {
   MusicMgr.stopBossBgm()
   memoryGuard.clearBattleTransientState(g, { clearTex: true, reason: 'save_exit' })
   if (g.battleMode === 'stage') {
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('stage_exit', {
+        stageId: g._stageId || '',
+        scene: 'save_exit',
+      })
+    }
     g.showExitDialog = false
     g.bState = 'none'
     g.setScene('title')

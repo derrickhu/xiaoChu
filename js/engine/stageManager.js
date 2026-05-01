@@ -88,6 +88,13 @@ function startStage(g, stageId, teamPetIds) {
   g._stageStaminaCost = staminaCost
   // 记录每日挑战次数
   g.storage.recordStageChallenge(stageId)
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_start', {
+      stageId,
+      scene: 'stage',
+      teamSize: teamPetIds.length,
+    })
+  }
 
   g.battleMode = 'stage'
   g._stageId = stageId
@@ -220,6 +227,13 @@ function startStageNewbie(g, stageId) {
   // 新手章节免体力，仅记录 cost 用于结算页展示
   g._stageStaminaCost = stage.staminaCost ?? STAMINA_COST
   g.storage.recordStageChallenge(stageId)
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_start', {
+      stageId,
+      scene: 'newbie',
+      teamSize: NEWBIE_PET_IDS.length,
+    })
+  }
 
   g.battleMode = 'stage'
   g._stageId = stageId
@@ -615,6 +629,14 @@ function settleStage(g) {
     // stageResultView 据此判 hpPct <= 10% 触发 shareHooks.onComebackWin
     heroMinHpRatio: typeof g._heroMinHpRatio === 'number' ? g._heroMinHpRatio : 1,
   }
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_clear', {
+      stageId: g._stageId,
+      rating,
+      turns: g._stageTotalTurns,
+      isFirstClear,
+    })
+  }
 
   g.storage.submitStageRanking()
   g.storage.submitDexAndCombo()
@@ -684,6 +706,13 @@ function settleStageDefeat(g) {
       atk: p.atk, star: p.star,
     })),
     cultLevel: g.storage.cultivation.level || 0,
+  }
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_fail', {
+      stageId: g._stageId,
+      turns: g._stageTotalTurns,
+      waveIdx: g._stageWaveIdx || 0,
+    })
   }
 
   g.setScene('stageResult')
