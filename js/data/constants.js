@@ -233,6 +233,13 @@ const NEWBIE_PET_IDS = ['m1', 'w1', 's1', 'e1', 'f1']
 /** 其中以 ★2 入池的宠物（有技能）；其余以 ★1 入池（无技能，需升星解锁） */
 const NEWBIE_2STAR_IDS = ['f1', 'w1']
 
+/** 独立新手序章爽局：仅本场试玩的高星灵宠，不写入玩家宠物池，不影响正式 1-1 */
+const NEWBIE_TRIAL_PET_IDS = ['m20', 'w20', 's17', 'f4', 'e18']
+const NEWBIE_TRIAL_PET_STAR = 5
+const NEWBIE_TRIAL_PET_ATK = 520
+const NEWBIE_TRIAL_BOSS_MAX_HP = 150000
+const NEWBIE_TRIAL_BOSS_HP = 150000
+
 /** 新手第 1 章全 8 关免体力（通关/失败均不扣），保证首日充足游玩时间 */
 const NEWBIE_FREE_STAMINA_STAGES = [
   'stage_1_1', 'stage_1_2', 'stage_1_3', 'stage_1_4',
@@ -448,6 +455,11 @@ module.exports = {
   DAILY_TASK_PANEL_MIN_TOP_BELOW_SAFE_PT,
   NEWBIE_PET_IDS,
   NEWBIE_2STAR_IDS,
+  NEWBIE_TRIAL_PET_IDS,
+  NEWBIE_TRIAL_PET_STAR,
+  NEWBIE_TRIAL_PET_ATK,
+  NEWBIE_TRIAL_BOSS_MAX_HP,
+  NEWBIE_TRIAL_BOSS_HP,
   NEWBIE_FREE_STAMINA_STAGES,
   NEWBIE_FREE_REVIVE_COUNT,
   FIRST_CLEAR_STAMINA_BONUS,

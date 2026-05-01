@@ -76,6 +76,24 @@ function _handleBoardDrag(g, type, x, y) {
     }
   } else if (type === 'end' && g.dragging) {
     g.dragging = false; g.dragAttr = null; g.dragTimer = 0
+    if (g._newbiePrologue && !g._prologueFirstInputTracked) {
+      g._prologueFirstInputTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_prologue_first_input', {
+          stageId: 'newbie_prologue',
+          scene: 'newbie_prologue',
+        })
+      }
+    }
+    if (g.battleMode === 'stage' && g._stageId === 'stage_1_1' && !g._stage11FirstInputTracked) {
+      g._stage11FirstInputTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_1_1_first_input', {
+          stageId: 'stage_1_1',
+          scene: 'stage',
+        })
+      }
+    }
     if (tutorial.onDragEnd(g)) return
     MusicMgr.playDragEnd()
     g._checkAndElim()
@@ -265,7 +283,7 @@ function tBattle(g, type, x, y) {
   if (g.showRunBuffDetail) { if (type === 'end') g.showRunBuffDetail = false; return }
   if (g.showWeaponDetail) { if (type === 'end') g.showWeaponDetail = false; return }
   if (g.showBattlePetDetail != null) { if (type === 'end') g.showBattlePetDetail = null; return }
-  if (type === 'end' && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
+  if (type === 'end' && !g._newbiePrologue && g._exitBtnRect && g._hitRect(x,y,...g._exitBtnRect)) { g.showExitDialog = true; return }
   
   // GM跳过战斗
   if (type === 'end' && g._isGM && g._gmSkipRect && g._hitRect(x,y,...g._gmSkipRect)) {

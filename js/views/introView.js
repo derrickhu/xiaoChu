@@ -33,19 +33,18 @@ let _allLinesShown = false
 let _breathT = 0
 let _btnReady = false  // 最后一页全部显示后的按钮
 
-const LINE_INTERVAL = 50  // 每行淡入间隔帧数
 const FADE_SPEED = 0.04
 
 function init() {
   _page = 0
-  _lineIdx = 0
-  _lineAlpha = PAGES[0].lines.map(() => 0)
+  _lineIdx = PAGES[0].lines.length
+  _lineAlpha = PAGES[0].lines.map(() => 1)
   _timer = 0
   _fadeDir = 1
   _pageFade = 0
-  _allLinesShown = false
+  _allLinesShown = true
   _breathT = 0
-  _btnReady = false
+  _btnReady = PAGES.length === 1
 }
 
 function update(g) {
@@ -63,29 +62,20 @@ function update(g) {
         _finish(g)
         return
       }
-      _lineIdx = 0
-      _lineAlpha = PAGES[_page].lines.map(() => 0)
-      _allLinesShown = false
-      _btnReady = false
+      _lineIdx = PAGES[_page].lines.length
+      _lineAlpha = PAGES[_page].lines.map(() => 1)
+      _allLinesShown = true
+      _btnReady = _page === PAGES.length - 1
       _timer = 0
       _fadeDir = 1
     }
   }
 
   if (_fadeDir === 0) {
-    const lines = PAGES[_page].lines
-    if (_lineIdx < lines.length) {
-      if (_timer > LINE_INTERVAL * (_lineIdx + 1)) {
-        _lineAlpha[_lineIdx] = Math.min(1, _lineAlpha[_lineIdx] + 0.05)
-        if (_lineAlpha[_lineIdx] >= 1) {
-          _lineIdx++
-          if (_lineIdx >= lines.length) _allLinesShown = true
-        }
-      }
-    }
-    for (let i = 0; i < _lineIdx; i++) {
-      _lineAlpha[i] = Math.min(1, _lineAlpha[i] + 0.05)
-    }
+    // 投放用户更重视首战速度：每页文字一次性展示，点击即可翻页。
+    _lineIdx = PAGES[_page].lines.length
+    _lineAlpha = PAGES[_page].lines.map(() => 1)
+    _allLinesShown = true
     if (_allLinesShown && _page === PAGES.length - 1) {
       _btnReady = true
     }
@@ -262,9 +252,25 @@ function onTouch(g, type, x, y) {
 function _finish(g) {
   V.P.setStorageSync('introDone', true)
   g.storage.markGuideShown('intro_done')
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('first_screen_show', { scene: 'intro_done' })
+  }
   const MusicMgr = require('../runtime/music')
   MusicMgr.playBgm()
-  // 进入首页并触发新手秘境指引（通天塔不再单独套教学局）
+
+  // 真新用户直接进入 1-1 序章爽局，减少广告点击后的首战前流失。
+  const shouldFastStart = g.storage
+    && g.storage.petPoolCount === 0
+    && !g.storage.isStageCleared('stage_1_1')
+  if (shouldFastStart) {
+    const stageMgr = require('../engine/stageManager')
+    if (g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('newbie_prologue_prompt_show', { scene: 'intro_fast_start', stageId: 'newbie_prologue' })
+    }
+    if (stageMgr.startNewbiePrologue && stageMgr.startNewbiePrologue(g)) return
+  }
+
+  // 兜底：无法直达战斗时仍进入首页并触发原有新手秘境指引。
   g._pendingGuide = 'newbie_stage_start'
   g.setScene('title')
 }

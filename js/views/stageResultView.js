@@ -115,13 +115,35 @@ function rStageResult(g) {
 
   if (!result) return
 
+  if (at === 1 && result.newbiePrologue && !result._prologueResultTracked) {
+    result._prologueResultTracked = true
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('newbie_prologue_result_show', {
+        stageId: 'newbie_prologue',
+        victory: !!result.victory,
+        scene: 'newbie_prologue',
+      })
+    }
+  }
+
+  if (at === 1 && result.stageId === 'stage_1_1' && !result._stage11ResultTracked) {
+    result._stage11ResultTracked = true
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('stage_1_1_result_show', {
+        stageId: 'stage_1_1',
+        victory: !!result.victory,
+        scene: 'stage',
+      })
+    }
+  }
+
   if (!result.victory) {
     _victoryRewardScrollMax = 0
     _victoryRewardViewport = null
   }
 
   // 首通庆贺横条：在结算页首帧由小灵露脸夸一句（不打断逐个庆祝 / 全屏总览）
-  if (at === 1 && !result._lingCheered && result.victory && result.isFirstClear) {
+  if (at === 1 && !result._lingCheered && result.victory && result.isFirstClear && !result.newbiePrologue) {
     result._lingCheered = true
     const stage = getStageById(result.stageId)
     const stageName = (stage && stage.name) || ''
@@ -142,7 +164,7 @@ function rStageResult(g) {
   //   任一关"血量 <=10% 翻盘胜利"：弹 comebackWin（1-1/1-2 同样静默）
   //   章节圆满：chapterComplete 不受新手静默限制（里程碑事件罕见）
   //   具体静默名单在 shareHooks 内部收口，这里只负责"把语义事件报出去"
-  if (at === 1 && !result._shareCelebrated && result.victory && result.isFirstClear) {
+  if (at === 1 && !result._shareCelebrated && result.victory && result.isFirstClear && !result.newbiePrologue) {
     result._shareCelebrated = true
     const stage = getStageById(result.stageId)
     const stageName = (stage && stage.name) || ''
@@ -186,7 +208,7 @@ function rStageResult(g) {
 
   // 逆风翻盘：任意胜利（不必首通）且战斗中最低血量 ≤ 10%
   //   与 firstPet/stageFirstClear 互斥由 shareCelebrate._state 幂等保证（已有其他弹窗则让位）
-  if (at === 1 && !result._comebackChecked && result.victory) {
+  if (at === 1 && !result._comebackChecked && result.victory && !result.newbiePrologue) {
     result._comebackChecked = true
     const minRatio = typeof result.heroMinHpRatio === 'number' ? result.heroMinHpRatio : 1
     if (minRatio > 0 && minRatio <= 0.10) {
@@ -379,6 +401,7 @@ function _isFinalBossStageResult(result) {
 
 function _victoryHeadline(result) {
   if (_isFinalBossStageResult(result)) return result.isFirstClear ? '终章通关' : '终章凯旋'
+  if (result.newbiePrologue) return '五行合击！'
   if (result.isFirstClear && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {
     return '完美通关！'
   }
@@ -919,8 +942,10 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   c.textAlign = 'center'
   _strokeText(c, `评价  ${result.rating}`, W * 0.5, starY + starSize / 2 + 20 * S, 'rgba(0,0,0,0.3)', 3 * S)
 
-  c.fillStyle = 'rgba(90,70,40,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
-  _strokeText(c, `总回合数：${result.totalTurns}`, W * 0.5, starY + starSize / 2 + 38 * S, 'rgba(255,255,255,0.4)', 2 * S)
+  if (!result.newbiePrologue) {
+    c.fillStyle = 'rgba(90,70,40,0.7)'; c.font = `${10*S}px "PingFang SC",sans-serif`
+    _strokeText(c, `总回合数：${result.totalTurns}`, W * 0.5, starY + starSize / 2 + 38 * S, 'rgba(255,255,255,0.4)', 2 * S)
+  }
 
   // 操作评分：最高 Combo + 挑战完成
   let skillLineY = starY + starSize / 2 + 52 * S
@@ -942,7 +967,7 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
   }
 
   // 星级结算加成已反映在下方灵石/碎片等总额中，此处只作提示，不再单独列数字，避免与面板重复
-  const hasStarSettleBonus =
+  const hasStarSettleBonus = !result.newbiePrologue &&
     (result.starBonusSoulStone > 0 || result.starBonusAwakenStone > 0 || result.starBonusFragments > 0)
   const starBandExtra = hasStarSettleBonus ? 16 * S : 0
   if (hasStarSettleBonus) {
@@ -1331,7 +1356,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   const btnW = (innerW - btnGap) / 2
   const btnY = cy + 4 * S
 
-  R.drawDialogBtn(px + pad, btnY, btnW, btnH, '返回', 'cancel')
+  R.drawDialogBtn(px + pad, btnY, btnW, btnH, result.newbiePrologue ? '稍后' : '返回', 'cancel')
   _rects.backBtnRect = [px + pad, btnY, btnW, btnH]
 
   R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, '再次挑战', 'confirm')
@@ -1570,6 +1595,7 @@ function _adDoubleSceneForResult(result) {
 // Boss 关 / 1-1 首通"看广告翻倍"是否处于可点状态（用于固定操作区预留空间）
 function _hasAdDoubleBtn(result) {
   if (!result || !result.victory || result.adDoubled) return false
+  if (result.newbiePrologue) return false
   if (!_isNewbieFirstClearDouble(result) && !result.isBossStage) return false
   return AdManager.canShow(_adDoubleSlotForResult(result))
 }
@@ -1825,8 +1851,66 @@ function _drawAdDoubleRewardBtn(c, R, S, x, y, w, h, result) {
   c.restore()
 }
 
+function _drawNewbiePrologueStoryPanel(g, c, R, W, H, S, result, panelTop, at) {
+  const pw = W * 0.86
+  const px = (W - pw) / 2
+  const pad = 14 * S
+  const panelH = 170 * S
+  const py = Math.min(panelTop, H - panelH - 92 * S)
+
+  _rects.adDoubleBtnRect = null
+  _rects.goalTailRect = null
+  _rects.goalTailBtnRect = null
+  _rects.rankWidget = null
+  _rects.shareBtnRect = null
+
+  c.save()
+  c.globalAlpha *= Math.min(1, Math.max(0, (at - 16) / 14))
+  c.fillStyle = 'rgba(255,252,236,0.96)'
+  R.rr(px, py, pw, panelH, 15 * S)
+  c.fill()
+  c.strokeStyle = 'rgba(214,172,88,0.62)'
+  c.lineWidth = 1.5 * S
+  R.rr(px, py, pw, panelH, 15 * S)
+  c.stroke()
+
+  const hdr = drawLingHeader(c, S, px + pad, py + 14 * S, {
+    avatarImg: R.getImg(LING.avatar),
+    title: '仙宠 · 小灵',
+    subtitle: '妖王暂退，真正的修炼才刚开始',
+  })
+
+  const lines = [
+    '主人，刚才那一击是五行灵宠借力护你脱险。',
+    '妖王虽然被击退，但通天塔封印仍未解除。',
+    '接下来要召回属于你的灵宠，从第一关开始修炼成长。',
+  ]
+  let ty = py + 14 * S + hdr.height + 16 * S
+  c.textAlign = 'left'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#5D4B2C'
+  c.font = `bold ${11.5 * S}px "PingFang SC",sans-serif`
+  lines.forEach((line) => {
+    c.fillText(line, px + pad, ty)
+    ty += 21 * S
+  })
+
+  const btnW = pw * 0.72
+  const btnH = 38 * S
+  const btnX = (W - btnW) / 2
+  const btnY = py + panelH - btnH - 16 * S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '开始修炼', 'gold')
+  _rects.nextBtnRect = [btnX, btnY, btnW, btnH]
+  _rects.backBtnRect = null
+  c.restore()
+}
+
 // ===== 胜利奖励面板（增强版：大图标 + 分区高亮 + 入场动画；过长时可滑动） =====
 function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
+  if (result.newbiePrologue) {
+    _drawNewbiePrologueStoryPanel(g, c, R, W, H, S, result, panelTop, at)
+    return
+  }
   const pw = W * 0.88
   const px = (W - pw) / 2
   const pad = 14 * S
@@ -2151,7 +2235,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   // 排行榜·我第 N 名 · 挂件：点击跳转秘境榜
   _rects.rankWidget = null
   const myStageRankV = g.storage.rankStageMyRank
-  if (myStageRankV && myStageRankV > 0) {
+  if (!result.newbiePrologue && myStageRankV && myStageRankV > 0) {
     const rw = rankWidget.drawRankWidget(c, R, S, px + pad, actionsCy + 2 * S, innerW, 'stage', myStageRankV)
     if (rw) {
       _rects.rankWidget = rw
@@ -2164,23 +2248,29 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   }
 
   const btnH = 38 * S
-  const btnGap = 12 * S
-  const btnW = (innerW - btnGap) / 2
+  const btnGap = result.newbiePrologue ? 0 : 12 * S
+  const btnW = result.newbiePrologue ? innerW * 0.72 : (innerW - btnGap) / 2
   const btnY = actionsCy + 4 * S
 
-  R.drawDialogBtn(px + pad, btnY, btnW, btnH, '返回', 'cancel')
-  _rects.backBtnRect = [px + pad, btnY, btnW, btnH]
+  if (result.newbiePrologue) {
+    _rects.backBtnRect = null
+  } else {
+    R.drawDialogBtn(px + pad, btnY, btnW, btnH, '返回', 'cancel')
+    _rects.backBtnRect = [px + pad, btnY, btnW, btnH]
+  }
 
   const nextId = getNextStageId(result.stageId)
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
   const isNewbieContinuous = result.victory && result.isFirstClear
     && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')
-  const rightLabel = isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战')
-  R.drawDialogBtn(px + pad + btnW + btnGap, btnY, btnW, btnH, rightLabel, isNewbieContinuous ? 'gold' : 'confirm')
-  _rects.nextBtnRect = [px + pad + btnW + btnGap, btnY, btnW, btnH]
+  const rightLabel = result.newbiePrologue ? '开始修炼' : (isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战'))
+  const nextX = result.newbiePrologue ? (W - btnW) / 2 : px + pad + btnW + btnGap
+  R.drawDialogBtn(nextX, btnY, btnW, btnH, rightLabel, (isNewbieContinuous || result.newbiePrologue) ? 'gold' : 'confirm')
+  _rects.nextBtnRect = [nextX, btnY, btnW, btnH]
 
   // 分享胶囊：已在 clip 外绘制，scroll 传 0 即可
-  _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, 0, true)
+  if (result.newbiePrologue) _rects.shareBtnRect = null
+  else _drawShareIconBtnOnResult(g, px + pad + innerW, btnY, btnH, result, 0, true)
 
   if (scrollMax > 0) {
     const trackX = px + pw - 5 * S
@@ -2882,6 +2972,15 @@ function tStageResult(g, x, y, type) {
   }
 
   if (_rects.backBtnRect && g._hitRect(x, y, ..._rects.backBtnRect)) {
+    if (result.newbiePrologue) {
+      const stageMgr = require('../engine/stageManager')
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_stage_prompt_show', { scene: 'after_prologue_back', stageId: 'stage_1_1' })
+      }
+      stageMgr.startStageNewbie(g, 'stage_1_1')
+      MusicMgr.playClick && MusicMgr.playClick()
+      return
+    }
     if (_firstClearGuide) {
       g._pendingGuide = _firstClearGuide
       g.setScene('title')
@@ -2900,6 +2999,14 @@ function tStageResult(g, x, y, type) {
     buttonFx.trigger(_rects.nextBtnRect.slice(), 'upgrade')
     // 点击"下一关"是情绪峰值出口，尝试消费一次名次变动反馈（切场景前触发，让动画覆盖下一场景）
     try { require('./rankChangePopup').drainPending(g) } catch (_e) { /* 防御式容错 */ }
+    if (result.newbiePrologue) {
+      const stageMgr = require('../engine/stageManager')
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_stage_prompt_show', { scene: 'after_prologue_next', stageId: 'stage_1_1' })
+      }
+      stageMgr.startStageNewbie(g, 'stage_1_1')
+      return
+    }
     // 新手前 2 关首通：直接进入下一关战斗，不经过选关/编队
     if (result.victory && result.isFirstClear
         && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')) {

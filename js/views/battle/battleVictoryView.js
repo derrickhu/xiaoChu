@@ -36,6 +36,10 @@ function _handleStageVictory(g) {
   if (g._enemyDeathAnim) return
   g._stageSettlePending = true
   const stageMgr = require('../../engine/stageManager')
+  if (g._newbiePrologue) {
+    stageMgr.settleNewbiePrologue(g)
+    return
+  }
   if (!stageMgr.isLastWave(g)) {
     g.bState = 'waveTransition'
     g._waveTransTimer = 60

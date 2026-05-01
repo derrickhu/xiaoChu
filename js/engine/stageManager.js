@@ -24,7 +24,13 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
-const { NEWBIE_PET_IDS, NEWBIE_2STAR_IDS, NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT, FIRST_CLEAR_STAMINA_BONUS, FIRST_CLEAR_SOULSTONE_BONUS, STAGE_MECHANIC_FOCUS } = require('../data/constants')
+const {
+  NEWBIE_PET_IDS, NEWBIE_2STAR_IDS,
+  NEWBIE_TRIAL_PET_IDS, NEWBIE_TRIAL_PET_STAR, NEWBIE_TRIAL_PET_ATK,
+  NEWBIE_TRIAL_BOSS_MAX_HP, NEWBIE_TRIAL_BOSS_HP,
+  NEWBIE_FREE_STAMINA_STAGES, NEWBIE_BEAD_ATTR_LIMIT,
+  FIRST_CLEAR_STAMINA_BONUS, FIRST_CLEAR_SOULSTONE_BONUS, STAGE_MECHANIC_FOCUS,
+} = require('../data/constants')
 const V = require('../views/env')
 const { RATING_TO_STARS, STAMINA_COST } = require('../data/balance/economy')
 const { DUPLICATE_WEAPON_SOULSTONE } = require('../data/balance/stage')
@@ -102,6 +108,9 @@ function startStage(g, stageId, teamPetIds) {
   g._stageWaveIdx = 0
   g._stageTotalTurns = 0
   g._stageSettlePending = false
+  g._newbiePrologue = false
+  g._stage11FirstInputTracked = false
+  g._stage11FirstDamageTracked = false
   g._stageTeam = teamPetIds.slice()
 
   // 从灵宠池构建战斗用宠物数组
@@ -242,6 +251,9 @@ function startStageNewbie(g, stageId) {
   g._stageTotalTurns = 0
   g._stageSettlePending = false
   g._stageTeam = NEWBIE_PET_IDS.slice()
+  g._newbiePrologue = false
+  g._stage11FirstInputTracked = false
+  g._stage11FirstDamageTracked = false
 
   // 构建临时宠物（不来自灵宠池，仅本局使用）
   g.pets = NEWBIE_PET_IDS.map(id => {
@@ -334,6 +346,149 @@ function startStageNewbie(g, stageId) {
 }
 
 /**
+ * 新手序章爽局：独立于正式 1-1，不发关卡奖励、不写通关记录。
+ * 目标是让投放用户先体验后期 Boss 战、五行合击与大数字爽感。
+ */
+function startNewbiePrologue(g) {
+  const prologueStageId = 'newbie_prologue'
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_start', {
+      stageId: prologueStageId,
+      scene: 'newbie_prologue',
+      teamSize: NEWBIE_TRIAL_PET_IDS.length,
+    })
+  }
+
+  g.battleMode = 'stage'
+  g._stageId = prologueStageId
+  g._stageWaves = [{
+    enemies: [{
+      name: '残血妖王·灭世',
+      attr: 'earth',
+      hp: NEWBIE_TRIAL_BOSS_HP,
+      maxHp: NEWBIE_TRIAL_BOSS_MAX_HP,
+      atk: 1,
+      def: 0,
+      skills: [],
+      avatar: 'enemies/tower/boss_4',
+      isBoss: true,
+      _prologueBoss: true,
+    }],
+  }]
+  g._stageWaveIdx = 0
+  g._stageTotalTurns = 0
+  g._stageSettlePending = false
+  g._stageTeam = NEWBIE_TRIAL_PET_IDS.slice()
+  g._newbiePrologue = true
+  g._stage11FirstInputTracked = false
+  g._stage11FirstDamageTracked = false
+  g._prologueFirstInputTracked = false
+  g._prologueFirstDamageTracked = false
+  g._prologueComboSeeded = false
+
+  g.pets = NEWBIE_TRIAL_PET_IDS.map(id => {
+    const basePet = getPetById(id)
+    if (!basePet) return null
+    return {
+      ...basePet,
+      star: NEWBIE_TRIAL_PET_STAR,
+      atk: NEWBIE_TRIAL_PET_ATK,
+      currentCd: 0,
+      _temp: true,
+      _newbieTrial: true,
+    }
+  }).filter(Boolean)
+
+  g.heroMaxHp = HERO_BASE_HP
+  g.heroHp = HERO_BASE_HP
+  g.heroShield = 0
+  g.heroDefense = 0
+  g._heroMinHpRatio = 1
+  g.dragTimeLimit = DRAG_BASE_SEC * 60
+  g._cultDefenseValue = 0
+  g._cultDmgReducePct = 0
+  g._cultDmgReduce = 0
+  g._cultHeartBase = 0
+  g.weapon = { ...getWeaponById('w10'), _temp: true, _newbieTrial: true }
+  g.petBag = []
+  g.weaponBag = []
+  g.sessionPetPool = []
+  g.runBuffs = makeDefaultRunBuffs()
+  g.runBuffLog = []
+  g.heroBuffs = []
+  g.enemyBuffs = []
+  g.skipNextBattle = false
+  g.nextStunEnemy = false
+  g.nextDmgDouble = false
+  g.tempRevive = false
+  g.immuneOnce = false
+  g.comboNeverBreak = false
+  g.weaponReviveUsed = false
+  g.goodBeadsNextTurn = false
+  g.adReviveUsed = false
+  g.turnCount = 0
+  g.combo = 0
+  g.runTotalTurns = 0
+  g.runExp = 0
+  g._runElimExp = 0
+  g._runComboExp = 0
+  g._runKillExp = 0
+  g._isNewbieStage = false
+  g._stageBeadAttrLimit = 0
+  g._mechanicFocus = null
+  g._mechanicTriggered = false
+  g._challengeDone = false
+  g._challengeProgress = 0
+  g._challengeDoneAnimT = null
+  g._challengeDoneJustFired = false
+  g._maxCombo = 0
+  g._stageRatingS = 0
+
+  loadWave(g, 0)
+  initBoard(g)
+  _applyStageBossEncounter(g)
+  g._mechanicOpenTip = {
+    stageId: prologueStageId,
+    text: '妖王满血压境！任选灵珠拖动，试玩灵宠将打出五行合击！',
+    timer: 0,
+  }
+
+  g.bState = 'playerTurn'
+  g.setScene('battle')
+  g.floor = 1
+  g.cleared = false
+  return true
+}
+
+function settleNewbiePrologue(g) {
+  if (_stageShouldUseBossBgm(g)) MusicMgr.resumeNormalBgm()
+  g._stageResult = {
+    stageId: 'newbie_prologue',
+    stageName: '序章·五行合击',
+    rating: 'S',
+    starCount: 3,
+    isFirstClear: true,
+    rewards: [],
+    cultExp: 0,
+    soulStone: 0,
+    totalTurns: g.lastTurnCount || 1,
+    victory: true,
+    newStars: [],
+    isBossStage: true,
+    totalFragCount: 0,
+    maxCombo: Math.max(g._maxCombo || 0, 8),
+    newbiePrologue: true,
+  }
+  if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('newbie_prologue_clear', {
+      stageId: 'newbie_prologue',
+      turns: g.lastTurnCount || 1,
+    })
+  }
+  g.setScene('stageResult')
+}
+
+/**
  * 加载指定波次的敌人
  */
 function loadWave(g, waveIdx) {
@@ -348,7 +503,7 @@ function loadWave(g, waveIdx) {
   g.enemy = {
     ...e,
     avatar,
-    maxHp: e.hp,
+    maxHp: e.maxHp || e.hp,
     buffs: [],
   }
   g._stageWaveIdx = waveIdx
@@ -973,10 +1128,12 @@ function _randomInt(min, max) {
 module.exports = {
   startStage,
   startStageNewbie,
+  startNewbiePrologue,
   loadWave,
   advanceWave,
   isLastWave,
   settleStage,
+  settleNewbiePrologue,
   settleStageDefeat,
   calculateRating,
   grantChapterMilestoneManually,

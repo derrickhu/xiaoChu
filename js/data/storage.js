@@ -95,8 +95,13 @@ function _analyticsBucketForEvent(eventId) {
 }
 
 function _analyticsKeyForEvent(eventId, params) {
-  if (eventId && eventId.indexOf('stage_') === 0) return (params && params.stageId) || 'unknown_stage'
-  if (eventId && eventId.indexOf('ad_') === 0) return (params && params.slotId) || 'unknown_slot'
+  if (eventId === 'stage_start' || eventId === 'stage_clear' || eventId === 'stage_fail' || eventId === 'stage_exit') {
+    return (params && params.stageId) || 'unknown_stage'
+  }
+  if (eventId === 'ad_entry_show' || eventId === 'ad_click' || eventId === 'ad_show_success'
+      || eventId === 'ad_complete' || eventId === 'ad_skip' || eventId === 'ad_error') {
+    return (params && params.slotId) || 'unknown_slot'
+  }
   return eventId || 'unknown_event'
 }
 

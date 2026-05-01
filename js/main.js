@@ -653,6 +653,9 @@ class Main {
       if (needStartBtn && this._startBtnRect) {
         this._pendingGuide = null
         const [bx, by, bw, bh] = this._startBtnRect
+        if (pg === 'newbie_stage_start' && this.storage.recordFunnelEvent) {
+          this.storage.recordFunnelEvent('newbie_stage_prompt_show', { scene: 'title_guide', stageId: 'stage_1_1' })
+        }
         guideMgr.trigger(this, pg, { x: bx, y: by, w: bw, h: bh })
       } else if (!needStartBtn) {
         this._pendingGuide = null

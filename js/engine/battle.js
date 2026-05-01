@@ -277,6 +277,15 @@ function _applyComboCarryCap(g) {
 }
 
 function checkAndElim(g) {
+  if (g._newbiePrologue && !g._prologueComboSeeded) {
+    g._prologueComboSeeded = true
+    const attrs = ['wood', 'metal', 'fire', 'water', 'earth']
+    for (let r = 0; r < Math.min(V.ROWS, attrs.length); r++) {
+      for (let c = 0; c < V.COLS; c++) {
+        if (g.board[r] && g.board[r][c]) g.board[r][c].attr = attrs[r]
+      }
+    }
+  }
   const groups = findMatchesSeparate(g)
   if (groups.length > 0) {
     if (!g._pendingDmgMap) {
@@ -311,6 +320,10 @@ function startNextElimAnim(g) {
   g._runElimExp = (g._runElimExp || 0) + elimExp
   // 移除combo断链：所有消除都计入combo（大幅提升爽感）
   g.combo++
+  if (g._newbiePrologue) {
+    g.combo = Math.max(g.combo, 7 + (g._prologueComboBonusCount || 0))
+    g._prologueComboBonusCount = (g._prologueComboBonusCount || 0) + 1
+  }
   if (g.combo > (g._maxCombo || 0)) g._maxCombo = g.combo
   // 技巧挑战追踪：combo / 4连 / 5连 / 心珠
   if (g._mechanicFocus && !g._challengeDone) {
@@ -707,7 +720,10 @@ function applyFinalDamage(g, dmgMap, heal) {
   const { S, W, H } = V
   const ctx = buildDamageContext(g, { pendingDmgMap: dmgMap, pendingHeal: heal })
   const result = calcTotalDamage(ctx, { critMode: 'runtime' })
-  const totalDmg = result.totalDmg
+  let totalDmg = result.totalDmg
+  if (g._newbiePrologue && g.enemy && totalDmg > 0) {
+    totalDmg = Math.max(totalDmg, g.enemy.hp)
+  }
   const isCrit = result.isCrit
   const critFxPlan = isCrit
     ? getCritFxPlan(g, {
@@ -739,6 +755,26 @@ function applyFinalDamage(g, dmgMap, heal) {
   if (totalDmg > 0 && g.enemy) _emitPreloadActiveBadges(g, dmgMap, isCrit)
 
   if (totalDmg > 0 && g.enemy) {
+    if (g._newbiePrologue && !g._prologueFirstDamageTracked) {
+      g._prologueFirstDamageTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_prologue_first_damage', {
+          stageId: 'newbie_prologue',
+          scene: 'newbie_prologue',
+          damage: Math.round(totalDmg),
+        })
+      }
+    }
+    if (g.battleMode === 'stage' && g._stageId === 'stage_1_1' && !g._stage11FirstDamageTracked) {
+      g._stage11FirstDamageTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_1_1_first_damage', {
+          stageId: 'stage_1_1',
+          scene: 'stage',
+          damage: Math.round(totalDmg),
+        })
+      }
+    }
     const oldPct = g.enemy.hp / g.enemy.maxHp
     const leadAttr = Object.keys(dmgMap || {})[0] || 'metal'
     g.enemy.hp = Math.max(0, g.enemy.hp - totalDmg)

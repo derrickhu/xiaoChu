@@ -6,7 +6,8 @@
  *
  * 用法：
  *   node scripts/analyze_daily_funnel.js 2026-04-30 2026-05-01
- *   node scripts/analyze_daily_funnel.js 2026-05-01 2026-05-02 --since "2026-05-01 12:30"
+ *   node scripts/analyze_daily_funnel.js 2026-04-30 2026-05-01 --since "2026-05-01 12:30"
+ *   （次日目录须已有 tools/backup/data/YYYY-MM-DD/playerData.json，否则改用已有最后一天）
  *   node scripts/analyze_daily_funnel.js   # 默认取 tools/backup/data 下最近两天
  */
 
@@ -20,17 +21,57 @@ function pct(n, d) {
   return (n / d * 100).toFixed(1) + '%'
 }
 
+/** @returns {string[]} YYYY-MM-DD，含 playerData.json 的目录名，升序 */
+function listBackupDatesWithPlayerData() {
+  if (!fs.existsSync(BACKUP_ROOT)) return []
+  try {
+    return fs.readdirSync(BACKUP_ROOT)
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .filter(d => fs.existsSync(path.join(BACKUP_ROOT, d, 'playerData.json')))
+      .sort()
+  } catch {
+    return []
+  }
+}
+
+function formatBackupHint() {
+  const dates = listBackupDatesWithPlayerData()
+  if (!dates.length) {
+    return `\n目录下暂无 playerData.json：${BACKUP_ROOT}\n请确认定时备份已运行并成功写入。`
+  }
+  const tail = dates.slice(-8)
+  const sample = tail.join(', ')
+  const ellip = dates.length > tail.length ? '… ' : ''
+  let cmd = ''
+  if (dates.length >= 2) {
+    const a = dates[dates.length - 2]
+    const b = dates[dates.length - 1]
+    cmd = `\n可用最近两天对比：node scripts/analyze_daily_funnel.js ${a} ${b}`
+  }
+  return `\n已有备份日期（${dates.length} 天）：${ellip}${sample}${cmd}`
+}
+
 function loadPlayers(date) {
   const file = path.join(BACKUP_ROOT, date, 'playerData.json')
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+  if (!fs.existsSync(file)) {
+    throw new Error(`找不到备份文件：${file}${formatBackupHint()}`)
+  }
+  const raw = fs.readFileSync(file, 'utf8')
+  try {
+    return JSON.parse(raw)
+  } catch (e) {
+    throw new Error(`解析失败（非合法 JSON）：${file}\n${e && e.message}`)
+  }
 }
 
 function latestTwoDates() {
-  const dirs = fs.readdirSync(BACKUP_ROOT)
-    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .filter(d => fs.existsSync(path.join(BACKUP_ROOT, d, 'playerData.json')))
-    .sort()
-  if (dirs.length < 2) throw new Error('至少需要两天 playerData.json 备份')
+  const dirs = listBackupDatesWithPlayerData()
+  if (dirs.length < 2) {
+    if (!dirs.length) {
+      throw new Error(`未找到任何 playerData.json：${BACKUP_ROOT}${formatBackupHint()}`)
+    }
+    throw new Error(`仅找到 1 天备份（${dirs[0]}），至少需要两天才能对比新增。${formatBackupHint()}`)
+  }
   return dirs.slice(-2)
 }
 
@@ -100,6 +141,14 @@ function summaryBucket(p, name) {
   return first[name] || {}
 }
 
+function hasSummaryEvent(p, eventId) {
+  return (summaryBucket(p, 'events')[eventId] || 0) > 0
+}
+
+function hasBucketKey(p, bucketName, key) {
+  return (summaryBucket(p, bucketName)[key] || 0) > 0
+}
+
 function sumSlotMaps(players, getter) {
   const out = {}
   players.forEach((p) => {
@@ -144,10 +193,33 @@ function main() {
   if (opts.sinceMs) console.log(`过滤后新增：${total}`)
   console.log('')
 
+  console.log('新埋点首日行为漏斗')
+  printMetric('新用户进入', added.filter(p => hasSummaryEvent(p, 'new_user_enter')).length, total)
+  printMetric('首次首屏/开场完成', added.filter(p => hasSummaryEvent(p, 'first_screen_show')).length, total)
+  printMetric('完成引导', added.filter(p => hasSummaryEvent(p, 'intro_done')).length, total)
+  printMetric('看到序章入口', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_prompt_show')).length, total)
+  printMetric('开始序章', added.filter(p => hasBucketKey(p, 'stageStart', 'newbie_prologue')).length, total)
+  printMetric('序章首次操作', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_input')).length, total)
+  printMetric('序章首次伤害', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_damage')).length, total)
+  printMetric('序章通关', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_clear')).length, total)
+  printMetric('序章结算展示', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_result_show')).length, total)
+  printMetric('看到 1-1 引导', added.filter(p => hasSummaryEvent(p, 'newbie_stage_prompt_show')).length, total)
+  printMetric('开始 1-1', added.filter(p => hasBucketKey(p, 'stageStart', 'stage_1_1')).length, total)
+  printMetric('1-1 首次操作', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_input')).length, total)
+  printMetric('1-1 首次伤害', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_damage')).length, total)
+  printMetric('新埋点通关 1-1', added.filter(p => hasBucketKey(p, 'stageClear', 'stage_1_1')).length, total)
+  printMetric('1-1 结算展示', added.filter(p => hasSummaryEvent(p, 'stage_1_1_result_show')).length, total)
+  printMetric('1-1 首通广告触达', added.filter(p => hasBucketKey(p, 'adEntryShow', 'newbieFirstClearDouble')).length, total)
+  console.log('')
+
+  console.log('存档进度漏斗（兼容老版本）')
   printMetric('通关 1-1', added.filter(p => isCleared(p, 'stage_1_1')).length, total)
   printMetric('通关 1-2', added.filter(p => isCleared(p, 'stage_1_2')).length, total)
   printMetric('通关 1-3', added.filter(p => isCleared(p, 'stage_1_3')).length, total)
   printMetric('通关 1-8', added.filter(p => isCleared(p, 'stage_1_8')).length, total)
+  console.log('')
+
+  console.log('广告漏斗')
   printMetric('广告入口触达', added.filter(p => totalMapValue(summaryBucket(p, 'adEntryShow')) > 0).length, total)
   printMetric('广告点击', added.filter(p => totalMapValue(summaryBucket(p, 'adClick')) > 0).length, total)
   printMetric('广告完播', added.filter(p => totalMapValue(summaryBucket(p, 'adComplete')) > 0 || totalMapValue(adWatchCounts(p)) > 0).length, total)

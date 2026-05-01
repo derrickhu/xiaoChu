@@ -5,7 +5,8 @@
  * 自动清理 7 天前的备份
  *
  * 用法:
- *   node daily.js           # 手动运行
+ *   node daily.js           # 手动运行（当天已有备份则跳过）
+ *   node daily.js --force   # 强制刷新当天备份
  *   配合 crontab 每天凌晨自动执行（见 install_cron.sh）
  */
 'use strict'
@@ -15,6 +16,7 @@ const { exportAll } = require('../lib/wxCloudExport')
 
 const BACKUP_ROOT = path.join(__dirname, 'data')
 const KEEP_DAYS = 7
+const FORCE_REFRESH = process.argv.includes('--force')
 
 /** 获取今天的日期字符串 YYYY-MM-DD */
 function todayStr() {
@@ -48,23 +50,53 @@ function cleanOldBackups() {
 async function main() {
   const date = todayStr()
   const outDir = path.join(BACKUP_ROOT, date)
+  const hasTodayBackup = fs.existsSync(outDir) && fs.readdirSync(outDir).length > 0
+  const refreshDir = path.join(BACKUP_ROOT, `${date}.__refresh_${Date.now()}`)
+  const exportDir = FORCE_REFRESH && hasTodayBackup ? refreshDir : outDir
 
   console.log(`\n📦 灵宠消消塔 — 每日数据库备份`)
   console.log(`   日期: ${date}`)
   console.log(`   目录: ${outDir}`)
   console.log(`   保留: 最近 ${KEEP_DAYS} 天`)
+  if (FORCE_REFRESH) console.log('   模式: 强制刷新当天备份')
   console.log('')
 
   // 如果今天已经备份过，跳过
-  if (fs.existsSync(outDir) && fs.readdirSync(outDir).length > 0) {
-    console.log(`⏭ 今日已备份，跳过 (${outDir})`)
-    console.log('')
-    cleanOldBackups()
-    return
+  if (hasTodayBackup) {
+    if (FORCE_REFRESH) {
+      console.log(`↻ 今日已有备份，先导出到临时目录，成功后再替换 (${refreshDir})`)
+      console.log('')
+    } else {
+      console.log(`⏭ 今日已备份，跳过 (${outDir})`)
+      console.log(`   如需刷新今天数据：node ${path.relative(process.cwd(), __filename)} --force`)
+      console.log('')
+      cleanOldBackups()
+      return
+    }
   }
 
   console.log('===== 开始导出 =====')
-  const results = await exportAll(outDir)
+  let results
+  try {
+    results = await exportAll(exportDir)
+    const failedBeforeReplace = results.filter(r => r.count < 0)
+    if (FORCE_REFRESH && hasTodayBackup && failedBeforeReplace.length) {
+      throw new Error(`强制刷新失败，保留旧备份；失败集合: ${failedBeforeReplace.map(r => r.name).join(', ')}`)
+    }
+    if (FORCE_REFRESH && hasTodayBackup) {
+      fs.rmSync(outDir, { recursive: true, force: true })
+      fs.renameSync(refreshDir, outDir)
+      results.forEach((r) => {
+        if (r.file) r.file = path.join(outDir, path.basename(r.file))
+      })
+      console.log(`  ✓ 已替换当天备份: ${outDir}`)
+    }
+  } catch (e) {
+    if (FORCE_REFRESH && fs.existsSync(refreshDir)) {
+      fs.rmSync(refreshDir, { recursive: true, force: true })
+    }
+    throw e
+  }
   console.log('')
 
   // 同时更新 analysis/data/ 的最新副本（供分析脚本直接用）

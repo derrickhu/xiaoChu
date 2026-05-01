@@ -12,7 +12,7 @@ function drawBattleUIControls(g, eAreaTop, eAreaBottom, teamBarY, exitBtnSize, d
   // 旧的己方 Buff 小标签已由 battleStatusBar 取代，保留参数签名兼容
   void drawBuffIconsLabeled
 
-  if (!tutorial.isActive()) {
+  if (!tutorial.isActive() && !g._newbiePrologue) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)'
     R.rr(exitBtnX, exitBtnY, exitBtnSize, exitBtnSize, 6*S); ctx.fill()
     ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1
