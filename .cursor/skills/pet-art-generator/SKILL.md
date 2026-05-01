@@ -83,7 +83,7 @@ python3 .cursor/skills/pet-art-generator/scripts/generate_pet.py \
 | Background removal | `rembg` with `birefnet-general` model (~928MB, ~9.5s on Apple Silicon) |
 | Execution | CPU-only (`CPUExecutionProvider`), `OMP_NUM_THREADS=8` |
 | Avatar cropping | Top-aligned square crop (preserves head/upper body) |
-| Image generation | Gemini API via `~/.cursor/skills/gemini-image-gen` |
+| Image generation | Gemini API via `~/.cursor/skills/gemini-image-gen`（默认 HTTP 代理 `127.0.0.1:7897`，见该技能） |
 | Default model | `gemini-3.1-flash-image-preview` (aspect ratio `16:9`) |
 
 ## Dependencies

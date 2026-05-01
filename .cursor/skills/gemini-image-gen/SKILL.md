@@ -7,6 +7,10 @@ description: 使用 Google Gemini 文生图；API Key 存于本目录 api_key.lo
 
 本目录 **`api_key.local`** 存一行 Gemini API Key（**勿提交**，已在仓库 `.gitignore`）。
 
+## 本地代理（生图）
+
+与用户级 `~/.cursor/skills/gemini-image-gen/scripts/generate_images.py` 默认一致：`http://127.0.0.1:7897`（与 macOS 系统代理及 Clash Verge / Mihomo 混合端口对齐）。可用环境变量 `HTTPS_PROXY` / `https_proxy` 覆盖；代理异常时 `GEMINI_IMAGE_NO_PROXY=1` 直连。
+
 ## 用法
 
 ```bash
