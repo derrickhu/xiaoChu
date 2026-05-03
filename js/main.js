@@ -87,6 +87,41 @@ const COLS = 6, ROWS = 5
 const R = new Render(ctx, W, H, S, safeTop)
 ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P)
 
+function _buildLoadingAnalyticsParams(g, scene, elapsed) {
+  const assetStats = AssetLoader.getStats ? AssetLoader.getStats() : {}
+  const safeArea = _winInfo.safeArea || {}
+  return {
+    scene,
+    elapsedMs: elapsed,
+    cloudSyncReady: !!(g.storage && g.storage.cloudSyncReady),
+    hasPersistentProgress: !!(g.storage && g.storage.hasPersistentProgress && g.storage.hasPersistentProgress()),
+    platformName: P.name || '',
+    devicePlatform: _devInfo.platform || '',
+    deviceBrand: _devInfo.brand || '',
+    deviceModel: _devInfo.model || '',
+    isOHOS: !!P.isOHOS,
+    windowW: Math.round(_winInfo.windowWidth || 0),
+    windowH: Math.round(_winInfo.windowHeight || 0),
+    pixelRatio: Math.round((dpr || 0) * 100) / 100,
+    safeTop: Math.round((safeArea.top || 0) * 100) / 100,
+    criticalImageCount: g._criticalImages ? g._criticalImages.length : 0,
+    criticalPreloadMs: g._criticalPreloadReadyAt && g._criticalPreloadStartAt
+      ? Math.max(0, g._criticalPreloadReadyAt - g._criticalPreloadStartAt)
+      : 0,
+    loadPct: Math.round((g._loadPct || 0) * 100),
+    cdnManifestReady: !!assetStats.manifestReady,
+    cdnManifestFiles: assetStats.manifestFileCount || 0,
+    cdnResolve: assetStats.resolveCdn || 0,
+    cdnCacheHit: assetStats.cacheHit || 0,
+    cdnCacheMiss: assetStats.cacheMiss || 0,
+    cdnDownloadStart: assetStats.downloadStart || 0,
+    cdnDownloadSuccess: assetStats.downloadSuccess || 0,
+    cdnDownloadFail: assetStats.downloadFail || 0,
+    cdnPending: assetStats.pendingDownloads || 0,
+    cdnRuntimeTemp: assetStats.runtimeTempCount || 0,
+  }
+}
+
 class Main {
   constructor() {
     this.storage = new Storage()
@@ -536,10 +571,12 @@ class Main {
       'assets/ui/btn_back.png',
     ]
     R.setKeepPaths(this._criticalImages)
+    this._criticalPreloadStartAt = Date.now()
     R.preloadImages(this._criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
     }).then(() => {
       console.log('[Preload] critical images ready')
+      this._criticalPreloadReadyAt = Date.now()
       this._loadReady = true
     })
     // 后台拉取 CDN 资源清单（不阻塞启动，拉完后按需下载即自动生效）
@@ -607,13 +644,14 @@ class Main {
         if (!this.storage.cloudSyncReady && elapsed < 2500) return
 
         const shouldSkipIntro = !!P.getStorageSync('introDone') || this.storage.hasPersistentProgress()
+        const loadingParams = _buildLoadingAnalyticsParams(this, shouldSkipIntro ? 'title' : 'intro', elapsed)
+        if (!this.storage.cloudSyncReady && !this._loadingCloudWaitTracked && this.storage.recordFunnelEvent) {
+          this._loadingCloudWaitTracked = true
+          this.storage.recordFunnelEvent('loading_cloud_wait_timeout', loadingParams)
+        }
         if (!this._loadingReadyTracked && this.storage.recordFunnelEvent) {
           this._loadingReadyTracked = true
-          this.storage.recordFunnelEvent('loading_ready', {
-            scene: shouldSkipIntro ? 'title' : 'intro',
-            cloudSyncReady: !!this.storage.cloudSyncReady,
-            elapsedMs: elapsed,
-          })
+          this.storage.recordFunnelEvent('loading_ready', loadingParams)
         }
         if (!shouldSkipIntro) {
           introView.init(this)

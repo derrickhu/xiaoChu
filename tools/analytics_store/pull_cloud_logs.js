@@ -49,6 +49,19 @@ function defaultWindow(cfg, opts) {
   return { start: start.getTime(), end: end.getTime() }
 }
 
+function floorHour(ms) {
+  const d = new Date(ms)
+  d.setMinutes(0, 0, 0)
+  return d.getTime()
+}
+
+function ceilHour(ms) {
+  const d = new Date(ms)
+  d.setMinutes(0, 0, 0)
+  if (d.getTime() < ms) d.setHours(d.getHours() + 1)
+  return d.getTime()
+}
+
 function runTcbSearch(cfg, startMs, endMs, context) {
   const args = [
     'logs', 'search',
@@ -171,8 +184,8 @@ async function insertEvents(conn, rows, pullRunId) {
 }
 
 async function rebuildHourlyMetrics(conn, startMs, endMs) {
-  const start = toMysqlDate(startMs)
-  const end = toMysqlDate(endMs)
+  const start = toMysqlDate(floorHour(startMs))
+  const end = toMysqlDate(ceilHour(endMs))
   await conn.execute('DELETE FROM funnel_hourly_metrics WHERE bucket_hour >= ? AND bucket_hour < ?', [start, end])
   await conn.execute(`
     INSERT INTO funnel_hourly_metrics (

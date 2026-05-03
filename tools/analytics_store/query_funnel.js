@@ -69,6 +69,10 @@ function cohortFilter(rangeWhere) {
     SELECT DISTINCT openid_hash
     FROM analytics_events
     WHERE ${rangeWhere} AND event_id='new_user_enter' AND openid_hash <> ''
+  ) AND openid_hash NOT IN (
+    SELECT DISTINCT openid_hash
+    FROM analytics_events
+    WHERE ${rangeWhere} AND event_id='cloud_veteran_restored' AND openid_hash <> ''
   )`
 }
 
@@ -88,9 +92,10 @@ async function main() {
   try {
     const rangeWhere = 'event_at >= ? AND event_at < ?'
     const range = [start, end]
-    const total = await countUsers(conn, `${rangeWhere} AND event_id='new_user_enter'`, range)
     const cohortWhere = cohortFilter(rangeWhere)
-    const cohortRange = range.concat(range)
+    const cohortParams = range.concat(range)
+    const cohortRange = range.concat(cohortParams)
+    const total = await countUsers(conn, `${rangeWhere} AND event_id='new_user_enter' AND ${cohortWhere}`, cohortRange)
     const rows = [
       { label: '新用户进入', count: total },
       { label: '加载完成', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='loading_ready'`, cohortRange) },
@@ -114,6 +119,44 @@ async function main() {
     rows.forEach(row => printMetric(row.label, row.count, total))
     printAdjacent(rows)
     printTopDrops(rows)
+
+    const [loadingRows] = await conn.execute(`
+      SELECT
+        COUNT(DISTINCT CASE WHEN event_id='loading_ready' THEN openid_hash END) AS ready_users,
+        COUNT(DISTINCT CASE WHEN event_id='loading_cloud_wait_timeout' THEN openid_hash END) AS cloud_wait_users,
+        ROUND(AVG(CASE WHEN event_id='loading_ready' THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.elapsedMs')) AS UNSIGNED) END)) AS avg_elapsed_ms,
+        MAX(CASE WHEN event_id='loading_ready' THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.elapsedMs')) AS UNSIGNED) END) AS max_elapsed_ms,
+        MAX(CASE WHEN event_id='loading_ready' THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.criticalPreloadMs')) AS UNSIGNED) END) AS max_preload_ms,
+        SUM(CASE WHEN event_id='loading_ready' THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.cdnDownloadFail')) AS UNSIGNED) ELSE 0 END) AS cdn_download_fail
+      FROM analytics_events
+      WHERE ${rangeWhere} AND ${cohortWhere}
+    `, cohortRange)
+    const load = loadingRows[0] || {}
+    console.log('\n加载诊断')
+    console.log(`加载完成人数 ${Number(load.ready_users || 0)} / ${total}`
+      + `  平均耗时 ${Number(load.avg_elapsed_ms || 0)}ms`
+      + `  最大耗时 ${Number(load.max_elapsed_ms || 0)}ms`
+      + `  关键资源最大 ${Number(load.max_preload_ms || 0)}ms`
+      + `  云同步等待超时 ${Number(load.cloud_wait_users || 0)}`
+      + `  CDN失败累计 ${Number(load.cdn_download_fail || 0)}`)
+
+    const [deviceRows] = await conn.execute(`
+      SELECT
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.devicePlatform')), '') AS device_platform,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(params_json, '$.deviceBrand')), '') AS device_brand,
+        COUNT(DISTINCT openid_hash) AS users
+      FROM analytics_events
+      WHERE ${rangeWhere} AND ${cohortWhere} AND event_id='loading_ready'
+      GROUP BY device_platform, device_brand
+      ORDER BY users DESC
+      LIMIT 8
+    `, cohortRange)
+    if (deviceRows.length) {
+      console.log('设备分布')
+      deviceRows.forEach(r => {
+        console.log(`  ${(r.device_platform || 'unknown')}/${(r.device_brand || 'unknown')}: ${Number(r.users || 0)}`)
+      })
+    }
 
     console.log('\n第1章关卡进度')
     for (const stageId of chapter1StageIds()) {

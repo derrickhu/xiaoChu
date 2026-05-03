@@ -34,6 +34,17 @@ let _cacheAccessLog = {}
 let _cacheAccessFrame = 0
 let _runtimeTempUrlCache = {}
 const _debugLogged = {}
+const _stats = {
+  resolveCdn: 0,
+  cacheHit: 0,
+  cacheMiss: 0,
+  runtimeTempHit: 0,
+  downloadStart: 0,
+  downloadSuccess: 0,
+  downloadFail: 0,
+  manifestFetched: 0,
+  manifestCached: 0,
+}
 
 function _debugOnce(key, ...args) {
   if (_debugLogged[key]) return
@@ -137,18 +148,22 @@ function resolveAsset(path, opts) {
   if (_isBundledPath(path)) return path
   if (!_isCdnPath(path)) return path
 
+  _stats.resolveCdn++
   _cacheAccessFrame++
   _cacheAccessLog[path] = _cacheAccessFrame
 
   if (_runtimeTempUrlCache[path]) {
+    _stats.runtimeTempHit++
     _debugOnce('runtime_temp_hit:' + path, '[AssetLoader] runtime temp url hit', path, '=>', _runtimeTempUrlCache[path])
     return _runtimeTempUrlCache[path]
   }
 
   if (_isCacheValid(path)) {
+    _stats.cacheHit++
     _debugOnce('cache_hit:' + path, '[AssetLoader] cache hit', path, '=>', _getCachePath(path))
     return _getCachePath(path)
   }
+  _stats.cacheMiss++
   _debugOnce(
     'cache_miss:' + path,
     '[AssetLoader] cache miss',
@@ -175,6 +190,7 @@ function downloadAndNotify(logicalPath, onComplete) {
   const fileID = _getCloudFileID(logicalPath)
   const cachePath = _getCachePath(logicalPath)
   _ensureCacheDir(cachePath)
+  _stats.downloadStart++
   console.log('[CDN] download start', logicalPath, fileID)
 
   let retries = 0
@@ -238,6 +254,8 @@ function downloadAndNotify(logicalPath, onComplete) {
 }
 
 function _finishDownload(logicalPath, success) {
+  if (success) _stats.downloadSuccess++
+  else _stats.downloadFail++
   const callbacks = _downloadQueue[logicalPath] || []
   delete _downloadQueue[logicalPath]
   if (success && !_runtimeTempUrlCache[logicalPath]) {
@@ -341,6 +359,7 @@ function fetchManifest(onDone) {
           const text = _fs.readFileSync(res.tempFilePath, 'utf-8')
           _manifest = JSON.parse(text)
           _manifestReady = true
+          _stats.manifestFetched++
           _ensureCacheDir(CACHE_ROOT + '/manifest.json')
           try { _fs.writeFileSync(CACHE_ROOT + '/manifest.json', text, 'utf-8') } catch (_) {}
           if (onDone) onDone(true)
@@ -365,6 +384,7 @@ function _loadCachedManifest() {
     const text = _fs.readFileSync(CACHE_ROOT + '/manifest.json', 'utf-8')
     _manifest = JSON.parse(text)
     _manifestReady = true
+    _stats.manifestCached++
   } catch (_) {
     _manifest = { files: {} }
     _manifestReady = true
@@ -393,6 +413,14 @@ function clearCache() {
 function isManifestReady() { return _manifestReady }
 function getManifest() { return _manifest }
 function isCdnPath(path) { return _isCdnPath(path) }
+function getStats() {
+  return Object.assign({}, _stats, {
+    manifestReady: _manifestReady,
+    manifestFileCount: _manifest && _manifest.files ? Object.keys(_manifest.files).length : 0,
+    pendingDownloads: Object.keys(_downloadQueue).length,
+    runtimeTempCount: Object.keys(_runtimeTempUrlCache).length,
+  })
+}
 
 module.exports = {
   resolveAsset,
@@ -405,6 +433,7 @@ module.exports = {
   isManifestReady,
   getManifest,
   isCdnPath,
+  getStats,
   BUNDLED_PREFIXES,
   CDN_DIRS,
 }

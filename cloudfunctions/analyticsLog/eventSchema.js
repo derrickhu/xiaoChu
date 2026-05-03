@@ -11,6 +11,8 @@ const MAX_EVENT_PARAMS_BYTES = 1024
 const ALLOWED_EVENT_IDS = new Set([
   'new_user_enter',
   'loading_ready',
+  'loading_cloud_wait_timeout',
+  'cloud_veteran_restored',
   'intro_show',
   'intro_finish',
   'intro_done',

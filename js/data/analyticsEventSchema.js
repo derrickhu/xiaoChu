@@ -13,6 +13,8 @@ const MIN_FLUSH_INTERVAL_MS = 10000
 const ALLOWED_EVENT_IDS = new Set([
   'new_user_enter',
   'loading_ready',
+  'loading_cloud_wait_timeout',
+  'cloud_veteran_restored',
   'intro_show',
   'intro_finish',
   'intro_done',

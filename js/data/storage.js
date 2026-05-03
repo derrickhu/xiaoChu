@@ -1022,7 +1022,11 @@ class Storage {
     const s = this._ensureAnalyticsSummary()
     if (s.firstSeenDate) return
     if (this.hasGameplayProgress()) return
-    this.recordFunnelEvent('new_user_enter', { scene: 'startup' })
+    this.recordFunnelEvent('new_user_enter', {
+      scene: 'startup',
+      cloudSyncReady: !!this.cloudSyncReady,
+      hasLocalProgress: false,
+    })
   }
 
   recordFunnelEvent(eventId, params = {}) {
@@ -3938,6 +3942,14 @@ class Storage {
   _onCloudSyncDone() {
     const hasProgress = this.hasPersistentProgress()
     if (!hasProgress) return
+
+    if (this.recordFunnelEvent) {
+      this.recordFunnelEvent('cloud_veteran_restored', {
+        scene: 'cloud_sync',
+        stageClearCount: this.getClearedNormalStageDistinctCount(),
+        petPoolCount: (this._d.petPool || []).length,
+      })
+    }
 
     // 补写独立 key，防止下次启动还走新手流程
     if (!P.getStorageSync('introDone')) {
