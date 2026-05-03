@@ -158,6 +158,28 @@ async function main() {
       })
     }
 
+    const [prologueRows] = await conn.execute(`
+      SELECT
+        COUNT(DISTINCT CASE WHEN event_id='battle_first_frame' AND stage_id='newbie_prologue' THEN openid_hash END) AS first_frame_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_strong_hint_show' THEN openid_hash END) AS strong_hint_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_drag_start' THEN openid_hash END) AS drag_start_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_first_input' THEN openid_hash END) AS first_input_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_invalid_drag' THEN openid_hash END) AS invalid_drag_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_idle_5s' THEN openid_hash END) AS idle_5s_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_idle_10s' THEN openid_hash END) AS idle_10s_users
+      FROM analytics_events
+      WHERE ${rangeWhere} AND ${cohortWhere}
+    `, cohortRange)
+    const prologue = prologueRows[0] || {}
+    const firstFrameUsers = Number(prologue.first_frame_users || 0)
+    console.log('\n序章交互诊断')
+    printMetric('强引导曝光', Number(prologue.strong_hint_users || 0), firstFrameUsers)
+    printMetric('有效按住灵珠', Number(prologue.drag_start_users || 0), firstFrameUsers)
+    printMetric('完成首次拖动', Number(prologue.first_input_users || 0), firstFrameUsers)
+    printMetric('无效首次拖动', Number(prologue.invalid_drag_users || 0), Number(prologue.first_input_users || 0))
+    printMetric('5秒未操作', Number(prologue.idle_5s_users || 0), firstFrameUsers)
+    printMetric('10秒未操作', Number(prologue.idle_10s_users || 0), firstFrameUsers)
+
     console.log('\n第1章关卡进度')
     for (const stageId of chapter1StageIds()) {
       const label = stageId.replace('stage_', '').replace('_', '-')

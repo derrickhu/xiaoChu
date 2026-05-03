@@ -13,6 +13,9 @@ const { execFileSync } = require('child_process')
 const { loadConfig } = require('./config')
 const { createConnection, toMysqlDate } = require('./db')
 
+const LOG_SEARCH_LIMIT = 100
+const MIN_SPLIT_WINDOW_MS = 15 * 1000
+
 function parseLocalTime(text) {
   if (!text) return 0
   const ms = new Date(String(text).trim().replace(' ', 'T')).getTime()
@@ -69,7 +72,7 @@ function runTcbSearch(cfg, startMs, endMs, context) {
     '-e', cfg.cloudLogs.envId,
     '-q', cfg.cloudLogs.query || 'type:analytics_event',
     '-t', `${toMysqlDate(startMs)},${toMysqlDate(endMs)}`,
-    '--limit', '100',
+    '--limit', String(LOG_SEARCH_LIMIT),
     '--sort', 'asc',
   ]
   if (context) args.push('--context', context)
@@ -183,6 +186,37 @@ async function insertEvents(conn, rows, pullRunId) {
   return inserted
 }
 
+async function pullWindow(conn, cfg, opts, pullRunId, startMs, endMs) {
+  let context = ''
+  let rawRows = []
+  let hitLimit = false
+  for (let page = 0; page < opts.maxPages; page++) {
+    const raw = runTcbSearch(cfg, startMs, endMs, context)
+    const batch = collectLogItems(raw)
+    rawRows = rawRows.concat(batch.rows)
+    if (batch.rows.length >= LOG_SEARCH_LIMIT && batch.done) hitLimit = true
+    if (batch.done) break
+    context = batch.context
+  }
+
+  // 云日志查询无游标时会停在 limit，自动拆窗避免高峰期漏数。
+  if (hitLimit && endMs - startMs > MIN_SPLIT_WINDOW_MS) {
+    const midMs = startMs + Math.floor((endMs - startMs) / 2)
+    const left = await pullWindow(conn, cfg, opts, pullRunId, startMs, midMs)
+    const right = await pullWindow(conn, cfg, opts, pullRunId, midMs, endMs)
+    return {
+      pulled: left.pulled + right.pulled,
+      inserted: left.inserted + right.inserted,
+    }
+  }
+
+  const rows = rawRows.map(normalizeLog).filter(Boolean)
+  return {
+    pulled: rows.length,
+    inserted: await insertEvents(conn, rows, pullRunId),
+  }
+}
+
 async function rebuildHourlyMetrics(conn, startMs, endMs) {
   const start = toMysqlDate(floorHour(startMs))
   const end = toMysqlDate(ceilHour(endMs))
@@ -239,16 +273,9 @@ async function main() {
     )
     pullRunId = res.insertId
 
-    let context = ''
-    for (let page = 0; page < opts.maxPages; page++) {
-      const raw = runTcbSearch(cfg, startMs, endMs, context)
-      const batch = collectLogItems(raw)
-      const rows = batch.rows.map(normalizeLog).filter(Boolean)
-      pulled += rows.length
-      inserted += await insertEvents(conn, rows, pullRunId)
-      if (batch.done) break
-      context = batch.context
-    }
+    const stats = await pullWindow(conn, cfg, opts, pullRunId, startMs, endMs)
+    pulled = stats.pulled
+    inserted = stats.inserted
 
     await rebuildHourlyMetrics(conn, startMs, endMs)
     await conn.execute(

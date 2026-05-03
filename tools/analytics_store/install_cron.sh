@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# 安装/更新每小时旁路埋点日志拉取 crontab
+# 安装/更新每 5 分钟旁路埋点日志拉取 crontab
 #
 # 用法: bash install_cron.sh
 #
@@ -9,17 +9,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NODE_BIN="$(which node)"
 BIN_DIR="$(dirname "${NODE_BIN}")"
 PULL_SCRIPT="${SCRIPT_DIR}/pull_cloud_logs.js"
-LOG_FILE="${SCRIPT_DIR}/hourly.log"
-CRON_COMMENT="# xiao_chu hourly analytics logs"
+LOG_FILE="${SCRIPT_DIR}/pull.log"
+CRON_COMMENT="# xiao_chu analytics logs every 5 minutes"
 CRON_PATH="${BIN_DIR}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-CRON_LINE="5 * * * * PATH=${CRON_PATH} ${NODE_BIN} ${PULL_SCRIPT} --full-hour >> ${LOG_FILE} 2>&1 ${CRON_COMMENT}"
+CRON_LINE="*/5 * * * * PATH=${CRON_PATH} ${NODE_BIN} ${PULL_SCRIPT} --recent-minutes 5 >> ${LOG_FILE} 2>&1 ${CRON_COMMENT}"
 
-echo "灵宠消消塔 — 安装每小时埋点日志拉取任务"
+echo "灵宠消消塔 — 安装每 5 分钟埋点日志拉取任务"
 echo ""
 echo "  脚本: ${PULL_SCRIPT}"
 echo "  Node: ${NODE_BIN}"
 echo "  日志: ${LOG_FILE}"
-echo "  时间: 每小时第 5 分钟"
+echo "  时间: 每 5 分钟，默认避开最近 5 分钟日志延迟"
 echo ""
 
 if [ ! -f "${PULL_SCRIPT}" ]; then
@@ -44,7 +44,9 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-EXISTING=$(crontab -l 2>/dev/null | grep -v "xiao_chu hourly analytics logs" || true)
+EXISTING=$(crontab -l 2>/dev/null \
+  | grep -v "xiao_chu hourly analytics logs" \
+  | grep -v "xiao_chu analytics logs every 5 minutes" || true)
 (echo "${EXISTING}"; echo "${CRON_LINE}") | crontab -
 
 echo ""
