@@ -8,6 +8,7 @@
  */
 const cloud = require('wx-server-sdk')
 const crypto = require('crypto')
+const { normalizePlatformGiftGoods } = require('./platformGiftConfig')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
@@ -91,9 +92,9 @@ async function _handlePost(event) {
 
   let msg
   try {
-    msg = typeof body === 'string' ? JSON.parse(body) : body
+    msg = typeof body === 'string' ? _parsePostBody(body) : body
   } catch (e) {
-    console.error('[giftDeliver] JSON 解析失败', body)
+    console.error('[giftDeliver] 消息解析失败', body)
     return _resp(200, { ErrCode: 0, ErrMsg: 'Parse error, ignored' })
   }
 
@@ -134,13 +135,16 @@ async function _handleDeliverGoods(mini) {
     console.error('[giftDeliver] 查询幂等失败', e)
   }
 
-  // GoodsList → 游戏奖励映射
-  const rewards = {}
-  const goodsList = mini.GoodsList || []
-  for (const item of goodsList) {
-    if (item.Id && item.Num > 0) {
-      rewards[item.Id] = (rewards[item.Id] || 0) + item.Num
-    }
+  const mapped = normalizePlatformGiftGoods(mini.GoodsList || [])
+  if (Object.keys(mapped.rewards).length === 0) {
+    console.error('[giftDeliver] 无可识别道具，拒绝发货', {
+      orderId,
+      giftId: mini.GiftId || '',
+      giftTypeId: mini.GiftTypeId || 0,
+      rawGoodsList: mapped.rawGoodsList,
+      unknownGoods: mapped.unknownGoods,
+    })
+    return _resp(200, { ErrCode: -1, ErrMsg: 'No supported goods' })
   }
 
   try {
@@ -151,12 +155,14 @@ async function _handleDeliverGoods(mini) {
         giftTypeId: mini.GiftTypeId || 0,
         giftId: mini.GiftId || '',
         isPreview: mini.IsPreview || 0,
-        rewards,
+        rewards: mapped.rewards,
+        rawGoodsList: mapped.rawGoodsList,
+        unknownGoods: mapped.unknownGoods,
         status: 'pending',
         createdAt: db.serverDate(),
       },
     })
-    console.log('[giftDeliver] 写入成功', orderId, rewards)
+    console.log('[giftDeliver] 写入成功', orderId, mapped.rewards, mapped.unknownGoods)
   } catch (e) {
     // 可能是并发写入导致的重复，视为成功
     console.warn('[giftDeliver] 写入异常（可能重复）', e.message || e)
@@ -166,6 +172,61 @@ async function _handleDeliverGoods(mini) {
 }
 
 // ========== 工具函数 ==========
+function _parsePostBody(body) {
+  const text = String(body || '').trim()
+  if (!text) return {}
+  if (text[0] === '{') return JSON.parse(text)
+  if (text[0] === '<') return _parseXmlMessage(text)
+  throw new Error('unknown body format')
+}
+
+function _xmlText(xml, tag) {
+  const reg = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i')
+  const m = String(xml || '').match(reg)
+  if (!m) return ''
+  return String(m[1] || '')
+    .replace(/^<!\[CDATA\[/, '')
+    .replace(/\]\]>$/, '')
+    .trim()
+}
+
+function _xmlNumber(xml, tag) {
+  const n = Number(_xmlText(xml, tag))
+  return Number.isFinite(n) ? n : 0
+}
+
+function _parseXmlMessage(xml) {
+  const msg = {
+    CreateTime: _xmlNumber(xml, 'CreateTime'),
+    MsgType: _xmlText(xml, 'MsgType'),
+    Event: _xmlText(xml, 'Event'),
+  }
+  const miniXml = _xmlText(xml, 'MiniGame')
+  if (miniXml) {
+    const goodsList = []
+    const goodsReg = /<GoodsList>([\s\S]*?)<\/GoodsList>/gi
+    let match
+    while ((match = goodsReg.exec(miniXml))) {
+      const itemXml = match[1]
+      goodsList.push({
+        Id: _xmlText(itemXml, 'Id'),
+        Num: _xmlNumber(itemXml, 'Num'),
+      })
+    }
+    msg.MiniGame = {
+      OrderId: _xmlText(miniXml, 'OrderId'),
+      IsPreview: _xmlNumber(miniXml, 'IsPreview'),
+      ToUserOpenid: _xmlText(miniXml, 'ToUserOpenid'),
+      Zone: _xmlNumber(miniXml, 'Zone'),
+      GiftTypeId: _xmlNumber(miniXml, 'GiftTypeId'),
+      GiftId: _xmlText(miniXml, 'GiftId'),
+      SendTime: _xmlNumber(miniXml, 'SendTime'),
+      GoodsList: goodsList,
+    }
+  }
+  return msg
+}
+
 function _checkSignature(signature, timestamp, nonce) {
   if (!signature || !timestamp || !nonce) return false
   const arr = [TOKEN, timestamp, nonce].sort()

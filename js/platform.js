@@ -166,22 +166,30 @@ const platform = {
    * @param {string} openlink MP 后台游戏圈提供的 openlink
    * @returns {Promise<void>}
    */
-  openGameClubPage(openlink) {
+  _openPageByOpenlink(openlink, label) {
     if (!isWeChat || !openlink) {
-      return Promise.reject(new Error('openGameClubPage: 非微信或未配置 openlink'))
+      return Promise.reject(new Error(`${label}: 非微信或未配置 openlink`))
     }
     if (typeof base.createPageManager !== 'function') {
-      return Promise.reject(new Error('openGameClubPage: 基础库不支持 createPageManager'))
+      return Promise.reject(new Error(`${label}: 基础库不支持 createPageManager`))
     }
     const pageManager = base.createPageManager()
     const ret = pageManager.load({ openlink })
     if (!ret || typeof ret.then !== 'function') {
-      return Promise.reject(new Error('openGameClubPage: load 未返回 Promise'))
+      return Promise.reject(new Error(`${label}: load 未返回 Promise`))
     }
     return ret.then((res) => {
       try { pageManager.show() } catch (e) { /* ignore */ }
       return res
     })
+  },
+
+  openGameClubPage(openlink) {
+    return this._openPageByOpenlink(openlink, 'openGameClubPage')
+  },
+
+  openGiftPage(openlink) {
+    return this._openPageByOpenlink(openlink, 'openGiftPage')
   },
 
   /**

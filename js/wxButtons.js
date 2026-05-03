@@ -451,7 +451,7 @@ function _gameClubNativeStyle(rect, dpr) {
 
 /** 游戏圈按钮 — 仅在 title 场景且无弹窗/引导时显示，覆盖在 Canvas 占位区上 */
 function updateGameClubBtn(g, dpr) {
-  if (TITLE_HOME.gameClubOpenlink) {
+  if (TITLE_HOME.gameClubOpenlink || TITLE_HOME.giftOpenlink) {
     destroyGameClubBtn(g)
     return
   }
@@ -473,21 +473,24 @@ function updateGameClubBtn(g, dpr) {
       if (!r) return
       try {
         const imageStyle = _gameClubNativeStyle(r, dpr)
-        // 官方仅预设四套 icon；type=image 可用自定义底图（仍会叠加小号官方角标，icon 必填，选 white 弱对比）
+        // 原生 GameClubButton 的 openlink 只接受游戏圈帖子跳转 ID。
+        // 当前配置的长 openlink 留给 PageManager 使用，原生按钮只打开游戏圈首页，避免真机 openPage 失败。
         const img = TITLE_HOME.gameClubBtnImage
         let btn = null
         try {
-          btn = P.createGameClubButton({
+          const imageOpts = {
             type: 'image',
             image: img,
             icon: 'white',
             style: imageStyle,
-          })
+          }
+          btn = P.createGameClubButton(imageOpts)
         } catch (e1) {
           console.warn('[GameClub] type=image 失败，回退 preset:', e1)
         }
         if (!btn) {
-          btn = P.createGameClubButton({ icon: 'light', style: imageStyle })
+          const presetOpts = { icon: 'light', style: imageStyle }
+          btn = P.createGameClubButton(presetOpts)
         }
         if (!btn) return
         g._gameClubBtn = btn

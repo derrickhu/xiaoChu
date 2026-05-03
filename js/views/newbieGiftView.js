@@ -44,17 +44,62 @@ function _buildItems() {
   return items
 }
 
+function _buildItemsFromRewards(rewards) {
+  const items = []
+  if (!rewards) return items
+  if (rewards.soulStone) {
+    items.push({ icon: 'assets/ui/icon_soul_stone.png', label: '灵石', amount: `×${rewards.soulStone}`, num: rewards.soulStone })
+  }
+  if (rewards.universalFragment) {
+    items.push({ icon: 'assets/ui/icon_universal_frag.png', label: '万能碎片', amount: `×${rewards.universalFragment}`, num: rewards.universalFragment })
+  }
+  if (rewards.stamina) {
+    items.push({ icon: 'assets/ui/icon_stamina.png', label: '体力', amount: `×${rewards.stamina}`, num: rewards.stamina })
+  }
+  if (rewards.awakenStone) {
+    items.push({ icon: 'assets/ui/icon_awaken_stone.png', label: '觉醒石', amount: `×${rewards.awakenStone}`, num: rewards.awakenStone })
+  }
+  return items
+}
+
 function show(g) {
   g._newbieGift = {
     timer: 0,
     phase: 'opening',
     claimed: false,
     items: _buildItems(),
+    title: '主宠养成包',
+    claimText: '✦ 开启礼包 ✦',
+    cheerText: '主人～金锋灵猫的养成材料准备好啦，去灵宠池把它升起来吧！',
     closeTimer: 0,
     claimTimer: 0,
     flyParticles: [],
     _btnRect: null,
   }
+}
+
+function showPlatformGift(g, rewards) {
+  const items = _buildItemsFromRewards(rewards)
+  if (!items.length) return false
+  g._newbieGift = {
+    timer: 0,
+    phase: 'opening',
+    claimed: false,
+    items,
+    title: '微信礼包',
+    subtitleLines: [
+      '主人～ 微信礼包已经送达啦！',
+      '每日来游戏圈领取福利，灵宠升星会更快～',
+    ],
+    claimText: '✦ 领取礼包 ✦',
+    cheerText: '主人～微信礼包已收入囊中，继续修炼吧！',
+    platformGift: true,
+    closeTimer: 0,
+    claimTimer: 0,
+    flyParticles: [],
+    _btnRect: null,
+  }
+  return true
 }
 
 // 计算奖励项在弹窗中的位置（供飞入起点用）
@@ -83,6 +128,9 @@ function draw(g) {
 
   d.timer++
   if (d.claimed) d.claimTimer++
+  if (d.platformGift && d.claimed && !d.claimApplied && d.claimTimer >= _getPlatformClaimDelay(d)) {
+    d.claimApplied = !!_claimPlatformGiftRewards(g)
+  }
 
   // 半透明遮罩
   c.save()
@@ -143,15 +191,19 @@ function draw(g) {
     c.font = `bold ${15 * S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'
     c.textBaseline = 'middle'
-    c.fillText('主宠养成包', W / 2, bannerY + bannerH * 0.48)
+    c.fillText(d.title || '主宠养成包', W / 2, bannerY + bannerH * 0.48)
 
     // 副文案 —— 小灵欢迎语（左侧小头像 + 右侧两行软糯文字）
     const subtitleY = bannerY + bannerH + 14 * S
     const avatarImg = R.getImg(LING.avatar)
     const ar = 12 * S
     // 整体两行文字块高 ~32*S；头像置中对齐
-    const line1 = '主人～ 我是小灵，以后就由我陪着你啦！'
-    const line2 = '主养金锋灵猫，前期推关会更有爆发感～'
+    const lines = d.subtitleLines || [
+      '主人～ 我是小灵，以后就由我陪着你啦！',
+      '主养金锋灵猫，前期推关会更有爆发感～',
+    ]
+    const line1 = lines[0] || ''
+    const line2 = lines[1] || ''
     // 文字放中间显示，头像画在第一行左侧
     c.font = `${11 * S}px "PingFang SC",sans-serif`
     const line1W = c.measureText(line1).width
@@ -284,7 +336,7 @@ function draw(g) {
           c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
           c.textAlign = 'center'
           c.textBaseline = 'middle'
-          c.fillText('✦ 开启礼包 ✦', btnX + btnW / 2, btnY + btnH * 0.48)
+          c.fillText(d.claimText || '✦ 开启礼包 ✦', btnX + btnW / 2, btnY + btnH * 0.48)
         } else {
           c.fillStyle = '#C8A040'
           R.rr(btnX, btnY, btnW, btnH, 8 * S)
@@ -293,7 +345,7 @@ function draw(g) {
           c.font = `bold ${14 * S}px "PingFang SC",sans-serif`
           c.textAlign = 'center'
           c.textBaseline = 'middle'
-          c.fillText('✦ 开启礼包 ✦', btnX + btnW / 2, btnY + btnH * 0.48)
+          c.fillText(d.claimText || '✦ 开启礼包 ✦', btnX + btnW / 2, btnY + btnH * 0.48)
         }
         d._btnRect = [btnX, btnY, btnW, btnH]
       }
@@ -351,6 +403,7 @@ function _spawnFlyParticles(d, S, W, H, g) {
     'assets/ui/icon_soul_stone.png': g && g._soulStonePillRect,
     'assets/ui/icon_stamina.png': g && g._staminaPillRect,
     'assets/ui/icon_universal_frag.png': g && g._uniFragPillRect,
+    'assets/ui/icon_awaken_stone.png': null,
   }
   const defaultTY = 20 * S
   d.items.forEach((item, i) => {
@@ -382,7 +435,8 @@ function onTouch(g, x, y, type) {
   if (!d.claimed && d._btnRect) {
     const [bx, by, bw, bh] = d._btnRect
     if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-      _claimRewards(g)
+      if (d.platformGift && !_hasPendingPlatformGift(g)) return true
+      if (!d.platformGift) _claimRewards(g)
       buttonFx.trigger(d._btnRect.slice(), 'starUp')  // 礼包是里程碑级反馈
       d.claimed = true
       d.phase = 'claimed'
@@ -394,10 +448,10 @@ function onTouch(g, x, y, type) {
   }
 
   // 已领取且弹跳动画结束后，点击任意位置关闭
-  if (d.claimed && d.claimTimer > CLAIM_BOUNCE_DUR + d.items.length * 6) {
+  if (d.claimed && d.claimTimer > CLAIM_BOUNCE_DUR + d.items.length * 6 && (!d.platformGift || d.claimApplied)) {
     if (!d._upgradeCheered) {
       d._upgradeCheered = true
-      lingCheer.show('主人～金锋灵猫的养成材料准备好啦，去灵宠池把它升起来吧！', { tone: 'warm', duration: 3200 })
+      if (d.cheerText) lingCheer.show(d.cheerText, { tone: 'warm', duration: 3200 })
     }
     d.phase = 'closing'
     return true
@@ -420,4 +474,29 @@ function _claimRewards(g) {
   g._uniFragPulse = { timer: 0 }
 }
 
-module.exports = { show, draw, onTouch }
+function _claimPlatformGiftRewards(g) {
+  if (!g || !g.storage || !g.storage.claimPendingPlatformGifts) return null
+  const result = g.storage.claimPendingPlatformGifts()
+  if (!result) return null
+  if (result.ids && result.ids.length) {
+    try {
+      require('../data/cloudSync').markPlatformGiftsGranted(result.ids).catch((e) => {
+        console.warn('[PlatformGift] 云端标记已领取失败，下次启动会补偿重试', e)
+      })
+    } catch (e) {
+      console.warn('[PlatformGift] 标记已领取异常', e)
+    }
+  }
+  if (result.granted && result.granted.universalFragment) g._uniFragPulse = { timer: 0 }
+  return result
+}
+
+function _hasPendingPlatformGift(g) {
+  return !!(g && g.storage && g.storage._pendingPlatformGiftClaims && g.storage._pendingPlatformGiftClaims.length)
+}
+
+function _getPlatformClaimDelay(d) {
+  return Math.max(FLY_DURATION, FLY_DURATION + Math.max(0, (d.items || []).length - 1) * FLY_STAGGER - 4)
+}
+
+module.exports = { show, showPlatformGift, draw, onTouch }

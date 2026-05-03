@@ -144,7 +144,7 @@ async function _syncFromCloud() {
   } catch(e) { console.warn('Sync from cloud error:', e) }
 }
 
-// ===== 拉取并发放微信平台礼包（通过云函数，避免客户端权限问题） =====
+// ===== 拉取微信平台礼包（通过云函数，避免客户端权限问题） =====
 async function _claimPendingGifts(storage) {
   if (!P.isWeChat || !_cloudReady || !_openid) return
   try {
@@ -157,23 +157,70 @@ async function _claimPendingGifts(storage) {
     const grantedIds = []
     for (const gift of gifts) {
       if (!gift.rewards || typeof gift.rewards !== 'object') continue
+      if (storage.isPlatformGiftLocallyGranted && storage.isPlatformGiftLocallyGranted(gift._id)) {
+        grantedIds.push(gift._id)
+        continue
+      }
+      if (gift.unknownGoods && gift.unknownGoods.length && storage.recordFunnelEvent) {
+        storage.recordFunnelEvent('platform_gift_unknown_goods', {
+          giftTypeId: gift.giftTypeId || 0,
+          giftId: gift.giftId || '',
+          count: gift.unknownGoods.length,
+        })
+      }
+      if (Object.keys(gift.rewards || {}).length === 0) {
+        if (storage.recordFunnelEvent) {
+          storage.recordFunnelEvent('platform_gift_empty', {
+            giftTypeId: gift.giftTypeId || 0,
+            giftId: gift.giftId || '',
+          })
+        }
+        continue
+      }
       const granted = storage.grantRewardBundle(gift.rewards)
-      grantedList.push({ giftTypeId: gift.giftTypeId, granted })
+      const grantedKeys = Object.keys(granted || {})
+      if (grantedKeys.length === 0) {
+        if (storage.recordFunnelEvent) {
+          storage.recordFunnelEvent('platform_gift_empty', {
+            giftTypeId: gift.giftTypeId || 0,
+            giftId: gift.giftId || '',
+          })
+        }
+        continue
+      }
+      grantedList.push({
+        id: gift._id,
+        giftTypeId: gift.giftTypeId,
+        giftId: gift.giftId || '',
+        granted,
+      })
       grantedIds.push(gift._id)
     }
 
-    // 通过云函数批量标记已领取
-    if (grantedIds.length > 0) {
-      await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: grantedIds } })
-    }
-
-    console.log('[CloudSync] 平台礼包已发放', grantedList.length, '笔')
     if (_onPlatformGifts && grantedList.length > 0) {
       _onPlatformGifts(grantedList)
     }
+
+    // 本地已入账后再标记云端，标记失败时依赖本地 ID 防止重复发奖。
+    if (grantedIds.length > 0) {
+      try {
+        await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: grantedIds } })
+      } catch (e) {
+        console.warn('[CloudSync] 平台礼包云端标记失败，下次启动补偿重试', e)
+      }
+    }
+
+    console.log('[CloudSync] 平台礼包已静默入账', grantedList.length, '笔')
   } catch (e) {
     console.warn('[CloudSync] 拉取平台礼包失败', e)
   }
+}
+
+async function markPlatformGiftsGranted(ids) {
+  if (!P.isWeChat || !_cloudReady || !_openid) return { updated: 0 }
+  if (!ids || !Array.isArray(ids) || ids.length === 0) return { updated: 0 }
+  const res = await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids } })
+  return res.result || { updated: 0 }
 }
 
 // ===== 推送到云端 =====
@@ -345,6 +392,7 @@ module.exports = {
   init,
   syncToCloud: _syncToCloud,
   syncFromCloud: _syncFromCloud,
+  markPlatformGiftsGranted,
   debounceSyncToCloud,
   isReady,
   getOpenid,

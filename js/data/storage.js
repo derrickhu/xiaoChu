@@ -1618,6 +1618,10 @@ class Storage {
       this.noticeStaminaOverflow(r)
       granted.stamina = rewards.stamina
     }
+    if (rewards.universalFragment) {
+      this.addUniversalFragment(rewards.universalFragment)
+      granted.universalFragment = rewards.universalFragment
+    }
     if (rewards.fragment) {
       const fragResult = this.addRandomFragments(rewards.fragment)
       granted.fragment = rewards.fragment
@@ -3877,20 +3881,58 @@ class Storage {
    */
   /**
    * 微信平台礼包领取后回调
-   * grantedList: [{ giftTypeId, granted: { soulStone, ... } }, ...]
+   * grantedList: [{ id, giftTypeId, giftId, granted: { soulStone, ... } }, ...]
    */
   _onPlatformGifts(grantedList) {
     if (!grantedList || grantedList.length === 0) return
-    // 合并所有奖励用于展示
     const total = {}
+    const giftTypes = {}
+    const giftIds = {}
+    let grantCount = 0
+    this._d.platformGiftGrantedIds = this._d.platformGiftGrantedIds || {}
     for (const item of grantedList) {
-      for (const [k, v] of Object.entries(item.granted || {})) {
+      const granted = item.granted || {}
+      if (!Object.keys(granted).length) continue
+      grantCount++
+      if (item.id) this._d.platformGiftGrantedIds[item.id] = Date.now()
+      const typeKey = String(item.giftTypeId || 'unknown')
+      giftTypes[typeKey] = (giftTypes[typeKey] || 0) + 1
+      if (item.giftId) giftIds[item.giftId] = (giftIds[item.giftId] || 0) + 1
+      for (const [k, v] of Object.entries(granted)) {
         if (typeof v === 'number') total[k] = (total[k] || 0) + v
       }
     }
-    console.log('[Storage] 平台礼包已发放', total)
-    this._pendingPlatformGiftRewards = total
+    this._pendingPlatformGiftClaims = null
+    this._pendingPlatformGiftRewards = null
+    if (Object.keys(total).length === 0) return
+    console.log('[Storage] 平台礼包已静默入账', total)
+    this._d.platformGiftSummary = this._d.platformGiftSummary || {
+      totalClaims: 0,
+      giftTypes: {},
+      giftIds: {},
+      rewards: {},
+      lastClaimAt: 0,
+    }
+    const summary = this._d.platformGiftSummary
+    summary.totalClaims = (summary.totalClaims || 0) + grantCount
+    summary.lastClaimAt = Date.now()
+    for (const [k, v] of Object.entries(giftTypes)) summary.giftTypes[k] = (summary.giftTypes[k] || 0) + v
+    for (const [k, v] of Object.entries(giftIds)) summary.giftIds[k] = (summary.giftIds[k] || 0) + v
+    for (const [k, v] of Object.entries(total)) summary.rewards[k] = (summary.rewards[k] || 0) + v
+    if (this.recordFunnelEvent) {
+      this.recordFunnelEvent('platform_gift_claimed', {
+        giftTypeId: Object.keys(giftTypes).join(','),
+        giftCount: grantCount,
+        universalFragment: total.universalFragment || 0,
+      })
+    }
     this._save()
+  }
+
+  isPlatformGiftLocallyGranted(id) {
+    if (!id) return false
+    const map = this._d.platformGiftGrantedIds || {}
+    return !!map[id]
   }
 
   _onCloudSyncDone() {

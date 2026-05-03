@@ -150,6 +150,10 @@ const TITLE_HOME = {
    * 留空则仍用 createGameClubButton（会有点按高亮）。
    */
   gameClubOpenlink: '-SSEykJvFV3pORt5kTNpS2uRCE2Pk0t0-jfXJ_Rmeu4-PYB3x56w4rucmIjwdUnKt5TrJKXqLLC5SqbHDdrdsUMFZBJsDhi3iqVWOuJKB2Pr0tYGYTFYQndIlJ7WO-ZDTZbYpPAWCu9mOpD2i4vkuJnxTvbK6kZyOoJN-c1IVjQIMOTCZFywauSGPU0Qdrf_ymIrVjM4tEIKu1_hOH8e1T25ujcr2CeXUeR-SOEvqHOaiq6Z9lH8hUqqg5JQzEpuX3cGf0h39IfN-wDKxAf0M4mUC5XMktYzfjEyX4uyhz6vhgdxls7pS5Um-1AQJzHS_9h4qs2szApba_eovWdhXA',
+  /** MP 后台福利页 openlink；留空时点击福利气泡仍进入游戏圈承接。 */
+  giftOpenlink: '',
+  /** 游戏圈福利气泡文案：1-1 后展示，承接微信平台福利。 */
+  gameClubGiftBubbleText: '微信福利礼包',
   /** 模式切换（通天塔/秘境）：图案区高度、标签字号、相对 icon 加宽（×S） */
   modeSwitchIconPt: 30,
   modeSwitchLabelPt: 9,

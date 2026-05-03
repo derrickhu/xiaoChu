@@ -2404,8 +2404,33 @@ function drawGameClubBtn(g) {
     fallbackColor: '#8A5A1E',
   })
 
+  _drawGameClubGiftBubble(c, R, S, bx, by, geo.btnW, g.af || 0)
   g._gameClubBtnRect = [bx, by, geo.btnW, geo.btnH]
   g._gameClubNativeRect = entry && entry.nativeRect ? entry.nativeRect : g._gameClubBtnRect
+}
+
+function _drawGameClubGiftBubble(c, R, S, bx, by, btnW, af) {
+  const text = TITLE_HOME.gameClubGiftBubbleText || ''
+  if (!text) return
+  c.save()
+  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
+  const padX = 7 * S
+  const bubbleW = Math.min(92 * S, c.measureText(text).width + padX * 2)
+  const bubbleH = 18 * S
+  const x = bx + btnW - bubbleW + 2 * S
+  const y = by - 7 * S
+  const pulse = 0.85 + 0.15 * Math.sin(af * 0.08)
+  c.globalAlpha = 0.92 * pulse
+  c.fillStyle = 'rgba(190,45,34,0.94)'
+  R.rr(x, y, bubbleW, bubbleH, bubbleH / 2); c.fill()
+  c.strokeStyle = 'rgba(255,230,130,0.9)'
+  c.lineWidth = 1 * S
+  R.rr(x, y, bubbleW, bubbleH, bubbleH / 2); c.stroke()
+  c.fillStyle = '#fff7d6'
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText(text, x + bubbleW / 2, y + bubbleH / 2 + 0.5 * S)
+  c.restore()
 }
 
 // ===== 主入口 =====
