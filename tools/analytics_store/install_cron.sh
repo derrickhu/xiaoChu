@@ -7,10 +7,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NODE_BIN="$(which node)"
+BIN_DIR="$(dirname "${NODE_BIN}")"
 PULL_SCRIPT="${SCRIPT_DIR}/pull_cloud_logs.js"
 LOG_FILE="${SCRIPT_DIR}/hourly.log"
 CRON_COMMENT="# xiao_chu hourly analytics logs"
-CRON_LINE="5 * * * * ${NODE_BIN} ${PULL_SCRIPT} --full-hour >> ${LOG_FILE} 2>&1 ${CRON_COMMENT}"
+CRON_PATH="${BIN_DIR}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+CRON_LINE="5 * * * * PATH=${CRON_PATH} ${NODE_BIN} ${PULL_SCRIPT} --full-hour >> ${LOG_FILE} 2>&1 ${CRON_COMMENT}"
 
 echo "灵宠消消塔 — 安装每小时埋点日志拉取任务"
 echo ""

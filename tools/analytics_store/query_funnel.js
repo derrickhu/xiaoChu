@@ -64,6 +64,14 @@ function chapter1StageIds() {
   return Array.from({ length: 8 }, (_, i) => `stage_1_${i + 1}`)
 }
 
+function cohortFilter(rangeWhere) {
+  return `openid_hash IN (
+    SELECT DISTINCT openid_hash
+    FROM analytics_events
+    WHERE ${rangeWhere} AND event_id='new_user_enter' AND openid_hash <> ''
+  )`
+}
+
 async function countUsers(conn, where, params) {
   const [rows] = await conn.execute(
     `SELECT COUNT(DISTINCT openid_hash) AS n FROM analytics_events WHERE ${where}`,
@@ -81,23 +89,25 @@ async function main() {
     const rangeWhere = 'event_at >= ? AND event_at < ?'
     const range = [start, end]
     const total = await countUsers(conn, `${rangeWhere} AND event_id='new_user_enter'`, range)
+    const cohortWhere = cohortFilter(rangeWhere)
+    const cohortRange = range.concat(range)
     const rows = [
       { label: '新用户进入', count: total },
-      { label: '加载完成', count: await countUsers(conn, `${rangeWhere} AND event_id='loading_ready'`, range) },
-      { label: '开场剧情完成', count: await countUsers(conn, `${rangeWhere} AND event_id IN ('intro_finish','intro_done','first_screen_show')`, range) },
-      { label: '开始序章', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_start' AND stage_id='newbie_prologue'`, range) },
-      { label: '战斗首帧', count: await countUsers(conn, `${rangeWhere} AND event_id='battle_first_frame'`, range) },
-      { label: '序章首次操作', count: await countUsers(conn, `${rangeWhere} AND event_id='newbie_prologue_first_input'`, range) },
-      { label: '序章首次伤害', count: await countUsers(conn, `${rangeWhere} AND event_id='newbie_prologue_first_damage'`, range) },
-      { label: '序章通关', count: await countUsers(conn, `${rangeWhere} AND event_id='newbie_prologue_clear'`, range) },
-      { label: '开始 1-1', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_start' AND stage_id='stage_1_1'`, range) },
-      { label: '1-1 首次操作', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_1_1_first_input'`, range) },
-      { label: '1-1 首次伤害', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_1_1_first_damage'`, range) },
-      { label: '通关 1-1', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_clear' AND stage_id='stage_1_1'`, range) },
-      { label: '开始 1-2', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_start' AND stage_id='stage_1_2'`, range) },
-      { label: '1-2 首次操作', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_1_2_first_input'`, range) },
-      { label: '1-2 首次伤害', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_1_2_first_damage'`, range) },
-      { label: '通关 1-2', count: await countUsers(conn, `${rangeWhere} AND event_id='stage_clear' AND stage_id='stage_1_2'`, range) },
+      { label: '加载完成', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='loading_ready'`, cohortRange) },
+      { label: '开场剧情完成', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id IN ('intro_finish','intro_done','first_screen_show')`, cohortRange) },
+      { label: '开始序章', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_start' AND stage_id='newbie_prologue'`, cohortRange) },
+      { label: '战斗首帧', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='battle_first_frame' AND stage_id='newbie_prologue'`, cohortRange) },
+      { label: '序章首次操作', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='newbie_prologue_first_input'`, cohortRange) },
+      { label: '序章首次伤害', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='newbie_prologue_first_damage'`, cohortRange) },
+      { label: '序章通关', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='newbie_prologue_clear'`, cohortRange) },
+      { label: '开始 1-1', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_start' AND stage_id='stage_1_1'`, cohortRange) },
+      { label: '1-1 首次操作', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id IN ('stage_1_1_first_input','stage_first_input') AND stage_id='stage_1_1'`, cohortRange) },
+      { label: '1-1 首次伤害', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id IN ('stage_1_1_first_damage','stage_first_damage') AND stage_id='stage_1_1'`, cohortRange) },
+      { label: '通关 1-1', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_clear' AND stage_id='stage_1_1'`, cohortRange) },
+      { label: '开始 1-2', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_start' AND stage_id='stage_1_2'`, cohortRange) },
+      { label: '1-2 首次操作', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id IN ('stage_1_2_first_input','stage_first_input') AND stage_id='stage_1_2'`, cohortRange) },
+      { label: '1-2 首次伤害', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id IN ('stage_1_2_first_damage','stage_first_damage') AND stage_id='stage_1_2'`, cohortRange) },
+      { label: '通关 1-2', count: await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_clear' AND stage_id='stage_1_2'`, cohortRange) },
     ]
 
     console.log(`事件流首日漏斗：${start} → ${end}`)
@@ -108,11 +118,11 @@ async function main() {
     console.log('\n第1章关卡进度')
     for (const stageId of chapter1StageIds()) {
       const label = stageId.replace('stage_', '').replace('_', '-')
-      const started = await countUsers(conn, `${rangeWhere} AND event_id='stage_start' AND stage_id=?`, range.concat(stageId))
-      const firstInput = await countUsers(conn, `${rangeWhere} AND (event_id='stage_first_input' OR event_id=?) AND stage_id=?`, range.concat(`${stageId}_first_input`, stageId))
-      const firstDamage = await countUsers(conn, `${rangeWhere} AND (event_id='stage_first_damage' OR event_id=?) AND stage_id=?`, range.concat(`${stageId}_first_damage`, stageId))
-      const cleared = await countUsers(conn, `${rangeWhere} AND event_id='stage_clear' AND stage_id=?`, range.concat(stageId))
-      const failed = await countUsers(conn, `${rangeWhere} AND event_id='stage_fail' AND stage_id=?`, range.concat(stageId))
+      const started = await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_start' AND stage_id=?`, cohortRange.concat(stageId))
+      const firstInput = await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND (event_id='stage_first_input' OR event_id=?) AND stage_id=?`, cohortRange.concat(`${stageId}_first_input`, stageId))
+      const firstDamage = await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND (event_id='stage_first_damage' OR event_id=?) AND stage_id=?`, cohortRange.concat(`${stageId}_first_damage`, stageId))
+      const cleared = await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_clear' AND stage_id=?`, cohortRange.concat(stageId))
+      const failed = await countUsers(conn, `${rangeWhere} AND ${cohortWhere} AND event_id='stage_fail' AND stage_id=?`, cohortRange.concat(stageId))
       console.log(`${label.padEnd(8)} 开始 ${String(started).padStart(5)}  首操 ${String(firstInput).padStart(5)}  首伤 ${String(firstDamage).padStart(5)}  通关 ${String(cleared).padStart(5)}  失败 ${String(failed).padStart(5)}  通关率 ${pct(cleared, started)}`)
     }
 
@@ -128,9 +138,10 @@ async function main() {
         COUNT(DISTINCT CASE WHEN event_id = 'platform_gift_claimed' THEN openid_hash END) AS platform_gift_claimed
       FROM analytics_events
       WHERE event_at >= ? AND event_at < ?
+        AND ${cohortWhere}
       GROUP BY bucket_hour
       ORDER BY bucket_hour
-    `, [start, end])
+    `, cohortRange)
 
     console.log('\n按小时分组')
     hourRows.forEach((r) => {
