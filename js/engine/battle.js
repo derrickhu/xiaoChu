@@ -765,11 +765,31 @@ function applyFinalDamage(g, dmgMap, heal) {
         })
       }
     }
+    if (g.battleMode === 'stage' && g._stageId && !g._stageFirstDamageTracked) {
+      g._stageFirstDamageTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_first_damage', {
+          stageId: g._stageId,
+          scene: 'stage',
+          damage: Math.round(totalDmg),
+        })
+      }
+    }
     if (g.battleMode === 'stage' && g._stageId === 'stage_1_1' && !g._stage11FirstDamageTracked) {
       g._stage11FirstDamageTracked = true
       if (g.storage && g.storage.recordFunnelEvent) {
         g.storage.recordFunnelEvent('stage_1_1_first_damage', {
           stageId: 'stage_1_1',
+          scene: 'stage',
+          damage: Math.round(totalDmg),
+        })
+      }
+    }
+    if (g.battleMode === 'stage' && g._stageId === 'stage_1_2' && !g._stage12FirstDamageTracked) {
+      g._stage12FirstDamageTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_1_2_first_damage', {
+          stageId: 'stage_1_2',
           scene: 'stage',
           damage: Math.round(totalDmg),
         })

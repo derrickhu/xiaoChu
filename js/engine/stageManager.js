@@ -112,8 +112,12 @@ function startStage(g, stageId, teamPetIds) {
   g._newbiePrologue = false
   g._prologueResultPanel = null
   g._stageChestRewardPanel = null
+  g._stageFirstInputTracked = false
+  g._stageFirstDamageTracked = false
   g._stage11FirstInputTracked = false
   g._stage11FirstDamageTracked = false
+  g._stage12FirstInputTracked = false
+  g._stage12FirstDamageTracked = false
   g._stageTeam = teamPetIds.slice()
 
   // 从灵宠池构建战斗用宠物数组
@@ -257,8 +261,12 @@ function startStageNewbie(g, stageId) {
   g._newbiePrologue = false
   g._prologueResultPanel = null
   g._stageChestRewardPanel = null
+  g._stageFirstInputTracked = false
+  g._stageFirstDamageTracked = false
   g._stage11FirstInputTracked = false
   g._stage11FirstDamageTracked = false
+  g._stage12FirstInputTracked = false
+  g._stage12FirstDamageTracked = false
 
   // 构建临时宠物（不来自灵宠池，仅本局使用）
   g.pets = NEWBIE_PET_IDS.map(id => {
@@ -385,12 +393,20 @@ function startNewbiePrologue(g) {
   g._stageSettlePending = false
   g._stageTeam = NEWBIE_TRIAL_PET_IDS.slice()
   g._newbiePrologue = true
+  g._stageFirstInputTracked = false
+  g._stageFirstDamageTracked = false
   g._stage11FirstInputTracked = false
   g._stage11FirstDamageTracked = false
+  g._stage12FirstInputTracked = false
+  g._stage12FirstDamageTracked = false
   g._prologueFirstInputTracked = false
   g._prologueFirstDamageTracked = false
   g._prologueComboSeeded = false
   g._prologueHintTimer = 0
+  g._prologueIdle5Tracked = false
+  g._prologueIdle10Tracked = false
+  g._prologueHintShowTracked = false
+  g._prologueInvalidDragTracked = false
 
   g.pets = NEWBIE_TRIAL_PET_IDS.map(id => {
     const basePet = getPetById(id)
@@ -452,6 +468,7 @@ function startNewbiePrologue(g) {
 
   loadWave(g, 0)
   initBoard(g)
+  _seedPrologueOpeningBoard(g)
   _applyStageBossEncounter(g)
   g._mechanicOpenTip = {
     stageId: prologueStageId,
@@ -503,6 +520,16 @@ function settleNewbiePrologue(g) {
   g._prologueResultPanel = { timer: 0 }
   g.bState = 'prologueResult'
   g._dirty = true
+}
+
+function _seedPrologueOpeningBoard(g) {
+  if (!g || !g.board) return
+  const attrs = ['wood', 'metal', 'fire', 'water', 'earth']
+  for (let r = 0; r < Math.min(V.ROWS, attrs.length); r++) {
+    for (let c = 0; c < V.COLS; c++) {
+      if (g.board[r] && g.board[r][c]) g.board[r][c].attr = attrs[r]
+    }
+  }
 }
 
 /**

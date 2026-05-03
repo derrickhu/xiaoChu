@@ -141,6 +141,17 @@ function rStageResult(g) {
     }
   }
 
+  if (at === 1 && result.stageId === 'stage_1_2' && !result._stage12ResultTracked) {
+    result._stage12ResultTracked = true
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('stage_1_2_result_show', {
+        stageId: 'stage_1_2',
+        victory: !!result.victory,
+        scene: 'stage',
+      })
+    }
+  }
+
   if (!result.victory) {
     _victoryRewardScrollMax = 0
     _victoryRewardViewport = null
@@ -1571,7 +1582,8 @@ function _computeVictoryScrollContentHeight(result, S, pad) {
 }
 
 function _isNewbieFirstClearDouble(result) {
-  return !!(result && result.victory && result.isFirstClear && result.stageId === 'stage_1_1')
+  // 1-1 是新手连续推关关键点，广告翻倍延后到 1-2 首通，避免过早分流。
+  return !!(result && result.victory && result.isFirstClear && result.stageId === 'stage_1_2')
 }
 
 function _adDoubleSlotForResult(result) {

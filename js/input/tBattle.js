@@ -76,12 +76,22 @@ function _handleBoardDrag(g, type, x, y) {
     }
   } else if (type === 'end' && g.dragging) {
     g.dragging = false; g.dragAttr = null; g.dragTimer = 0
+    const wasPrologueFirstInput = g._newbiePrologue && !g._prologueFirstInputTracked
     if (g._newbiePrologue && !g._prologueFirstInputTracked) {
       g._prologueFirstInputTracked = true
       if (g.storage && g.storage.recordFunnelEvent) {
         g.storage.recordFunnelEvent('newbie_prologue_first_input', {
           stageId: 'newbie_prologue',
           scene: 'newbie_prologue',
+        })
+      }
+    }
+    if (g.battleMode === 'stage' && g._stageId && !g._stageFirstInputTracked) {
+      g._stageFirstInputTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_first_input', {
+          stageId: g._stageId,
+          scene: 'stage',
         })
       }
     }
@@ -94,9 +104,25 @@ function _handleBoardDrag(g, type, x, y) {
         })
       }
     }
+    if (g.battleMode === 'stage' && g._stageId === 'stage_1_2' && !g._stage12FirstInputTracked) {
+      g._stage12FirstInputTracked = true
+      if (g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('stage_1_2_first_input', {
+          stageId: 'stage_1_2',
+          scene: 'stage',
+        })
+      }
+    }
     if (tutorial.onDragEnd(g)) return
     MusicMgr.playDragEnd()
     g._checkAndElim()
+    if (wasPrologueFirstInput && g.bState === 'preEnemy' && g.storage && g.storage.recordFunnelEvent && !g._prologueInvalidDragTracked) {
+      g._prologueInvalidDragTracked = true
+      g.storage.recordFunnelEvent('newbie_prologue_invalid_drag', {
+        stageId: 'newbie_prologue',
+        scene: 'newbie_prologue',
+      })
+    }
   }
 }
 

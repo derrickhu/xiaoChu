@@ -26,6 +26,11 @@ const { drawRewardDetailOverlay, drawItemMenu } = require('./battle/battleReward
 const { drawTutorialOverlay } = require('./battle/battleTutorialView')
 const { drawStageChestReward, handleStageChestRewardTouch } = require('./battle/battleStageChestRewardView')
 
+const PROLOGUE_HINT_DELAY_FRAMES = 18
+const PROLOGUE_IDLE_5S_FRAMES = 300
+const PROLOGUE_IDLE_10S_FRAMES = 600
+const PROLOGUE_RESULT_AUTO_NEXT_FRAMES = 170
+
 function rBattle(g) {
   const { ctx, R, W, H, S, safeTop } = V
   R.drawBattleBg(g.af)
@@ -116,22 +121,49 @@ function _drawPrologueDragHint(g, cellSize, boardPad, boardTop) {
     return
   }
   g._prologueHintTimer = (g._prologueHintTimer || 0) + 1
-  if (g._prologueHintTimer < 90) return
+  if (g.storage && g.storage.recordFunnelEvent) {
+    if (!g._prologueHintShowTracked) {
+      g._prologueHintShowTracked = true
+      g.storage.recordFunnelEvent('newbie_prologue_hint_show', { stageId: 'newbie_prologue', scene: 'battle' })
+    }
+    if (g._prologueHintTimer >= PROLOGUE_IDLE_5S_FRAMES && !g._prologueIdle5Tracked) {
+      g._prologueIdle5Tracked = true
+      g.storage.recordFunnelEvent('newbie_prologue_idle_5s', { stageId: 'newbie_prologue', scene: 'battle' })
+    }
+    if (g._prologueHintTimer >= PROLOGUE_IDLE_10S_FRAMES && !g._prologueIdle10Tracked) {
+      g._prologueIdle10Tracked = true
+      g.storage.recordFunnelEvent('newbie_prologue_idle_10s', { stageId: 'newbie_prologue', scene: 'battle' })
+    }
+  }
+  if (g._prologueHintTimer < PROLOGUE_HINT_DELAY_FRAMES) return
 
-  const { ctx, W, S } = V
+  const { ctx, W, S, COLS, ROWS } = V
   const t = g.af || 0
   const fromCol = 1
   const toCol = 4
-  const row = 3
+  const row = 2
   const fromX = boardPad + (fromCol + 0.5) * cellSize
   const toX = boardPad + (toCol + 0.5) * cellSize
   const y = boardTop + (row + 0.5) * cellSize
-  const p = (Math.sin(t * 0.08) + 1) * 0.5
+  const cycle = 150
+  const localT = (g._prologueHintTimer % cycle) / cycle
+  const p = localT < 0.72 ? localT / 0.72 : 1
   const handX = fromX + (toX - fromX) * p
-  const alpha = Math.min(1, (g._prologueHintTimer - 90) / 20)
+  const alpha = Math.min(1, (g._prologueHintTimer - PROLOGUE_HINT_DELAY_FRAMES) / 20)
 
   ctx.save()
   ctx.globalAlpha = alpha
+  if (g._prologueHintTimer >= PROLOGUE_IDLE_10S_FRAMES) {
+    ctx.save()
+    const pulse = 0.65 + 0.25 * Math.sin(t * 0.12)
+    ctx.globalAlpha = alpha * pulse
+    ctx.strokeStyle = 'rgba(255,226,122,0.96)'
+    ctx.lineWidth = 4 * S
+    _rrPath(ctx, boardPad - 4 * S, boardTop - 4 * S, COLS * cellSize + 8 * S, ROWS * cellSize + 8 * S, 12 * S)
+    ctx.stroke()
+    ctx.restore()
+  }
+
   ctx.strokeStyle = 'rgba(255,226,122,0.86)'
   ctx.lineWidth = 4 * S
   ctx.lineCap = 'round'
@@ -154,7 +186,20 @@ function _drawPrologueDragHint(g, cellSize, boardPad, boardTop) {
   ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('按住任意灵珠拖动，松手爆发合击', W / 2, pillY + pillH / 2)
+  const hintText = g._prologueHintTimer >= PROLOGUE_IDLE_10S_FRAMES
+    ? '任意拖动一颗灵珠，松手就能攻击'
+    : '按住这颗灵珠，拖到右侧金光处'
+  ctx.fillText(hintText, W / 2, pillY + pillH / 2)
+
+  const targetPulse = 0.55 + 0.35 * Math.sin(t * 0.12)
+  ctx.save()
+  ctx.globalAlpha = alpha * targetPulse
+  ctx.strokeStyle = 'rgba(255,226,122,0.95)'
+  ctx.lineWidth = 3 * S
+  ctx.beginPath()
+  ctx.arc(toX, y, cellSize * 0.42, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
 
   ctx.beginPath()
   ctx.arc(handX, y - 14 * S, 14 * S, 0, Math.PI * 2)
@@ -174,6 +219,10 @@ function _drawPrologueResultPanel(g) {
   const panel = g._prologueResultPanel
   if (!panel) return
   panel.timer = (panel.timer || 0) + 1
+  if (panel.timer >= PROLOGUE_RESULT_AUTO_NEXT_FRAMES) {
+    _startStage11FromPrologue(g, 'prologue_inline_auto', 'newbie_stage_auto_start')
+    return
+  }
   const alpha = Math.min(1, panel.timer / 18)
 
   ctx.save()
@@ -185,6 +234,7 @@ function _drawPrologueResultPanel(g) {
   const panelH = 168 * S
   const panelX = (W - panelW) / 2
   const panelY = H * 0.30
+  g._prologueResultPanelRect = [panelX, panelY, panelW, panelH]
   R.drawDialogPanel(panelX, panelY, panelW, panelH)
 
   const avatarSize = 34 * S
@@ -227,25 +277,40 @@ function _drawPrologueResultPanel(g) {
   const btnH = 38 * S
   const btnX = panelX + (panelW - btnW) / 2
   const btnY = panelY + panelH - btnH - 14 * S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '进入第1关', 'gold')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '继续修炼第1关', 'gold')
   g._prologueResultNextRect = [btnX, btnY, btnW, btnH]
+  const remainSec = Math.max(1, Math.ceil((PROLOGUE_RESULT_AUTO_NEXT_FRAMES - panel.timer) / 60))
+  ctx.fillStyle = 'rgba(120,90,45,0.72)'
+  ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(`${remainSec} 秒后自动进入`, W / 2, btnY + btnH + 11 * S)
   ctx.restore()
 }
 
 function handlePrologueResultTouch(g, type, x, y) {
   if (!g._prologueResultPanel) return false
   if (type !== 'end') return true
-  if (g._prologueResultNextRect && g._hitRect(x, y, ...g._prologueResultNextRect)) {
-    const stageMgr = require('../engine/stageManager')
-    if (g.storage && g.storage.recordFunnelEvent) {
-      g.storage.recordFunnelEvent('newbie_stage_cta_click', { scene: 'prologue_inline_panel', stageId: 'stage_1_1' })
-    }
-    g._prologueResultPanel = null
-    if (!stageMgr.startStageNewbie(g, 'stage_1_1') && g.storage && g.storage.recordFunnelEvent) {
-      g.storage.recordFunnelEvent('newbie_stage_start_fail', { scene: 'prologue_inline_panel', stageId: 'stage_1_1' })
-    }
+  const hitButton = g._prologueResultNextRect && g._hitRect(x, y, ...g._prologueResultNextRect)
+  const hitPanel = g._prologueResultPanelRect && g._hitRect(x, y, ...g._prologueResultPanelRect)
+  if (hitButton || hitPanel) {
+    _startStage11FromPrologue(g, 'prologue_inline_panel', 'newbie_stage_cta_click')
   }
   return true
+}
+
+function _startStage11FromPrologue(g, scene, eventId) {
+  if (!g || !g._prologueResultPanel) return
+  const stageMgr = require('../engine/stageManager')
+  if (g.storage && g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent(eventId || 'newbie_stage_cta_click', { scene, stageId: 'stage_1_1' })
+  }
+  g._prologueResultPanel = null
+  g._prologueResultPanelRect = null
+  g._prologueResultNextRect = null
+  if (!stageMgr.startStageNewbie(g, 'stage_1_1') && g.storage && g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('newbie_stage_start_fail', { scene, stageId: 'stage_1_1' })
+  }
 }
 
 // ===== 玩家眩晕三件套（顶部金色横幅 + 棋盘紫灰蒙层） =====
