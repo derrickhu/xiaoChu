@@ -14,6 +14,7 @@ let _inited = false
 
 const _adReady = {}
 let _adShowFailed = false
+let _rewardedShowing = false
 
 function _deviceCalendarDay() {
   const d = new Date()
@@ -62,6 +63,11 @@ function _trackAdEvent(eventId, slotId, extra) {
     slotId,
     scene: slotId,
   }, extra || {}))
+}
+
+function _isAlreadyShowingError(err) {
+  const msg = String((err && (err.errMsg || err.message)) || '')
+  return msg.indexOf('advertisement has shown') >= 0
 }
 
 function _createRV(adUnitId) {
@@ -175,7 +181,7 @@ const AdManager = {
     if (!this.canShow('staminaRecovery')) return false
     // 勿用 isAdReady：激励视频懒加载，弹窗弹出时常尚未 onLoad，会误显示「分享」；
     // 实际确认后优先走 showRewardedVideo。仅鸿蒙在广告已判定失败后以分享为主路径。
-    const staminaAmount = (AD_REWARDS.staminaRecovery && AD_REWARDS.staminaRecovery.reward && AD_REWARDS.staminaRecovery.reward.stamina) || 30
+    const staminaAmount = (AD_REWARDS.staminaRecovery && AD_REWARDS.staminaRecovery.reward && AD_REWARDS.staminaRecovery.reward.stamina) || 100
     const sharePrimary = P.isOHOS && _adShowFailed
     _trackAdEvent('ad_entry_show', 'staminaRecovery', { scene: 'stamina_recovery_confirm' })
     g._confirmDialog = {
@@ -222,6 +228,10 @@ const AdManager = {
       if (callbacks.onError) callbacks.onError({ errMsg: 'slot_not_configured' })
       return
     }
+    if (_rewardedShowing) {
+      P.showGameToast('广告正在播放中', { type: 'warn' })
+      return
+    }
     _trackAdEvent('ad_click', slotId, { scene: callbacks.scene || slotId })
     if (!this.canShow(slotId)) {
       P.showGameToast('今日观看次数已用完，明日再来', { type: 'warn' })
@@ -249,7 +259,9 @@ const AdManager = {
       return
     }
 
+    _rewardedShowing = true
     const _onClose = (res) => {
+      _rewardedShowing = false
       ad.offClose(_onClose)
       const ended = !!(res && res.isEnded)
       if (ended) {
@@ -266,10 +278,16 @@ const AdManager = {
 
     ad.show().then(() => {
       _trackAdEvent('ad_show_success', slotId, { scene: callbacks.scene || slotId })
-    }).catch(() => {
+    }).catch((showErr) => {
+      if (_isAlreadyShowingError(showErr)) {
+        console.warn('[Ad] 激励视频已在展示中，忽略重复 show:', slotId)
+        _trackAdEvent('ad_show_success', slotId, { scene: callbacks.scene || slotId, duplicateShow: true })
+        return
+      }
       ad.load().then(() => ad.show().then(() => {
         _trackAdEvent('ad_show_success', slotId, { scene: callbacks.scene || slotId })
       })).catch((err) => {
+        _rewardedShowing = false
         ad.offClose(_onClose)
         _adShowFailed = true
         _adReady[cfg.adUnitId] = false

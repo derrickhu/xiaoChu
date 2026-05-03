@@ -19,10 +19,9 @@
  *   · firstPet（1-3 首队成型）、petStarUp、towerNewBest、comebackWin、realmUp：继续弹
  *   · 1-1 / 1-2：一切都静默（教学关）
  *
- * 【建议 2：稍后再说不 mark flag（2026-04）】
- *   · 旧：shareCelebrate.trigger 成功立刻 mark → 点"稍后再说"也算用掉唯一额度
- *   · 新：mark 延后到玩家真的点"分享给好友/朋友圈"时触发（shareCelebrate onConfirm 回调）
- *   · 效果：玩家第一次错过的里程碑，下次还能再遇到
+ * 【稍后再说】
+ *   · 点「稍后再说」会写入 celebrateFlags，本条里程碑视为已处理，不再重复弹炫耀卡
+ *   · 点「分享」则在 shareCelebrate 的 onConfirm 中 mark（两路径都会消费额度）
  *
  * 【幂等】
  *   · 一生一次：firstPet / firstSRating
@@ -78,7 +77,7 @@ function _isSilent(stageId) { return !!stageId && _SILENT_STAGES.has(stageId) }
 //   data        传给 shareCard / share 标题模板
 // 关键：
 //   · trigger 返回 false（被幂等吞掉）时不 mark flag，下次还能再次尝试触发
-//   · 成功展示后也先不 mark（见"建议 2"）；等玩家在卡片上真的点"分享"时才 mark
+//   · 成功展示后：玩家点「分享」或「稍后再说」都会 mark（shareCelebrate 的 onConfirm / onDismiss）
 function _celebrate(g, stampKey, cheerText, sceneKey, data) {
   if (!g || !g.storage) return false
   if (_shown(g.storage, stampKey)) return false
@@ -87,10 +86,10 @@ function _celebrate(g, stampKey, cheerText, sceneKey, data) {
 
   const avatar = (LING && LING.avatar) || null
   if (cheerText) lingCheer.show(cheerText, { tone: 'epic', avatar })
+  const markDone = () => _mark(g.storage, stampKey)
   return shareCelebrate.trigger(g, sceneKey, data, {
-    // 只有玩家真正点"分享给好友/朋友圈"时才消费掉本条里程碑
-    // 点"稍后再说" / 外部 dismiss 时不 mark，里程碑依然有机会在下次结算页复现
-    onConfirm: () => _mark(g.storage, stampKey),
+    onConfirm: markDone,
+    onDismiss: markDone,
   })
 }
 

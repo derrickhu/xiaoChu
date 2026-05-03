@@ -32,6 +32,7 @@ let _localFileExistsCache = {}
 let _downloadQueue = {}
 let _cacheAccessLog = {}
 let _cacheAccessFrame = 0
+let _runtimeTempUrlCache = {}
 const _debugLogged = {}
 
 function _debugOnce(key, ...args) {
@@ -104,6 +105,10 @@ function _cacheFileExists(logicalPath) {
   return _localFileExists(_getCachePath(logicalPath))
 }
 
+function _isUrlPath(path) {
+  return /^https?:\/\//.test(path || '')
+}
+
 function _getCachedHash(logicalPath) {
   try {
     const metaPath = _getCachePath(logicalPath) + '.meta'
@@ -134,6 +139,11 @@ function resolveAsset(path, opts) {
 
   _cacheAccessFrame++
   _cacheAccessLog[path] = _cacheAccessFrame
+
+  if (_runtimeTempUrlCache[path]) {
+    _debugOnce('runtime_temp_hit:' + path, '[AssetLoader] runtime temp url hit', path, '=>', _runtimeTempUrlCache[path])
+    return _runtimeTempUrlCache[path]
+  }
 
   if (_isCacheValid(path)) {
     _debugOnce('cache_hit:' + path, '[AssetLoader] cache hit', path, '=>', _getCachePath(path))
@@ -181,6 +191,14 @@ function downloadAndNotify(logicalPath, onComplete) {
       success: function(res) {
         console.log('[CDN] download success callback', logicalPath, { hasTempFilePath: !!(res && res.tempFilePath) })
         if (res.tempFilePath) {
+          if (_isUrlPath(res.tempFilePath)) {
+            // DevTools / 部分基础库会返回 http://tmp/... 形式的临时 URL。
+            // 这类路径可作为图片 src 使用，但不能被 FileSystemManager.copyFileSync 读取。
+            _runtimeTempUrlCache[logicalPath] = res.tempFilePath
+            console.log('[CDN] runtime temp url cached', logicalPath, '=>', res.tempFilePath)
+            _finishDownload(logicalPath, true)
+            return
+          }
           try {
             _fs.copyFileSync(res.tempFilePath, cachePath)
             _localFileExistsCache[cachePath] = true
@@ -222,7 +240,7 @@ function downloadAndNotify(logicalPath, onComplete) {
 function _finishDownload(logicalPath, success) {
   const callbacks = _downloadQueue[logicalPath] || []
   delete _downloadQueue[logicalPath]
-  if (success) {
+  if (success && !_runtimeTempUrlCache[logicalPath]) {
     _localFileExistsCache[_getCachePath(logicalPath)] = true
   }
   for (const cb of callbacks) {

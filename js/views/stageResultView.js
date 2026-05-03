@@ -9,7 +9,7 @@ const { ATTR_COLOR, ATTR_NAME } = require('../data/tower')
 const { getPetById, getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
-const { MAX_LEVEL, expToNextLevel, currentRealm, getRealmByLv } = require('../data/cultivationConfig')
+const { MAX_LEVEL, expToNextLevel } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
 const { getNextStageId, getStageById, getChapterById, isStageUnlocked } = require('../data/stages')
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
@@ -19,7 +19,7 @@ const { drawCelebrationBackdrop, drawLingHeader, drawShareIconBtn } = require('.
 const shareCelebrate = require('./shareCelebrate')
 const { SHARE_SCENES } = require('../data/shareConfig')
 const { LING } = require('../data/lingIdentity')
-const { drawCultLvUpRow: _drawCultLvUpRow, drawCultSubRealmUpRow: _drawCultSubRealmUpRow } = require('./cultFeedbackUi')
+const { drawCultLvUpRow: _drawCultLvUpRow } = require('./cultFeedbackUi')
 const goalHint = require('./goalHintView')
 const C = require('./uiColors')
 const lingCheer = require('./lingCheer')
@@ -122,6 +122,10 @@ function rStageResult(g) {
         stageId: 'newbie_prologue',
         victory: !!result.victory,
         scene: 'newbie_prologue',
+      })
+      g.storage.recordFunnelEvent('newbie_stage_prompt_show', {
+        scene: 'prologue_result',
+        stageId: 'stage_1_1',
       })
     }
   }
@@ -985,12 +989,8 @@ function _drawVictoryScreen(g, c, R, W, H, S, safeTop, result, at, fadeIn) {
     c.restore()
   }
 
-  // === 核心奖励高光（灵宠/法宝） + 奖励明细面板 ===
+  // 核心整宠/法宝已前置到战斗内开宝箱展示；结算页只保留明细，避免重复且给下方内容更多空间。
   let panelTop = starY + starSize / 2 + 56 * S + starBandExtra
-  if (_heroSpotlightItems(result).length > 0) {
-    _drawVictoryHeroSpotlight(g, c, R, W, S, result, panelTop, at, fadeIn)
-    panelTop += _victoryHeroBlockHeight(S, result)
-  }
   _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at)
 
   c.restore()
@@ -1066,8 +1066,7 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
   if (result.cultExp > 0) {
     contentH += 28 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
-    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') contentH += 18 * S
-    contentH += 24 * S
+    contentH += 18 * S
   }
 
   // 看广告退还体力
@@ -1290,11 +1289,6 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
       _drawCultLvUpRow(c, R, S, W / 2, cy, result.cultPrevLevel, cult.level, result.cultLevelUps)
       cy += 16 * S
     }
-    // 小阶跨档金光行（A1：感气·二重 → 感气·三重 等）
-    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') {
-      _drawCultSubRealmUpRow(c, R, S, W / 2, cy, result.cultRealmUp.curr.fullName)
-      cy += 18 * S
-    }
     const cult = g.storage.cultivation
     const barX = px + pad, barW = innerW, barH = 7 * S
     c.fillStyle = 'rgba(0,0,0,0.06)'
@@ -1309,10 +1303,8 @@ function _drawDefeatAnalysisPanel(g, c, R, W, H, S, result, panelTop, at) {
         c.fillStyle = barGrad
         R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
       }
-      c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     }
-    cy += barH + 18 * S
+    cy += barH + 10 * S
   }
 
   // ── 看广告退还体力 ──
@@ -1573,10 +1565,8 @@ function _computeVictoryScrollContentHeight(result, S, pad) {
   if (result.cultExp > 0) {
     contentH += 28 * S
     if (result.cultLevelUps > 0) contentH += 16 * S
-    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') contentH += 18 * S
-    contentH += 26 * S
+    contentH += 18 * S
   }
-  contentH += 24 * S
   return contentH
 }
 
@@ -2104,11 +2094,6 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
       _drawCultLvUpRow(c, R, S, W / 2, cy, result.cultPrevLevel, cult.level, result.cultLevelUps)
       cy += 16 * S
     }
-    // 小阶跨档金光行（胜利面板版）
-    if (result.cultRealmUp && result.cultRealmUp.kind === 'minor') {
-      _drawCultSubRealmUpRow(c, R, S, W / 2, cy, result.cultRealmUp.curr.fullName)
-      cy += 18 * S
-    }
 
     const cult = g.storage.cultivation
     const barX = px + pad, barW = innerW, barH = 7 * S
@@ -2124,66 +2109,15 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
         c.fillStyle = barGrad
         R.rr(barX, cy, fillW, barH, barH / 2); c.fill()
       }
-      c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level}  ${cult.exp}/${needed}  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     } else {
       const barGrad = c.createLinearGradient(barX, cy, barX + barW, cy)
       barGrad.addColorStop(0, '#D4A843'); barGrad.addColorStop(1, '#F0C860')
       c.fillStyle = barGrad
       R.rr(barX, cy, barW, barH, barH / 2); c.fill()
-      c.textAlign = 'right'; c.fillStyle = '#A09070'; c.font = `${8*S}px "PingFang SC",sans-serif`
-      c.fillText(`Lv.${cult.level} 已满级  ${getRealmByLv(cult.level).fullName}`, px + pw - pad, cy + barH + 9 * S)
     }
-    cy += barH + 20 * S
+    cy += barH + 10 * S
     rowIdx++
   }
-
-  // === 汇总行 ===
-  const summaryDelay = 15 + rowIdx * 6
-  const summaryAlpha = Math.min(1, Math.max(0, (at - summaryDelay) / 12))
-  if (summaryAlpha > 0) {
-    c.save()
-    c.globalAlpha *= summaryAlpha
-    const sumParts = []
-    const stageSS = result.soulStone || 0
-    const totalExp = result.cultExp || 0
-    let dropFrags = 0
-    const starAwaken = result.starBonusAwakenStone || 0
-    if (result.rewards) result.rewards.forEach(r => { if (r.type === 'fragment') dropFrags += r.count })
-    let boxSS = 0, boxFrags = 0, boxAwaken = 0
-    if (result.chapterClearReward) {
-      const cr = result.chapterClearReward
-      boxSS = cr.soulStone || 0
-      boxFrags = cr.fragment || 0
-      boxAwaken = cr.awakenStone || 0
-    }
-    const totalSS = stageSS + boxSS
-    const totalFrags = dropFrags + boxFrags
-    const totalAwaken = starAwaken + boxAwaken
-    if (totalSS > 0) {
-      if (boxSS > 0) sumParts.push(`灵石 +${totalSS}（本关+${stageSS} 宝箱+${boxSS}）`)
-      else sumParts.push(`灵石 +${totalSS}`)
-    }
-    if (totalFrags > 0) {
-      if (boxFrags > 0) sumParts.push(`碎片 +${totalFrags}（掉落+${dropFrags} 宝箱+${boxFrags}）`)
-      else sumParts.push(`碎片 +${totalFrags}`)
-    }
-    if (totalAwaken > 0) {
-      if (boxAwaken > 0 && starAwaken > 0) {
-        sumParts.push(`觉醒石 +${totalAwaken}（星级+${starAwaken} 宝箱+${boxAwaken}）`)
-      } else {
-        sumParts.push(`觉醒石 +${totalAwaken}`)
-      }
-    }
-    if (totalExp > 0) sumParts.push(`经验 +${totalExp}`)
-    if (sumParts.length > 0) {
-      c.textAlign = 'center'; c.textBaseline = 'middle'
-      c.fillStyle = '#A09070'; c.font = `${8.5*S}px "PingFang SC",sans-serif`
-      c.fillText(`本次共获得：${sumParts.join('、')}`, W / 2, cy + 6 * S)
-    }
-    c.restore()
-  }
-  cy += 24 * S
 
   c.restore()
 
@@ -2263,7 +2197,7 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
   const isNewbieContinuous = result.victory && result.isFirstClear
     && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')
-  const rightLabel = result.newbiePrologue ? '开始修炼' : (isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战'))
+  const rightLabel = result.newbiePrologue ? '继续第1关' : (isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战'))
   const nextX = result.newbiePrologue ? (W - btnW) / 2 : px + pad + btnW + btnGap
   R.drawDialogBtn(nextX, btnY, btnW, btnH, rightLabel, (isNewbieContinuous || result.newbiePrologue) ? 'gold' : 'confirm')
   _rects.nextBtnRect = [nextX, btnY, btnW, btnH]
@@ -2975,9 +2909,11 @@ function tStageResult(g, x, y, type) {
     if (result.newbiePrologue) {
       const stageMgr = require('../engine/stageManager')
       if (g.storage && g.storage.recordFunnelEvent) {
-        g.storage.recordFunnelEvent('newbie_stage_prompt_show', { scene: 'after_prologue_back', stageId: 'stage_1_1' })
+        g.storage.recordFunnelEvent('newbie_stage_cta_click', { scene: 'after_prologue_back', stageId: 'stage_1_1' })
       }
-      stageMgr.startStageNewbie(g, 'stage_1_1')
+      if (!stageMgr.startStageNewbie(g, 'stage_1_1') && g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_stage_start_fail', { scene: 'after_prologue_back', stageId: 'stage_1_1' })
+      }
       MusicMgr.playClick && MusicMgr.playClick()
       return
     }
@@ -3002,9 +2938,11 @@ function tStageResult(g, x, y, type) {
     if (result.newbiePrologue) {
       const stageMgr = require('../engine/stageManager')
       if (g.storage && g.storage.recordFunnelEvent) {
-        g.storage.recordFunnelEvent('newbie_stage_prompt_show', { scene: 'after_prologue_next', stageId: 'stage_1_1' })
+        g.storage.recordFunnelEvent('newbie_stage_cta_click', { scene: 'after_prologue_next', stageId: 'stage_1_1' })
       }
-      stageMgr.startStageNewbie(g, 'stage_1_1')
+      if (!stageMgr.startStageNewbie(g, 'stage_1_1') && g.storage && g.storage.recordFunnelEvent) {
+        g.storage.recordFunnelEvent('newbie_stage_start_fail', { scene: 'after_prologue_next', stageId: 'stage_1_1' })
+      }
       return
     }
     // 新手前 2 关首通：直接进入下一关战斗，不经过选关/编队

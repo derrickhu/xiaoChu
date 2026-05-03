@@ -461,6 +461,20 @@ class Main {
       'assets/ui/icon_soul_stone.png',
       'assets/ui/icon_awaken_stone.png',
       'assets/ui/icon_chest.png',
+      'assets/ui/chest_lottery_normal_closed.png',
+      'assets/ui/chest_lottery_normal_open.png',
+      'assets/ui/chest_lottery_premium_closed.png',
+      'assets/ui/chest_lottery_premium_open.png',
+      'assets/ui/chest_lottery_weapon_closed.png',
+      'assets/ui/chest_lottery_weapon_open.png',
+      'assets/ui/chest_lottery_glow.png',
+      'assets/ui/chest_reward_panel_bg.png',
+      'assets/ui/chest_reward_aura_overlay.png',
+      'assets/ui/chest_reward_aura_metal.png',
+      'assets/ui/chest_reward_aura_wood.png',
+      'assets/ui/chest_reward_aura_water.png',
+      'assets/ui/chest_reward_aura_fire.png',
+      'assets/ui/chest_reward_aura_earth.png',
       'assets/ui/trial_panel_rule.png',
       'assets/ui/trial_panel_reward.png',
       'assets/ui/trial_panel_result.png',
@@ -591,8 +605,16 @@ class Main {
         if (!this.storage.cloudSyncReady && elapsed < 2500) return
 
         const shouldSkipIntro = !!P.getStorageSync('introDone') || this.storage.hasPersistentProgress()
+        if (!this._loadingReadyTracked && this.storage.recordFunnelEvent) {
+          this._loadingReadyTracked = true
+          this.storage.recordFunnelEvent('loading_ready', {
+            scene: shouldSkipIntro ? 'title' : 'intro',
+            cloudSyncReady: !!this.storage.cloudSyncReady,
+            elapsedMs: elapsed,
+          })
+        }
         if (!shouldSkipIntro) {
-          introView.init()
+          introView.init(this)
           this.setScene('intro')
         } else {
           this.setScene('title'); MusicMgr.playBgm()
@@ -886,6 +908,18 @@ class Main {
 
   markDirty() { this._dirty = true }
 
+  _recordBattleFirstFrameIfNeeded() {
+    if (!this.storage || !this.storage.recordFunnelEvent) return
+    const stageId = this._stageId || (this.battleMode === 'stage' ? 'unknown_stage' : '')
+    const key = `${this.battleMode || 'run'}:${stageId || 'run'}`
+    if (this._battleFirstFrameKey === key) return
+    this._battleFirstFrameKey = key
+    this.storage.recordFunnelEvent('battle_first_frame', {
+      stageId,
+      scene: this._newbiePrologue ? 'newbie_prologue' : (this._isNewbieStage ? 'newbie' : (this.battleMode || 'battle')),
+    })
+  }
+
   // ===== 渲染入口 =====
   render() {
     if (this._resumeForceRenderFrames > 0) {
@@ -914,7 +948,10 @@ class Main {
       case 'title': titleView.rTitle(this); break
       case 'prepare': prepareView.rPrepare(this); break
       case 'event': eventView.rEvent(this); break
-      case 'battle': battleView.rBattle(this); break
+      case 'battle':
+        this._recordBattleFirstFrameIfNeeded()
+        battleView.rBattle(this)
+        break
       case 'reward': screens.rReward(this); break
       case 'shop': screens.rShop(this); break
       case 'rest': screens.rRest(this); break

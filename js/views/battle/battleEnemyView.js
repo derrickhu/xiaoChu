@@ -645,8 +645,10 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
   const infoY = nameY + (hasSkillCd ? skillCdBlockH + 8*S : 14*S)
   const tagH = 22*S, tagR = tagH/2
   ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
-  const weakTagW = weakAttr ? ctx.measureText('弱点').width + orbR*2 + 16*S : 0
-  const resistTagW = resistAttr ? ctx.measureText('抵抗').width + orbR*2 + 16*S : 0
+  const weakLabel = weakAttr ? `拖${ATTR_NAME[weakAttr] || ''}珠克制` : ''
+  const resistLabel = resistAttr ? `抵抗${ATTR_NAME[resistAttr] || ''}珠` : ''
+  const weakTagW = weakAttr ? ctx.measureText(weakLabel).width + orbR*2 + 16*S : 0
+  const resistTagW = resistAttr ? ctx.measureText(resistLabel).width + orbR*2 + 16*S : 0
   const infoGap = (weakAttr && resistAttr) ? 10*S : 0
   const totalInfoW = weakTagW + infoGap + resistTagW
   let curX = W*0.5 - totalInfoW/2
@@ -677,8 +679,8 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     ctx.globalAlpha = 1
     ctx.fillStyle = '#fff'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-    ctx.fillText('弱点', curX + 6*S, infoY)
-    const lw = ctx.measureText('弱点').width
+    ctx.fillText(weakLabel, curX + 6*S, infoY)
+    const lw = ctx.measureText(weakLabel).width
     R.drawBead(curX + 6*S + lw + orbR + 3*S, infoY, orbR, weakAttr, g.af)
     ctx.textBaseline = 'alphabetic'
     ctx.restore()
@@ -697,8 +699,8 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     ctx.globalAlpha = 0.8
     ctx.fillStyle = '#aaa'; ctx.font = `bold ${infoFontSize}px "PingFang SC",sans-serif`
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-    ctx.fillText('抵抗', curX + 6*S, infoY)
-    const lw2 = ctx.measureText('抵抗').width
+    ctx.fillText(resistLabel, curX + 6*S, infoY)
+    const lw2 = ctx.measureText(resistLabel).width
     R.drawBead(curX + 6*S + lw2 + orbR + 3*S, infoY, orbR, resistAttr, g.af)
     ctx.textBaseline = 'alphabetic'
     ctx.restore()

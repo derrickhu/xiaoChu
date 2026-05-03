@@ -1,0 +1,32 @@
+Create one clean 2 columns x 3 rows game UI asset sheet of treasure chests.
+
+Canvas and layout:
+- Exactly 2 columns and 3 rows, six evenly sized panels.
+- Row 1: normal reward chest, left panel closed, right panel open.
+- Row 2: premium spirit-pet chest, left panel closed, right panel open.
+- Row 3: weapon / magical artifact chest, left panel closed, right panel open.
+- Put one centered chest in each panel, same camera, same scale, same 3/4 front view, same lighting.
+- Use generous empty padding around each chest so every cell can be cropped into a square icon.
+- Plain light neutral background, no scenery, no props, no text, no labels, no captions, no writing anywhere in the image.
+
+Critical consistency rule:
+- In each row, the left and right panels must be the exact same chest design.
+- The closed and open state in the same row must keep the same body shape, front face, perspective angle, ornament positions, lock, gems, metal trims, wood grain, scratches, color palette, pattern, and scale.
+- The only visible difference between the two states in the same row is the lid: left lid is closed; right lid is hinged open backward with a warm inner glow.
+- Do not change the chest angle, do not redesign the decoration, do not move the lock, do not change the front pattern between closed and open.
+
+Art style:
+- Polished casual mobile game UI, fantasy xianxia reward style.
+- Soft rounded forms, crisp silhouette, high readability at small icon size.
+- Semi-realistic painterly rendering with clean edges and warm highlights.
+- No harsh black outlines, no photorealism.
+
+Chest designs:
+- Row 1 normal reward chest: red-brown lacquered wooden chest, bronze-gold metal bands, simple round golden lock, modest warm glow when open, useful common reward feeling.
+- Row 2 premium spirit-pet chest: rich gold and jade chest, elegant cloud motifs, small green jade gem on the lock, brighter auspicious golden-green glow when open, higher rarity and lucky spirit-pet feeling.
+- Row 3 weapon / magical artifact chest: dark bronze and deep teal artifact coffer, engraved rune-like ornamental patterns but no readable writing, angular gold trims, central blue crystal lock, cool cyan-magical glow when open, boss weapon treasure feeling.
+
+Output requirements:
+- NO TEXT, no labels, no captions, no writing anywhere in the image.
+- No watermark, no frame border, no UI button, no character, no coins spilling out.
+- Each chest should be complete and unobstructed.

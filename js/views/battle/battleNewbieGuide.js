@@ -184,6 +184,7 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
   if (tutorial.isActive()) return
 
   var ctx = V.ctx, S = V.S, COLS = V.COLS
+  _drawHeartBeadGuide(g, ctx, S, cs, bx, by)
 
   // 优先：棋盘上已有可消除组 → 在高亮珠上画呼吸手指
   var highlight = _getNewbieHighlightCells(g)
@@ -211,6 +212,58 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
     _drawLongDragAnim(g, ctx, S, cs, bx, by, hint)
     return
   }
+}
+
+function _drawHeartBeadGuide(g, ctx, S, cs, bx, by) {
+  if (g._stageId !== 'stage_1_2') return
+  if (g._challengeDone) return
+  var heartCells = []
+  for (var r = 0; r < V.ROWS; r++) {
+    for (var c = 0; c < V.COLS; c++) {
+      var cell = g.board[r] && g.board[r][c]
+      var attr = cell ? (typeof cell === 'string' ? cell : cell.attr) : null
+      if (attr === 'heart') heartCells.push({ r: r, c: c })
+    }
+  }
+  if (!heartCells.length) return
+
+  var pulse = 0.65 + 0.35 * Math.sin(g.af * 0.09)
+  ctx.save()
+  for (var i = 0; i < Math.min(heartCells.length, 3); i++) {
+    var h = heartCells[i]
+    var cx = bx + (h.c + 0.5) * cs
+    var cy = by + (h.r + 0.5) * cs
+    ctx.globalAlpha = 0.55 + 0.25 * pulse
+    ctx.strokeStyle = '#ff99cc'
+    ctx.lineWidth = 3 * S
+    ctx.beginPath()
+    ctx.arc(cx, cy, cs * (0.48 + 0.05 * pulse), 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  var anchor = heartCells[0]
+  var ax = bx + (anchor.c + 0.5) * cs
+  var ay = by + (anchor.r + 0.5) * cs
+  var label = '粉色心珠 = 回血'
+  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  var tw = ctx.measureText(label).width
+  var padX = 9 * S
+  var pillW = tw + padX * 2
+  var pillH = 24 * S
+  var pillX = Math.max(8 * S, Math.min(V.W - pillW - 8 * S, ax - pillW / 2))
+  var pillY = Math.max(by + 4 * S, ay - cs * 0.75)
+  ctx.globalAlpha = 0.95
+  ctx.fillStyle = 'rgba(70,20,50,0.86)'
+  _rrPath(ctx, pillX, pillY, pillW, pillH, pillH / 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,153,204,0.9)'
+  ctx.lineWidth = 1.2 * S
+  ctx.stroke()
+  ctx.fillStyle = '#ffd6ea'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, pillX + pillW / 2, pillY + pillH / 2)
+  ctx.restore()
 }
 
 function _drawLongDragAnim(g, ctx, S, cs, bx, by, hint) {
@@ -377,6 +430,14 @@ const _NEWBIE_HINTS = [
   'Combo 越高伤害加成越大，试试挑战高连击！',
 ]
 
+const _STAGE_HINTS = {
+  stage_1_2: [
+    '粉色爱心就是心珠，消除 3 颗可以回血！',
+    '受伤时优先拖动心珠，排成三连就能回血！',
+    '心珠没有伤害，但能把血量拉回来！',
+  ],
+}
+
 // 新手浮动提示条 —— 统一为与 _drawChallengeCapsule 一致的"金棕胶囊"样式
 // 位置规则（与战斗视图的"任务胶囊"同一水平带，保证不遮玩家血条/棋盘）：
 //   · 有 challenge 胶囊的关（1-2 / 1-3）：新手 hint 放在 challenge 胶囊【上方一层】，居中
@@ -387,7 +448,8 @@ function _drawNewbieHint(g, eAreaBottom, W) {
   const turn = g.turnCount || 0
 
   const { ctx, S } = V
-  const text = _NEWBIE_HINTS[turn % _NEWBIE_HINTS.length]
+  const hints = _STAGE_HINTS[g._stageId] || _NEWBIE_HINTS
+  const text = hints[turn % hints.length]
 
   const fs = 11 * S
   ctx.save()

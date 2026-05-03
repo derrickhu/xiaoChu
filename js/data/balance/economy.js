@@ -5,7 +5,7 @@
 
 // ===== 体力系统 =====
 const STAMINA_RECOVER_INTERVAL_MS = 3 * 60 * 1000
-const STAMINA_INITIAL = 100
+const STAMINA_INITIAL = 60
 const STAMINA_SIDEBAR_REWARD = 30
 const STAMINA_COST = 10
 // 体力软顶折灵石：**已停用**（玩家领取的体力现已完全不限上限，直接入账）
@@ -79,13 +79,13 @@ const IDLE_CFG = {
 }
 
 // ===== 章节通关宝箱 =====
-// 注：第 1 章关卡全免体力，宝箱的体力奖励刻意克制（避免与新手礼包/首通里程碑重复堆积），
-// 把正反馈权重转移到灵石/碎片这些直接推动成长的货币上
+// 注：通关宝箱不再返还体力，避免"打关消耗体力、打完又送体力"造成首日体力库存过厚。
+// 第 1 章正反馈集中在灵石/碎片等直接推动成长的货币上。
 // v2 "Day1 经济温和收紧"：前 3 章灵石 -30%（80/60/80 → 55/40/55）
 // v2.2 "曲线平滑方案 A"：前 3 章再 -45%（55/40/55 → 30/25/40），把"连通三章瞬间 150 灵石"的
 //   放送口径继续压下来；4 章及以后保持不变（中后段需要这份日常灵石维持节奏）
 const CHAPTER_CLEAR_REWARDS = {
-  1:  { soulStone: 30,  fragment: 3, stamina: 20 },
+  1:  { soulStone: 30,  fragment: 3 },
   2:  { soulStone: 25,  fragment: 4 },
   3:  { soulStone: 40,  fragment: 5 },
   4:  { soulStone: 100, fragment: 6,  awakenStone: 1 },
@@ -262,7 +262,7 @@ const REP_FRAG_COEFFS = { baseDivisor: 10, normalMaxMul: 0.5, eliteMinOffset: 1,
 
 // ===== 广告奖励数值 =====
 const AD_REWARDS_NUMS = {
-  staminaRecoveryAmount: 40,
+  staminaRecoveryAmount: 100,
   settleMultiplier: 2,
   dexMultiplier: 2,
   signMultiplier: 2,

@@ -22,6 +22,7 @@ const { diffRealmUp, calcCultBonuses } = require('../data/cultivationConfig')
 const { STAR_REWARDS, CHAPTER_CLEAR_REWARDS, STAGE_SETTLE, STAGES_PER_CHAPTER } = require('../data/economyConfig')
 const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { initBoard } = require('./battle')
+const { buildStageChestPanels } = require('./stageChestReward')
 const MusicMgr = require('../runtime/music')
 const { makeDefaultRunBuffs } = require('./runManager')
 const {
@@ -109,6 +110,8 @@ function startStage(g, stageId, teamPetIds) {
   g._stageTotalTurns = 0
   g._stageSettlePending = false
   g._newbiePrologue = false
+  g._prologueResultPanel = null
+  g._stageChestRewardPanel = null
   g._stage11FirstInputTracked = false
   g._stage11FirstDamageTracked = false
   g._stageTeam = teamPetIds.slice()
@@ -252,6 +255,8 @@ function startStageNewbie(g, stageId) {
   g._stageSettlePending = false
   g._stageTeam = NEWBIE_PET_IDS.slice()
   g._newbiePrologue = false
+  g._prologueResultPanel = null
+  g._stageChestRewardPanel = null
   g._stage11FirstInputTracked = false
   g._stage11FirstDamageTracked = false
 
@@ -385,6 +390,7 @@ function startNewbiePrologue(g) {
   g._prologueFirstInputTracked = false
   g._prologueFirstDamageTracked = false
   g._prologueComboSeeded = false
+  g._prologueHintTimer = 0
 
   g.pets = NEWBIE_TRIAL_PET_IDS.map(id => {
     const basePet = getPetById(id)
@@ -449,7 +455,7 @@ function startNewbiePrologue(g) {
   _applyStageBossEncounter(g)
   g._mechanicOpenTip = {
     stageId: prologueStageId,
-    text: '妖王满血压境！任选灵珠拖动，试玩灵宠将打出五行合击！',
+    text: '拖动任意灵珠，松手立刻触发五行合击！',
     timer: 0,
   }
 
@@ -484,8 +490,19 @@ function settleNewbiePrologue(g) {
       stageId: 'newbie_prologue',
       turns: g.lastTurnCount || 1,
     })
+    g.storage.recordFunnelEvent('newbie_prologue_result_show', {
+      stageId: 'newbie_prologue',
+      victory: true,
+      scene: 'battle_inline',
+    })
+    g.storage.recordFunnelEvent('newbie_stage_prompt_show', {
+      scene: 'prologue_inline_panel',
+      stageId: 'stage_1_1',
+    })
   }
-  g.setScene('stageResult')
+  g._prologueResultPanel = { timer: 0 }
+  g.bState = 'prologueResult'
+  g._dirty = true
 }
 
 /**
@@ -798,6 +815,20 @@ function settleStage(g) {
   // 秘境结算后静默拉取，让 pendingRankingFeedback 有值；
   // 玩家在结算页点击"下一关/返回"时 rankChangePopup 可立即消费，做到"玩完一关立刻看到名次变化"
   g.storage.fetchRanking('stage', true).catch(() => {})
+
+  const chestPanel = buildStageChestPanels(g, stage, g._stageResult)
+  if (chestPanel) {
+    g._stageChestRewardPanel = chestPanel
+    g.bState = 'stageChestReward'
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('stage_chest_show', {
+        stageId: g._stageId,
+        isFirstClear,
+        panels: chestPanel.panels.map(p => p.kind).join(','),
+      })
+    }
+    return
+  }
 
   g.setScene('stageResult')
 }

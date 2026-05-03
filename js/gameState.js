@@ -225,6 +225,7 @@ function initState(g) {
   g._stageTotalTurns = 0        // 关卡总回合数（跨波次累计）
   g._stageSettlePending = false  // 防止重复结算
   g._stageResult = null         // 结算数据
+  g._stageChestRewardPanel = null // 通关后战斗内六宝箱展示状态
   g._waveTransTimer = 0         // 波间过渡倒计时
   g._stageSelectScroll = 0      // 关卡选择页滚动
   g._selectedStageId = null     // 选中准备编队的关卡
@@ -303,7 +304,7 @@ function _createDomainProxies(g) {
   _createDomainProxy(g, 'stage', [
     'battleMode', '_stageId', '_stageWaves', '_stageWaveIdx',
     '_stageTeam', '_stageTeamSelected', '_stageTeamFilter', '_stageTeamScroll', '_showWeaponPicker', '_weaponPickerPreviewId', '_weaponPickerScroll', '_autoOpenWeaponPickerOnStageTeam',
-    '_stageTotalTurns', '_stageResult', '_waveTransTimer',
+    '_stageTotalTurns', '_stageResult', '_stageChestRewardPanel', '_waveTransTimer',
     '_stageSelectScroll', '_selectedStageId',
     '_stageInfoEnemyDetail', '_stageInfoPetDetail', '_stageTeamPetDetail',
   ])

@@ -24,6 +24,7 @@ const { drawTeamBar, drawPetSlotFloats, drawBuffIcons, drawBuffIconsLabeled, dra
 const { drawVictoryOverlay, drawDefeatOverlay, drawAdReviveOverlay, drawFreeReviveOverlay } = require('./battle/battleVictoryView')
 const { drawRewardDetailOverlay, drawItemMenu } = require('./battle/battleRewardDetailView')
 const { drawTutorialOverlay } = require('./battle/battleTutorialView')
+const { drawStageChestReward, handleStageChestRewardTouch } = require('./battle/battleStageChestRewardView')
 
 function rBattle(g) {
   const { ctx, R, W, H, S, safeTop } = V
@@ -44,6 +45,7 @@ function rBattle(g) {
   drawPetSlotFloats(g)
   if (g._isNewbieStage) drawNewbieHint(g, eAreaBottom, W)
   drawBoard(g)
+  _drawPrologueDragHint(g, cellSize, boardPad, boardTop)
   if (g._isNewbieStage) drawNewbieFingerGuide(g, cellSize, boardPad, boardTop)
   g.elimFloats.forEach(f => R.drawElimFloat(f))
   drawExpFloats(g)
@@ -97,14 +99,153 @@ function rBattle(g) {
   if (g.runBuffDetail) g._drawRunBuffDetailDialog()
   if (g._showItemMenu) drawItemMenu(g)
   if (g._rewardDetailShow) drawRewardDetailOverlay(g)
+  if (g._stageChestRewardPanel) drawStageChestReward(g)
 
-  if (g.bState !== 'victory' && g.bState !== 'defeat' && g.bState !== 'freeReviveOffer' && g.bState !== 'adReviveOffer') {
+  if (g.bState !== 'victory' && g.bState !== 'stageChestReward' && g.bState !== 'defeat' && g.bState !== 'freeReviveOffer' && g.bState !== 'adReviveOffer') {
     drawHelpButton(g, safeTop)
   }
   if (g._showBattleHelp) drawBattleHelpPanel(g)
 
   // 小灵讲堂（1-2/1-3 首通前的阻塞讲解卡）最上层，遮挡所有战场 UI，等玩家点一下才消失
   if (g._stageIntroCard) _drawStageIntroCard(g)
+  if (g._prologueResultPanel) _drawPrologueResultPanel(g)
+}
+
+function _drawPrologueDragHint(g, cellSize, boardPad, boardTop) {
+  if (!g._newbiePrologue || g._prologueFirstInputTracked || g.bState !== 'playerTurn' || g.dragging) {
+    return
+  }
+  g._prologueHintTimer = (g._prologueHintTimer || 0) + 1
+  if (g._prologueHintTimer < 90) return
+
+  const { ctx, W, S } = V
+  const t = g.af || 0
+  const fromCol = 1
+  const toCol = 4
+  const row = 3
+  const fromX = boardPad + (fromCol + 0.5) * cellSize
+  const toX = boardPad + (toCol + 0.5) * cellSize
+  const y = boardTop + (row + 0.5) * cellSize
+  const p = (Math.sin(t * 0.08) + 1) * 0.5
+  const handX = fromX + (toX - fromX) * p
+  const alpha = Math.min(1, (g._prologueHintTimer - 90) / 20)
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = 'rgba(255,226,122,0.86)'
+  ctx.lineWidth = 4 * S
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(fromX, y)
+  ctx.lineTo(toX, y)
+  ctx.stroke()
+
+  ctx.fillStyle = 'rgba(10,8,20,0.82)'
+  const pillW = 220 * S
+  const pillH = 30 * S
+  const pillX = (W - pillW) / 2
+  const pillY = boardTop - 38 * S
+  _rrPath(ctx, pillX, pillY, pillW, pillH, pillH / 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,226,122,0.72)'
+  ctx.lineWidth = 1.2 * S
+  ctx.stroke()
+  ctx.fillStyle = '#ffe27a'
+  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('按住任意灵珠拖动，松手爆发合击', W / 2, pillY + pillH / 2)
+
+  ctx.beginPath()
+  ctx.arc(handX, y - 14 * S, 14 * S, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(255,248,220,0.92)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(160,90,0,0.78)'
+  ctx.lineWidth = 1.5 * S
+  ctx.stroke()
+  ctx.fillStyle = '#9c5a00'
+  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('拖', handX, y - 14 * S)
+  ctx.restore()
+}
+
+function _drawPrologueResultPanel(g) {
+  const { ctx, R, W, H, S } = V
+  const panel = g._prologueResultPanel
+  if (!panel) return
+  panel.timer = (panel.timer || 0) + 1
+  const alpha = Math.min(1, panel.timer / 18)
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = 'rgba(8,6,16,0.38)'
+  ctx.fillRect(0, 0, W, H)
+
+  const panelW = Math.min(W * 0.86, 340 * S)
+  const panelH = 168 * S
+  const panelX = (W - panelW) / 2
+  const panelY = H * 0.30
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+
+  const avatarSize = 34 * S
+  const avatarX = panelX + 18 * S
+  const avatarY = panelY + 18 * S
+  const avatar = R.getImg(LING.avatar)
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2)
+  ctx.fillStyle = '#fff8e8'
+  ctx.fill()
+  ctx.clip()
+  if (avatar && avatar.width > 0) {
+    ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize)
+  } else {
+    ctx.fillStyle = '#ffe6a0'
+    ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize)
+  }
+  ctx.restore()
+
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#8a5b1a'
+  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('仙宠 · 小灵', avatarX + avatarSize + 8 * S, panelY + 30 * S)
+  ctx.fillStyle = '#8d7355'
+  ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('妖王暂退，真正的修炼才刚开始', avatarX + avatarSize + 8 * S, panelY + 48 * S)
+
+  const lines = [
+    '主人，五行灵宠已经护你脱险。',
+    '接下来从第一关开始修炼成长吧！',
+  ]
+  ctx.fillStyle = '#5d4030'
+  ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, panelX + 22 * S, panelY + (78 + idx * 23) * S)
+  })
+
+  const btnW = panelW * 0.66
+  const btnH = 38 * S
+  const btnX = panelX + (panelW - btnW) / 2
+  const btnY = panelY + panelH - btnH - 14 * S
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '进入第1关', 'gold')
+  g._prologueResultNextRect = [btnX, btnY, btnW, btnH]
+  ctx.restore()
+}
+
+function handlePrologueResultTouch(g, type, x, y) {
+  if (!g._prologueResultPanel) return false
+  if (type !== 'end') return true
+  if (g._prologueResultNextRect && g._hitRect(x, y, ...g._prologueResultNextRect)) {
+    const stageMgr = require('../engine/stageManager')
+    if (g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('newbie_stage_cta_click', { scene: 'prologue_inline_panel', stageId: 'stage_1_1' })
+    }
+    g._prologueResultPanel = null
+    if (!stageMgr.startStageNewbie(g, 'stage_1_1') && g.storage && g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('newbie_stage_start_fail', { scene: 'prologue_inline_panel', stageId: 'stage_1_1' })
+    }
+  }
+  return true
 }
 
 // ===== 玩家眩晕三件套（顶部金色横幅 + 棋盘紫灰蒙层） =====
@@ -490,5 +631,7 @@ module.exports = {
   drawVictoryOverlay, drawDefeatOverlay, drawAdReviveOverlay,
   drawTutorialOverlay,
   dismissStageIntroCard,
+  handlePrologueResultTouch,
+  handleStageChestRewardTouch,
   get HELP_PAGE_COUNT() { return require('./battle/battleHelpView').HELP_PAGE_COUNT },
 }

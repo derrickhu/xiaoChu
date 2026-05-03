@@ -361,6 +361,38 @@ class MusicManager {
     this._playSfx('audio/victory.mp3', 0.6)
   }
 
+  /** 灵兽秘境通关宝箱：蓄力、开匣、稀有奖励定格 */
+  playStageChestReveal(rarity, kind) {
+    if (!this.enabled) return
+    const isWeapon = kind === 'weapon'
+    const r = String(rarity || 'R').toUpperCase()
+
+    // 蓄力：低音量滑轴，给玩家“宝箱正在开启”的预期。
+    this._playSfxEx('audio/rolling.mp3', isWeapon ? 0.48 : 0.42, isWeapon ? 0.92 : 1.04)
+
+    // 开盖爆点：技能音做破空，奖励音做收获。
+    setTimeout(() => {
+      if (!this.enabled) return
+      this._playSfxEx('audio/skill.mp3', isWeapon ? 0.42 : 0.36, isWeapon ? 0.78 : 1.08)
+      this._playSfxEx('audio/reward.mp3', r === 'SSR' ? 0.62 : 0.54, r === 'SSR' ? 1.38 : 1.2)
+    }, 150)
+
+    // 稀有定格：SR/SSR 追加上行和弦，强化珍贵感。
+    setTimeout(() => {
+      if (!this.enabled) return
+      if (r === 'SSR') {
+        this._playSfxEx('audio/levelup.mp3', 0.5, 1.55)
+        setTimeout(() => {
+          if (this.enabled) this._playSfxEx('audio/victory.mp3', 0.42, 1.25)
+        }, 80)
+      } else if (r === 'SR') {
+        this._playSfxEx('audio/levelup.mp3', 0.42, 1.28)
+      } else if (isWeapon) {
+        this._playSfxEx('audio/levelup.mp3', 0.32, 1.08)
+      }
+    }, 360)
+  }
+
   playReward() {
     if (!this.enabled) return
     this._playSfx('audio/reward.mp3', 0.5)

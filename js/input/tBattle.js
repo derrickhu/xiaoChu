@@ -10,7 +10,7 @@ const guideMgr = require('../engine/guideManager')
 const runMgr = require('../engine/runManager')
 const stageMgr = require('../engine/stageManager')
 const { killExpBase } = require('../data/cultivationConfig')
-const { HELP_PAGE_COUNT, dismissStageIntroCard } = require('../views/battleView')
+const { HELP_PAGE_COUNT, dismissStageIntroCard, handlePrologueResultTouch, handleStageChestRewardTouch } = require('../views/battleView')
 const { SWAP_ANIM_FRAMES, SWAP_LOGIC_LOCK_FRAMES } = require('../data/battleConfig')
 const { isPetSealed } = require('../engine/battle/petSeal')
 const { getTrialStaminaCost } = require('../data/trialSeason')
@@ -244,6 +244,9 @@ function tBattle(g, type, x, y) {
     return
   }
   // === 教学拦截结束，以下为原逻辑 ===
+  if (handleStageChestRewardTouch && handleStageChestRewardTouch(g, type, x, y)) return
+  if (handlePrologueResultTouch && handlePrologueResultTouch(g, type, x, y)) return
+
   // 退出弹窗
   if (g.showExitDialog) {
     if (type !== 'end') return

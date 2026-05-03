@@ -423,20 +423,13 @@ function tDex(g, type, x, y) {
       if (g._dexAdHintBtnRect) {
         const [bx, by, bw, bh] = g._dexAdHintBtnRect
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-          const AdManager = require('../adManager')
-          const P = require('../platform')
-          if (AdManager.canShow('dexAcquireHint')) {
-            const winInfo = P.getWindowInfo()
-            AdManager.showCustomAd('dexAcquireHint', {
-              left: 10,
-              top: winInfo.windowHeight - 120,
-              width: winInfo.windowWidth - 20,
-            })
-          } else {
-            P.showGameToast('暂无获取途径信息')
-          }
+          g._dexAcquireHintPetId = g._dexDetailPetId
           return
         }
+      }
+      if (g._dexAcquireHintPetId) {
+        g._dexAcquireHintPetId = null
+        return
       }
       g._dexDetailPetId = null
       g._dexDetailBtnRect = null

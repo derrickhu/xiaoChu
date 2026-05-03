@@ -247,11 +247,9 @@ const NEWBIE_FREE_STAMINA_STAGES = [
 ]
 
 /** 首通里程碑体力赠送（关卡ID → 赠送体力），让新手在关键节点获得额外推关动力
- *  注：第 1 章关卡全免体力，里程碑体力只用于"让第二天有 1~2h 爽玩时间"，
- *  不需要给出夸张的数字，否则会叠加成 300+ 的滞留库存。 */
+ *  注：首日关卡节奏改为"第 1 章教学免体力 + 第 2 章后正常消耗"。
+ *  通关本身不再反向赠送体力，避免玩家在打腻前都碰不到体力恢复广告。 */
 const FIRST_CLEAR_STAMINA_BONUS = {
-  'stage_1_3': 30,
-  'stage_1_8': 30,
 }
 
 /** 首通里程碑灵石赠送（关卡ID → 赠送灵石），保证新手有足够灵石升级宠物
@@ -339,6 +337,19 @@ const STAGE_MECHANIC_FOCUS = {
 
 /** 法宝未解锁时展示（仅灵兽秘境投放，不进通天塔永久入库） */
 const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
+
+// ===== 通关六宝箱（战斗内）=====
+/** 选中宝箱揭晓节奏：蓄力 → 爆开 → 物品弹出定格 */
+const STAGE_CHEST_REVEAL_CHARGE_FRAMES = 12
+const STAGE_CHEST_REVEAL_BURST_FRAMES = 28
+const STAGE_CHEST_REVEAL_ITEM_POP_FRAMES = 32
+/** 揭晓选中奖励后，再等多少帧才自动翻开其余宝箱（约 60 ≈ 1s，与 main 每帧 af++ 一致） */
+const STAGE_CHEST_REST_REVEAL_DELAY_FRAMES = 60
+/** 其余宝箱依次翻开：首格起始延迟、间隔帧（与原先视觉节奏一致） */
+const STAGE_CHEST_REST_STAGGER_BASE = 18
+const STAGE_CHEST_REST_STAGGER_STEP = 5
+/** 从 restReveal 起始帧起，再等多少帧认为全部播完 → 显示继续按钮 */
+const STAGE_CHEST_REST_REVEAL_DONE_FRAMES = 52
 
 /** Canvas 图片 LRU 缓存上限：按真机长局优先，避免大图解码缓存长期堆积 */
 const RENDER_IMG_CACHE_MAX = 220
@@ -467,6 +478,13 @@ module.exports = {
   NEWBIE_GIFT_REWARDS,
   NEWBIE_BEAD_ATTR_LIMIT,
   STAGE_MECHANIC_FOCUS,
+  STAGE_CHEST_REVEAL_CHARGE_FRAMES,
+  STAGE_CHEST_REVEAL_BURST_FRAMES,
+  STAGE_CHEST_REVEAL_ITEM_POP_FRAMES,
+  STAGE_CHEST_REST_REVEAL_DELAY_FRAMES,
+  STAGE_CHEST_REST_STAGGER_BASE,
+  STAGE_CHEST_REST_STAGGER_STEP,
+  STAGE_CHEST_REST_REVEAL_DONE_FRAMES,
   WEAPON_ACQUIRE_HINT_UNOWNED,
   RENDER_IMG_CACHE_MAX,
   MEMORY_DEBUG,

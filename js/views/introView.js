@@ -1,24 +1,16 @@
 /**
- * 开场漫画 — 2 页全屏插画 + 叙事文字
+ * 开场漫画 — 单页全屏插画 + 叙事文字
  * 首次打开游戏时播放，播放完成/跳过后标记 introDone
  */
 const V = require('./env')
 
 const PAGES = [
   {
-    img: 'assets/intro/intro_1.jpg',
-    lines: [
-      '我坠入了一个陌生的修仙世界',
-      '远处，一座直冲云霄的通天塔笼罩在妖气之中',
-      '塔中封印着可怕的妖兽，无人敢靠近……',
-    ],
-  },
-  {
     img: 'assets/intro/intro_2.jpg',
     lines: [
-      '一头凶兽挡住了我的去路',
-      '危急之中，五道灵光从天而降——',
-      '金、木、水、火、土，五行灵宠降临守护！',
+      '妖王挡路，通天塔妖气冲天',
+      '五行灵宠从天而降，护你脱险',
+      '拖动灵珠，立刻打出五行合击！',
     ],
   },
 ]
@@ -32,10 +24,13 @@ let _pageFade = 1      // 整页透明度
 let _allLinesShown = false
 let _breathT = 0
 let _btnReady = false  // 最后一页全部显示后的按钮
+let _introShowTracked = false
+let _finished = false
 
 const FADE_SPEED = 0.04
+const AUTO_START_FRAMES = 180
 
-function init() {
+function init(g) {
   _page = 0
   _lineIdx = PAGES[0].lines.length
   _lineAlpha = PAGES[0].lines.map(() => 1)
@@ -45,6 +40,9 @@ function init() {
   _allLinesShown = true
   _breathT = 0
   _btnReady = PAGES.length === 1
+  _introShowTracked = false
+  _finished = false
+  _recordIntroEvent(g, 'intro_show', { page: 1, totalPages: PAGES.length })
 }
 
 function update(g) {
@@ -78,6 +76,10 @@ function update(g) {
     _allLinesShown = true
     if (_allLinesShown && _page === PAGES.length - 1) {
       _btnReady = true
+    }
+    if (_page === PAGES.length - 1 && _timer >= AUTO_START_FRAMES) {
+      _finish(g, 'auto')
+      return
     }
   }
   g._dirty = true
@@ -147,9 +149,8 @@ function render(g) {
     c.globalAlpha = _pageFade
 
     if (isLast) {
-      // "开始修仙之旅" 精致按钮
-      const bw = 220 * S, bh = 52 * S
-      const bx = (W - bw) / 2, by = H - 90 * S
+      // 真新用户优先开战：最后一页主 CTA 直接进序章爽局。
+      const [bx, by, bw, bh] = _primaryBtnRect(W, H, S)
       const br = bh / 2  // 全圆角胶囊
       const pulse = 0.85 + 0.15 * Math.sin(_breathT * 2)
 
@@ -197,13 +198,38 @@ function render(g) {
       c.fillStyle = '#fff8e8'
       c.font = `bold ${17 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
       c.textAlign = 'center'
-      c.fillText('✦ 开始修仙之旅 ✦', W / 2, by + bh * 0.67)
+      c.fillText('立即开打', W / 2, by + bh * 0.67)
+      const remainSec = Math.max(1, Math.ceil((AUTO_START_FRAMES - _timer) / 60))
+      c.shadowBlur = 0
+      c.fillStyle = 'rgba(255,255,255,0.82)'
+      c.font = `${12 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+      c.fillText(`${remainSec} 秒后自动开战`, W / 2, by + bh + 22 * S)
       c.restore()
     } else {
-      c.fillStyle = '#fff'
-      c.font = `${14 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+      const [bx, by, bw, bh] = _primaryBtnRect(W, H, S)
+      const br = bh / 2
+      const pulse = 0.9 + 0.1 * Math.sin(_breathT * 2)
+
+      c.save()
+      c.globalAlpha = _pageFade * pulse
+      const grad = c.createLinearGradient(bx, by, bx, by + bh)
+      grad.addColorStop(0, '#ffe27a')
+      grad.addColorStop(1, '#b86b05')
+      _roundRect(c, bx, by, bw, bh, br)
+      c.fillStyle = grad
+      c.fill()
+      c.strokeStyle = 'rgba(255,230,130,0.62)'
+      c.lineWidth = 1.2 * S
+      c.stroke()
+      c.restore()
+
+      c.fillStyle = '#fff8e8'
+      c.font = `bold ${16 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
       c.textAlign = 'center'
-      c.fillText('点击继续', W / 2, H - 50 * S)
+      c.fillText('立即开打', W / 2, by + bh * 0.66)
+      c.fillStyle = 'rgba(255,255,255,0.82)'
+      c.font = `${12 * S}px "PingFang SC","Microsoft YaHei",sans-serif`
+      c.fillText('点击画面继续看剧情', W / 2, H - 36 * S)
     }
     c.restore()
   }
@@ -234,25 +260,34 @@ function onTouch(g, type, x, y) {
   const skipW = 60 * S, skipH = 30 * S
   const skipX = W - skipW - 15 * S, skipY = V.safeTop + 52 * S
   if (x >= skipX && x <= skipX + skipW && y >= skipY && y <= skipY + skipH) {
-    _finish(g)
+    _recordIntroEvent(g, 'intro_skip_click', { page: _page + 1 })
+    _finish(g, 'skip')
     return
   }
 
   if (_fadeDir !== 0) return
 
   if (_allLinesShown) {
+    if (_isInRect(x, y, _primaryBtnRect(W, H, S))) {
+      _finish(g, _page === PAGES.length - 1 ? 'cta_last' : 'cta_fast_start')
+      return
+    }
     if (_page === PAGES.length - 1) {
-      _finish(g)
+      _finish(g, 'page_tap')
     } else {
+      _recordIntroEvent(g, 'intro_next_click', { page: _page + 1 })
       _fadeDir = -1
     }
   }
 }
 
-function _finish(g) {
+function _finish(g, source) {
+  if (_finished) return
+  _finished = true
   V.P.setStorageSync('introDone', true)
   g.storage.markGuideShown('intro_done')
   if (g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('intro_finish', { scene: source || 'unknown' })
     g.storage.recordFunnelEvent('first_screen_show', { scene: 'intro_done' })
   }
   const MusicMgr = require('../runtime/music')
@@ -268,11 +303,36 @@ function _finish(g) {
       g.storage.recordFunnelEvent('newbie_prologue_prompt_show', { scene: 'intro_fast_start', stageId: 'newbie_prologue' })
     }
     if (stageMgr.startNewbiePrologue && stageMgr.startNewbiePrologue(g)) return
+    if (g.storage.recordFunnelEvent) {
+      g.storage.recordFunnelEvent('newbie_prologue_start_fail', {
+        scene: 'intro_fast_start',
+        reason: 'start_returned_false',
+      })
+    }
   }
 
   // 兜底：无法直达战斗时仍进入首页并触发原有新手秘境指引。
   g._pendingGuide = 'newbie_stage_start'
   g.setScene('title')
+}
+
+function _recordIntroEvent(g, eventId, params) {
+  if (!g || !g.storage || !g.storage.recordFunnelEvent) return
+  if (eventId === 'intro_show') {
+    if (_introShowTracked) return
+    _introShowTracked = true
+  }
+  g.storage.recordFunnelEvent(eventId, params || {})
+}
+
+function _primaryBtnRect(W, H, S) {
+  const bw = 220 * S
+  const bh = 52 * S
+  return [(W - bw) / 2, H - 90 * S, bw, bh]
+}
+
+function _isInRect(x, y, rect) {
+  return rect && x >= rect[0] && x <= rect[0] + rect[2] && y >= rect[1] && y <= rect[1] + rect[3]
 }
 
 function _roundRect(ctx, x, y, w, h, r) {

@@ -15,28 +15,19 @@
 const { LING } = require('../data/lingIdentity')
 
 /**
- * 画一行"修炼升级"提示（小灵头像 + 口吻）
+ * 画一行"修炼升级"提示（极简重点：等级变化 + 技能点）
  * @returns {number} y 偏移（固定 16*S）
  */
 function drawCultLvUpRow(c, R, S, cx, cy, prevLv, currLv, skillPts) {
-  const text = (LING && LING.cheer && LING.cheer.cultLvUp && LING.cheer.cultLvUp(prevLv, currLv, skillPts))
-    || `升级！Lv.${prevLv} → Lv.${currLv}  获得 ${skillPts} 修炼点`
+  const pts = Math.max(0, skillPts || 0)
+  const text = `Lv.${prevLv} → Lv.${currLv}  技能点 +${pts}`
   c.save()
-  c.font = `bold ${10 * S}px "PingFang SC",sans-serif`
+  c.font = `bold ${11 * S}px "PingFang SC",sans-serif`
   c.textBaseline = 'middle'
-  const tw = c.measureText(text).width
-  const avatarSz = 14 * S
-  const gap = 5 * S
-  const totalW = avatarSz + gap + tw
-  const startX = cx - totalW / 2
-  const avatar = R.getImg && LING && LING.avatar ? R.getImg(LING.avatar) : null
-  if (avatar && avatar.width > 0) {
-    c.drawImage(avatar, startX, cy - avatarSz / 2 + 4 * S, avatarSz, avatarSz)
-  }
-  c.textAlign = 'left'
+  c.textAlign = 'center'
   c.fillStyle = '#D4A030'
   c.shadowColor = 'rgba(200,150,0,0.4)'; c.shadowBlur = 6 * S
-  c.fillText(text, startX + avatarSz + gap, cy + 4 * S)
+  c.fillText(text, cx, cy + 4 * S)
   c.restore()
   return 16 * S
 }

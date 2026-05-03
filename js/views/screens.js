@@ -3029,7 +3029,57 @@ function _drawDexPetDetail(g) {
 
   ctx.restore()
 
+  if (g._dexAcquireHintPetId === petId) {
+    _drawDexAcquireHintPopup(g, petId, petAttr)
+  }
+
   g.storage.markDexSeen(petId)
+}
+
+function _getPetAcquireHintLines(petId, petAttr) {
+  const attrName = DEX_ATTR_LABEL[petAttr] || '对应属性'
+  const lines = []
+  const fixed = {
+    f1: '主线 1-1 首通可获得',
+    m2: '主线 1-2 首通可获得',
+    w2: '主线 1-3 首通可获得',
+    f10: '终章 12-8 首通可获得',
+  }
+  if (fixed[petId]) lines.push(fixed[petId])
+  lines.push(`挑战${attrName}属性相关主线关卡，有机会获得碎片`)
+  lines.push('首通、重复通关、图鉴奖励都可能补充碎片')
+  lines.push('万能碎片也可用于升星已拥有灵宠')
+  return lines
+}
+
+function _drawDexAcquireHintPopup(g, petId, petAttr) {
+  const { ctx, R, W, H, S } = V
+  const panelW = W * 0.78
+  const panelH = 178 * S
+  const panelX = (W - panelW) / 2
+  const panelY = (H - panelH) / 2
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.36)'
+  ctx.fillRect(0, 0, W, H)
+  R.drawDialogPanel(panelX, panelY, panelW, panelH)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#5A3A16'
+  ctx.font = `bold ${16 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('获取途径', W / 2, panelY + 32 * S)
+
+  const lines = _getPetAcquireHintLines(petId, petAttr)
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#6B5B50'
+  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  lines.forEach((line, idx) => {
+    ctx.fillText(`· ${line}`, panelX + 24 * S, panelY + (64 + idx * 22) * S)
+  })
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#A48A64'
+  ctx.font = `${10 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('点击任意位置关闭', W / 2, panelY + panelH - 18 * S)
+  ctx.restore()
 }
 
 // 带数值高亮的文本行

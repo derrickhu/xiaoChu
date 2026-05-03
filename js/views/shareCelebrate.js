@@ -5,7 +5,7 @@
  *   1. 底部 2 秒前置延迟（让玩家先感受完 lingCheer + 爆点）
  *   2. 自动滑入一张卡片：预览图（shareCard 合成的 tempPath）+ 文案 + 两键分享 + 稍后再说
  *   3. 2 秒后按钮亮起（防误触，半强制）
- *   4. "发给好友" / "发到朋友圈" / "稍后再说" 都会关闭弹窗
+ *   4. "发给好友" / "发到朋友圈" 关闭弹窗并分享；"稍后再说" 关闭且不再为同一里程碑弹窗
  *
  * 状态机：
  *   hidden  -> pending (等生成 tempPath)
@@ -86,7 +86,8 @@ function _ensurePreviewImg(tempPath) {
  * @param {string} sceneKey
  * @param {object} data
  * @param {object} [opts]
- * @param {Function} [opts.onConfirm] 玩家真正点"分享给好友/朋友圈"时触发（用于"稍后再说不 mark flag"策略）
+ * @param {Function} [opts.onConfirm] 玩家点「发给好友/朋友圈」时触发（消费里程碑，防重复弹）
+ * @param {Function} [opts.onDismiss] 玩家点「稍后再说」时触发（同样消费里程碑，避免下次再骚扰）
  */
 function trigger(g, sceneKey, data, opts) {
   if (_state) return false
@@ -95,6 +96,7 @@ function trigger(g, sceneKey, data, opts) {
 
   const fallbackPath = shareCard.getCardTemplatePath(sceneKey) || cfg.imageUrl || null
   const onConfirm = opts && typeof opts.onConfirm === 'function' ? opts.onConfirm : null
+  const onDismiss = opts && typeof opts.onDismiss === 'function' ? opts.onDismiss : null
 
   _state = {
     phase: 'pending',
@@ -105,6 +107,7 @@ function trigger(g, sceneKey, data, opts) {
     cardStatus: 'loading',
     fallbackPath,
     onConfirm,
+    onDismiss,
     g,
     rects: {},
   }
@@ -418,6 +421,9 @@ function handleTouch(type, x, y) {
   }
   if (_hit(rects.btnDismiss, x, y)) {
     analytics.track('share_card_dismissed', { scene: sceneKey })
+    if (_state && typeof _state.onDismiss === 'function') {
+      try { _state.onDismiss() } catch (e) { console.warn('[shareCelebrate] onDismiss error', e) }
+    }
     dismiss()
     return true
   }

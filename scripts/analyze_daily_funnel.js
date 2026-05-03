@@ -145,6 +145,10 @@ function hasSummaryEvent(p, eventId) {
   return (summaryBucket(p, 'events')[eventId] || 0) > 0
 }
 
+function hasAnySummaryEvent(p, eventIds) {
+  return eventIds.some(id => hasSummaryEvent(p, id))
+}
+
 function hasBucketKey(p, bucketName, key) {
   return (summaryBucket(p, bucketName)[key] || 0) > 0
 }
@@ -172,6 +176,27 @@ function printMap(title, map) {
   rows.forEach(([k, v]) => console.log(`  ${k}: ${v}`))
 }
 
+function countWhere(players, fn) {
+  return players.filter(fn).length
+}
+
+function printBreakpoints(players, total) {
+  const introFinished = p => hasAnySummaryEvent(p, ['intro_finish', 'intro_done', 'first_screen_show'])
+  const prologueStarted = p => hasBucketKey(p, 'stageStart', 'newbie_prologue')
+  const stage11Started = p => hasBucketKey(p, 'stageStart', 'stage_1_1')
+  const hasBattleFirstFrameData = players.some(p => hasSummaryEvent(p, 'battle_first_frame'))
+  console.log('\n关键断点拆解')
+  printMetric('仅进入未加载完成', countWhere(players, p => hasSummaryEvent(p, 'new_user_enter') && !hasSummaryEvent(p, 'loading_ready') && !introFinished(p)), total)
+  printMetric('加载后未见剧情', countWhere(players, p => hasSummaryEvent(p, 'loading_ready') && !hasSummaryEvent(p, 'intro_show') && !introFinished(p) && !prologueStarted(p)), total)
+  printMetric('剧情展示未完成', countWhere(players, p => hasSummaryEvent(p, 'intro_show') && !introFinished(p)), total)
+  printMetric('剧情完成未进序章', countWhere(players, p => introFinished(p) && !prologueStarted(p)), total)
+  if (hasBattleFirstFrameData) {
+    printMetric('序章开始未首帧', countWhere(players, p => prologueStarted(p) && !hasSummaryEvent(p, 'battle_first_frame')), total)
+  }
+  printMetric('序章通关未进 1-1', countWhere(players, p => hasSummaryEvent(p, 'newbie_prologue_clear') && !stage11Started(p)), total)
+  printMetric('点击 1-1 未开始', countWhere(players, p => hasSummaryEvent(p, 'newbie_stage_cta_click') && !stage11Started(p)), total)
+}
+
 function main() {
   const { prevDate, currDate, opts } = parseArgs(process.argv.slice(2))
   const prev = new Map(loadPlayers(prevDate).map(p => [playerKey(p), p]).filter(([k]) => k))
@@ -195,21 +220,29 @@ function main() {
 
   console.log('新埋点首日行为漏斗')
   printMetric('新用户进入', added.filter(p => hasSummaryEvent(p, 'new_user_enter')).length, total)
-  printMetric('首次首屏/开场完成', added.filter(p => hasSummaryEvent(p, 'first_screen_show')).length, total)
+  printMetric('加载完成', added.filter(p => hasSummaryEvent(p, 'loading_ready')).length, total)
+  printMetric('开场剧情展示', added.filter(p => hasSummaryEvent(p, 'intro_show')).length, total)
+  printMetric('剧情继续点击', added.filter(p => hasSummaryEvent(p, 'intro_next_click')).length, total)
+  printMetric('剧情跳过点击', added.filter(p => hasSummaryEvent(p, 'intro_skip_click')).length, total)
+  printMetric('开场剧情完成', added.filter(p => hasAnySummaryEvent(p, ['intro_finish', 'intro_done', 'first_screen_show'])).length, total)
   printMetric('完成引导', added.filter(p => hasSummaryEvent(p, 'intro_done')).length, total)
   printMetric('看到序章入口', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_prompt_show')).length, total)
   printMetric('开始序章', added.filter(p => hasBucketKey(p, 'stageStart', 'newbie_prologue')).length, total)
+  printMetric('战斗首帧', added.filter(p => hasSummaryEvent(p, 'battle_first_frame')).length, total)
   printMetric('序章首次操作', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_input')).length, total)
   printMetric('序章首次伤害', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_damage')).length, total)
   printMetric('序章通关', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_clear')).length, total)
   printMetric('序章结算展示', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_result_show')).length, total)
   printMetric('看到 1-1 引导', added.filter(p => hasSummaryEvent(p, 'newbie_stage_prompt_show')).length, total)
+  printMetric('点击进入 1-1', added.filter(p => hasSummaryEvent(p, 'newbie_stage_cta_click')).length, total)
   printMetric('开始 1-1', added.filter(p => hasBucketKey(p, 'stageStart', 'stage_1_1')).length, total)
   printMetric('1-1 首次操作', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_input')).length, total)
   printMetric('1-1 首次伤害', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_damage')).length, total)
   printMetric('新埋点通关 1-1', added.filter(p => hasBucketKey(p, 'stageClear', 'stage_1_1')).length, total)
   printMetric('1-1 结算展示', added.filter(p => hasSummaryEvent(p, 'stage_1_1_result_show')).length, total)
   printMetric('1-1 首通广告触达', added.filter(p => hasBucketKey(p, 'adEntryShow', 'newbieFirstClearDouble')).length, total)
+  console.log('')
+  printBreakpoints(added, total)
   console.log('')
 
   console.log('存档进度漏斗（兼容老版本）')
