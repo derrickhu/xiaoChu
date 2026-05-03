@@ -83,6 +83,105 @@ const S = W / 375
 console.log(`[Canvas] ${W}x${H}, dpr=${dpr}, S=${S.toFixed(2)}, platform=${_devInfo.platform}`)
 const safeTop = ((_winInfo.safeArea && _winInfo.safeArea.top) || 20) * dpr
 
+const BOOT_CRITICAL_IMAGES = [
+  'assets/backgrounds/loading_bg.jpg',
+  'assets/backgrounds/home_bg.jpg',
+  'assets/ui/title_logo.png',
+  'assets/ui/btn_start.png',
+  'assets/ui/btn_continue.png',
+  'assets/ui/btn_bg.png',
+  'assets/ui/nav_bar_bg.png',
+  'assets/ui/nav_battle.png',
+  'assets/ui/nav_hero.png',
+  'assets/ui/nav_more.png',
+  'assets/intro/intro_2.jpg',
+]
+
+const TITLE_WARMUP_IMAGES = [
+  'assets/ui/btn_rank.png',
+  'assets/ui/btn_mode_switch.png',
+  'assets/ui/lock.png',
+  'assets/ui/tower_rogue.png',
+  'assets/ui/nav_icons.png',
+  'assets/ui/nav_dex.png',
+  'assets/ui/nav_rank.png',
+  'assets/ui/nav_weapon.png',
+  'assets/ui/icon_stamina.png',
+  'assets/ui/icon_cult_exp.png',
+  'assets/ui/icon_pet_exp.png',
+  'assets/ui/icon_soul_stone.png',
+  'assets/ui/icon_awaken_stone.png',
+  'assets/ui/icon_chest.png',
+  'assets/ui/guide_xiaoling.png',
+  'assets/hero/char_boy1.png',
+  'assets/hero/char_girl1.png',
+  'assets/hero/char_boy2.png',
+  'assets/hero/char_girl2.png',
+  'assets/hero/char_boy3.png',
+  'assets/hero/char_girl3.png',
+  'assets/ui/frame_avatar.png',
+  'assets/ui/name_bg.png',
+  'assets/ui/btn_back.png',
+]
+
+const FEATURE_WARMUP_IMAGES = [
+  'assets/ui/chest_lottery_normal_closed.png',
+  'assets/ui/chest_lottery_normal_open.png',
+  'assets/ui/chest_lottery_premium_closed.png',
+  'assets/ui/chest_lottery_premium_open.png',
+  'assets/ui/chest_lottery_weapon_closed.png',
+  'assets/ui/chest_lottery_weapon_open.png',
+  'assets/ui/chest_lottery_glow.png',
+  'assets/ui/chest_reward_panel_bg.png',
+  'assets/ui/chest_reward_aura_overlay.png',
+  'assets/ui/chest_reward_aura_metal.png',
+  'assets/ui/chest_reward_aura_wood.png',
+  'assets/ui/chest_reward_aura_water.png',
+  'assets/ui/chest_reward_aura_fire.png',
+  'assets/ui/chest_reward_aura_earth.png',
+  'assets/ui/trial_panel_rule.png',
+  'assets/ui/trial_panel_reward.png',
+  'assets/ui/trial_panel_result.png',
+  'assets/ui/challenge_hub_panel_trial.png',
+  'assets/ui/challenge_hub_panel_tower.png',
+  'assets/ui/challenge_hub_icon_trial.png',
+  'assets/ui/challenge_hub_icon_tower.png',
+  'assets/ui/challenge_hub_btn_gold.png',
+  'assets/ui/challenge_hub_btn_purple.png',
+  'assets/ui/daily_sign_icon.png',
+  'assets/ui/daily_task_icon.png',
+  'assets/ui/newbie_gift_icon.png',
+  'assets/ui/icon_universal_frag.png',
+  'assets/ui/task_panel_frame.png',
+  'assets/ui/task_plaque_title.png',
+  'assets/ui/task_sidetab_active.png',
+  'assets/ui/task_sidetab_dim.png',
+  'assets/ui/task_btn_wood.png',
+  'assets/ui/pet_card_scroll_bg.png',
+  'assets/ui/pet_filter_scroll_bg.png',
+  'assets/ui/btn_pet_idle_scroll.png',
+  'assets/ui/dex_title_plaque.png',
+  'assets/ui/dex_card_frame.png',
+  'assets/ui/dex_unknown_slot.png',
+  'assets/ui/pet_detail_platform.png',
+  'assets/ui/pet_detail_panel_scroll.png',
+  'assets/ui/pet_detail_action_badge.png',
+  'assets/ui/pet_detail_name_scroll.png',
+  'assets/ui/checkin_huahua/checkin_title_banner.png',
+  'assets/ui/checkin_huahua/checkin_milestone_panel.png',
+  'assets/ui/checkin_huahua/checkin_card_future.png',
+  'assets/ui/checkin_huahua/checkin_card_today.png',
+  'assets/ui/checkin_huahua/checkin_card_signed.png',
+  'assets/ui/checkin_huahua/checkin_card_day7.png',
+  'assets/ui/checkin_huahua/deco_card_btn_2.png',
+  'assets/ui/checkin_huahua/checkin_milestone_gift_1.png',
+  'assets/ui/checkin_huahua/checkin_milestone_gift_2.png',
+  'assets/ui/checkin_huahua/checkin_milestone_gift_3.png',
+  'assets/ui/checkin_huahua/checkin_milestone_gift_4.png',
+  'assets/ui/frame_fragment.png',
+  'assets/pets/pet_f4.png',
+]
+
 const COLS = 6, ROWS = 5
 const R = new Render(ctx, W, H, S, safeTop)
 ViewEnv.init(ctx, R, TH, W, H, S, safeTop, COLS, ROWS, P)
@@ -105,9 +204,16 @@ function _buildLoadingAnalyticsParams(g, scene, elapsed) {
     pixelRatio: Math.round((dpr || 0) * 100) / 100,
     safeTop: Math.round((safeArea.top || 0) * 100) / 100,
     criticalImageCount: g._criticalImages ? g._criticalImages.length : 0,
+    bootCriticalCount: g._bootCriticalImages ? g._bootCriticalImages.length : 0,
+    titleWarmupCount: g._titleWarmupImages ? g._titleWarmupImages.length : 0,
+    featureWarmupCount: g._featureWarmupImages ? g._featureWarmupImages.length : 0,
     criticalPreloadMs: g._criticalPreloadReadyAt && g._criticalPreloadStartAt
       ? Math.max(0, g._criticalPreloadReadyAt - g._criticalPreloadStartAt)
       : 0,
+    bootPreloadMs: g._bootPreloadReadyAt && g._bootPreloadStartAt
+      ? Math.max(0, g._bootPreloadReadyAt - g._bootPreloadStartAt)
+      : 0,
+    warmupStarted: !!g._warmupStarted,
     loadPct: Math.round((g._loadPct || 0) * 100),
     cdnManifestReady: !!assetStats.manifestReady,
     cdnManifestFiles: assetStats.manifestFileCount || 0,
@@ -469,121 +575,48 @@ class Main {
 
     // 分享菜单：showShareMenu / onShareAppMessage已在 game.js 启动阶段 registerMenuShareListeners，此处勿重复注册（避免覆盖或注册过晚）
 
-    this._criticalImages = [
-      'assets/backgrounds/loading_bg.jpg',
-      'assets/backgrounds/home_bg.jpg',
-      'assets/ui/title_logo.png',
-      'assets/ui/btn_start.png',
-      'assets/ui/btn_continue.png',
-      'assets/ui/btn_rank.png',
-      'assets/ui/btn_bg.png',
-      'assets/ui/btn_mode_switch.png',
-      'assets/ui/lock.png',
-      'assets/ui/tower_rogue.png',
-      // 底部导航栏图标及背景
-      'assets/ui/nav_bar_bg.png',
-      'assets/ui/nav_hero.png',
-      'assets/ui/nav_icons.png',
-      'assets/ui/nav_battle.png',
-      'assets/ui/nav_dex.png',
-      'assets/ui/nav_rank.png',
-      'assets/ui/nav_weapon.png',
-      'assets/ui/nav_more.png',
-      // 开场漫画
-      'assets/intro/intro_1.jpg',
-      'assets/intro/intro_2.jpg',
-      'assets/ui/icon_stamina.png',
-      'assets/ui/icon_cult_exp.png',
-      'assets/ui/icon_pet_exp.png',
-      'assets/ui/icon_soul_stone.png',
-      'assets/ui/icon_awaken_stone.png',
-      'assets/ui/icon_chest.png',
-      'assets/ui/chest_lottery_normal_closed.png',
-      'assets/ui/chest_lottery_normal_open.png',
-      'assets/ui/chest_lottery_premium_closed.png',
-      'assets/ui/chest_lottery_premium_open.png',
-      'assets/ui/chest_lottery_weapon_closed.png',
-      'assets/ui/chest_lottery_weapon_open.png',
-      'assets/ui/chest_lottery_glow.png',
-      'assets/ui/chest_reward_panel_bg.png',
-      'assets/ui/chest_reward_aura_overlay.png',
-      'assets/ui/chest_reward_aura_metal.png',
-      'assets/ui/chest_reward_aura_wood.png',
-      'assets/ui/chest_reward_aura_water.png',
-      'assets/ui/chest_reward_aura_fire.png',
-      'assets/ui/chest_reward_aura_earth.png',
-      'assets/ui/trial_panel_rule.png',
-      'assets/ui/trial_panel_reward.png',
-      'assets/ui/trial_panel_result.png',
-      'assets/ui/challenge_hub_panel_trial.png',
-      'assets/ui/challenge_hub_panel_tower.png',
-      'assets/ui/challenge_hub_icon_trial.png',
-      'assets/ui/challenge_hub_icon_tower.png',
-      'assets/ui/challenge_hub_btn_gold.png',
-      'assets/ui/challenge_hub_btn_purple.png',
-      'assets/ui/daily_sign_icon.png',
-      'assets/ui/daily_task_icon.png',
-      'assets/ui/newbie_gift_icon.png',
-      'assets/ui/icon_universal_frag.png',
-      'assets/ui/guide_xiaoling.png',
-      // 每日任务界面的生图素材（卷轴面板 + 悬挂木匾 + 双态丝绸吊牌 + 金色原木按钮）
-      'assets/ui/task_panel_frame.png',
-      'assets/ui/task_plaque_title.png',
-      'assets/ui/task_sidetab_active.png',
-      'assets/ui/task_sidetab_dim.png',
-      'assets/ui/task_btn_wood.png',
-      // 灵宠池水墨卷轴改版资源（大背景按页面懒加载，避免长局常驻）
-      'assets/ui/pet_card_scroll_bg.png',
-      'assets/ui/pet_filter_scroll_bg.png',
-      'assets/ui/btn_pet_idle_scroll.png',
-      // 图鉴统一版式资源
-      'assets/ui/dex_title_plaque.png',
-      'assets/ui/dex_card_frame.png',
-      'assets/ui/dex_unknown_slot.png',
-      // 灵宠详情页水墨修仙风资源（大背景按页面懒加载，避免长局常驻）
-      'assets/ui/pet_detail_platform.png',
-      'assets/ui/pet_detail_panel_scroll.png',
-      'assets/ui/pet_detail_action_badge.png',
-      'assets/ui/pet_detail_name_scroll.png',
-      // 签到弹窗（花华 CheckIn 贴图）
-      'assets/ui/checkin_huahua/checkin_title_banner.png',
-      'assets/ui/checkin_huahua/checkin_milestone_panel.png',
-      'assets/ui/checkin_huahua/checkin_card_future.png',
-      'assets/ui/checkin_huahua/checkin_card_today.png',
-      'assets/ui/checkin_huahua/checkin_card_signed.png',
-      'assets/ui/checkin_huahua/checkin_card_day7.png',
-      'assets/ui/checkin_huahua/deco_card_btn_2.png',
-      'assets/ui/checkin_huahua/checkin_milestone_gift_1.png',
-      'assets/ui/checkin_huahua/checkin_milestone_gift_2.png',
-      'assets/ui/checkin_huahua/checkin_milestone_gift_3.png',
-      'assets/ui/checkin_huahua/checkin_milestone_gift_4.png',
-      'assets/ui/frame_fragment.png',
-      'assets/pets/pet_f4.png',
-      // 角色形象（首页头像立即显示，不延迟）
-      'assets/hero/char_boy1.png',
-      'assets/hero/char_girl1.png',
-      'assets/hero/char_boy2.png',
-      'assets/hero/char_girl2.png',
-      'assets/hero/char_boy3.png',
-      'assets/hero/char_girl3.png',
-      'assets/ui/frame_avatar.png',
-      'assets/ui/name_bg.png',
-      'assets/ui/btn_back.png',
-    ]
+    this._bootCriticalImages = BOOT_CRITICAL_IMAGES.slice()
+    this._titleWarmupImages = TITLE_WARMUP_IMAGES.slice()
+    this._featureWarmupImages = FEATURE_WARMUP_IMAGES.slice()
+    this._criticalImages = this._bootCriticalImages
     R.setKeepPaths(this._criticalImages)
     this._criticalPreloadStartAt = Date.now()
+    this._bootPreloadStartAt = this._criticalPreloadStartAt
     R.preloadImages(this._criticalImages, (loaded, total) => {
       this._loadPct = loaded / total
     }).then(() => {
-      console.log('[Preload] critical images ready')
+      console.log('[Preload] boot critical images ready')
       this._criticalPreloadReadyAt = Date.now()
+      this._bootPreloadReadyAt = this._criticalPreloadReadyAt
       this._loadReady = true
+      this._startWarmupPreload()
     })
     // 后台拉取 CDN 资源清单（不阻塞启动，拉完后按需下载即自动生效）
     AssetLoader.fetchManifest((ok) => {
       console.log('[CDN] manifest ' + (ok ? 'fetched' : 'using cached'))
       this._preloadOwnedAssets()
     })
+  }
+
+  _startWarmupPreload() {
+    if (this._warmupStarted) return
+    this._warmupStarted = true
+    const titleImages = this._titleWarmupImages || []
+    const featureImages = this._featureWarmupImages || []
+    if (titleImages.length) {
+      R.preloadImages(titleImages).then(() => {
+        this._titleWarmupReadyAt = Date.now()
+        console.log('[Preload] title warmup images ready')
+      })
+    }
+    if (featureImages.length) {
+      setTimeout(() => {
+        R.preloadImages(featureImages).then(() => {
+          this._featureWarmupReadyAt = Date.now()
+          console.log('[Preload] feature warmup images ready')
+        })
+      }, 800)
+    }
   }
 
   _preloadOwnedAssets() {

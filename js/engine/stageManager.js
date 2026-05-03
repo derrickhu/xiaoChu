@@ -406,6 +406,8 @@ function startNewbiePrologue(g) {
   g._prologueIdle5Tracked = false
   g._prologueIdle10Tracked = false
   g._prologueHintShowTracked = false
+  g._prologueStrongHintTracked = false
+  g._prologueDragStartTracked = false
   g._prologueInvalidDragTracked = false
 
   g.pets = NEWBIE_TRIAL_PET_IDS.map(id => {

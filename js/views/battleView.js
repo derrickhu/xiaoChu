@@ -30,6 +30,7 @@ const PROLOGUE_HINT_DELAY_FRAMES = 18
 const PROLOGUE_IDLE_5S_FRAMES = 300
 const PROLOGUE_IDLE_10S_FRAMES = 600
 const PROLOGUE_RESULT_AUTO_NEXT_FRAMES = 170
+const PROLOGUE_STRONG_HINT_FRAMES = 420
 
 function rBattle(g) {
   const { ctx, R, W, H, S, safeTop } = V
@@ -50,6 +51,7 @@ function rBattle(g) {
   drawPetSlotFloats(g)
   if (g._isNewbieStage) drawNewbieHint(g, eAreaBottom, W)
   drawBoard(g)
+  _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom)
   _drawPrologueDragHint(g, cellSize, boardPad, boardTop)
   if (g._isNewbieStage) drawNewbieFingerGuide(g, cellSize, boardPad, boardTop)
   g.elimFloats.forEach(f => R.drawElimFloat(f))
@@ -211,6 +213,100 @@ function _drawPrologueDragHint(g, cellSize, boardPad, boardTop) {
   ctx.fillStyle = '#9c5a00'
   ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
   ctx.fillText('拖', handX, y - 14 * S)
+  ctx.restore()
+}
+
+function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) {
+  if (!g._newbiePrologue || g._prologueFirstInputTracked || g.bState !== 'playerTurn') {
+    return
+  }
+  const timer = g._prologueHintTimer || 0
+  if (timer > PROLOGUE_STRONG_HINT_FRAMES && timer < PROLOGUE_IDLE_10S_FRAMES) {
+    return
+  }
+  if (g.storage && g.storage.recordFunnelEvent && !g._prologueStrongHintTracked) {
+    g._prologueStrongHintTracked = true
+    g.storage.recordFunnelEvent('newbie_prologue_strong_hint_show', {
+      stageId: 'newbie_prologue',
+      scene: 'battle',
+    })
+  }
+
+  const { ctx, W, S } = V
+  const t = g.af || 0
+  const row = 2
+  const fromCol = 1
+  const toCol = 4
+  const fromX = boardPad + (fromCol + 0.5) * cellSize
+  const toX = boardPad + (toCol + 0.5) * cellSize
+  const y = boardTop + (row + 0.5) * cellSize
+  const upgraded = timer >= PROLOGUE_IDLE_10S_FRAMES
+  const pulse = 0.72 + 0.22 * Math.sin(t * 0.16)
+  const cardW = Math.min(W - 28 * S, 316 * S)
+  const cardH = upgraded ? 58 * S : 52 * S
+  const cardX = (W - cardW) / 2
+  const cardY = Math.max(eAreaBottom - 8 * S, boardTop - cardH - 18 * S)
+
+  ctx.save()
+
+  // 首次操作前只弱化非目标区域，避免玩家看不见棋盘主体。
+  ctx.globalAlpha = upgraded ? 0.34 : 0.22
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, boardTop, W, V.ROWS * cellSize)
+
+  ctx.globalAlpha = 0.9
+  const grad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH)
+  grad.addColorStop(0, 'rgba(48,28,10,0.94)')
+  grad.addColorStop(1, 'rgba(16,10,24,0.94)')
+  _rrPath(ctx, cardX, cardY, cardW, cardH, 14 * S)
+  ctx.fillStyle = grad
+  ctx.fill()
+  ctx.strokeStyle = upgraded ? 'rgba(255,104,80,0.9)' : 'rgba(255,226,122,0.86)'
+  ctx.lineWidth = 1.6 * S
+  ctx.stroke()
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#fff8d8'
+  ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
+  ctx.fillText(upgraded ? '按住任意发光灵珠，拖一下就能攻击' : '按住发光灵珠 → 拖到金圈 → 松手攻击', W / 2, cardY + cardH * 0.42)
+  ctx.fillStyle = 'rgba(255,255,255,0.76)'
+  ctx.font = `${11 * S}px "PingFang SC",sans-serif`
+  ctx.fillText(upgraded ? '不用凑路线，松手后自动触发五行合击' : '先体验爽局，妖王已经残血了', W / 2, cardY + cardH * 0.72)
+
+  ctx.globalAlpha = 0.95
+  ctx.strokeStyle = 'rgba(255,226,122,0.92)'
+  ctx.lineWidth = (upgraded ? 5 : 4) * S
+  ctx.setLineDash([10 * S, 7 * S])
+  ctx.lineDashOffset = -t * 0.7 * S
+  ctx.beginPath()
+  ctx.moveTo(fromX, y)
+  ctx.lineTo(toX, y)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.globalAlpha = pulse
+  ctx.strokeStyle = upgraded ? 'rgba(255,104,80,0.98)' : 'rgba(255,226,122,0.98)'
+  ctx.lineWidth = 4 * S
+  ctx.beginPath()
+  ctx.arc(fromX, y, cellSize * 0.5, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(toX, y, cellSize * 0.5, 0, Math.PI * 2)
+  ctx.stroke()
+
+  ctx.globalAlpha = 1
+  ctx.fillStyle = 'rgba(255,248,220,0.96)'
+  ctx.beginPath()
+  ctx.arc(fromX + (toX - fromX) * ((t % 90) / 90), y - 16 * S, 15 * S, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(160,90,0,0.82)'
+  ctx.lineWidth = 1.5 * S
+  ctx.stroke()
+  ctx.fillStyle = '#9c5a00'
+  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
+  ctx.fillText('拖', fromX + (toX - fromX) * ((t % 90) / 90), y - 16 * S)
+
   ctx.restore()
 }
 

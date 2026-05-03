@@ -34,6 +34,17 @@ function _handleBoardDrag(g, type, x, y) {
       g.dragAttr = typeof cell === 'string' ? cell : cell.attr
       g.dragTimer = 0
       MusicMgr.playPickUp()
+      if (g._newbiePrologue && !g._prologueDragStartTracked) {
+        g._prologueDragStartTracked = true
+        if (g.storage && g.storage.recordFunnelEvent) {
+          g.storage.recordFunnelEvent('newbie_prologue_drag_start', {
+            stageId: 'newbie_prologue',
+            scene: 'newbie_prologue',
+            row: r,
+            col: c,
+          })
+        }
+      }
     }
   } else if (type === 'move' && g.dragging) {
     g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))

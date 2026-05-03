@@ -19,6 +19,8 @@ const ALLOWED_EVENT_IDS = new Set([
   'first_screen_show',
   'newbie_prologue_prompt_show',
   'newbie_prologue_start_fail',
+  'newbie_prologue_strong_hint_show',
+  'newbie_prologue_drag_start',
   'newbie_prologue_first_input',
   'newbie_prologue_invalid_drag',
   'newbie_prologue_first_damage',
