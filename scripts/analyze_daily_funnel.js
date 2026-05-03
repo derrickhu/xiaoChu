@@ -162,8 +162,32 @@ function sumSlotMaps(players, getter) {
   return out
 }
 
+function platformGiftSummary(p) {
+  return (p && p.platformGiftSummary) || {}
+}
+
+function hasPlatformGift(p) {
+  return (platformGiftSummary(p).totalClaims || 0) > 0
+}
+
+function platformGiftRewards(p) {
+  return platformGiftSummary(p).rewards || {}
+}
+
+function platformGiftTypes(p) {
+  return platformGiftSummary(p).giftTypes || {}
+}
+
+function sumNestedNumber(players, getter, key) {
+  return players.reduce((sum, p) => sum + ((getter(p) || {})[key] || 0), 0)
+}
+
 function printMetric(label, n, d) {
   console.log(`${label.padEnd(18)} ${String(n).padStart(5)} / ${String(d).padStart(5)}  ${pct(n, d)}`)
+}
+
+function printNoDataMetric(label, note) {
+  console.log(`${label.padEnd(18)} ${String('-').padStart(5)} / ${String('-').padStart(5)}  ${note || '暂无新埋点'}`)
 }
 
 function printMap(title, map) {
@@ -184,6 +208,7 @@ function printBreakpoints(players, total) {
   const introFinished = p => hasAnySummaryEvent(p, ['intro_finish', 'intro_done', 'first_screen_show'])
   const prologueStarted = p => hasBucketKey(p, 'stageStart', 'newbie_prologue')
   const stage11Started = p => hasBucketKey(p, 'stageStart', 'stage_1_1')
+  const stage12Started = p => hasBucketKey(p, 'stageStart', 'stage_1_2')
   const hasBattleFirstFrameData = players.some(p => hasSummaryEvent(p, 'battle_first_frame'))
   console.log('\n关键断点拆解')
   printMetric('仅进入未加载完成', countWhere(players, p => hasSummaryEvent(p, 'new_user_enter') && !hasSummaryEvent(p, 'loading_ready') && !introFinished(p)), total)
@@ -195,6 +220,85 @@ function printBreakpoints(players, total) {
   }
   printMetric('序章通关未进 1-1', countWhere(players, p => hasSummaryEvent(p, 'newbie_prologue_clear') && !stage11Started(p)), total)
   printMetric('点击 1-1 未开始', countWhere(players, p => hasSummaryEvent(p, 'newbie_stage_cta_click') && !stage11Started(p)), total)
+  printMetric('1-1 通关未进 1-2', countWhere(players, p => hasBucketKey(p, 'stageClear', 'stage_1_1') && !stage12Started(p)), total)
+}
+
+function printAdjacentConversions(rows) {
+  console.log('\n相邻步骤转化')
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1]
+    const curr = rows[i]
+    if (prev.unavailable || curr.unavailable) continue
+    const drop = Math.max(0, prev.count - curr.count)
+    console.log(`${prev.label} → ${curr.label}`.padEnd(28)
+      + `${String(curr.count).padStart(5)} / ${String(prev.count).padStart(5)}  ${pct(curr.count, prev.count)}  流失 ${drop}`)
+  }
+}
+
+function printTopDrops(rows) {
+  const drops = []
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1]
+    const curr = rows[i]
+    if (prev.unavailable || curr.unavailable) continue
+    drops.push({
+      from: prev.label,
+      to: curr.label,
+      fromCount: prev.count,
+      toCount: curr.count,
+      drop: Math.max(0, prev.count - curr.count),
+      rate: prev.count ? curr.count / prev.count : 0,
+    })
+  }
+  console.log('\nTop 掉点')
+  drops
+    .filter(item => item.drop > 0)
+    .sort((a, b) => b.drop - a.drop)
+    .slice(0, 8)
+    .forEach((item, idx) => {
+      console.log(`${idx + 1}. ${item.from} → ${item.to}: 流失 ${item.drop}，转化 ${pct(item.toCount, item.fromCount)}`)
+    })
+}
+
+function hourKey(ms) {
+  if (!ms) return '未知'
+  const d = new Date(ms)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  return `${m}-${day} ${h}:00`
+}
+
+function printHourlyCohorts(players) {
+  const groups = {}
+  players.forEach((p) => {
+    const key = hourKey(firstSeenOrUpdateTime(p))
+    if (!groups[key]) groups[key] = []
+    groups[key].push(p)
+  })
+  console.log('\n按小时分组（用于观察上线前后）')
+  Object.keys(groups).sort().forEach((key) => {
+    const ps = groups[key]
+    const total = ps.length
+    const prologueInput = countWhere(ps, p => hasSummaryEvent(p, 'newbie_prologue_first_input'))
+    const stage11Clear = countWhere(ps, p => hasBucketKey(p, 'stageClear', 'stage_1_1'))
+    const stage12Clear = countWhere(ps, p => isCleared(p, 'stage_1_2'))
+    console.log(`${key}  新增 ${String(total).padStart(4)}  序章操作 ${pct(prologueInput, total)}  1-1通关 ${pct(stage11Clear, total)}  1-2通关 ${pct(stage12Clear, total)}`)
+  })
+}
+
+function printPlatformGiftAnalysis(players, total) {
+  const claimed = players.filter(hasPlatformGift)
+  const notClaimed = players.filter(p => !hasPlatformGift(p))
+  console.log('\n微信平台礼包')
+  printMetric('礼包领取人数', claimed.length, total)
+  printMetric('礼包领取后通关1-2', claimed.filter(p => isCleared(p, 'stage_1_2')).length, claimed.length)
+  printMetric('未领礼包通关1-2', notClaimed.filter(p => isCleared(p, 'stage_1_2')).length, notClaimed.length)
+  printMetric('礼包领取后通关1-3', claimed.filter(p => isCleared(p, 'stage_1_3')).length, claimed.length)
+  printMetric('未领礼包通关1-3', notClaimed.filter(p => isCleared(p, 'stage_1_3')).length, notClaimed.length)
+  console.log(`万能碎片发放总量      ${sumNestedNumber(players, platformGiftRewards, 'universalFragment')}`)
+  printMap('礼包类型分布（giftTypeId）', sumSlotMaps(players, platformGiftTypes))
+  printMap('礼包奖励分布', sumSlotMaps(players, platformGiftRewards))
 }
 
 function main() {
@@ -219,29 +323,63 @@ function main() {
   console.log('')
 
   console.log('新埋点首日行为漏斗')
-  printMetric('新用户进入', added.filter(p => hasSummaryEvent(p, 'new_user_enter')).length, total)
-  printMetric('加载完成', added.filter(p => hasSummaryEvent(p, 'loading_ready')).length, total)
-  printMetric('开场剧情展示', added.filter(p => hasSummaryEvent(p, 'intro_show')).length, total)
+  const hasStage12DetailData = added.some(p => hasSummaryEvent(p, 'stage_1_2_first_input') || hasSummaryEvent(p, 'stage_1_2_first_damage'))
+  const funnelRows = [
+    { label: '新用户进入', count: added.filter(p => hasSummaryEvent(p, 'new_user_enter')).length },
+    { label: '加载完成', count: added.filter(p => hasSummaryEvent(p, 'loading_ready')).length },
+    { label: '开场剧情展示', count: added.filter(p => hasSummaryEvent(p, 'intro_show')).length },
+    { label: '开场剧情完成', count: added.filter(p => hasAnySummaryEvent(p, ['intro_finish', 'intro_done', 'first_screen_show'])).length },
+    { label: '开始序章', count: added.filter(p => hasBucketKey(p, 'stageStart', 'newbie_prologue')).length },
+    { label: '战斗首帧', count: added.filter(p => hasSummaryEvent(p, 'battle_first_frame')).length },
+    { label: '序章首次操作', count: added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_input')).length },
+    { label: '序章首次伤害', count: added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_damage')).length },
+    { label: '序章通关', count: added.filter(p => hasSummaryEvent(p, 'newbie_prologue_clear')).length },
+    { label: '开始 1-1', count: added.filter(p => hasBucketKey(p, 'stageStart', 'stage_1_1')).length },
+    { label: '1-1 首次操作', count: added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_input')).length },
+    { label: '1-1 首次伤害', count: added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_damage')).length },
+    { label: '通关 1-1', count: added.filter(p => hasBucketKey(p, 'stageClear', 'stage_1_1')).length },
+    { label: '开始 1-2', count: added.filter(p => hasBucketKey(p, 'stageStart', 'stage_1_2')).length },
+    { label: '1-2 首次操作', count: added.filter(p => hasSummaryEvent(p, 'stage_1_2_first_input')).length, unavailable: !hasStage12DetailData },
+    { label: '1-2 首次伤害', count: added.filter(p => hasSummaryEvent(p, 'stage_1_2_first_damage')).length, unavailable: !hasStage12DetailData },
+    { label: '通关 1-2', count: added.filter(p => hasBucketKey(p, 'stageClear', 'stage_1_2')).length },
+  ]
+  printMetric('新用户进入', funnelRows[0].count, total)
+  printMetric('加载完成', funnelRows[1].count, total)
+  printMetric('开场剧情展示', funnelRows[2].count, total)
   printMetric('剧情继续点击', added.filter(p => hasSummaryEvent(p, 'intro_next_click')).length, total)
   printMetric('剧情跳过点击', added.filter(p => hasSummaryEvent(p, 'intro_skip_click')).length, total)
-  printMetric('开场剧情完成', added.filter(p => hasAnySummaryEvent(p, ['intro_finish', 'intro_done', 'first_screen_show'])).length, total)
+  printMetric('开场剧情完成', funnelRows[3].count, total)
   printMetric('完成引导', added.filter(p => hasSummaryEvent(p, 'intro_done')).length, total)
   printMetric('看到序章入口', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_prompt_show')).length, total)
-  printMetric('开始序章', added.filter(p => hasBucketKey(p, 'stageStart', 'newbie_prologue')).length, total)
-  printMetric('战斗首帧', added.filter(p => hasSummaryEvent(p, 'battle_first_frame')).length, total)
-  printMetric('序章首次操作', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_input')).length, total)
-  printMetric('序章首次伤害', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_first_damage')).length, total)
-  printMetric('序章通关', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_clear')).length, total)
+  printMetric('开始序章', funnelRows[4].count, total)
+  printMetric('战斗首帧', funnelRows[5].count, total)
+  printMetric('序章首次操作', funnelRows[6].count, total)
+  printMetric('序章首次伤害', funnelRows[7].count, total)
+  printMetric('序章通关', funnelRows[8].count, total)
   printMetric('序章结算展示', added.filter(p => hasSummaryEvent(p, 'newbie_prologue_result_show')).length, total)
   printMetric('看到 1-1 引导', added.filter(p => hasSummaryEvent(p, 'newbie_stage_prompt_show')).length, total)
   printMetric('点击进入 1-1', added.filter(p => hasSummaryEvent(p, 'newbie_stage_cta_click')).length, total)
-  printMetric('开始 1-1', added.filter(p => hasBucketKey(p, 'stageStart', 'stage_1_1')).length, total)
-  printMetric('1-1 首次操作', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_input')).length, total)
-  printMetric('1-1 首次伤害', added.filter(p => hasSummaryEvent(p, 'stage_1_1_first_damage')).length, total)
-  printMetric('新埋点通关 1-1', added.filter(p => hasBucketKey(p, 'stageClear', 'stage_1_1')).length, total)
+  printMetric('开始 1-1', funnelRows[9].count, total)
+  printMetric('1-1 首次操作', funnelRows[10].count, total)
+  printMetric('1-1 首次伤害', funnelRows[11].count, total)
+  printMetric('新埋点通关 1-1', funnelRows[12].count, total)
   printMetric('1-1 结算展示', added.filter(p => hasSummaryEvent(p, 'stage_1_1_result_show')).length, total)
-  printMetric('1-1 首通广告触达', added.filter(p => hasBucketKey(p, 'adEntryShow', 'newbieFirstClearDouble')).length, total)
+  printMetric('新手翻倍广告触达', added.filter(p => hasBucketKey(p, 'adEntryShow', 'newbieFirstClearDouble')).length, total)
+  printMetric('开始 1-2', funnelRows[13].count, total)
+  if (hasStage12DetailData) {
+    printMetric('1-2 首次操作', funnelRows[14].count, total)
+    printMetric('1-2 首次伤害', funnelRows[15].count, total)
+  } else {
+    printNoDataMetric('1-2 首次操作', '暂无新埋点')
+    printNoDataMetric('1-2 首次伤害', '暂无新埋点')
+  }
+  printMetric('新埋点通关 1-2', funnelRows[16].count, total)
+  printMetric('1-2 失败', added.filter(p => hasBucketKey(p, 'stageFail', 'stage_1_2')).length, total)
   console.log('')
+  printAdjacentConversions(funnelRows)
+  printTopDrops(funnelRows)
+  printHourlyCohorts(added)
+  printPlatformGiftAnalysis(added, total)
   printBreakpoints(added, total)
   console.log('')
 
