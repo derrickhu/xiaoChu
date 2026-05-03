@@ -1,0 +1,15 @@
+{
+  "mysql": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "xiaochu",
+    "password": "xiaochu_local",
+    "database": "xiao_chu_analytics"
+  },
+  "cloudLogs": {
+    "envId": "cloud1-6g8y0x2i39e768eb",
+    "query": "function_name:\"analyticsLog\" AND src:app",
+    "timeLagMinutes": 5,
+    "recentMinutes": 60
+  }
+}

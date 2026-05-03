@@ -1,6 +1,7 @@
 const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
+const analyticsLogClient = require('./analyticsLogClient')
 const RankingService = require('./rankingService')
 const {
   STAMINA_RECOVER_INTERVAL_MS,
@@ -1037,11 +1038,13 @@ class Storage {
     const safeParams = Object.assign({}, params, {
       isNewUser,
       sessionAgeSec,
+      dataVersion: DATA_VERSION,
     })
     try {
       const analytics = require('./analytics')
       analytics.track(eventId, safeParams)
     } catch (_e) {}
+    analyticsLogClient.enqueue(eventId, safeParams)
 
     const bucketName = _analyticsBucketForEvent(eventId)
     const bucket = summary.firstSession[bucketName] || (summary.firstSession[bucketName] = {})

@@ -51,6 +51,7 @@ const gameToast = require('./views/gameToast')
 const floatText = require('./views/floatText')
 const lingCheer = require('./views/lingCheer')
 const inviteSync = require('./data/inviteSync')
+const analyticsLogClient = require('./data/analyticsLogClient')
 const buttonFx = require('./views/buttonFx')
 const numberTween = require('./views/numberTween')
 const shareCelebrate = require('./views/shareCelebrate')
@@ -380,6 +381,7 @@ class Main {
     this._appWasHidden = false
     this._resumeForceRenderFrames = 0
     P.onHide(() => {
+      try { analyticsLogClient.flush() } catch (_) {}
       this._appWasHidden = true
       this._dirty = true
       wxBtns.destroyFeedbackBtn(this)

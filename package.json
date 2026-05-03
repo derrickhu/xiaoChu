@@ -11,5 +11,8 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "mysql2": "^3.22.3"
+  }
 }
