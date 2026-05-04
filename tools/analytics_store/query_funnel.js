@@ -163,6 +163,8 @@ async function main() {
         COUNT(DISTINCT CASE WHEN event_id='battle_first_frame' AND stage_id='newbie_prologue' THEN openid_hash END) AS first_frame_users,
         COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_strong_hint_show' THEN openid_hash END) AS strong_hint_users,
         COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_drag_start' THEN openid_hash END) AS drag_start_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_hold_start' THEN openid_hash END) AS hold_start_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_hold_wrong_start' THEN openid_hash END) AS hold_wrong_users,
         COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_first_input' THEN openid_hash END) AS first_input_users,
         COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_invalid_drag' THEN openid_hash END) AS invalid_drag_users,
         COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_idle_5s' THEN openid_hash END) AS idle_5s_users,
@@ -175,10 +177,28 @@ async function main() {
     console.log('\n序章交互诊断')
     printMetric('强引导曝光', Number(prologue.strong_hint_users || 0), firstFrameUsers)
     printMetric('有效按住灵珠', Number(prologue.drag_start_users || 0), firstFrameUsers)
+    printMetric('按住指定起点', Number(prologue.hold_start_users || 0), firstFrameUsers)
+    printMetric('按住其它灵珠', Number(prologue.hold_wrong_users || 0), firstFrameUsers)
     printMetric('完成首次拖动', Number(prologue.first_input_users || 0), firstFrameUsers)
     printMetric('无效首次拖动', Number(prologue.invalid_drag_users || 0), Number(prologue.first_input_users || 0))
     printMetric('5秒未操作', Number(prologue.idle_5s_users || 0), firstFrameUsers)
     printMetric('10秒未操作', Number(prologue.idle_10s_users || 0), firstFrameUsers)
+
+    const [ctaRows] = await conn.execute(`
+      SELECT
+        COUNT(DISTINCT CASE WHEN event_id='newbie_prologue_clear' THEN openid_hash END) AS prologue_clear_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_stage_cta_click' THEN openid_hash END) AS prologue_cta_users,
+        COUNT(DISTINCT CASE WHEN event_id='newbie_stage_auto_start' THEN openid_hash END) AS prologue_auto_users,
+        COUNT(DISTINCT CASE WHEN event_id='stage_clear' AND stage_id='stage_1_1' THEN openid_hash END) AS stage_1_1_clear_users,
+        COUNT(DISTINCT CASE WHEN event_id='stage_1_1_next_click' THEN openid_hash END) AS stage_1_1_next_users
+      FROM analytics_events
+      WHERE ${rangeWhere} AND ${cohortWhere}
+    `, cohortRange)
+    const cta = ctaRows[0] || {}
+    console.log('\n后续 CTA 诊断')
+    printMetric('序章点击继续', Number(cta.prologue_cta_users || 0), Number(cta.prologue_clear_users || 0))
+    printMetric('序章自动进入', Number(cta.prologue_auto_users || 0), Number(cta.prologue_clear_users || 0))
+    printMetric('1-1点击下一关', Number(cta.stage_1_1_next_users || 0), Number(cta.stage_1_1_clear_users || 0))
 
     console.log('\n第1章关卡进度')
     for (const stageId of chapter1StageIds()) {

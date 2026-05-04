@@ -45,6 +45,32 @@ function _handleBoardDrag(g, type, x, y) {
           })
         }
       }
+      if (g._newbiePrologue) {
+        const guide = g._prologueGuidePath || {}
+        const isGuideStart = r === (guide.row == null ? 2 : guide.row)
+          && c === (guide.fromCol == null ? 1 : guide.fromCol)
+        if (isGuideStart && !g._prologueHoldStartTracked) {
+          g._prologueHoldStartTracked = true
+          if (g.storage && g.storage.recordFunnelEvent) {
+            g.storage.recordFunnelEvent('newbie_prologue_hold_start', {
+              stageId: 'newbie_prologue',
+              scene: 'newbie_prologue',
+              row: r,
+              col: c,
+            })
+          }
+        } else if (!isGuideStart && !g._prologueHoldWrongStartTracked) {
+          g._prologueHoldWrongStartTracked = true
+          if (g.storage && g.storage.recordFunnelEvent) {
+            g.storage.recordFunnelEvent('newbie_prologue_hold_wrong_start', {
+              stageId: 'newbie_prologue',
+              scene: 'newbie_prologue',
+              row: r,
+              col: c,
+            })
+          }
+        }
+      }
     }
   } else if (type === 'move' && g.dragging) {
     g.dragCurX = Math.max(bx, Math.min(bx + COLS * cs, x))

@@ -2209,10 +2209,23 @@ function _drawVictoryRewardPanel(g, c, R, W, H, S, result, panelTop, at) {
   const hasNext = nextId && isStageUnlocked(nextId, g.storage.stageClearRecord, g.storage.petPoolCount)
   const isNewbieContinuous = result.victory && result.isFirstClear
     && (result.stageId === 'stage_1_1' || result.stageId === 'stage_1_2')
-  const rightLabel = result.newbiePrologue ? '继续第1关' : (isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战'))
+  const rightLabel = result.newbiePrologue
+    ? '继续追击 1-1'
+    : (result.stageId === 'stage_1_1' && result.victory && result.isFirstClear
+      ? '继续挑战 1-2'
+      : (isNewbieContinuous ? '下一关！' : (hasNext ? '下一关' : '再次挑战')))
   const nextX = result.newbiePrologue ? (W - btnW) / 2 : px + pad + btnW + btnGap
   R.drawDialogBtn(nextX, btnY, btnW, btnH, rightLabel, (isNewbieContinuous || result.newbiePrologue) ? 'gold' : 'confirm')
   _rects.nextBtnRect = [nextX, btnY, btnW, btnH]
+  if (result.stageId === 'stage_1_1' && result.victory && result.isFirstClear) {
+    c.save()
+    c.fillStyle = 'rgba(120,90,45,0.78)'
+    c.font = `${10.5 * S}px "PingFang SC",sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText('下一战继续免费，解锁更多灵宠能力', nextX + btnW / 2, btnY - 8 * S)
+    c.restore()
+  }
 
   // 分享胶囊：已在 clip 外绘制，scroll 传 0 即可
   if (result.newbiePrologue) _rects.shareBtnRect = null
@@ -2964,6 +2977,13 @@ function tStageResult(g, x, y, type) {
       if (nextId) {
         const stageMgr = require('../engine/stageManager')
         const teamIds = g.storage.petPool.map(p => p.id)
+        if (result.stageId === 'stage_1_1' && g.storage && g.storage.recordFunnelEvent) {
+          g.storage.recordFunnelEvent('stage_1_1_next_click', {
+            stageId: 'stage_1_1',
+            nextStageId: nextId,
+            scene: 'stage_result',
+          })
+        }
         stageMgr.startStage(g, nextId, teamIds)
         return
       }

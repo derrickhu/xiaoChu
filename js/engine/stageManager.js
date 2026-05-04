@@ -408,7 +408,10 @@ function startNewbiePrologue(g) {
   g._prologueHintShowTracked = false
   g._prologueStrongHintTracked = false
   g._prologueDragStartTracked = false
+  g._prologueHoldStartTracked = false
+  g._prologueHoldWrongStartTracked = false
   g._prologueInvalidDragTracked = false
+  g._prologueGuidePath = { row: 2, fromCol: 1, toCol: 4, attr: 'fire' }
 
   g.pets = NEWBIE_TRIAL_PET_IDS.map(id => {
     const basePet = getPetById(id)
@@ -526,10 +529,16 @@ function settleNewbiePrologue(g) {
 
 function _seedPrologueOpeningBoard(g) {
   if (!g || !g.board) return
-  const attrs = ['wood', 'metal', 'fire', 'water', 'earth']
-  for (let r = 0; r < Math.min(V.ROWS, attrs.length); r++) {
-    for (let c = 0; c < V.COLS; c++) {
-      if (g.board[r] && g.board[r][c]) g.board[r][c].attr = attrs[r]
+  const layout = [
+    ['wood', 'water', 'earth', 'metal', 'wood', 'water'],
+    ['metal', 'earth', 'water', 'wood', 'metal', 'earth'],
+    ['water', 'fire', 'wood', 'earth', 'fire', 'fire'],
+    ['earth', 'wood', 'metal', 'water', 'earth', 'wood'],
+    ['metal', 'water', 'earth', 'wood', 'water', 'metal'],
+  ]
+  for (let r = 0; r < Math.min(V.ROWS, layout.length); r++) {
+    for (let c = 0; c < Math.min(V.COLS, layout[r].length); c++) {
+      if (g.board[r] && g.board[r][c]) g.board[r][c].attr = layout[r][c]
     }
   }
 }

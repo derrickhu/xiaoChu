@@ -51,8 +51,8 @@ function rBattle(g) {
   drawPetSlotFloats(g)
   if (g._isNewbieStage) drawNewbieHint(g, eAreaBottom, W)
   drawBoard(g)
-  _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom)
   _drawPrologueDragHint(g, cellSize, boardPad, boardTop)
+  _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom)
   if (g._isNewbieStage) drawNewbieFingerGuide(g, cellSize, boardPad, boardTop)
   g.elimFloats.forEach(f => R.drawElimFloat(f))
   drawExpFloats(g)
@@ -137,83 +137,6 @@ function _drawPrologueDragHint(g, cellSize, boardPad, boardTop) {
       g.storage.recordFunnelEvent('newbie_prologue_idle_10s', { stageId: 'newbie_prologue', scene: 'battle' })
     }
   }
-  if (g._prologueHintTimer < PROLOGUE_HINT_DELAY_FRAMES) return
-
-  const { ctx, W, S, COLS, ROWS } = V
-  const t = g.af || 0
-  const fromCol = 1
-  const toCol = 4
-  const row = 2
-  const fromX = boardPad + (fromCol + 0.5) * cellSize
-  const toX = boardPad + (toCol + 0.5) * cellSize
-  const y = boardTop + (row + 0.5) * cellSize
-  const cycle = 150
-  const localT = (g._prologueHintTimer % cycle) / cycle
-  const p = localT < 0.72 ? localT / 0.72 : 1
-  const handX = fromX + (toX - fromX) * p
-  const alpha = Math.min(1, (g._prologueHintTimer - PROLOGUE_HINT_DELAY_FRAMES) / 20)
-
-  ctx.save()
-  ctx.globalAlpha = alpha
-  if (g._prologueHintTimer >= PROLOGUE_IDLE_10S_FRAMES) {
-    ctx.save()
-    const pulse = 0.65 + 0.25 * Math.sin(t * 0.12)
-    ctx.globalAlpha = alpha * pulse
-    ctx.strokeStyle = 'rgba(255,226,122,0.96)'
-    ctx.lineWidth = 4 * S
-    _rrPath(ctx, boardPad - 4 * S, boardTop - 4 * S, COLS * cellSize + 8 * S, ROWS * cellSize + 8 * S, 12 * S)
-    ctx.stroke()
-    ctx.restore()
-  }
-
-  ctx.strokeStyle = 'rgba(255,226,122,0.86)'
-  ctx.lineWidth = 4 * S
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(fromX, y)
-  ctx.lineTo(toX, y)
-  ctx.stroke()
-
-  ctx.fillStyle = 'rgba(10,8,20,0.82)'
-  const pillW = 220 * S
-  const pillH = 30 * S
-  const pillX = (W - pillW) / 2
-  const pillY = boardTop - 38 * S
-  _rrPath(ctx, pillX, pillY, pillW, pillH, pillH / 2)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(255,226,122,0.72)'
-  ctx.lineWidth = 1.2 * S
-  ctx.stroke()
-  ctx.fillStyle = '#ffe27a'
-  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const hintText = g._prologueHintTimer >= PROLOGUE_IDLE_10S_FRAMES
-    ? '任意拖动一颗灵珠，松手就能攻击'
-    : '按住这颗灵珠，拖到右侧金光处'
-  ctx.fillText(hintText, W / 2, pillY + pillH / 2)
-
-  const targetPulse = 0.55 + 0.35 * Math.sin(t * 0.12)
-  ctx.save()
-  ctx.globalAlpha = alpha * targetPulse
-  ctx.strokeStyle = 'rgba(255,226,122,0.95)'
-  ctx.lineWidth = 3 * S
-  ctx.beginPath()
-  ctx.arc(toX, y, cellSize * 0.42, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.restore()
-
-  ctx.beginPath()
-  ctx.arc(handX, y - 14 * S, 14 * S, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,248,220,0.92)'
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(160,90,0,0.78)'
-  ctx.lineWidth = 1.5 * S
-  ctx.stroke()
-  ctx.fillStyle = '#9c5a00'
-  ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-  ctx.fillText('拖', handX, y - 14 * S)
-  ctx.restore()
 }
 
 function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) {
@@ -221,9 +144,6 @@ function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) 
     return
   }
   const timer = g._prologueHintTimer || 0
-  if (timer > PROLOGUE_STRONG_HINT_FRAMES && timer < PROLOGUE_IDLE_10S_FRAMES) {
-    return
-  }
   if (g.storage && g.storage.recordFunnelEvent && !g._prologueStrongHintTracked) {
     g._prologueStrongHintTracked = true
     g.storage.recordFunnelEvent('newbie_prologue_strong_hint_show', {
@@ -234,25 +154,39 @@ function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) 
 
   const { ctx, W, S } = V
   const t = g.af || 0
-  const row = 2
-  const fromCol = 1
-  const toCol = 4
+  const guide = g._prologueGuidePath || {}
+  const row = guide.row == null ? 2 : guide.row
+  const fromCol = guide.fromCol == null ? 1 : guide.fromCol
+  const toCol = guide.toCol == null ? 4 : guide.toCol
+  const guideAttrName = guide.attr === 'fire' ? '火灵珠' : '发光灵珠'
   const fromX = boardPad + (fromCol + 0.5) * cellSize
   const toX = boardPad + (toCol + 0.5) * cellSize
   const y = boardTop + (row + 0.5) * cellSize
-  const upgraded = timer >= PROLOGUE_IDLE_10S_FRAMES
+  const upgraded = timer >= PROLOGUE_IDLE_5S_FRAMES
   const pulse = 0.72 + 0.22 * Math.sin(t * 0.16)
   const cardW = Math.min(W - 28 * S, 316 * S)
-  const cardH = upgraded ? 58 * S : 52 * S
+  const cardH = upgraded ? 62 * S : 56 * S
   const cardX = (W - cardW) / 2
   const cardY = Math.max(eAreaBottom - 8 * S, boardTop - cardH - 18 * S)
+  const alpha = Math.min(1, (timer + 12) / 24)
+  const cycle = upgraded ? 150 : 120
+  const local = (t % cycle) / cycle
+  const pressPart = 0.22
+  const movePart = 0.72
+  const handP = local < pressPart ? 0 : (local < movePart ? (local - pressPart) / (movePart - pressPart) : 1)
+  const handX = fromX + (toX - fromX) * handP
+  const handLabel = local < pressPart ? '按' : (local < movePart ? '拖' : '松')
 
   ctx.save()
+  ctx.globalAlpha = alpha
 
-  // 首次操作前只弱化非目标区域，避免玩家看不见棋盘主体。
-  ctx.globalAlpha = upgraded ? 0.34 : 0.22
+  // 首次操作前弱化棋盘以外的信息，让视线集中到「起点 → 终点」。
+  ctx.save()
+  ctx.globalAlpha = upgraded ? 0.34 : 0.24
   ctx.fillStyle = '#000'
-  ctx.fillRect(0, boardTop, W, V.ROWS * cellSize)
+  ctx.fillRect(0, 0, W, boardTop)
+  ctx.fillRect(0, boardTop + V.ROWS * cellSize, W, V.H - boardTop - V.ROWS * cellSize)
+  ctx.restore()
 
   ctx.globalAlpha = 0.9
   const grad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH)
@@ -269,21 +203,51 @@ function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) 
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#fff8d8'
   ctx.font = `bold ${14 * S}px "PingFang SC",sans-serif`
-  ctx.fillText(upgraded ? '按住任意发光灵珠，拖一下就能攻击' : '按住发光灵珠 → 拖到金圈 → 松手攻击', W / 2, cardY + cardH * 0.42)
+  ctx.fillText(upgraded ? `跟着手指：按住${guideAttrName}拖到金圈` : `按住这颗${guideAttrName} → 拖到金圈`, W / 2, cardY + cardH * 0.38)
   ctx.fillStyle = 'rgba(255,255,255,0.76)'
   ctx.font = `${11 * S}px "PingFang SC",sans-serif`
-  ctx.fillText(upgraded ? '不用凑路线，松手后自动触发五行合击' : '先体验爽局，妖王已经残血了', W / 2, cardY + cardH * 0.72)
+  ctx.fillText(upgraded ? '凑成三颗火珠后松手，就会打出五行合击' : '拖过去凑成三颗火珠，再松手攻击', W / 2, cardY + cardH * 0.70)
 
-  ctx.globalAlpha = 0.95
+  ctx.globalAlpha = 0.98
   ctx.strokeStyle = 'rgba(255,226,122,0.92)'
   ctx.lineWidth = (upgraded ? 5 : 4) * S
-  ctx.setLineDash([10 * S, 7 * S])
-  ctx.lineDashOffset = -t * 0.7 * S
+  ctx.lineCap = 'round'
   ctx.beginPath()
   ctx.moveTo(fromX, y)
   ctx.lineTo(toX, y)
   ctx.stroke()
-  ctx.setLineDash([])
+
+  const arrowCount = 3
+  for (let i = 1; i <= arrowCount; i++) {
+    const p = i / (arrowCount + 1)
+    const ax = fromX + (toX - fromX) * p
+    const sz = (upgraded ? 9 : 7) * S
+    ctx.beginPath()
+    ctx.moveTo(ax + sz, y)
+    ctx.lineTo(ax - sz * 0.45, y - sz * 0.65)
+    ctx.lineTo(ax - sz * 0.45, y + sz * 0.65)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(255,226,122,0.92)'
+    ctx.fill()
+  }
+
+  function drawLabel(text, x, yy) {
+    const w = (text.length * 13 + 18) * S
+    const h = 25 * S
+    _rrPath(ctx, x - w / 2, yy - h / 2, w, h, h / 2)
+    ctx.fillStyle = 'rgba(12,8,18,0.86)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255,226,122,0.72)'
+    ctx.lineWidth = 1 * S
+    ctx.stroke()
+    ctx.fillStyle = '#ffe27a'
+    ctx.font = `bold ${11 * S}px "PingFang SC",sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, x, yy + 1 * S)
+  }
+  drawLabel('按住这里', fromX, y - cellSize * 0.75)
+  drawLabel('拖到这里', toX, y - cellSize * 0.75)
 
   ctx.globalAlpha = pulse
   ctx.strokeStyle = upgraded ? 'rgba(255,104,80,0.98)' : 'rgba(255,226,122,0.98)'
@@ -298,14 +262,29 @@ function _drawPrologueStrongGuide(g, cellSize, boardPad, boardTop, eAreaBottom) 
   ctx.globalAlpha = 1
   ctx.fillStyle = 'rgba(255,248,220,0.96)'
   ctx.beginPath()
-  ctx.arc(fromX + (toX - fromX) * ((t % 90) / 90), y - 16 * S, 15 * S, 0, Math.PI * 2)
+  ctx.arc(handX, y - 16 * S, 15 * S, 0, Math.PI * 2)
   ctx.fill()
   ctx.strokeStyle = 'rgba(160,90,0,0.82)'
   ctx.lineWidth = 1.5 * S
   ctx.stroke()
   ctx.fillStyle = '#9c5a00'
   ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
-  ctx.fillText('拖', fromX + (toX - fromX) * ((t % 90) / 90), y - 16 * S)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(handLabel, handX, y - 16 * S)
+
+  const bubbleText = local < pressPart ? '按住不放' : (local < movePart ? '拖过去' : '松手攻击')
+  const bubbleW = 74 * S
+  const bubbleH = 24 * S
+  _rrPath(ctx, handX - bubbleW / 2, y - 54 * S, bubbleW, bubbleH, bubbleH / 2)
+  ctx.fillStyle = 'rgba(255,248,220,0.95)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(160,90,0,0.55)'
+  ctx.lineWidth = 1 * S
+  ctx.stroke()
+  ctx.fillStyle = '#8a4f00'
+  ctx.font = `bold ${10.5 * S}px "PingFang SC",sans-serif`
+  ctx.fillText(bubbleText, handX, y - 42 * S)
 
   ctx.restore()
 }
@@ -357,11 +336,11 @@ function _drawPrologueResultPanel(g) {
   ctx.fillText('仙宠 · 小灵', avatarX + avatarSize + 8 * S, panelY + 30 * S)
   ctx.fillStyle = '#8d7355'
   ctx.font = `${10.5 * S}px "PingFang SC",sans-serif`
-  ctx.fillText('妖王暂退，真正的修炼才刚开始', avatarX + avatarSize + 8 * S, panelY + 48 * S)
+  ctx.fillText('下一战：秘境 1-1，继续追击妖王', avatarX + avatarSize + 8 * S, panelY + 48 * S)
 
   const lines = [
     '主人，五行灵宠已经护你脱险。',
-    '接下来从第一关开始修炼成长吧！',
+    '趁妖气未散，马上进入第一关！',
   ]
   ctx.fillStyle = '#5d4030'
   ctx.font = `bold ${13 * S}px "PingFang SC",sans-serif`
@@ -373,7 +352,7 @@ function _drawPrologueResultPanel(g) {
   const btnH = 38 * S
   const btnX = panelX + (panelW - btnW) / 2
   const btnY = panelY + panelH - btnH - 14 * S
-  R.drawDialogBtn(btnX, btnY, btnW, btnH, '继续修炼第1关', 'gold')
+  R.drawDialogBtn(btnX, btnY, btnW, btnH, '继续追击 1-1', 'gold')
   g._prologueResultNextRect = [btnX, btnY, btnW, btnH]
   const remainSec = Math.max(1, Math.ceil((PROLOGUE_RESULT_AUTO_NEXT_FRAMES - panel.timer) / 60))
   ctx.fillStyle = 'rgba(120,90,45,0.72)'
