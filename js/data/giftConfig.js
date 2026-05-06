@@ -7,7 +7,6 @@ const {
   LOGIN_CYCLE_DAYS,
   LOGIN_SPECIAL_PET_ID,
   LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS,
-  LOGIN_PAGE_GROUPS,
   LOGIN_MILESTONE_REWARD,
   LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,
@@ -84,42 +83,6 @@ function getLoginMilestoneReward(isNewbie) {
   return scaleLoginRewardRewards(LOGIN_MILESTONE_REWARD, getLoginRewardRatio(isNewbie))
 }
 
-function getLoginPageIndex(day) {
-  const cycleDay = normalizeLoginCycleDay(day)
-  const page = LOGIN_PAGE_GROUPS.find((group) => cycleDay >= group.startDay && cycleDay <= group.endDay)
-  return page ? page.index : 0
-}
-
-function getLoginPageGroupByIndex(pageIndex) {
-  return LOGIN_PAGE_GROUPS.find((group) => group.index === pageIndex) || LOGIN_PAGE_GROUPS[0]
-}
-
-function getLoginPageGroupByDay(day) {
-  return getLoginPageGroupByIndex(getLoginPageIndex(day))
-}
-
-function getLoginPageRewards(pageIndex, isNewbie) {
-  const ratio = getLoginRewardRatio(isNewbie)
-  const page = getLoginPageGroupByIndex(pageIndex)
-  const items = []
-  for (let day = page.startDay; day <= page.endDay; day++) {
-    const entry = getLoginRewardByDay(day)
-    if (!entry || !entry.rewards) continue
-    items.push({
-      day: entry.day,
-      rewards: scaleLoginRewardRewards(entry.rewards, ratio),
-    })
-  }
-  return items
-}
-
-function getLoginPageData(pageIndex, isNewbie) {
-  const page = getLoginPageGroupByIndex(pageIndex)
-  return Object.assign({}, page, {
-    rewards: getLoginPageRewards(page.index, isNewbie),
-  })
-}
-
 /**
  * 获取按章节缩放后的每日任务奖励
  * @param {object} task  DAILY_TASKS 中的一条
@@ -181,7 +144,6 @@ module.exports = {
   LOGIN_CYCLE_DAYS,
   LOGIN_SPECIAL_PET_ID,
   LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS,
-  LOGIN_PAGE_GROUPS,
   LOGIN_MILESTONE_REWARD,
   LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,
@@ -195,11 +157,6 @@ module.exports = {
   getLoginRewardByDay,
   getScaledLoginRewardByDay,
   getLoginMilestoneReward,
-  getLoginPageIndex,
-  getLoginPageGroupByIndex,
-  getLoginPageGroupByDay,
-  getLoginPageRewards,
-  getLoginPageData,
   DAILY_TASKS,
   DAILY_ALL_COMPLETE_BONUS,
   getAvailableDailyTasks,

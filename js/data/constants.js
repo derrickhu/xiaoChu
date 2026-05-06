@@ -195,10 +195,9 @@ const CHECKIN_HUAHUA = {
   actionAreaHDesign: 160,
   /** 操作区与卡片区垂直间距 */
   actionGapDesign: 20,
-  /** CheckInPanel._refresh ESTIMATED_H（标题区+里程碑+分页卡片+连续登录+双按钮留白） */
+  /** CheckInPanel._refresh ESTIMATED_H（标题区+里程碑+连续登录卡片+双按钮留白） */
   estimatedContentHDesign: 1200,
   milestoneMaxDays: 30,
-  milestoneThresholds: [7, 15, 22, 30],
   titleBanner: 'assets/ui/checkin_huahua/checkin_title_banner.png',
   /** 横幅上「每日奖励」相对图高的纵位置0~1（标题略上提，尽量落在卷轴正文视觉正中） */
   titleTextYFrac: 0.59,
@@ -215,7 +214,7 @@ const CHECKIN_HUAHUA = {
   cardDay7: 'assets/ui/checkin_huahua/checkin_card_day7.png',
   btnOrange: 'assets/ui/checkin_huahua/deco_card_btn_2.png',
   milestoneGift: (i) => `assets/ui/checkin_huahua/checkin_milestone_gift_${i}.png`,
-  /** 第7天固定 SSR 展示图标（默认走炎狱火麟头像） */
+  /** 里程碑 SSR 展示图标（默认走炎狱火麟头像，配合 LOGIN_MILESTONE_PETS day=4 整宠） */
   specialPetIcon: 'assets/pets/pet_f4.png',
   /** 兼容旧签到页字段名，待30天签到视图重构完成后移除 */
   day7PetChoiceIcon: 'assets/pets/pet_f4.png',
@@ -353,12 +352,18 @@ const WEAPON_ACQUIRE_HINT_UNOWNED = '通过灵兽秘境关卡获取'
 const STAGE_CHEST_REVEAL_CHARGE_FRAMES = 12
 const STAGE_CHEST_REVEAL_BURST_FRAMES = 28
 const STAGE_CHEST_REVEAL_ITEM_POP_FRAMES = 32
-/** 揭晓选中奖励后，再等多少帧才自动翻开其余宝箱（约 60 ≈ 1s，与 main 每帧 af++ 一致） */
+/**
+ * 选中宝箱完整开启 + showcase 渐入完成 + 玩家阅读片刻后显示底部「继续」按钮的阈值。
+ * 旧版会再翻开其他 5 个宝箱以暗示池子大小，但容易引发"错过更好奖励"的 FOMO，
+ * 现在改为只展示选中匣，沿用业界（原神/方舟新手 6 选 1）做法。
+ */
+const STAGE_CHEST_REVEAL_DONE_FRAMES = 60
+/**
+ * @deprecated 仅保留兼容存量调用，未来清理。当前不再用于翻开未选中宝箱。
+ */
 const STAGE_CHEST_REST_REVEAL_DELAY_FRAMES = 60
-/** 其余宝箱依次翻开：首格起始延迟、间隔帧（与原先视觉节奏一致） */
 const STAGE_CHEST_REST_STAGGER_BASE = 18
 const STAGE_CHEST_REST_STAGGER_STEP = 5
-/** 从 restReveal 起始帧起，再等多少帧认为全部播完 → 显示继续按钮 */
 const STAGE_CHEST_REST_REVEAL_DONE_FRAMES = 52
 
 /** Canvas 图片 LRU 缓存上限：按真机长局优先，避免大图解码缓存长期堆积 */
@@ -491,6 +496,7 @@ module.exports = {
   STAGE_CHEST_REVEAL_CHARGE_FRAMES,
   STAGE_CHEST_REVEAL_BURST_FRAMES,
   STAGE_CHEST_REVEAL_ITEM_POP_FRAMES,
+  STAGE_CHEST_REVEAL_DONE_FRAMES,
   STAGE_CHEST_REST_REVEAL_DELAY_FRAMES,
   STAGE_CHEST_REST_STAGGER_BASE,
   STAGE_CHEST_REST_STAGGER_STEP,

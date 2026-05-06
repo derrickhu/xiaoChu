@@ -1674,7 +1674,6 @@ class Storage {
       cloneLoginRewardRewards,
       getDoubleableLoginRewards,
       getLoginMilestoneReward,
-      getLoginPageIndex,
       getLoginRewardRatio,
       getScaledLoginRewardByDay,
       getConsecutiveLoginReward,
@@ -1727,7 +1726,6 @@ class Storage {
       totalSignDays: sign.totalSignDays,
       isNewbie: claimIsNewbie,
       ratio: getLoginRewardRatio(claimIsNewbie),
-      pageIndex: getLoginPageIndex(claimDay),
       rewards: grantedRewards,
       milestoneRewards,
       doubleableRewards: sign.pendingDoubleRewards ? cloneLoginRewardRewards(sign.pendingDoubleRewards) : null,
@@ -1742,7 +1740,7 @@ class Storage {
     const sign = this._d.loginSign
     const today = localDateKey()
     if (this.canSignToday || sign.lastDate !== today || sign.doubleClaimedDate === today) return null
-    const { cloneLoginRewardRewards, getLoginPageIndex } = require('./giftConfig')
+    const { cloneLoginRewardRewards } = require('./giftConfig')
     const pendingRewards = sign.pendingDoubleRewards ? cloneLoginRewardRewards(sign.pendingDoubleRewards) : null
     if (!pendingRewards || !Object.keys(pendingRewards).length) return null
     const grantedRewards = this._grantLoginRewardBundle(pendingRewards)
@@ -1751,7 +1749,6 @@ class Storage {
     return {
       day: sign.day || 0,
       totalSignDays: sign.totalSignDays || 0,
-      pageIndex: getLoginPageIndex(sign.day || 1),
       rewards: grantedRewards,
     }
   }

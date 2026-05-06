@@ -146,15 +146,8 @@ const ROGUE_SETTLE = {
 const LOGIN_CYCLE_DAYS = 30
 const LOGIN_SPECIAL_PET_ID = 'f4'
 const LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS = 25
-const LOGIN_PAGE_GROUPS = [
-  { index: 0, startDay: 1, endDay: 7, isFinale: false },
-  { index: 1, startDay: 8, endDay: 14, isFinale: false },
-  { index: 2, startDay: 15, endDay: 21, isFinale: false },
-  { index: 3, startDay: 22, endDay: 28, isFinale: false },
-  { index: 4, startDay: 29, endDay: 30, isFinale: true },
-]
 // ── 里程碑宠物奖励（进度条上方的 SSR 宠物头像，到天数后可点击领取）──
-// 第4天=整宠（从第7天前移，新手更快拿到 SR 宠物降低流失），后续碎片保持
+// 第4天=整宠（从第7天前移，新手更快拿到 SSR 主力宠物降低流失），后续碎片保持
 const LOGIN_MILESTONE_PETS = [
   { day: 4,  petId: LOGIN_SPECIAL_PET_ID, type: 'pet',      count: 1,  duplicateFragments: LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS },
   { day: 15, petId: LOGIN_SPECIAL_PET_ID, type: 'fragment',  count: 10 },
@@ -165,7 +158,7 @@ const LOGIN_MILESTONE_PETS = [
 const LOGIN_MILESTONE_REWARD = {
   soulStone: 100,
 }
-// ── 每日签到奖励（前 4 天加重灵石 + 体力，配合里程碑 SR 宠物形成 4 日连续钩子）──
+// ── 每日签到奖励（前 4 天加重灵石 + 体力，配合里程碑 SSR 宠物形成 4 日连续钩子）──
 const LOGIN_REWARDS = [
   { day: 1,  rewards: { soulStone: 100, stamina: 30 } },
   { day: 2,  rewards: { soulStone: 120, stamina: 40 } },
@@ -338,7 +331,6 @@ module.exports = {
   LOGIN_CYCLE_DAYS,
   LOGIN_SPECIAL_PET_ID,
   LOGIN_SPECIAL_PET_DUPLICATE_FRAGMENTS,
-  LOGIN_PAGE_GROUPS,
   LOGIN_MILESTONE_REWARD,
   LOGIN_MILESTONE_PETS,
   LOGIN_REWARDS,

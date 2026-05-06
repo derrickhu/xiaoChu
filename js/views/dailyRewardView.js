@@ -11,9 +11,6 @@ const {
   CONSECUTIVE_CYCLE_DAYS,
   getConsecutiveLoginReward,
   getAvailableDailyTasks,
-  getLoginMilestoneReward,
-  getLoginPageData,
-  getLoginPageIndex,
   getScaledDailyTaskReward,
   getScaledDailyAllBonus,
 } = require('../data/giftConfig')
@@ -1245,6 +1242,7 @@ function _drawHuahuaDayCard(c, R, opts, u) {
     isToday,
     highlight,
     rewards,
+    cornerBadge,
   } = opts
 
   const texKey = highlight
@@ -1341,6 +1339,43 @@ function _drawHuahuaDayCard(c, R, opts, u) {
     c.textBaseline = 'middle'
     c.fillText('√', x + w / 2, y + h / 2 - 6 * u)
   }
+
+  if (cornerBadge && cornerBadge.text) {
+    _drawCardCornerBadge(c, x, y, w, cornerBadge.text, dayDone, u)
+  }
+}
+
+/** 卡片右上角斜挂金色小角标（用于标识 SSR 里程碑等关键奖励） */
+function _drawCardCornerBadge(c, x, y, w, text, dim, u) {
+  const padX = 6 * u
+  const padY = 3 * u
+  c.save()
+  c.font = `bold ${10 * u}px "PingFang SC",sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const textW = c.measureText(text).width
+  const badgeW = textW + padX * 2
+  const badgeH = 14 * u + padY
+  const bx = x + w - badgeW - 4 * u
+  const by = y + 4 * u
+  const grd = c.createLinearGradient(bx, by, bx, by + badgeH)
+  if (dim) {
+    grd.addColorStop(0, 'rgba(180, 180, 180, 0.85)')
+    grd.addColorStop(1, 'rgba(120, 120, 120, 0.85)')
+  } else {
+    grd.addColorStop(0, '#FFD86B')
+    grd.addColorStop(1, '#E59A2B')
+  }
+  c.fillStyle = grd
+  _rr(c, bx, by, badgeW, badgeH, badgeH / 2)
+  c.fill()
+  c.lineWidth = 1.2 * u
+  c.strokeStyle = dim ? 'rgba(255,255,255,0.4)' : 'rgba(255, 255, 255, 0.85)'
+  _rr(c, bx, by, badgeW, badgeH, badgeH / 2)
+  c.stroke()
+  c.fillStyle = dim ? '#EFEFEF' : '#5A2E00'
+  c.fillText(text, bx + badgeW / 2, by + badgeH / 2 + 0.5 * u)
+  c.restore()
 }
 
 function _drawHuahuaPillButton(c, R, opts, u) {
@@ -1416,23 +1451,34 @@ function _drawStageTag(c, x, y, w, h, label, u) {
   c.fillText(label, x + w / 2, y + h / 2)
 }
 
+/**
+ * 构建 7 天连续登录卡片对应的里程碑角标映射。
+ * - 仅纳入 day ≤ CONSECUTIVE_CYCLE_DAYS 的里程碑（落在 7 天连登区内的奖励）
+ * - 整宠里程碑标 SSR；碎片里程碑标"碎片"
+ * 返回 Map<dayNum, { text }>
+ */
+function _buildConsecMilestoneBadgeMap() {
+  const map = new Map()
+  if (!Array.isArray(LOGIN_MILESTONE_PETS)) return map
+  LOGIN_MILESTONE_PETS.forEach((m) => {
+    if (!m || typeof m.day !== 'number') return
+    if (m.day < 1 || m.day > CONSECUTIVE_CYCLE_DAYS) return
+    const text = m.type === 'pet' ? 'SSR' : '碎片'
+    map.set(m.day, { text })
+  })
+  return map
+}
+
 function _buildLoginRenderState(sign, canSign) {
   const totalDays = sign.totalSignDays || 0
   const cappedTotalDays = Math.min(LOGIN_CYCLE_DAYS, totalDays)
   const cycleProgressDays = canSign ? (totalDays % LOGIN_CYCLE_DAYS) : (sign.day || 0)
   const previewDay = canSign ? Math.min(LOGIN_CYCLE_DAYS, cycleProgressDays + 1) : Math.max(1, sign.day || 1)
-  const displayIsNewbie = canSign ? totalDays < LOGIN_CYCLE_DAYS : totalDays <= LOGIN_CYCLE_DAYS
-  const pageIndex = getLoginPageIndex(previewDay)
-  const pageData = getLoginPageData(pageIndex, displayIsNewbie)
   return {
     totalDays,
     cappedTotalDays,
     progressDays: cappedTotalDays,
     previewDay,
-    displayIsNewbie,
-    pageIndex,
-    pageData,
-    milestoneReward: getLoginMilestoneReward(displayIsNewbie),
   }
 }
 
@@ -1515,6 +1561,9 @@ function rDailySign(g) {
   _drawStageTag(c, W / 2 - 80 * u, y + 2 * u, 160 * u, 24 * u, `连续登录 (${consecCurrent}/${consecCycleDays})`, u)
   y += 34 * u
 
+  // 7 天连续登录区里命中里程碑的天数 → 卡片右上角加角标提醒，避免玩家漏掉关键 SSR 整宠
+  const consecMilestoneBadgeByDay = _buildConsecMilestoneBadgeMap()
+
   // 上面2行×3列（第1-6天）+ 下面1行满宽（第7天，高亮大卡）
   const consecGridTop = y
   for (let row = 0; row < 2; row++) {
@@ -1538,6 +1587,7 @@ function rDailySign(g) {
         isToday,
         highlight: false,
         rewards: consecReward ? consecReward.rewards : {},
+        cornerBadge: consecMilestoneBadgeByDay.get(dayNum) || null,
       }, u)
     }
   }
@@ -1557,6 +1607,7 @@ function rDailySign(g) {
     isToday: day7Today,
     highlight: true,
     rewards: day7Reward ? day7Reward.rewards : {},
+    cornerBadge: consecMilestoneBadgeByDay.get(7) || null,
   }, u)
   y = day7Y + featureH + 18 * u
 
