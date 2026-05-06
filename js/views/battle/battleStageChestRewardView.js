@@ -8,11 +8,11 @@ const {
   STAGE_CHEST_REVEAL_CHARGE_FRAMES,
   STAGE_CHEST_REVEAL_BURST_FRAMES,
   STAGE_CHEST_REVEAL_ITEM_POP_FRAMES,
-  STAGE_CHEST_REST_REVEAL_DELAY_FRAMES,
-  STAGE_CHEST_REST_STAGGER_BASE,
-  STAGE_CHEST_REST_STAGGER_STEP,
-  STAGE_CHEST_REST_REVEAL_DONE_FRAMES,
+  STAGE_CHEST_REVEAL_DONE_FRAMES,
 } = require('../../data/constants')
+
+/** 未选中宝箱在揭晓阶段的全局透明度，弱化存在感、聚焦"恭喜获得"卡片 */
+const REST_CHEST_DIM_ALPHA = 0.55
 const { ATTR_COLOR, ATTR_NAME } = require('../../data/tower')
 const { getPetById } = require('../../data/pets')
 const { getPetRoleTags } = require('../../data/petRoleConfig')
@@ -365,17 +365,6 @@ function _drawItem(c, R, S, item, x, y, size, selected, animFrame) {
   c.restore()
 }
 
-/** 非选中槽位在「其余宝箱」阶段的翻开顺序（0～4），用于错开发光 */
-function _nonSelectedRevealRank(state, idx) {
-  const sel = state.selectedIdx
-  if (idx === sel) return -1
-  let rank = 0
-  for (let j = 0; j < idx; j++) {
-    if (j !== sel) rank++
-  }
-  return rank
-}
-
 function _drawSlot(g, panel, idx, x, y, w, h, revealed) {
   const { ctx: c, R, S } = V
   const state = g._stageChestRewardPanel
@@ -415,19 +404,11 @@ function _drawSlot(g, panel, idx, x, y, w, h, revealed) {
     _drawChestBurstFx(c, S, cx, cy, w, h, t, panel.actual && panel.actual.rarity)
   }
 
+  // 非选中宝箱保持闭合状态：上面已经 return；下面只处理选中宝箱的光晕 + 物品弹出
   const glow = R.getImg('assets/ui/chest_lottery_glow.png')
-  let glowP
-  if (selected) {
-    glowP = Math.min(1, Math.max(0, (t - STAGE_CHEST_REVEAL_CHARGE_FRAMES) / 18))
-  } else {
-    const rank = _nonSelectedRevealRank(state, idx)
-    const tRest = state.chestRestRevealed
-      ? Math.max(0, t - (state.restRevealStartFrame || 0))
-      : 0
-    glowP = Math.min(1, Math.max(0, (tRest - rank * STAGE_CHEST_REST_STAGGER_STEP) / 18))
-  }
+  const glowP = Math.min(1, Math.max(0, (t - STAGE_CHEST_REVEAL_CHARGE_FRAMES) / 18))
   c.save()
-  c.globalAlpha = (selected ? 0.86 : 0.42) * glowP
+  c.globalAlpha = 0.86 * glowP
   if (glow && glow.width > 0) {
     c.drawImage(glow, cx - w * 0.72, cy - h * 0.82, w * 1.44, h * 1.44)
   } else {
@@ -441,17 +422,13 @@ function _drawSlot(g, panel, idx, x, y, w, h, revealed) {
 
   const item = state.slots && state.slots[idx]
   if (selectedOpening && t < STAGE_CHEST_REVEAL_CHARGE_FRAMES + 4) return
-  const itemPopP = selected
-    ? _easeOutBack((t - STAGE_CHEST_REVEAL_CHARGE_FRAMES - 4) / STAGE_CHEST_REVEAL_ITEM_POP_FRAMES)
-    : 1
+  const itemPopP = _easeOutBack((t - STAGE_CHEST_REVEAL_CHARGE_FRAMES - 4) / STAGE_CHEST_REVEAL_ITEM_POP_FRAMES)
   const selectedSize = Math.min(82 * S, w * 0.9)
-  const itemSize = selected ? selectedSize * (0.52 + Math.max(0, itemPopP) * 0.48) : 40 * S
-  const itemY = selected
-    ? y - 18 * S - (1 - _clamp01(itemPopP)) * 13 * S
-    : y + 7 * S
+  const itemSize = selectedSize * (0.52 + Math.max(0, itemPopP) * 0.48)
+  const itemY = y - 18 * S - (1 - _clamp01(itemPopP)) * 13 * S
   c.save()
-  if (selected) c.globalAlpha *= _clamp01((t - STAGE_CHEST_REVEAL_CHARGE_FRAMES - 2) / 12)
-  _drawItem(c, R, S, item, cx - itemSize / 2, itemY, itemSize, selected, g.af || 0)
+  c.globalAlpha *= _clamp01((t - STAGE_CHEST_REVEAL_CHARGE_FRAMES - 2) / 12)
+  _drawItem(c, R, S, item, cx - itemSize / 2, itemY, itemSize, true, g.af || 0)
   c.restore()
 }
 
@@ -832,15 +809,8 @@ function drawStageChestReward(g) {
   state.timer = (state.timer || 0) + 1
   if (state.state === 'revealing') {
     state.revealTimer = (state.revealTimer || 0) + 1
-    const t = state.revealTimer || 0
-    if (!state.chestRestRevealed) {
-      if (t >= STAGE_CHEST_REST_REVEAL_DELAY_FRAMES) {
-        state.chestRestRevealed = true
-        state.restRevealStartFrame = t
-      }
-    } else {
-      const dt = t - (state.restRevealStartFrame || 0)
-      if (dt > STAGE_CHEST_REST_REVEAL_DONE_FRAMES) state.state = 'revealed'
+    if ((state.revealTimer || 0) >= STAGE_CHEST_REVEAL_DONE_FRAMES) {
+      state.state = 'revealed'
     }
   }
   const alpha = Math.min(1, state.timer / 16)
@@ -893,18 +863,16 @@ function drawStageChestReward(g) {
     const x = gridX + col * (slotW + gapX)
     const y = gridY + row * (slotH + gapY)
     const isChosen = state.selectedIdx === i
-    const revealAll = state.state === 'revealed'
-    let slotRevealed = false
-    if (revealAll) slotRevealed = true
-    else if (state.state === 'revealing') {
-      if (isChosen) slotRevealed = true
-      else if (state.chestRestRevealed) {
-        const rank = _nonSelectedRevealRank(state, i)
-        const dt = (state.revealTimer || 0) - (state.restRevealStartFrame || 0)
-        slotRevealed = dt > STAGE_CHEST_REST_STAGGER_BASE + rank * STAGE_CHEST_REST_STAGGER_STEP
-      }
+    // 选中槽：在 revealing/revealed 阶段都打开；其他槽：始终保持闭合，
+    // 揭晓阶段降透明度让玩家聚焦"恭喜获得"卡片，避免错失感。
+    const slotRevealed = isChosen && state.state !== 'choose'
+    const dim = !isChosen && state.state !== 'choose'
+    if (dim) {
+      c.save()
+      c.globalAlpha *= REST_CHEST_DIM_ALPHA
     }
     _drawSlot(g, panel, i, x, y, slotW, slotH, slotRevealed)
+    if (dim) c.restore()
     g._stageChestSlotRects.push([x, y, slotW, slotH])
   }
 
@@ -917,11 +885,6 @@ function drawStageChestReward(g) {
     c.fillText('点击一个宝箱开启', W / 2, bottomY + 8 * S)
   } else {
     _drawRewardShowcase(c, R, S, W, panel, state, showcaseY, showcaseH, g.af || 0)
-  }
-  if (state.state === 'revealing' && !state.chestRestRevealed) {
-    c.fillStyle = 'rgba(108,77,36,0.88)'
-    c.font = `${10 * S}px "PingFang SC",sans-serif`
-    c.fillText('点击屏幕或稍候揭晓其余宝箱', W / 2, bottomY + 8 * S)
   }
 
   g._stageChestContinueRect = null
@@ -945,13 +908,8 @@ function handleStageChestRewardTouch(g, type, x, y) {
   const panel = chestReward.currentPanel(state)
   if (!panel) return true
 
-  // 已揭晓选中奖励，等待用户点击或延时后再翻开其余宝箱
-  if (state.state === 'revealing' && !state.chestRestRevealed) {
-    state.chestRestRevealed = true
-    state.restRevealStartFrame = state.revealTimer || 0
-    g._dirty = true
-    return true
-  }
+  // 揭晓中的点击吃掉，避免误触穿透到棋盘；不再用于"加速翻开其他宝箱"。
+  if (state.state === 'revealing') return true
 
   if (state.state === 'choose') {
     const rects = g._stageChestSlotRects || []

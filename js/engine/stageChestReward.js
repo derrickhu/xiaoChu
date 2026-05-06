@@ -222,9 +222,6 @@ function reveal(chestState, selectedIdx) {
   chestState.slots = slots
   chestState.state = 'revealing'
   chestState.revealTimer = 0
-  // 先只展示选中匣；满延迟或用户点击后再翻开其余宝箱
-  chestState.chestRestRevealed = false
-  chestState.restRevealStartFrame = 0
   return true
 }
 
@@ -237,8 +234,6 @@ function nextPanelOrFinish(g) {
     chestState.timer = 0
     chestState.selectedIdx = -1
     chestState.revealTimer = 0
-    chestState.chestRestRevealed = false
-    chestState.restRevealStartFrame = 0
     chestState.slots = new Array(CHEST_SLOT_COUNT).fill(null)
     return false
   }
