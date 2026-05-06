@@ -374,10 +374,18 @@ class Main {
           && !this.storage.isStageCleared('stage_2_1')
           && !this.storage.isGuideShown('newbie_gift_claimed')
           && !this._newbieGift
+        // 微信平台礼包待领：与新手礼包同优先级，新手礼包不弹时检查是否有待领。
+        // 复用 newbieGiftView 的卷轴 UI（showPlatformGift），玩家点"领取礼包"后才真正发奖。
+        const platformGiftRewards = !shouldShowNewbieGift && !this._newbieGift
+          && this.storage.hasPendingPlatformGiftClaims && this.storage.hasPendingPlatformGiftClaims()
+          ? this.storage.getPendingPlatformGiftTotalRewards()
+          : null
         if (shouldShowNewbieGift) {
           newbieGiftView.show(this)
           // 礼包弹出时不触发其它 toast / 引导，避免视觉冲突
           // 合并 toast 队列保留，待礼包关闭后由 newbieGiftView 关闭回调 / 下一次主页进入展示
+        } else if (platformGiftRewards) {
+          newbieGiftView.showPlatformGift(this, platformGiftRewards)
         } else if (!this._newbieGift && !this._pendingGuide) {
           // 没有礼包弹窗时才放出其他强提示
           let slotTaken = false
@@ -720,9 +728,8 @@ class Main {
         complete: (res) => { if (res && res.confirm) this.storage.clearWipeNotice() },
       })
     }
-    // 微信平台礼包由微信侧展示领取结果，游戏内只做静默入账，避免重复弹窗。
-    if (this.storage._pendingPlatformGiftRewards) this.storage._pendingPlatformGiftRewards = null
-    if (this.storage._pendingPlatformGiftClaims) this.storage._pendingPlatformGiftClaims = null
+    // 微信平台礼包：玩家从游戏圈领取后云端会回写，启动时由 cloudSync 拉到 storage 的待领队列里，
+    // 这里不再静默清空，转由 title 场景的强提示编排里弹卷轴 UI 等玩家点"领取礼包"再发放。
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {
       const pg = this._pendingGuide

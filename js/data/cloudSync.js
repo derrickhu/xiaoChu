@@ -145,20 +145,23 @@ async function _syncFromCloud() {
 }
 
 // ===== 拉取微信平台礼包（通过云函数，避免客户端权限问题） =====
+// 只把待领礼包压入 storage 的待领队列，真正发放等玩家在游戏内点"领取礼包"按钮时再发，
+// 避免回到游戏即静默入账带来的"领了什么我都不知道"。
+// 本地已存在 platformGiftGrantedIds[id] 的礼包说明上次已发，仅补一次云端 markGranted 防漏。
 async function _claimPendingGifts(storage) {
   if (!P.isWeChat || !_cloudReady || !_openid) return
   try {
-    // 通过云函数查询，不受集合权限限制
     const queryRes = await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'queryPending' } })
     const gifts = (queryRes.result && queryRes.result.gifts) || []
     if (gifts.length === 0) return
 
-    const grantedList = []
-    const grantedIds = []
+    const pendingList = []
+    const alreadyGrantedIds = []
     for (const gift of gifts) {
+      if (!gift._id) continue
       if (!gift.rewards || typeof gift.rewards !== 'object') continue
       if (storage.isPlatformGiftLocallyGranted && storage.isPlatformGiftLocallyGranted(gift._id)) {
-        grantedIds.push(gift._id)
+        alreadyGrantedIds.push(gift._id)
         continue
       }
       if (gift.unknownGoods && gift.unknownGoods.length && storage.recordFunnelEvent) {
@@ -168,7 +171,7 @@ async function _claimPendingGifts(storage) {
           count: gift.unknownGoods.length,
         })
       }
-      if (Object.keys(gift.rewards || {}).length === 0) {
+      if (Object.keys(gift.rewards).length === 0) {
         if (storage.recordFunnelEvent) {
           storage.recordFunnelEvent('platform_gift_empty', {
             giftTypeId: gift.giftTypeId || 0,
@@ -177,40 +180,28 @@ async function _claimPendingGifts(storage) {
         }
         continue
       }
-      const granted = storage.grantRewardBundle(gift.rewards)
-      const grantedKeys = Object.keys(granted || {})
-      if (grantedKeys.length === 0) {
-        if (storage.recordFunnelEvent) {
-          storage.recordFunnelEvent('platform_gift_empty', {
-            giftTypeId: gift.giftTypeId || 0,
-            giftId: gift.giftId || '',
-          })
-        }
-        continue
-      }
-      grantedList.push({
+      pendingList.push({
         id: gift._id,
-        giftTypeId: gift.giftTypeId,
+        giftTypeId: gift.giftTypeId || 0,
         giftId: gift.giftId || '',
-        granted,
+        rewards: gift.rewards,
       })
-      grantedIds.push(gift._id)
     }
 
-    if (_onPlatformGifts && grantedList.length > 0) {
-      _onPlatformGifts(grantedList)
+    if (storage.appendPendingPlatformGifts && pendingList.length > 0) {
+      storage.appendPendingPlatformGifts(pendingList)
+      console.log('[CloudSync] 平台礼包入待领队列', pendingList.length, '笔（待玩家在游戏内领取）')
     }
 
-    // 本地已入账后再标记云端，标记失败时依赖本地 ID 防止重复发奖。
-    if (grantedIds.length > 0) {
+    // 仅清理"上次已经在游戏内领过、但 markGranted 失败"的旧记录，不主动 mark 待领礼包，
+    // 否则没领的也会被云端标记成已发，导致玩家漏奖。
+    if (alreadyGrantedIds.length > 0) {
       try {
-        await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: grantedIds } })
+        await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: alreadyGrantedIds } })
       } catch (e) {
-        console.warn('[CloudSync] 平台礼包云端标记失败，下次启动补偿重试', e)
+        console.warn('[CloudSync] 旧礼包云端补标记失败，下次启动再试', e)
       }
     }
-
-    console.log('[CloudSync] 平台礼包已静默入账', grantedList.length, '笔')
   } catch (e) {
     console.warn('[CloudSync] 拉取平台礼包失败', e)
   }

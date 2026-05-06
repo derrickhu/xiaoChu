@@ -396,8 +396,9 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ⑥c 游戏圈 / 福利页（配置 openlink 时用 PageManager，纯 Canvas 点击、无原生按钮按下灰底）
-  if (P.isWeChat && !g._gameClubBtn && (TITLE_HOME.giftOpenlink || TITLE_HOME.gameClubOpenlink) && g._gameClubBtnRect
+  // ⑥c 游戏圈 / 福利页（配置 openlink 且 PageManager 可用时走 Canvas 点击，鸿蒙下走原生按钮兜底）
+  if (P.isWeChat && !g._gameClubBtn && P.canOpenGameClubByOpenlink()
+    && (TITLE_HOME.giftOpenlink || TITLE_HOME.gameClubOpenlink) && g._gameClubBtnRect
     && g._hitRect(x, y, ...g._gameClubBtnRect)) {
     const openlink = TITLE_HOME.giftOpenlink || TITLE_HOME.gameClubOpenlink
     const opener = TITLE_HOME.giftOpenlink ? P.openGiftPage : P.openGameClubPage
@@ -406,6 +407,7 @@ function tTitle(g, type, x, y) {
         scene: TITLE_HOME.giftOpenlink ? 'gift_openlink' : 'game_club',
       })
     }
+    if (g.storage && g.storage.markPlatformGiftEntrySeen) g.storage.markPlatformGiftEntrySeen()
     opener.call(P, openlink).catch((e) => {
       console.warn('[GameClub] PageManager', e)
       P.showGameToast('无法打开福利页，请稍后重试', { type: 'warn' })

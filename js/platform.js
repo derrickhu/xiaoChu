@@ -7,11 +7,19 @@ const isDouyin = typeof tt !== 'undefined'
 const isWeChat = !isDouyin && typeof wx !== 'undefined'
 const base = isDouyin ? tt : wx
 
-let _isOHOS = false
-try {
-  const _sys = base && base.getSystemInfoSync ? base.getSystemInfoSync() : null
-  if (_sys && _sys.platform === 'ohos') _isOHOS = true
-} catch(_e) {}
+function _detectOHOS() {
+  try {
+    const dev = base && typeof base.getDeviceInfo === 'function' ? base.getDeviceInfo() : null
+    if (dev && (dev.platform === 'ohos' || dev.system === 'HarmonyOS')) return true
+  } catch (_e) {}
+  try {
+    const sys = base && base.getSystemInfoSync ? base.getSystemInfoSync() : null
+    if (sys && (sys.platform === 'ohos' || sys.system === 'HarmonyOS')) return true
+  } catch (_e) {}
+  return false
+}
+
+const _isOHOS = _detectOHOS()
 
 const _noop = () => {}
 const _noopAsync = async () => ({ result: { code: -1, msg: 'not available' } })
@@ -157,9 +165,18 @@ const platform = {
 
   // ========== 游戏圈 ==========
 
+  // createGameClubButton 在鸿蒙微信也支持（官方文档明确标注），保留原生按钮跳转游戏圈首页能力
   createGameClubButton: base && typeof base.createGameClubButton === 'function'
     ? (opts) => base.createGameClubButton(opts)
     : () => null,
+
+  /**
+   * 鸿蒙微信目前不支持 wx.createPageManager（调用返回 -3），
+   * 因此 openlink 形式的游戏圈/福利页跳转在鸿蒙端不可用，需要降级到原生 GameClubButton。
+   */
+  canOpenGameClubByOpenlink() {
+    return isWeChat && !_isOHOS && typeof base.createPageManager === 'function'
+  },
 
   /**
    * 打开游戏圈等内置页（基础库 ≥3.6.7），无原生按钮即可跳转
@@ -169,6 +186,9 @@ const platform = {
   _openPageByOpenlink(openlink, label) {
     if (!isWeChat || !openlink) {
       return Promise.reject(new Error(`${label}: 非微信或未配置 openlink`))
+    }
+    if (_isOHOS) {
+      return Promise.reject(new Error(`${label}: 鸿蒙微信暂不支持游戏圈跳转`))
     }
     if (typeof base.createPageManager !== 'function') {
       return Promise.reject(new Error(`${label}: 基础库不支持 createPageManager`))

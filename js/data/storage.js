@@ -3869,7 +3869,6 @@ class Storage {
         runMigrations,
         storage: this,
         onSyncDone: () => this._onCloudSyncDone(),
-        onPlatformGifts: (list) => this._onPlatformGifts(list),
       })
     } catch (e) {
       console.warn('[Storage] Cloud init error:', e && (e.message || e))
@@ -3879,43 +3878,87 @@ class Storage {
     this._ranking.preheatRanking()
   }
 
+  // ====== 微信平台礼包：待领队列（启动拉取 → 玩家点 UI 领取 → 真正发放） ======
+
   /**
-   * 云同步首次拉取完成后的回调
-   * 修复：清除缓存后重进，云端数据证明是老玩家时补写 introDone/tutorialDone
+   * 云同步拉到待领礼包后调用，仅入队，不发奖。
+   * @param {Array<{ id, giftTypeId, giftId, rewards }>} list
    */
+  appendPendingPlatformGifts(list) {
+    if (!Array.isArray(list) || list.length === 0) return
+    if (!Array.isArray(this._pendingPlatformGiftClaims)) this._pendingPlatformGiftClaims = []
+    const existed = new Set(this._pendingPlatformGiftClaims.map((g) => g.id))
+    for (const item of list) {
+      if (!item || !item.id || existed.has(item.id)) continue
+      this._pendingPlatformGiftClaims.push({
+        id: item.id,
+        giftTypeId: item.giftTypeId || 0,
+        giftId: item.giftId || '',
+        rewards: item.rewards || {},
+      })
+      existed.add(item.id)
+    }
+  }
+
+  hasPendingPlatformGiftClaims() {
+    return !!(Array.isArray(this._pendingPlatformGiftClaims) && this._pendingPlatformGiftClaims.length)
+  }
+
+  /** UI 用：把所有待领礼包奖励合并成一份汇总，用于卷轴弹窗展示 */
+  getPendingPlatformGiftTotalRewards() {
+    if (!this.hasPendingPlatformGiftClaims()) return null
+    const total = {}
+    for (const gift of this._pendingPlatformGiftClaims) {
+      const r = gift.rewards || {}
+      for (const [k, v] of Object.entries(r)) {
+        if (typeof v === 'number') total[k] = (total[k] || 0) + v
+      }
+    }
+    return Object.keys(total).length ? total : null
+  }
+
   /**
-   * 微信平台礼包领取后回调
-   * grantedList: [{ id, giftTypeId, giftId, granted: { soulStone, ... } }, ...]
+   * 玩家在游戏内点"领取礼包"时调用：真正发放奖励、写本地 ID、清队列、上报埋点。
+   * 返回 { ids, granted, total }；调用方负责再 markGranted 到云端。
    */
-  _onPlatformGifts(grantedList) {
-    if (!grantedList || grantedList.length === 0) return
+  claimPendingPlatformGifts() {
+    if (!this.hasPendingPlatformGiftClaims()) return null
+    const claims = this._pendingPlatformGiftClaims.slice()
+    const ids = []
     const total = {}
     const giftTypes = {}
     const giftIds = {}
     let grantCount = 0
-    this._d.platformGiftGrantedIds = this._d.platformGiftGrantedIds || {}
-    for (const item of grantedList) {
-      const granted = item.granted || {}
-      if (!Object.keys(granted).length) continue
+    if (!this._d.platformGiftGrantedIds) this._d.platformGiftGrantedIds = {}
+
+    for (const gift of claims) {
+      if (!gift || !gift.id) continue
+      const rewards = gift.rewards || {}
+      if (!Object.keys(rewards).length) continue
+      const granted = this._grantLoginRewardBundle(rewards)
+      if (!granted || Object.keys(granted).length === 0) continue
       grantCount++
-      if (item.id) this._d.platformGiftGrantedIds[item.id] = Date.now()
-      const typeKey = String(item.giftTypeId || 'unknown')
+      ids.push(gift.id)
+      this._d.platformGiftGrantedIds[gift.id] = Date.now()
+      const typeKey = String(gift.giftTypeId || 'unknown')
       giftTypes[typeKey] = (giftTypes[typeKey] || 0) + 1
-      if (item.giftId) giftIds[item.giftId] = (giftIds[item.giftId] || 0) + 1
+      if (gift.giftId) giftIds[gift.giftId] = (giftIds[gift.giftId] || 0) + 1
       for (const [k, v] of Object.entries(granted)) {
         if (typeof v === 'number') total[k] = (total[k] || 0) + v
       }
     }
+
     this._pendingPlatformGiftClaims = null
     this._pendingPlatformGiftRewards = null
-    if (Object.keys(total).length === 0) return
-    console.log('[Storage] 平台礼包已静默入账', total)
-    this._d.platformGiftSummary = this._d.platformGiftSummary || {
-      totalClaims: 0,
-      giftTypes: {},
-      giftIds: {},
-      rewards: {},
-      lastClaimAt: 0,
+    this._d.platformGiftSeenDate = localDateKey()
+
+    if (grantCount === 0) {
+      this._save()
+      return { ids: [], granted: {}, total: {} }
+    }
+
+    if (!this._d.platformGiftSummary) {
+      this._d.platformGiftSummary = { totalClaims: 0, giftTypes: {}, giftIds: {}, rewards: {}, lastClaimAt: 0 }
     }
     const summary = this._d.platformGiftSummary
     summary.totalClaims = (summary.totalClaims || 0) + grantCount
@@ -3923,6 +3966,7 @@ class Storage {
     for (const [k, v] of Object.entries(giftTypes)) summary.giftTypes[k] = (summary.giftTypes[k] || 0) + v
     for (const [k, v] of Object.entries(giftIds)) summary.giftIds[k] = (summary.giftIds[k] || 0) + v
     for (const [k, v] of Object.entries(total)) summary.rewards[k] = (summary.rewards[k] || 0) + v
+
     if (this.recordFunnelEvent) {
       this.recordFunnelEvent('platform_gift_claimed', {
         giftTypeId: Object.keys(giftTypes).join(','),
@@ -3931,12 +3975,36 @@ class Storage {
       })
     }
     this._save()
+    return { ids, granted: total, total }
   }
 
   isPlatformGiftLocallyGranted(id) {
     if (!id) return false
     const map = this._d.platformGiftGrantedIds || {}
     return !!map[id]
+  }
+
+  /**
+   * 引流红点"消化"标记：当日点过游戏圈入口或在游戏内点过领取，今天就不再提醒。
+   * 玩家不消化的话，每天 0 点会被自然刷新一次（依赖 localDateKey 切换）。
+   */
+  markPlatformGiftEntrySeen() {
+    const today = localDateKey()
+    if (this._d.platformGiftSeenDate === today) return
+    this._d.platformGiftSeenDate = today
+    this._save()
+  }
+
+  /**
+   * UI 决策：是否显示"游戏圈每日福利"引流红点。
+   * 严格规则：
+   *   1. 必须通过 1-1（与首页其他入口的新手保护一致）
+   *   2. 当日尚未点过游戏圈 / 当日尚未在游戏内领过 platform gift
+   *   3. pending 待领由 hasPendingPlatformGiftClaims 单独表达，与本提示并列（UI 层做或运算）
+   */
+  shouldShowPlatformGiftHint() {
+    if (!this.isStageCleared('stage_1_1')) return false
+    return this._d.platformGiftSeenDate !== localDateKey()
   }
 
   _onCloudSyncDone() {

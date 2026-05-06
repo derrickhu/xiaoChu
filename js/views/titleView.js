@@ -2404,13 +2404,22 @@ function drawGameClubBtn(g) {
     fallbackColor: '#8A5A1E',
   })
 
-  _drawGameClubGiftBubble(c, R, S, bx, by, geo.btnW, g.af || 0)
+  _drawGameClubGiftBubble(c, R, S, bx, by, geo.btnW, g.af || 0, g)
   g._gameClubBtnRect = [bx, by, geo.btnW, geo.btnH]
   g._gameClubNativeRect = entry && entry.nativeRect ? entry.nativeRect : g._gameClubBtnRect
 }
 
-function _drawGameClubGiftBubble(c, R, S, bx, by, btnW, af) {
-  const text = TITLE_HOME.gameClubGiftBubbleText || ''
+function _drawGameClubGiftBubble(c, R, S, bx, by, btnW, af, g) {
+  // 红点合并两路信号：
+  //   1. 待领（pending）—— 玩家在微信侧领过、还没在游戏内点确认；语义最强
+  //   2. 引流（每日一次）—— 当日尚未点过游戏圈/尚未领过 pending，用于"今天去游戏圈看看新福利"
+  // 任一为真即显示，玩家"消化"任一即同时熄灭。
+  const storage = g && g.storage
+  if (!storage) return
+  const hasPending = storage.hasPendingPlatformGiftClaims && storage.hasPendingPlatformGiftClaims()
+  const showHint = storage.shouldShowPlatformGiftHint && storage.shouldShowPlatformGiftHint()
+  if (!hasPending && !showHint) return
+  const text = (P.isOHOS ? TITLE_HOME.ohosGameClubBubbleText : TITLE_HOME.gameClubGiftBubbleText) || ''
   if (!text) return
   c.save()
   c.font = `bold ${9 * S}px "PingFang SC",sans-serif`

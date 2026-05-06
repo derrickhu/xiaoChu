@@ -154,6 +154,12 @@ const TITLE_HOME = {
   giftOpenlink: '',
   /** 游戏圈福利气泡文案：1-1 后展示，承接微信平台福利。 */
   gameClubGiftBubbleText: '微信福利礼包',
+  /**
+   * 鸿蒙微信不支持 wx.createPageManager（openlink 跳转），
+   * 入口降级为原生 GameClubButton 直跳游戏圈首页，
+   * 福利气泡用更直白的文案，避免给鸿蒙玩家"打不开"的预期落差。
+   */
+  ohosGameClubBubbleText: '游戏圈福利',
   /** 模式切换（通天塔/秘境）：图案区高度、标签字号、相对 icon 加宽（×S） */
   modeSwitchIconPt: 30,
   modeSwitchLabelPt: 9,

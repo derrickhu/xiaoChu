@@ -492,7 +492,7 @@ function _claimPlatformGiftRewards(g) {
 }
 
 function _hasPendingPlatformGift(g) {
-  return !!(g && g.storage && g.storage._pendingPlatformGiftClaims && g.storage._pendingPlatformGiftClaims.length)
+  return !!(g && g.storage && g.storage.hasPendingPlatformGiftClaims && g.storage.hasPendingPlatformGiftClaims())
 }
 
 function _getPlatformClaimDelay(d) {
