@@ -1,8 +1,8 @@
 /**
  * 天机试炼赛季配置
  *
- * 第一版只开放单赛季、单难度；后续运营只需要替换 CURRENT_SEASON
- * 或追加赛季列表，就能调整主题、奖励投放和积分口径。
+ * 采用 14 天主题轮换：到期后自动进入下一套主题，并通过周期化 seasonId
+ * 让玩家本期积分、每日进度和奖励领取状态自然重置。
  */
 const { EVENT_TYPE, generateMonster, generateElite, generateBoss } = require('./tower')
 
@@ -91,21 +91,95 @@ const DAILY_ATTR_THEMES = [
   { weekDay: 6, enemyAttrs: ['water', 'wood'] }, // 周六：土/金双克制
 ]
 
-const TRIAL_MODE = {
-  id: 'trial_counter_break_004',
-  name: '五行克制·破阵试炼',
-  shortName: '破阵试炼',
+const TRIAL_SEASON_EPOCH = new Date('2026-04-26T00:00:00+08:00').getTime()
+const TRIAL_SEASON_DAYS = 14
+const TRIAL_SEASON_PERIOD_MS = TRIAL_SEASON_DAYS * 24 * 3600 * 1000
+
+const TRIAL_THEME_HEAVY_DEFENSE = [
+  { weekDay: 0, enemyAttrs: ['earth', 'metal'] },
+  { weekDay: 1, recommendedAttr: 'wood' },
+  { weekDay: 2, recommendedAttr: 'fire' },
+  { weekDay: 3, enemyAttrs: ['earth', 'water'] },
+  { weekDay: 4, recommendedAttr: 'wood' },
+  { weekDay: 5, recommendedAttr: 'fire' },
+  { weekDay: 6, enemyAttrs: ['metal', 'earth'] },
+]
+
+const TRIAL_THEME_CONTROL = [
+  { weekDay: 0, enemyAttrs: ['water', 'wood'] },
+  { weekDay: 1, recommendedAttr: 'earth' },
+  { weekDay: 2, recommendedAttr: 'metal' },
+  { weekDay: 3, recommendedAttr: 'earth' },
+  { weekDay: 4, enemyAttrs: ['water', 'fire'] },
+  { weekDay: 5, recommendedAttr: 'metal' },
+  { weekDay: 6, enemyAttrs: ['wood', 'water'] },
+]
+
+const TRIAL_THEME_PET_SEAL = [
+  { weekDay: 0, enemyAttrs: ['metal', 'fire'] },
+  { weekDay: 1, recommendedAttr: 'fire' },
+  { weekDay: 2, recommendedAttr: 'water' },
+  { weekDay: 3, enemyAttrs: ['metal', 'earth'] },
+  { weekDay: 4, recommendedAttr: 'fire' },
+  { weekDay: 5, recommendedAttr: 'water' },
+  { weekDay: 6, enemyAttrs: ['fire', 'metal'] },
+]
+
+const TRIAL_THEME_DUAL = [
+  { weekDay: 0, enemyAttrs: ['fire', 'metal'] },
+  { weekDay: 1, enemyAttrs: ['earth', 'water'] },
+  { weekDay: 2, enemyAttrs: ['water', 'wood'] },
+  { weekDay: 3, enemyAttrs: ['fire', 'earth'] },
+  { weekDay: 4, enemyAttrs: ['metal', 'water'] },
+  { weekDay: 5, enemyAttrs: ['wood', 'fire'] },
+  { weekDay: 6, enemyAttrs: ['water', 'wood'] },
+]
+
+const TRIAL_SEASON_TEMPLATES = [
+  {
+    id: 'trial_counter_break',
+    name: '五行克制·破阵试炼',
+    shortName: '破阵试炼',
+    dailyAttrThemes: DAILY_ATTR_THEMES,
+    rules: { counterDmgPct: 15, comboScoreMin: 5 },
+  },
+  {
+    id: 'trial_armor_break',
+    name: '灵龟破甲·重防试炼',
+    shortName: '重防试炼',
+    dailyAttrThemes: TRIAL_THEME_HEAVY_DEFENSE,
+    rules: { counterDmgPct: 12, comboScoreMin: 5, armorBreakHint: true },
+  },
+  {
+    id: 'trial_mind_guard',
+    name: '幻狐定魂·控场试炼',
+    shortName: '控场试炼',
+    dailyAttrThemes: TRIAL_THEME_CONTROL,
+    rules: { counterDmgPct: 14, comboScoreMin: 5, controlResistHint: true },
+  },
+  {
+    id: 'trial_pet_seal',
+    name: '锁灵封阵·灵宠试炼',
+    shortName: '封阵试炼',
+    dailyAttrThemes: TRIAL_THEME_PET_SEAL,
+    rules: { counterDmgPct: 13, comboScoreMin: 5, petSealHint: true },
+  },
+  {
+    id: 'trial_dual_shift',
+    name: '双相轮转·混合试炼',
+    shortName: '双相试炼',
+    dailyAttrThemes: TRIAL_THEME_DUAL,
+    rules: { counterDmgPct: 15, comboScoreMin: 5, dualAttrHint: true },
+  },
+]
+
+const BASE_TRIAL_MODE = {
   unlockStageId: 'stage_1_8',
   maxFloor: 10,
   staminaCost: 10,
   firstDailyStaminaCost: 5,
-  startDate: '2026-04-26',
-  seasonDays: 14,
+  seasonDays: TRIAL_SEASON_DAYS,
   exclusiveWeapons: ['w51'],
-  rules: {
-    counterDmgPct: 15,
-    comboScoreMin: 5,
-  },
   score: {
     floor: 80,
     clearBonus: 300,
@@ -134,8 +208,50 @@ const TRIAL_MODE = {
   ],
 }
 
-function getCurrentTrialSeason() {
-  return TRIAL_MODE
+function _nowMs(date) {
+  return date instanceof Date ? date.getTime() : Date.now()
+}
+
+function getTrialSeasonCycle(date) {
+  const now = _nowMs(date)
+  if (now < TRIAL_SEASON_EPOCH) return 0
+  return Math.floor((now - TRIAL_SEASON_EPOCH) / TRIAL_SEASON_PERIOD_MS)
+}
+
+function getCurrentTrialSeasonIndex(date) {
+  return getTrialSeasonCycle(date) % TRIAL_SEASON_TEMPLATES.length
+}
+
+function getTrialSeasonStartTime(date) {
+  return TRIAL_SEASON_EPOCH + getTrialSeasonCycle(date) * TRIAL_SEASON_PERIOD_MS
+}
+
+function getTrialSeasonEndTime(date) {
+  return getTrialSeasonStartTime(date) + TRIAL_SEASON_PERIOD_MS
+}
+
+function getCurrentTrialSeason(date) {
+  const cycle = getTrialSeasonCycle(date)
+  const seasonIndex = getCurrentTrialSeasonIndex(date)
+  const template = TRIAL_SEASON_TEMPLATES[seasonIndex] || TRIAL_SEASON_TEMPLATES[0]
+  const startTime = getTrialSeasonStartTime(date)
+  const endTime = getTrialSeasonEndTime(date)
+  const startDate = new Date(startTime)
+  const endDate = new Date(endTime - 1)
+  return {
+    ...BASE_TRIAL_MODE,
+    ...template,
+    rules: { ...(template.rules || {}) },
+    dailyAttrThemes: (template.dailyAttrThemes || DAILY_ATTR_THEMES).map(item => ({ ...item })),
+    id: `${template.id}_cycle_${cycle + 1}`,
+    baseId: template.id,
+    cycle,
+    seasonIndex,
+    startTime,
+    endTime,
+    startDate: _dateKeyFromDate(startDate),
+    endDate: _dateKeyFromDate(endDate),
+  }
 }
 
 function _addDays(date, days) {
@@ -157,18 +273,21 @@ function _monthDayLabel(date) {
 }
 
 function getTrialSeasonProgress(date) {
-  const season = getCurrentTrialSeason()
   const now = date instanceof Date ? date : new Date()
-  const start = _dateFromKey(season.startDate)
+  const season = getCurrentTrialSeason(now)
+  const start = new Date(season.startTime)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const elapsedDays = Math.floor((today - start) / 86400000)
   const safeElapsed = Math.max(0, elapsedDays)
   const dayIndex = Math.min(season.seasonDays, safeElapsed + 1)
   const daysLeft = Math.max(0, season.seasonDays - dayIndex)
-  const endDate = _addDays(start, season.seasonDays - 1)
+  const endDate = new Date(season.endTime - 1)
   return {
     dayIndex,
     daysLeft,
+    startDate: start,
+    startDateKey: _dateKeyFromDate(start),
+    startLabel: _monthDayLabel(start),
     endDate,
     endDateKey: _dateKeyFromDate(endDate),
     endLabel: _monthDayLabel(endDate),
@@ -178,9 +297,8 @@ function getTrialSeasonProgress(date) {
 }
 
 function getTrialSeasonLabel(date) {
-  const season = getCurrentTrialSeason()
+  const season = getCurrentTrialSeason(date)
   const p = getTrialSeasonProgress(date)
-  if (p.isEnded) return `赛季已结束 · ${p.endLabel}结束`
   return `第${p.dayIndex}/${season.seasonDays}天 · 剩${p.daysLeft}天`
 }
 
@@ -201,7 +319,7 @@ function _getTrialMonsterIndex(floor, max) {
   const safeMax = Math.max(1, max || 1)
   let normalEncounterNo = 0
   for (let f = 1; f <= floor; f++) {
-    if (f >= TRIAL_MODE.maxFloor) continue
+    if (f >= BASE_TRIAL_MODE.maxFloor) continue
     if (f === 5 || f === 8 || f === 9) continue
     normalEncounterNo++
   }
@@ -306,9 +424,10 @@ function getDailyQuestForDate(dateKey) {
 }
 
 function getDailyQuestsForDate(dateKey) {
-  const season = getCurrentTrialSeason()
   const key = dateKey || _localDateKey()
-  const attrTheme = getDailyAttrTheme(_dateFromKey(key))
+  const date = _dateFromKey(key)
+  const season = getCurrentTrialSeason(date)
+  const attrTheme = getDailyAttrTheme(date)
   return season.dailyQuests.map(q => {
     const quest = { ...q }
     if (quest.id === 'counter12') {
@@ -322,7 +441,9 @@ function getDailyQuestsForDate(dateKey) {
 
 function getDailyAttrTheme(date) {
   const d = date instanceof Date ? date : new Date()
-  const entry = DAILY_ATTR_THEMES.find(item => item.weekDay === d.getDay()) || DAILY_ATTR_THEMES[0]
+  const season = getCurrentTrialSeason(d)
+  const themes = season.dailyAttrThemes || DAILY_ATTR_THEMES
+  const entry = themes.find(item => item.weekDay === d.getDay()) || themes[0] || DAILY_ATTR_THEMES[0]
   const counterMap = { metal: 'wood', wood: 'earth', earth: 'water', water: 'fire', fire: 'metal' }
   const counterBy = { wood: 'metal', earth: 'wood', water: 'earth', fire: 'water', metal: 'fire' }
   const enemyAttrs = entry.enemyAttrs
@@ -346,8 +467,10 @@ function getDailyAttrTheme(date) {
 
 function generateTrialFloorEvent(floor, dateKey) {
   const key = dateKey || _localDateKey()
+  const date = _dateFromKey(key)
+  const season = getCurrentTrialSeason(date)
   const enemyAttr = _getEnemyAttrForFloor(floor, key)
-  const seed = _seedFromString(`${key}_${TRIAL_MODE.id}_${floor}`)
+  const seed = _seedFromString(`${key}_${season.id}_${floor}`)
   function withAttr(event) {
     if (event && event.data) {
       _bindEnemyAttrVisual(event.data, floor, enemyAttr, event.type)
@@ -374,7 +497,7 @@ function generateTrialFloorEvent(floor, dateKey) {
     return event
   }
   return _withDeterministicRandom(seed, () => {
-    if (floor >= TRIAL_MODE.maxFloor) return _applyTrialDifficulty(applySpecial(withAttr({ type: EVENT_TYPE.BOSS, data: generateBoss(floor + 10) })), floor)
+    if (floor >= season.maxFloor) return _applyTrialDifficulty(applySpecial(withAttr({ type: EVENT_TYPE.BOSS, data: generateBoss(floor + 10) })), floor)
     if (floor === 5 || floor === 8 || floor === 9) return _applyTrialDifficulty(applySpecial(withAttr({ type: EVENT_TYPE.ELITE, data: generateElite(floor + 8) })), floor)
     return _applyTrialDifficulty(applySpecial(withAttr({ type: EVENT_TYPE.BATTLE, data: generateMonster(floor + 6) })), floor)
   })
@@ -451,6 +574,10 @@ function calcTrialRunFragmentReward(floor) {
 
 module.exports = {
   getCurrentTrialSeason,
+  getCurrentTrialSeasonIndex,
+  getTrialSeasonCycle,
+  getTrialSeasonStartTime,
+  getTrialSeasonEndTime,
   getTrialSpecialFloors,
   getTrialStaminaCost,
   getTrialSeasonProgress,

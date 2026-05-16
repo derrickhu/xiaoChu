@@ -12,7 +12,7 @@ const { STAGE_CARD: SC, TITLE_LOGO, TITLE_HOME, STAMINA_COST } = require('../dat
 const { MAX_LEVEL, expToNextLevel, currentRealm } = require('../data/cultivationConfig')
 const guideMgr = require('../engine/guideManager')
 const { getCurrentSeason, getSeasonSSRPet, getTowerEventCountdownLabel, getNextMilestonePreview } = require('../data/towerEvent')
-const { getTrialStaminaCost, getTrialSeasonProgress, getDailyAttrTheme } = require('../data/trialSeason')
+const { getCurrentTrialSeason, getTrialStaminaCost, getTrialSeasonProgress, getDailyAttrTheme } = require('../data/trialSeason')
 const { getPetAvatarPath, getPetRarity } = require('../data/pets')
 const { getWeaponById } = require('../data/weapons')
 const { ATTR_COLOR } = require('../data/tower')
@@ -232,6 +232,7 @@ function drawSceneArea(g) {
 }
 
 function _drawChallengeHubScene(g, ctx, R, W, S, L) {
+  const trialSeason = getCurrentTrialSeason()
   const attrTheme = getDailyAttrTheme()
   const seasonProgress = getTrialSeasonProgress()
   const towerSsrPet = getSeasonSSRPet()
@@ -432,8 +433,8 @@ function _drawChallengeHubScene(g, ctx, R, W, S, L) {
     icon: 'assets/ui/challenge_hub_icon_trial.png',
     button: 'assets/ui/challenge_hub_btn_gold.png',
     title: '天机试炼',
-    subtitle: `五行克制 · 剩${seasonProgress.daysLeft}天`,
-    line1: `今日${attrTheme.enemyName}`,
+    subtitle: `${trialSeason.shortName} · 剩${seasonProgress.daysLeft}天`,
+    line1: `今日${attrTheme.label}`,
     line2Prefix: 'SSR：',
     line2Value: trialSsrWeapon ? trialSsrWeapon.name : '天机法宝',
     highlightColor: '#FFE28A',

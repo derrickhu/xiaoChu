@@ -296,7 +296,7 @@ function rTrialDetail(g) {
   c.fillText(`今日-${_trialName(attrTheme)}`, panelX + panelW / 2, y + 24 * S)
   c.fillStyle = '#6A4A1C'
   c.font = `bold ${9*S}px "PingFang SC",sans-serif`
-  c.fillText(`${seasonLabel} · ${seasonProgress.endLabel}结束`, panelX + panelW / 2, y + 43 * S)
+  c.fillText(`${seasonLabel} · ${seasonProgress.endLabel}刷新`, panelX + panelW / 2, y + 43 * S)
 
   const statGap = 6 * S
   const statY = y + 54 * S
