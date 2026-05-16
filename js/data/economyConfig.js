@@ -58,16 +58,17 @@ const STAR_VISUAL = {
 }
 
 const STAGES_PER_CHAPTER = 8
+const ECONOMY_MAX_CHAPTER = Math.max(...Object.keys(ECONOMY_FRAMEWORK.dailyTarget).map(Number))
 
 // ECONOMY_FRAMEWORK, IDLE_CFG 已迁移至 balance/economy.js
 
-// ===== 关卡奖励：基于 dailyTarget 公式生成 12 章 =====
+// ===== 关卡奖励：基于 dailyTarget 公式生成全部章节 =====
 const _DAILY_STAGE_EST = DAILY_STAGE_EST
 const _DIST_W = REWARD_DIST_W
 
 function _genStageRewards() {
   const R = {}
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= ECONOMY_MAX_CHAPTER; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
     const est = _DAILY_STAGE_EST[ch]
     const avgR = dt.soulStone * ECONOMY_FRAMEWORK.sourceRatio.stageRepeat / est
@@ -103,10 +104,10 @@ function _genStageRewards() {
 }
 const STAGE_REWARDS = _genStageRewards()
 
-// ===== 关卡星级奖励：基于 dailyTarget 公式生成 12 章 =====
+// ===== 关卡星级奖励：基于 dailyTarget 公式生成全部章节 =====
 function _genStarRewards() {
   const R = {}
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= ECONOMY_MAX_CHAPTER; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
     const base2 = Math.round(dt.soulStone * REWARD_STAR_COEFFS.ss2Pct)
     const base3 = Math.round(dt.soulStone * REWARD_STAR_COEFFS.ss3Pct)
@@ -138,10 +139,10 @@ const TOWER_DAILY = {
 
 // TOWER_SETTLE 已迁移至 balance/economy.js
 
-// ===== 周回碎片档位：基于 dailyTarget 公式生成 12 章 =====
+// ===== 周回碎片档位：基于 dailyTarget 公式生成全部章节 =====
 function _genRepFrag() {
   const R = {}
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= ECONOMY_MAX_CHAPTER; ch++) {
     const dt = ECONOMY_FRAMEWORK.dailyTarget[ch]
     const base = Math.max(1, Math.round(dt.fragment / REP_FRAG_COEFFS.baseDivisor))
     R[ch] = {
@@ -225,18 +226,18 @@ const AD_REWARDS = {
 }
 
 /**
- * 开发/GM 调试用：核算 24★ 里程碑奖励对 12 章总盘子的累计影响
- *   · 万能碎片总池上限：12 章 × (tier8 + tier16 + tier24) 平均 3 片 ≈ 72 片；
+ * 开发/GM 调试用：核算 24★ 里程碑奖励对全章节总盘子的累计影响
+ *   · 万能碎片总池上限随章节数增长，新增飞升篇保持克制投放；
  *     再叠加 SSR 碎片 ≈ 小池，整体不破 108 片（plan C3 约束）
  *   · 灵石 / 觉醒石增量按 dailyTarget(chapterN) 归到"里程碑源"，验证不破 sourceRatio.stageRepeat + tower + task + idle + sign 的相对大盘
- *   · SSR 法宝：每章 24★ 发 1 件（ssrWeapon），12 章共 12 件，SSR 池 11 件 → 第 12 章走兜底万能碎片
+ *   · SSR 法宝：每章 24★ 发 1 件（ssrWeapon），超出 SSR 池后走兜底万能碎片
  * 返回逐章详情 + 总计；若总数超阈值会 console.warn
  */
 function auditChapterMilestones() {
   const { CHAPTER_MILESTONES } = require('./chapterMilestoneConfig')
   const perChapter = []
   const total = { soulStone: 0, awakenStone: 0, universalFragment: 0, ssrFragment: 0, ssrWeapon: 0 }
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= ECONOMY_MAX_CHAPTER; ch++) {
     const tiers = CHAPTER_MILESTONES[ch] || {}
     const sum = { soulStone: 0, awakenStone: 0, universalFragment: 0, ssrFragment: 0, ssrWeapon: 0 }
     Object.keys(tiers).forEach(tier => {
@@ -254,15 +255,15 @@ function auditChapterMilestones() {
   }
 
   // 约束阈值（plan C3 / 稀缺性自检）
-  //   · universalFragment：v2 "Day1 经济温和收紧"将 12 章里程碑万能从 (0,3,5)×12 = 96 片压到 (0,2,3)×12 = 60 片
+  //   · universalFragment：v2 "Day1 经济温和收紧"后基础主线压到 (0,2,3)，飞升篇只在高档位小幅加量
   //     · 保护 SSR 升星稀缺感：新手礼包 5 + 里程碑 60 ≈ 65，仍能感受到"稀缺但可获取"
-  //   · ssrWeapon：每章 24★ 发 1 件 = 12 件；SSR 池共 11 件，多出 1 件走兜底补偿
-  //   · ssrFragment：分摊到 12 个 SSR（CHAPTER_SSR_PETS），平均每个 SSR 约 10~18 片，仍需玩家自凑才能升 5★
+  //   · ssrWeapon：每章 24★ 发 1 件；SSR 池不足时走兜底补偿
+  //   · ssrFragment：分摊到章节代表 SSR（CHAPTER_SSR_PETS），仍需玩家自凑才能升 5★
   //     上限设 200 用于捕捉"意外翻倍"的配置错误；超过需要评审
   const LIMITS = {
-    universalFragment: 60,
-    ssrWeapon: 12,
-    ssrFragment: 200,
+    universalFragment: 84,
+    ssrWeapon: ECONOMY_MAX_CHAPTER,
+    ssrFragment: 300,
   }
   const warnings = []
   if (total.universalFragment > LIMITS.universalFragment) {

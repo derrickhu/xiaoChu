@@ -4,9 +4,9 @@
  */
 
 // ===== 等级与经验曲线 =====
-//   60 → 80：从化神·三重扩到化神·圆满（22 重的最后一重），新增 20 修炼点
+//   80 → 100：开放炼虚全境并触达合体·一重，给飞升篇高难章节提供新的长期成长目标。
 //   配套见 _migrateCultV2（清掉满级溢出 exp）+ 境界祝福乘数（CULT_REALMS[*].blessing）
-const CULT_MAX_LEVEL = 80
+const CULT_MAX_LEVEL = 100
 const CULT_EXP_BASE = 400
 const CULT_EXP_LINEAR = 100
 const CULT_EXP_POW_EXP = 1.6
@@ -33,17 +33,17 @@ const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 //     wisdom 5 不变      perLv 0.15 不变 转珠时间，避免后期溢出
 //     defense 10→14（+4）perLv 2→4      根骨随高级怪物攻击成长同步增强
 //     sense  8→12（+4）  perLv 8→2.5    老 +8 固定护盾 → 新 +2.5% HP 作护盾（2.5% 是为了"不叠一倍血"的克制调参）
-//   累计 78 = Lv.1 起步 + 79 次升级共 80 点 → 还差 2 点（Lv.60 历史遗留的两个闲置点正好补上）
+//   Lv.100 扩容：新增 21 点主要投向体魄 / 根骨 / 神识，正好吃满 Lv.100 的 99 个可分配点。
 //
 //   perLv 校准说明：
 //     本版以"高级战斗至少能撑到关键技能窗口"为准，增强体魄/根骨；
 //     保留神识的开局护盾定位，避免把战斗拖成全程拉锯。
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:28, perLv:8,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
-  spirit:  { name:'灵力', theme:'通脉', maxLv:19, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
+  body:    { name:'体魄', theme:'淬体', maxLv:35, perLv:8,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
+  spirit:  { name:'灵力', theme:'通脉', maxLv:22, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
   wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
-  defense: { name:'根骨', theme:'筑基', maxLv:14, perLv:4,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
-  sense:   { name:'神识', theme:'开窍', maxLv:12, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
+  defense: { name:'根骨', theme:'筑基', maxLv:20, perLv:4,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
+  sense:   { name:'神识', theme:'开窍', maxLv:17, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
 }
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 
@@ -62,7 +62,7 @@ const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 //   · 仅作用于 type=percent/defense 的修炼属性（body/defense/sense），是这些属性的全局倍率。
 //   · 设计意图：玩家跨入大境界时即便不分修炼点，"有效加成"也会自动放大一波，
 //     还原仙侠题材"境界跃迁就是变强"的爽点。具体计算见 cultivationConfig.effectValueWithBlessing。
-//   · 化神之上（炼虚 80+）目前不开放（MAX_LEVEL=80 卡在化神圆满），blessing 暂沿用 1.50。
+//   · 飞升篇开放 Lv.100，炼虚 / 合体需要明显境界跃迁，支撑 13-16 章难度抬升。
 const CULT_REALMS = [
   { id: 'mortal',     name: '凡人', minLv: 0,   maxLv: 0,   stages: 1,   blessing: 1.00, color: '#9DA3AD', accent: '#3A3F48', motto: '主人呀，每一位大修也是从凡尘起步的～' },
   { id: 'qi_sense',   name: '感气', minLv: 1,   maxLv: 4,   stages: 4,   blessing: 1.00, color: '#86C5A3', accent: '#1E6B3C', motto: '天地灵气已能感应到主人啦！'           },
@@ -71,8 +71,8 @@ const CULT_REALMS = [
   { id: 'core',       name: '金丹', minLv: 30,  maxLv: 44,  stages: 15,  blessing: 1.20, color: '#E5B55B', accent: '#7C4A0E', motto: '金丹凝成！主人的灵力已成气候。'        },
   { id: 'nascent',    name: '元婴', minLv: 45,  maxLv: 57,  stages: 13,  blessing: 1.35, color: '#C88AE2', accent: '#5A2685', motto: '元婴出窍，世间已少有匹敌～'           },
   { id: 'spirit',     name: '化神', minLv: 58,  maxLv: 79,  stages: 22,  blessing: 1.50, color: '#F08E58', accent: '#7A2A0C', motto: '化神一境，举手牵动风雷！'             },
-  { id: 'void',       name: '炼虚', minLv: 80,  maxLv: 99,  stages: 20,  blessing: 1.50, color: '#EC6B9C', accent: '#7A1D45', motto: '虚空可炼，主人已窥天道一角。'         },
-  { id: 'unity',      name: '合体', minLv: 100, maxLv: 119, stages: 20,  blessing: 1.50, color: '#D96F6F', accent: '#6A1616', motto: '神形合一，举手投足皆合天道～'         },
+  { id: 'void',       name: '炼虚', minLv: 80,  maxLv: 99,  stages: 20,  blessing: 1.68, color: '#EC6B9C', accent: '#7A1D45', motto: '虚空可炼，主人已窥天道一角。'         },
+  { id: 'unity',      name: '合体', minLv: 100, maxLv: 119, stages: 20,  blessing: 1.85, color: '#D96F6F', accent: '#6A1616', motto: '神形合一，举手投足皆合天道～'         },
   { id: 'mahayana',   name: '大乘', minLv: 120, maxLv: 139, stages: 20,  blessing: 1.50, color: '#B25BD4', accent: '#4A1C70', motto: '大乘之境，主人已近仙途！'             },
   { id: 'trib',       name: '渡劫', minLv: 140, maxLv: 159, stages: 20,  blessing: 1.50, color: '#FFD66E', accent: '#8C5800', motto: '渡劫之境！主人的名将传于三界～'       },
   { id: 'ascend',     name: '飞升', minLv: 160, maxLv: 179, stages: 20,  blessing: 1.50, color: '#FFEFB0', accent: '#B28B2E', motto: '飞升在即，主人即将离凡入仙！'         },

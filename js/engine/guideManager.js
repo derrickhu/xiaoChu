@@ -249,7 +249,7 @@ const GUIDE_DEFS = {
     steps: [
       { text: '主人看这里～\n这里是本章主线，Boss 剪影就是章末守关的家伙', position: 'center' },
       { text: '每满 8 / 16 / 24 ★ 会解锁一档大奖，\n里面有觉醒石、SSR 碎片和保底券哦', position: 'center' },
-      { text: '全 3 ★ 通关本章还会点亮专属徽章，\n收集 12 章徽章就是修仙纪念册啦～', position: 'center' },
+      { text: '全 3 ★ 通关本章还会点亮专属徽章，\n收集全部章节徽章就是修仙纪念册啦～', position: 'center' },
       { text: '本版本起新通关的星才会累计进度，\n老主人可以回头把低关刷成 3★ 一次性拿大奖哦', position: 'center' },
     ],
   },

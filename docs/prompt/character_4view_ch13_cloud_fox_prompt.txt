@@ -1,0 +1,20 @@
+A single 1:1 square image divided into a clean 2x2 grid of four equal panels on one canvas. The entire background of all four panels MUST be a perfectly flat, solid chroma-key magenta color #FF00FF, with no gradient, no texture, no shadow, no lighting, no vignette, no paper grain.
+
+Use the reference image ONLY to understand this game's normal-versus-awakened style difference. Normal forms are cute, young, round, clean, soft, with simple accessories and lower detail density. Awakened forms keep the same species identity but become visibly more refined, more ornate, more mature, and more premium, with stronger contrast, richer colors, more gold ornaments, upgraded headpiece, chest or shoulder ornaments, denser decorative patterns, and a more confident divine expression. Do NOT copy any exact character from the reference image.
+
+All four panels depict the EXACT SAME character species and identity: Cloud-Pattern Spirit Fox. The normal form and awakened form must clearly be the same character, sharing the same pointed fox muzzle, aqua-blue eye color, mist-blue and pearl-white fur identity, cloud-shaped tails, pink inner ears, and playful clever personality.
+
+PANEL LAYOUT:
+TOP-LEFT PANEL — NORMAL FORM AVATAR: half-body bust portrait from head to upper chest. Young cute chibi spirit fox, soft mist-blue and pearl-white fur, two or three fluffy cloud-shaped tails hinted behind shoulders, simple sky-blue ribbon collar with tiny silver bell, small gold forehead ornament with blue jade drop, large aqua-blue eyes with crescent highlights, playful smile. Big head small body ratio 3:1.
+
+TOP-RIGHT PANEL — AWAKENED FORM AVATAR: half-body bust portrait of the SAME fox identity. More refined and divine: richer blue-white fur gradients, larger gold forehead ornament, elegant cloud-shaped ear jewelry, layered silk collar, more ornate tassels, denser pale cloud scroll markings on cheeks and tails, sharper confident eyes. Still cute and Q-version, clearly awakened quality.
+
+BOTTOM-LEFT PANEL — NORMAL FORM FULL BODY: the same normal fox in full body view, front-facing toward the viewer, eyes looking directly at the viewer. Compact Q-version fox body, cloud tails fanning outward, one paw lifted, simple ribbon and bell, clean readable silhouette. Body fills 70-80% of the panel height.
+
+BOTTOM-RIGHT PANEL — AWAKENED FORM FULL BODY: the same awakened fox in full body view, front-facing toward the viewer. More ornate and powerful: fuller cloud tails, gold cloud ornaments on ears and collar, jade anklets, richer cloud scroll body patterns, confident bead-disturbing stance. Body fills 70-80% of the panel height.
+
+STYLE: Chinese ink wash painting inspired with soft cel-shading, calligraphy brush-style BLACK ink outlines with varying thickness, rich traditional mineral pigments with pastel accent tones, refined xianxia mythology aesthetic, cute Q-version proportions, premium collectible game character art. Suitable for both pet and monster usage.
+
+CRITICAL CUTOUT EDGE RULES: the outermost visible edge of every character must be a clean black ink outline directly touching the magenta #FF00FF background. Absolutely NO white border, off-white border, pale rim, sticker outline, white stroke, white halo, or white glow outside the character. No drop shadow, no ambient shadow, no cast shadow, no ground shadow. No semi-transparent mist, clouds, smoke, aura, glow, or soft outer effects. No detached particles outside the silhouette.
+
+STRICTLY FORBIDDEN: any text, letters, watermark, symbols, seals, labels, captions. Also forbidden: blur, soft edges, lens flare, humanoid body, human face, flat human-like face on an animal, any part touching or extending beyond a panel boundary.

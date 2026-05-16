@@ -1,5 +1,5 @@
 /**
- * 章节主线页 chapterMap — 12 章横向翻页卡
+ * 章节主线页 chapterMap — 横向翻页卡
  *
  * 设计意图（plan D2 节）：
  *   · 首页章节带点击进入
@@ -8,7 +8,7 @@
  *   · 底部"继续闯关"按钮 → 跳到该章下一未通关关（若本章全通关则跳下一章第一关；未解锁则 toast）
  *
  * 场景状态：
- *   · g._chapterMapSelected: number  当前查看章节 id（1~12）
+ *   · g._chapterMapSelected: number  当前查看章节 id（1~当前最大章节）
  *   · g._chapterMapSwipeDx: number   拖动偏移（渲染时用于缓动）
  *
  * 触摸区（_rects）：
@@ -33,6 +33,8 @@ const guideMgr = require('../engine/guideManager')
 const stageManager = require('../engine/stageManager')
 const flyParticles = require('./resourceFlyParticles')
 
+const MAX_CHAPTER = CHAPTERS.length
+
 const _rects = {
   backBtnRect: null,
   leftArrowRect: null,
@@ -55,7 +57,7 @@ function rChapterMap(g) {
   //   · 对策：箭头硬性只能切到 highestUnlocked，被卡住时页面只展示一句文案，不预告内容
   const highestUnlocked = _computeHighestUnlockedChapter(g.storage)
   if (g._chapterMapSelected > highestUnlocked) g._chapterMapSelected = highestUnlocked
-  const chapterId = Math.max(1, Math.min(12, g._chapterMapSelected))
+  const chapterId = Math.max(1, Math.min(MAX_CHAPTER, g._chapterMapSelected))
   const chapter = getChapterById(chapterId)
   const themeColor = (chapter && chapter.theme) || '#b89068'
 
@@ -107,12 +109,12 @@ function rChapterMap(g) {
 }
 
 function _detectCurrentChapter(storage) {
-  // 取当前玩家未全通关的最低章节，找不到就 12
-  for (let ch = 1; ch <= 12; ch++) {
+  // 取当前玩家未全通关的最低章节，找不到就最后一章
+  for (let ch = 1; ch <= MAX_CHAPTER; ch++) {
     const stages = getChapterStages(ch, 'normal')
     if (stages.some(s => !storage.isStageCleared(s.id))) return ch
   }
-  return 12
+  return MAX_CHAPTER
 }
 
 /**
@@ -124,7 +126,7 @@ function _detectCurrentChapter(storage) {
  *   · UI 侧用它来限制右箭头 / 钳位 _chapterMapSelected
  */
 function _computeHighestUnlockedChapter(storage) {
-  for (let ch = 12; ch >= 2; ch--) {
+  for (let ch = MAX_CHAPTER; ch >= 2; ch--) {
     if (storage.isStageCleared(`stage_${ch - 1}_8`)) return ch
   }
   return 1
@@ -154,11 +156,11 @@ function _drawTopBar(c, R, W, S, safeTop, themeColor, chapterId) {
   c.fillStyle = '#3d2f22'
   c.font = `bold ${13*S}px "PingFang SC",sans-serif`
   c.fillText('章节主线', W / 2, y + topH / 2)
-  // 右侧：第 X / 12 章指示
+  // 右侧：第 X / N 章指示
   c.textAlign = 'right'
   c.font = `bold ${10*S}px "PingFang SC",sans-serif`
   c.fillStyle = themeColor
-  c.fillText(`第 ${chapterId} / 12 章`, W - 14 * S, y + topH / 2)
+  c.fillText(`第 ${chapterId} / ${MAX_CHAPTER} 章`, W - 14 * S, y + topH / 2)
 }
 
 function _drawChapterCard(c, R, S, x, y, w, h, chapterId, storage) {
@@ -499,7 +501,7 @@ function tChapterMap(g, x, y, type) {
     return
   }
   if (_rects.rightArrowRect && _hit(x, y, _rects.rightArrowRect)) {
-    g._chapterMapSelected = Math.min(12, (g._chapterMapSelected || 1) + 1)
+    g._chapterMapSelected = Math.min(MAX_CHAPTER, (g._chapterMapSelected || 1) + 1)
     return
   }
   if (_rects.enterBtnRect && _hit(x, y, _rects.enterBtnRect)) {

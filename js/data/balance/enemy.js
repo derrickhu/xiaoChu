@@ -122,7 +122,7 @@ const ENEMY_SKILLS = {
   trialSealEarth:   { name:'土锁压阵', desc:'随机破坏2颗灵珠', type:'breakBead', count:2 },
 }
 
-// ===== 秘境精英倍率（1-12章） =====
+// ===== 秘境精英倍率（1-16章） =====
 const STAGE_ELITE_MULTIPLIERS = {
   1:  { hp: 1.8, atk: 1.3, def: 1.5 },
   2:  { hp: 1.9, atk: 1.35, def: 1.5 },
@@ -136,6 +136,10 @@ const STAGE_ELITE_MULTIPLIERS = {
   10: { hp: 3.2, atk: 1.75, def: 1.9 },
   11: { hp: 3.4, atk: 1.8, def: 1.9 },
   12: { hp: 3.5, atk: 1.8, def: 2.0 },
+  13: { hp: 2.8, atk: 1.32, def: 1.7 },
+  14: { hp: 3.0, atk: 1.36, def: 1.85 },
+  15: { hp: 3.2, atk: 1.38, def: 2.0 },
+  16: { hp: 3.4, atk: 1.40, def: 2.15 },
 }
 
 // Boss 保底倍率
@@ -156,6 +160,56 @@ const STAGE_BOSS_SKILL_SETS = {
   10: ['bossRage', 'bossInferno', 'bossAnnihil'],
   11: ['bossCurse', 'bossSealAttr', 'bossDrain'],
   12: ['bossUltimate', 'bossSealAll', 'bossAnnihil'],
+  13: ['bossMirror', 'counterSeal', 'bossBlitz', 'bossAnnihil'],
+  14: ['bossDrain', 'sealColumn', 'timeSqueeze', 'bossUltimate'],
+  15: ['bossSealAttr', 'bossMirror', 'bossAnnihil', 'bossBlitz'],
+  16: ['bossUltimate', 'bossSealAll', 'bossCurse', 'bossAnnihil'],
+}
+
+// 飞升篇（13-16章）固定面板曲线：
+//   · 攻击力按"长期满 80 级玩家也需要继续发育"校准，13 章普通小关也形成高压。
+//   · 挑战由高血量、高防御、技能机制和高普攻共同承担，满养成账号也需要回血/护盾/控场配合。
+const STAGE_ASCENSION_CURVE = {
+  13: [
+    { hp: 75000,  atk: 390, def: 120 },
+    { hp: 88000,  atk: 455, def: 128 },
+    { hp: 104000, atk: 520, def: 138 },
+    { hp: 122000, atk: 590, def: 150 },
+    { hp: 144000, atk: 660, def: 164 },
+    { hp: 168000, atk: 740, def: 180 },
+    { hp: 195000, atk: 830, def: 198 },
+    { hp: 225000, atk: 930, def: 220 },
+  ],
+  14: [
+    { hp: 250000, atk: 950,  def: 240 },
+    { hp: 275000, atk: 1030, def: 255 },
+    { hp: 302000, atk: 1120, def: 272 },
+    { hp: 332000, atk: 1220, def: 290 },
+    { hp: 365000, atk: 1330, def: 310 },
+    { hp: 400000, atk: 1450, def: 332 },
+    { hp: 430000, atk: 1520, def: 356 },
+    { hp: 460000, atk: 1600, def: 380 },
+  ],
+  15: [
+    { hp: 520000, atk: 1650, def: 420 },
+    { hp: 555000, atk: 1730, def: 445 },
+    { hp: 595000, atk: 1810, def: 472 },
+    { hp: 640000, atk: 1890, def: 502 },
+    { hp: 690000, atk: 1950, def: 535 },
+    { hp: 745000, atk: 1990, def: 570 },
+    { hp: 805000, atk: 2020, def: 608 },
+    { hp: 870000, atk: 2050, def: 650 },
+  ],
+  16: [
+    { hp: 900000,  atk: 2100, def: 700 },
+    { hp: 980000,  atk: 2150, def: 740 },
+    { hp: 1070000, atk: 2200, def: 785 },
+    { hp: 1170000, atk: 2260, def: 835 },
+    { hp: 1280000, atk: 2320, def: 890 },
+    { hp: 1400000, atk: 2360, def: 950 },
+    { hp: 1540000, atk: 2380, def: 1015 },
+    { hp: 1700000, atk: 2400, def: 1100 },
+  ],
 }
 
 // 全局递增保底：每关 hp/atk/def 至少为前一关的此比例，消除跨章断崖
@@ -190,6 +244,7 @@ module.exports = {
   STAGE_ELITE_MULTIPLIERS,
   STAGE_BOSS_STAT_FLOOR,
   STAGE_BOSS_SKILL_SETS,
+  STAGE_ASCENSION_CURVE,
   STAGE_MIN_GROWTH_RATE,
   STAGE_MINION_HP_RATIO,
   NEWBIE_ENEMY_OVERRIDE,

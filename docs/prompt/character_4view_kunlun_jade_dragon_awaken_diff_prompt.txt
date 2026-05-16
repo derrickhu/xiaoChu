@@ -1,0 +1,35 @@
+A single 1:1 square image divided into a clean 2x2 layout of four equal panels on one canvas. Use invisible panel boundaries only: DO NOT draw black grid lines, divider lines, panel borders, frames, boxes, or separators. Leave only magenta spacing between the four characters. The entire background of all four panels MUST be a perfectly flat, solid chroma-key magenta color #FF00FF, with no gradient, no texture, no shadow, no lighting, no vignette, no paper grain.
+
+Use the reference image ONLY to understand this game's normal-versus-awakened style difference:
+- Normal forms are cute, young, round, clean, soft, with simple accessories and lower detail density.
+- Awakened forms keep the same species identity but become visibly more refined, more ornate, more mature, and more premium.
+- Awakened forms use stronger contrast, deeper/richer colors, more gold ornaments, headpiece/crown upgrades, chest or shoulder ornaments, denser decorative patterns, and a more confident divine expression.
+- Do NOT copy any exact character from the reference image. Create a new Kunlun Jade Dragon character.
+
+All four panels depict the EXACT SAME character species and identity: Kunlun Jade Dragon. The normal form and awakened form must clearly be the same character, sharing the same face shape, sapphire-blue eye color, horn identity, dragon snout, body markings, scale pattern, and core jade color identity. The awakened form is a premium evolution, not a different creature.
+
+PANEL LAYOUT:
+TOP-LEFT PANEL — NORMAL FORM AVATAR: half-body bust portrait from head to upper chest. Young cute chibi dragon, soft rounded face, simpler horn caps, simple bead necklace, small jade forehead mark, fluffy white mane, friendly calm expression. Big head small body ratio 3:1, centered with clear margin.
+
+TOP-RIGHT PANEL — AWAKENED FORM AVATAR: half-body bust portrait of the SAME dragon identity. It must be noticeably more evolved and refined than the normal avatar: taller gold-and-jade crown-like horn ornaments, larger polished forehead gem, richer gold filigree around brows and horns, denser jade bead tassels, more layered white mane, deeper emerald scales, sharper confident eyes, elegant chest collar or small shoulder mantle. Still cute and Q-version, but clearly SSR awakened quality.
+
+BOTTOM-LEFT PANEL — NORMAL FORM FULL BODY: the same normal dragon in full body view, front-facing toward the viewer, eyes looking directly at the viewer. Compact Q-version body, short coiled tail, one claw lifted, simple ornaments, clean readable silhouette. Body fills 70-80% of the panel height, fully contained inside the panel.
+
+BOTTOM-RIGHT PANEL — AWAKENED FORM FULL BODY: the same awakened dragon in full body view, front-facing toward the viewer, eyes looking directly at the viewer. It must be much more ornate and powerful than the normal full body: longer elegant body, larger curled tail plume, layered white mane flowing along the body, jade-gold crown ornaments, gold bracelets on claws, richer chest collar, denser mountain-cloud patterns on scales, deeper emerald and white jade gradients. Confident divine guardian stance, but still cute and collectible. Body fills 70-80% of the panel height, fully contained inside the panel.
+
+STYLE: Chinese ink wash painting inspired with soft cel-shading, calligraphy brush-style BLACK ink outlines with varying thickness, rich traditional mineral pigments with pastel accent tones, refined xianxia mythology aesthetic, cute Q-version proportions, premium collectible game character art. Suitable for both pet and monster usage.
+
+CRITICAL CUTOUT EDGE RULES:
+- The OUTERMOST visible edge of every character must be a clean black ink outline.
+- The black ink outline must directly touch the magenta #FF00FF background.
+- Absolutely NO white border, NO off-white border, NO pale rim, NO sticker outline, NO white stroke, NO white halo, NO white glow outside the character.
+- No drop shadow, no ambient shadow, no cast shadow, no ground shadow.
+- No semi-transparent mist, no clouds, no smoke, no aura, no glow, no soft outer effects around the body.
+- No detached particles or floating effects outside the silhouette.
+- Each character must be easy to isolate by removing the pure magenta background.
+
+STRICTLY FORBIDDEN: any text, letters, watermark, symbols, seals, labels, captions. Also forbidden: blur, soft edges, lens flare, humanoid body, human face, flat human-like face on an animal, any part of the character touching or extending beyond a panel boundary.
+
+NORMAL FORM DESCRIPTION: Kunlun Jade Dragon, emerald jade scales with subtle white jade gradients, simple gold cloud-shaped horns, fluffy white mane contained inside the black outline, long soft whiskers contained inside the black outline, large sapphire-blue eyes with golden star highlights, small golden bell ornaments and jade bead tassels around the neck and horns, simple cloud-and-mountain patterns on the scales, pearl-like claws, elegant curled tail.
+
+AWAKENED FORM UPGRADES: The same Kunlun Jade Dragon evolved into a divine jade guardian. Deeper emerald and white jade scale gradients, much more intricate gold cloud horn crown, larger jade forehead gem, rich gold-and-jade tassels, thicker layered white mane, refined golden mountain-cloud scale patterns, elegant jade bracelets on claws, ornate chest collar and shoulder mantle, more confident divine expression. Keep the same face, eye color, body silhouette, and horn identity.

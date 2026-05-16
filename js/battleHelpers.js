@@ -116,6 +116,9 @@ function dealDmgToHero(g, dmg, opts) {
   const resolved = resolveIncomingDamage(g, dmg, opts)
   let resolvedDmg = resolved.damage
   if (immune && resolvedDmg > DMG_IMMUNE_MIN) resolvedDmg = DMG_IMMUNE_MIN
+  if (opts && opts.maxDamage != null && resolvedDmg > opts.maxDamage) {
+    resolvedDmg = Math.max(0, Math.round(opts.maxDamage))
+  }
   const result = {
     incomingDamage: resolvedDmg,
     rawDamage: resolved.rawDamage,

@@ -23,8 +23,8 @@ function expToNextLevel(level) {
   return base
 }
 
-// 修炼树总共需要的点数（v2 后：28+19+5+14+12 = 78）
-//   与 CULT_MAX_LEVEL=80 对应，Lv.1 起步 + 79 次升级共 80 修炼点，差 2 点正好覆盖老 Lv.60 的 2 闲置点。
+// 修炼树总共需要的点数（v3 后：35+22+5+20+17 = 99）
+//   与 CULT_MAX_LEVEL=100 对应，Lv.1 起步 + 99 次升级，满级刚好点满整棵修炼树。
 const TOTAL_POINTS_NEEDED = CULT_KEYS.reduce((s, k) => s + CULT_CONFIG[k].maxLv, 0)
 
 /**

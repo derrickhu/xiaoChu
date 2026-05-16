@@ -59,6 +59,7 @@ const {
   BOSS_DEVOUR_DEFAULTS, BOSS_DOT_DEFAULTS, BOSS_MIRROR_DEFAULTS,
   BOSS_WEAKEN_DEFAULTS, BOSS_BLITZ_DEFAULTS, BOSS_DRAIN_DEFAULT_ATK_PCT,
   BOSS_ANNIHIL_DEFAULTS, BOSS_CURSE_DEFAULTS, BOSS_ULTIMATE_DEFAULTS,
+  ASCENSION_BOSS_SKILL_CAP_MIN_CHAPTER, ASCENSION_BOSS_SKILL_DAMAGE_CAP_PCT,
   calcPetInitialCd,
 } = require('../data/balance/combat')
 
@@ -70,6 +71,20 @@ function _pickEnemySkill(g) {
     return skills[idx % skills.length]
   }
   return skills[Math.floor(Math.random() * skills.length)]
+}
+
+function _getStageChapter(g) {
+  if (!g || !g._stageId) return 0
+  const m = /^stage_(\d+)_/.exec(g._stageId)
+  return m ? parseInt(m[1], 10) : 0
+}
+
+function _ascensionBossSkillCap(g) {
+  if (!g || !g.enemy || !g.enemy.isBoss) return null
+  if (_getStageChapter(g) < ASCENSION_BOSS_SKILL_CAP_MIN_CHAPTER) return null
+  const pool = Math.max(0, Math.round((g.heroMaxHp || 0) + (g.heroShield || 0)))
+  if (pool <= 0) return null
+  return Math.max(1, Math.round(pool * ASCENSION_BOSS_SKILL_DAMAGE_CAP_PCT / 100))
 }
 
 function _advanceEnemySkill(g) {
@@ -1533,7 +1548,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossAnnihil': {
       // 灭世天劫：大伤害 + 碎珠
       let aDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ANNIHIL_DEFAULTS.atkPct))
-      g._dealDmgToHero(aDmg, { source: 'skill' })
+      g._dealDmgToHero(aDmg, { source: 'skill', maxDamage: _ascensionBossSkillCap(g) })
       for (let i = 0; i < (sk.breakCount || BOSS_ANNIHIL_DEFAULTS.breakCount); i++) {
         const r = Math.floor(Math.random()*ROWS), c = Math.floor(Math.random()*COLS)
         g.board[r][c] = null
@@ -1549,7 +1564,7 @@ function applyEnemySkill(g, skillKey) {
     case 'bossUltimate': {
       // 超越·终焉：大伤害 + 封锁（全场或随机） + 眩晕
       let uDmg = Math.round(g.enemy.atk * (sk.atkPct || BOSS_ULTIMATE_DEFAULTS.atkPct))
-      g._dealDmgToHero(uDmg, { source: 'skill' })
+      g._dealDmgToHero(uDmg, { source: 'skill', maxDamage: _ascensionBossSkillCap(g) })
       if (sk.sealType === 'all') {
         // 封锁外围灵珠（保留中心区域可操作，避免卡死）
         for (let r = 0; r < ROWS; r++) {

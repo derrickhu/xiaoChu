@@ -1,5 +1,5 @@
 /**
- * 章节星级里程碑配置 — 12 章 × 3 档（8★ / 16★ / 24★）
+ * 章节星级里程碑配置 — 16 章 × 3 档（8★ / 16★ / 24★）
  *
  * 设计原则（见 "章节大奖与牵引升级" plan B/E 节）：
  *   1. **三档阶梯**：8★（半章） / 16★（多半章） / 24★（满章），把"打完一章"拆成三个小目标，
@@ -43,6 +43,10 @@ const CHAPTER_SSR_PETS = {
   10: 'f10',  // 天罡圣域
   11: 'f4',   // 混沌秘界
   12: 'e10',  // 终焉之地
+  13: 'w10',  // 昆仑仙径
+  14: 's10',  // 归墟潮渊
+  15: 'm10',  // 星河天阙
+  16: 'f10',  // 天外魔域
 }
 
 /**
@@ -124,6 +128,26 @@ const CHAPTER_MILESTONES = {
     8:  [{ type: 'soulStone', amount: 750 }, { type: 'awakenStone', amount: 10 }, { type: 'ssrFragment', count: 8 }],
     16: [{ type: 'soulStone', amount: 1300 }, { type: 'universalFragment', count: 2 }, { type: 'ssrFragment', count: 10 }, { type: 'awakenStone', amount: 15 }],
     24: [{ type: 'soulStone', amount: 1700 }, { type: 'universalFragment', count: 3 }, { type: 'ssrWeapon' }],
+  },
+  13: {
+    8:  [{ type: 'soulStone', amount: 850 }, { type: 'awakenStone', amount: 12 }, { type: 'ssrFragment', count: 9 }],
+    16: [{ type: 'soulStone', amount: 1450 }, { type: 'universalFragment', count: 3 }, { type: 'ssrFragment', count: 11 }, { type: 'awakenStone', amount: 17 }],
+    24: [{ type: 'soulStone', amount: 1900 }, { type: 'universalFragment', count: 4 }, { type: 'ssrWeapon' }],
+  },
+  14: {
+    8:  [{ type: 'soulStone', amount: 950 }, { type: 'awakenStone', amount: 14 }, { type: 'ssrFragment', count: 10 }],
+    16: [{ type: 'soulStone', amount: 1600 }, { type: 'universalFragment', count: 3 }, { type: 'ssrFragment', count: 12 }, { type: 'awakenStone', amount: 19 }],
+    24: [{ type: 'soulStone', amount: 2100 }, { type: 'universalFragment', count: 4 }, { type: 'ssrWeapon' }],
+  },
+  15: {
+    8:  [{ type: 'soulStone', amount: 1050 }, { type: 'awakenStone', amount: 16 }, { type: 'ssrFragment', count: 11 }],
+    16: [{ type: 'soulStone', amount: 1750 }, { type: 'universalFragment', count: 3 }, { type: 'ssrFragment', count: 13 }, { type: 'awakenStone', amount: 22 }],
+    24: [{ type: 'soulStone', amount: 2300 }, { type: 'universalFragment', count: 4 }, { type: 'ssrWeapon' }],
+  },
+  16: {
+    8:  [{ type: 'soulStone', amount: 1200 }, { type: 'awakenStone', amount: 20 }, { type: 'ssrFragment', count: 12 }],
+    16: [{ type: 'soulStone', amount: 2000 }, { type: 'universalFragment', count: 4 }, { type: 'ssrFragment', count: 15 }, { type: 'awakenStone', amount: 26 }],
+    24: [{ type: 'soulStone', amount: 2600 }, { type: 'universalFragment', count: 5 }, { type: 'ssrWeapon' }],
   },
 }
 

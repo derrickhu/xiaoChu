@@ -46,6 +46,10 @@ const ECONOMY_FRAMEWORK = {
     10: { soulStone: 1480, fragment: 34, awakenStonePerWeek: 12 },
     11: { soulStone: 1750, fragment: 40, awakenStonePerWeek: 15 },
     12: { soulStone: 2080, fragment: 46, awakenStonePerWeek: 18 },
+    13: { soulStone: 2320, fragment: 52, awakenStonePerWeek: 20 },
+    14: { soulStone: 2580, fragment: 58, awakenStonePerWeek: 22 },
+    15: { soulStone: 2860, fragment: 64, awakenStonePerWeek: 24 },
+    16: { soulStone: 3160, fragment: 72, awakenStonePerWeek: 28 },
   },
   // v2.2 "曲线平滑方案 A"：stageRepeat 0.35 → 0.42（+20%），把"推进期日均灵石"抬起来填 Day3~7 饿肚子
   //   · 直接作用于 _genStageRewards → STAGE_REWARDS.normal.soulStone.repeat，玩家每天刷关收益上调
@@ -66,6 +70,7 @@ const ECONOMY_FRAMEWORK = {
   dailyTaskScale: {
     1: 1.0, 2: 1.3, 3: 1.5, 4: 1.7, 5: 1.8, 6: 2.2,
     7: 2.6, 8: 3.1, 9: 3.7, 10: 4.3, 11: 5.1, 12: 6.0,
+    13: 6.4, 14: 6.8, 15: 7.2, 16: 7.8,
   },
 }
 
@@ -97,6 +102,10 @@ const CHAPTER_CLEAR_REWARDS = {
   10: { soulStone: 300, fragment: 18, awakenStone: 6 },
   11: { soulStone: 350, fragment: 22, awakenStone: 8 },
   12: { soulStone: 400, fragment: 26, awakenStone: 10 },
+  13: { soulStone: 460, fragment: 30, awakenStone: 12 },
+  14: { soulStone: 520, fragment: 34, awakenStone: 14 },
+  15: { soulStone: 590, fragment: 38, awakenStone: 16 },
+  16: { soulStone: 680, fragment: 44, awakenStone: 20 },
 }
 
 // ===== 通天塔结算 =====
@@ -241,7 +250,7 @@ const SUMMON_FRAG_COST = { R: 10, SR: 15, SSR: 25 }
 const DEFAULT_RANDOM_FRAG_WEIGHTS = { R: 80, SR: 20, SSR: 0 }
 
 // ===== 关卡奖励生成系数（从 economyConfig.js 迁入） =====
-const DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7 }
+const DAILY_STAGE_EST = { 1:20, 2:18, 3:16, 4:14, 5:13, 6:12, 7:11, 8:10, 9:9, 10:8, 11:7, 12:7, 13:6, 14:6, 15:5, 16:5 }
 const REWARD_DIST_W = [0.7, 0.8, 0.85, 0.95, 1.0, 1.1, 1.25, 1.4]
 const REWARD_FIRST_CLEAR_MUL = 1.5
 const REWARD_ELITE_MUL = { soulStone: 1.5, fragment: { first: 1.4, repeat: 1.3 }, awakenStone: 1.5 }

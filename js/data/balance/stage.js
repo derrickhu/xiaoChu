@@ -65,6 +65,10 @@ const CHAPTER_RECOMMENDED = {
   10: { cultLevel: 40, petStar: 4 },
   11: { cultLevel: 48, petStar: 4 },
   12: { cultLevel: 55, petStar: 5 },
+  13: { cultLevel: 80, petStar: 5 },
+  14: { cultLevel: 86, petStar: 5 },
+  15: { cultLevel: 93, petStar: 5 },
+  16: { cultLevel: 100, petStar: 5 },
 }
 
 // ===== Roguelike 随机掉落权重（每章基础概率，总和不必 =100，按权重抽取） =====
@@ -81,6 +85,10 @@ const PET_DROP_WEIGHTS = {
   10: { R: 0,  SR: 78, SSR: 22 },
   11: { R: 0,  SR: 73, SSR: 27 },
   12: { R: 0,  SR: 68, SSR: 32 },
+  13: { R: 0,  SR: 64, SSR: 36 },
+  14: { R: 0,  SR: 60, SSR: 40 },
+  15: { R: 0,  SR: 56, SSR: 44 },
+  16: { R: 0,  SR: 52, SSR: 48 },
 }
 
 const WPN_DROP_WEIGHTS = {
@@ -96,6 +104,10 @@ const WPN_DROP_WEIGHTS = {
   10: { R: 0,  SR: 74, SSR: 26 },
   11: { R: 0,  SR: 67, SSR: 33 },
   12: { R: 0,  SR: 60, SSR: 40 },
+  13: { R: 0,  SR: 56, SSR: 44 },
+  14: { R: 0,  SR: 52, SSR: 48 },
+  15: { R: 0,  SR: 48, SSR: 52 },
+  16: { R: 0,  SR: 44, SSR: 56 },
 }
 
 // 精英关 / Boss 关额外加成（叠加到基础权重后归一化抽取）

@@ -1,6 +1,6 @@
 /**
- * 固定关卡配置 — 12章×8关 = 96 普通 + 96 精英 = 192 关
- * 普通关: 线性解锁 stage_1_1 → stage_1_2 → … → stage_12_8
+ * 固定关卡配置 — 16章×8关 = 128 普通 + 128 精英 = 256 关
+ * 普通关: 线性解锁 stage_1_1 → stage_1_2 → … → stage_16_8
  * 精英关: 对应普通关 bestRating === 'S' 解锁
  */
 
@@ -10,7 +10,7 @@ const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 const {
   STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_BOSS_SKILL_SETS,
-  STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
+  STAGE_ASCENSION_CURVE, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
 } = require('./balance/enemy')
 const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
@@ -33,6 +33,11 @@ function _getStageEnemySkills(ch, ord, fallbackSkills) {
     return _uniqueSkills(STAGE_BOSS_SKILL_SETS[ch] || fallbackSkills)
   }
   return _uniqueSkills(fallbackSkills)
+}
+
+function _getAscensionStageStat(ch, ord) {
+  const curve = STAGE_ASCENSION_CURVE[ch]
+  return curve ? curve[ord - 1] : null
 }
 
 /**
@@ -64,7 +69,12 @@ const CHAPTERS = [
   { id: 10, name: '天罡圣域',   desc: '天罡之境，气贯九霄', subtitle: '天罡气贯九霄',   theme: '#c8a94a', bannerKey: null, badgeKey: null },
   { id: 11, name: '混沌秘界',   desc: '混沌初开，法则崩坏', subtitle: '混沌初开之境',   theme: '#8a5ec0', bannerKey: null, badgeKey: null },
   { id: 12, name: '终焉之地',   desc: '万妖之巅，终极对决', subtitle: '万妖之巅终对决', theme: '#b84f7a', bannerKey: null, badgeKey: null },
+  { id: 13, name: '昆仑仙径',   desc: '飞升初启，玉京试道', subtitle: '飞升篇·玉京试道', theme: '#7bcfbd', bannerKey: null, badgeKey: null },
+  { id: 14, name: '归墟潮渊',   desc: '万潮归墟，深海问心', subtitle: '飞升篇·归墟问心', theme: '#4f93c8', bannerKey: null, badgeKey: null },
+  { id: 15, name: '星河天阙',   desc: '星门洞开，天阙争锋', subtitle: '飞升篇·星河争锋', theme: '#8c78e6', bannerKey: null, badgeKey: null },
+  { id: 16, name: '天外魔域',   desc: '天魔压境，终证大道', subtitle: '飞升篇·天魔证道', theme: '#d15a8c', bannerKey: null, badgeKey: null },
 ]
+const MAX_CHAPTER = CHAPTERS.length
 
 /**
  * 法宝投放策略：只在**章末 Boss（ord===8）**的普通/精英关发放法宝，
@@ -141,11 +151,15 @@ function _genStageSpecs() {
     10: ['金甲','枯木','磐岩','深渊','焚天','厚土','百花','天罡守关'],
     11: ['金甲','枯木','磐岩','深渊','焚天','天罡','烈焰','混沌守关'],
     12: ['磐岩','深渊','万妖','金锋','花灵','焚天','九天','终焉守关'],
+    13: ['玉角','金羽','云狐','玄岩','昆仑','幻云','裂岳','玉京守关'],
+    14: ['深渊','霜鳍','玄龟','潮汐','归墟','冰冕','深潮','沧溟守关'],
+    15: ['星辉','雷纹','赤日','星轮','烛照','雷劫','赤曜','星河守关'],
+    16: ['虚空','混沌','裂隙','玄影','天外','骨狐','裂界','天魔守关'],
   }
 
   const specs = {}
 
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= MAX_CHAPTER; ch++) {
     const ids = CHAPTER_ENEMY_IDS[ch]
     const chSpecs = []
     const names = _STAGE_NAMES[ch]
@@ -216,7 +230,7 @@ function buildAllStages() {
   const grow = STAGE_MIN_GROWTH_RATE
   let runMax = { hp: 0, atk: 0, def: 0 }
 
-  for (let ch = 1; ch <= 12; ch++) {
+  for (let ch = 1; ch <= MAX_CHAPTER; ch++) {
     const specs = STAGE_SPECS[ch]
     const mult = ELITE_MULTIPLIERS[ch]
     for (let i = 0; i < specs.length; i++) {
@@ -251,6 +265,13 @@ function buildAllStages() {
         bossDef = Math.max(enemyData.def, Math.round(maxPrevDef * BOSS_STAT_FLOOR.def))
       }
 
+      const ascensionStat = _getAscensionStageStat(ch, ord)
+      if (ascensionStat) {
+        bossHp = ascensionStat.hp
+        bossAtk = ascensionStat.atk
+        bossDef = ascensionStat.def
+      }
+
       // 全局递增保底：HP/ATK 严格递增(+1)，DEF 不回退即可
       if (runMax.hp > 0) {
         bossHp  = Math.max(bossHp,  Math.max(runMax.hp  + 1, Math.round(runMax.hp  * grow.hp)))
@@ -282,12 +303,13 @@ function buildAllStages() {
         const minionId = CHAPTER_ENEMY_IDS[ch][Math.max(0, i - 3)]
         const minionData = getEnemyById(minionId)
         if (minionData) {
+          const minionAscensionStat = _getAscensionStageStat(ch, Math.max(1, i - 2))
           const minion = {
             name: minionData.name,
             attr: minionData.attr,
-            hp: Math.round(minionData.hp * STAGE_MINION_HP_RATIO),
-            atk: minionData.atk,
-            def: minionData.def,
+            hp: Math.round((minionAscensionStat ? minionAscensionStat.hp : minionData.hp) * STAGE_MINION_HP_RATIO),
+            atk: minionAscensionStat ? minionAscensionStat.atk : minionData.atk,
+            def: minionAscensionStat ? minionAscensionStat.def : minionData.def,
             skills: [...minionData.skills],
             avatar: minionData.avatar,
           }
@@ -327,12 +349,16 @@ function buildAllStages() {
         const eMinionId = CHAPTER_ENEMY_IDS[ch][Math.max(0, i - 3)]
         const eMinionData = getEnemyById(eMinionId)
         if (eMinionData) {
+          const eMinionAscensionStat = _getAscensionStageStat(ch, Math.max(1, i - 2))
+          const eMinionHp = eMinionAscensionStat ? eMinionAscensionStat.hp : eMinionData.hp
+          const eMinionAtk = eMinionAscensionStat ? eMinionAscensionStat.atk : eMinionData.atk
+          const eMinionDef = eMinionAscensionStat ? eMinionAscensionStat.def : eMinionData.def
           const eMinion = {
             name: '狂暴·' + eMinionData.name,
             attr: eMinionData.attr,
-            hp: Math.round(eMinionData.hp * mult.hp * ELITE_MINION_HP_SCALE),
-            atk: Math.round(eMinionData.atk * mult.atk),
-            def: Math.round(eMinionData.def * mult.def),
+            hp: Math.round(eMinionHp * mult.hp * ELITE_MINION_HP_SCALE),
+            atk: Math.round(eMinionAtk * mult.atk),
+            def: Math.round(eMinionDef * mult.def),
             skills: [...eMinionData.skills],
             avatar: eMinionData.avatar,
           }

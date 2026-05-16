@@ -11,7 +11,7 @@ const { getWeaponById, getWeaponRarity } = require('../data/weapons')
 const { rarityVisualForAttr, rgbaFromHex } = require('../data/rewardVisual')
 const { MAX_LEVEL, expToNextLevel } = require('../data/cultivationConfig')
 const { POOL_STAR_FRAG_COST } = require('../data/petPoolConfig')
-const { getNextStageId, getStageById, getChapterById, isStageUnlocked } = require('../data/stages')
+const { CHAPTERS, getNextStageId, getStageById, getChapterById, isStageUnlocked } = require('../data/stages')
 const { analyzeDefeat } = require('../engine/strategyAdvisor')
 const MusicMgr = require('../runtime/music')
 const AdManager = require('../adManager')
@@ -183,7 +183,7 @@ function rStageResult(g) {
     result._shareCelebrated = true
     const stage = getStageById(result.stageId)
     const stageName = (stage && stage.name) || ''
-    const isFinalBoss = !!(stage && stage.chapter === 12 && stage.order === 8)
+    const isFinalBoss = !!(stage && stage.chapter === CHAPTERS.length && stage.order === 8)
     const isElite = !!(stage && stage.difficulty === 'elite')
     const turns = result.turns || result.turnCount || 0
 
@@ -411,7 +411,7 @@ function _getStageResultMeta(result) {
 
 function _isFinalBossStageResult(result) {
   const stage = _getStageResultMeta(result)
-  return !!(stage && stage.chapter === 12 && stage.order === 8)
+  return !!(stage && stage.chapter === CHAPTERS.length && stage.order === 8)
 }
 
 function _victoryHeadline(result) {
