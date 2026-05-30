@@ -1,13 +1,13 @@
 const { httpError } = require('./http')
 const { requireUser } = require('./auth')
-const { collection } = require('./db')
+const { getDb } = require('./db')
 const { getMaxBytes } = require('./config')
 
 const SERVER_KEYS = new Set(['_id', '_openid', 'userId', 'uid', 'platform', 'createdAt', 'updatedAt', 'lastWriteAt', 'payload', 'schemaVersion'])
 
 async function handlePull(req) {
   const { userId, platform } = requireUser(req)
-  const col = collection('playerData')
+  const col = getDb().collection(require('./config').getCollectionName('playerData'))
   const res = await col.where({ userId }).limit(1).get()
   const doc = (res && Array.isArray(res.data) && res.data[0]) || null
   if (!doc) {
@@ -39,7 +39,9 @@ async function handlePush(req) {
     throw httpError(413, 'PAYLOAD_TOO_LARGE', `payload 超限: ${size}B > ${maxBytes}B`)
   }
 
-  const col = collection('playerData')
+  const db = getDb()
+  const _ = db.command
+  const col = db.collection(require('./config').getCollectionName('playerData'))
   const existingRes = await col.where({ userId }).limit(1).get()
   const existing = (existingRes && Array.isArray(existingRes.data) && existingRes.data[0]) || null
   if (existing) {
@@ -70,7 +72,20 @@ async function handlePush(req) {
   }
 
   if (existing && existing._id) {
-    await col.doc(existing._id).update(doc)
+    // 存档是完整快照：payload 必须整体替换，不能让 SDK 把嵌套对象展开成点路径更新。
+    // 否则旧存档中某个中间字段为 null（如 loginSign.pendingDoubleRewards）时，
+    // 更新 payload.loginSign.pendingDoubleRewards.soulStone 会触发 Cannot create field ...。
+    await col.doc(existing._id).update({
+      userId,
+      uid: userId,
+      platform,
+      schemaVersion,
+      updatedAt,
+      baseRemoteUpdatedAt,
+      payload: _.set(payload),
+      payloadKeys: _.set(Object.keys(payload)),
+      lastWriteAt: now,
+    })
     return { updatedAt, savedAt: now, mode: 'update', sizeBytes: size }
   }
 
