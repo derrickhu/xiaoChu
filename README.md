@@ -2,6 +2,10 @@
 
 示例相关说明查阅[新手教程](https://developers.weixin.qq.com/minigame/dev/guide/develop/start.html)
 
+## CloudBase 统一后端迁移
+
+微信/抖音统一接入 CloudBase 后端 `xiaochu-api`，路由 `/xiaochu-api/login`、`/save/*`、`/ranking/*`、`/gift/*`、`/share/*`、`/admin/*`；`GAME_KEY = xiaochu`，集合统一使用 `xiaochu_*` 前缀，环境变量统一使用 `XIAOCHU_*` 前缀。详细部署、迁移、CDN 和验收清单见 `docs/cloudbase-xiaochu.md`。
+
 ## 源码目录介绍
 
 ```

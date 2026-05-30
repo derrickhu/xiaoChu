@@ -1,0 +1,13 @@
+{
+  "name": "xiaochu-api",
+  "version": "1.0.0",
+  "description": "Xiao Chu CloudBase unified HTTP backend with GAME_KEY isolation",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.5.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

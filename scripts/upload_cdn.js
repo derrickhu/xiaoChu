@@ -1,366 +1,364 @@
 #!/usr/bin/env node
+'use strict'
 /**
- * CDN 资源增量上传脚本 — 灵宠消消塔
+ * CDN 资源上传脚本 — 灵宠消消塔
  *
- * 使用微信 HTTP API 直接上传到云存储，零 SDK 依赖
- * 复用 WX_SECRET，和 export_wx.js 同一套鉴权
+ * 通过腾讯云 COS REST API 增量上传到 CloudBase 存储桶。
+ * 上传目标：cdnConfig.cloudbaseBucket，路径前缀 cdnConfig.cloudbaseFilePrefix（如 xiaochu/assets_cdn）
  *
  * 用法:
- *   ./scripts/upload.sh          增量上传
- *   ./scripts/upload.sh --force  强制全量重传
+ *   node scripts/upload_cdn.js --dry-run   # 仅列出差异，不上传
+ *   node scripts/upload_cdn.js             # 增量上传
+ *   node scripts/upload_cdn.js --force     # 全量重传
+ *
+ * 凭据来源 (scripts/.cdn_secret 或环境变量):
+ *   TENCENTCLOUD_SECRET_ID     腾讯云 API 密钥 ID（必填）
+ *   TENCENTCLOUD_SECRET_KEY    腾讯云 API 密钥 Key（必填）
+ *   TENCENTCLOUD_REGION        地域（可选，自动探测）
+ *   CDN_CLOUD_BUCKET           覆盖桶名（可选）
+ *   CDN_BASE_URL               覆盖访问域名（可选）
+ *   CDN_UPLOAD_CONCURRENCY     并发数（默认 5）
  */
-
-const https = require('https')
-const http = require('http')
 const fs = require('fs')
 const path = require('path')
+const https = require('https')
 const crypto = require('crypto')
 
-const { loadWxSecret, PROJECT_ROOT } = require('./loadWxSecret')
+const { loadUploadEnv, PROJECT_ROOT } = require('./loadWxSecret')
 const cdnCfg = require(path.join(PROJECT_ROOT, 'js', 'data', 'cdnConfig.js'))
 
-const APPID = 'wx53b03390106eff65'
-const ENV_ID = cdnCfg.cloudEnv
-const CDN_FILE_PREFIX = cdnCfg.filePrefix
-const CDN_LOCAL_DIRS = cdnCfg.cdnDirs.map(d => ({ local: d, remote: d }))
-const IGNORE_FILES = new Set(cdnCfg.ignoreFiles || ['game.js', '.DS_Store', 'Thumbs.db'])
 const FORCE = process.argv.includes('--force')
-const MANIFEST_LOCAL = path.join(PROJECT_ROOT, 'scripts', '.cdn_manifest.json')
+const DRY_RUN = process.argv.includes('--dry-run')
+const CONCURRENCY = Number(process.env.CDN_UPLOAD_CONCURRENCY || 5)
+const MANIFEST_LOCAL = path.join(PROJECT_ROOT, 'scripts', '.cdn_manifest.cloudbase.json')
 
-// 并发上传数
-const CONCURRENCY = 5
+const env = loadUploadEnv()
+const BUCKET = env.cloudBucket || cdnCfg.cloudbaseBucket
+const SECRET_ID = env.tencentSecretId
+const SECRET_KEY = env.tencentSecretKey
+const CDN_BASE_URL = (env.cdnBaseUrl || cdnCfg.cloudbasePublicBaseUrl || '').replace(/\/+$/, '')
+const CDN_FILE_PREFIX = String(cdnCfg.cloudbaseFilePrefix || '').replace(/^\/+|\/+$/g, '')
+const IGNORE_FILES = new Set(cdnCfg.ignoreFiles || ['game.js', '.DS_Store', 'Thumbs.db'])
+const CDN_LOCAL_DIRS = (cdnCfg.cdnDirs || []).map(d => ({ local: d, remote: d }))
 
-// ===== HTTP 工具 =====
-function httpsRequest(url, postData) {
+let REGION = env.tencentRegion || ''
+
+function sha1Hex(input) {
+  return crypto.createHash('sha1').update(input).digest('hex')
+}
+
+function hmacSha1Hex(key, input) {
+  return crypto.createHmac('sha1', key).update(input).digest('hex')
+}
+
+function encodePathname(p) {
+  return p.split('/').map(seg => encodeURIComponent(seg)).join('/')
+}
+
+function requestRaw({ method = 'GET', hostname, path: reqPath = '/', headers = {}, body = null, timeoutMs = 30000 }) {
   return new Promise((resolve, reject) => {
-    const body = typeof postData === 'string' ? postData : JSON.stringify(postData)
-    const urlObj = new URL(url)
-    const options = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
-      method: postData ? 'POST' : 'GET',
-      headers: postData ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {},
-    }
-    const req = https.request(options, (res) => {
-      let data = ''
-      res.on('data', chunk => data += chunk)
+    const data = body === null || body === undefined ? null : Buffer.isBuffer(body) ? body : Buffer.from(String(body))
+    const req = https.request({
+      hostname,
+      path: reqPath,
+      method,
+      headers: {
+        ...headers,
+        ...(data ? { 'Content-Length': data.length } : {}),
+      },
+    }, (res) => {
+      const chunks = []
+      res.on('data', chunk => chunks.push(chunk))
       res.on('end', () => {
-        try { resolve(JSON.parse(data)) }
-        catch { resolve(data) }
+        resolve({
+          statusCode: res.statusCode || 0,
+          headers: res.headers,
+          body: Buffer.concat(chunks),
+        })
       })
     })
     req.on('error', reject)
-    if (postData) req.write(body)
-    req.end()
-  })
-}
-
-function multipartUpload(uploadUrl, fields, fileBuffer, fileName) {
-  return new Promise((resolve, reject) => {
-    const boundary = '----CDNUpload' + Date.now()
-    let body = ''
-    for (const [key, val] of Object.entries(fields)) {
-      body += `--${boundary}\r\n`
-      body += `Content-Disposition: form-data; name="${key}"\r\n\r\n`
-      body += `${val}\r\n`
-    }
-    body += `--${boundary}\r\n`
-    body += `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`
-    body += `Content-Type: application/octet-stream\r\n\r\n`
-    const bodyEnd = `\r\n--${boundary}--\r\n`
-
-    const bodyBuf = Buffer.concat([
-      Buffer.from(body, 'utf-8'),
-      fileBuffer,
-      Buffer.from(bodyEnd, 'utf-8'),
-    ])
-
-    const urlObj = new URL(uploadUrl)
-    const httpModule = urlObj.protocol === 'https:' ? https : http
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-      path: urlObj.pathname + urlObj.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': bodyBuf.length,
-      },
-    }
-
-    const req = httpModule.request(options, (res) => {
-      let data = ''
-      res.on('data', chunk => data += chunk)
-      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }))
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`request timeout after ${timeoutMs}ms: ${hostname}${reqPath}`))
     })
-    req.on('error', reject)
-    req.write(bodyBuf)
+    if (data) req.write(data)
     req.end()
   })
 }
 
-async function getAccessToken(secret) {
-  const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${APPID}&secret=${secret}`
-  const res = await httpsRequest(url)
-  if (res.errcode) throw new Error(`获取 access_token 失败: ${res.errcode} ${res.errmsg}`)
-  return res.access_token
+function cosAuth({ method, host, uri, query = '' }) {
+  const now = Math.floor(Date.now() / 1000)
+  const keyTime = `${now - 60};${now + 3600}`
+  const signKey = hmacSha1Hex(SECRET_KEY, keyTime)
+  const headerList = 'host'
+  const httpString = `${method.toLowerCase()}\n${uri}\n${query}\nhost=${host}\n`
+  const stringToSign = `sha1\n${keyTime}\n${sha1Hex(httpString)}\n`
+  const signature = hmacSha1Hex(signKey, stringToSign)
+  return [
+    'q-sign-algorithm=sha1',
+    `q-ak=${SECRET_ID}`,
+    `q-sign-time=${keyTime}`,
+    `q-key-time=${keyTime}`,
+    `q-header-list=${headerList}`,
+    'q-url-param-list=',
+    `q-signature=${signature}`,
+  ].join('&')
 }
 
-// 第一步：获取上传凭证
-async function getUploadInfo(token, cloudPath) {
-  const url = `https://api.weixin.qq.com/tcb/uploadfile?access_token=${token}`
-  const res = await httpsRequest(url, { env: ENV_ID, path: cloudPath })
-  if (res.errcode && res.errcode !== 0) {
-    throw new Error(`获取上传凭证失败: ${res.errcode} ${res.errmsg}`)
+async function inferRegion() {
+  if (REGION) return REGION
+  const host = 'service.cos.myqcloud.com'
+  const uri = '/'
+  const authorization = cosAuth({ method: 'GET', host, uri })
+  const res = await requestRaw({
+    method: 'GET',
+    hostname: host,
+    path: uri,
+    headers: { Host: host, Authorization: authorization },
+  })
+  const text = res.body.toString('utf-8')
+  const bucketPattern = new RegExp(`<Name>${BUCKET.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</Name>[\\s\\S]*?<Location>([^<]+)</Location>`)
+  const m = text.match(bucketPattern)
+  if (!m) {
+    throw new Error(`无法自动识别 bucket 地域，请在 scripts/.cdn_secret 增加 TENCENTCLOUD_REGION。COS 返回 ${res.statusCode}: ${text.slice(0, 300)}`)
   }
-  return res
+  REGION = m[1].trim()
+  return REGION
 }
 
-// 第二步：上传文件到 COS（key 必须是原始 path，不是 cos_file_id）
-async function uploadFileToCos(uploadInfo, cloudPath, fileBuffer, fileName) {
-  const fields = {
-    key: cloudPath,
-    Signature: uploadInfo.authorization,
-    'x-cos-security-token': uploadInfo.token,
-    'x-cos-meta-fileid': uploadInfo.cos_file_id,
+function cosHost() {
+  return `${BUCKET}.cos.${REGION}.myqcloud.com`
+}
+
+async function cosRequest(method, objectPath, body = null, headers = {}) {
+  const host = cosHost()
+  const uri = `/${encodePathname(objectPath)}`
+  const authorization = cosAuth({ method, host, uri })
+  return requestRaw({
+    method,
+    hostname: host,
+    path: uri,
+    headers: {
+      Host: host,
+      Authorization: authorization,
+      ...headers,
+    },
+    body,
+  })
+}
+
+async function putObject(objectPath, localPath, contentType = 'application/octet-stream') {
+  const body = fs.readFileSync(localPath)
+  const res = await cosRequest('PUT', objectPath, body, { 'Content-Type': contentType })
+  if (res.statusCode < 200 || res.statusCode >= 300) {
+    throw new Error(`PUT ${objectPath} 返回 ${res.statusCode}: ${res.body.toString('utf-8').slice(0, 300)}`)
   }
-  // 从返回的 url 提取上传地址
-  const result = await multipartUpload(uploadInfo.url, fields, fileBuffer, fileName)
-  if (result.statusCode >= 200 && result.statusCode < 300) return true
-  if (result.statusCode === 204) return true
-  throw new Error(`COS 上传返回 ${result.statusCode}: ${result.body.substring(0, 200)}`)
 }
 
-// 完整上传一个文件
-async function uploadOneFile(token, localPath, cloudPath) {
-  const fileBuffer = fs.readFileSync(localPath)
-  const fileName = path.basename(localPath)
-  const uploadInfo = await getUploadInfo(token, cloudPath)
-  await uploadFileToCos(uploadInfo, cloudPath, fileBuffer, fileName)
+async function deleteObject(objectPath) {
+  const res = await cosRequest('DELETE', objectPath)
+  if (![200, 204, 404].includes(res.statusCode)) {
+    throw new Error(`DELETE ${objectPath} 返回 ${res.statusCode}: ${res.body.toString('utf-8').slice(0, 300)}`)
+  }
 }
 
-// ===== 文件扫描 =====
-function md5File(filePath) {
-  const data = fs.readFileSync(filePath)
-  return crypto.createHash('md5').update(data).digest('hex').substring(0, 8)
+async function fetchRemoteManifest() {
+  if (!CDN_BASE_URL) return null
+  const url = new URL(`${CDN_BASE_URL}/${CDN_FILE_PREFIX}/manifest.json`)
+  try {
+    const res = await requestRaw({ method: 'GET', hostname: url.hostname, path: url.pathname + url.search })
+    if (res.statusCode !== 200) return null
+    const parsed = JSON.parse(res.body.toString('utf-8'))
+    return parsed && parsed.files ? parsed : null
+  } catch (_) {
+    return null
+  }
 }
 
-function walkDir(dir, prefix) {
-  const results = []
-  if (!fs.existsSync(dir)) return results
+function walkDir(dir, remotePrefix) {
+  const out = []
+  if (!fs.existsSync(dir)) return out
   for (const item of fs.readdirSync(dir)) {
     if (IGNORE_FILES.has(item)) continue
-    const fullPath = path.join(dir, item)
-    const remotePath = prefix ? prefix + '/' + item : item
-    const stat = fs.statSync(fullPath)
-    if (stat.isDirectory()) {
-      results.push(...walkDir(fullPath, remotePath))
-    } else {
-      results.push({ local: fullPath, remote: remotePath, size: stat.size })
-    }
+    const full = path.join(dir, item)
+    const remote = remotePrefix ? `${remotePrefix}/${item}` : item
+    const stat = fs.statSync(full)
+    if (stat.isDirectory()) out.push(...walkDir(full, remote))
+    else out.push({ local: full, remote, size: stat.size })
   }
-  return results
+  return out
 }
 
-function saveManifest(m) {
-  fs.writeFileSync(MANIFEST_LOCAL, JSON.stringify(m, null, 2), 'utf-8')
+function md5File(filePath) {
+  return crypto.createHash('md5').update(fs.readFileSync(filePath)).digest('hex').slice(0, 8)
 }
 
-async function fetchRemoteManifest(token) {
-  const manifestCloudPath = CDN_FILE_PREFIX + '/manifest.json'
-  // 先获取下载链接
-  const url = `https://api.weixin.qq.com/tcb/batchdownloadfile?access_token=${token}`
-  const res = await httpsRequest(url, {
-    env: ENV_ID,
-    file_list: [{ fileid: `cloud://${ENV_ID}.${cdnCfg.cloudBucket}/${manifestCloudPath}`, max_age: 60 }],
-  })
-  if (res.errcode && res.errcode !== 0) return null
-  const fileInfo = (res.file_list || [])[0]
-  if (!fileInfo || fileInfo.status !== 0 || !fileInfo.download_url) return null
-  // 下载 manifest 内容
-  try {
-    const data = await httpsRequest(fileInfo.download_url)
-    if (data && data.files) return data
-  } catch (_) {}
-  return null
+function contentTypeByExt(file) {
+  const ext = path.extname(file).toLowerCase()
+  if (ext === '.png') return 'image/png'
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+  if (ext === '.webp') return 'image/webp'
+  if (ext === '.mp3') return 'audio/mpeg'
+  if (ext === '.wav') return 'audio/wav'
+  if (ext === '.json') return 'application/json'
+  return 'application/octet-stream'
 }
 
-// ===== 并发控制 =====
-async function runWithConcurrency(tasks, concurrency, onProgress) {
-  let done = 0, failed = 0
-  const results = []
+async function runWithConcurrency(tasks, concurrency) {
+  let done = 0
+  let failed = 0
   const executing = new Set()
+  const results = []
   for (const task of tasks) {
-    const p = task().then(
-      () => { done++; onProgress(done, failed) },
-      (e) => { failed++; onProgress(done, failed, e) }
-    )
+    const p = task().then(() => { done++ }, () => { failed++ })
     results.push(p)
     executing.add(p)
     p.finally(() => executing.delete(p))
-    if (executing.size >= concurrency) {
-      await Promise.race(executing)
-    }
+    if (executing.size >= concurrency) await Promise.race(executing)
   }
   await Promise.allSettled(results)
   return { done, failed }
 }
 
-// ===== 主流程 =====
+function formatSize(bytes) {
+  if (!bytes) return '0 B'
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
 async function main() {
-  console.log('=== CDN 资源上传（微信云存储）===')
-  console.log('云环境:', ENV_ID)
-  console.log('模式:', FORCE ? '强制全量' : '增量')
+  console.log('=== 灵宠消消塔 CDN 资源上传（腾讯云 COS / CloudBase）===')
+  console.log('bucket:', BUCKET)
+  console.log('CDN:', CDN_BASE_URL || '(未配置)')
+  console.log('云目录:', CDN_FILE_PREFIX)
+  console.log('模式:', FORCE ? '强制全量' : DRY_RUN ? 'dry-run' : '增量')
   console.log('')
 
-  // 0. 检查密钥
-  const wxSecret = loadWxSecret()
-  if (!wxSecret) {
-    console.log('⚠ 未找到 WX_SECRET')
-    console.log('')
-    console.log('请在以下任一位置配置:')
-    console.log('  1. scripts/.cdn_secret 文件加一行: WX_SECRET=你的appsecret')
-    console.log('  2. tools/analysis/.env 文件 (如已有则自动复用)')
-    console.log('  3. 环境变量: WX_SECRET=xxx ./scripts/upload.sh')
-    process.exit(1)
-  }
+  if (!BUCKET) throw new Error('缺少 CDN_CLOUD_BUCKET / cdnConfig.cloudbaseBucket')
 
-  // 1. 获取 access_token
-  console.log('获取 access_token...')
-  const token = await getAccessToken(wxSecret)
-  console.log('  ✓ 成功')
-  console.log('')
-
-  // 2. 扫描本地文件
   const allFiles = []
   for (const dir of CDN_LOCAL_DIRS) {
-    const localDir = path.join(PROJECT_ROOT, dir.local)
-    allFiles.push(...walkDir(localDir, dir.remote))
+    allFiles.push(...walkDir(path.join(PROJECT_ROOT, dir.local), dir.remote))
   }
-  console.log(`扫描完成: ${allFiles.length} 个文件`)
-
-  // 3. 计算 hash
   const localManifest = {}
   for (const f of allFiles) {
     localManifest[f.remote] = { hash: md5File(f.local), size: f.size }
   }
+  console.log(`扫描完成: ${allFiles.length} 个文件`)
 
-  // 4. 从云端拉取 manifest 做对比（以云端实际状态为准）
-  console.log('拉取云端 manifest...')
-  const remoteManifest = FORCE ? null : await fetchRemoteManifest(token)
-  if (remoteManifest) {
-    console.log(`  ✓ 云端版本 v${remoteManifest.version}，${Object.keys(remoteManifest.files).length} 个文件`)
-  } else {
-    console.log('  ✓ 云端无 manifest，将全量上传')
+  if (!SECRET_ID || !SECRET_KEY) {
+    if (DRY_RUN) {
+      console.log('dry-run: 未配置腾讯云 SecretId/SecretKey，跳过远端对比；仅打印本地清单摘要。')
+      const totalBytes = allFiles.reduce((s, f) => s + f.size, 0)
+      const byDir = {}
+      for (const f of allFiles) {
+        const top = f.remote.split('/')[0]
+        byDir[top] = byDir[top] || { count: 0, size: 0 }
+        byDir[top].count++
+        byDir[top].size += f.size
+      }
+      console.log(`本地总体: ${allFiles.length} 文件, ${formatSize(totalBytes)}`)
+      console.log('按一级目录分布:')
+      for (const [name, info] of Object.entries(byDir).sort()) {
+        console.log(`  ${name}: ${info.count} 文件, ${formatSize(info.size)}`)
+      }
+      return
+    }
+    throw new Error('缺少 TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY（请写入 scripts/.cdn_secret）')
   }
 
-  const oldFiles = (remoteManifest && remoteManifest.files) || {}
-  const oldVersion = (remoteManifest && remoteManifest.version) || 0
-  const toUpload = [], toDelete = []
-  let skipped = 0
+  const region = await inferRegion()
+  console.log('region:', region)
 
+  const remoteManifest = FORCE ? null : await fetchRemoteManifest()
+  const oldFiles = remoteManifest?.files || {}
+  const oldVersion = Number(remoteManifest?.version || 0)
+  console.log(remoteManifest
+    ? `云端 manifest: v${oldVersion}, ${Object.keys(oldFiles).length} 个文件`
+    : '云端无 manifest，将全量对齐')
+
+  const toUpload = []
+  const toDelete = []
+  let skipped = 0
   for (const [rp, info] of Object.entries(localManifest)) {
-    if (!FORCE && oldFiles[rp] && oldFiles[rp].hash === info.hash) skipped++
+    if (!FORCE && oldFiles[rp]?.hash === info.hash) skipped++
     else toUpload.push(rp)
   }
   for (const rp of Object.keys(oldFiles)) {
     if (!localManifest[rp]) toDelete.push(rp)
   }
 
-  console.log(`  新增/更新: ${toUpload.length}`)
-  console.log(`  删除: ${toDelete.length}`)
-  console.log(`  跳过: ${skipped}`)
-
-  function formatSize(bytes) {
-    if (!bytes) return '0 B'
-    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${bytes} B`
+  console.log(`新增/更新: ${toUpload.length}`)
+  console.log(`删除: ${toDelete.length}`)
+  console.log(`跳过: ${skipped}`)
+  if (toUpload.length > 0 && toUpload.length <= 50) {
+    console.log('待上传:')
+    for (const rp of [...toUpload].sort()) console.log(`  + ${rp} (${formatSize(localManifest[rp]?.size || 0)})`)
+  } else if (toUpload.length > 50) {
+    const totalUploadBytes = toUpload.reduce((s, rp) => s + (localManifest[rp]?.size || 0), 0)
+    console.log(`待上传共 ${toUpload.length} 个文件, 合计 ${formatSize(totalUploadBytes)} （明细过多已省略）`)
   }
-
-  if (toUpload.length > 0) {
-    console.log('  待上传:')
-    for (const rp of [...toUpload].sort()) {
-      const sz = localManifest[rp]?.size || 0
-      console.log(`    • ${rp} (${formatSize(sz)})`)
-    }
+  if (toDelete.length > 0 && toDelete.length <= 50) {
+    console.log('待删除:')
+    for (const rp of [...toDelete].sort()) console.log(`  - ${rp}`)
+  } else if (toDelete.length > 50) {
+    console.log(`待删除共 ${toDelete.length} 个文件（明细过多已省略）`)
   }
-  if (toDelete.length > 0) {
-    console.log('  待云端删除:')
-    for (const rp of [...toDelete].sort()) console.log(`    • ${rp}`)
+  if (DRY_RUN) {
+    console.log('dry-run 完成，未上传/删除任何文件。')
+    return
   }
-  console.log('')
-
   if (toUpload.length === 0 && toDelete.length === 0) {
     console.log('无变更，已是最新。')
     return
   }
 
-  // 5. 上传文件
-  const totalSize = toUpload.reduce((s, rp) => s + (localManifest[rp]?.size || 0), 0)
-  console.log(`开始上传 ${toUpload.length} 个文件 (${(totalSize / 1024 / 1024).toFixed(1)} MB)，并发 ${CONCURRENCY}...`)
-
   const tasks = toUpload.map(rp => {
     const fileInfo = allFiles.find(f => f.remote === rp)
-    const cloudPath = CDN_FILE_PREFIX + '/' + rp
     return async () => {
       try {
-        await uploadOneFile(token, fileInfo.local, cloudPath)
-        console.log(`  [+] 已上传 ${rp}`)
+        await putObject(`${CDN_FILE_PREFIX}/${rp}`, fileInfo.local, contentTypeByExt(fileInfo.local))
+        console.log(`  [+] ${rp}`)
       } catch (e) {
-        console.error(`  [x] 失败 ${rp}: ${e.message?.split('\n')[0]}`)
+        console.error(`  [x] ${rp}: ${e.message}`)
         throw e
       }
     }
   })
 
-  const { done: uploaded, failed } = await runWithConcurrency(tasks, CONCURRENCY, () => {})
-  console.log('')
+  console.log(`开始上传 ${toUpload.length} 个文件，并发 ${CONCURRENCY}...`)
+  const { done: uploaded, failed } = await runWithConcurrency(tasks, CONCURRENCY)
+  if (failed > 0) throw new Error(`有 ${failed} 个文件上传失败，manifest 未更新`)
 
-  // 6. 删除已移除的文件
   if (toDelete.length > 0) {
-    console.log(`\n清理已删除文件 (${toDelete.length} 个)...`)
-    const fileIdList = toDelete.map(rp => CDN_FILE_PREFIX + '/' + rp)
-    try {
-      const url = `https://api.weixin.qq.com/tcb/batchdeletefile?access_token=${token}`
-      await httpsRequest(url, { env: ENV_ID, fileid_list: fileIdList })
-      console.log('  清理完成:')
-      for (const rp of [...toDelete].sort()) console.log(`    • 已删 ${rp}`)
-    } catch (e) {
-      console.error('  清理失败:', e.message)
-    }
+    console.log(`删除远端多余文件 ${toDelete.length} 个...`)
+    for (const rp of toDelete) await deleteObject(`${CDN_FILE_PREFIX}/${rp}`)
   }
 
-  // 7. 生成并上传 manifest
   const newManifest = {
     version: oldVersion + 1,
-    updated: new Date().toISOString().split('T')[0],
+    updated: new Date().toISOString(),
+    filePrefix: CDN_FILE_PREFIX,
     files: localManifest,
   }
-
-  if (uploaded > 0) {
-    const tmpManifest = path.join(__dirname, '_tmp_manifest.json')
-    fs.writeFileSync(tmpManifest, JSON.stringify(newManifest, null, 2), 'utf-8')
-    try {
-      await uploadOneFile(token, tmpManifest, CDN_FILE_PREFIX + '/manifest.json')
-      console.log('manifest.json 已上传')
-    } catch (e) {
-      console.error('manifest.json 上传失败:', e.message)
-    }
+  const tmpManifest = path.join(__dirname, '_tmp_cdn_manifest.json')
+  fs.writeFileSync(tmpManifest, JSON.stringify(newManifest, null, 2), 'utf-8')
+  try {
+    await putObject(`${CDN_FILE_PREFIX}/manifest.json`, tmpManifest, 'application/json')
+  } finally {
     try { fs.unlinkSync(tmpManifest) } catch (_) {}
   }
-
-  saveManifest(newManifest)
+  fs.writeFileSync(MANIFEST_LOCAL, JSON.stringify(newManifest, null, 2), 'utf-8')
 
   console.log('')
-  console.log('=== 完成 ===')
-  console.log(`  上传成功: ${uploaded}`)
-  if (failed > 0) console.log(`  上传失败: ${failed}`)
-  if (toDelete.length > 0) console.log(`  已删除: ${toDelete.length}`)
-  console.log(`  manifest 版本: v${newManifest.version}`)
+  console.log('=== CDN 同步完成 ===')
+  console.log(`上传成功: ${uploaded}`)
+  console.log(`删除: ${toDelete.length}`)
+  console.log(`manifest: v${newManifest.version}`)
 }
 
-main().catch(e => {
-  console.error('上传脚本异常:', e)
+main().catch((e) => {
+  console.error('CDN 上传失败:', e.message || e)
   process.exit(1)
 })

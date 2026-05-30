@@ -30,11 +30,13 @@ try {
 }
 
 // 四维度分数：与主域 friendRanking.SCORE_KEYS 保持一致
+// 好友榜只能走微信开放数据域；key 带 GameKey 命名空间，避免读到旧版本历史 KV。
+var FRIEND_RANK_KEY_PREFIX = 'xiaochu'
 var TAB_META = {
-  tower:   { key: 'towerFloor',  label: '通天塔', unit: '层',  color: '#FFD700' },
-  stage:   { key: 'stageStars',  label: '秘境榜', unit: '★',  color: '#e88520' },
-  dex:     { key: 'dexBoard', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
-  combo:   { key: 'comboMax',    label: '连击榜', unit: '连击', color: '#ff6b6b' },
+  tower:   { key: FRIEND_RANK_KEY_PREFIX + '_towerFloor',  label: '通天塔', unit: '层',  color: '#FFD700' },
+  stage:   { key: FRIEND_RANK_KEY_PREFIX + '_stageStars',  label: '秘境榜', unit: '★',  color: '#e88520' },
+  dex:     { key: FRIEND_RANK_KEY_PREFIX + '_dexBoard', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
+  combo:   { key: FRIEND_RANK_KEY_PREFIX + '_comboMax',    label: '连击榜', unit: '连击', color: '#ff6b6b' },
 }
 
 // 主域请求的渲染配置（来自 render / refresh 消息）
@@ -57,10 +59,9 @@ var FONT_FALLBACK = '"PingFang SC","Microsoft YaHei",sans-serif'
 // ---------- 工具 ----------
 function _safeNum(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n }
 
-/** 图鉴好友榜：读 dexBoard（复合分）或旧 dexMastered；与全服榜排序一致 */
+/** 图鉴好友榜：读带 GameKey 命名空间的 dexBoard（复合分）；与全服榜排序一致 */
 function _parseDexFriendRow(kvList) {
-  var board = _parseWxgameData(kvList, 'dexBoard')
-  var legacy = _parseWxgameData(kvList, 'dexMastered')
+  var board = _parseWxgameData(kvList, TAB_META.dex.key)
   var m = 0, c = 0, p = 0
   if (board >= 100000000) {
     var rest = board - 100000000
@@ -69,9 +70,6 @@ function _parseDexFriendRow(kvList) {
     p = rest % 1000
   } else if (board > 0) {
     m = board
-  }
-  if (m <= 0 && c <= 0 && p <= 0 && legacy > 0) {
-    m = legacy
   }
   if (m + c + p <= 0) return null
   var sort = m * 1000000 + c * 1000 + p
@@ -131,9 +129,8 @@ function _fetchFriendCloudStorage(tab, cb) {
   if (typeof wx === 'undefined' || !wx.getFriendCloudStorage) { cb([]); return }
   state.loading = true
   try {
-    var keyList = tab === 'dex' ? [meta.key, 'dexMastered'] : [meta.key]
     wx.getFriendCloudStorage({
-      keyList: keyList,
+      keyList: [meta.key],
       success: function (res) {
         state.loading = false
         var rows = (res && res.data) || []

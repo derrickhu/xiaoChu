@@ -90,10 +90,8 @@ class Render {
       console.warn('[Render] image load error', path, { src: img.src, cdnPath: AssetLoader.isCdnPath(path), fallbackTried: !!img._cdnFallbackTried })
       if (!AssetLoader.isCdnPath(path) || img._cdnFallbackTried) return
       img._cdnFallbackTried = true
-      console.warn('[Render] try CDN fallback', path)
       AssetLoader.downloadAndNotify(path, () => {
         const cached = AssetLoader.resolveAsset(path, { skipLocal: true })
-        console.log('[Render] CDN fallback done', path, { cached })
         if (cached && img.src !== cached) img.src = cached
       })
     }

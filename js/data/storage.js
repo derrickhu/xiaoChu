@@ -3035,15 +3035,7 @@ class Storage {
     this._save()
     if (cloudSync.isReady()) {
       try {
-        if (P.isDouyin) {
-          await api.syncPlayerData(this._d)
-        } else if (cloudSync.getOpenid()) {
-          const db = P.cloud.database()
-          const res = await db.collection('playerData').where({ _openid: cloudSync.getOpenid() }).get()
-          if (res.data && res.data.length > 0) {
-            await db.collection('playerData').doc(res.data[0]._id).remove()
-          }
-        }
+        await api.syncPlayerData(this._d)
       } catch(e) { console.warn('[Storage] 云端重置失败:', e) }
     }
     return true
@@ -3589,13 +3581,8 @@ class Storage {
     const today = localDateKey()
     if (this._d._lastWeeklyRewardCheckDate === today) return this._d._lastWeeklyRewardPreview || null
     try {
-      let result
-      if (P.isWeChat) {
-        const r = await P.cloud.callFunction({ name: 'ranking', data: { action: 'checkWeeklyReward' } })
-        result = r.result
-      } else {
-        return null
-      }
+      const r = await api.ranking({ action: 'checkWeeklyReward' })
+      const result = (r && r.data) || r
       this._d._lastWeeklyRewardCheckDate = today
       this._d._lastWeeklyRewardPreview = result && result.code === 0 ? {
         periodKey: result.periodKey,
@@ -3616,13 +3603,8 @@ class Storage {
     if (isCurrentUserGM()) return { ok: false, reason: 'gm' }
     if (!cloudSync.isReady()) return { ok: false, reason: 'cloud_not_ready' }
     try {
-      let result
-      if (P.isWeChat) {
-        const r = await P.cloud.callFunction({ name: 'ranking', data: { action: 'claimWeeklyReward' } })
-        result = r.result
-      } else {
-        return { ok: false, reason: 'unsupported' }
-      }
+      const r = await api.ranking({ action: 'claimWeeklyReward' })
+      const result = (r && r.data) || r
       if (!result || result.code !== 0 || !result.reward) {
         return { ok: false, reason: 'no_reward', result }
       }

@@ -10,9 +10,12 @@
 const P = require('../platform')
 const cdnCfg = require('./cdnConfig')
 
-const CLOUD_ENV = cdnCfg.cloudEnv
-const CLOUD_BUCKET = cdnCfg.cloudBucket
-const CDN_FILE_PREFIX = cdnCfg.filePrefix
+const CDN_MODE = cdnCfg.cdnMode || 'legacy-cloud'
+const CLOUD_ENV = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseEnv : cdnCfg.cloudEnv
+const CLOUD_BUCKET = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseBucket : cdnCfg.cloudBucket
+const CDN_FILE_PREFIX = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseFilePrefix : cdnCfg.filePrefix
+const CDN_PUBLIC_BASE_URL = (cdnCfg.cloudbasePublicBaseUrl || '').replace(/\/$/, '')
+const CDN_DEBUG = !!cdnCfg.debugCdn
 const BUNDLED_PREFIXES = cdnCfg.bundledDirs.map(d => d.endsWith('/') ? d : d + '/')
 const CDN_DIRS = cdnCfg.cdnDirs.map(d => d.endsWith('/') ? d : d + '/')
 
@@ -47,7 +50,7 @@ const _stats = {
 }
 
 function _debugOnce(key, ...args) {
-  if (_debugLogged[key]) return
+  if (!CDN_DEBUG || _debugLogged[key]) return
   _debugLogged[key] = true
   console.log(...args)
 }
@@ -78,6 +81,10 @@ function _getCachePath(logicalPath) {
 
 function _getCloudFileID(logicalPath) {
   return 'cloud://' + CLOUD_ENV + '.' + CLOUD_BUCKET + '/' + CDN_FILE_PREFIX + '/' + logicalPath
+}
+
+function _getCdnUrl(logicalPath) {
+  return CDN_PUBLIC_BASE_URL + '/' + CDN_FILE_PREFIX + '/' + logicalPath
 }
 
 function _ensureCacheDir(filePath) {
@@ -191,58 +198,65 @@ function downloadAndNotify(logicalPath, onComplete) {
   const cachePath = _getCachePath(logicalPath)
   _ensureCacheDir(cachePath)
   _stats.downloadStart++
-  console.log('[CDN] download start', logicalPath, fileID)
+  if (CDN_DEBUG) console.log('[CDN] download start', logicalPath, fileID)
 
   let retries = 0
   const maxRetries = 2
 
   function doDownload() {
+    const onSuccess = function(res) {
+      if (CDN_DEBUG) console.log('[CDN] download success callback', logicalPath, { hasTempFilePath: !!(res && res.tempFilePath) })
+      if (res.tempFilePath) {
+        if (_isUrlPath(res.tempFilePath)) {
+          _runtimeTempUrlCache[logicalPath] = res.tempFilePath
+          if (CDN_DEBUG) console.log('[CDN] runtime temp url cached', logicalPath, '=>', res.tempFilePath)
+          _finishDownload(logicalPath, true)
+          return
+        }
+        try {
+          _fs.copyFileSync(res.tempFilePath, cachePath)
+          _localFileExistsCache[cachePath] = true
+          if (_manifest && _manifest.files && _manifest.files[logicalPath]) {
+            const hash = _manifest.files[logicalPath].hash || ''
+            try { _fs.writeFileSync(cachePath + '.meta', hash, 'utf-8') } catch (_) {}
+          }
+          if (CDN_DEBUG) console.log('[CDN] cached', logicalPath, '=>', cachePath)
+          _finishDownload(logicalPath, true)
+        } catch (e) {
+          _debugWarn('[CDN] cache write failed', logicalPath, e)
+          _retryOrFail(logicalPath, e)
+        }
+      } else {
+        _retryOrFail(logicalPath, { errMsg: 'missing tempFilePath' })
+      }
+    }
+    const onFail = function(err) {
+      if (CDN_DEBUG) _debugWarn('[CDN] download fail callback', logicalPath, err)
+      _retryOrFail(logicalPath, err)
+    }
+
+    if (CDN_MODE === 'cloudbase-https') {
+      if (!P.downloadFile) {
+        _debugWarn('[CDN] download unavailable: downloadFile API missing', logicalPath)
+        _finishDownload(logicalPath, false)
+        return
+      }
+      P.downloadFile({ url: _getCdnUrl(logicalPath), success: onSuccess, fail: onFail })
+      return
+    }
+
     if (!P.cloud || typeof P.cloud.downloadFile !== 'function') {
       _debugWarn('[CDN] download unavailable: cloud API missing', logicalPath)
       _finishDownload(logicalPath, false)
       return
     }
-    P.cloud.downloadFile({
-      fileID: fileID,
-      success: function(res) {
-        console.log('[CDN] download success callback', logicalPath, { hasTempFilePath: !!(res && res.tempFilePath) })
-        if (res.tempFilePath) {
-          if (_isUrlPath(res.tempFilePath)) {
-            // DevTools / 部分基础库会返回 http://tmp/... 形式的临时 URL。
-            // 这类路径可作为图片 src 使用，但不能被 FileSystemManager.copyFileSync 读取。
-            _runtimeTempUrlCache[logicalPath] = res.tempFilePath
-            console.log('[CDN] runtime temp url cached', logicalPath, '=>', res.tempFilePath)
-            _finishDownload(logicalPath, true)
-            return
-          }
-          try {
-            _fs.copyFileSync(res.tempFilePath, cachePath)
-            _localFileExistsCache[cachePath] = true
-            if (_manifest && _manifest.files && _manifest.files[logicalPath]) {
-              const hash = _manifest.files[logicalPath].hash || ''
-              try { _fs.writeFileSync(cachePath + '.meta', hash, 'utf-8') } catch (_) {}
-            }
-            console.log('[CDN] cached', logicalPath, '=>', cachePath)
-            _finishDownload(logicalPath, true)
-          } catch (e) {
-            _debugWarn('[CDN] cache write failed', logicalPath, e)
-            _retryOrFail(logicalPath, e)
-          }
-        } else {
-          _retryOrFail(logicalPath, { errMsg: 'missing tempFilePath' })
-        }
-      },
-      fail: function(err) {
-        _debugWarn('[CDN] download fail callback', logicalPath, err)
-        _retryOrFail(logicalPath, err)
-      },
-    })
+    P.cloud.downloadFile({ fileID: fileID, success: onSuccess, fail: onFail })
   }
 
   function _retryOrFail(lp, err) {
     retries++
     if (retries <= maxRetries) {
-      _debugWarn('[CDN] download retry', lp, { retries, err })
+      if (CDN_DEBUG) _debugWarn('[CDN] download retry', lp, { retries, err })
       setTimeout(doDownload, 500 * retries)
     } else {
       _debugWarn('[CDN] download failed final', lp, { retries, err, fileID })
@@ -346,37 +360,38 @@ function preloadPaths(paths, onProgress) {
  */
 function fetchManifest(onDone) {
   const fileID = _getCloudFileID('manifest.json')
-  if (!P.cloud || typeof P.cloud.downloadFile !== 'function') {
-    _loadCachedManifest()
-    if (onDone) onDone(false)
-    return
-  }
-  P.cloud.downloadFile({
-    fileID: fileID,
-    success: function(res) {
-      if (res.tempFilePath) {
-        try {
-          const text = _fs.readFileSync(res.tempFilePath, 'utf-8')
-          _manifest = JSON.parse(text)
-          _manifestReady = true
-          _stats.manifestFetched++
-          _ensureCacheDir(CACHE_ROOT + '/manifest.json')
-          try { _fs.writeFileSync(CACHE_ROOT + '/manifest.json', text, 'utf-8') } catch (_) {}
-          if (onDone) onDone(true)
-        } catch (_) {
-          _loadCachedManifest()
-          if (onDone) onDone(false)
-        }
-      } else {
+  const handleSuccess = function(res) {
+    if (res.tempFilePath) {
+      try {
+        const text = _fs.readFileSync(res.tempFilePath, 'utf-8')
+        _manifest = JSON.parse(text)
+        _manifestReady = true
+        _stats.manifestFetched++
+        _ensureCacheDir(CACHE_ROOT + '/manifest.json')
+        try { _fs.writeFileSync(CACHE_ROOT + '/manifest.json', text, 'utf-8') } catch (_) {}
+        if (onDone) onDone(true)
+      } catch (_) {
         _loadCachedManifest()
         if (onDone) onDone(false)
       }
-    },
-    fail: function() {
+    } else {
       _loadCachedManifest()
       if (onDone) onDone(false)
-    },
-  })
+    }
+  }
+  const handleFail = function() {
+    _loadCachedManifest()
+    if (onDone) onDone(false)
+  }
+
+  if (CDN_MODE === 'cloudbase-https') {
+    if (!P.downloadFile) return handleFail()
+    P.downloadFile({ url: _getCdnUrl('manifest.json') + '?v=' + Date.now(), success: handleSuccess, fail: handleFail })
+    return
+  }
+
+  if (!P.cloud || typeof P.cloud.downloadFile !== 'function') return handleFail()
+  P.cloud.downloadFile({ fileID: fileID, success: handleSuccess, fail: handleFail })
 }
 
 function _loadCachedManifest() {

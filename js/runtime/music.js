@@ -484,11 +484,9 @@ class MusicManager {
       console.warn('[Music] bgm error', { src, logicalPath, err: e })
       if (!logicalPath || !AssetLoader.isCdnPath(logicalPath) || ctx._cdnFallbackTried) return
       ctx._cdnFallbackTried = true
-      console.warn('[Music] try CDN fallback', logicalPath)
       AssetLoader.downloadAndNotify(logicalPath, (ok) => {
         if (!ok || !this.bgmEnabled) return
         const cached = AssetLoader.resolveAsset(logicalPath, { skipLocal: true })
-        console.log('[Music] CDN fallback done', logicalPath, { cached })
         if (cached) {
           if (this[instanceKey]) {
             try { this[instanceKey].stop() } catch (_) {}

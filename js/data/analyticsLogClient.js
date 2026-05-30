@@ -5,7 +5,6 @@
  */
 'use strict'
 
-const P = require('../platform')
 const {
   MAX_BATCH_SIZE,
   MAX_EVENTS_PER_LIFECYCLE,
@@ -15,6 +14,10 @@ const {
   inferStageId,
 } = require('./analyticsEventSchema')
 
+// 历史埋点曾直连微信云函数 analyticsLog。
+// 现在基础链路已迁到 xiaochu-api HTTP 后端，客户端不再调用微信云 API。
+// 后续如需恢复埋点，应新增 xiaochu-api /analytics/log 路由后再打开。
+const ENABLE_REMOTE_ANALYTICS = false
 const FLUSH_RETRY_MS = 30000
 
 let _sessionId = ''
@@ -48,7 +51,7 @@ function _scheduleFlush(delay) {
 }
 
 function enqueue(eventId, params) {
-  if (!P.isWeChat || !eventId || !isAllowedEvent(eventId)) return
+  if (!ENABLE_REMOTE_ANALYTICS || !eventId || !isAllowedEvent(eventId)) return
   if (_sentOrQueuedCount >= MAX_EVENTS_PER_LIFECYCLE) return
   const eventAt = _now()
   const safeParams = sanitizeParams(params)
@@ -73,25 +76,9 @@ function enqueue(eventId, params) {
 }
 
 function flush() {
-  if (!P.isWeChat || _flushing || !_queue.length) return
-  const now = _now()
-  if (now - _lastFlushAt < 500 && _queue.length < MAX_BATCH_SIZE) return
-  const batch = _queue.splice(0, MAX_BATCH_SIZE)
-  _flushing = true
-  _lastFlushAt = now
-  P.cloud.callFunction({
-    name: 'analyticsLog',
-    data: { events: batch },
-  }).then(() => {
-    _flushing = false
-    if (_queue.length) _scheduleFlush(MIN_FLUSH_INTERVAL_MS)
-  }).catch((e) => {
-    _flushing = false
-    // 短重试一次，队列超长时丢弃旧事件，避免弱网下无限堆积。
-    _queue = batch.concat(_queue).slice(-MAX_EVENTS_PER_LIFECYCLE)
-    _scheduleFlush(FLUSH_RETRY_MS)
-    try { console.warn('[AnalyticsLog] flush failed', e && (e.errMsg || e.message || e)) } catch (_e) {}
-  })
+  // 远程埋点已关闭：清空旁路队列，绝不调用 wx.cloud。
+  _queue = []
+  _flushing = false
 }
 
 module.exports = {

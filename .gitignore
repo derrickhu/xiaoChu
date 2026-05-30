@@ -57,8 +57,12 @@ tools/analytics_store/mysql_data/
 tools/backup/data/
 tools/backup/backup.log
 
+# 迁移脚本临时产物（一次性运行的中间数据）
+tools/migration/data/
+
 # CDN 上传脚本临时文件与密钥
 scripts/.cdn_manifest.json
+scripts/.cdn_manifest.cloudbase.json
 scripts/cdn_manifest_for_upload.json
 scripts/_tmp_manifest.json
 scripts/.cdn_secret

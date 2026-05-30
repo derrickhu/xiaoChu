@@ -1,31 +1,36 @@
 /**
  * 统一后端 API 客户端
- * 小游戏端通过 P.request (wx.request / tt.request) 与后端通信
+ * 微信/抖音统一通过 CloudBase HTTP 访问服务接入唯一云函数 xiaochu-api
+ * 后端集合统一前缀 xiaochu_*，环境变量统一前缀 XIAOCHU_*
  */
 const P = require('./platform')
 
-// 后端地址：上线后替换为正式域名
-const BASE_URL = P.isDouyin
-  ? 'https://1lujade2yoizo-env-eredrLayEN.service.douyincloud.run'
-  : 'https://your-wechat-backend.com'
+const GAME_KEY = 'xiaochu'
+const API_PREFIX = '/' + GAME_KEY + '-api'
+
+// CloudBase HTTP 访问服务根域名；微信/抖音统一接入 xiaochu-api。
+const BASE_URL = 'https://rosa-env-d7grf78r5dbd37323.service.tcloudbase.com'
 
 let _token = ''
+let _userId = ''
+let _openId = ''
+let _remoteUpdatedAt = 0
 
 function _request(method, path, data) {
   return new Promise((resolve, reject) => {
     P.request({
-      url: BASE_URL + path,
+      url: BASE_URL + API_PREFIX + path,
       method,
       header: {
         'Content-Type': 'application/json',
-        ..._token ? { Authorization: 'Bearer ' + _token } : {},
+        ...(_token ? { Authorization: 'Bearer ' + _token } : {}),
       },
       data,
       success: (res) => {
-        if (res.statusCode === 200 && res.data && res.data.code === 0) {
-          resolve(res.data)
-        } else {
-          reject(new Error((res.data && res.data.msg) || 'request failed'))
+        try {
+          resolve(_normalizeResponse(res))
+        } catch (e) {
+          reject(e)
         }
       },
       fail: (err) => reject(new Error(err.errMsg || 'network error')),
@@ -33,57 +38,117 @@ function _request(method, path, data) {
   })
 }
 
+function _normalizeResponse(res) {
+  const statusCode = res && res.statusCode
+  const body = res && res.data
+  if (statusCode < 200 || statusCode >= 300) {
+    const error = new Error((body && (body.error || body.msg)) || 'request failed')
+    if (body && body.data) error.data = body.data
+    throw error
+  }
+  if (body && body.ok === true) {
+    const data = body.data || {}
+    if (data && typeof data === 'object' && data.code === 0) return data
+    return { code: 0, data, gameKey: body.gameKey }
+  }
+  if (body && body.code === 0) return body
+  throw new Error((body && (body.error || body.msg)) || 'request failed')
+}
+
 const api = {
-  /**
-   * 登录 — 获取 token 供后续请求使用
-   * 抖音云部署时请求头自动带 x-tt-openid，可跳过此步
-   */
   login() {
     return new Promise((resolve, reject) => {
       P.login({
         success: async (loginRes) => {
           try {
-            const result = await _request('POST', '/api/login', {
-              platform: P.name,
+            const result = await _request('POST', '/login', {
+              platform: P.isWeChat ? 'wx' : 'dy',
               code: loginRes.code,
             })
-            _token = result.token
-            console.log('[API] 登录成功, platform=', P.name)
-            resolve(result)
+            const data = result.data || result
+            _token = data.token || ''
+            _userId = data.userId || ''
+            _openId = data.openId || _userId
+            if (!_token || !_userId) throw new Error('login response missing token/userId')
+            console.log('[API] xiaochu-api 登录成功, userId=', _userId)
+            resolve({ code: 0, ...data })
           } catch (e) {
-            console.warn('[API] 登录换 token 失败，尝试无 token 模式:', e.message)
             _token = ''
-            resolve({ code: 0, msg: 'fallback' })
+            _userId = ''
+            _openId = ''
+            reject(e)
           }
         },
         fail: (err) => {
-          console.warn('[API] P.login 失败:', err.errMsg || err)
           _token = ''
-          resolve({ code: 0, msg: 'login skipped' })
+          _userId = ''
+          _openId = ''
+          reject(new Error((err && err.errMsg) || 'P.login failed'))
         },
       })
     })
   },
 
-  getPlayerData() {
-    return _request('GET', '/api/player/data')
+  async getPlayerData() {
+    const result = await _request('POST', '/save/pull', {})
+    const data = result.data || {}
+    _remoteUpdatedAt = Number(data.updatedAt || 0)
+    return {
+      code: 0,
+      data: data.exists ? (data.payload || {}) : null,
+      exists: !!data.exists,
+      schemaVersion: data.schemaVersion || 0,
+      updatedAt: _remoteUpdatedAt,
+    }
   },
 
-  syncPlayerData(data) {
-    return _request('POST', '/api/player/sync', { data })
+  async syncPlayerData(data) {
+    const updatedAt = data && data._updateTime ? data._updateTime : Date.now()
+    const result = await _request('POST', '/save/push', {
+      schemaVersion: (data && (data._version || data.dataVersion)) || 1,
+      updatedAt,
+      baseRemoteUpdatedAt: _remoteUpdatedAt,
+      payload: data || {},
+    })
+    const saved = result.data || result
+    _remoteUpdatedAt = Number(saved.updatedAt || updatedAt)
+    return { code: 0, ...saved }
   },
 
   submitRanking(data) {
-    return _request('POST', '/api/ranking/submit', data)
+    return _request('POST', '/ranking/submit', data || {})
   },
 
-  getRankingList(tab, limit) {
-    tab = tab || 'all'
-    limit = limit || 100
-    return _request('GET', `/api/ranking/list?tab=${tab}&limit=${limit}`)
+  getRankingList(tab, limit, params) {
+    const body = { ...(params || {}) }
+    body.tab = tab || body.tab || 'all'
+    body.limit = limit || body.limit || 100
+    return _request('POST', '/ranking/list', body)
+  },
+
+  ranking(data) {
+    return _request('POST', '/ranking/action', data || {})
+  },
+
+  queryPendingGifts() {
+    return _request('POST', '/gift/queryPending', {})
+  },
+
+  markGiftsGranted(ids) {
+    return _request('POST', '/gift/markGranted', { ids: ids || [] })
+  },
+
+  recordInvite(inviter) {
+    return _request('POST', '/share/recordInvite', { inviter })
+  },
+
+  claimInvites() {
+    return _request('POST', '/share/claimInvites', {})
   },
 
   get hasToken() { return !!_token },
+  get userId() { return _userId },
+  get openId() { return _openId },
 }
 
 module.exports = api

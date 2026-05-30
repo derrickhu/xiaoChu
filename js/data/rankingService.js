@@ -3,7 +3,6 @@
  * 从 Storage 中拆分出的排行榜提交/拉取/缓存逻辑
  */
 
-const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
 const { RANK_CACHE_TTL_MS } = require('./constants')
@@ -121,23 +120,20 @@ class RankingService {
   }
 
   async _callRanking(data) {
-    if (P.isWeChat) {
-      const r = await P.cloud.callFunction({ name: 'ranking', data })
-      return r.result
-    }
     const { action, ...rest } = data
-    if (action === 'submit' || action === 'submitDexCombo' || action === 'submitStage') {
+    if (api.ranking) return api.ranking({ action, ...rest })
+    if (action === 'submit' || action === 'submitDexCombo' || action === 'submitStage' || action === 'submitAndGetAll') {
       return api.submitRanking({ action, ...rest })
     }
-    if (action === 'getAll') return api.getRankingList('all')
-    if (action === 'getAllWeekly') return api.getRankingList('allWeekly')
-    if (action === 'getStage') return api.getRankingList('stage')
-    if (action === 'getDex') return api.getRankingList('dex')
-    if (action === 'getCombo') return api.getRankingList('combo')
-    if (action === 'submitAndGetAll') {
-      await api.submitRanking({ action: 'submit', ...rest })
-      return api.getRankingList('all')
+    const tabMap = {
+      getAll: 'all',
+      getAllWeekly: 'allWeekly',
+      getStage: 'stage',
+      getDex: 'dex',
+      getCombo: 'combo',
     }
+    const tab = tabMap[action]
+    if (tab) return api.getRankingList(tab, rest.limit || 100, { action, ...rest })
     return { code: -1, msg: 'unknown action' }
   }
 

@@ -88,6 +88,7 @@ const platform = {
   onTouchMove:            (cb)   => base.onTouchMove(cb),
   onTouchEnd:             (cb)   => base.onTouchEnd(cb),
   request:                (opts) => base.request(opts),
+  downloadFile:           typeof base.downloadFile === 'function' ? (opts) => base.downloadFile(opts) : null,
   login:                  (opts) => base.login(opts),
   onShow:                 typeof base.onShow === 'function' ? (cb) => base.onShow(cb) : _noop,
   onHide:                 typeof base.onHide === 'function' ? (cb) => base.onHide(cb) : _noop,

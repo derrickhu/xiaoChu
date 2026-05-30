@@ -14,8 +14,6 @@ const {
   CLOUD_SYNC_RETRY_INTERVAL_MS,
 } = require('./constants')
 
-const CLOUD_ENV = 'cloud1-6g8y0x2i39e768eb'
-
 // ===== 内部状态 =====
 let _cloudReady = false
 let _openid = ''
@@ -104,19 +102,8 @@ async function _syncFromCloud() {
   if (!_cloudReady) return
   try {
     let cloudData = null
-    if (P.isWeChat) {
-      if (!_openid) return
-      const db = P.cloud.database()
-      const res = await db.collection('playerData').where({ _openid: _openid }).get()
-      if (res.data && res.data.length > 0) {
-        cloudData = res.data[0]
-        delete cloudData._id
-        delete cloudData._openid
-      }
-    } else {
-      const res = await api.getPlayerData()
-      if (res && res.data) cloudData = res.data
-    }
+    const res = await api.getPlayerData()
+    if (res && res.data) cloudData = res.data
     if (cloudData) {
       if ((cloudData.dataVersion || 0) < (_dataRef.dataVersion || 0)) {
         console.log('[CloudSync] 云端 dataVersion 较低，跳过合并，推送本地数据')
@@ -151,8 +138,8 @@ async function _syncFromCloud() {
 async function _claimPendingGifts(storage) {
   if (!P.isWeChat || !_cloudReady || !_openid) return
   try {
-    const queryRes = await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'queryPending' } })
-    const gifts = (queryRes.result && queryRes.result.gifts) || []
+    const queryRes = await api.queryPendingGifts()
+    const gifts = (queryRes.data && queryRes.data.gifts) || queryRes.gifts || []
     if (gifts.length === 0) return
 
     const pendingList = []
@@ -197,7 +184,7 @@ async function _claimPendingGifts(storage) {
     // 否则没领的也会被云端标记成已发，导致玩家漏奖。
     if (alreadyGrantedIds.length > 0) {
       try {
-        await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids: alreadyGrantedIds } })
+        await api.markGiftsGranted(alreadyGrantedIds)
       } catch (e) {
         console.warn('[CloudSync] 旧礼包云端补标记失败，下次启动再试', e)
       }
@@ -210,8 +197,8 @@ async function _claimPendingGifts(storage) {
 async function markPlatformGiftsGranted(ids) {
   if (!P.isWeChat || !_cloudReady || !_openid) return { updated: 0 }
   if (!ids || !Array.isArray(ids) || ids.length === 0) return { updated: 0 }
-  const res = await P.cloud.callFunction({ name: 'giftDeliver', data: { action: 'markGranted', ids } })
-  return res.result || { updated: 0 }
+  const res = await api.markGiftsGranted(ids)
+  return (res && res.data) || res || { updated: 0 }
 }
 
 // ===== 推送到云端 =====
@@ -227,31 +214,7 @@ async function _syncToCloud() {
     _dataRef._updateTime = syncTime
     try { P.setStorageSync(_localKey, JSON.stringify(_dataRef)) } catch (e) {}
 
-    if (P.isDouyin) {
-      await api.syncPlayerData({ ..._dataRef })
-    } else {
-      if (!_openid) return
-      const db = P.cloud.database()
-      const col = db.collection('playerData')
-      const res = await col.where({ _openid: _openid }).get()
-      const saveData = { ..._dataRef }
-      delete saveData._id
-      delete saveData._openid
-      const _ = db.command
-      const setData = {}
-      for (const k of Object.keys(saveData)) { setData[k] = _.set(saveData[k]) }
-      if (res.data && res.data.length > 1) {
-        await col.doc(res.data[0]._id).update({ data: setData })
-        for (let i = 1; i < res.data.length; i++) {
-          try { await col.doc(res.data[i]._id).remove() } catch(e) {}
-        }
-        console.log('[Storage] 云同步完成，清理了', res.data.length - 1, '条重复记录')
-      } else if (res.data && res.data.length === 1) {
-        await col.doc(res.data[0]._id).update({ data: setData })
-      } else {
-        await col.add({ data: saveData })
-      }
-    }
+    await api.syncPlayerData({ ..._dataRef })
     if (_syncFailCount > 0) {
       console.log('[Storage] 云同步恢复成功，已上传最新数据')
     }
@@ -307,20 +270,6 @@ function debounceSyncToCloud(data) {
   }, delay)
 }
 
-// ===== 微信端辅助 =====
-async function _ensureCollections() {
-  const r = await P.cloud.callFunction({ name: 'initCollections' })
-  if (r.result && r.result.errors && r.result.errors.length) {
-    console.warn('创建集合异常:', r.result.errors)
-  }
-}
-
-async function _getOpenid() {
-  const r = await P.cloud.callFunction({ name: 'getOpenid' })
-  _openid = (r.result && r.result.openid) || ''
-  console.log('[CloudSync] 当前用户 openid:', _openid)
-}
-
 // ===== 初始化入口 =====
 async function init(persistData, opts) {
   _dataRef = persistData
@@ -330,36 +279,18 @@ async function init(persistData, opts) {
   _onSyncDone = opts.onSyncDone || null
   _onPlatformGifts = opts.onPlatformGifts || null
 
-  if (P.isDouyin) {
-    try {
-      await api.login()
-      _cloudReady = true
-      console.log('[Storage] 抖音端 API 登录成功')
-    } catch(e) {
-      console.warn('[Storage] 抖音端 API 登录失败:', e.message || e)
-      _cloudReady = true
-      try {
-        await api.getPlayerData()
-        console.log('[Storage] 抖音端 API 直连测试通过')
-      } catch(e2) {
-        console.warn('[Storage] 抖音端后端不可达，本次会话云同步停用（本地存档正常）:', e2.message || e2)
-        _cloudReady = false
-      }
-    }
-  } else {
-    try {
-      P.cloud.init({ env: CLOUD_ENV, traceUser: true })
-      _cloudReady = true
-    } catch(e) {
-      console.warn('Cloud init failed:', e)
-      return
-    }
-    try { await _ensureCollections() } catch(e) {}
-    try { await _getOpenid() } catch(e) { console.warn('Get openid failed:', e) }
+  try {
+    const loginRes = await api.login()
+    _openid = (loginRes && (loginRes.openId || loginRes.userId)) || api.openId || api.userId || ''
+    _cloudReady = true
+    console.log('[Storage] xiaochu-api 登录成功:', _openid)
+  } catch(e) {
+    console.warn('[Storage] xiaochu-api 登录失败，本次会话云同步停用（本地存档正常）:', e.message || e)
+    _openid = ''
+    _cloudReady = false
   }
 
-  if (_cloudReady && P.isWeChat && _openid) await _syncFromCloud()
-  if (_cloudReady && P.isDouyin) await _syncFromCloud()
+  if (_cloudReady) await _syncFromCloud()
 
   // 微信端：拉取平台礼包（需要 opts.storage 传入 Storage 实例）
   if (_cloudReady && P.isWeChat && _openid && opts.storage) {

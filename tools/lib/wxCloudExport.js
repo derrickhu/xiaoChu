@@ -12,9 +12,9 @@ const fs = require('fs')
 const path = require('path')
 const { loadWxSecret } = require(path.resolve(__dirname, '..', '..', 'scripts', 'loadWxSecret'))
 
-const APPID = 'wx53b03390106eff65'
-const ENV_ID = 'cloud1-6g8y0x2i39e768eb'
-const COLLECTIONS = ['playerData', 'rankAll', 'rankDex', 'rankCombo']
+const APPID = process.env.WX_APPID || 'wx53b03390106eff65'
+const ENV_ID = process.env.WX_CLOUD_ENV_ID || 'cloud1-6g8y0x2i39e768eb'
+const COLLECTIONS = ['playerData', 'rankAll', 'rankAllWeekly', 'rankStage', 'rankDex', 'rankCombo', 'weeklyReward', 'pendingGifts', 'inviteRecords']
 const PAGE_SIZE = 1000
 
 function httpsRequest(url, postData) {

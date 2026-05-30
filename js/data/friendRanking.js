@@ -17,12 +17,15 @@ const P = require('../platform')
 const { isCurrentUserGM } = require('./gmConfig')
 
 // 四维度 key：须与 openDataContext/index.js 的 TAB_META 完全一致
+// 注意：好友榜只能走微信开放数据域 wx.setUserCloudStorage / getFriendCloudStorage，不能走 xiaochu-api。
+// 为避免读到同 AppID 下旧版本历史 KV，key 必须带 GameKey 命名空间。
+const FRIEND_RANK_KEY_PREFIX = 'xiaochu'
 const SCORE_KEYS = {
-  tower: 'towerFloor',
-  stage: 'stageStars',
+  tower: `${FRIEND_RANK_KEY_PREFIX}_towerFloor`,
+  stage: `${FRIEND_RANK_KEY_PREFIX}_stageStars`,
   /** 图鉴：复合分写入 dexBoard（精通/收录/池数），避免「精通为 0 就不上榜」与全服榜不一致 */
-  dex:   'dexBoard',
-  combo: 'comboMax',
+  dex:   `${FRIEND_RANK_KEY_PREFIX}_dexBoard`,
+  combo: `${FRIEND_RANK_KEY_PREFIX}_comboMax`,
 }
 
 // GM 账号在当前会话里只清理一次已上传的 KV；之后再有 uploadScores 调用直接短路 return

@@ -4,7 +4,12 @@ console.log('灵宠消消塔开始初始化...')
 ;(function () {
   if (typeof wx === 'undefined') return
   if (typeof wx.onError === 'function') {
-    wx.onError(function (msg) { console.error('[Global]', msg) })
+    wx.onError(function (msg) {
+      // 微信开发者工具在 console 传递 Error/MiniProgramError 原始对象时偶发 structured clone 失败，
+      // 这里仅输出可序列化字符串，避免全局错误监听自身制造 "An object could not be cloned"。
+      const text = (msg && (msg.message || msg.errMsg)) ? (msg.message || msg.errMsg) : String(msg || '')
+      console.error('[Global]', text)
+    })
   }
 })()
 

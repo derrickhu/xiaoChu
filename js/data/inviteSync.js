@@ -11,6 +11,7 @@
  *   - main.js 在云端 ready 后调一次 syncOnce(storage, onReward)
  */
 const P = require('../platform')
+const api = require('../api')
 const cloudSync = require('./cloudSync')
 const analytics = require('./analytics')
 
@@ -42,17 +43,15 @@ async function syncOnce(storage, onInviterReward) {
   const pending = storage.getPendingInviteReport && storage.getPendingInviteReport()
   if (pending) {
     try {
-      const r = await P.cloud.callFunction({
-        name: 'share',
-        data: { action: 'recordInvite', inviter: pending },
-      })
-      if (r && r.result && r.result.recorded) {
+      const r = await api.recordInvite(pending)
+      const result = (r && r.data) || r || {}
+      if (result.recorded) {
         console.log('[invite] recordInvite ok for inviter:', pending)
         // 埋点：新玩家被邀请注册成功（仅记录 inviter 是否存在，不暴露明文 openid）
         analytics.track('invite_success', { role: 'newbie' })
       } else {
-        const reason = (r && r.result && r.result.reason) || 'unknown'
-        console.log('[invite] recordInvite skipped:', r && r.result)
+        const reason = result.reason || 'unknown'
+        console.log('[invite] recordInvite skipped:', result)
         analytics.track('invite_skip', { role: 'newbie', reason })
       }
     } catch (e) {
@@ -64,11 +63,9 @@ async function syncOnce(storage, onInviterReward) {
 
   // 2. 老玩家拉未领奖励
   try {
-    const r = await P.cloud.callFunction({
-      name: 'share',
-      data: { action: 'claimInvites' },
-    })
-    const count = (r && r.result && r.result.count) || 0
+    const r = await api.claimInvites()
+    const result = (r && r.data) || r || {}
+    const count = result.count || 0
     if (count > 0 && storage.grantInviterReward) {
       const granted = storage.grantInviterReward(count)
       if (granted && onInviterReward) onInviterReward(granted)

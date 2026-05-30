@@ -600,8 +600,7 @@ class Main {
       this._startWarmupPreload()
     })
     // 后台拉取 CDN 资源清单（不阻塞启动，拉完后按需下载即自动生效）
-    AssetLoader.fetchManifest((ok) => {
-      console.log('[CDN] manifest ' + (ok ? 'fetched' : 'using cached'))
+    AssetLoader.fetchManifest(() => {
       this._preloadOwnedAssets()
     })
   }
@@ -643,7 +642,6 @@ class Main {
       paths.push(`assets/equipment/fabao_${wid}.png`)
     }
     if (paths.length > 0) {
-      console.log('[CDN] preloading ' + paths.length + ' owned assets')
       AssetLoader.preloadPaths(paths)
     }
   }
