@@ -49,9 +49,6 @@ tools/admin/.admin-server.pid
 tools/analysis/data/
 tools/analysis/output/
 tools/analysis/.env
-tools/analytics_store/config.local.json
-tools/analytics_store/*.log
-tools/analytics_store/mysql_data/
 
 # 数据库备份（每日自动导出）
 tools/backup/data/

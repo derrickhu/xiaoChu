@@ -51,7 +51,7 @@ const gameToast = require('./views/gameToast')
 const floatText = require('./views/floatText')
 const lingCheer = require('./views/lingCheer')
 const inviteSync = require('./data/inviteSync')
-const analyticsLogClient = require('./data/analyticsLogClient')
+const gpAnalytics = require('./data/gpAnalytics')
 const buttonFx = require('./views/buttonFx')
 const numberTween = require('./views/numberTween')
 const shareCelebrate = require('./views/shareCelebrate')
@@ -230,6 +230,7 @@ function _buildLoadingAnalyticsParams(g, scene, elapsed) {
 
 class Main {
   constructor() {
+    gpAnalytics.init()
     this.storage = new Storage()
     AdManager.init(this.storage, this)
     this.scene = 'loading'
@@ -530,7 +531,7 @@ class Main {
     this._appWasHidden = false
     this._resumeForceRenderFrames = 0
     P.onHide(() => {
-      try { analyticsLogClient.flush() } catch (_) {}
+      try { gpAnalytics.flush() } catch (_) {}
       this._appWasHidden = true
       this._dirty = true
       wxBtns.destroyFeedbackBtn(this)

@@ -13,7 +13,7 @@
 const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
-const analytics = require('./analytics')
+const gpAnalytics = require('./gpAnalytics')
 
 let _synced = false
 
@@ -48,11 +48,11 @@ async function syncOnce(storage, onInviterReward) {
       if (result.recorded) {
         console.log('[invite] recordInvite ok for inviter:', pending)
         // 埋点：新玩家被邀请注册成功（仅记录 inviter 是否存在，不暴露明文 openid）
-        analytics.track('invite_success', { role: 'newbie' })
+        gpAnalytics.track('invite_success', { role: 'newbie' })
       } else {
         const reason = result.reason || 'unknown'
         console.log('[invite] recordInvite skipped:', result)
-        analytics.track('invite_skip', { role: 'newbie', reason })
+        gpAnalytics.track('invite_skip', { role: 'newbie', reason })
       }
     } catch (e) {
       if (!_isFunctionNotFound(e)) console.warn('[invite] recordInvite failed:', e.message || e)
@@ -70,7 +70,7 @@ async function syncOnce(storage, onInviterReward) {
       const granted = storage.grantInviterReward(count)
       if (granted && onInviterReward) onInviterReward(granted)
       // 埋点：老玩家成功收到反奖（count = 本次新到账人数）
-      analytics.track('invite_success', { role: 'inviter', count })
+      gpAnalytics.track('invite_success', { role: 'inviter', count })
     }
   } catch (e) {
     if (!_isFunctionNotFound(e)) console.warn('[invite] claimInvites failed:', e.message || e)

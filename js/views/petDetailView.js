@@ -2672,8 +2672,8 @@ function _openResetDialog(g) {
   }
   if (g.storage.markGuideShown) g.storage.markGuideShown('pool_reset_seen')
   try {
-    const analytics = require('../data/analytics')
-    analytics.track('pool_pet_reset_open', {
+    const gpAnalytics = require('../data/gpAnalytics')
+    gpAnalytics.track('pool_pet_reset_open', {
       petId,
       star: poolPet.star || 1,
       level: poolPet.level || 1,
@@ -2728,8 +2728,8 @@ function _doPoolPetReset(g, useAd) {
     P.showGameToast(`${petName} 已重置为 ★1 Lv.1`, { type: 'achievement' })
   }
   try {
-    const analytics = require('../data/analytics')
-    analytics.track('pool_pet_reset_done', {
+    const gpAnalytics = require('../data/gpAnalytics')
+    gpAnalytics.track('pool_pet_reset_done', {
       petId,
       useAd: !!useAd,
       gateCost: r.gateCost,

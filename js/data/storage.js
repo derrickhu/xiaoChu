@@ -1,7 +1,7 @@
 const P = require('../platform')
 const api = require('../api')
 const cloudSync = require('./cloudSync')
-const analyticsLogClient = require('./analyticsLogClient')
+const gpAnalytics = require('./gpAnalytics')
 const RankingService = require('./rankingService')
 const {
   STAMINA_RECOVER_INTERVAL_MS,
@@ -1045,10 +1045,8 @@ class Storage {
       dataVersion: DATA_VERSION,
     })
     try {
-      const analytics = require('./analytics')
-      analytics.track(eventId, safeParams)
+      gpAnalytics.trackFunnelEvent(eventId, safeParams)
     } catch (_e) {}
-    analyticsLogClient.enqueue(eventId, safeParams)
 
     const bucketName = _analyticsBucketForEvent(eventId)
     const bucket = summary.firstSession[bucketName] || (summary.firstSession[bucketName] = {})
@@ -3482,10 +3480,9 @@ class Storage {
       this._d.lastCultRealmId = curr.realmId
       this._d.lastCultSubStage = curr.subStage
       this._save()
-      // 埋点：realm_up 只在真正跨档时触发一次；静默迁移（migration）不走这条路径
+      // 埋点：realm_up 只在真正跨档时触发一次；静默迁移（migration）不走这条路径。
       try {
-        const analytics = require('./analytics')
-        analytics.track('realm_up', {
+        gpAnalytics.track('realm_up', {
           kind: up.kind,
           from: up.prev.realmId,
           fromSub: up.prev.subStage,
@@ -3853,6 +3850,14 @@ class Storage {
       console.warn('[Storage] Cloud init error:', e && (e.message || e))
     } finally {
       this._cloudSyncReady = true
+      try {
+        const uid = cloudSync.getOpenid && cloudSync.getOpenid()
+        if (uid) gpAnalytics.setUserId(uid)
+        gpAnalytics.trackSessionStart({
+          cloud_sync_ready: !!uid,
+          has_persistent_progress: this.hasPersistentProgress(),
+        })
+      } catch (_e) {}
     }
     this._ranking.preheatRanking()
   }

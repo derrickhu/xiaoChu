@@ -13,7 +13,7 @@
  */
 const V = require('./env')
 const { LING } = require('../data/lingIdentity')
-const analytics = require('../data/analytics')
+const gpAnalytics = require('../data/gpAnalytics')
 
 const ENTER_DUR = 360
 const EXIT_DUR = 240
@@ -54,7 +54,7 @@ function trigger(g, prev, curr) {
     lastTs: Date.now(),
     rects: { continueBtn: null, shareBtn: null },
   }
-  analytics.track('tier_up', {
+  gpAnalytics.track('tier_up', {
     from: (prev && prev.id) || 'mortal',
     to: curr.id,
   })

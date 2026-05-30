@@ -12,7 +12,7 @@
  */
 const P = require('./platform')
 const cloudSync = require('./data/cloudSync')
-const analytics = require('./data/analytics')
+const gpAnalytics = require('./data/gpAnalytics')
 const { SHARE_SCENES } = require('./data/shareConfig')
 const gameToast = require('./views/gameToast')
 const shareRewardPopup = require('./views/shareRewardPopup')
@@ -276,7 +276,7 @@ function shareCore(g, sceneKey, data, opts) {
   }
   _recordShareReward(g, sceneKey, mode)
   // 埋点：主动分享触发（唤起了分享面板，不保证用户最终完成分享）
-  analytics.track('share_invoke', {
+  gpAnalytics.track('share_invoke', {
     scene: sceneKey,
     mode,
     hasCard: !!(data && data.cardTempPath),

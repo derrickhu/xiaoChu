@@ -25,7 +25,7 @@ const V = require('./env')
 const { LING } = require('../data/lingIdentity')
 const { SHARE_SCENES } = require('../data/shareConfig')
 const shareCard = require('./shareCard')
-const analytics = require('../data/analytics')
+const gpAnalytics = require('../data/gpAnalytics')
 const P = require('../platform')
 const { drawRewardSlotChips, getShareRewardSlots } = require('./rewardChipFlyAnim')
 const { previewShareReward } = require('../data/shareRewardCalc')
@@ -136,7 +136,7 @@ function trigger(g, sceneKey, data, opts) {
     }
   }, 4500)
 
-  analytics.track('share_card_shown', { scene: sceneKey })
+  gpAnalytics.track('share_card_shown', { scene: sceneKey })
   return true
 }
 
@@ -408,19 +408,19 @@ function handleTouch(type, x, y) {
 
   const { rects, sceneKey, data, g } = _state
   if (_hit(rects.btnFriend, x, y)) {
-    analytics.track('share_card_clicked', { scene: sceneKey, mode: 'friend' })
+    gpAnalytics.track('share_card_clicked', { scene: sceneKey, mode: 'friend' })
     _doShare(g, sceneKey, data, 'friend')
     dismiss()
     return true
   }
   if (_hit(rects.btnTimeline, x, y)) {
-    analytics.track('share_card_clicked', { scene: sceneKey, mode: 'timeline' })
+    gpAnalytics.track('share_card_clicked', { scene: sceneKey, mode: 'timeline' })
     _doShare(g, sceneKey, data, 'timeline')
     dismiss()
     return true
   }
   if (_hit(rects.btnDismiss, x, y)) {
-    analytics.track('share_card_dismissed', { scene: sceneKey })
+    gpAnalytics.track('share_card_dismissed', { scene: sceneKey })
     if (_state && typeof _state.onDismiss === 'function') {
       try { _state.onDismiss() } catch (e) { console.warn('[shareCelebrate] onDismiss error', e) }
     }
