@@ -4,17 +4,17 @@
  * 调用微信「获取 URL Link」接口，生成可用于短信/网页/微信外打开的短链（https://wxaurl.cn/...）。
  * 文档: https://developers.weixin.qq.com/minigame/dev/api-backend/open-api/url-link/urllink.generate.html
  *
- * 依赖与 upload_cdn 相同：WX_SECRET 或 scripts/.cdn_secret
+ * 凭据：XIAOCHU_WX_SECRET（兼容 WX_SECRET）或 scripts/.cdn_secret
  *
  * 用法:
  *   node scripts/generateWxUrlLink.js
  *   node scripts/generateWxUrlLink.js --path= --query=channel=1 --days=7
- *   WX_APPID=wx... node scripts/generateWxUrlLink.js
+ *   WX_APPID=wx... XIAOCHU_WX_SECRET=... node scripts/generateWxUrlLink.js
  */
 
 const https = require('https')
 const path = require('path')
-const { loadWxSecret, PROJECT_ROOT } = require('./loadWxSecret')
+const { loadWechatOpenApiSecret, PROJECT_ROOT } = require('./loadEnv')
 
 const wechatCfg = require(path.join(PROJECT_ROOT, 'platform', 'wechat.project.config.json'))
 const APPID = process.env.WX_APPID || wechatCfg.appid
@@ -75,9 +75,9 @@ async function getAccessToken(secret) {
 }
 
 async function main() {
-  const secret = loadWxSecret()
+  const secret = loadWechatOpenApiSecret()
   if (!secret) {
-    console.error('未找到 WX_SECRET，请设置环境变量或配置 scripts/.cdn_secret')
+    console.error('未找到 XIAOCHU_WX_SECRET，请设置环境变量或配置 scripts/.cdn_secret')
     process.exit(1)
   }
 

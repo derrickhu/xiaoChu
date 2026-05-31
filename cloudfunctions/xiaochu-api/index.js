@@ -3,7 +3,6 @@ const { handlePull, handlePush } = require('./lib/save')
 const { handleSubmit, handleList, handleAction } = require('./lib/ranking')
 const { handleQueryPending, handleMarkGranted, handleVerify, handleCallback } = require('./lib/gift')
 const { handleRecordInvite, handleClaimInvites } = require('./lib/share')
-const { handleInitCollections, handleImportBatch, handleStats, handleListKeys } = require('./lib/admin')
 const { respond, parseEvent, preflight } = require('./lib/http')
 const { getGameKey } = require('./lib/config')
 
@@ -25,10 +24,6 @@ const ROUTES = {
   'POST /giftDeliver': handleCallback,
   'POST /share/recordInvite': handleRecordInvite,
   'POST /share/claimInvites': handleClaimInvites,
-  'POST /admin/initCollections': handleInitCollections,
-  'POST /admin/importBatch': handleImportBatch,
-  'POST /admin/stats': handleStats,
-  'POST /admin/listKeys': handleListKeys,
 }
 
 exports.main = async (event, context) => {

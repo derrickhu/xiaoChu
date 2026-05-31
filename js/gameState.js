@@ -161,7 +161,7 @@ function initState(g) {
   g.shopUsed = false
 
   // ===== 排行榜 =====
-  // 顶层数据源：'all'=全服榜（云函数）| 'friend'=好友榜（微信开放数据域）
+  // 顶层数据源：'all'=全服榜（xiaochu-api）| 'friend'=好友榜（微信开放数据域）
   //   这是最外层选择；四个维度 Tab（秘境/通天塔/图鉴/连击）在其下
   g.rankSource = 'all'
   // 维度 Tab（与 screens._RANK_TABS key 一致：stage/tower/dex/combo）

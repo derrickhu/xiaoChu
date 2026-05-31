@@ -22,20 +22,6 @@ function _detectOHOS() {
 const _isOHOS = _detectOHOS()
 
 const _noop = () => {}
-const _noopAsync = async () => ({ result: { code: -1, msg: 'not available' } })
-
-// 云数据库 mock（抖音端第一阶段无云开发，静默返回空数据）
-const _mockCol = () => ({
-  where: () => ({ get: async () => ({ data: [] }) }),
-  add: async () => ({}),
-  doc: () => ({ update: async () => ({}), remove: async () => ({}) }),
-})
-const _mockDb = () => ({ collection: _mockCol })
-const _mockCloud = {
-  init: _noop,
-  database: _mockDb,
-  callFunction: _noopAsync,
-}
 
 // 抖音没有 getWindowInfo / getDeviceInfo，用 getSystemInfoSync 兼容
 function _getWindowInfo() {
@@ -133,9 +119,6 @@ const platform = {
     ? (opts) => base.openSetting(opts)
     : (opts) => { if (opts && opts.fail) opts.fail() },
   getUserInfo: (opts) => base.getUserInfo(opts),
-
-  // ========== 云能力（第一阶段：微信用 wx.cloud，抖音用 mock） ==========
-  cloud: isWeChat ? base.cloud : _mockCloud,
 
   // ========== 广告能力 ==========
 

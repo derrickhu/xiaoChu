@@ -1,6 +1,6 @@
 /**
  * CDN 资源加载器 — 灵宠消消塔
- * 本地优先 + 微信云存储 CDN 按需下载 + 本地缓存
+ * 本地优先 + CloudBase COS HTTPS CDN 按需下载 + 本地缓存
  *
  * 核心原则：无模式开关，靠"本地文件是否存在"自动判定
  * - 开发时如需本地资源，可把目录移出打包忽略；当前瘦包模式下 CDN 目录默认走缓存/云端
@@ -10,10 +10,7 @@
 const P = require('../platform')
 const cdnCfg = require('./cdnConfig')
 
-const CDN_MODE = cdnCfg.cdnMode || 'legacy-cloud'
-const CLOUD_ENV = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseEnv : cdnCfg.cloudEnv
-const CLOUD_BUCKET = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseBucket : cdnCfg.cloudBucket
-const CDN_FILE_PREFIX = CDN_MODE === 'cloudbase-https' ? cdnCfg.cloudbaseFilePrefix : cdnCfg.filePrefix
+const CDN_FILE_PREFIX = String(cdnCfg.cloudbaseFilePrefix || '').replace(/^\/+|\/+$/g, '')
 const CDN_PUBLIC_BASE_URL = (cdnCfg.cloudbasePublicBaseUrl || '').replace(/\/$/, '')
 const CDN_DEBUG = !!cdnCfg.debugCdn
 const BUNDLED_PREFIXES = cdnCfg.bundledDirs.map(d => d.endsWith('/') ? d : d + '/')
@@ -77,10 +74,6 @@ function _isBundledPath(path) {
 
 function _getCachePath(logicalPath) {
   return CACHE_ROOT + '/' + logicalPath
-}
-
-function _getCloudFileID(logicalPath) {
-  return 'cloud://' + CLOUD_ENV + '.' + CLOUD_BUCKET + '/' + CDN_FILE_PREFIX + '/' + logicalPath
 }
 
 function _getCdnUrl(logicalPath) {
@@ -194,11 +187,11 @@ function downloadAndNotify(logicalPath, onComplete) {
   }
   _downloadQueue[logicalPath] = onComplete ? [onComplete] : []
 
-  const fileID = _getCloudFileID(logicalPath)
+  const url = _getCdnUrl(logicalPath)
   const cachePath = _getCachePath(logicalPath)
   _ensureCacheDir(cachePath)
   _stats.downloadStart++
-  if (CDN_DEBUG) console.log('[CDN] download start', logicalPath, fileID)
+  if (CDN_DEBUG) console.log('[CDN] download start', logicalPath, url)
 
   let retries = 0
   const maxRetries = 2
@@ -235,22 +228,12 @@ function downloadAndNotify(logicalPath, onComplete) {
       _retryOrFail(logicalPath, err)
     }
 
-    if (CDN_MODE === 'cloudbase-https') {
-      if (!P.downloadFile) {
-        _debugWarn('[CDN] download unavailable: downloadFile API missing', logicalPath)
-        _finishDownload(logicalPath, false)
-        return
-      }
-      P.downloadFile({ url: _getCdnUrl(logicalPath), success: onSuccess, fail: onFail })
-      return
-    }
-
-    if (!P.cloud || typeof P.cloud.downloadFile !== 'function') {
-      _debugWarn('[CDN] download unavailable: cloud API missing', logicalPath)
+    if (!P.downloadFile) {
+      _debugWarn('[CDN] download unavailable: downloadFile API missing', logicalPath)
       _finishDownload(logicalPath, false)
       return
     }
-    P.cloud.downloadFile({ fileID: fileID, success: onSuccess, fail: onFail })
+    P.downloadFile({ url, success: onSuccess, fail: onFail })
   }
 
   function _retryOrFail(lp, err) {
@@ -259,7 +242,7 @@ function downloadAndNotify(logicalPath, onComplete) {
       if (CDN_DEBUG) _debugWarn('[CDN] download retry', lp, { retries, err })
       setTimeout(doDownload, 500 * retries)
     } else {
-      _debugWarn('[CDN] download failed final', lp, { retries, err, fileID })
+      _debugWarn('[CDN] download failed final', lp, { retries, err, url })
       _finishDownload(lp, false)
     }
   }
@@ -359,7 +342,6 @@ function preloadPaths(paths, onProgress) {
  * 拉取远程 manifest.json
  */
 function fetchManifest(onDone) {
-  const fileID = _getCloudFileID('manifest.json')
   const handleSuccess = function(res) {
     if (res.tempFilePath) {
       try {
@@ -384,14 +366,8 @@ function fetchManifest(onDone) {
     if (onDone) onDone(false)
   }
 
-  if (CDN_MODE === 'cloudbase-https') {
-    if (!P.downloadFile) return handleFail()
-    P.downloadFile({ url: _getCdnUrl('manifest.json') + '?v=' + Date.now(), success: handleSuccess, fail: handleFail })
-    return
-  }
-
-  if (!P.cloud || typeof P.cloud.downloadFile !== 'function') return handleFail()
-  P.cloud.downloadFile({ fileID: fileID, success: handleSuccess, fail: handleFail })
+  if (!P.downloadFile) return handleFail()
+  P.downloadFile({ url: _getCdnUrl('manifest.json') + '?v=' + Date.now(), success: handleSuccess, fail: handleFail })
 }
 
 function _loadCachedManifest() {

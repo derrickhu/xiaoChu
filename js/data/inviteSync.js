@@ -6,7 +6,7 @@
  *   2. 老玩家回归：调 share.claimInvites 拉取未领取奖励 → storage.grantInviterReward 入账
  *
  * 单独成模块是为了：
- *   - 不让 storage.js 耦合 P.cloud
+ *   - 不让 storage.js 耦合 xiaochu-api 邀请细节
  *   - 不让 cloudSync.js 塞业务逻辑
  *   - main.js 在云端 ready 后调一次 syncOnce(storage, onReward)
  */
@@ -17,7 +17,7 @@ const gpAnalytics = require('./gpAnalytics')
 
 let _synced = false
 
-// share 云函数尚未部署时会回 FUNCTION_NOT_FOUND(-501000)，这是"功能未上线"的预期错误，
+// share 路由尚未部署时可能回 FUNCTION_NOT_FOUND(-501000)，这是"功能未上线"的预期错误，
 // 不必污染控制台；其它真实错误（网络/权限/业务）仍正常 warn 出来便于排查
 function _isFunctionNotFound(e) {
   if (!e) return false
@@ -33,7 +33,7 @@ function _isFunctionNotFound(e) {
  */
 async function syncOnce(storage, onInviterReward) {
   if (_synced) return
-  if (!P.isWeChat) return  // 抖音暂无对应云函数
+  if (!P.isWeChat) return  // 抖音暂无对应邀请活动
   if (!cloudSync.isReady()) return
   const openid = cloudSync.getOpenid && cloudSync.getOpenid()
   if (!openid) return

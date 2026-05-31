@@ -24,7 +24,7 @@ const path = require('path')
 const https = require('https')
 const crypto = require('crypto')
 
-const { loadUploadEnv, PROJECT_ROOT } = require('./loadWxSecret')
+const { loadUploadEnv, PROJECT_ROOT } = require('./loadEnv')
 const cdnCfg = require(path.join(PROJECT_ROOT, 'js', 'data', 'cdnConfig.js'))
 
 const FORCE = process.argv.includes('--force')

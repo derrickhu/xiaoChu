@@ -15,7 +15,7 @@ const { DATA_VERSION } = require('./giftConfig')
 /**
  * 存储管理 — 灵宠消消塔
  * 当前架构：秘境推关 + 通天塔挑战 + 灵宠池 + 修炼 + 法宝 + 签到 / 每日任务
- * 本地缓存 + 云数据库双重存储（微信用 wx.cloud，抖音用 HTTP API）
+ * 本地缓存 + xiaochu-api 统一云存档（微信/抖音均走 HTTP API）
  * 持久化内容：关卡通关记录、灵宠池、资源（灵石/觉醒石/碎片/万能碎片/体力）、修炼数据、统计、设置等
  */
 
@@ -2000,8 +2000,8 @@ class Storage {
   /**
    * 新玩家处理邀请 inviter
    *   1. 本地发 INVITE_REWARD.soulStone 给新玩家（保留老逻辑）
-   *   2. 记录 inviterId 到 _d.pendingInviteReport，由 main.js 异步上报云端
-   *      （不在 storage 里直接 callFunction，保持 storage 不依赖平台层）
+   *   2. 记录 inviterId 到 _d.pendingInviteReport，由 main.js 异步通过 xiaochu-api 上报云端
+   *      （不在 storage 里直接发请求，保持 storage 不依赖平台层）
    */
   processInvite(inviterId) {
     if (!inviterId) return false
@@ -2009,14 +2009,14 @@ class Storage {
     const { INVITE_REWARD } = require('./giftConfig')
     this._d.invitedBy = inviterId
     if (INVITE_REWARD.soulStone) this.addSoulStone(INVITE_REWARD.soulStone)
-    // 标记待上报：由 cloudSync / main.js 调 share 云函数 recordInvite
+    // 标记待上报：由 cloudSync / main.js 调 xiaochu-api /share/recordInvite
     this._d.pendingInviteReport = inviterId
     this._save()
     return true
   }
 
   // ===== 邀请方（老玩家）收到被邀请成功的反奖 =====
-  //   当 share 云函数 claimInvites 返回 count > 0 时，客户端调用此方法入账
+  //   当 xiaochu-api /share/claimInvites 返回 count > 0 时，客户端调用此方法入账
   //   每人发 INVITE_REWARD.soulStone；上限由 INVITE_MAX_COUNT 控制
   grantInviterReward(newInviteCount) {
     if (!newInviteCount || newInviteCount <= 0) return null
@@ -3569,7 +3569,7 @@ class Storage {
   }
 
   // ==== 通天塔周榜奖励：每日首登检查 + 领取 ====
-  //   · 云函数 checkWeeklyReward 只读（预览）；claimWeeklyReward 幂等写入 weeklyReward 表
+  //   · xiaochu-api ranking/action 只读预览；claimWeeklyReward 幂等写入 weeklyReward 表
   //   · 客户端按 GM 账号静默跳过
   //   · 每日首次调用（本地日历日）才发起请求，避免频繁云调
   async checkWeeklyRewardOnceToday() {

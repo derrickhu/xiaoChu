@@ -396,7 +396,7 @@ def write_document(pdf):
         '修炼洞府系统: 局外五维属性养成(体魄/灵力/悟性/根骨/神识)和修仙境界突破',
         '灵宠池系统: 爬塔中满星宠物解锁入池，碎片升星培养持久灵宠',
         '排行榜系统: 速通榜、图鉴榜、连击榜三个独立在线排行榜',
-        '云端存储与同步: 支持微信云开发的数据持久化和跨设备同步',
+        '云端存储与同步: 支持CloudBase统一后端的数据持久化和跨设备同步',
         '新手引导系统: 4步渐进式教学引导',
         '社交分享功能: 支持微信好友分享和群排行',
     ]
@@ -426,7 +426,7 @@ def write_document(pdf):
             ['网络要求', '需要网络连接(排行榜/云同步)，离线可单机游戏'],
             ['开发语言', 'JavaScript (ES6+)'],
             ['渲染技术', 'Canvas 2D'],
-            ['云服务', '微信云开发'],
+            ['云服务', 'CloudBase统一后端'],
             ['硬件要求', '支持触摸屏的移动设备'],
         ],
         col_widths=[40, CONTENT_W - 40]
@@ -1154,8 +1154,8 @@ def write_document(pdf):
 
     pdf.write_h2('5.2 云数据库接口')
     pdf.write_body(
-        '云数据库使用微信云开发环境(cloud1-6g8y0x2i39e768eb)，'
-        '采用双重存储策略，本地存储和云数据库同步运行。'
+        '云数据库使用统一CloudBase环境(rosa-env-d7grf78r5dbd37323)，'
+        '采用本地存储 + xiaochu-api云端存档同步策略。'
     )
     pdf.write_body('存储架构:')
     storage_lines = [
@@ -1177,21 +1177,20 @@ def write_document(pdf):
     )
 
     pdf.write_h2('5.3 云函数接口')
-    pdf.write_body('系统包含以下4个云函数:')
+    pdf.write_body('系统只保留一个统一后端云函数xiaochu-api:')
     pdf.write_table_auto(
-        ['云函数名', '功能描述', '调用时机'],
+        ['路由模块', '功能描述', '调用时机'],
         [
-            ['getOpenid', '获取用户openid', 'Storage初始化时'],
-            ['initCollections', '创建云数据库集合', 'Storage初始化时'],
-            ['ranking', '排行榜提交与查询(6种action)', '局结束提交 + 排行榜页拉取'],
-            ['resetTaskAndWeekly', '每日/每周任务重置', '定时触发'],
+            ['/login', '微信/抖音登录与JWT签发', 'Storage初始化时'],
+            ['/save/*', '云存档拉取与推送', '启动同步 + 本地数据变更'],
+            ['/ranking/*', '排行榜提交、查询与周榜领奖', '局结束提交 + 排行榜页拉取'],
+            ['/gift/* /share/*', '礼包发货与邀请奖励', '启动同步 / 平台回调 / 分享链路'],
         ],
         col_widths=[38, 55, CONTENT_W - 93]
     )
     pdf.write_body(
-        '云函数调用采用统一的错误处理策略: 所有调用均使用try-catch包裹，调用失败时静默降级，'
-        '不影响游戏核心流程;getOpenid在Storage初始化时调用，获取成功后缓存到本地，后续不再重复调用;'
-        'ranking云函数支持批量提交和分页查询，单次最多返回50条记录。'
+        '客户端统一通过HTTPS请求xiaochu-api，后端集合统一使用xiaochu_*前缀。'
+        '微信好友榜保留开放数据域能力，不属于旧云开发后台链路。'
     )
 
     pdf.write_h2('5.4 排行榜接口')
@@ -1199,23 +1198,21 @@ def write_document(pdf):
     pdf.write_table_auto(
         ['榜单名称', '云集合', '排序规则', '提交时机'],
         [
-            ['速通榜', 'rankAll', 'floor降序, totalTurns升序', '局结束时'],
-            ['图鉴榜', 'rankDex', 'petDexCount降序', '局结束时/独立提交'],
-            ['连击榜', 'rankCombo', 'maxCombo降序', '局结束时/独立提交'],
+            ['速通榜', 'xiaochu_rankAll', 'floor降序, totalTurns升序', '局结束时'],
+            ['图鉴榜', 'xiaochu_rankDex', 'petDexCount降序', '局结束时/独立提交'],
+            ['连击榜', 'xiaochu_rankCombo', 'maxCombo降序', '局结束时/独立提交'],
         ],
         col_widths=[25, 25, 50, CONTENT_W - 100]
     )
     pdf.write_body(
-        '排行榜缓存策略: 30秒客户端缓存(rankLastFetch)避免频繁调用云函数;'
+        '排行榜缓存策略: 30秒客户端缓存(rankLastFetch)避免频繁调用后端接口;'
         '后台预热在Storage初始化完成后静默拉取速通榜;'
         '排行榜页面每2分钟自动刷新。'
     )
     pdf.write_body(
-        '排行榜云函数支持6种action: submitAll(提交速通记录)、submitDex(提交图鉴记录)、'
-        'submitCombo(提交连击记录)、getAll(获取速通榜)、getDex(获取图鉴榜)、'
-        'getCombo(获取连击榜)。每次提交时附带玩家昵称和头像URL用于排行榜显示。'
+        '排行榜接口支持提交和查询速通、图鉴、连击等维度。每次提交时附带玩家昵称和头像URL用于排行榜显示。'
         '排行榜展示默认显示前100名，超出范围显示玩家自身排名和数据。'
-        '排行榜数据通过微信云开发的aggregation聚合查询实现高效的排序和分页检索。'
+        '排行榜数据通过CloudBase文档数据库查询实现排序和分页检索。'
         '排行榜页面支持速通榜、图鉴榜和连击榜之间的Tab切换，各榜单独立缓存和刷新。'
     )
 
@@ -1251,7 +1248,7 @@ def write_document(pdf):
         '由于游戏支持离线单机游玩，网络异常不会导致游戏崩溃。具体处理策略:'
     )
     net_errors = [
-        '云函数调用失败: 使用try-catch捕获，失败时静默降级，不影响游戏进行',
+        '后端接口调用失败: 使用try-catch捕获，失败时静默降级，不影响游戏进行',
         '云同步失败: 本地存储作为主存储，云端同步失败后2秒防抖重试，多次失败后放弃本次同步',
         '排行榜拉取失败: 显示上次缓存的数据，或显示"暂无数据"提示',
         '网络超时: 统一设置5000ms超时，超时后自动放弃请求',

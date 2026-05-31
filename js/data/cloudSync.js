@@ -131,7 +131,7 @@ async function _syncFromCloud() {
   } catch(e) { console.warn('Sync from cloud error:', e) }
 }
 
-// ===== 拉取微信平台礼包（通过云函数，避免客户端权限问题） =====
+// ===== 拉取微信平台礼包（通过 xiaochu-api，避免客户端权限问题） =====
 // 只把待领礼包压入 storage 的待领队列，真正发放等玩家在游戏内点"领取礼包"按钮时再发，
 // 避免回到游戏即静默入账带来的"领了什么我都不知道"。
 // 本地已存在 platformGiftGrantedIds[id] 的礼包说明上次已发，仅补一次云端 markGranted 防漏。

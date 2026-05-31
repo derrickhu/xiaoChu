@@ -34,8 +34,8 @@ let _gmKvCleaned = false
 /**
  * GM 账号：清除微信侧已写入的四维度 KV，让好友榜彻底看不到 GM
  *
- *   · wx.setUserCloudStorage 是微信自家 KV（好友榜数据源），不走云函数，
- *     云函数的 GM_OPENIDS 拦不到。GM 历史上传过的数据得主动清。
+ *   · wx.setUserCloudStorage 是微信自家 KV（好友榜数据源），不走 xiaochu-api，
+ *     xiaochu-api 的 GM_OPENIDS 拦不到。GM 历史上传过的数据得主动清。
  *   · _gmKvCleaned 做会话级去重：同一 session 只清一次，避免每次上报都发请求
  *   · 清除对其他好友的可见性生效需微信服务端传播，几分钟到下次拉取之间
  */
@@ -135,7 +135,7 @@ function uploadScores(ctx, opts) {
   if (!ctx) return
 
   // GM 账号不得出现在任何榜（含好友榜），同时清掉历史 KV，让其他好友也看不到
-  //   · 云函数那边 GM_OPENIDS 只拦截云数据库，好友榜走 wx.setUserCloudStorage 必须在此闸门
+  //   · xiaochu-api 那边 GM_OPENIDS 只拦截全服榜，好友榜走 wx.setUserCloudStorage 必须在此闸门
   if (isCurrentUserGM()) {
     _cleanupGmCloudStorage()
     return

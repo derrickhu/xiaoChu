@@ -49,9 +49,9 @@ function _getPendingShare() {
 function clearPendingShare() { _pendingShare = null }
 
 // ===== 内部：邀请 query 拼装 =====
-//   为什么从 cloudSync 取 openid：邀请链的"源头"需要稳定 ID，
-//   cloudSync 在 app 启动时会尝试 callFunction getOpenid 并缓存。
-//   若未取到（抖音端/未登录），退化为不带 inviter（仅做奖励，不做裂变）。
+//   为什么从 cloudSync 取 userId：邀请链的"源头"需要稳定 ID，
+//   cloudSync 在 app 启动时通过 xiaochu-api 登录并缓存。
+//   若未取到（未登录），退化为不带 inviter（仅做奖励，不做裂变）。
 function _buildQuery(extraQuery) {
   const parts = []
   const inviter = cloudSync.getOpenid && cloudSync.getOpenid()

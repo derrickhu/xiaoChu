@@ -4,7 +4,7 @@
 
 ## CloudBase 统一后端迁移
 
-微信/抖音统一接入 CloudBase 后端 `xiaochu-api`，路由 `/xiaochu-api/login`、`/save/*`、`/ranking/*`、`/gift/*`、`/share/*`、`/admin/*`；`GAME_KEY = xiaochu`，集合统一使用 `xiaochu_*` 前缀，环境变量统一使用 `XIAOCHU_*` 前缀。详细部署、迁移、CDN 和验收清单见 `docs/cloudbase-xiaochu.md`。
+微信/抖音统一接入 CloudBase 后端 `xiaochu-api`，路由 `/xiaochu-api/login`、`/save/*`、`/ranking/*`、`/gift/*`、`/share/*`；旧微信云开发独立函数、旧数据库导出/迁移工具和旧 CDN 回退链路已移除。`GAME_KEY = xiaochu`，集合统一使用 `xiaochu_*` 前缀，环境变量统一使用 `XIAOCHU_*` 前缀。详细部署、CDN 和验收清单见 `docs/cloudbase-xiaochu.md`。
 
 ## 源码目录介绍
 

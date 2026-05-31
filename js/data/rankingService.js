@@ -138,7 +138,7 @@ class RankingService {
   }
 
   async submitScore(floor, pets, weapon, totalTurns) {
-    // GM 账号不参与任何排行榜：客户端早退省云函数调用，云函数 GM_OPENIDS 做兜底
+    // GM 账号不参与任何排行榜：客户端早退省后端调用，xiaochu-api 侧 GM_OPENIDS 做兜底
     if (isCurrentUserGM()) {
       console.log('[Ranking] GM 跳过提交通天塔')
       return

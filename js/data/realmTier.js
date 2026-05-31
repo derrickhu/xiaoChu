@@ -13,7 +13,7 @@
  *   2. 数量控制在 5 档以内——太多档会把玩家切碎到无对手，太少档又失去"同境界对比"的意义；
  *   3. 返回字符串 id（与 CULT_REALMS 中某一档对齐），避免数字误用。
  *
- * 新增/调整档位时请同步 `cloudfunctions/ranking/index.js` 里同名 `_getRealmTier`，保持一致！
+ * 新增/调整档位时请同步 `cloudfunctions/xiaochu-api/lib/ranking.js` 里同名 `_getRealmTier`，保持一致！
  */
 
 const TIER_BOUNDS = [

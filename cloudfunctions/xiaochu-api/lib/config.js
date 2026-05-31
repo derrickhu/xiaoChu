@@ -63,10 +63,6 @@ function getPlatformCredential(platform, field) {
   return readEnvPrefer(...keys)
 }
 
-function getAdminKey() {
-  return readEnvPrefer(`${gameKeyUpper()}_ADMIN_KEY`)
-}
-
 function getCdnPublicBaseUrl() {
   return readEnvPrefer(`${gameKeyUpper()}_CDN_PUBLIC_BASE_URL`)
 }
@@ -83,7 +79,6 @@ module.exports = {
   getTtlSec,
   getMaxBytes,
   getPlatformCredential,
-  getAdminKey,
   getCdnPublicBaseUrl,
   getCdnFilePrefix,
 }
