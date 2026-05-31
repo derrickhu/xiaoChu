@@ -25,6 +25,7 @@ const tTitle = require('./tTitle')
 const tPrepare = require('./tPrepare')
 const tEvent = require('./tEvent')
 const tBattle = require('./tBattle')
+const tServerSelect = require('./tServerSelect')
 
 function tReward(g, type, x, y) {
   if (type !== 'end') return
@@ -656,7 +657,7 @@ function tDex(g, type, x, y) {
 }
 
 module.exports = {
-  tTitle, tPrepare, tEvent, tBattle,
+  tTitle, tPrepare, tEvent, tBattle, tServerSelect,
   tReward, tShop, tRest, tAdventure, tGameover,
   tRanking, tDex,
 }

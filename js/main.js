@@ -28,6 +28,7 @@ const towerDetailView = require('./views/towerDetailView')
 const trialDetailView = require('./views/trialDetailView')
 const trialResultView = require('./views/trialResultView')
 const idleView = require('./views/idleView')
+const serverSelectView = require('./views/serverSelectView')
 const titleView = require('./views/titleView')
 const prepareView = require('./views/prepareView')
 const eventView = require('./views/eventView')
@@ -51,6 +52,8 @@ const gameToast = require('./views/gameToast')
 const floatText = require('./views/floatText')
 const lingCheer = require('./views/lingCheer')
 const inviteSync = require('./data/inviteSync')
+const serverConfig = require('./data/serverConfig')
+const api = require('./api')
 const gpAnalytics = require('./data/gpAnalytics')
 const buttonFx = require('./views/buttonFx')
 const numberTween = require('./views/numberTween')
@@ -231,20 +234,12 @@ function _buildLoadingAnalyticsParams(g, scene, elapsed) {
 class Main {
   constructor() {
     gpAnalytics.init()
-    this.storage = new Storage()
-    AdManager.init(this.storage, this)
-    this.scene = 'loading'
+    this.storage = null
+    this.scene = 'serverSelect'
     this.af = 0
-
-    // 邀请系统：检查 onShow query 中的 inviter 参数
-    if (GameGlobal.__inviterId) {
-      this.storage.processInvite(GameGlobal.__inviterId)
-      GameGlobal.__inviterId = null
-    }
 
     // 事件总线：新增/修改模块优先使用 g.events 解耦通信
     this.events = new TinyEmitter()
-    this.storage._eventBus = this.events
 
     // 排行榜异步加载状态变化时，标记需要重绘
     this.events.on('ranking:dirty', () => { this._dirty = true })
@@ -274,11 +269,12 @@ class Main {
     })
 
     initState(this)
+    this.serverList = serverConfig.getFallbackServers()
+    this.selectedServerId = serverConfig.normalizeServerId(GameGlobal.__launchServerId || serverConfig.getLastSelectedServerId())
+    this.serverListLoading = true
     GameGlobal.__gameMain = this
-    // 从存档恢复BGM音量设置
-    const savedBgmVol = this.storage.settings.bgmVolume
-    MusicMgr.setBgmVolume((savedBgmVol != null ? savedBgmVol : 50) / 100)
     R._onImageLoad = () => { this._dirty = true }
+    this._loadServerList()
 
     this.events.on('scene:change', (newScene, oldScene) => {
       if (newScene === 'petPool') {
@@ -602,8 +598,96 @@ class Main {
     })
     // 后台拉取 CDN 资源清单（不阻塞启动，拉完后按需下载即自动生效）
     AssetLoader.fetchManifest(() => {
-      this._preloadOwnedAssets()
+      if (this.storage) this._preloadOwnedAssets()
     })
+  }
+
+  async _loadServerList() {
+    this.serverListLoading = true
+    this.serverListError = ''
+    this._dirty = true
+    try {
+      const res = await api.getServerList()
+      const list = serverConfig.normalizeServerList((res && res.servers) || [])
+      this.serverList = list
+      this.serverListFallback = !!(res && res.fallback)
+      const launchServerId = GameGlobal.__launchServerId
+      const preferred = serverConfig.normalizeServerId(launchServerId || serverConfig.getLastSelectedServerId())
+      this.selectedServerId = list.some((s) => s.serverId === preferred) ? preferred : (list[0] && list[0].serverId) || 's1'
+    } catch (e) {
+      this.serverList = serverConfig.getFallbackServers()
+      this.serverListFallback = true
+      this.serverListError = e && e.message ? e.message : String(e)
+      const preferred = serverConfig.normalizeServerId(GameGlobal.__launchServerId || serverConfig.getLastSelectedServerId())
+      this.selectedServerId = this.serverList.some((s) => s.serverId === preferred) ? preferred : 's1'
+      console.warn('[ServerSelect] 获取服务器列表失败，使用本地兜底:', this.serverListError)
+    } finally {
+      this.serverListLoading = false
+      this._dirty = true
+    }
+  }
+
+  switchToServerSelect() {
+    try { if (this.storage && this.storage.destroyUserInfoBtn) this.storage.destroyUserInfoBtn() } catch (_) {}
+    this.showMorePanel = false
+    this.showSidebarPanel = false
+    this.showTitleStartDialog = false
+    this._showDailySign = false
+    this._showDailyTasks = false
+    this._confirmDialog = null
+    this.serverEntering = false
+    this.currentServer = null
+    this.selectedServerId = serverConfig.normalizeServerId(serverConfig.getLastSelectedServerId())
+    this._serverSelectRects = []
+    this._serverEnterRect = null
+    this.setScene('serverSelect')
+    this._loadServerList()
+    this._dirty = true
+  }
+
+  enterServer(server) {
+    if (this.serverEntering) return
+    const list = this.serverList || []
+    const target = typeof server === 'string'
+      ? list.find((s) => s.serverId === server)
+      : server
+    if (!target) return
+    if (!serverConfig.canEnterServer(target)) {
+      P.showGameToast((target.notice || '服务器暂不可进入'), { type: 'warn' })
+      return
+    }
+    const keepServerList = this.serverList
+    const keepServerListFallback = this.serverListFallback
+    const keepServerListError = this.serverListError
+    const keepLoadReady = this._loadReady
+    const keepLoadPct = this._loadPct
+    try { if (this.storage && this.storage.destroyUserInfoBtn) this.storage.destroyUserInfoBtn() } catch (_) {}
+    initState(this)
+    this.serverList = keepServerList
+    this.serverListFallback = keepServerListFallback
+    this.serverListError = keepServerListError
+    this._loadReady = keepLoadReady
+    this._loadPct = keepLoadPct
+    this.serverEntering = true
+    this.currentServer = target
+    this.selectedServerId = target.serverId
+    serverConfig.setLastSelectedServerId(target.serverId)
+    api.setServer(target.serverId)
+
+    this.storage = new Storage({ serverId: target.serverId })
+    this.storage._eventBus = this.events
+    AdManager.init(this.storage, this)
+    if (GameGlobal.__inviterId) {
+      this.storage.processInvite(GameGlobal.__inviterId)
+      GameGlobal.__inviterId = null
+    }
+    const savedBgmVol = this.storage.settings.bgmVolume
+    MusicMgr.setBgmVolume((savedBgmVol != null ? savedBgmVol : 50) / 100)
+    this._loadStart = Date.now()
+    this._loadReady = !!this._loadReady
+    this.serverEntering = false
+    this.setScene('loading')
+    this._dirty = true
   }
 
   _startWarmupPreload() {
@@ -679,11 +763,12 @@ class Main {
     }
     // 奖励生成已移至 battleVictoryView._handleTowerFloorVictory 中提前完成
     if (this.scene === 'loading') {
+      if (!this.storage) return
       const elapsed = Date.now() - this._loadStart
       if (this._loadReady && elapsed > 500) {
         if (!this.storage.cloudSyncReady && elapsed < 2500) return
 
-        const shouldSkipIntro = !!P.getStorageSync('introDone') || this.storage.hasPersistentProgress()
+        const shouldSkipIntro = !!P.getStorageSync(serverConfig.scopedKey('introDone', this.selectedServerId)) || this.storage.hasPersistentProgress()
         const loadingParams = _buildLoadingAnalyticsParams(this, shouldSkipIntro ? 'title' : 'intro', elapsed)
         if (!this.storage.cloudSyncReady && !this._loadingCloudWaitTracked && this.storage.recordFunnelEvent) {
           this._loadingCloudWaitTracked = true
@@ -1006,6 +1091,7 @@ class Main {
     }
     ctx.save(); ctx.translate(sx, sy)
     switch(this.scene) {
+      case 'serverSelect': serverSelectView.render(this); break
       case 'loading': screens.rLoading(this); break
       case 'intro': introView.render(this); break
       case 'title': titleView.rTitle(this); break
@@ -1140,6 +1226,7 @@ class Main {
       if (guideOverlay.onTouch(this, type)) return
     }
     switch(this.scene) {
+      case 'serverSelect': touchH.tServerSelect(this,type,x,y); break
       case 'intro': introView.onTouch(this, type, x, y); break
       case 'title': touchH.tTitle(this,type,x,y); break
       case 'prepare': touchH.tPrepare(this,type,x,y); break

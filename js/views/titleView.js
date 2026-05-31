@@ -1856,6 +1856,7 @@ function drawMorePanel(g) {
     { key: 'bgmVol',   label: '音乐音量', slider: true, value: g.storage.settings.bgmVolume != null ? g.storage.settings.bgmVolume : 50 },
     { key: 'helpTour', label: '功能导览', toggle: null },
     { key: 'feedback', label: '意见反馈', toggle: null },
+    { key: 'switchServer', label: '切换服务器', toggle: null },
   ]
   if (_isGM) items.push({ key: 'gm', label: 'GM调试面板', toggle: null, gmStyle: true })
 

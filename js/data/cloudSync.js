@@ -28,12 +28,18 @@ let _syncing = false
 let _syncPending = false
 let _onSyncDone = null
 let _onPlatformGifts = null
+let _serverId = 's1'
 
 // init 时传入的引用和配置
 let _dataRef = null
 let _localKey = ''
 let _currentVersion = 0
 let _runMigrations = null
+
+function _normalizeServerId(value) {
+  const id = String(value || '').trim().toLowerCase()
+  return /^s[1-9][0-9]{0,3}$/.test(id) ? id : 's1'
+}
 
 function _hasAnyKey(obj) {
   return !!(obj && typeof obj === 'object' && Object.keys(obj).length > 0)
@@ -202,6 +208,10 @@ async function markPlatformGiftsGranted(ids) {
 }
 
 // ===== 推送到云端 =====
+function _clonePersistData(data) {
+  try { return JSON.parse(JSON.stringify(data || {})) } catch (_) { return { ...(data || {}) } }
+}
+
 async function _syncToCloud() {
   if (!_cloudReady || _syncDisabled) return
   if (_syncing) {
@@ -212,9 +222,10 @@ async function _syncToCloud() {
   try {
     const syncTime = Date.now()
     _dataRef._updateTime = syncTime
-    try { P.setStorageSync(_localKey, JSON.stringify(_dataRef)) } catch (e) {}
+    const safeData = _clonePersistData(_dataRef)
+    try { P.setStorageSync(_localKey, JSON.stringify(safeData)) } catch (e) {}
 
-    await api.syncPlayerData({ ..._dataRef })
+    await api.syncPlayerData(safeData)
     if (_syncFailCount > 0) {
       console.log('[Storage] 云同步恢复成功，已上传最新数据')
     }
@@ -270,14 +281,42 @@ function debounceSyncToCloud(data) {
   }, delay)
 }
 
+function reset() {
+  if (_cloudSyncTimer) clearTimeout(_cloudSyncTimer)
+  if (_syncRetryTimer) clearInterval(_syncRetryTimer)
+  _cloudReady = false
+  _openid = ''
+  _cloudSyncTimer = null
+  _cloudInitDone = false
+  _pendingSync = false
+  _syncFailCount = 0
+  _syncDisabled = false
+  _syncDirty = false
+  _syncRetryTimer = null
+  _syncing = false
+  _syncPending = false
+  _onSyncDone = null
+  _onPlatformGifts = null
+  _serverId = 's1'
+  _dataRef = null
+  _localKey = ''
+  _currentVersion = 0
+  _runMigrations = null
+  if (api.resetRemoteState) api.resetRemoteState()
+}
+
 // ===== 初始化入口 =====
 async function init(persistData, opts) {
+  reset()
+  const options = opts || {}
+  _serverId = _normalizeServerId(options.serverId)
+  if (api.setServer) api.setServer(_serverId)
   _dataRef = persistData
-  _localKey = opts.localKey
-  _currentVersion = opts.currentVersion
-  _runMigrations = opts.runMigrations
-  _onSyncDone = opts.onSyncDone || null
-  _onPlatformGifts = opts.onPlatformGifts || null
+  _localKey = options.localKey
+  _currentVersion = options.currentVersion
+  _runMigrations = options.runMigrations
+  _onSyncDone = options.onSyncDone || null
+  _onPlatformGifts = options.onPlatformGifts || null
 
   try {
     const loginRes = await api.login()
@@ -309,13 +348,16 @@ async function init(persistData, opts) {
 
 function isReady() { return _cloudReady }
 function getOpenid() { return _openid }
+function getServerId() { return _serverId }
 
 module.exports = {
   init,
+  reset,
   syncToCloud: _syncToCloud,
   syncFromCloud: _syncFromCloud,
   markPlatformGiftsGranted,
   debounceSyncToCloud,
   isReady,
   getOpenid,
+  getServerId,
 }

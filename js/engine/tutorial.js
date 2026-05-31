@@ -18,6 +18,11 @@ const { getPoolPetAtk } = require('../data/petPoolConfig')
 const MusicMgr = require('../runtime/music')
 const { NEWBIE_PET_IDS, NEWBIE_2STAR_IDS } = require('../data/constants')
 const { LING } = require('../data/lingIdentity')
+const serverConfig = require('../data/serverConfig')
+
+function _serverKey(g, base) {
+  return serverConfig.scopedKey(base, (g && g.selectedServerId) || (g && g.storage && g.storage.serverId) || 's1')
+}
 
 // 教学专用固定5只宠物（每属性取第一只基础宠物，保证五行齐全）
 function _makeTutorialPets() {
@@ -491,7 +496,7 @@ function finish(g) {
   _round = 0
   _phase = 'done'
   // 标记教学已完成
-  try { P.setStorageSync('tutorialDone', true) } catch(e) {}
+  try { P.setStorageSync(_serverKey(g, 'tutorialDone'), true) } catch(e) {}
 
   // 与秘境 1-1 首通一致：仅 NEWBIE_2STAR_IDS 为 ★2，其余 ★1
   if (g.storage.petPoolCount === 0) {
@@ -703,7 +708,7 @@ function getGuideData() {
  * 不替换宠物和敌人（由 startStageNewbie 已设好），教完直接切自由操作
  */
 function startStageTutorial(g) {
-  try { if (P.getStorageSync('stageTutorialDone')) return } catch(e) {}
+  try { if (P.getStorageSync(_serverKey(g, 'stageTutorialDone'))) return } catch(e) {}
 
   _active = true
   _step = 0
@@ -769,7 +774,7 @@ function finishStageTutorial(g) {
   _stageMode = false
   _stageOverrideData = null
   _step = 0; _round = 0; _phase = 'done'
-  try { P.setStorageSync('stageTutorialDone', true) } catch(e) {}
+  try { P.setStorageSync(_serverKey(g, 'stageTutorialDone'), true) } catch(e) {}
 }
 
 // 强制关闭教学状态（仅清理标志，不触发 nextFloor / startRun）
@@ -780,7 +785,7 @@ function _forceDeactivate() {
   _step = 0
   _round = 0
   _phase = 'done'
-  try { P.setStorageSync('tutorialDone', true) } catch(e) {}
+  try { P.setStorageSync(serverConfig.scopedKey('tutorialDone', serverConfig.getLastSelectedServerId()), true) } catch(e) {}
 }
 
 module.exports = {

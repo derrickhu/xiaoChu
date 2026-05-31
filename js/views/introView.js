@@ -284,7 +284,8 @@ function onTouch(g, type, x, y) {
 function _finish(g, source) {
   if (_finished) return
   _finished = true
-  V.P.setStorageSync('introDone', true)
+  const serverConfig = require('../data/serverConfig')
+  V.P.setStorageSync(serverConfig.scopedKey('introDone', g.selectedServerId || (g.storage && g.storage.serverId) || 's1'), true)
   g.storage.markGuideShown('intro_done')
   if (g.storage.recordFunnelEvent) {
     g.storage.recordFunnelEvent('intro_finish', { scene: source || 'unknown' })

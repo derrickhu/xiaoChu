@@ -1,6 +1,7 @@
 const { httpError } = require('./http')
 const { requireUser } = require('./auth')
 const { collection } = require('./db')
+const { resolveRequestServer, isLegacyDefaultServer } = require('./server')
 
 const VALID_TIERS = ['qi_refine', 'core', 'spirit', 'mahayana', 'ascend']
 const LIST_SIZE = 100
@@ -12,8 +13,30 @@ const WEEKLY_REWARD_TIERS = [
   { maxRank: Infinity, soulStone: 10, uniFrag: 0, label: 'participate' },
 ]
 
+function rankingUid(userId, serverId) {
+  return isLegacyDefaultServer(serverId) ? userId : `${serverId}:${userId}`
+}
+
+function isDuplicateKeyError(error) {
+  const msg = error && error.message ? error.message : String(error || '')
+  return msg.indexOf('E11000') >= 0 || msg.indexOf('duplicate key') >= 0 || msg.indexOf('dup key') >= 0
+}
+
+async function addOrUpdateOnDuplicate(col, record, where) {
+  try {
+    await col.add(record)
+    return 'insert'
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) throw error
+    await col.where(where).update(record)
+    return 'update_duplicate'
+  }
+}
+
 async function handleSubmit(req) {
   const user = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
+  user.serverId = serverId
   const body = req.body || {}
   const action = String(body.action || 'submit')
   if (action === 'submit') return submitTower(user, body)
@@ -28,6 +51,8 @@ async function handleSubmit(req) {
 
 async function handleList(req) {
   const user = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: false })
+  user.serverId = serverId
   const body = req.body || {}
   const action = String(body.action || '')
   const tab = String(body.tab || req.query.tab || '').toLowerCase()
@@ -42,8 +67,18 @@ async function handleList(req) {
 async function handleAction(req) {
   const body = req.body || {}
   const action = String(body.action || '')
-  if (action === 'checkWeeklyReward') return checkWeeklyReward(requireUser(req), body)
-  if (action === 'claimWeeklyReward') return claimWeeklyReward(requireUser(req), body)
+  if (action === 'checkWeeklyReward') {
+    const user = requireUser(req)
+    const { serverId } = await resolveRequestServer(req, { requireOpen: false })
+    user.serverId = serverId
+    return checkWeeklyReward(user, body)
+  }
+  if (action === 'claimWeeklyReward') {
+    const user = requireUser(req)
+    const { serverId } = await resolveRequestServer(req, { requireOpen: true })
+    user.serverId = serverId
+    return claimWeeklyReward(user, body)
+  }
   if (['submit', 'submitAndGetAll', 'submitDexCombo', 'submitStage'].includes(action)) return handleSubmit(req)
   if (['getAll', 'getAllWeekly', 'getStage', 'getDex', 'getCombo'].includes(action)) return handleList(req)
   throw httpError(400, 'BAD_ACTION', `unknown ranking action: ${action}`)
@@ -53,9 +88,10 @@ async function submitTower(user, body) {
   const floor = toInt(body.floor)
   if (floor <= 0) throw httpError(400, 'BAD_FLOOR', '无效层数')
   const record = {
-    uid: user.userId,
+    uid: rankingUid(user.userId, user.serverId),
     userId: user.userId,
     platform: user.platform,
+    serverId: user.serverId,
     nickName: normalizeText(body.nickName || body.nickname || '修士', 32),
     avatarUrl: normalizeText(body.avatarUrl || '', 512),
     floor,
@@ -66,9 +102,9 @@ async function submitTower(user, body) {
     timestamp: Date.now(),
   }
 
-  const result = await upsertBest(collection('rankAll'), user.userId, record, isBetterTower)
+  const result = await upsertBest(collection('rankAll'), user.userId, user.serverId, record, isBetterTower)
   await submitDexCombo(user, body)
-  const weekly = await upsertWeekly(user.userId, record)
+  const weekly = await upsertWeekly(user.userId, user.serverId, record)
   return { code: 0, msg: '提交成功', improved: result.improved, weekly }
 }
 
@@ -77,9 +113,10 @@ async function submitStage(user, body) {
   const clearCount = toInt(body.clearCount)
   if (totalStars <= 0 && clearCount <= 0) return { code: 0, msg: '无可提交秘境成绩' }
   const record = {
-    uid: user.userId,
+    uid: rankingUid(user.userId, user.serverId),
     userId: user.userId,
     platform: user.platform,
+    serverId: user.serverId,
     nickName: normalizeText(body.nickName || body.nickname || '修士', 32),
     avatarUrl: normalizeText(body.avatarUrl || '', 512),
     totalStars,
@@ -93,7 +130,7 @@ async function submitStage(user, body) {
     realmTier: normalizeTier(body.realmTier),
     timestamp: Date.now(),
   }
-  await upsertBest(collection('rankStage'), user.userId, record, isBetterStage)
+  await upsertBest(collection('rankStage'), user.userId, user.serverId, record, isBetterStage)
   return { code: 0, msg: '提交成功' }
 }
 
@@ -107,10 +144,11 @@ async function submitDexCombo(user, body) {
   const maxCombo = toInt(body.maxCombo)
 
   if (petDexCount > 0 || masteredCount > 0 || collectedCount > 0) {
-    await upsertBest(collection('rankDex'), user.userId, {
-      uid: user.userId,
+    await upsertBest(collection('rankDex'), user.userId, user.serverId, {
+      uid: rankingUid(user.userId, user.serverId),
       userId: user.userId,
       platform: user.platform,
+      serverId: user.serverId,
       nickName,
       avatarUrl,
       petDexCount,
@@ -122,10 +160,11 @@ async function submitDexCombo(user, body) {
   }
 
   if (maxCombo > 0) {
-    await upsertBest(collection('rankCombo'), user.userId, {
-      uid: user.userId,
+    await upsertBest(collection('rankCombo'), user.userId, user.serverId, {
+      uid: rankingUid(user.userId, user.serverId),
       userId: user.userId,
       platform: user.platform,
+      serverId: user.serverId,
       nickName,
       avatarUrl,
       maxCombo,
@@ -138,32 +177,52 @@ async function submitDexCombo(user, body) {
 
 async function listTower(user, body) {
   const tier = body.realmTier ? normalizeTier(body.realmTier) : null
-  const records = await fetchRecords(collection('rankAll'), tier ? { realmTier: tier } : null, 'floor')
-  return buildRankResponse(records, user.userId, compareTower, { realmTier: tier })
+  const filters = tier ? { realmTier: tier } : null
+  const records = await fetchServerRecords(collection('rankAll'), user.serverId, filters, 'floor')
+  return buildRankResponse(records, user.userId, compareTower, { serverId: user.serverId, realmTier: tier })
 }
 
 async function listTowerWeekly(user, body) {
   const periodKey = body.periodKey || currentPeriodKey()
   const tier = body.realmTier ? normalizeTier(body.realmTier) : null
-  const where = tier ? { periodKey, realmTier: tier } : { periodKey }
-  const records = await fetchRecords(collection('rankAllWeekly'), where, 'floor')
-  return buildRankResponse(records, user.userId, compareTower, { periodKey, realmTier: tier })
+  const filters = tier ? { periodKey, realmTier: tier } : { periodKey }
+  const records = await fetchServerRecords(collection('rankAllWeekly'), user.serverId, filters, 'floor')
+  return buildRankResponse(records, user.userId, compareTower, { serverId: user.serverId, periodKey, realmTier: tier })
 }
 
 async function listStage(user, body) {
   const tier = body.realmTier ? normalizeTier(body.realmTier) : null
-  const records = await fetchRecords(collection('rankStage'), tier ? { realmTier: tier } : null, 'totalStars')
-  return buildRankResponse(records, user.userId, compareStage, { realmTier: tier })
+  const filters = tier ? { realmTier: tier } : null
+  const records = await fetchServerRecords(collection('rankStage'), user.serverId, filters, 'totalStars')
+  return buildRankResponse(records, user.userId, compareStage, { serverId: user.serverId, realmTier: tier })
 }
 
 async function listDex(user) {
-  const records = await fetchRecords(collection('rankDex'), null, 'masteredCount')
-  return buildRankResponse(records, user.userId, compareDex)
+  const records = await fetchServerRecords(collection('rankDex'), user.serverId, null, 'masteredCount')
+  return buildRankResponse(records, user.userId, compareDex, { serverId: user.serverId })
 }
 
 async function listCombo(user) {
-  const records = await fetchRecords(collection('rankCombo'), null, 'maxCombo')
-  return buildRankResponse(records, user.userId, compareCombo)
+  const records = await fetchServerRecords(collection('rankCombo'), user.serverId, null, 'maxCombo')
+  return buildRankResponse(records, user.userId, compareCombo, { serverId: user.serverId })
+}
+
+async function fetchServerRecords(col, serverId, filters, orderField) {
+  const base = filters || null
+  if (!isLegacyDefaultServer(serverId)) {
+    return fetchRecords(col, { ...(base || {}), serverId }, orderField)
+  }
+  const current = await fetchRecords(col, { ...(base || {}), serverId }, orderField)
+  const legacy = await fetchRecords(col, base, orderField)
+  const seen = Object.create(null)
+  const merged = []
+  for (const item of current.concat(legacy.filter((row) => !row.serverId))) {
+    const key = item._id || `${item.uid || item.userId || ''}:${item.timestamp || ''}`
+    if (key && seen[key]) continue
+    if (key) seen[key] = true
+    merged.push(item)
+  }
+  return merged
 }
 
 async function fetchRecords(col, where, orderField) {
@@ -180,9 +239,16 @@ function buildRankResponse(records, userId, compareFn, extra) {
   return { code: 0, list, myRank: idx >= 0 ? idx + 1 : -1, ...(extra || {}) }
 }
 
-async function upsertBest(col, userId, record, betterFn) {
-  const res = await col.where({ uid: userId }).get()
-  const docs = (res && Array.isArray(res.data)) ? res.data : []
+async function upsertBest(col, userId, serverId, record, betterFn) {
+  const rankUid = rankingUid(userId, serverId)
+  const nextRecord = { ...record, uid: rankUid, userId, serverId }
+  let res = await col.where({ uid: rankUid, serverId }).get()
+  let docs = (res && Array.isArray(res.data)) ? res.data : []
+  if (!docs.length && isLegacyDefaultServer(serverId)) {
+    const legacyRes = await col.where({ uid: userId }).limit(5).get()
+    const legacyDocs = (legacyRes && Array.isArray(legacyRes.data)) ? legacyRes.data : []
+    docs = legacyDocs.filter((item) => !item.serverId || item.serverId === serverId)
+  }
   if (docs.length > 1) {
     docs.sort(compareByBetterFn(betterFn))
     for (let i = 1; i < docs.length; i += 1) {
@@ -191,31 +257,40 @@ async function upsertBest(col, userId, record, betterFn) {
   }
   const existing = docs[0] || null
   if (!existing) {
-    await col.add(record)
-    return { mode: 'insert', improved: true }
+    const mode = await addOrUpdateOnDuplicate(col, nextRecord, { uid: rankUid })
+    return { mode, improved: true }
   }
-  const improved = betterFn(record, existing)
-  const patch = improved ? record : {
-    nickName: record.nickName,
-    avatarUrl: record.avatarUrl,
-    platform: record.platform,
+  const improved = betterFn(nextRecord, existing)
+  const patch = improved ? nextRecord : {
+    nickName: nextRecord.nickName,
+    avatarUrl: nextRecord.avatarUrl,
+    platform: nextRecord.platform,
+    uid: rankUid,
+    userId,
+    serverId,
     updatedProfileAt: Date.now(),
   }
   await col.doc(existing._id).update(patch)
   return { mode: 'update', improved }
 }
 
-async function upsertWeekly(userId, baseRecord) {
+async function upsertWeekly(userId, serverId, baseRecord) {
   const periodKey = currentPeriodKey()
   if (!baseRecord || toInt(baseRecord.floor) <= 0) return { ok: false, reason: 'no_floor', periodKey }
   const col = collection('rankAllWeekly')
-  const weeklyRecord = { ...baseRecord, periodKey, timestamp: Date.now() }
+  const rankUid = rankingUid(userId, serverId)
+  const weeklyRecord = { ...baseRecord, uid: rankUid, userId, serverId, periodKey, timestamp: Date.now() }
   try {
-    const res = await col.where({ uid: userId, periodKey }).get()
-    const docs = (res && Array.isArray(res.data)) ? res.data : []
+    let res = await col.where({ uid: rankUid, serverId, periodKey }).get()
+    let docs = (res && Array.isArray(res.data)) ? res.data : []
+    if (!docs.length && isLegacyDefaultServer(serverId)) {
+      const legacyRes = await col.where({ uid: userId, periodKey }).limit(5).get()
+      const legacyDocs = (legacyRes && Array.isArray(legacyRes.data)) ? legacyRes.data : []
+      docs = legacyDocs.filter((item) => !item.serverId || item.serverId === serverId)
+    }
     if (!docs.length) {
-      await col.add(weeklyRecord)
-      return { ok: true, reason: 'insert', periodKey }
+      const mode = await addOrUpdateOnDuplicate(col, weeklyRecord, { uid: rankUid, periodKey })
+      return { ok: true, reason: mode, periodKey }
     }
     docs.sort(compareTower)
     for (let i = 1; i < docs.length; i += 1) {
@@ -226,7 +301,7 @@ async function upsertWeekly(userId, baseRecord) {
       await col.doc(existing._id).update(weeklyRecord)
       return { ok: true, reason: 'update_better', periodKey }
     }
-    await col.doc(existing._id).update({ nickName: weeklyRecord.nickName, avatarUrl: weeklyRecord.avatarUrl })
+    await col.doc(existing._id).update({ nickName: weeklyRecord.nickName, avatarUrl: weeklyRecord.avatarUrl, uid: rankUid, userId, serverId })
     return { ok: true, reason: 'update_profile_only', periodKey }
   } catch (error) {
     return { ok: false, reason: error && error.message ? error.message : String(error), periodKey }
@@ -235,9 +310,14 @@ async function upsertWeekly(userId, baseRecord) {
 
 async function checkWeeklyReward(user, body) {
   const periodKey = body.periodKey || lastPeriodKey()
-  const claimRes = await collection('weeklyReward').where({ uid: user.userId, periodKey }).limit(1).get()
-  const claimed = !!(claimRes && claimRes.data && claimRes.data.length)
-  const rank = await computeWeeklyRank(user.userId, periodKey)
+  const rankUid = rankingUid(user.userId, user.serverId)
+  let claimRes = await collection('weeklyReward').where({ uid: rankUid, serverId: user.serverId, periodKey }).limit(1).get()
+  let claimed = !!(claimRes && claimRes.data && claimRes.data.length)
+  if (!claimed && isLegacyDefaultServer(user.serverId)) {
+    claimRes = await collection('weeklyReward').where({ uid: user.userId, periodKey }).limit(1).get()
+    claimed = !!(claimRes && claimRes.data && claimRes.data.length)
+  }
+  const rank = await computeWeeklyRank(user.userId, user.serverId, periodKey)
   const tier = pickWeeklyRewardTier(rank)
   if (!tier) return { code: 0, periodKey, rank: -1, reward: null, claimed, canClaim: false }
   return {
@@ -252,31 +332,36 @@ async function checkWeeklyReward(user, body) {
 
 async function claimWeeklyReward(user, body) {
   const periodKey = body.periodKey || lastPeriodKey()
-  const rank = await computeWeeklyRank(user.userId, periodKey)
+  const rank = await computeWeeklyRank(user.userId, user.serverId, periodKey)
   const tier = pickWeeklyRewardTier(rank)
   if (!tier) return { code: 0, periodKey, rank: -1, reward: null, justGranted: false, claimed: false }
   const col = collection('weeklyReward')
-  const claimRes = await col.where({ uid: user.userId, periodKey }).limit(1).get()
+  const rankUid = rankingUid(user.userId, user.serverId)
+  let claimRes = await col.where({ uid: rankUid, serverId: user.serverId, periodKey }).limit(1).get()
+  if (!(claimRes && claimRes.data && claimRes.data.length > 0) && isLegacyDefaultServer(user.serverId)) {
+    claimRes = await col.where({ uid: user.userId, periodKey }).limit(1).get()
+  }
   if (claimRes && claimRes.data && claimRes.data.length > 0) {
     return { code: 0, periodKey, rank, reward: { soulStone: tier.soulStone, uniFrag: tier.uniFrag, label: tier.label }, justGranted: false, claimed: true }
   }
-  await col.add({
-    uid: user.userId,
+  await addOrUpdateOnDuplicate(col, {
+    uid: rankUid,
     userId: user.userId,
     openId: user.openId,
     platform: user.platform,
+    serverId: user.serverId,
     periodKey,
     rank,
     soulStone: tier.soulStone,
     uniFrag: tier.uniFrag,
     label: tier.label,
     claimedAt: Date.now(),
-  })
+  }, { uid: rankUid, periodKey })
   return { code: 0, periodKey, rank, reward: { soulStone: tier.soulStone, uniFrag: tier.uniFrag, label: tier.label }, justGranted: true, claimed: true }
 }
 
-async function computeWeeklyRank(userId, periodKey) {
-  const records = await fetchRecords(collection('rankAllWeekly'), { periodKey }, 'floor')
+async function computeWeeklyRank(userId, serverId, periodKey) {
+  const records = await fetchRecords(collection('rankAllWeekly'), { serverId, periodKey }, 'floor')
   if (!records.length) return -1
   const deduped = deduplicateByUid(records, compareTower)
   const idx = deduped.findIndex((item) => item.uid === userId || item.userId === userId)
@@ -298,7 +383,7 @@ function lastPeriodKey() {
 function deduplicateByUid(records, compareFn) {
   const map = Object.create(null)
   records.forEach((record) => {
-    const key = record.uid || record.userId || record._id
+    const key = record.userId || record.uid || record._id
     if (!key) return
     if (!map[key] || compareFn(record, map[key]) < 0) map[key] = record
   })

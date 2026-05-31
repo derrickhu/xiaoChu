@@ -1398,6 +1398,7 @@ function _drawFriendTabContent(g, ctx, dim, x, y, w, h) {
       height: targetH,
       scrollY: g.rankFriendScrollY || 0,
       selfOpenId: (cloudSync && cloudSync.getOpenid) ? cloudSync.getOpenid() : '',
+      serverId: (g.storage && g.storage.serverId) || (cloudSync && cloudSync.getServerId && cloudSync.getServerId()) || 's1',
       force: !!g._rankFriendForceRefresh,
     })
     g._rankFriendForceRefresh = false

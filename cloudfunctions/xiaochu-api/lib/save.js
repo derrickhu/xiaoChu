@@ -2,16 +2,28 @@ const { httpError } = require('./http')
 const { requireUser } = require('./auth')
 const { getDb } = require('./db')
 const { getMaxBytes } = require('./config')
+const { resolveRequestServer, isLegacyDefaultServer } = require('./server')
 
-const SERVER_KEYS = new Set(['_id', '_openid', 'userId', 'uid', 'platform', 'createdAt', 'updatedAt', 'lastWriteAt', 'payload', 'schemaVersion'])
+const SERVER_KEYS = new Set(['_id', '_openid', 'userId', 'uid', 'accountUserId', 'platform', 'serverId', 'createdAt', 'updatedAt', 'lastWriteAt', 'payload', 'schemaVersion'])
+
+function storageUserId(userId, serverId) {
+  return isLegacyDefaultServer(serverId) ? userId : `${serverId}:${userId}`
+}
 
 async function handlePull(req) {
   const { userId, platform } = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
+  const docUserId = storageUserId(userId, serverId)
   const col = getDb().collection(require('./config').getCollectionName('playerData'))
-  const res = await col.where({ userId }).limit(1).get()
-  const doc = (res && Array.isArray(res.data) && res.data[0]) || null
+  let res = await col.where({ userId: docUserId, serverId }).limit(1).get()
+  let doc = (res && Array.isArray(res.data) && res.data[0]) || null
+  if (!doc && isLegacyDefaultServer(serverId)) {
+    const legacyRes = await col.where({ userId }).limit(5).get()
+    const legacyDocs = (legacyRes && Array.isArray(legacyRes.data)) ? legacyRes.data : []
+    doc = legacyDocs.find((item) => !item.serverId) || null
+  }
   if (!doc) {
-    return { exists: false, schemaVersion: 0, updatedAt: 0, payload: {} }
+    return { exists: false, schemaVersion: 0, updatedAt: 0, payload: {}, serverId }
   }
   return {
     exists: true,
@@ -19,11 +31,13 @@ async function handlePull(req) {
     updatedAt: Number(doc.updatedAt || 0),
     payload: cleanPayload(doc.payload || {}),
     platform,
+    serverId,
   }
 }
 
 async function handlePush(req) {
   const { userId, platform } = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
   const body = req.body || {}
   const schemaVersion = normalizePositiveInt(body.schemaVersion || body.dataVersion || 1, 'BAD_SCHEMA', 'schemaVersion 非法')
   const updatedAt = normalizePositiveInt(body.updatedAt || Date.now(), 'BAD_UPDATED_AT', 'updatedAt 非法')
@@ -42,8 +56,14 @@ async function handlePush(req) {
   const db = getDb()
   const _ = db.command
   const col = db.collection(require('./config').getCollectionName('playerData'))
-  const existingRes = await col.where({ userId }).limit(1).get()
-  const existing = (existingRes && Array.isArray(existingRes.data) && existingRes.data[0]) || null
+  const docUserId = storageUserId(userId, serverId)
+  let existingRes = await col.where({ userId: docUserId, serverId }).limit(1).get()
+  let existing = (existingRes && Array.isArray(existingRes.data) && existingRes.data[0]) || null
+  if (!existing && isLegacyDefaultServer(serverId)) {
+    const legacyRes = await col.where({ userId }).limit(5).get()
+    const legacyDocs = (legacyRes && Array.isArray(legacyRes.data)) ? legacyRes.data : []
+    existing = legacyDocs.find((item) => !item.serverId) || null
+  }
   if (existing) {
     const prevUpdatedAt = Number(existing.updatedAt || 0)
     if (updatedAt < prevUpdatedAt || baseRemoteUpdatedAt < prevUpdatedAt) {
@@ -60,8 +80,10 @@ async function handlePush(req) {
 
   const now = Date.now()
   const doc = {
-    userId,
-    uid: userId,
+    userId: docUserId,
+    uid: docUserId,
+    accountUserId: userId,
+    serverId,
     platform,
     schemaVersion,
     updatedAt,
@@ -76,8 +98,10 @@ async function handlePush(req) {
     // 否则旧存档中某个中间字段为 null（如 loginSign.pendingDoubleRewards）时，
     // 更新 payload.loginSign.pendingDoubleRewards.soulStone 会触发 Cannot create field ...。
     await col.doc(existing._id).update({
-      userId,
-      uid: userId,
+      userId: docUserId,
+      uid: docUserId,
+      accountUserId: userId,
+      serverId,
       platform,
       schemaVersion,
       updatedAt,
@@ -89,8 +113,24 @@ async function handlePush(req) {
     return { updatedAt, savedAt: now, mode: 'update', sizeBytes: size }
   }
 
-  const addRes = await col.add({ ...doc, createdAt: now })
-  return { updatedAt, savedAt: now, mode: 'insert', sizeBytes: size, id: addRes && (addRes.id || addRes._id) }
+  try {
+    const addRes = await col.add({ ...doc, createdAt: now })
+    return { updatedAt, savedAt: now, mode: 'insert', sizeBytes: size, id: addRes && (addRes.id || addRes._id) }
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) throw error
+    await col.where({ userId: docUserId }).update({
+      ...doc,
+      payload: _.set(payload),
+      payloadKeys: _.set(Object.keys(payload)),
+      lastWriteAt: now,
+    })
+    return { updatedAt, savedAt: now, mode: 'update_duplicate', sizeBytes: size }
+  }
+}
+
+function isDuplicateKeyError(error) {
+  const msg = error && error.message ? error.message : String(error || '')
+  return msg.indexOf('E11000') >= 0 || msg.indexOf('duplicate key') >= 0 || msg.indexOf('dup key') >= 0
 }
 
 function cleanPayload(input) {

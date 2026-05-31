@@ -3,6 +3,7 @@ const { handlePull, handlePush } = require('./lib/save')
 const { handleSubmit, handleList, handleAction } = require('./lib/ranking')
 const { handleQueryPending, handleMarkGranted, handleVerify, handleCallback } = require('./lib/gift')
 const { handleRecordInvite, handleClaimInvites } = require('./lib/share')
+const { handleListServers } = require('./lib/server')
 const { respond, parseEvent, preflight } = require('./lib/http')
 const { getGameKey } = require('./lib/config')
 
@@ -10,6 +11,10 @@ const ROUTES = {
   'GET /health': async () => ({ ok: true, gameKey: getGameKey(), ts: Date.now() }),
   'POST /health': async () => ({ ok: true, gameKey: getGameKey(), ts: Date.now() }),
   'POST /login': handleLogin,
+  'GET /server/list': handleListServers,
+  'POST /server/list': handleListServers,
+  'GET /servers/list': handleListServers,
+  'POST /servers/list': handleListServers,
   'POST /save/pull': handlePull,
   'POST /save/push': handlePush,
   'POST /ranking/submit': handleSubmit,

@@ -14,7 +14,8 @@
 ## 集合清单
 
 ```text
-xiaochu_playerData       玩家存档（schemaVersion + payload）
+xiaochu_servers          滚服配置（serverId / 状态 / 推荐 / Zone 映射）
+xiaochu_playerData       玩家存档（serverId + schemaVersion + payload）
 xiaochu_rankAll          全服爬塔总榜
 xiaochu_rankAllWeekly    全服爬塔周榜（含 periodKey）
 xiaochu_rankStage        关卡通关榜（totalStars / eliteClearCount / clearCount）
@@ -36,6 +37,7 @@ cloudfunctions/xiaochu-api/
     ├── config.js   GameKey 派生：集合名、JWT secret、平台凭据、CDN 配置
     ├── db.js       CloudBase Node SDK 集合获取
     ├── http.js     SCF event 解析、路径前缀剥离、CORS
+    ├── server.js   /server/list、serverId 校验、Zone 映射、兜底服列表
     ├── save.js     /save/pull、/save/push
     ├── ranking.js  /ranking/submit、/ranking/list、/ranking/action（含周榜领奖）
     ├── gift.js     /gift/queryPending、/gift/markGranted、/gift/callback
@@ -72,6 +74,7 @@ XIAOCHU_CDN_FILE_PREFIX=xiaochu/assets_cdn
 ```text
 GET/POST /xiaochu-api/health
 POST     /xiaochu-api/login
+GET/POST /xiaochu-api/server/list
 POST     /xiaochu-api/save/pull
 POST     /xiaochu-api/save/push
 POST     /xiaochu-api/ranking/submit
@@ -87,6 +90,15 @@ POST     /xiaochu-api/share/claimInvites
 ```
 
 > CloudBase HTTP 网关对路径中包含下划线的函数会被错误识别为 SCF_HTTP 上游导致 400，因此函数和路径名都使用连字符 `xiaochu-api`，不要使用下划线版本。
+
+## 滚服管理
+
+- 服务器列表以 `xiaochu_servers` 为权威来源，客户端启动后先请求 `/xiaochu-api/server/list`。
+- 客户端仅保留 `js/data/serverConfig.js` 中的 `s1` / `s2` 兜底配置，避免网络异常时无法进服。
+- 当前规则：`s1` 为老玩家默认服，旧本地 `wxtower_v1` 和旧云端无 `serverId` 存档均视为一服；`s2` 为独立新服。
+- 业务集合不按服拆分，均通过 `serverId` 字段逻辑隔离：存档、排行榜、周榜奖励、礼包和邀请查询/写入都必须携带 `serverId`。
+- 后续开新服：在 CloudBase 控制台新增 `xiaochu_servers` 文档，例如 `serverId: "s3"`、`name: "三服"`、`status: "open"`、`sort: 3`、`zone: 3`。
+- 维护服务器：将对应文档 `status` 改为 `maintenance` 并填写 `notice`，选服页展示但禁止进入。
 
 ## 客户端配置
 
@@ -121,15 +133,16 @@ cloudbaseFilePrefix: 'xiaochu/assets_cdn',
 ## 集合索引清单
 
 ```text
-xiaochu_playerData       uniq(userId)
-xiaochu_rankAll          uniq(uid)、score(floor desc, totalTurns asc, timestamp desc)
-xiaochu_rankAllWeekly    uniq(uid + periodKey)、period_score(periodKey, floor desc, totalTurns asc)
-xiaochu_rankStage        uniq(uid)、score(totalStars desc, eliteClearCount desc, clearCount desc)
-xiaochu_rankDex          uniq(uid)、score(masteredCount desc, collectedCount desc, petDexCount desc)
-xiaochu_rankCombo        uniq(uid)、score(maxCombo desc, timestamp desc)
-xiaochu_weeklyReward     uniq(uid + periodKey)
-xiaochu_pendingGifts     uniq(orderId)、user_status(userId, status, createdAt)
-xiaochu_inviteRecords    uniq(newUser)、inviter_granted(inviter, granted, createdAt)
+xiaochu_servers          uniq(serverId)、sort(sort asc)
+xiaochu_playerData       uniq(userId + serverId)
+xiaochu_rankAll          uniq(uid + serverId)、score(serverId, floor desc, totalTurns asc, timestamp desc)
+xiaochu_rankAllWeekly    uniq(uid + serverId + periodKey)、period_score(serverId, periodKey, floor desc, totalTurns asc)
+xiaochu_rankStage        uniq(uid + serverId)、score(serverId, totalStars desc, eliteClearCount desc, clearCount desc)
+xiaochu_rankDex          uniq(uid + serverId)、score(serverId, masteredCount desc, collectedCount desc, petDexCount desc)
+xiaochu_rankCombo        uniq(uid + serverId)、score(serverId, maxCombo desc, timestamp desc)
+xiaochu_weeklyReward     uniq(uid + serverId + periodKey)
+xiaochu_pendingGifts     uniq(orderId)、user_status(userId, serverId, status, createdAt)
+xiaochu_inviteRecords    uniq(newUser + serverId)、inviter_granted(inviter, serverId, granted, createdAt)
 ```
 
 ## CDN 上传
@@ -150,11 +163,12 @@ node scripts/upload_cdn.js
 
 - CloudBase 函数列表中只保留 `xiaochu-api` 作为业务后端。
 - `GET /xiaochu-api/health` 返回 `gameKey: "xiaochu"`。
+- `GET/POST /xiaochu-api/server/list` 返回 `xiaochu_servers` 中的 `s1`、`s2`，集合为空时返回内置兜底。
 - 微信/抖音登录均通过 `/xiaochu-api/login` 换取用户身份并签发 JWT。
-- 存档读写只使用 `xiaochu_playerData`。
+- 存档读写只使用 `xiaochu_playerData`，同账号不同服以 `serverId` 独立保存。
 - 排行榜写入：`xiaochu_rankAll`、`xiaochu_rankAllWeekly`、`xiaochu_rankStage`、`xiaochu_rankDex`、`xiaochu_rankCombo`。
 - 周榜奖励写入 `xiaochu_weeklyReward`，礼包写入 `xiaochu_pendingGifts`，邀请写入 `xiaochu_inviteRecords`。
-- 微信好友榜仍走原生 `wx.setUserCloudStorage` / `wx.getFriendCloudStorage`，key 使用 `xiaochu_*` 命名空间。
+- 微信好友榜仍走原生 `wx.setUserCloudStorage` / `wx.getFriendCloudStorage`，一服兼容旧 `xiaochu_*` key，二服及后续新服使用 `xiaochu_sN_*` key。
 - 微信端已配置 request/downloadFile 合法域名：
   - `https://rosa-env-d7grf78r5dbd37323.service.tcloudbase.com`
   - `https://726f-rosa-env-d7grf78r5dbd37323-1414200063.tcb.qcloud.la`

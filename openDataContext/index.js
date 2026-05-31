@@ -32,12 +32,31 @@ try {
 // 四维度分数：与主域 friendRanking.SCORE_KEYS 保持一致
 // 好友榜只能走微信开放数据域；key 带 GameKey 命名空间，避免读到旧版本历史 KV。
 var FRIEND_RANK_KEY_PREFIX = 'xiaochu'
-var TAB_META = {
-  tower:   { key: FRIEND_RANK_KEY_PREFIX + '_towerFloor',  label: '通天塔', unit: '层',  color: '#FFD700' },
-  stage:   { key: FRIEND_RANK_KEY_PREFIX + '_stageStars',  label: '秘境榜', unit: '★',  color: '#e88520' },
-  dex:     { key: FRIEND_RANK_KEY_PREFIX + '_dexBoard', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
-  combo:   { key: FRIEND_RANK_KEY_PREFIX + '_comboMax',    label: '连击榜', unit: '连击', color: '#ff6b6b' },
+var BASE_TAB_META = {
+  tower:   { suffix: 'towerFloor',  label: '通天塔', unit: '层',  color: '#FFD700' },
+  stage:   { suffix: 'stageStars',  label: '秘境榜', unit: '★',  color: '#e88520' },
+  dex:     { suffix: 'dexBoard', label: '图鉴榜', unit: '精通', color: '#4dcc4d' },
+  combo:   { suffix: 'comboMax',    label: '连击榜', unit: '连击', color: '#ff6b6b' },
 }
+
+function _scoreKey(tab, serverId) {
+  var base = BASE_TAB_META[tab] || BASE_TAB_META.tower
+  var sid = String(serverId || 's1').toLowerCase()
+  if (sid === 's1') return FRIEND_RANK_KEY_PREFIX + '_' + base.suffix
+  return FRIEND_RANK_KEY_PREFIX + '_' + sid + '_' + base.suffix
+}
+
+function _tabMeta(tab) {
+  var base = BASE_TAB_META[tab] || BASE_TAB_META.tower
+  return {
+    key: _scoreKey(tab, state.serverId),
+    label: base.label,
+    unit: base.unit,
+    color: base.color,
+  }
+}
+
+var TAB_META = BASE_TAB_META
 
 // 主域请求的渲染配置（来自 render / refresh 消息）
 var state = {
@@ -47,6 +66,7 @@ var state = {
   height: 0,
   scrollY: 0,
   selfOpenId: '',
+  serverId: 's1',
   listCache: {},          // tab -> { ts, list: [{openid, nickname, avatarUrl, value, selfFlag}] }
   loading: false,
   avatarImgs: {},          // avatarUrl -> Image
@@ -61,7 +81,7 @@ function _safeNum(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n }
 
 /** 图鉴好友榜：读带 GameKey 命名空间的 dexBoard（复合分）；与全服榜排序一致 */
 function _parseDexFriendRow(kvList) {
-  var board = _parseWxgameData(kvList, TAB_META.dex.key)
+  var board = _parseWxgameData(kvList, _scoreKey('dex', state.serverId))
   var m = 0, c = 0, p = 0
   if (board >= 100000000) {
     var rest = board - 100000000
@@ -124,7 +144,7 @@ function _ensureAvatar(url) {
 
 // ---------- 数据拉取 ----------
 function _fetchFriendCloudStorage(tab, cb) {
-  var meta = TAB_META[tab]
+  var meta = _tabMeta(tab)
   if (!meta) { cb([]); return }
   if (typeof wx === 'undefined' || !wx.getFriendCloudStorage) { cb([]); return }
   state.loading = true
@@ -258,7 +278,7 @@ function _drawList(list) {
   var totalH = list.length * rowH
   var minScrollY = Math.min(0, h - totalH)
   var scrollY = Math.max(minScrollY, Math.min(0, rawScrollY))
-  var meta = TAB_META[state.tab] || TAB_META.tower
+  var meta = _tabMeta(state.tab)
 
   _clear()
   // 背景
@@ -375,6 +395,11 @@ function _render(msg) {
   state.pendingRender = msg
   if (!CTX || !CANVAS) return
 
+  var nextServerId = String(msg.serverId || state.serverId || 's1').toLowerCase()
+  if (nextServerId !== state.serverId) {
+    state.serverId = nextServerId
+    state.listCache = {}
+  }
   state.tab = msg.tab || state.tab
   state.pixelRatio = msg.pixelRatio || state.pixelRatio
   state.scrollY = msg.scrollY != null ? msg.scrollY : state.scrollY
@@ -413,6 +438,7 @@ if (typeof wx !== 'undefined' && wx.onMessage) {
     if (data.action === 'render' || data.action === 'refresh') {
       _render(data)
     } else if (data.action === 'invalidate') {
+      if (data.serverId) state.serverId = String(data.serverId).toLowerCase()
       // 主域刚更新了分数，清缓存让下次 render 重新拉
       state.listCache = {}
     }

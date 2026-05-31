@@ -121,7 +121,16 @@ function initState(g) {
   g.weaponReviveUsed = false
   g.goodBeadsNextTurn = false
 
-  // ===== UI / 加载 =====
+  // ===== UI / 选服 / 加载 =====
+  g.serverList = []
+  g.serverListLoading = false
+  g.serverListFallback = false
+  g.serverListError = ''
+  g.selectedServerId = 's1'
+  g.currentServer = null
+  g.serverEntering = false
+  g._serverSelectRects = []
+  g._serverEnterRect = null
   g._loadStart = Date.now()
   g._loadReady = false
   g._loadPct = 0

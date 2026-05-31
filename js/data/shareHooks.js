@@ -48,6 +48,8 @@ const { LING } = require('./lingIdentity')
 //     petStarUp_<petId>_<star>               // 每宠每档（3/5）一次
 //     chapterComplete_<chapterId>            // 每章一次
 //     towerNewBest_<floor>                   // 每高度一次（防连弹）
+const DISMISS_ALL_KEY = '__shareCelebrateDismissedAll'
+
 function _flags(storage) {
   if (!storage || !storage._d) return null
   if (!storage._d.celebrateFlags) storage._d.celebrateFlags = {}
@@ -59,9 +61,21 @@ function _shown(storage, stampKey) {
   return !!f[stampKey]
 }
 
+function _dismissedAll(storage) {
+  const f = _flags(storage); if (!f) return false
+  return !!f[DISMISS_ALL_KEY]
+}
+
 function _mark(storage, stampKey) {
   const f = _flags(storage); if (!f) return
   f[stampKey] = true
+  if (typeof storage._save === 'function') storage._save()
+}
+
+function _markDismissedAll(storage, stampKey) {
+  const f = _flags(storage); if (!f) return
+  f[stampKey] = true
+  f[DISMISS_ALL_KEY] = true
   if (typeof storage._save === 'function') storage._save()
 }
 
@@ -81,15 +95,20 @@ function _isSilent(stageId) { return !!stageId && _SILENT_STAGES.has(stageId) }
 function _celebrate(g, stampKey, cheerText, sceneKey, data) {
   if (!g || !g.storage) return false
   if (_shown(g.storage, stampKey)) return false
+  if (_dismissedAll(g.storage)) {
+    _cheerOnly(cheerText)
+    return false
+  }
   // 当前已有其他炫耀卡在展示 → 让位（不 mark，不 cheer，不抢占）
   if (shareCelebrate.isActive && shareCelebrate.isActive()) return false
 
   const avatar = (LING && LING.avatar) || null
   if (cheerText) lingCheer.show(cheerText, { tone: 'epic', avatar })
   const markDone = () => _mark(g.storage, stampKey)
+  const dismissAll = () => _markDismissedAll(g.storage, stampKey)
   return shareCelebrate.trigger(g, sceneKey, data, {
     onConfirm: markDone,
-    onDismiss: markDone,
+    onDismiss: dismissAll,
   })
 }
 

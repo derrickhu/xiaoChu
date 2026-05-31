@@ -15,6 +15,11 @@ let _token = ''
 let _userId = ''
 let _openId = ''
 let _remoteUpdatedAt = 0
+let _serverId = 's1'
+
+function _withServer(data) {
+  return { ...(data || {}), serverId: _serverId }
+}
 
 function _request(method, path, data) {
   return new Promise((resolve, reject) => {
@@ -56,6 +61,21 @@ function _normalizeResponse(res) {
 }
 
 const api = {
+  setServer(serverId) {
+    _serverId = String(serverId || 's1').trim().toLowerCase() || 's1'
+    _remoteUpdatedAt = 0
+    return _serverId
+  },
+
+  getServer() { return _serverId },
+
+  resetRemoteState() { _remoteUpdatedAt = 0 },
+
+  async getServerList() {
+    const result = await _request('POST', '/server/list', {})
+    return (result && result.data) || result || {}
+  },
+
   login() {
     return new Promise((resolve, reject) => {
       P.login({
@@ -90,7 +110,7 @@ const api = {
   },
 
   async getPlayerData() {
-    const result = await _request('POST', '/save/pull', {})
+    const result = await _request('POST', '/save/pull', _withServer())
     const data = result.data || {}
     _remoteUpdatedAt = Number(data.updatedAt || 0)
     return {
@@ -104,51 +124,52 @@ const api = {
 
   async syncPlayerData(data) {
     const updatedAt = data && data._updateTime ? data._updateTime : Date.now()
-    const result = await _request('POST', '/save/push', {
+    const result = await _request('POST', '/save/push', _withServer({
       schemaVersion: (data && (data._version || data.dataVersion)) || 1,
       updatedAt,
       baseRemoteUpdatedAt: _remoteUpdatedAt,
       payload: data || {},
-    })
+    }))
     const saved = result.data || result
     _remoteUpdatedAt = Number(saved.updatedAt || updatedAt)
     return { code: 0, ...saved }
   },
 
   submitRanking(data) {
-    return _request('POST', '/ranking/submit', data || {})
+    return _request('POST', '/ranking/submit', _withServer(data))
   },
 
   getRankingList(tab, limit, params) {
     const body = { ...(params || {}) }
     body.tab = tab || body.tab || 'all'
     body.limit = limit || body.limit || 100
-    return _request('POST', '/ranking/list', body)
+    return _request('POST', '/ranking/list', _withServer(body))
   },
 
   ranking(data) {
-    return _request('POST', '/ranking/action', data || {})
+    return _request('POST', '/ranking/action', _withServer(data))
   },
 
   queryPendingGifts() {
-    return _request('POST', '/gift/queryPending', {})
+    return _request('POST', '/gift/queryPending', _withServer())
   },
 
   markGiftsGranted(ids) {
-    return _request('POST', '/gift/markGranted', { ids: ids || [] })
+    return _request('POST', '/gift/markGranted', _withServer({ ids: ids || [] }))
   },
 
   recordInvite(inviter) {
-    return _request('POST', '/share/recordInvite', { inviter })
+    return _request('POST', '/share/recordInvite', _withServer({ inviter }))
   },
 
   claimInvites() {
-    return _request('POST', '/share/claimInvites', {})
+    return _request('POST', '/share/claimInvites', _withServer())
   },
 
   get hasToken() { return !!_token },
   get userId() { return _userId },
   get openId() { return _openId },
+  get serverId() { return _serverId },
 }
 
 module.exports = api

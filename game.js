@@ -27,6 +27,9 @@ if (typeof P.onShow === 'function') {
     if (res && res.query && res.query.inviter) {
       GameGlobal.__inviterId = res.query.inviter
     }
+    if (res && res.query && res.query.serverId) {
+      GameGlobal.__launchServerId = res.query.serverId
+    }
   })
 }
 if (typeof P.checkScene === 'function') {

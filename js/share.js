@@ -55,7 +55,9 @@ function clearPendingShare() { _pendingShare = null }
 function _buildQuery(extraQuery) {
   const parts = []
   const inviter = cloudSync.getOpenid && cloudSync.getOpenid()
-  if (inviter) parts.push(`inviter=${inviter}`)
+  const serverId = cloudSync.getServerId && cloudSync.getServerId()
+  if (serverId) parts.push(`serverId=${encodeURIComponent(serverId)}`)
+  if (inviter) parts.push(`inviter=${encodeURIComponent(inviter)}`)
   if (extraQuery) parts.push(extraQuery)
   return parts.join('&')
 }

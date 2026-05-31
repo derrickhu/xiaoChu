@@ -3,6 +3,7 @@ const { collection } = require('./db')
 const { respond, httpError } = require('./http')
 const { requireUser } = require('./auth')
 const { gameKeyUpper, getGameKey } = require('./config')
+const { resolveRequestServer, zoneToServerId } = require('./server')
 
 const TOKEN = process.env[`${gameKeyUpper()}_GIFT_TOKEN`] || `${getGameKey()}_gift_2026`
 
@@ -15,16 +16,33 @@ const PLATFORM_GIFT_GOODS_MAP = {
 
 async function handleQueryPending(req) {
   const user = requireUser(req)
-  const res = await collection('pendingGifts')
-    .where({ userId: user.userId, status: 'pending' })
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
+  const col = collection('pendingGifts')
+  const res = await col
+    .where({ userId: user.userId, serverId, status: 'pending' })
     .orderBy('createdAt', 'asc')
     .limit(20)
     .get()
-  return { gifts: (res && res.data) || [] }
+  const gifts = (res && res.data) || []
+  if (serverId === 's1' && gifts.length < 20) {
+    const legacyRes = await col
+      .where({ userId: user.userId, status: 'pending' })
+      .orderBy('createdAt', 'asc')
+      .limit(20 - gifts.length)
+      .get()
+    const seen = new Set(gifts.map((g) => g && g._id).filter(Boolean))
+    for (const item of ((legacyRes && legacyRes.data) || [])) {
+      if (item.serverId || seen.has(item._id)) continue
+      gifts.push(item)
+      if (item._id) seen.add(item._id)
+    }
+  }
+  return { gifts }
 }
 
 async function handleMarkGranted(req) {
   const user = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
   const body = req.body || {}
   const ids = Array.isArray(body.ids) ? body.ids : []
   if (!ids.length) return { updated: 0 }
@@ -34,7 +52,9 @@ async function handleMarkGranted(req) {
       const doc = await collection('pendingGifts').doc(id).get()
       const data = doc && doc.data && (Array.isArray(doc.data) ? doc.data[0] : doc.data)
       if (data && data.userId && data.userId !== user.userId) continue
-      await collection('pendingGifts').doc(id).update({ status: 'granted', grantedAt: Date.now() })
+      if (data && data.serverId && data.serverId !== serverId) continue
+      if (data && !data.serverId && serverId !== 's1') continue
+      await collection('pendingGifts').doc(id).update({ status: 'granted', serverId, grantedAt: Date.now() })
       updated++
     } catch (error) {
       console.warn('[gift] markGranted failed', id, error && error.message ? error.message : error)
@@ -84,6 +104,7 @@ async function handleDeliverGoods(mini) {
 
   const openId = mini.ToUserOpenid || ''
   const userId = openId ? `wx:${openId}` : ''
+  const serverId = await zoneToServerId(mini.Zone)
   const mapped = normalizePlatformGiftGoods(mini.GoodsList || [])
   if (Object.keys(mapped.rewards).length === 0) {
     console.error('[gift] no supported goods', { orderId, giftId: mini.GiftId || '', unknownGoods: mapped.unknownGoods })
@@ -95,6 +116,8 @@ async function handleDeliverGoods(mini) {
     openId,
     openid: openId,
     userId,
+    serverId,
+    zone: mini.Zone || 0,
     platform: 'wx',
     giftTypeId: mini.GiftTypeId || 0,
     giftId: mini.GiftId || '',

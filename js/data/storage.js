@@ -1,5 +1,6 @@
 const P = require('../platform')
 const api = require('../api')
+const serverConfig = require('./serverConfig')
 const cloudSync = require('./cloudSync')
 const gpAnalytics = require('./gpAnalytics')
 const RankingService = require('./rankingService')
@@ -38,8 +39,6 @@ function genAnonNick(openid) {
 function isAnonNick(nickName) {
   return typeof nickName === 'string' && /^修士·[0-9A-Z]{4}$/.test(nickName)
 }
-
-const LOCAL_KEY = 'wxtower_v1'
 
 /** GM 时间偏移（毫秒），GM 每"加一天"就 +86400000 */
 let _gmTimeOffsetMs = 0
@@ -634,7 +633,11 @@ function runMigrations(data) {
 }
 
 class Storage {
-  constructor() {
+  constructor(opts) {
+    const options = opts || {}
+    this.serverId = serverConfig.normalizeServerId(options.serverId)
+    this._localKey = serverConfig.getLocalSaveKey(this.serverId)
+    this._legacyLocalKey = serverConfig.getLegacyLocalSaveKey()
     this._d = null          // 持久化数据
     this._sessionStartAt = Date.now()
     // 用户信息（微信授权）
@@ -3028,8 +3031,9 @@ class Storage {
   // 彻底重置
   async resetAll() {
     this._d = defaultPersist()
+    this._d.serverId = this.serverId
     _freshPersistDataVersion(this._d)
-    try { P.removeStorageSync(LOCAL_KEY) } catch(e) {}
+    try { P.removeStorageSync(this._localKey) } catch(e) {}
     this._save()
     if (cloudSync.isReady()) {
       try {
@@ -3632,7 +3636,8 @@ class Storage {
 
   _load() {
     try {
-      const raw = P.getStorageSync(LOCAL_KEY)
+      let raw = P.getStorageSync(this._localKey)
+      if (!raw && this.serverId === serverConfig.DEFAULT_SERVER_ID) raw = P.getStorageSync(this._legacyLocalKey)
       if (raw) {
         this._d = JSON.parse(raw)
         // 补全新版本新增的默认字段
@@ -3666,6 +3671,7 @@ class Storage {
       ensureTeamPresets(this._d)
       _freshPersistDataVersion(this._d)
     }
+    this._d.serverId = this.serverId
   }
 
   _checkDataVersion() {
@@ -3826,7 +3832,8 @@ class Storage {
 
   _save() {
     try {
-      P.setStorageSync(LOCAL_KEY, JSON.stringify(this._d))
+      this._d.serverId = this.serverId
+      P.setStorageSync(this._localKey, JSON.stringify(this._d))
       // GM 时间偏移期间跳过云同步，防止云端旧数据覆盖本地
       if (_gmTimeOffsetMs === 0) {
         cloudSync.debounceSyncToCloud(this._d)
@@ -3840,7 +3847,8 @@ class Storage {
   async _initCloud() {
     try {
       await cloudSync.init(this._d, {
-        localKey: LOCAL_KEY,
+        localKey: this._localKey,
+        serverId: this.serverId,
         currentVersion: CURRENT_VERSION,
         runMigrations,
         storage: this,
@@ -4004,16 +4012,19 @@ class Storage {
     }
 
     // 补写独立 key，防止下次启动还走新手流程
-    if (!P.getStorageSync('introDone')) {
-      P.setStorageSync('introDone', true)
+    const introKey = serverConfig.scopedKey('introDone', this.serverId)
+    const tutorialKey = serverConfig.scopedKey('tutorialDone', this.serverId)
+    const stageTutorialKey = serverConfig.scopedKey('stageTutorialDone', this.serverId)
+    if (!P.getStorageSync(introKey)) {
+      P.setStorageSync(introKey, true)
       console.log('[Storage] 云端为老玩家，补写 introDone')
     }
-    if (!P.getStorageSync('tutorialDone')) {
-      P.setStorageSync('tutorialDone', true)
+    if (!P.getStorageSync(tutorialKey)) {
+      P.setStorageSync(tutorialKey, true)
       console.log('[Storage] 云端为老玩家，补写 tutorialDone')
     }
-    if (!P.getStorageSync('stageTutorialDone')) {
-      P.setStorageSync('stageTutorialDone', true)
+    if (!P.getStorageSync(stageTutorialKey)) {
+      P.setStorageSync(stageTutorialKey, true)
       console.log('[Storage] 云端为老玩家，补写 stageTutorialDone')
     }
 

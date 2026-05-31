@@ -165,6 +165,12 @@ function tTitle(g, type, x, y) {
       MusicMgr.playClick && MusicMgr.playClick()
       return
     }
+    if (rects.switchServer && g._hitRect(x, y, ...rects.switchServer)) {
+      g.showMorePanel = false
+      MusicMgr.playClick && MusicMgr.playClick()
+      if (g.switchToServerSelect) g.switchToServerSelect()
+      return
+    }
     return
   }
 

@@ -20,13 +20,26 @@ const { isCurrentUserGM } = require('./gmConfig')
 // 注意：好友榜只能走微信开放数据域 wx.setUserCloudStorage / getFriendCloudStorage，不能走 xiaochu-api。
 // 为避免读到同 AppID 下旧版本历史 KV，key 必须带 GameKey 命名空间。
 const FRIEND_RANK_KEY_PREFIX = 'xiaochu'
-const SCORE_KEYS = {
+const LEGACY_SCORE_KEYS = {
   tower: `${FRIEND_RANK_KEY_PREFIX}_towerFloor`,
   stage: `${FRIEND_RANK_KEY_PREFIX}_stageStars`,
   /** 图鉴：复合分写入 dexBoard（精通/收录/池数），避免「精通为 0 就不上榜」与全服榜不一致 */
   dex:   `${FRIEND_RANK_KEY_PREFIX}_dexBoard`,
   combo: `${FRIEND_RANK_KEY_PREFIX}_comboMax`,
 }
+
+function getScoreKeys(serverId) {
+  const sid = String(serverId || 's1').toLowerCase()
+  if (sid === 's1') return LEGACY_SCORE_KEYS
+  return {
+    tower: `${FRIEND_RANK_KEY_PREFIX}_${sid}_towerFloor`,
+    stage: `${FRIEND_RANK_KEY_PREFIX}_${sid}_stageStars`,
+    dex:   `${FRIEND_RANK_KEY_PREFIX}_${sid}_dexBoard`,
+    combo: `${FRIEND_RANK_KEY_PREFIX}_${sid}_comboMax`,
+  }
+}
+
+const SCORE_KEYS = LEGACY_SCORE_KEYS
 
 // GM 账号在当前会话里只清理一次已上传的 KV；之后再有 uploadScores 调用直接短路 return
 let _gmKvCleaned = false
@@ -43,7 +56,7 @@ function _cleanupGmCloudStorage() {
   if (_gmKvCleaned) return
   if (typeof wx === 'undefined' || typeof wx.removeUserCloudStorage !== 'function') return
   _gmKvCleaned = true
-  const keyList = Object.values(SCORE_KEYS)
+  const keyList = Object.values(getScoreKeys('s1')).concat(Object.values(getScoreKeys('s2')))
   try {
     wx.removeUserCloudStorage({
       keyList,
@@ -153,9 +166,10 @@ function uploadScores(ctx, opts) {
   if (!opts.force && unchanged && now - _lastUploadTs < MIN_UPLOAD_GAP_MS) return
 
   const wantTabs = opts.tabs || ['tower', 'stage', 'dex', 'combo']
+  const scoreKeys = getScoreKeys(ctx.serverId)
   const KVDataList = []
   for (const tab of wantTabs) {
-    const key = SCORE_KEYS[tab]
+    const key = scoreKeys[tab]
     let val = currVals[tab]
     if (!key) continue
     if (tab === 'dex' && val <= 0) continue
@@ -177,7 +191,7 @@ function uploadScores(ctx, opts) {
         _lastUploadTs = now
         _lastUploadVals = currVals
         // 通知 openDataContext 清缓存（下次拉取好友榜会看到最新自分）
-        postMessage({ action: 'invalidate' })
+        postMessage({ action: 'invalidate', serverId: ctx.serverId || 's1' })
       },
       fail: (err) => {
         console.warn('[FriendRank] setUserCloudStorage fail', err)
@@ -198,6 +212,7 @@ function render(params) {
 
 module.exports = {
   SCORE_KEYS,
+  getScoreKeys,
   encodeDexBoardScore,
   isSupported,
   getSharedCanvas,

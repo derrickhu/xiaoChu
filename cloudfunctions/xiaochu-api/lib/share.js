@@ -1,5 +1,6 @@
 const { requireUser } = require('./auth')
 const { collection, getDb } = require('./db')
+const { resolveRequestServer } = require('./server')
 
 const CLAIM_BATCH_LIMIT = 20
 const INVITE_DAILY_PER_INVITER = 20
@@ -7,6 +8,7 @@ const INVITE_TOTAL_PER_INVITER = 200
 
 async function handleRecordInvite(req) {
   const user = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
   const body = req.body || {}
   const inviter = normalizeWxUserId(body.inviter)
   const newUser = user.userId
@@ -14,12 +16,12 @@ async function handleRecordInvite(req) {
   if (inviter === newUser) return { recorded: false, reason: 'self' }
 
   const col = collection('inviteRecords')
-  const existed = await col.where({ newUser }).limit(1).get()
+  const existed = await col.where({ newUser, serverId }).limit(1).get()
   if (existed && existed.data && existed.data.length > 0) {
     return { recorded: false, reason: 'already_recorded' }
   }
 
-  const total = await col.where({ inviter }).count()
+  const total = await col.where({ inviter, serverId }).count()
   if ((total && total.total) >= INVITE_TOTAL_PER_INVITER) {
     return { recorded: false, reason: 'total_limit' }
   }
@@ -27,7 +29,7 @@ async function handleRecordInvite(req) {
   const dayStart = new Date()
   dayStart.setHours(0, 0, 0, 0)
   const _ = getDb().command
-  const daily = await col.where({ inviter, createdAt: _.gte(dayStart.getTime()) }).count()
+  const daily = await col.where({ inviter, serverId, createdAt: _.gte(dayStart.getTime()) }).count()
   if ((daily && daily.total) >= INVITE_DAILY_PER_INVITER) {
     return { recorded: false, reason: 'daily_limit' }
   }
@@ -37,6 +39,7 @@ async function handleRecordInvite(req) {
     inviterOpenId: stripWxPrefix(inviter),
     newUser,
     newUserOpenId: stripWxPrefix(newUser),
+    serverId,
     platform: 'wx',
     granted: false,
     createdAt: Date.now(),
@@ -46,9 +49,10 @@ async function handleRecordInvite(req) {
 
 async function handleClaimInvites(req) {
   const user = requireUser(req)
+  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
   const inviter = user.userId
   const col = collection('inviteRecords')
-  const res = await col.where({ inviter, granted: false }).limit(CLAIM_BATCH_LIMIT).get()
+  const res = await col.where({ inviter, serverId, granted: false }).limit(CLAIM_BATCH_LIMIT).get()
   const rows = (res && res.data) || []
   let count = 0
   for (const rec of rows) {
@@ -59,7 +63,7 @@ async function handleClaimInvites(req) {
       console.warn('[share] mark granted failed', rec._id, error && error.message ? error.message : error)
     }
   }
-  const total = await col.where({ inviter }).count()
+  const total = await col.where({ inviter, serverId }).count()
   return { count, total: (total && total.total) || 0 }
 }
 
