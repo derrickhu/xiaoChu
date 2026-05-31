@@ -3,9 +3,18 @@ const { collection } = require('./db')
 const { respond, httpError } = require('./http')
 const { requireUser } = require('./auth')
 const { gameKeyUpper, getGameKey } = require('./config')
-const { resolveRequestServer, zoneToServerId } = require('./server')
+const { resolveRequestServer } = require('./server')
 
-const TOKEN = process.env[`${gameKeyUpper()}_GIFT_TOKEN`] || `${getGameKey()}_gift_2026`
+const DEFAULT_GIFT_TOKEN = `${getGameKey()}_gift_2026`
+const LEGACY_GIFT_TOKEN = `${getGameKey().replace(/_/g, '')}_gift_2026`
+const UNDERSCORE_GIFT_TOKEN = `${getGameKey().replace(/([a-z])([A-Z])/g, '$1_$2')}_gift_2026`
+const GIFT_TOKENS = Array.from(new Set([
+  process.env[`${gameKeyUpper()}_GIFT_TOKEN`],
+  DEFAULT_GIFT_TOKEN,
+  LEGACY_GIFT_TOKEN,
+  UNDERSCORE_GIFT_TOKEN,
+  'xiao_chu_gift_2026',
+].filter(Boolean).map((v) => String(v).trim()).filter(Boolean)))
 
 const PLATFORM_GIFT_GOODS_MAP = {
   soulStone: 'soulStone',
@@ -16,28 +25,14 @@ const PLATFORM_GIFT_GOODS_MAP = {
 
 async function handleQueryPending(req) {
   const user = requireUser(req)
-  const { serverId } = await resolveRequestServer(req, { requireOpen: true })
+  await resolveRequestServer(req, { requireOpen: true })
   const col = collection('pendingGifts')
   const res = await col
-    .where({ userId: user.userId, serverId, status: 'pending' })
+    .where({ userId: user.userId, status: 'pending' })
     .orderBy('createdAt', 'asc')
     .limit(20)
     .get()
-  const gifts = (res && res.data) || []
-  if (serverId === 's1' && gifts.length < 20) {
-    const legacyRes = await col
-      .where({ userId: user.userId, status: 'pending' })
-      .orderBy('createdAt', 'asc')
-      .limit(20 - gifts.length)
-      .get()
-    const seen = new Set(gifts.map((g) => g && g._id).filter(Boolean))
-    for (const item of ((legacyRes && legacyRes.data) || [])) {
-      if (item.serverId || seen.has(item._id)) continue
-      gifts.push(item)
-      if (item._id) seen.add(item._id)
-    }
-  }
-  return { gifts }
+  return { gifts: (res && res.data) || [] }
 }
 
 async function handleMarkGranted(req) {
@@ -52,9 +47,7 @@ async function handleMarkGranted(req) {
       const doc = await collection('pendingGifts').doc(id).get()
       const data = doc && doc.data && (Array.isArray(doc.data) ? doc.data[0] : doc.data)
       if (data && data.userId && data.userId !== user.userId) continue
-      if (data && data.serverId && data.serverId !== serverId) continue
-      if (data && !data.serverId && serverId !== 's1') continue
-      await collection('pendingGifts').doc(id).update({ status: 'granted', serverId, grantedAt: Date.now() })
+      await collection('pendingGifts').doc(id).update({ status: 'granted', claimedServerId: serverId, grantedAt: Date.now() })
       updated++
     } catch (error) {
       console.warn('[gift] markGranted failed', id, error && error.message ? error.message : error)
@@ -104,7 +97,6 @@ async function handleDeliverGoods(mini) {
 
   const openId = mini.ToUserOpenid || ''
   const userId = openId ? `wx:${openId}` : ''
-  const serverId = await zoneToServerId(mini.Zone)
   const mapped = normalizePlatformGiftGoods(mini.GoodsList || [])
   if (Object.keys(mapped.rewards).length === 0) {
     console.error('[gift] no supported goods', { orderId, giftId: mini.GiftId || '', unknownGoods: mapped.unknownGoods })
@@ -116,7 +108,7 @@ async function handleDeliverGoods(mini) {
     openId,
     openid: openId,
     userId,
-    serverId,
+    wxZone: mini.Zone || 0,
     zone: mini.Zone || 0,
     platform: 'wx',
     giftTypeId: mini.GiftTypeId || 0,
@@ -202,8 +194,10 @@ function parseXmlMessage(xml) {
 
 function checkSignature(signature, timestamp, nonce) {
   if (!signature || !timestamp || !nonce) return false
-  const hash = crypto.createHash('sha1').update([TOKEN, timestamp, nonce].sort().join('')).digest('hex')
-  return hash === signature
+  return GIFT_TOKENS.some((token) => {
+    const hash = crypto.createHash('sha1').update([token, timestamp, nonce].sort().join('')).digest('hex')
+    return hash === signature
+  })
 }
 
 module.exports = {

@@ -5,6 +5,7 @@
 # IDE
 .vscode/
 .idea/
+.codebuddy/plans/
 
 # Node
 node_modules/
