@@ -57,6 +57,8 @@ function localDateKey(d) {
 
 // 当前存档版本号，每次结构变更时递增
 const CURRENT_VERSION = 30
+// 滚服上线时间：非一服若出现早于该时间的首登埋点 + 大量历史进度，视为一服旧档误写入新服。
+const ROLLING_SERVER_START_AT = 1780230000000
 
 function createAnalyticsSummary() {
   return {
@@ -723,6 +725,28 @@ class Storage {
   hasPersistentProgress(data = this._d) {
     if (this.hasGameplayProgress(data)) return true
     return !!(data && data.guideFlags && Object.keys(data.guideFlags).length > 0)
+  }
+
+  _isCrossServerLegacyData(data = this._d) {
+    if (this.serverId === serverConfig.DEFAULT_SERVER_ID) return false
+    if (!this.hasGameplayProgress(data)) return false
+    const summary = (data && data.analyticsSummary) || {}
+    const firstSeenAt = Number(summary.firstSeenAt || 0)
+    if (!firstSeenAt || firstSeenAt >= ROLLING_SERVER_START_AT) return false
+    const stageStars = this.getStageTotalStars ? this.getStageTotalStars() : 0
+    const petCount = (data.petPool && data.petPool.length) || 0
+    const cultLv = (data.cultivation && data.cultivation.level) || 0
+    return stageStars >= 60 || petCount >= 20 || cultLv >= 20 || (data.bestFloor || 0) >= 20
+  }
+
+  _resetCrossServerLegacyData(reason) {
+    console.warn('[Storage] 检测到一服旧档污染新服，重置当前服存档:', this.serverId, reason || '')
+    this._d = defaultPersist()
+    this._d.serverId = this.serverId
+    _freshPersistDataVersion(this._d)
+    ensureTeamPresets(this._d)
+    try { P.removeStorageSync(this._localKey) } catch (_) {}
+    try { P.setStorageSync(this._localKey, JSON.stringify(this._d)) } catch (_) {}
   }
 
   // 更新最高层数
@@ -3658,6 +3682,9 @@ class Storage {
         this._syncAvatarUnlockByCultLv()
         // 确保预设编队字段完整（兼容迁移失败 / 云端回灌数据 / defaultPersist 空骨架）
         ensureTeamPresets(this._d)
+        if (this._isCrossServerLegacyData(this._d)) {
+          this._resetCrossServerLegacyData('local')
+        }
         // 二测删档检测（已废弃，防止老用户客户端残留 dataVersion 导致误清档）
         // this._checkDataVersion()
       } else {
@@ -4000,6 +4027,11 @@ class Storage {
   }
 
   _onCloudSyncDone() {
+    if (this._isCrossServerLegacyData(this._d)) {
+      this._resetCrossServerLegacyData('cloud')
+      this._save()
+      return
+    }
     const hasProgress = this.hasPersistentProgress()
     if (!hasProgress) return
 

@@ -5,6 +5,7 @@ const { getMaxBytes } = require('./config')
 const { resolveRequestServer, isLegacyDefaultServer } = require('./server')
 
 const SERVER_KEYS = new Set(['_id', '_openid', 'userId', 'uid', 'accountUserId', 'platform', 'serverId', 'createdAt', 'updatedAt', 'lastWriteAt', 'payload', 'schemaVersion'])
+const ROLLING_SERVER_START_AT = 1780230000000
 
 function storageUserId(userId, serverId) {
   return isLegacyDefaultServer(serverId) ? userId : `${serverId}:${userId}`
@@ -43,6 +44,9 @@ async function handlePush(req) {
   const updatedAt = normalizePositiveInt(body.updatedAt || Date.now(), 'BAD_UPDATED_AT', 'updatedAt 非法')
   const baseRemoteUpdatedAt = normalizeNonNegativeInt(body.baseRemoteUpdatedAt || 0, 'BAD_BASE_REMOTE_UPDATED_AT', 'baseRemoteUpdatedAt 非法')
   const payload = cleanPayload(body.payload)
+  if (isCrossServerLegacyPayload(payload, serverId)) {
+    return { updatedAt, savedAt: Date.now(), mode: 'ignored_cross_server_legacy', sizeBytes: 0 }
+  }
 
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw httpError(400, 'BAD_PAYLOAD', 'payload 必须是 object')
@@ -131,6 +135,19 @@ async function handlePush(req) {
 function isDuplicateKeyError(error) {
   const msg = error && error.message ? error.message : String(error || '')
   return msg.indexOf('E11000') >= 0 || msg.indexOf('duplicate key') >= 0 || msg.indexOf('dup key') >= 0
+}
+
+function isCrossServerLegacyPayload(payload, serverId) {
+  if (isLegacyDefaultServer(serverId)) return false
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const summary = payload.analyticsSummary || {}
+  const firstSeenAt = Number(summary.firstSeenAt || 0)
+  if (!firstSeenAt || firstSeenAt >= ROLLING_SERVER_START_AT) return false
+  const stageClearRecord = payload.stageClearRecord || {}
+  const stageCount = Object.keys(stageClearRecord).length
+  const petCount = Array.isArray(payload.petPool) ? payload.petPool.length : 0
+  const cultLv = payload.cultivation && Number(payload.cultivation.level || 0)
+  return stageCount >= 20 || petCount >= 20 || cultLv >= 20 || Number(payload.bestFloor || 0) >= 20
 }
 
 function cleanPayload(input) {
