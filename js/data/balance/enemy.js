@@ -212,6 +212,23 @@ const STAGE_ASCENSION_CURVE = {
   ],
 }
 
+// 前 12 章（飞升篇之前）按章递增倍率，整体抬高难度并抹平 12→13 断档。
+// ch1 保持 1.0 以配合 CH1_HP_CURVE 新手曲线；ch12 约 2.8x 使章末 Boss 接近 13-1 面板。
+const STAGE_PRE_ASCENSION_SCALE = {
+  1:  { hp: 1.00, atk: 1.00, def: 1.00 },
+  2:  { hp: 1.15, atk: 1.10, def: 1.10 },
+  3:  { hp: 1.25, atk: 1.15, def: 1.12 },
+  4:  { hp: 1.35, atk: 1.20, def: 1.15 },
+  5:  { hp: 1.45, atk: 1.28, def: 1.18 },
+  6:  { hp: 1.55, atk: 1.35, def: 1.22 },
+  7:  { hp: 1.68, atk: 1.42, def: 1.28 },
+  8:  { hp: 1.82, atk: 1.50, def: 1.35 },
+  9:  { hp: 1.98, atk: 1.60, def: 1.42 },
+  10: { hp: 2.15, atk: 1.72, def: 1.50 },
+  11: { hp: 2.40, atk: 1.90, def: 1.65 },
+  12: { hp: 2.80, atk: 2.50, def: 2.60 },
+}
+
 // 全局递增保底：每关 hp/atk/def 至少为前一关的此比例，消除跨章断崖
 const STAGE_MIN_GROWTH_RATE = { hp: 1.03, atk: 1.02, def: 1.01 }
 
@@ -245,6 +262,7 @@ module.exports = {
   STAGE_BOSS_STAT_FLOOR,
   STAGE_BOSS_SKILL_SETS,
   STAGE_ASCENSION_CURVE,
+  STAGE_PRE_ASCENSION_SCALE,
   STAGE_MIN_GROWTH_RATE,
   STAGE_MINION_HP_RATIO,
   NEWBIE_ENEMY_OVERRIDE,

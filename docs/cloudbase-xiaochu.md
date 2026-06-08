@@ -94,10 +94,10 @@ POST     /xiaochu-api/share/claimInvites
 ## 滚服管理
 
 - 服务器列表以 `xiaochu_servers` 为权威来源，客户端启动后先请求 `/xiaochu-api/server/list`。
-- 客户端仅保留 `js/data/serverConfig.js` 中的 `s1` / `s2` 兜底配置，避免网络异常时无法进服。
-- 当前规则：`s1` 为老玩家默认服，旧本地 `wxtower_v1` 和旧云端无 `serverId` 存档均视为一服；`s2` 为独立新服。
+- 客户端仅保留 `js/data/serverConfig.js` 中的 `s1` / `s2` / `s3` 兜底配置，避免网络异常时无法进服。
+- 当前规则：`s1` 为老玩家默认服，旧本地 `wxtower_v1` 和旧云端无 `serverId` 存档均视为一服；`s2`、`s3` 为独立新服。
 - 业务集合不按服拆分，均通过 `serverId` 字段逻辑隔离：存档、排行榜、周榜奖励、礼包和邀请查询/写入都必须携带 `serverId`。
-- 后续开新服：在 CloudBase 控制台新增 `xiaochu_servers` 文档，例如 `serverId: "s3"`、`name: "三服"`、`status: "open"`、`sort: 3`、`zone: 3`。
+- 开新服：运行 `node scripts/open_server.js <区号>`（详见脚本头部注释）；或在 CloudBase 控制台向 `xiaochu_servers` 新增文档。
 - 维护服务器：将对应文档 `status` 改为 `maintenance` 并填写 `notice`，选服页展示但禁止进入。
 
 ## 客户端配置

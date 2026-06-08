@@ -16,11 +16,12 @@ const CULT_EXP_POW_COEFF = 6
 const CULT_NEWBIE_EXP_DISCOUNT = [0.25, 0.3, 0.4]
 
 // ===== 击杀经验 =====
-const CULT_KILL_BOSS_BASE = 30
+// v5~v6：基数分档 +10% → 再 +8%，刷关升级略快
+const CULT_KILL_BOSS_BASE = 36
 const CULT_KILL_BOSS_FLOOR_COEFF = 4
-const CULT_KILL_ELITE_BASE = 15
+const CULT_KILL_ELITE_BASE = 18
 const CULT_KILL_ELITE_FLOOR_COEFF = 3
-const CULT_KILL_NORMAL_BASE = 5
+const CULT_KILL_NORMAL_BASE = 6
 const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 
 // ===== 修炼树配置（加点制）=====
@@ -34,12 +35,13 @@ const CULT_KILL_NORMAL_FLOOR_COEFF = 2
 //     defense 10→14（+4）perLv 2→4      根骨随高级怪物攻击成长同步增强
 //     sense  8→12（+4）  perLv 8→2.5    老 +8 固定护盾 → 新 +2.5% HP 作护盾（2.5% 是为了"不叠一倍血"的克制调参）
 //   Lv.120 扩容：新增 20 点主要投向体魄 / 根骨 / 神识，满级 119 点刚好点满五维树。
+//   v6 微调：perLv / blessing / 击杀经验再整体 +5% 左右，章节推进更平滑
 const CULT_CONFIG = {
-  body:    { name:'体魄', theme:'淬体', maxLv:43, perLv:8,    type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
-  spirit:  { name:'灵力', theme:'通脉', maxLv:26, perLv:1,    type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
-  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.15, type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
-  defense: { name:'根骨', theme:'筑基', maxLv:24, perLv:4,    type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
-  sense:   { name:'神识', theme:'开窍', maxLv:21, perLv:2.5,  type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
+  body:    { name:'体魄', theme:'淬体', maxLv:43, perLv:9.5,   type:'percent', unit:'%HP',     desc:'提升血量上限，更耐打' },
+  spirit:  { name:'灵力', theme:'通脉', maxLv:26, perLv:1.15,  type:'flat',    unit:'心珠回复', desc:'捡心珠回血更多' },
+  wisdom:  { name:'悟性', theme:'感悟', maxLv:5,  perLv:0.18,  type:'flat',    unit:'s转珠时间', desc:'转珠时间更充裕，好操作' },
+  defense: { name:'根骨', theme:'筑基', maxLv:24, perLv:4.6,   type:'defense', unit:'防御',    desc:'提升防御值，降低受到的直接伤害' },
+  sense:   { name:'神识', theme:'开窍', maxLv:21, perLv:2.9,   type:'percent', unit:'%护盾',   desc:'每关开局自带一层护盾' },
 }
 const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 
@@ -59,24 +61,25 @@ const CULT_KEYS = ['body', 'spirit', 'wisdom', 'defense', 'sense']
 //   · 设计意图：玩家跨入大境界时即便不分修炼点，"有效加成"也会自动放大一波，
 //     还原仙侠题材"境界跃迁就是变强"的爽点。具体计算见 cultivationConfig.effectValueWithBlessing。
 //   · 合体 Lv.100 扩到 1.85 后，大乘及更高档必须继续递增，禁止回退到 1.50（旧化神顶档遗留值）。
+// v6 微调：blessing 再 +0.02~0.04（保持单调递增）
 const CULT_REALMS = [
   { id: 'mortal',     name: '凡人', minLv: 0,   maxLv: 0,   stages: 1,   blessing: 1.00, color: '#9DA3AD', accent: '#3A3F48', motto: '主人呀，每一位大修也是从凡尘起步的～' },
   { id: 'qi_sense',   name: '感气', minLv: 1,   maxLv: 4,   stages: 4,   blessing: 1.00, color: '#86C5A3', accent: '#1E6B3C', motto: '天地灵气已能感应到主人啦！'           },
-  { id: 'qi_refine',  name: '炼气', minLv: 5,   maxLv: 14,  stages: 10,  blessing: 1.05, color: '#5FA880', accent: '#14522A', motto: '炼气初成，灵力开始循环～'             },
-  { id: 'foundation', name: '筑基', minLv: 15,  maxLv: 29,  stages: 15,  blessing: 1.10, color: '#6FB0D8', accent: '#14547F', motto: '筑基稳固，修途正式开启！'             },
-  { id: 'core',       name: '金丹', minLv: 30,  maxLv: 44,  stages: 15,  blessing: 1.20, color: '#E5B55B', accent: '#7C4A0E', motto: '金丹凝成！主人的灵力已成气候。'        },
-  { id: 'nascent',    name: '元婴', minLv: 45,  maxLv: 57,  stages: 13,  blessing: 1.35, color: '#C88AE2', accent: '#5A2685', motto: '元婴出窍，世间已少有匹敌～'           },
-  { id: 'spirit',     name: '化神', minLv: 58,  maxLv: 79,  stages: 22,  blessing: 1.50, color: '#F08E58', accent: '#7A2A0C', motto: '化神一境，举手牵动风雷！'             },
-  { id: 'void',       name: '炼虚', minLv: 80,  maxLv: 99,  stages: 20,  blessing: 1.68, color: '#EC6B9C', accent: '#7A1D45', motto: '虚空可炼，主人已窥天道一角。'         },
-  { id: 'unity',      name: '合体', minLv: 100, maxLv: 119, stages: 20,  blessing: 1.85, color: '#D96F6F', accent: '#6A1616', motto: '神形合一，举手投足皆合天道～'         },
-  { id: 'mahayana',   name: '大乘', minLv: 120, maxLv: 139, stages: 20,  blessing: 2.00, color: '#B25BD4', accent: '#4A1C70', motto: '大乘之境，主人已近仙途！'             },
-  { id: 'trib',       name: '渡劫', minLv: 140, maxLv: 159, stages: 20,  blessing: 2.15, color: '#FFD66E', accent: '#8C5800', motto: '渡劫之境！主人的名将传于三界～'       },
-  { id: 'ascend',     name: '飞升', minLv: 160, maxLv: 179, stages: 20,  blessing: 2.30, color: '#FFEFB0', accent: '#B28B2E', motto: '飞升在即，主人即将离凡入仙！'         },
-  { id: 'true_imm',   name: '真仙', minLv: 180, maxLv: 199, stages: 20,  blessing: 2.45, color: '#C9E8FF', accent: '#2E6FA8', motto: '真仙之躯，已脱生死轮回～'             },
-  { id: 'golden_imm', name: '金仙', minLv: 200, maxLv: 219, stages: 20,  blessing: 2.60, color: '#FFE98A', accent: '#A06A00', motto: '金仙不灭，主人已超凡入圣！'           },
-  { id: 'supreme',    name: '太乙', minLv: 220, maxLv: 239, stages: 20,  blessing: 2.75, color: '#F5F5FF', accent: '#5A5A8C', motto: '太乙玄妙，万法归一～'                 },
-  { id: 'great_luo',  name: '大罗', minLv: 240, maxLv: 259, stages: 20,  blessing: 2.90, color: '#FFB8D8', accent: '#8A2454', motto: '大罗金仙，主人的名将镌于星河！'       },
-  { id: 'ancestor',   name: '道祖', minLv: 260, maxLv: 999, stages: 999, blessing: 3.00, color: '#FFFFFF', accent: '#B0A060', motto: '道祖之位，世间只此一人～'             },
+  { id: 'qi_refine',  name: '炼气', minLv: 5,   maxLv: 14,  stages: 10,  blessing: 1.12, color: '#5FA880', accent: '#14522A', motto: '炼气初成，灵力开始循环～'             },
+  { id: 'foundation', name: '筑基', minLv: 15,  maxLv: 29,  stages: 15,  blessing: 1.17, color: '#6FB0D8', accent: '#14547F', motto: '筑基稳固，修途正式开启！'             },
+  { id: 'core',       name: '金丹', minLv: 30,  maxLv: 44,  stages: 15,  blessing: 1.28, color: '#E5B55B', accent: '#7C4A0E', motto: '金丹凝成！主人的灵力已成气候。'        },
+  { id: 'nascent',    name: '元婴', minLv: 45,  maxLv: 57,  stages: 13,  blessing: 1.44, color: '#C88AE2', accent: '#5A2685', motto: '元婴出窍，世间已少有匹敌～'           },
+  { id: 'spirit',     name: '化神', minLv: 58,  maxLv: 79,  stages: 22,  blessing: 1.61, color: '#F08E58', accent: '#7A2A0C', motto: '化神一境，举手牵动风雷！'             },
+  { id: 'void',       name: '炼虚', minLv: 80,  maxLv: 99,  stages: 20,  blessing: 1.82, color: '#EC6B9C', accent: '#7A1D45', motto: '虚空可炼，主人已窥天道一角。'         },
+  { id: 'unity',      name: '合体', minLv: 100, maxLv: 119, stages: 20,  blessing: 2.00, color: '#D96F6F', accent: '#6A1616', motto: '神形合一，举手投足皆合天道～'         },
+  { id: 'mahayana',   name: '大乘', minLv: 120, maxLv: 139, stages: 20,  blessing: 2.18, color: '#B25BD4', accent: '#4A1C70', motto: '大乘之境，主人已近仙途！'             },
+  { id: 'trib',       name: '渡劫', minLv: 140, maxLv: 159, stages: 20,  blessing: 2.33, color: '#FFD66E', accent: '#8C5800', motto: '渡劫之境！主人的名将传于三界～'       },
+  { id: 'ascend',     name: '飞升', minLv: 160, maxLv: 179, stages: 20,  blessing: 2.49, color: '#FFEFB0', accent: '#B28B2E', motto: '飞升在即，主人即将离凡入仙！'         },
+  { id: 'true_imm',   name: '真仙', minLv: 180, maxLv: 199, stages: 20,  blessing: 2.66, color: '#C9E8FF', accent: '#2E6FA8', motto: '真仙之躯，已脱生死轮回～'             },
+  { id: 'golden_imm', name: '金仙', minLv: 200, maxLv: 219, stages: 20,  blessing: 2.81, color: '#FFE98A', accent: '#A06A00', motto: '金仙不灭，主人已超凡入圣！'           },
+  { id: 'supreme',    name: '太乙', minLv: 220, maxLv: 239, stages: 20,  blessing: 2.97, color: '#F5F5FF', accent: '#5A5A8C', motto: '太乙玄妙，万法归一～'                 },
+  { id: 'great_luo',  name: '大罗', minLv: 240, maxLv: 259, stages: 20,  blessing: 3.14, color: '#FFB8D8', accent: '#8A2454', motto: '大罗金仙，主人的名将镌于星河！'       },
+  { id: 'ancestor',   name: '道祖', minLv: 260, maxLv: 999, stages: 999, blessing: 3.24, color: '#FFFFFF', accent: '#B0A060', motto: '道祖之位，世间只此一人～'             },
 ]
 
 module.exports = {

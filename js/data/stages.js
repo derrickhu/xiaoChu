@@ -10,7 +10,8 @@ const { STAGE_FORMATION_MIN_PETS } = require('./constants')
 const { CHAPTER_ENEMY_IDS, getEnemyById } = require('./enemyRegistry')
 const {
   STAGE_ELITE_MULTIPLIERS, STAGE_BOSS_STAT_FLOOR, STAGE_BOSS_SKILL_SETS,
-  STAGE_ASCENSION_CURVE, STAGE_MIN_GROWTH_RATE, STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
+  STAGE_ASCENSION_CURVE, STAGE_PRE_ASCENSION_SCALE, STAGE_MIN_GROWTH_RATE,
+  STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
 } = require('./balance/enemy')
 const {
   STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
@@ -38,6 +39,20 @@ function _getStageEnemySkills(ch, ord, fallbackSkills) {
 function _getAscensionStageStat(ch, ord) {
   const curve = STAGE_ASCENSION_CURVE[ch]
   return curve ? curve[ord - 1] : null
+}
+
+function _getPreAscensionScale(ch) {
+  return STAGE_PRE_ASCENSION_SCALE[ch] || null
+}
+
+function _applyPreAscensionScale(ch, hp, atk, def) {
+  const pre = _getPreAscensionScale(ch)
+  if (!pre || _getAscensionStageStat(ch, 1)) return { hp, atk, def }
+  return {
+    hp: Math.round(hp * pre.hp),
+    atk: Math.round(atk * pre.atk),
+    def: Math.round(def * pre.def),
+  }
 }
 
 /**
@@ -278,10 +293,21 @@ function buildAllStages() {
         bossAtk = Math.max(bossAtk, Math.max(runMax.atk + 1, Math.round(runMax.atk * grow.atk)))
         bossDef = Math.max(bossDef, Math.round(runMax.def * grow.def))
       }
+
+      // runMax 存未缩放值，避免同章/跨章重复叠乘；展示面板再按章倍率抬高
       runMax = { hp: bossHp, atk: bossAtk, def: bossDef }
 
-      // 第 1 章手动曲线：覆盖 HP 实现新手友好的难度波动（不影响 runMax 以免扰动后续章节）
       let stageHp = bossHp
+      let stageAtk = bossAtk
+      let stageDef = bossDef
+      if (!ascensionStat) {
+        const scaled = _applyPreAscensionScale(ch, bossHp, bossAtk, bossDef)
+        stageHp = scaled.hp
+        stageAtk = scaled.atk
+        stageDef = scaled.def
+      }
+
+      // 第 1 章手动曲线：覆盖 HP 实现新手友好的难度波动（不影响 runMax 以免扰动后续章节）
       if (ch === 1 && CH1_HP_CURVE[ord]) {
         stageHp = CH1_HP_CURVE[ord]
       }
@@ -290,8 +316,8 @@ function buildAllStages() {
         name: enemyData.name,
         attr: enemyData.attr,
         hp: stageHp,
-        atk: bossAtk,
-        def: bossDef,
+        atk: stageAtk,
+        def: stageDef,
         skills: [...stageEnemySkills],
         avatar: enemyData.avatar,
       }
@@ -304,12 +330,21 @@ function buildAllStages() {
         const minionData = getEnemyById(minionId)
         if (minionData) {
           const minionAscensionStat = _getAscensionStageStat(ch, Math.max(1, i - 2))
+          let minionHp = minionAscensionStat ? minionAscensionStat.hp : minionData.hp
+          let minionAtk = minionAscensionStat ? minionAscensionStat.atk : minionData.atk
+          let minionDef = minionAscensionStat ? minionAscensionStat.def : minionData.def
+          if (!minionAscensionStat) {
+            const scaled = _applyPreAscensionScale(ch, minionHp, minionAtk, minionDef)
+            minionHp = scaled.hp
+            minionAtk = scaled.atk
+            minionDef = scaled.def
+          }
           const minion = {
             name: minionData.name,
             attr: minionData.attr,
-            hp: Math.round((minionAscensionStat ? minionAscensionStat.hp : minionData.hp) * STAGE_MINION_HP_RATIO),
-            atk: minionAscensionStat ? minionAscensionStat.atk : minionData.atk,
-            def: minionAscensionStat ? minionAscensionStat.def : minionData.def,
+            hp: Math.round(minionHp * STAGE_MINION_HP_RATIO),
+            atk: minionAtk,
+            def: minionDef,
             skills: [...minionData.skills],
             avatar: minionData.avatar,
           }
@@ -336,9 +371,9 @@ function buildAllStages() {
       const eliteEnemy = {
         name: '狂暴·' + enemyData.name,
         attr: enemyData.attr,
-        hp: Math.round(bossHp * mult.hp),
-        atk: Math.round(bossAtk * mult.atk),
-        def: Math.round(bossDef * mult.def),
+        hp: Math.round(stageHp * mult.hp),
+        atk: Math.round(stageAtk * mult.atk),
+        def: Math.round(stageDef * mult.def),
         skills: _uniqueSkills([...stageEnemySkills, ...(s.eSkills || [])]),
         avatar: enemyData.avatar,
       }
@@ -350,9 +385,15 @@ function buildAllStages() {
         const eMinionData = getEnemyById(eMinionId)
         if (eMinionData) {
           const eMinionAscensionStat = _getAscensionStageStat(ch, Math.max(1, i - 2))
-          const eMinionHp = eMinionAscensionStat ? eMinionAscensionStat.hp : eMinionData.hp
-          const eMinionAtk = eMinionAscensionStat ? eMinionAscensionStat.atk : eMinionData.atk
-          const eMinionDef = eMinionAscensionStat ? eMinionAscensionStat.def : eMinionData.def
+          let eMinionHp = eMinionAscensionStat ? eMinionAscensionStat.hp : eMinionData.hp
+          let eMinionAtk = eMinionAscensionStat ? eMinionAscensionStat.atk : eMinionData.atk
+          let eMinionDef = eMinionAscensionStat ? eMinionAscensionStat.def : eMinionData.def
+          if (!eMinionAscensionStat) {
+            const scaled = _applyPreAscensionScale(ch, eMinionHp, eMinionAtk, eMinionDef)
+            eMinionHp = scaled.hp
+            eMinionAtk = scaled.atk
+            eMinionDef = scaled.def
+          }
           const eMinion = {
             name: '狂暴·' + eMinionData.name,
             attr: eMinionData.attr,

@@ -35,6 +35,7 @@ function _serverName(server) {
   const name = String((server && server.name) || '').trim()
   if (id === 's1' && (!name || name === '一服')) return '紫霄仙域'
   if (id === 's2' && (!name || name === '二服')) return '逍遥剑宗'
+  if (id === 's3' && (!name || name === '三服')) return '玄霄洞天'
   return name || String(id || 'S1').toUpperCase()
 }
 

@@ -1,6 +1,6 @@
 /**
  * 滚服配置（客户端兜底 + 本地选择记录）
- * 服务端 xiaochu_servers / /server/list 是权威来源；这里保证网络异常时仍可进一服/二服。
+ * 服务端 xiaochu_servers / /server/list 是权威来源；这里保证网络异常时仍可进一/二/三服。
  */
 const P = require('../platform')
 
@@ -28,11 +28,24 @@ const FALLBACK_SERVERS = [
     name: '逍遥剑宗',
     status: 'open',
     isLegacyDefault: false,
-    isRecommended: true,
+    isRecommended: false,
     sort: 2,
     openAt: 0,
     zone: 2,
-    notice: '新服开启，独立新进度',
+    notice: '独立新进度',
+    visible: true,
+    fallback: true,
+  },
+  {
+    serverId: 's3',
+    name: '玄霄洞天',
+    status: 'open',
+    isLegacyDefault: false,
+    isRecommended: true,
+    sort: 3,
+    openAt: 0,
+    zone: 3,
+    notice: '新开三区，全新旅程',
     visible: true,
     fallback: true,
   },
