@@ -245,24 +245,24 @@ function rCultivation(g) {
     c.textAlign = 'center'; c.textBaseline = 'middle'
     c.fillText(nextHintText, W * 0.5, ptsY + 22*S)
   }
-  // Lv.80 目标卡：仅在当前等级 >= 60 且未达满级时额外提示
-  //   背景：v27 扩容后老玩家从 Lv.60 起继续累积，需要让他们一眼看到"新终点"
-  //   已满级（Lv.80）时不再显示，避免与"已满级"经验条文案重复
-  const _CULT_FINAL_LV = 80
-  if (cult.level >= 60 && cult.level < _CULT_FINAL_LV) {
+  // Lv.120 目标卡：当前等级 >= 100 且未达满级时提示新终点
+  const _CULT_FINAL_LV = MAX_LEVEL
+  const _CULT_TARGET_START_LV = 100
+  if (cult.level >= _CULT_TARGET_START_LV && cult.level < _CULT_FINAL_LV) {
     const remain = _CULT_FINAL_LV - cult.level
+    const targetRealm = getRealmByLv(_CULT_FINAL_LV)
     c.fillStyle = '#B47A18'
     c.font = `bold ${10*S}px "PingFang SC",sans-serif`
     c.textAlign = 'center'; c.textBaseline = 'middle'
     const targetY = ptsY + (nextHintText ? 34 : 22) * S
-    c.fillText(`化神·圆满 Lv.${_CULT_FINAL_LV} · 还差 ${remain} 级`, W * 0.5, targetY)
+    c.fillText(`${targetRealm.fullName} Lv.${_CULT_FINAL_LV} · 还差 ${remain} 级`, W * 0.5, targetY)
   }
   c.restore()
 
   // 放射型星盘
-  //   目标卡（化神·圆满 Lv.80 · 还差 N 级）会占一行 12*S，需要把星盘整体再下移
-  const _showLv80Target = (cult.level >= 60 && cult.level < _CULT_FINAL_LV)
-  const chartTop = ptsY + ((nextHintText ? 34 : 20) + (_showLv80Target ? 14 : 0)) * S
+  //   目标卡（大乘·一重 Lv.120 · 还差 N 级）会占一行 12*S，需要把星盘整体再下移
+  const _showLv120Target = (cult.level >= 100 && cult.level < MAX_LEVEL)
+  const chartTop = ptsY + ((nextHintText ? 34 : 20) + (_showLv120Target ? 14 : 0)) * S
   const chartBottom = H - 30*S
   const chartCenterX = W * 0.5
   const chartCenterY = chartTop + (chartBottom - chartTop) * 0.38
@@ -443,14 +443,37 @@ function checkRealmBreak(g) {
   // v26→v27 修炼扩容仪式：对老 Lv.60 玩家首次进入修炼页弹一次全屏"道韵重塑"
   //   消费后落盘 flag 为 false，保证仪式只弹一次；仪式之后再排一个引导气泡把规则讲清楚
   if (g.storage.consumeCultMigrationCeremony()) {
-    _triggerMigrationCeremony(g)
-    // 气泡比仪式轻，若老玩家没消费过这条引导就排队；ceremony 关掉后自然衔接
-    guideMgr.trigger(g, 'cult_cap_v2_intro')
+    const capV = (g.storage._d.cultivation && g.storage._d.cultivation.capMigrationV) || 2
+    if (capV >= 3) {
+      _triggerMigrationCeremonyV3(g)
+      guideMgr.trigger(g, 'cult_cap_v3_intro')
+    } else {
+      _triggerMigrationCeremony(g)
+      guideMgr.trigger(g, 'cult_cap_v2_intro')
+    }
   }
   // 首次进入修炼页：展示玩法介绍卡
   if (!g.storage.isGuideShown('cult_intro')) {
     _state.cultIntro = { page: 0, alpha: 0 }
   }
+}
+
+function _triggerMigrationCeremonyV3(g) {
+  try {
+    const tierCeremony = require('./tierCeremony')
+    const prev = { name: '合体·二十重', id: 'unity', realmId: 'unity', color: '#D96F6F', accent: '#6A1616' }
+    const curr = {
+      id: '_migration_v3',
+      realmId: '_migration_v3',
+      name: '大乘·一重',
+      fullName: '大乘·一重',
+      color: '#B25BD4',
+      accent: '#4A1C70',
+      motto: '道韵再拓：修炼之境拓展至 Lv.120，合体圆满后可入大乘！',
+    }
+    tierCeremony.trigger(g, prev, curr)
+    MusicMgr.playLevelUp()
+  } catch (_e) {}
 }
 
 // ===== v26→v27 "道韵重塑" 扩容仪式 =====

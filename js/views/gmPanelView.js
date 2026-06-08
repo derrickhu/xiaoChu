@@ -61,7 +61,7 @@ function rGMPanel(g) {
 
   // 面板尺寸（宽度占屏 92%，高度自适应）
   const pw = W * 0.92
-  const ph = Math.min(490 * u, H - 80 * u)
+  const ph = Math.min(560 * u, H - 80 * u)
   const px = (W - pw) / 2
   const py = (H - ph) / 2
 
@@ -195,6 +195,30 @@ function rGMPanel(g) {
   _rects.btns.push({ id: 'add_awaken', rect: awakenRect })
   cy += btnH + 12 * u
 
+  // ── 修炼经验 / 等级 ──
+  const cultSnap = g.storage._gmCultSnapshot()
+  c.fillStyle = '#B0BEC5'
+  c.font = `${13 * u}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'top'
+  const cultNeedText = cultSnap.need > 0 ? `${cultSnap.exp}/${cultSnap.need}` : `${cultSnap.exp}/满`
+  c.fillText(`🧘 修炼: Lv.${cultSnap.level}  exp ${cultNeedText}  点 ${cultSnap.skillPoints}`, innerL, cy + 4 * u)
+  cy += 22 * u
+  const cultBtnW = 68 * u
+  const cultBtns = [
+    { id: 'cult_exp_dec', label: '经验-5k', w: cultBtnW, color: '#546E7A' },
+    { id: 'cult_exp_inc', label: '经验+5k', w: cultBtnW, color: '#1565C0' },
+    { id: 'cult_lv_dec', label: '等级-1', w: 58 * u, color: '#546E7A' },
+    { id: 'cult_lv_inc', label: '等级+1', w: 58 * u, color: '#1565C0' },
+  ]
+  bx = innerL
+  for (const btn of cultBtns) {
+    const rect = _drawBtn(c, bx, cy, btn.w, btnH, btn.label, btn.color, u)
+    _rects.btns.push({ id: btn.id, rect })
+    bx += btn.w + btnGap
+  }
+  cy += btnH + 12 * u
+
   // ── 炫耀 / 境界 flag 调试（真机重放 tierCeremony / 炫耀卡必备） ──
   c.fillStyle = '#B0BEC5'
   c.font = `${13 * u}px "PingFang SC",sans-serif`
@@ -286,6 +310,26 @@ function _handleBtn(g, id) {
       st.addAwakenStone(10)
       P.showGameToast(`觉醒石+10 → ${st.awakenStone}`)
       break
+    case 'cult_exp_inc': {
+      const snap = st.gmAdjustCultExp(5000)
+      P.showGameToast(`修炼经验+5000 → Lv.${snap.level} (${snap.exp}/${snap.need || '满'})`)
+      break
+    }
+    case 'cult_exp_dec': {
+      const snap = st.gmAdjustCultExp(-5000)
+      P.showGameToast(`修炼经验-5000 → Lv.${snap.level} (${snap.exp}/${snap.need || '满'})`)
+      break
+    }
+    case 'cult_lv_inc': {
+      const snap = st.gmAdjustCultLevel(1)
+      P.showGameToast(`修炼等级+1 → Lv.${snap.level}`)
+      break
+    }
+    case 'cult_lv_dec': {
+      const snap = st.gmAdjustCultLevel(-1)
+      P.showGameToast(`修炼等级-1 → Lv.${snap.level}`)
+      break
+    }
     case 'reset_celebrate':
       st.gmResetCelebrateFlags()
       P.showGameToast('✅ 已清炫耀/境界 flag，下次跨档可重弹', { type: 'achievement' })

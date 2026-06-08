@@ -56,7 +56,7 @@ function localDateKey(d) {
 }
 
 // 当前存档版本号，每次结构变更时递增
-const CURRENT_VERSION = 30
+const CURRENT_VERSION = 31
 // 滚服上线时间：非一服若出现早于该时间的首登埋点 + 大量历史进度，视为一服旧档误写入新服。
 const ROLLING_SERVER_START_AT = 1780230000000
 
@@ -139,9 +139,8 @@ function defaultPersist() {
       skillPoints: 0,        // 可用修炼点
       levels: { body:0, spirit:0, wisdom:0, defense:0, sense:0 },
       realmBreakSeen: 0,     // 已看过突破动画的最高境界索引
-      // 修炼上限版本号：1=旧（Lv.60，绝对值加成），2=v2（Lv.80，百分比+境界祝福）
-      // 全新档默认为最新 v2，无需迁移；老档由 migrations[26] 推到 2
-      capMigrationV: 2,
+      // 修炼上限版本号：1=旧（Lv.60），2=v2（Lv.80），3=v3（Lv.120，百分比+境界祝福）
+      capMigrationV: 3,
     },
     selectedAvatar: 'boy1',   // 当前选择的头像ID
     unlockedAvatars: ['boy1', 'girl1'], // 已解锁的形象列表
@@ -617,6 +616,34 @@ const migrations = {
     // 确保所有从 v29 升上来的老存档都能拿到一次补发。
     d.dexRewardCompV = 0
     grantDexRewardCompensation(d)
+  },
+  // v30→v31：修炼上限 Lv.100 → Lv.120（五维 maxLv +20）
+  //   · 老 Lv.100 玩家清掉溢出 exp，从 Lv.100 继续累积
+  //   · CULT_CONFIG.maxLv 调整后若历史 levels[key] 超过新上限 → 多余点退回
+  //   · 打标 cult.capMigrationV=3，Lv.100+ 玩家首次进修炼页弹扩容仪式
+  30: (d) => {
+    const cult = d.cultivation || {}
+    if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    if (cult.totalExpEarned == null) cult.totalExpEarned = 0
+    if ((cult.level || 0) >= 100 && (cult.exp || 0) > 0) {
+      cult.exp = 0
+    }
+    const { CULT_CONFIG, CULT_KEYS } = require('./balance/cultivation')
+    for (const k of CULT_KEYS) {
+      const cap = CULT_CONFIG[k] && CULT_CONFIG[k].maxLv
+      if (cap == null) continue
+      const cur = cult.levels[k] || 0
+      if (cur > cap) {
+        cult.skillPoints += (cur - cap)
+        cult.levels[k] = cap
+      }
+    }
+    cult.capMigrationV = 3
+    d.cultivation = cult
+    if ((cult.level || 0) >= 100) {
+      d.cultMigrationCeremonyPending = true
+    }
   },
 }
 
@@ -3740,7 +3767,7 @@ class Storage {
     if (cult.skillPoints == null) cult.skillPoints = 0
     if (!cult.levels) cult.levels = { body:0, spirit:0, wisdom:0, defense:0, sense:0 }
     if (cult.realmBreakSeen == null) cult.realmBreakSeen = 0
-    if (cult.capMigrationV == null) cult.capMigrationV = 2
+    if (cult.capMigrationV == null) cult.capMigrationV = 3
     if (!this._d.selectedAvatar) this._d.selectedAvatar = 'boy1'
     if (!Array.isArray(this._d.unlockedAvatars)) this._d.unlockedAvatars = ['boy1', 'girl1']
     // Phase 2 字段补全
@@ -3841,6 +3868,83 @@ class Storage {
     this._recoverStamina()
     this._d.stamina.current = this.maxStamina
     this._save()
+  }
+
+  /**
+   * GM：增减修炼经验（delta 可为负，支持降级回退测试）
+   *   · 加经验：走 addCultExp
+   *   · 减经验：优先扣当前 exp，不足则逐级降级并回收修炼点
+   */
+  gmAdjustCultExp(delta) {
+    if (!isCurrentUserGM()) return null
+    const n = Math.floor(Number(delta) || 0)
+    if (n === 0) return this._gmCultSnapshot()
+    const cult = this._d.cultivation
+    if (!cult) return null
+    if (cult.level == null || cult.level < 1) cult.level = 1
+    if (cult.skillPoints == null) cult.skillPoints = 0
+    if (!cult.levels) cult.levels = { body: 0, spirit: 0, wisdom: 0, defense: 0, sense: 0 }
+
+    if (n > 0) {
+      this.addCultExp(n)
+      return this._gmCultSnapshot()
+    }
+
+    const { expToNextLevel } = require('./cultivationConfig')
+    let remaining = -n
+    while (remaining > 0 && cult.level >= 1) {
+      if (cult.exp >= remaining) {
+        cult.exp -= remaining
+        remaining = 0
+        break
+      }
+      remaining -= cult.exp
+      if (cult.level <= 1) {
+        cult.exp = 0
+        break
+      }
+      cult.level--
+      cult.skillPoints = Math.max(0, cult.skillPoints - 1)
+      cult.exp = expToNextLevel(cult.level)
+    }
+    this._save()
+    return this._gmCultSnapshot()
+  }
+
+  /** GM：增减修炼等级（每级同步 ±1 修炼点，降级时 exp 清零） */
+  gmAdjustCultLevel(delta) {
+    if (!isCurrentUserGM()) return null
+    const step = Math.floor(Number(delta) || 0)
+    if (step === 0) return this._gmCultSnapshot()
+    const { MAX_LEVEL, expToNextLevel } = require('./cultivationConfig')
+    const cult = this._d.cultivation
+    if (!cult) return null
+    if (cult.level == null || cult.level < 1) cult.level = 1
+    if (cult.skillPoints == null) cult.skillPoints = 0
+
+    if (step > 0) {
+      for (let i = 0; i < step && cult.level < MAX_LEVEL; i++) {
+        const need = Math.max(0, expToNextLevel(cult.level) - (cult.exp || 0))
+        this.addCultExp(need > 0 ? need : expToNextLevel(cult.level))
+      }
+      return this._gmCultSnapshot()
+    }
+
+    for (let i = 0; i < -step && cult.level > 1; i++) {
+      cult.level--
+      cult.skillPoints = Math.max(0, cult.skillPoints - 1)
+      cult.exp = 0
+    }
+    this._save()
+    return this._gmCultSnapshot()
+  }
+
+  _gmCultSnapshot() {
+    const cult = this._d.cultivation || {}
+    const { expToNextLevel, MAX_LEVEL } = require('./cultivationConfig')
+    const lv = cult.level || 1
+    const need = lv >= MAX_LEVEL ? 0 : expToNextLevel(lv)
+    return { level: lv, exp: cult.exp || 0, need, skillPoints: cult.skillPoints || 0 }
   }
 
   /**

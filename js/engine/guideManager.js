@@ -263,6 +263,13 @@ const GUIDE_DEFS = {
       { text: '之前满级溢出的经验已归零，\n从 Lv.60 继续累积，打关就能涨经验啦', position: 'center' },
     ],
   },
+  cult_cap_v3_intro: {
+    steps: [
+      { text: '主人，修炼上限已拓至 Lv.120～\n合体圆满之后，还可踏入大乘！', position: 'center' },
+      { text: '体魄/根骨/神识各多了修炼点上限\n满级后可以把五维资质全部点满哦', position: 'center' },
+      { text: '之前 Lv.100 满级溢出的经验已归零，\n继续打关就能往大乘迈进啦', position: 'center' },
+    ],
+  },
   // 从派遣返回灵宠池后触发
   newbie_after_dispatch: {
     steps: [
