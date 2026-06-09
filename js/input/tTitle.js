@@ -402,21 +402,20 @@ function tTitle(g, type, x, y) {
     return
   }
 
-  // ⑥c 游戏圈 / 福利页（配置 openlink 且 PageManager 可用时走 Canvas 点击，鸿蒙下走原生按钮兜底）
-  if (P.isWeChat && !g._gameClubBtn && P.canOpenGameClubByOpenlink()
-    && (TITLE_HOME.giftOpenlink || TITLE_HOME.gameClubOpenlink) && g._gameClubBtnRect
+  // ⑥c 游戏圈（打开 MP 游戏圈帖子；礼包半屏仅冷启动 auto-show，不走此入口）
+  if (P.isWeChat && !g._gameClubBtn && g._gameClubBtnRect
     && g._hitRect(x, y, ...g._gameClubBtnRect)) {
-    const openlink = TITLE_HOME.giftOpenlink || TITLE_HOME.gameClubOpenlink
-    const opener = TITLE_HOME.giftOpenlink ? P.openGiftPage : P.openGameClubPage
     if (g.storage && g.storage.recordFunnelEvent) {
-      g.storage.recordFunnelEvent('platform_gift_entry_click', {
-        scene: TITLE_HOME.giftOpenlink ? 'gift_openlink' : 'game_club',
-      })
+      g.storage.recordFunnelEvent('platform_gift_entry_click', { scene: 'game_club' })
     }
-    if (g.storage && g.storage.markPlatformGiftEntrySeen) g.storage.markPlatformGiftEntrySeen()
-    opener.call(P, openlink).catch((e) => {
-      console.warn('[GameClub] PageManager', e)
-      P.showGameToast('无法打开福利页，请稍后重试', { type: 'warn' })
+    const platformWelfare = require('../engine/platformWelfare')
+    platformWelfare.openGameClubEntry().catch((e) => {
+      console.warn('[GameClub] openGameClubEntry', e)
+      if (P.isDevTools) {
+        P.showGameToast('开发者工具请点图标上的原生游戏圈按钮', { type: 'warn' })
+      } else {
+        P.showGameToast('无法打开游戏圈，请稍后重试', { type: 'warn' })
+      }
     })
     MusicMgr.playClick && MusicMgr.playClick()
     return

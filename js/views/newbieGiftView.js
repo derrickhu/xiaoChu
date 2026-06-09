@@ -44,24 +44,6 @@ function _buildItems() {
   return items
 }
 
-function _buildItemsFromRewards(rewards) {
-  const items = []
-  if (!rewards) return items
-  if (rewards.soulStone) {
-    items.push({ icon: 'assets/ui/icon_soul_stone.png', label: '灵石', amount: `×${rewards.soulStone}`, num: rewards.soulStone })
-  }
-  if (rewards.universalFragment) {
-    items.push({ icon: 'assets/ui/icon_universal_frag.png', label: '万能碎片', amount: `×${rewards.universalFragment}`, num: rewards.universalFragment })
-  }
-  if (rewards.stamina) {
-    items.push({ icon: 'assets/ui/icon_stamina.png', label: '体力', amount: `×${rewards.stamina}`, num: rewards.stamina })
-  }
-  if (rewards.awakenStone) {
-    items.push({ icon: 'assets/ui/icon_awaken_stone.png', label: '觉醒石', amount: `×${rewards.awakenStone}`, num: rewards.awakenStone })
-  }
-  return items
-}
-
 function show(g) {
   g._newbieGift = {
     timer: 0,
@@ -76,30 +58,6 @@ function show(g) {
     flyParticles: [],
     _btnRect: null,
   }
-}
-
-function showPlatformGift(g, rewards) {
-  const items = _buildItemsFromRewards(rewards)
-  if (!items.length) return false
-  g._newbieGift = {
-    timer: 0,
-    phase: 'opening',
-    claimed: false,
-    items,
-    title: '微信礼包',
-    subtitleLines: [
-      '主人～ 微信礼包已经送达啦！',
-      '每日来游戏圈领取福利，灵宠升星会更快～',
-    ],
-    claimText: '✦ 领取礼包 ✦',
-    cheerText: '主人～微信礼包已收入囊中，继续修炼吧！',
-    platformGift: true,
-    closeTimer: 0,
-    claimTimer: 0,
-    flyParticles: [],
-    _btnRect: null,
-  }
-  return true
 }
 
 // 计算奖励项在弹窗中的位置（供飞入起点用）
@@ -128,9 +86,6 @@ function draw(g) {
 
   d.timer++
   if (d.claimed) d.claimTimer++
-  if (d.platformGift && d.claimed && !d.claimApplied && d.claimTimer >= _getPlatformClaimDelay(d)) {
-    d.claimApplied = !!_claimPlatformGiftRewards(g)
-  }
 
   // 半透明遮罩
   c.save()
@@ -435,8 +390,7 @@ function onTouch(g, x, y, type) {
   if (!d.claimed && d._btnRect) {
     const [bx, by, bw, bh] = d._btnRect
     if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-      if (d.platformGift && !_hasPendingPlatformGift(g)) return true
-      if (!d.platformGift) _claimRewards(g)
+      _claimRewards(g)
       buttonFx.trigger(d._btnRect.slice(), 'starUp')  // 礼包是里程碑级反馈
       d.claimed = true
       d.phase = 'claimed'
@@ -448,7 +402,7 @@ function onTouch(g, x, y, type) {
   }
 
   // 已领取且弹跳动画结束后，点击任意位置关闭
-  if (d.claimed && d.claimTimer > CLAIM_BOUNCE_DUR + d.items.length * 6 && (!d.platformGift || d.claimApplied)) {
+  if (d.claimed && d.claimTimer > CLAIM_BOUNCE_DUR + d.items.length * 6) {
     if (!d._upgradeCheered) {
       d._upgradeCheered = true
       if (d.cheerText) lingCheer.show(d.cheerText, { tone: 'warm', duration: 3200 })
@@ -474,29 +428,4 @@ function _claimRewards(g) {
   g._uniFragPulse = { timer: 0 }
 }
 
-function _claimPlatformGiftRewards(g) {
-  if (!g || !g.storage || !g.storage.claimPendingPlatformGifts) return null
-  const result = g.storage.claimPendingPlatformGifts()
-  if (!result) return null
-  if (result.ids && result.ids.length) {
-    try {
-      require('../data/cloudSync').markPlatformGiftsGranted(result.ids).catch((e) => {
-        console.warn('[PlatformGift] 云端标记已领取失败，下次启动会补偿重试', e)
-      })
-    } catch (e) {
-      console.warn('[PlatformGift] 标记已领取异常', e)
-    }
-  }
-  if (result.granted && result.granted.universalFragment) g._uniFragPulse = { timer: 0 }
-  return result
-}
-
-function _hasPendingPlatformGift(g) {
-  return !!(g && g.storage && g.storage.hasPendingPlatformGiftClaims && g.storage.hasPendingPlatformGiftClaims())
-}
-
-function _getPlatformClaimDelay(d) {
-  return Math.max(FLY_DURATION, FLY_DURATION + Math.max(0, (d.items || []).length - 1) * FLY_STAGGER - 4)
-}
-
-module.exports = { show, showPlatformGift, draw, onTouch }
+module.exports = { show, draw, onTouch }

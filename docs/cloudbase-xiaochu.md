@@ -119,7 +119,33 @@ cloudbaseFilePrefix: 'xiaochu/assets_cdn',
 
 客户端资源下载只走 HTTPS CDN URL，不再保留旧 `cloud://` fileID 或 `wx.cloud.downloadFile` 回退。
 
-## 部署步骤
+## 微信平台礼包（原生福利半屏）
+
+### MP 后台
+
+- 入口：**运营功能管理 → 游戏礼包道具 → 小游戏礼包管理**
+- 需先配置并发布**道具**，再配置**礼包**（每日登录、周末福利等）。
+- **通用配置**页只有「发货频率限制」，没有 openlink；这是正常的。
+- 消息推送回调 URL 指向 `/xiaochu-api/gift/callback`（或已配置的 `/giftDeliver` 兼容路径），`XIAOCHU_GIFT_TOKEN` 与 MP 一致。
+
+### 客户端 openlink
+
+| 常量 | 来源 | 用途 |
+|------|------|------|
+| `TITLE_HOME.giftOpenlink` | 微信文档固定常量（全平台相同） | `PageManager` 打开「游戏福利 / 道具领取」半屏 |
+| `TITLE_HOME.gameClubOpenlink` | MP 游戏圈帖子跳转 | 打开指定游戏圈帖子 |
+
+`giftOpenlink` 不识别游戏；游戏身份由**运行时 AppID** + MP 礼包配置决定。玩家在福利页领取后，微信推送 `minigame_deliver_goods`，`GiftId` 对应 MP 礼包列表中的 ID。
+
+文档：[给朋友送道具](https://developers.weixin.qq.com/minigame/dev/guide/open-ability/share-gift.html)
+
+### 客户端链路（`js/engine/platformWelfare.js`）
+
+1. 冷启动离开 loading 进入任意场景：`tryAutoShowOnLaunch` 弹原生福利半屏（每 session 一次，不限关卡/是否在主页）。
+2. 玩家在微信福利页点领取 → 微信异步回调 → `xiaochu_pendingGifts` 写入 pending。
+3. 福利页 `destroy` / 游戏 `onShow` / 启动时：`syncAndGrantPendingGifts` 自动入账 + 轻 toast。
+4. 鸿蒙微信不支持 `createPageManager`：不 auto-show，入口降级为原生 `GameClubButton`；回调到账仍 silent grant。
+
 
 1. 在 CloudBase 控制台或 MCP 中创建/更新 `cloudfunctions/xiaochu-api/`，运行时 `Nodejs18.15`，配齐上方环境变量。
 2. CloudBase HTTP 访问服务保留 1 条记录：
@@ -168,6 +194,7 @@ node scripts/upload_cdn.js
 - 存档读写只使用 `xiaochu_playerData`，同账号不同服以 `serverId` 独立保存。
 - 排行榜写入：`xiaochu_rankAll`、`xiaochu_rankAllWeekly`、`xiaochu_rankStage`、`xiaochu_rankDex`、`xiaochu_rankCombo`。
 - 周榜奖励写入 `xiaochu_weeklyReward`，礼包写入 `xiaochu_pendingGifts`，邀请写入 `xiaochu_inviteRecords`。
+- 微信端冷启动进主页可弹原生「游戏福利」半屏；领取后自动 sync 入账（见上文「微信平台礼包」）。
 - 微信好友榜仍走原生 `wx.setUserCloudStorage` / `wx.getFriendCloudStorage`，一服兼容旧 `xiaochu_*` key，二服及后续新服使用 `xiaochu_sN_*` key。
 - 微信端已配置 request/downloadFile 合法域名：
   - `https://rosa-env-d7grf78r5dbd37323.service.tcloudbase.com`

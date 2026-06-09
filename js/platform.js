@@ -21,6 +21,16 @@ function _detectOHOS() {
 
 const _isOHOS = _detectOHOS()
 
+function _detectDevTools() {
+  try {
+    const sys = base && base.getSystemInfoSync ? base.getSystemInfoSync() : null
+    if (sys && sys.platform === 'devtools') return true
+  } catch (_e) {}
+  return false
+}
+
+const _isDevTools = _detectDevTools()
+
 const _noop = () => {}
 
 // 抖音没有 getWindowInfo / getDeviceInfo，用 getSystemInfoSync 兼容
@@ -48,6 +58,7 @@ const platform = {
   name: isDouyin ? 'douyin' : 'wechat',
   isDouyin,
   isWeChat,
+  isDevTools: _isDevTools,
   isOHOS: _isOHOS,
 
   // ========== 第一层：直接透传（wx/tt 完全一致） ==========
@@ -138,11 +149,11 @@ const platform = {
     : () => null,
 
   /**
-   * 鸿蒙微信目前不支持 wx.createPageManager（调用返回 -3），
-   * 因此 openlink 形式的游戏圈/福利页跳转在鸿蒙端不可用，需要降级到原生 GameClubButton。
+   * 鸿蒙 / 开发者工具目前不支持 wx.createPageManager（调用返回 -3），
+   * 因此 openlink 形式的游戏圈/福利页跳转在这些环境不可用，需要降级到原生 GameClubButton。
    */
   canOpenGameClubByOpenlink() {
-    return isWeChat && !_isOHOS && typeof base.createPageManager === 'function'
+    return isWeChat && !_isOHOS && !_isDevTools && typeof base.createPageManager === 'function'
   },
 
   /**
@@ -156,6 +167,9 @@ const platform = {
     }
     if (_isOHOS) {
       return Promise.reject(new Error(`${label}: 鸿蒙微信暂不支持游戏圈跳转`))
+    }
+    if (_isDevTools) {
+      return Promise.reject(new Error(`${label}: 开发者工具不支持 PageManager，请用真机预览`))
     }
     if (typeof base.createPageManager !== 'function') {
       return Promise.reject(new Error(`${label}: 基础库不支持 createPageManager`))

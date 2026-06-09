@@ -2381,12 +2381,23 @@ function drawDailyTaskBtn(g) {
   g._dailyTaskBtnRect = [bx, by, geo.btnW, geo.btnH]
 }
 
-// ===== 游戏圈入口（与签到同列：统一圆框样式；微信原生按钮仅覆盖圆框中部） =====
+// ===== 游戏圈入口（与签到同列；点击进 MP 游戏圈，非礼包半屏） =====
 function drawGameClubBtn(g) {
   const { ctx: c, R, W, S, safeTop } = V
   const geo = _gameClubBtnGeometry(safeTop, S)
   const bx = W - geo.btnW - 8 * S
   const by = geo.top
+
+  let hasBadge = false
+  const storage = g && g.storage
+  if (storage && storage.hasPendingPlatformGiftClaims && storage.hasPendingPlatformGiftClaims()) {
+    hasBadge = true
+  } else {
+    try {
+      const platformWelfare = require('../engine/platformWelfare')
+      if (platformWelfare.hasNativeGiftPending && platformWelfare.hasNativeGiftPending()) hasBadge = true
+    } catch (_) {}
+  }
 
   const entry = _drawRightEntryButton(c, R, {
     x: bx,
@@ -2402,46 +2413,13 @@ function drawGameClubBtn(g) {
     maxWRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
     maxHRatio: RIGHT_ENTRY_ICON_UNIFORM_RATIO,
     iconOffsetY: -0.25 * S,
+    hasBadge,
     fallbackText: '圈',
     fallbackColor: '#8A5A1E',
   })
 
-  _drawGameClubGiftBubble(c, R, S, bx, by, geo.btnW, g.af || 0, g)
   g._gameClubBtnRect = [bx, by, geo.btnW, geo.btnH]
   g._gameClubNativeRect = entry && entry.nativeRect ? entry.nativeRect : g._gameClubBtnRect
-}
-
-function _drawGameClubGiftBubble(c, R, S, bx, by, btnW, af, g) {
-  // 红点合并两路信号：
-  //   1. 待领（pending）—— 玩家在微信侧领过、还没在游戏内点确认；语义最强
-  //   2. 引流（每日一次）—— 当日尚未点过游戏圈/尚未领过 pending，用于"今天去游戏圈看看新福利"
-  // 任一为真即显示，玩家"消化"任一即同时熄灭。
-  const storage = g && g.storage
-  if (!storage) return
-  const hasPending = storage.hasPendingPlatformGiftClaims && storage.hasPendingPlatformGiftClaims()
-  const showHint = storage.shouldShowPlatformGiftHint && storage.shouldShowPlatformGiftHint()
-  if (!hasPending && !showHint) return
-  const text = (P.isOHOS ? TITLE_HOME.ohosGameClubBubbleText : TITLE_HOME.gameClubGiftBubbleText) || ''
-  if (!text) return
-  c.save()
-  c.font = `bold ${9 * S}px "PingFang SC",sans-serif`
-  const padX = 7 * S
-  const bubbleW = Math.min(92 * S, c.measureText(text).width + padX * 2)
-  const bubbleH = 18 * S
-  const x = bx + btnW - bubbleW + 2 * S
-  const y = by - 7 * S
-  const pulse = 0.85 + 0.15 * Math.sin(af * 0.08)
-  c.globalAlpha = 0.92 * pulse
-  c.fillStyle = 'rgba(190,45,34,0.94)'
-  R.rr(x, y, bubbleW, bubbleH, bubbleH / 2); c.fill()
-  c.strokeStyle = 'rgba(255,230,130,0.9)'
-  c.lineWidth = 1 * S
-  R.rr(x, y, bubbleW, bubbleH, bubbleH / 2); c.stroke()
-  c.fillStyle = '#fff7d6'
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText(text, x + bubbleW / 2, y + bubbleH / 2 + 0.5 * S)
-  c.restore()
 }
 
 // ===== 主入口 =====

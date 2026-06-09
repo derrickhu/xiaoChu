@@ -150,16 +150,16 @@ const TITLE_HOME = {
    * 留空则仍用 createGameClubButton（会有点按高亮）。
    */
   gameClubOpenlink: '-SSEykJvFV3pORt5kTNpS2uRCE2Pk0t0-jfXJ_Rmeu4-PYB3x56w4rucmIjwdUnKt5TrJKXqLLC5SqbHDdrdsUMFZBJsDhi3iqVWOuJKB2Pr0tYGYTFYQndIlJ7WO-ZDTZbYpPAWCu9mOpD2i4vkuJnxTvbK6kZyOoJN-c1IVjQIMOTCZFywauSGPU0Qdrf_ymIrVjM4tEIKu1_hOH8e1T25ujcr2CeXUeR-SOEvqHOaiq6Z9lH8hUqqg5JQzEpuX3cGf0h39IfN-wDKxAf0M4mUC5XMktYzfjEyX4uyhz6vhgdxls7pS5Um-1AQJzHS_9h4qs2szApba_eovWdhXA',
-  /** MP 后台福利页 openlink；留空时点击福利气泡仍进入游戏圈承接。 */
-  giftOpenlink: '',
-  /** 游戏圈福利气泡文案：1-1 后展示，承接微信平台福利。 */
-  gameClubGiftBubbleText: '微信福利礼包',
+  /**
+   * 微信官方「道具领取界面 / 游戏福利」半屏固定 openlink（全平台常量，非 MP 后台配置）。
+   * 文档：https://developers.weixin.qq.com/minigame/dev/guide/open-ability/share-gift.html
+   * 游戏身份由运行时 AppID + MP 礼包配置决定，与 gameClubOpenlink 无关。
+   */
+  giftOpenlink: 'OAlx0CJihzz1pDQQNr9_GZ7fE43wOxBJTreaTcShoIbkZFfBl3K8bsXgnRJY3PAP0Ij3gLOVWYaSeMHP4OSg7qreYJDpNwq_fqfq3KT5erP5wJzRcuhWWSnD7rGATiN6',
   /**
    * 鸿蒙微信不支持 wx.createPageManager（openlink 跳转），
-   * 入口降级为原生 GameClubButton 直跳游戏圈首页，
-   * 福利气泡用更直白的文案，避免给鸿蒙玩家"打不开"的预期落差。
+   * 入口降级为原生 GameClubButton 直跳游戏圈首页。
    */
-  ohosGameClubBubbleText: '游戏圈福利',
   /** 模式切换（通天塔/秘境）：图案区高度、标签字号、相对 icon 加宽（×S） */
   modeSwitchIconPt: 30,
   modeSwitchLabelPt: 9,

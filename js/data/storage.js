@@ -4027,7 +4027,7 @@ class Storage {
     return !!(Array.isArray(this._pendingPlatformGiftClaims) && this._pendingPlatformGiftClaims.length)
   }
 
-  /** UI 用：把所有待领礼包奖励合并成一份汇总，用于卷轴弹窗展示 */
+  /** UI 用：合并待领礼包奖励（调试/兼容；正常流程由 platformWelfare 自动 grant） */
   getPendingPlatformGiftTotalRewards() {
     if (!this.hasPendingPlatformGiftClaims()) return null
     const total = {}
@@ -4041,7 +4041,7 @@ class Storage {
   }
 
   /**
-   * 玩家在游戏内点"领取礼包"时调用：真正发放奖励、写本地 ID、清队列、上报埋点。
+   * 平台礼包自动/手动发放：写本地 ID、清队列、上报埋点。
    * 返回 { ids, granted, total }；调用方负责再 markGranted 到云端。
    */
   claimPendingPlatformGifts() {
@@ -4073,7 +4073,6 @@ class Storage {
 
     this._pendingPlatformGiftClaims = null
     this._pendingPlatformGiftRewards = null
-    this._d.platformGiftSeenDate = localDateKey()
 
     if (grantCount === 0) {
       this._save()
@@ -4105,29 +4104,6 @@ class Storage {
     if (!id) return false
     const map = this._d.platformGiftGrantedIds || {}
     return !!map[id]
-  }
-
-  /**
-   * 引流红点"消化"标记：当日点过游戏圈入口或在游戏内点过领取，今天就不再提醒。
-   * 玩家不消化的话，每天 0 点会被自然刷新一次（依赖 localDateKey 切换）。
-   */
-  markPlatformGiftEntrySeen() {
-    const today = localDateKey()
-    if (this._d.platformGiftSeenDate === today) return
-    this._d.platformGiftSeenDate = today
-    this._save()
-  }
-
-  /**
-   * UI 决策：是否显示"游戏圈每日福利"引流红点。
-   * 严格规则：
-   *   1. 必须通过 1-1（与首页其他入口的新手保护一致）
-   *   2. 当日尚未点过游戏圈 / 当日尚未在游戏内领过 platform gift
-   *   3. pending 待领由 hasPendingPlatformGiftClaims 单独表达，与本提示并列（UI 层做或运算）
-   */
-  shouldShowPlatformGiftHint() {
-    if (!this.isStageCleared('stage_1_1')) return false
-    return this._d.platformGiftSeenDate !== localDateKey()
   }
 
   _onCloudSyncDone() {

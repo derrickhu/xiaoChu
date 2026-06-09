@@ -46,6 +46,7 @@ const guideOverlay = require('./views/guideOverlay')
 const { drawConfirmDialog, handleConfirmDialogTouch } = require('./views/uiComponents')
 const { drawAdRewardPopup, handleAdRewardPopupTouch } = require('./views/adRewardPopup')
 const newbieGiftView = require('./views/newbieGiftView')
+const platformWelfare = require('./engine/platformWelfare')
 const shareRewardPopup = require('./views/shareRewardPopup')
 const helpTourView = require('./views/helpTourView')
 const gameToast = require('./views/gameToast')
@@ -277,6 +278,10 @@ class Main {
     this._loadServerList()
 
     this.events.on('scene:change', (newScene, oldScene) => {
+      // 冷启动离开 loading：auto-show 微信福利半屏（不限 intro/title/战斗等场景）
+      if (oldScene === 'loading' && newScene !== 'loading' && this.storage) {
+        platformWelfare.tryAutoShowOnLaunch(this, this.storage)
+      }
       if (newScene === 'petPool') {
         // 1-3 首通后进灵宠池：触发养成引导（跳过通用灵宠池介绍）
         if (!this.storage.isGuideShown('newbie_grow_intro')
@@ -371,18 +376,10 @@ class Main {
           && !this.storage.isStageCleared('stage_2_1')
           && !this.storage.isGuideShown('newbie_gift_claimed')
           && !this._newbieGift
-        // 微信平台礼包待领：与新手礼包同优先级，新手礼包不弹时检查是否有待领。
-        // 复用 newbieGiftView 的卷轴 UI（showPlatformGift），玩家点"领取礼包"后才真正发奖。
-        const platformGiftRewards = !shouldShowNewbieGift && !this._newbieGift
-          && this.storage.hasPendingPlatformGiftClaims && this.storage.hasPendingPlatformGiftClaims()
-          ? this.storage.getPendingPlatformGiftTotalRewards()
-          : null
         if (shouldShowNewbieGift) {
           newbieGiftView.show(this)
           // 礼包弹出时不触发其它 toast / 引导，避免视觉冲突
           // 合并 toast 队列保留，待礼包关闭后由 newbieGiftView 关闭回调 / 下一次主页进入展示
-        } else if (platformGiftRewards) {
-          newbieGiftView.showPlatformGift(this, platformGiftRewards)
         } else if (!this._newbieGift && !this._pendingGuide) {
           // 没有礼包弹窗时才放出其他强提示
           let slotTaken = false
@@ -550,6 +547,11 @@ class Main {
       wxBtns.destroyRankEntryAuthBtn(this)
       try { ctx.clearRect(0, 0, W, H) } catch (_) {}
       console.log('[Lifecycle] resume from background, force redraw')
+      if (this.scene === 'title' && this.storage) {
+        platformWelfare.syncAndGrantWithFeedback(this, this.storage, { retry: true }).catch((e) => {
+          console.warn('[PlatformWelfare] onShow sync failed', e)
+        })
+      }
     })
 
     this.dt = 0; this.timeScale = 1.0
@@ -812,8 +814,8 @@ class Main {
         complete: (res) => { if (res && res.confirm) this.storage.clearWipeNotice() },
       })
     }
-    // 微信平台礼包：玩家从游戏圈领取后云端会回写，启动时由 cloudSync 拉到 storage 的待领队列里，
-    // 这里不再静默清空，转由 title 场景的强提示编排里弹卷轴 UI 等玩家点"领取礼包"再发放。
+    // 微信平台礼包：玩家在原生福利页领取后，微信异步回调写 pending；
+    // cloudSync / platformWelfare 在启动与 onShow 时自动 sync + grant。
     // 待定功能解锁引导（从肉鸽/宝箱返回 title 后触发）
     if (this.scene === 'title' && this._pendingGuide) {
       const pg = this._pendingGuide

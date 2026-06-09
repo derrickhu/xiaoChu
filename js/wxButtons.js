@@ -451,9 +451,8 @@ function _gameClubNativeStyle(rect, dpr) {
 
 /** 游戏圈按钮 — 仅在 title 场景且无弹窗/引导时显示，覆盖在 Canvas 占位区上 */
 function updateGameClubBtn(g, dpr) {
-  // 仅当 PageManager 可用（即非鸿蒙的 wechat 端）且配置了 openlink 时才让 Canvas 接管点击；
-  // 鸿蒙端 PageManager 不可用，必须回退到原生 GameClubButton 直跳游戏圈首页。
-  const useOpenlink = (TITLE_HOME.gameClubOpenlink || TITLE_HOME.giftOpenlink) && P.canOpenGameClubByOpenlink()
+  // PageManager 可用时用 Canvas 接管点击；devtools/鸿蒙回退原生 GameClubButton 进游戏圈首页
+  const useOpenlink = TITLE_HOME.gameClubOpenlink && P.canOpenGameClubByOpenlink()
   if (useOpenlink) {
     destroyGameClubBtn(g)
     return
@@ -502,7 +501,6 @@ function updateGameClubBtn(g, dpr) {
         try {
           if (typeof btn.onTap === 'function') {
             btn.onTap(() => {
-              if (g.storage && g.storage.markPlatformGiftEntrySeen) g.storage.markPlatformGiftEntrySeen()
               if (g.storage && g.storage.recordFunnelEvent) {
                 g.storage.recordFunnelEvent('platform_gift_entry_click', { scene: 'native_button' })
               }
