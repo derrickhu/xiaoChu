@@ -43,6 +43,12 @@ function _resolveHighlight(g, info) {
   return null
 }
 
+function _hitHighlight(g, info, x, y) {
+  const hl = _resolveHighlight(g, info)
+  if (!hl || typeof hl.x !== 'number') return false
+  return x >= hl.x && x <= hl.x + hl.w && y >= hl.y && y <= hl.y + hl.h
+}
+
 function draw(g) {
   if (!guide.isActive()) return
   const info = guide.getCurrent()
@@ -167,10 +173,17 @@ function _drawBubble(c, W, H, S, info, hl, geom) {
   })
 }
 
-function onTouch(g, type) {
+function onTouch(g, type, x, y) {
   if (!guide.isActive()) return false
-  if (type !== 'start' && type !== 'end') return false
+  const info = guide.getCurrent()
+  if (!info) return true
 
+  if (info.lockToHighlight) {
+    if (type === 'end' && _hitHighlight(g, info, x, y)) return false
+    return true
+  }
+
+  if (type !== 'start' && type !== 'end') return true
   if (type === 'start') { guide.advance(g); g._dirty = true }
   return true
 }

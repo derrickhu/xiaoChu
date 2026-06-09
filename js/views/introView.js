@@ -294,25 +294,6 @@ function _finish(g, source) {
   const MusicMgr = require('../runtime/music')
   MusicMgr.playBgm()
 
-  // 真新用户直接进入 1-1 序章爽局，减少广告点击后的首战前流失。
-  const shouldFastStart = g.storage
-    && g.storage.petPoolCount === 0
-    && !g.storage.isStageCleared('stage_1_1')
-  if (shouldFastStart) {
-    const stageMgr = require('../engine/stageManager')
-    if (g.storage.recordFunnelEvent) {
-      g.storage.recordFunnelEvent('newbie_prologue_prompt_show', { scene: 'intro_fast_start', stageId: 'newbie_prologue' })
-    }
-    if (stageMgr.startNewbiePrologue && stageMgr.startNewbiePrologue(g)) return
-    if (g.storage.recordFunnelEvent) {
-      g.storage.recordFunnelEvent('newbie_prologue_start_fail', {
-        scene: 'intro_fast_start',
-        reason: 'start_returned_false',
-      })
-    }
-  }
-
-  // 兜底：无法直达战斗时仍进入首页并触发原有新手秘境指引。
   g._pendingGuide = 'newbie_stage_start'
   g.setScene('title')
 }

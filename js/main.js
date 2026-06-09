@@ -784,6 +784,9 @@ class Main {
           introView.init(this)
           this.setScene('intro')
         } else {
+          if (this.storage.petPoolCount === 0 && !this.storage.isStageCleared('stage_1_1')) {
+            this._pendingGuide = 'newbie_stage_start'
+          }
           this.setScene('title'); MusicMgr.playBgm()
         }
         // 云端就绪后异步同步邀请数据：新人上报 + 老玩家拉反奖
@@ -1225,7 +1228,7 @@ class Main {
     if (this._helpTour && helpTourView.onTouch(this, x, y, type)) return
     if (handleConfirmDialogTouch(this, x, y, type)) return
     if (guideMgr.isActive()) {
-      if (guideOverlay.onTouch(this, type)) return
+      if (guideOverlay.onTouch(this, type, x, y)) return
     }
     switch(this.scene) {
       case 'serverSelect': touchH.tServerSelect(this,type,x,y); break

@@ -342,6 +342,11 @@ function tTitle(g, type, x, y) {
 
   // ⑤ 开始按钮
   if (g._startBtnRect && g._hitRect(x, y, ...g._startBtnRect)) {
+    const guideMgr = require('../engine/guideManager')
+    const curGuide = guideMgr.getCurrent()
+    if (curGuide && curGuide.lockToHighlight) {
+      guideMgr.dismiss(g)
+    }
     if (isStageMode) {
       _handleStageStart(g)
       return

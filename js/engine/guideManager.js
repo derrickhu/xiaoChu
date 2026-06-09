@@ -109,8 +109,9 @@ const GUIDE_DEFS = {
 
   // 新手秘境引导序列（漫画结束后触发，渐进式引导到主玩法）
   newbie_stage_start: {
+    lockToHighlight: true,
     steps: [
-      { text: '主人，灵兽秘境在召唤啦！\n点下方按钮，我们一起去冒险！', position: 'bottom' },
+      { text: '主人，灵兽秘境在召唤啦！\n点下方按钮，我们一起去冒险！', position: 'bottom', showFinger: true },
     ],
   },
   newbie_stage_continue: {
@@ -121,15 +122,17 @@ const GUIDE_DEFS = {
   },
   // 从灵宠池/派遣返回主页后触发（1-1 完成 → 引导到 1-2）
   newbie_continue_1_2: {
+    lockToHighlight: true,
     steps: [
-      { text: '接下来继续挑战下一关～\n打怪收更多灵宠和资源，主人加油！', position: 'bottom' },
+      { text: '接下来继续挑战下一关～\n打怪收更多灵宠和资源，主人加油！', position: 'bottom', showFinger: true },
     ],
   },
   // 1-2 完成 → 引导到 1-3（五行相克教学关，敌方为水属性·碧潮鲸）
   // 注意：1-3 只是第 1 章第 3 关，本章共 8 关，文案禁止出现"最后一关/完成本章"等相对进度词
   newbie_continue_1_3: {
+    lockToHighlight: true,
     steps: [
-      { text: '下一关登场的是碧潮鲸～\n试着用相克属性对付它，主人加油！', position: 'bottom' },
+      { text: '下一关登场的是碧潮鲸～\n试着用相克属性对付它，主人加油！', position: 'bottom', showFinger: true },
     ],
   },
   // 1-3 通关后进灵宠池：引导养成首触（此时距离本章通关还早，文案聚焦"带队伍变强"而非"章节进度"）
@@ -313,6 +316,7 @@ function _dequeue(g) {
     id: item.id,
     steps: def.steps,
     highlight: item.highlight || null,
+    lockToHighlight: !!def.lockToHighlight,
   }
   _stepIdx = 0
   _fadeAlpha = 0
@@ -328,6 +332,7 @@ function getCurrent() {
     ..._currentGuide.steps[_stepIdx],
     guideId: _currentGuide.id,
     highlight: _currentGuide.highlight,
+    lockToHighlight: _currentGuide.lockToHighlight,
     stepIdx: _stepIdx,
     totalSteps: _currentGuide.steps.length,
   }
