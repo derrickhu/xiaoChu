@@ -736,7 +736,11 @@ function drawBattleEnemyArea(g, eAreaTop, eAreaBottom) {
     ctx.fillText('新手教学', W*0.5, labelCY - 2*S)
     ctx.restore()
     ctx.fillStyle = '#80d0ff'; ctx.font = `bold ${9*S}px "PingFang SC",sans-serif`
-    ctx.fillText(`第${tutorial.getStep()+1}课 · ${stepTitle}`, W*0.5, labelCY + 9*S)
+    // 秘境关卡内简化教学没有"课"的概念，统一用小灵讲堂口径
+    const stepLabel = tutorial.isStageMode && tutorial.isStageMode()
+      ? `小灵讲堂 · ${stepTitle}`
+      : `第${tutorial.getStep()+1}课 · ${stepTitle}`
+    ctx.fillText(stepLabel, W*0.5, labelCY + 9*S)
   } else if (g.battleMode === 'stage') {
     const { getStageById } = require('../../data/stages')
     const stageData = getStageById(g._stageId)

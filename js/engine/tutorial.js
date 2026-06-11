@@ -246,6 +246,7 @@ let _victoryMsgTimer = 0
 let _summaryShown = false  // 最终总结
 let _roundTransitTimer = 0  // 回合切换等待计时器
 let _stageMode = false      // 秘境简化教学模式
+let _stageTutorialStageId = null  // 当前秘境简化教学所属关卡 id
 
 // 获取当前回合数据（支持多回合和单回合）
 function _getCurRound() {
@@ -273,6 +274,7 @@ function isActive() { return _active }
 function getStep() { return _step }
 function getPhase() { return _phase }
 function isSummary() { return _summaryShown }
+function isStageMode() { return _stageMode }
 
 // 开始教学
 function start(g) {
@@ -703,34 +705,81 @@ function getGuideData() {
   }
 }
 
+// ===== 秘境关卡内简化教学配置（按关）=====
+// 每关一局开场教学：固定棋盘 + 锁定拖珠路径，消除一次后立即切回自由操作。
+// doneKey 按关区分（stage_1_1 沿用历史 key 'stageTutorialDone'，保证老玩家不重复看）。
+const STAGE_TUTORIALS = {
+  // 1-1 转珠 = 攻击：拖金珠凑 3 连，看到金锋灵猫出手
+  stage_1_1: {
+    doneKey: 'stageTutorialDone',
+    title: '转珠攻击',
+    board: [
+      ['w','f','e','s','w','f'],
+      ['s','e','w','f','e','s'],
+      ['f','m','m','w','e','w'],
+      ['e','f','s','w','s','e'],
+      ['w','s','e','f','e','m'],
+    ],
+    guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
+    msg: [
+      { text: '按住金色灵珠沿路径拖动，让金锋灵猫攻击！', timing: 'start' },
+      { text: '灵珠消除，金锋灵猫出手！换个颜色，别的灵宠也会攻击～', timing: 'afterElim' },
+    ],
+  },
+  // 1-2 连击 Combo：一条长拖路径同时凑出 土/木/火 三组消除 → 保证 3 连击
+  // 敌人为火属性焰狮，三组均为非克制/非被克属性，避免提前剧透克制机制
+  stage_1_2: {
+    doneKey: 'stageTutorialDone_1_2',
+    title: '连击 Combo',
+    board: [
+      ['s','m','w','f','s','m'],
+      ['f','w','s','m','m','f'],
+      ['m','s','e','w','e','s'],
+      ['w','f','w','f','w','e'],
+      ['s','e','f','f','m','w'],
+    ],
+    // 拖[4,1]土珠 → 右、右、上、上：
+    //   row4 变 s f f f m w（火3连）、row3 变 w f w w w e（木3连）、row2 变 m s e e e s（土3连）
+    guide: { fromR:4, fromC:1, toR:2, toC:3, path:[[4,1],[4,2],[4,3],[3,3],[2,3]] },
+    msg: [
+      { text: '按住土色灵珠，沿小灵的路径一口气拖到底！', timing: 'start' },
+      { text: '3 连击！连击越多，全队伤害越高！', timing: 'afterElim' },
+    ],
+  },
+}
+
+function hasStageTutorial(g, stageId) {
+  const cfg = STAGE_TUTORIALS[stageId]
+  if (!cfg) return false
+  try { if (P.getStorageSync(_serverKey(g, cfg.doneKey))) return false } catch(e) {}
+  return true
+}
+
 /**
- * 秘境简化版教学：仅 1 步拖珠消除，文案关联宠物攻击
- * 不替换宠物和敌人（由 startStageNewbie 已设好），教完直接切自由操作
+ * 秘境简化版教学：仅 1 步拖珠消除，消除后立即切回自由操作
+ * 不替换宠物和敌人（由 startStageNewbie / startStage 已设好）
  */
-function startStageTutorial(g) {
-  try { if (P.getStorageSync(_serverKey(g, 'stageTutorialDone'))) return } catch(e) {}
+function startStageTutorial(g, stageId) {
+  const sid = stageId || 'stage_1_1'
+  const cfg = STAGE_TUTORIALS[sid]
+  if (!cfg) return
+  try { if (P.getStorageSync(_serverKey(g, cfg.doneKey))) return } catch(e) {}
 
   _active = true
   _step = 0
   _round = 0
   _summaryShown = false
   _roundTransitTimer = 0
+  _stageTutorialStageId = sid
 
-  // 使用精简版棋盘（与 STEPS[0] 相同布局，保证教学路径可行）
+  // 覆盖为固定教学棋盘（保证引导路径可行且消除组数确定）
   const { ROWS, COLS } = V
-  const stageBoard = [
-    ['w','f','e','s','w','f'],
-    ['s','e','w','f','e','s'],
-    ['f','m','m','w','e','w'],
-    ['e','f','s','w','s','e'],
-    ['w','s','e','f','e','m'],
-  ]
   const attrMap = { m:'metal', w:'wood', e:'earth', s:'water', f:'fire', h:'heart' }
   g.board = []
   for (let r = 0; r < ROWS; r++) {
     g.board[r] = []
     for (let c = 0; c < COLS; c++) {
-      g.board[r][c] = { attr: attrMap[stageBoard[r][c]] || 'metal', sealed: false }
+      g.board[r][c] = { attr: attrMap[cfg.board[r][c]] || 'metal', sealed: false }
     }
   }
 
@@ -739,21 +788,18 @@ function startStageTutorial(g) {
   _storyPage = 0; _storyAlpha = 0
 
   _stageMode = true
-  // 1-1 首次入场：用小灵讲堂卡（drawLingCard）代替老版"第1课"黑底卡，
-  // 文案全部走 LING.teach.stageCards.stage_1_1，保持和其它新手气泡一致的身份/画风。
-  const teach11 = (LING.teach && LING.teach.stageCards && LING.teach.stageCards.stage_1_1) || null
+  // 讲解卡走小灵讲堂（drawLingCard），文案统一来自 LING.teach.stageCards[stageId]
+  const teachCard = (LING.teach && LING.teach.stageCards && LING.teach.stageCards[sid]) || null
   _stageOverrideData = {
-    guide: { fromR:4, fromC:5, toR:2, toC:3, path:[[4,5],[3,5],[2,5],[2,4],[2,3]] },
-    msg: [
-      { text: '按住金色灵珠沿路径拖动，让金锋灵猫攻击！', timing: 'start' },
-      { text: '灵珠消除，金锋灵猫发动攻击！', timing: 'afterElim' },
-    ],
-    title: '转珠攻击',
-    storyCards: teach11 ? [{
-      heading: teach11.title,
-      subLabel: teach11.subLabel,
-      lines: teach11.lines,
-      note: teach11.note,
+    board: cfg.board,
+    guide: cfg.guide,
+    msg: cfg.msg,
+    title: cfg.title,
+    storyCards: teachCard ? [{
+      heading: teachCard.title,
+      subLabel: teachCard.subLabel,
+      lines: teachCard.lines,
+      note: teachCard.note,
     }] : [],
   }
 
@@ -769,12 +815,22 @@ function startStageTutorial(g) {
  * 秘境教学消除完成后：立即结束教学，切回正常自由操作
  */
 function finishStageTutorial(g) {
+  const sid = _stageTutorialStageId || 'stage_1_1'
+  const cfg = STAGE_TUTORIALS[sid]
+  // 教学随首次消除立即结束，overlay 不再绘制 afterElim 文案 → 用 toast 补上关键反馈
+  const afterMsg = cfg && cfg.msg && cfg.msg.find(m => m.timing === 'afterElim')
+  if (afterMsg) { try { P.showGameToast(afterMsg.text) } catch(e) {} }
   _active = false
   _summaryShown = false
   _stageMode = false
   _stageOverrideData = null
+  _stageTutorialStageId = null
   _step = 0; _round = 0; _phase = 'done'
-  try { P.setStorageSync(_serverKey(g, 'stageTutorialDone'), true) } catch(e) {}
+  try { P.setStorageSync(_serverKey(g, (cfg && cfg.doneKey) || 'stageTutorialDone'), true) } catch(e) {}
+  // 漏斗埋点：连击教学完成（评估新版 1-2 教学的到达/完成率）
+  if (sid === 'stage_1_2' && g.storage && g.storage.recordFunnelEvent) {
+    g.storage.recordFunnelEvent('stage_1_2_combo_tutorial_done', { stageId: sid })
+  }
 }
 
 // 强制关闭教学状态（仅清理标志，不触发 nextFloor / startRun）
@@ -782,6 +838,9 @@ function finishStageTutorial(g) {
 function _forceDeactivate() {
   _active = false
   _summaryShown = false
+  _stageMode = false
+  _stageOverrideData = null
+  _stageTutorialStageId = null
   _step = 0
   _round = 0
   _phase = 'done'
@@ -790,9 +849,9 @@ function _forceDeactivate() {
 
 module.exports = {
   STEPS,
-  isActive, getStep, getPhase, isSummary,
+  isActive, getStep, getPhase, isSummary, isStageMode,
   start, finish, update, onStoryCardTap, onIntroTap, onVictory, onRewardConfirm, onSummaryTap,
   onElim, onEnemyTurnEnd, canDrag, canSwapTo, isGuideActive, onDragEnd, shouldEnemyAttack, getGuideData,
-  startStageTutorial, finishStageTutorial,
+  hasStageTutorial, startStageTutorial, finishStageTutorial,
   _forceDeactivate,
 }

@@ -4127,6 +4127,7 @@ class Storage {
     const introKey = serverConfig.scopedKey('introDone', this.serverId)
     const tutorialKey = serverConfig.scopedKey('tutorialDone', this.serverId)
     const stageTutorialKey = serverConfig.scopedKey('stageTutorialDone', this.serverId)
+    const stageTutorial12Key = serverConfig.scopedKey('stageTutorialDone_1_2', this.serverId)
     if (!P.getStorageSync(introKey)) {
       P.setStorageSync(introKey, true)
       console.log('[Storage] 云端为老玩家，补写 introDone')
@@ -4138,6 +4139,10 @@ class Storage {
     if (!P.getStorageSync(stageTutorialKey)) {
       P.setStorageSync(stageTutorialKey, true)
       console.log('[Storage] 云端为老玩家，补写 stageTutorialDone')
+    }
+    if (!P.getStorageSync(stageTutorial12Key)) {
+      P.setStorageSync(stageTutorial12Key, true)
+      console.log('[Storage] 云端为老玩家，补写 stageTutorialDone_1_2')
     }
 
     // 通知主循环：如果当前还在 intro/教学中，应跳转回首页

@@ -1,9 +1,10 @@
 /**
- * 新手引导绘制：可消除珠组高亮、长拖拽BFS路径演示、提示条、Combo庆祝横幅
+ * 新手引导绘制：可消除珠组高亮、长拖拽BFS路径演示、提示条、Combo庆祝横幅、机制聚焦珠指引
  */
 const V = require('../env')
-const { ATTR_COLOR } = require('../../data/tower')
+const { ATTR_COLOR, ATTR_NAME, COUNTER_MAP, COUNTER_MUL } = require('../../data/tower')
 const tutorial = require('../../engine/tutorial')
+const { getComboMul } = require('../../engine/battle/damageFormula')
 const { getBattleLayout } = require('./battleLayout')
 
 // ===== 新手棋盘引导：扫描可消除的宠物属性珠组 =====
@@ -184,7 +185,6 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
   if (tutorial.isActive()) return
 
   var ctx = V.ctx, S = V.S, COLS = V.COLS
-  _drawHeartBeadGuide(g, ctx, S, cs, bx, by)
 
   // 优先：棋盘上已有可消除组 → 在高亮珠上画呼吸手指
   var highlight = _getNewbieHighlightCells(g)
@@ -214,37 +214,69 @@ function _drawNewbieFingerGuide(g, cs, bx, by) {
   }
 }
 
-function _drawHeartBeadGuide(g, ctx, S, cs, bx, by) {
-  if (g._stageId !== 'stage_1_2') return
-  if (g._challengeDone) return
-  var heartCells = []
+// ===== 机制聚焦珠指引：高亮目标珠 + 标签胶囊（心珠回血 / 克制珠）=====
+// 不依赖 _isNewbieStage：1-4 心珠关、1-3 克制关都可使用；挑战完成后自动消失
+function drawFocusBeadGuide(g, cs, bx, by) {
+  if (g.bState !== 'playerTurn' || g.dragging) return
+  if (tutorial.isActive()) return
+  if (!g._mechanicFocus || g._challengeDone) return
+  var ctx = V.ctx, S = V.S
+  var focus = g._mechanicFocus.focus
+  if (focus === 'heartHeal') {
+    _drawBeadRingGuide(g, ctx, S, cs, bx, by, {
+      attr: 'heart',
+      ringColor: '#ff99cc',
+      pillBg: 'rgba(70,20,50,0.86)',
+      pillBorder: 'rgba(255,153,204,0.9)',
+      pillText: '#ffd6ea',
+      label: '粉色心珠 = 回血',
+    })
+  } else if (focus === 'counter') {
+    var enemyAttr = g.enemy && g.enemy.attr
+    if (!enemyAttr) return
+    var counterAttr = Object.keys(COUNTER_MAP).find(function (k) { return COUNTER_MAP[k] === enemyAttr })
+    if (!counterAttr) return
+    var ac = ATTR_COLOR[counterAttr]
+    _drawBeadRingGuide(g, ctx, S, cs, bx, by, {
+      attr: counterAttr,
+      ringColor: (ac && ac.main) || '#ffd700',
+      pillBg: 'rgba(40,34,12,0.88)',
+      pillBorder: (ac && ac.main) || 'rgba(220,180,80,0.9)',
+      pillText: '#ffe082',
+      label: (ATTR_NAME[counterAttr] || '') + '珠克' + (ATTR_NAME[enemyAttr] || '') + ' · 伤害×' + COUNTER_MUL,
+    })
+  }
+}
+
+function _drawBeadRingGuide(g, ctx, S, cs, bx, by, opt) {
+  var cells = []
   for (var r = 0; r < V.ROWS; r++) {
     for (var c = 0; c < V.COLS; c++) {
       var cell = g.board[r] && g.board[r][c]
       var attr = cell ? (typeof cell === 'string' ? cell : cell.attr) : null
-      if (attr === 'heart') heartCells.push({ r: r, c: c })
+      if (attr === opt.attr) cells.push({ r: r, c: c })
     }
   }
-  if (!heartCells.length) return
+  if (!cells.length) return
 
   var pulse = 0.65 + 0.35 * Math.sin(g.af * 0.09)
   ctx.save()
-  for (var i = 0; i < Math.min(heartCells.length, 3); i++) {
-    var h = heartCells[i]
+  for (var i = 0; i < Math.min(cells.length, 3); i++) {
+    var h = cells[i]
     var cx = bx + (h.c + 0.5) * cs
     var cy = by + (h.r + 0.5) * cs
     ctx.globalAlpha = 0.55 + 0.25 * pulse
-    ctx.strokeStyle = '#ff99cc'
+    ctx.strokeStyle = opt.ringColor
     ctx.lineWidth = 3 * S
     ctx.beginPath()
     ctx.arc(cx, cy, cs * (0.48 + 0.05 * pulse), 0, Math.PI * 2)
     ctx.stroke()
   }
 
-  var anchor = heartCells[0]
+  var anchor = cells[0]
   var ax = bx + (anchor.c + 0.5) * cs
   var ay = by + (anchor.r + 0.5) * cs
-  var label = '粉色心珠 = 回血'
+  var label = opt.label
   ctx.font = `bold ${12 * S}px "PingFang SC",sans-serif`
   var tw = ctx.measureText(label).width
   var padX = 9 * S
@@ -253,13 +285,13 @@ function _drawHeartBeadGuide(g, ctx, S, cs, bx, by) {
   var pillX = Math.max(8 * S, Math.min(V.W - pillW - 8 * S, ax - pillW / 2))
   var pillY = Math.max(by + 4 * S, ay - cs * 0.75)
   ctx.globalAlpha = 0.95
-  ctx.fillStyle = 'rgba(70,20,50,0.86)'
+  ctx.fillStyle = opt.pillBg
   _rrPath(ctx, pillX, pillY, pillW, pillH, pillH / 2)
   ctx.fill()
-  ctx.strokeStyle = 'rgba(255,153,204,0.9)'
+  ctx.strokeStyle = opt.pillBorder
   ctx.lineWidth = 1.2 * S
   ctx.stroke()
-  ctx.fillStyle = '#ffd6ea'
+  ctx.fillStyle = opt.pillText
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(label, pillX + pillW / 2, pillY + pillH / 2)
@@ -423,18 +455,21 @@ const _NEWBIE_HINTS = [
   '按住珠子沿长路径拖动，经过的珠全部交换！',
   '消除金色珠→金宠攻击，绿色珠→木宠攻击！',
   '一次拖动可穿越整个棋盘，排出多组三连！',
-  '连消多种颜色珠子触发 Combo，伤害叠加！',
-  '拖得越远、排列越多颜色，Combo 越高！',
+  '一次消除多组 = 连击，连击越多伤害越高！',
+  '拖得越远、排出越多组，连击就越高！',
   '一次消 4 颗以上灵珠，伤害翻倍！',
-  '克制属性攻击伤害 ×2.5，善用五行克制！',
-  'Combo 越高伤害加成越大，试试挑战高连击！',
 ]
 
 const _STAGE_HINTS = {
   stage_1_2: [
-    '粉色爱心就是心珠，消除 3 颗可以回血！',
-    '受伤时优先拖动心珠，排成三连就能回血！',
-    '心珠没有伤害，但能把血量拉回来！',
+    '一次拖珠消除多组 = 连击 Combo！',
+    '每多 1 连击，全队伤害再 +20%！',
+    '拖得越远，越容易排出多组三连！',
+  ],
+  stage_1_3: [
+    '消哪种颜色珠，对应的灵宠才会出手！',
+    '敌人是水属性 —— 消土珠，土克水 ×1.6！',
+    '开战先看敌人属性，优先消克制它的珠色！',
   ],
 }
 
@@ -505,13 +540,20 @@ function _rrPath(c, x, y, w, h, r) {
   c.closePath()
 }
 
-// ===== 新手 Combo 庆祝横幅（分级激情提示） =====
+// ===== 新手 Combo 庆祝横幅（分级激情提示，主行展示真实伤害倍率） =====
 var _COMBO_MSGS = [
-  { min: 2, main: '触发 Combo 连击！', sub: '转珠排列多种颜色，连击更多！', color1: 'rgba(160,120,30,0.9)', color2: 'rgba(200,160,40,0.95)' },
-  { min: 3, main: '三连击！伤害飙升！', sub: '转得越远越好，继续排列更多颜色！', color1: 'rgba(180,80,20,0.92)', color2: 'rgba(230,130,30,0.95)' },
-  { min: 5, main: '五连击！超强攻势！', sub: '你已经掌握转珠精髓了！', color1: 'rgba(200,40,30,0.92)', color2: 'rgba(240,80,40,0.95)' },
-  { min: 7, main: '超级连击！转珠大师！', sub: '势不可挡！敌人在颤抖！', color1: 'rgba(120,20,180,0.92)', color2: 'rgba(180,40,240,0.95)' },
+  { min: 2, sub: '连击越多，灵宠伤害越高！', color1: 'rgba(160,120,30,0.9)', color2: 'rgba(200,160,40,0.95)' },
+  { min: 3, sub: '拖得越远，越容易打出高连击！', color1: 'rgba(180,80,20,0.92)', color2: 'rgba(230,130,30,0.95)' },
+  { min: 5, sub: '超强攻势！你已经掌握转珠精髓了！', color1: 'rgba(200,40,30,0.92)', color2: 'rgba(240,80,40,0.95)' },
+  { min: 7, sub: '转珠大师！势不可挡！', color1: 'rgba(120,20,180,0.92)', color2: 'rgba(180,40,240,0.95)' },
 ]
+
+// 倍率格式化：1.4 / 2.0 → '1.4' / '2'，最多 1 位小数
+function _fmtComboMul(combo) {
+  var mul = getComboMul(combo)
+  var rounded = Math.round(mul * 10) / 10
+  return (rounded % 1 === 0) ? String(rounded) : rounded.toFixed(1)
+}
 
 function _getComboMsg(combo) {
   var msg = _COMBO_MSGS[0]
@@ -600,7 +642,7 @@ function _drawNewbieComboBanner(g, boardTop, padX) {
   ctx.font = 'bold ' + (mainSize * pulse) + 'px "PingFang SC",sans-serif'
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3 * S
-  ctx.fillText(combo + ' Combo！' + msg.main, W / 2, barY + barH * 0.38)
+  ctx.fillText(combo + ' Combo！伤害 ×' + _fmtComboMul(combo), W / 2, barY + barH * 0.38)
 
   // 副文字
   ctx.shadowBlur = 0
@@ -616,4 +658,5 @@ module.exports = {
   drawNewbieFingerGuide: _drawNewbieFingerGuide,
   drawNewbieHint: _drawNewbieHint,
   drawNewbieComboBanner: _drawNewbieComboBanner,
+  drawFocusBeadGuide,
 }

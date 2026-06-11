@@ -301,23 +301,25 @@ const NEWBIE_BEAD_ATTR_LIMIT = {
  * challenge: { type, threshold, rewardSoulStone, desc } 挑战目标
  */
 const STAGE_MECHANIC_FOCUS = {
+  // 新手节奏：三大核心压进 1-1 ~ 1-3（1-1 转珠 / 1-2 连击 / 1-3 宠物搭配+克制），
+  // 1-4 ~ 1-8 为巩固练习关（心珠 / 技能 / 4连 / 5连 / Boss 综合）
   stage_1_2: {
-    focus: 'heartHeal',
-    openTip: '心珠可以回血，受伤时试试消除它！',
-    battleTip: '心珠回血！',
-    challenge: { type: 'heartHeal', threshold: 1, rewardSoulStone: 10, desc: '消除心珠回血 1 次' },
+    focus: 'combo',
+    openTip: '一次拖珠消除多组 = 连击！连击越多伤害越高',
+    battleTip: '连击触发！伤害提升！',
+    challenge: { type: 'combo', threshold: 2, rewardSoulStone: 15, desc: '达成 2 连击以上' },
   },
   stage_1_3: {
     focus: 'counter',
-    openTip: '克制属性伤害翻倍！注意敌人的弱点',
+    openTip: '消哪色珠哪只灵宠出手！克制属性伤害 x1.6',
     battleTip: '克制命中！伤害 x1.6',
     challenge: { type: 'counter', threshold: 1, rewardSoulStone: 10, desc: '触发克制攻击 1 次' },
   },
   stage_1_4: {
-    focus: 'combo',
-    openTip: '一次拖珠消除多组 = Combo！伤害翻倍！',
-    battleTip: 'Combo！伤害倍增！',
-    challenge: { type: 'combo', threshold: 2, rewardSoulStone: 15, desc: '达成 2 连击以上' },
+    focus: 'heartHeal',
+    openTip: '敌人下手更重了！受伤就消粉色心珠回血',
+    battleTip: '心珠回血！',
+    challenge: { type: 'heartHeal', threshold: 1, rewardSoulStone: 10, desc: '消除心珠回血 1 次' },
   },
   stage_1_5: {
     focus: 'petSkill',
@@ -327,19 +329,19 @@ const STAGE_MECHANIC_FOCUS = {
   },
   stage_1_6: {
     focus: 'elim4',
-    openTip: '4 颗成排消除 = 1.5 倍伤害！试试排列更多',
+    openTip: '练习：4 颗成排 = 1.5 倍伤害，叠上连击更疼！',
     battleTip: '4 连消！x1.5 伤害',
     challenge: { type: 'elim4', threshold: 1, rewardSoulStone: 15, desc: '达成 4 连消除 1 次' },
   },
   stage_1_7: {
     focus: 'elim5',
-    openTip: '5 颗成排 = 2 倍伤害 + 全队属性爆发！',
+    openTip: '练习：5 颗成排 = 2 倍伤害 + 眩晕敌人！',
     battleTip: '5 连消！x2 伤害 + 全队爆发！',
     challenge: { type: 'elim5', threshold: 1, rewardSoulStone: 20, desc: '达成 5 连消除 1 次' },
   },
   stage_1_8: {
     focus: 'boss',
-    openTip: 'Boss 战！用上你学到的一切！',
+    openTip: 'Boss 战！连击 + 克制 + 技能，全用上！',
     challenge: { type: 'sRating', threshold: 1, rewardSoulStone: 30, desc: 'S 评级通关' },
   },
 }

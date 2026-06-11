@@ -212,14 +212,18 @@ function startStage(g, stageId, teamPetIds) {
   // 初始化棋盘
   initBoard(g)
 
-  // 技巧聚焦开场提示：分两级
-  //   L1 · 阻塞讲解卡（小灵讲堂）：1-2 / 1-3 首通前的新机制，等玩家主动点击确认
-  //   L2 · 非阻塞横条（_mechanicOpenTip）：1-4 ~ 1-8，自动淡出，不打断节奏
-  // 首通后两者都不再弹，避免老玩家被反复提示。
+  // 技巧聚焦开场提示：分三级
+  //   L0 · 局内拖珠教学（固定棋盘 + 锁定路径）：1-2 首通前教连击，讲堂卡由教学自带
+  //   L1 · 阻塞讲解卡（小灵讲堂）：1-3 首通前的新机制，等玩家主动点击确认
+  //   L2 · 非阻塞横条（_mechanicOpenTip）：1-4 ~ 1-8 练习关，自动淡出，不打断节奏
+  // 首通后三者都不再弹，避免老玩家被反复提示。
   const teachCards = require('../data/lingIdentity').LING.teach.stageCards
   const cardCfg = teachCards[stageId]
   const isFirstClear = !g.storage.isStageCleared(stageId)
-  if (cardCfg && isFirstClear) {
+  const tut = require('./tutorial')
+  if (isFirstClear && tut.hasStageTutorial && tut.hasStageTutorial(g, stageId)) {
+    tut.startStageTutorial(g, stageId)
+  } else if (cardCfg && isFirstClear) {
     g._stageIntroCard = { stageId, animT: 0, armed: false }
   } else if (mf && mf.openTip && isFirstClear) {
     g._mechanicOpenTip = { stageId, timer: 0 }
@@ -350,7 +354,7 @@ function startStageNewbie(g, stageId) {
   // 跳过宠物介绍卡，直接进入简化教学
   g._pendingStageTutorial = false
   const tut = require('./tutorial')
-  if (tut.startStageTutorial) tut.startStageTutorial(g)
+  if (tut.startStageTutorial) tut.startStageTutorial(g, stageId)
 
   g.setScene('battle')
   g.floor = 1

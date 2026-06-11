@@ -645,14 +645,14 @@ function _getEnemyCritBurstFx(tier) {
   }
 }
 
-function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx, critFxTier) {
+function petNormalAtkDmg(g, dmg, color, petIdx, attr, isCrit, orderIdx, critFxTier, attrLabel) {
   const c = FLOAT_CFG.petNormalAtk
   const step = c.delayStep || 0
   const critFx = isCrit ? _getSlotCritFx(critFxTier || 'full') : _getSlotCritFx('normal')
   const floatObj = {
     petIdx: petIdx == null ? 0 : petIdx,
     anchorLane: 'main',
-    text: formatNumber(dmg),
+    text: (attrLabel ? attrLabel + ' ' : '') + formatNumber(dmg),
     t: 0,
     alpha: 1,
     scale: c.scale,

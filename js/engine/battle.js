@@ -669,6 +669,8 @@ function enterPetAtkShow(g) {
         : '#d8d8d8',
       petIdx: item.index,
       attr: item.dmg > 0 ? item.attr : null,
+      // 新手关：伤害数字前加属性字（"金 128"），强化"消哪色珠 = 哪只灵宠出手"
+      attrLabel: (g._isNewbieStage && item.dmg > 0) ? (ATTR_NAME[item.attr] || '') : null,
       isCrit: isCritHit,
       critFxTier: isCritHit
         ? (activeOrder === 0
@@ -691,6 +693,10 @@ function enterPetAtkShow(g) {
       }
       if (g._mechanicFocus && !g._mechanicTriggered && g._mechanicFocus.focus === 'counter') {
         g._mechanicTriggered = true
+        // 漏斗埋点：1-3 首次克制命中（评估"宠物搭配/克制"教学的实际触达率）
+        if (g._stageId === 'stage_1_3' && g.storage && g.storage.recordFunnelEvent) {
+          g.storage.recordFunnelEvent('stage_1_3_counter_hit', { stageId: g._stageId, scene: 'battle' })
+        }
       }
     } else if (item.isCountered) {
       emitNotice(g, { x:W*0.5, y:g._getEnemyCenterY()-30*S, text:'抵抗...', color:'#888888', scale:1.4, _initScale:1.4 })

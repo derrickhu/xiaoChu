@@ -47,7 +47,7 @@ function emitFloat(g, kind, payload) {
   if (!g || !kind || !payload) return
   switch (kind) {
     case 'petNormalAtkDmg':
-      DF.petNormalAtkDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr, payload.isCrit, payload.orderIdx, payload.critFxTier)
+      DF.petNormalAtkDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr, payload.isCrit, payload.orderIdx, payload.critFxTier, payload.attrLabel)
       break
     case 'petSkillDmg':
       DF.petSkillDmg(g, payload.dmg, payload.color, payload.petIdx, payload.attr)
