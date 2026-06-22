@@ -36,6 +36,7 @@ function _serverName(server) {
   if (id === 's1' && (!name || name === '一服')) return '紫霄仙域'
   if (id === 's2' && (!name || name === '二服')) return '逍遥剑宗'
   if (id === 's3' && (!name || name === '三服')) return '玄霄洞天'
+  if (id === 's4' && (!name || name === '四服')) return '碧落仙台'
   return name || String(id || 'S1').toUpperCase()
 }
 

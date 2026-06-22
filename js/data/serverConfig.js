@@ -1,6 +1,6 @@
 /**
  * 滚服配置（客户端兜底 + 本地选择记录）
- * 服务端 xiaochu_servers / /server/list 是权威来源；这里保证网络异常时仍可进一/二/三服。
+ * 服务端 xiaochu_servers / /server/list 是权威来源；这里保证网络异常时仍可进一/二/三/四服。
  */
 const P = require('../platform')
 
@@ -41,11 +41,24 @@ const FALLBACK_SERVERS = [
     name: '玄霄洞天',
     status: 'open',
     isLegacyDefault: false,
-    isRecommended: true,
+    isRecommended: false,
     sort: 3,
     openAt: 0,
     zone: 3,
     notice: '新开三区，全新旅程',
+    visible: true,
+    fallback: true,
+  },
+  {
+    serverId: 's4',
+    name: '碧落仙台',
+    status: 'open',
+    isLegacyDefault: false,
+    isRecommended: true,
+    sort: 4,
+    openAt: 0,
+    zone: 4,
+    notice: '新开四区，全新旅程',
     visible: true,
     fallback: true,
   },

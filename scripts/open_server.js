@@ -29,6 +29,7 @@ const ZONE_PRESETS = {
   1: { name: '紫霄仙域', notice: '老玩家默认所在服务器' },
   2: { name: '逍遥剑宗', notice: '独立新进度' },
   3: { name: '玄霄洞天', notice: '新开三区，全新旅程' },
+  4: { name: '碧落仙台', notice: '新开四区，全新旅程' },
 }
 
 function loadCloudbase() {
