@@ -25,7 +25,8 @@ const STAGE_RATING = {
 /**
  * 飞升篇（14+）普通关三星：按关卡总血量校准，避免线性公式在血量膨胀后锁死精英解锁。
  *   S = max(minS, ceil(effectiveHp / refDps) + buffer)
- *   · refDps：中上水平参考输出（双同属聚焦 + 稳定连击 + 技能），随章略增
+ *   A = S + max(aOffsetMin, round(S * aOffsetRatio))
+ *   · 三星门槛数字更小（回合更少），两星更宽；A 必须按比例拉开，避免出现 106/112 这种几乎贴在一起的值
  *   · 双波守关的先锋小怪按 50% 计入（更快清掉）
  *   · 只放宽、不收紧（与旧线性公式取 max）
  */
@@ -37,7 +38,9 @@ const STAGE_ASCENSION_RATING = {
     16: 18000,
   },
   buffer: 6,
-  aOffset: 6,
+  // 早期关 aOffset/S ≈ 0.3~0.4；飞升篇按比例，且至少拉开 10 回合
+  aOffsetRatio: 0.35,
+  aOffsetMin: 10,
   minS: 18,
   minionHpWeight: 0.5,
 }

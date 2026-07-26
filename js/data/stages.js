@@ -72,7 +72,13 @@ function _calcAscensionNormalRating(ch, waves, fallback) {
   const ref = (cfg.refDps && cfg.refDps[ch]) || 14000
   const rawS = Math.ceil(effectiveHp / Math.max(1, ref)) + (cfg.buffer || 0)
   const s = Math.max(cfg.minS || 0, rawS, fallback.s)
-  const aOff = cfg.aOffset != null ? cfg.aOffset : STAGE_RATING.aOffset
+  // A 比 S 更宽：优先按比例，避免高回合数下只差几个回合看起来像算反了
+  const ratioOff = Math.round(s * (cfg.aOffsetRatio != null ? cfg.aOffsetRatio : 0.35))
+  const aOff = Math.max(
+    cfg.aOffsetMin != null ? cfg.aOffsetMin : STAGE_RATING.aOffset,
+    ratioOff,
+    cfg.aOffset != null ? cfg.aOffset : 0
+  )
   const a = Math.max(fallback.a, s + aOff)
   return { s, a }
 }
