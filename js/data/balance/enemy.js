@@ -74,12 +74,13 @@ const ENEMY_SKILLS = {
   defDown:   { name:'碎甲爪',   desc:'降低修士防御值30%,持续2回合', type:'debuff', field:'def', rate:0.3, dur:2 },
   healBlock: { name:'噬灵术',   desc:'心珠回复量减半,持续3回合', type:'debuff', field:'healRate', rate:0.5, dur:3 },
   stun:      { name:'妖力震慑', desc:'眩晕修士，无法操作1回合', type:'stun', dur:1 },
-  selfHeal:  { name:'妖力再生', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
+  // 百分比回血随飞升篇血量膨胀会失控，统一压到 8%（试炼藤甲同档）
+  selfHeal:  { name:'妖力再生', desc:'回复自身8%最大血量', type:'selfHeal', pct:8 },
   defBuff:   { name:'坚甲术',   desc:'防御提升30%,持续2回合', type:'buff', field:'def', rate:0.3, dur:2 },
-  healPct:   { name:'灵气回春', desc:'回复自身15%最大血量', type:'selfHeal', pct:15 },
+  healPct:   { name:'灵气回春', desc:'回复自身8%最大血量', type:'selfHeal', pct:8 },
   breakBead: { name:'碎珠术',   desc:'随机破坏3颗灵珠', type:'breakBead', count:3 },
   timeSqueeze:  { name:'时间压缩', desc:'拖拽时间减半,持续1回合', type:'debuff', field:'dragTime', rate:0.5, dur:1 },
-  attrAbsorb:   { name:'属性吸收', desc:'吞噬3颗己方属性灵珠化为心珠,回复10%生命', type:'attrAbsorb', count:3, healPct:10 },
+  attrAbsorb:   { name:'属性吸收', desc:'吞噬3颗己方属性灵珠化为心珠,回复6%生命', type:'attrAbsorb', count:3, healPct:6 },
   sealColumn:   { name:'封灵柱',   desc:'封锁整列灵珠,持续2回合', type:'sealCol', dur:2 },
   counterSeal:  { name:'克制封印', desc:'封锁所有克制自身属性的灵珠,持续2回合', type:'sealCounter', dur:2 },
   eliteSealRow:   { name:'封灵锁链', desc:'封锁整行灵珠,持续2回合', type:'sealRow', dur:2 },
@@ -136,10 +137,11 @@ const STAGE_ELITE_MULTIPLIERS = {
   10: { hp: 3.2, atk: 1.75, def: 1.9 },
   11: { hp: 3.4, atk: 1.8, def: 1.9 },
   12: { hp: 3.5, atk: 1.8, def: 2.0 },
-  13: { hp: 2.8, atk: 1.32, def: 1.7 },
-  14: { hp: 3.0, atk: 1.36, def: 1.85 },
-  15: { hp: 3.2, atk: 1.38, def: 2.0 },
-  16: { hp: 3.4, atk: 1.40, def: 2.15 },
+  // 飞升篇精英不再叠 3x 血量，避免百分比回血/拖回合失控
+  13: { hp: 2.4, atk: 1.28, def: 1.55 },
+  14: { hp: 2.5, atk: 1.30, def: 1.65 },
+  15: { hp: 2.6, atk: 1.32, def: 1.75 },
+  16: { hp: 2.7, atk: 1.34, def: 1.85 },
 }
 
 // Boss 保底倍率
@@ -167,8 +169,8 @@ const STAGE_BOSS_SKILL_SETS = {
 }
 
 // 飞升篇（13-16章）固定面板曲线：
-//   · 攻击力按"长期满 80 级玩家也需要继续发育"校准，13 章普通小关也形成高压。
-//   · 挑战由高血量、高防御、技能机制和高普攻共同承担，满养成账号也需要回血/护盾/控场配合。
+//   · 13 章保持高压开场；14 章起略收血量/攻击，避免百分比回血把战局拖崩。
+//   · 挑战仍由机制技（封珠/削弱/多段）承担，而不是纯数值碾压。
 const STAGE_ASCENSION_CURVE = {
   13: [
     { hp: 75000,  atk: 390, def: 120 },
@@ -181,34 +183,34 @@ const STAGE_ASCENSION_CURVE = {
     { hp: 225000, atk: 930, def: 220 },
   ],
   14: [
-    { hp: 250000, atk: 950,  def: 240 },
-    { hp: 275000, atk: 1030, def: 255 },
-    { hp: 302000, atk: 1120, def: 272 },
-    { hp: 332000, atk: 1220, def: 290 },
-    { hp: 365000, atk: 1330, def: 310 },
-    { hp: 400000, atk: 1450, def: 332 },
-    { hp: 430000, atk: 1520, def: 356 },
-    { hp: 460000, atk: 1600, def: 380 },
+    { hp: 235000, atk: 900,  def: 230 },
+    { hp: 255000, atk: 970,  def: 242 },
+    { hp: 278000, atk: 1050, def: 256 },
+    { hp: 303000, atk: 1140, def: 272 },
+    { hp: 330000, atk: 1240, def: 290 },
+    { hp: 360000, atk: 1340, def: 310 },
+    { hp: 392000, atk: 1450, def: 332 },
+    { hp: 425000, atk: 1560, def: 355 },
   ],
   15: [
-    { hp: 520000, atk: 1650, def: 420 },
-    { hp: 555000, atk: 1730, def: 445 },
-    { hp: 595000, atk: 1810, def: 472 },
-    { hp: 640000, atk: 1890, def: 502 },
-    { hp: 690000, atk: 1950, def: 535 },
-    { hp: 745000, atk: 1990, def: 570 },
-    { hp: 805000, atk: 2020, def: 608 },
-    { hp: 870000, atk: 2050, def: 650 },
+    { hp: 460000, atk: 1580, def: 380 },
+    { hp: 495000, atk: 1660, def: 400 },
+    { hp: 532000, atk: 1740, def: 422 },
+    { hp: 572000, atk: 1820, def: 446 },
+    { hp: 615000, atk: 1900, def: 472 },
+    { hp: 660000, atk: 1980, def: 500 },
+    { hp: 710000, atk: 2050, def: 530 },
+    { hp: 765000, atk: 2120, def: 565 },
   ],
   16: [
-    { hp: 900000,  atk: 2100, def: 700 },
-    { hp: 980000,  atk: 2150, def: 740 },
-    { hp: 1070000, atk: 2200, def: 785 },
-    { hp: 1170000, atk: 2260, def: 835 },
-    { hp: 1280000, atk: 2320, def: 890 },
-    { hp: 1400000, atk: 2360, def: 950 },
-    { hp: 1540000, atk: 2380, def: 1015 },
-    { hp: 1700000, atk: 2400, def: 1100 },
+    { hp: 820000,  atk: 2180, def: 600 },
+    { hp: 880000,  atk: 2240, def: 640 },
+    { hp: 950000,  atk: 2300, def: 680 },
+    { hp: 1030000, atk: 2360, def: 725 },
+    { hp: 1120000, atk: 2420, def: 775 },
+    { hp: 1220000, atk: 2480, def: 830 },
+    { hp: 1330000, atk: 2540, def: 890 },
+    { hp: 1450000, atk: 2600, def: 960 },
   ],
 }
 

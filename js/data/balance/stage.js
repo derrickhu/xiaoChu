@@ -22,6 +22,26 @@ const STAGE_RATING = {
   ],
 }
 
+/**
+ * 飞升篇（14+）普通关三星：按关卡总血量校准，避免线性公式在血量膨胀后锁死精英解锁。
+ *   S = max(minS, ceil(effectiveHp / refDps) + buffer)
+ *   · refDps：中上水平参考输出（双同属聚焦 + 稳定连击 + 技能），随章略增
+ *   · 双波守关的先锋小怪按 50% 计入（更快清掉）
+ *   · 只放宽、不收紧（与旧线性公式取 max）
+ */
+const STAGE_ASCENSION_RATING = {
+  minChapter: 14,
+  refDps: {
+    14: 14000,
+    15: 16000,
+    16: 18000,
+  },
+  buffer: 6,
+  aOffset: 6,
+  minS: 18,
+  minionHpWeight: 0.5,
+}
+
 // ===== 精英关倍率（经验/灵石/评级加成） =====
 const STAGE_ELITE_COEFFS = {
   expMul: 1.3,
@@ -135,6 +155,7 @@ module.exports = {
   STAGE_EXP,
   STAGE_SOUL_STONE,
   STAGE_RATING,
+  STAGE_ASCENSION_RATING,
   STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT,
   STAGE_TEAM_SIZE,

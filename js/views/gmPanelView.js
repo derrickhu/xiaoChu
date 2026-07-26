@@ -59,9 +59,9 @@ function rGMPanel(g) {
   c.fillStyle = 'rgba(0,0,0,0.6)'
   c.fillRect(0, 0, W, H)
 
-  // 面板尺寸（宽度占屏 92%，高度自适应）
+  // 面板尺寸（宽度占屏 92%，高度自适应；含跳关区）
   const pw = W * 0.92
-  const ph = Math.min(560 * u, H - 80 * u)
+  const ph = Math.min(660 * u, H - 40 * u)
   const px = (W - pw) / 2
   const py = (H - ph) / 2
 
@@ -228,7 +228,51 @@ function rGMPanel(g) {
   c.fillText(`🏆 flag: ${g.storage._d.lastCultRealmId || 'mortal'} · ${realmInfo.fullName}`, innerL, cy + 4 * u)
   const celebrateRect = _drawBtn(c, resBtnX, cy, resBtnW, btnH, '清炫耀flag', '#00838F', u)
   _rects.btns.push({ id: 'reset_celebrate', rect: celebrateRect })
-  cy += btnH + 12 * u
+  cy += btnH + 10 * u
+
+  // ── 分割线 ──
+  c.strokeStyle = 'rgba(255,255,255,0.1)'
+  c.lineWidth = 1 * u
+  c.beginPath()
+  c.moveTo(innerL, cy); c.lineTo(innerL + innerW, cy)
+  c.stroke()
+  cy += 8 * u
+
+  // ── 关卡跳转 ──
+  if (g._gmJumpCh == null) g._gmJumpCh = 14
+  if (g._gmJumpOrd == null) g._gmJumpOrd = 4
+  if (g._gmJumpElite == null) g._gmJumpElite = false
+  const jumpCh = g._gmJumpCh
+  const jumpOrd = g._gmJumpOrd
+  const jumpElite = !!g._gmJumpElite
+
+  c.fillStyle = '#78909C'
+  c.font = `bold ${12 * u}px "PingFang SC",sans-serif`
+  c.textAlign = 'left'
+  c.textBaseline = 'top'
+  c.fillText('关卡跳转', innerL, cy + 2 * u)
+  c.fillStyle = '#FFECB3'
+  c.font = `bold ${13 * u}px "PingFang SC",sans-serif`
+  c.textAlign = 'right'
+  c.fillText(`目标 ${jumpCh}-${jumpOrd}${jumpElite ? ' ·精英' : ' ·普通'}`, innerL + innerW, cy + 2 * u)
+  cy += 22 * u
+
+  const jumpSmW = 40 * u
+  const jumpRow = [
+    { id: 'jump_ch_dec', label: '章−', w: jumpSmW, color: '#546E7A' },
+    { id: 'jump_ch_inc', label: '章+', w: jumpSmW, color: '#546E7A' },
+    { id: 'jump_ord_dec', label: '关−', w: jumpSmW, color: '#546E7A' },
+    { id: 'jump_ord_inc', label: '关+', w: jumpSmW, color: '#546E7A' },
+    { id: 'jump_toggle_elite', label: jumpElite ? '精英' : '普通', w: 52 * u, color: jumpElite ? '#6A1B9A' : '#37474F' },
+    { id: 'jump_go', label: '跳到此关', w: 84 * u, color: '#C62828' },
+  ]
+  bx = innerL
+  for (const btn of jumpRow) {
+    const rect = _drawBtn(c, bx, cy, btn.w, btnH, btn.label, btn.color, u)
+    _rects.btns.push({ id: btn.id, rect })
+    bx += btn.w + 6 * u
+  }
+  cy += btnH + 8 * u
 
   // ── 翻倍状态信息 ──
   const doubleState = g.storage.loginRewardDoubleState
@@ -334,6 +378,42 @@ function _handleBtn(g, id) {
       st.gmResetCelebrateFlags()
       P.showGameToast('✅ 已清炫耀/境界 flag，下次跨档可重弹', { type: 'achievement' })
       break
+    case 'jump_ch_dec':
+      g._gmJumpCh = Math.max(1, (g._gmJumpCh || 1) - 1)
+      break
+    case 'jump_ch_inc': {
+      const { CHAPTERS } = require('../data/stages')
+      g._gmJumpCh = Math.min(CHAPTERS.length, (g._gmJumpCh || 1) + 1)
+      break
+    }
+    case 'jump_ord_dec':
+      g._gmJumpOrd = Math.max(1, (g._gmJumpOrd || 1) - 1)
+      break
+    case 'jump_ord_inc':
+      g._gmJumpOrd = Math.min(8, (g._gmJumpOrd || 1) + 1)
+      break
+    case 'jump_toggle_elite':
+      g._gmJumpElite = !g._gmJumpElite
+      break
+    case 'jump_go': {
+      const ch = g._gmJumpCh || 1
+      const ord = g._gmJumpOrd || 1
+      const elite = !!g._gmJumpElite
+      const result = st.gmJumpToStage(ch, ord, { elite })
+      if (!result) {
+        P.showGameToast('跳关失败', { type: 'warn' })
+        break
+      }
+      g.titleMode = 'stage'
+      g._stageDifficulty = result.elite ? 'elite' : 'normal'
+      g._stageIdxInitialized = false
+      g._selectedStageIdx = 0
+      g._showGMPanel = false
+      // 关闭签到浮层，直接回首页秘境看目标关
+      g._showDailySign = false
+      P.showGameToast(`已跳到 ${result.chapter}-${result.order}${result.elite ? ' 精英' : ''}，可直接挑战`)
+      break
+    }
   }
 }
 

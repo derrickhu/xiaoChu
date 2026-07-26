@@ -750,8 +750,9 @@ const ENEMIES = {
   },
   ch14_guixu_turtle: {
     name: '归墟玄龟', attr: 'earth',
+    // 坚甲+反弹已够肉，不再叠百分比回血（飞升篇血量下 15% 回血几乎不可破）
     hp: 204000, atk: 444, def: 145,
-    skills: ['defBuff', 'bossMirror', 'healPct'],
+    skills: ['defBuff', 'bossMirror', 'sealColumn'],
     avatar: 'enemies/stage/ch14_guixu_turtle',
     isBoss: false, isElite: false,
   },
@@ -792,8 +793,9 @@ const ENEMIES = {
   },
   ch15_star_deer: {
     name: '星辉灵鹿', attr: 'wood',
+    // 回血+吸收保留主题，去掉反弹避免三重续航
     hp: 335000, atk: 625, def: 205,
-    skills: ['healPct', 'attrAbsorb', 'bossMirror'],
+    skills: ['healPct', 'attrAbsorb', 'defBuff'],
     avatar: 'enemies/stage/ch15_star_deer',
     isBoss: false, isElite: false,
   },

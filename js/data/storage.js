@@ -3961,6 +3961,83 @@ class Storage {
     this._save()
   }
 
+  /**
+   * GM：跳到指定关卡（解锁前置进度，目标关可直接挑战）
+   * @param {number} chapter 章 1-16
+   * @param {number} order 关 1-8
+   * @param {{ elite?: boolean }} [opts] elite=true 时跳到对应精英关
+   * @returns {{ stageId: string, chapter: number, order: number, elite: boolean }|null}
+   */
+  gmJumpToStage(chapter, order, opts) {
+    if (!isCurrentUserGM()) return null
+    const { STAGES, CHAPTERS, getStageById } = require('./stages')
+    const maxCh = CHAPTERS.length
+    const ch = Math.max(1, Math.min(maxCh, Math.floor(Number(chapter) || 1)))
+    const ord = Math.max(1, Math.min(8, Math.floor(Number(order) || 1)))
+    const elite = !!(opts && opts.elite)
+    const targetId = elite ? `stage_${ch}_${ord}_elite` : `stage_${ch}_${ord}`
+    if (!getStageById(targetId)) return null
+
+    const record = this._d.stageClearRecord || (this._d.stageClearRecord = {})
+    const ensureRec = (id) => {
+      if (!record[id]) {
+        record[id] = { cleared: false, bestRating: null, clearCount: 0, starsClaimed: [false, false, false] }
+      }
+      if (!record[id].starsClaimed) record[id].starsClaimed = [false, false, false]
+      return record[id]
+    }
+    const markClearedS = (id) => {
+      const r = ensureRec(id)
+      r.cleared = true
+      r.bestRating = 'S'
+      r.clearCount = Math.max(r.clearCount || 0, 1)
+      r.starsClaimed = [true, true, true]
+    }
+    const markUncleared = (id) => {
+      const r = ensureRec(id)
+      r.cleared = false
+      r.bestRating = null
+      r.starsClaimed = [false, false, false]
+    }
+    const isBefore = (sCh, sOrd, tCh, tOrd) => sCh < tCh || (sCh === tCh && sOrd < tOrd)
+    const isAfterOrAt = (sCh, sOrd, tCh, tOrd) => sCh > tCh || (sCh === tCh && sOrd >= tOrd)
+
+    // 普通关：目标之前全部 S 通关；目标及之后清成未通关（保证进度指针落在目标）
+    const normals = STAGES.filter(s => s.difficulty === 'normal')
+    for (const s of normals) {
+      if (elite) {
+        // 打精英前，对应及之前的普通关都要 3 星
+        if (s.chapter < ch || (s.chapter === ch && s.order <= ord)) markClearedS(s.id)
+      } else if (isBefore(s.chapter, s.order, ch, ord)) {
+        markClearedS(s.id)
+      } else if (isAfterOrAt(s.chapter, s.order, ch, ord)) {
+        markUncleared(s.id)
+      }
+    }
+
+    // 精英关
+    const elites = STAGES.filter(s => s.difficulty === 'elite')
+    for (const s of elites) {
+      if (elite) {
+        if (isBefore(s.chapter, s.order, ch, ord)) markClearedS(s.id)
+        else if (isAfterOrAt(s.chapter, s.order, ch, ord)) markUncleared(s.id)
+      }
+      // 跳普通关时不动已有精英进度，避免误清
+    }
+
+    // 跳过新手引导，避免跳到后期仍被教学卡住
+    try {
+      const tutorialKey = serverConfig.scopedKey('tutorialDone', this.serverId)
+      P.setStorageSync(tutorialKey, true)
+    } catch (e) { /* ignore */ }
+    if (!this._d.guideFlags) this._d.guideFlags = {}
+    this._d.guideFlags.battle_tutorial = true
+    this._d.tutorialDone = true
+
+    this._save()
+    return { stageId: targetId, chapter: ch, order: ord, elite }
+  }
+
   _save() {
     try {
       this._d.serverId = this.serverId

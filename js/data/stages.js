@@ -14,7 +14,7 @@ const {
   STAGE_MINION_HP_RATIO, CH1_HP_CURVE,
 } = require('./balance/enemy')
 const {
-  STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ELITE_COEFFS,
+  STAGE_EXP, STAGE_SOUL_STONE, STAGE_RATING, STAGE_ASCENSION_RATING, STAGE_ELITE_COEFFS,
   STAGE_ELITE_SKILL_COUNT, STAGE_TEAM_SIZE, FIRST_CLEAR_FRAG_COUNT,
   ELITE_MINION_HP_SCALE, CHAPTER_RECOMMENDED,
   STAGE_REWARD_PET_OVERRIDES, STAGE_REWARD_WEAPON_OVERRIDES,
@@ -53,6 +53,28 @@ function _applyPreAscensionScale(ch, hp, atk, def) {
     atk: Math.round(atk * pre.atk),
     def: Math.round(def * pre.def),
   }
+}
+
+/** 飞升篇普通关：按总血量放宽三星回合（只放宽不收紧） */
+function _calcAscensionNormalRating(ch, waves, fallback) {
+  const cfg = STAGE_ASCENSION_RATING
+  if (!cfg || ch < (cfg.minChapter || 14) || !waves || !waves.length) return fallback
+
+  const weight = cfg.minionHpWeight != null ? cfg.minionHpWeight : 0.5
+  let effectiveHp = 0
+  for (let wi = 0; wi < waves.length; wi++) {
+    const enemy = waves[wi] && waves[wi].enemies && waves[wi].enemies[0]
+    if (!enemy) continue
+    const w = (waves.length > 1 && wi < waves.length - 1) ? weight : 1
+    effectiveHp += (enemy.hp || 0) * w
+  }
+
+  const ref = (cfg.refDps && cfg.refDps[ch]) || 14000
+  const rawS = Math.ceil(effectiveHp / Math.max(1, ref)) + (cfg.buffer || 0)
+  const s = Math.max(cfg.minS || 0, rawS, fallback.s)
+  const aOff = cfg.aOffset != null ? cfg.aOffset : STAGE_RATING.aOffset
+  const a = Math.max(fallback.a, s + aOff)
+  return { s, a }
 }
 
 /**
@@ -196,7 +218,10 @@ function _genStageSpecs() {
       const sRating = Math.max(STAGE_RATING.minS, Math.round(STAGE_RATING.base + ch * STAGE_RATING.chCoeff + i * STAGE_RATING.ordCoeff)) + ratingBonus
       const aRating = sRating + STAGE_RATING.aOffset
 
-      const eSkillPool = ['atkBuff','defBuff','healPct','bossBlitz','bossWeaken','bossRage','breakBead','stun','bossDrain','bossAnnihil','timeSqueeze','sealColumn']
+      // 飞升篇精英池去掉 healPct：高血量下百分比回血会把战局拖崩
+      const eSkillPool = ch >= 13
+        ? ['atkBuff','defBuff','bossBlitz','bossWeaken','bossRage','breakBead','stun','bossDrain','bossAnnihil','timeSqueeze','sealColumn']
+        : ['atkBuff','defBuff','healPct','bossBlitz','bossWeaken','bossRage','breakBead','stun','bossDrain','bossAnnihil','timeSqueeze','sealColumn']
       const numESkills = ch <= STAGE_ELITE_SKILL_COUNT.early.maxChapter ? STAGE_ELITE_SKILL_COUNT.early.count
         : ch <= STAGE_ELITE_SKILL_COUNT.mid.maxChapter ? STAGE_ELITE_SKILL_COUNT.mid.count
         : STAGE_ELITE_SKILL_COUNT.late.count
@@ -352,6 +377,8 @@ function buildAllStages() {
         }
       }
 
+      const normalRating = _calcAscensionNormalRating(ch, normalWaves, s.rating)
+
       stages.push({
         id: `stage_${ch}_${ord}`,
         name: s.name,
@@ -360,7 +387,7 @@ function buildAllStages() {
         difficulty: 'normal',
         waves: normalWaves,
         teamSize: s.teamSize || { ...STAGE_TEAM_SIZE.default },
-        rating: s.rating,
+        rating: normalRating,
         staminaCost: s.staminaCost !== undefined ? s.staminaCost : STAMINA_COST,
         rewards: mkRewards(ch, ord, 'normal', s.pet, s.weapon, s.exp, s.repExp),
         dailyLimit: 0,
