@@ -23,12 +23,13 @@ const STAGE_RATING = {
 }
 
 /**
- * 飞升篇（14+）普通关三星：按关卡总血量校准，避免线性公式在血量膨胀后锁死精英解锁。
+ * 飞升篇（14+）三星：按关卡总血量校准（普通/精英共用），避免线性公式在血量膨胀后锁死评级。
  *   S = max(minS, ceil(effectiveHp / refDps) + buffer)
  *   A = S + max(aOffsetMin, round(S * aOffsetRatio))
  *   · 三星门槛数字更小（回合更少），两星更宽；A 必须按比例拉开，避免出现 106/112 这种几乎贴在一起的值
  *   · 双波守关的先锋小怪按 50% 计入（更快清掉）
  *   · 只放宽、不收紧（与旧线性公式取 max）
+ *   · 精英另有全章保底：S/A 必须宽于同关普通（见 stages._ensureEliteRatingAboveNormal）
  */
 const STAGE_ASCENSION_RATING = {
   minChapter: 14,

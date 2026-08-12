@@ -55,12 +55,10 @@ function _applyPreAscensionScale(ch, hp, atk, def) {
   }
 }
 
-/** 飞升篇普通关：按总血量放宽三星回合（只放宽不收紧） */
-function _calcAscensionNormalRating(ch, waves, fallback) {
-  const cfg = STAGE_ASCENSION_RATING
-  if (!cfg || ch < (cfg.minChapter || 14) || !waves || !waves.length) return fallback
-
-  const weight = cfg.minionHpWeight != null ? cfg.minionHpWeight : 0.5
+/** 双波守关：先锋小怪按权重计入有效血量 */
+function _effectiveStageHp(waves) {
+  if (!waves || !waves.length) return 0
+  const weight = STAGE_ASCENSION_RATING.minionHpWeight != null ? STAGE_ASCENSION_RATING.minionHpWeight : 0.5
   let effectiveHp = 0
   for (let wi = 0; wi < waves.length; wi++) {
     const enemy = waves[wi] && waves[wi].enemies && waves[wi].enemies[0]
@@ -68,7 +66,15 @@ function _calcAscensionNormalRating(ch, waves, fallback) {
     const w = (waves.length > 1 && wi < waves.length - 1) ? weight : 1
     effectiveHp += (enemy.hp || 0) * w
   }
+  return effectiveHp
+}
 
+/** 飞升篇：按关卡总血量放宽三星回合（普通/精英共用，只放宽不收紧） */
+function _calcAscensionRating(ch, waves, fallback) {
+  const cfg = STAGE_ASCENSION_RATING
+  if (!cfg || ch < (cfg.minChapter || 14) || !waves || !waves.length) return fallback
+
+  const effectiveHp = _effectiveStageHp(waves)
   const ref = (cfg.refDps && cfg.refDps[ch]) || 14000
   const rawS = Math.ceil(effectiveHp / Math.max(1, ref)) + (cfg.buffer || 0)
   const s = Math.max(cfg.minS || 0, rawS, fallback.s)
@@ -80,6 +86,42 @@ function _calcAscensionNormalRating(ch, waves, fallback) {
     cfg.aOffset != null ? cfg.aOffset : 0
   )
   const a = Math.max(fallback.a, s + aOff)
+  return { s, a }
+}
+
+/**
+ * 全章保底：精英星级门槛必须严格宽于同关普通（血量更高，回合数应更多）
+ *   1) S_elite >= S_normal + ratingBonus
+ *   2) 按有效血量比放大：刚好踩普通三星线、同等 DPS 时也能踩精英三星线
+ *   3) A_elite >= max(A_normal + ratingBonus, S_elite + aOffset)
+ * 飞升篇 A 的比例拉开已由 _calcAscensionRating 完成，此处不再叠 aOffsetMin。
+ */
+function _ensureEliteRatingAboveNormal(ch, normalRating, eliteRating, normalWaves, eliteWaves) {
+  const bonus = STAGE_ELITE_COEFFS.ratingBonus != null ? STAGE_ELITE_COEFFS.ratingBonus : 2
+  let s = Math.max(eliteRating.s, (normalRating.s || 0) + bonus)
+
+  // 飞升篇：按血量比放大，避免 buffer 不随倍率放大导致「刚好三星普通、同等 DPS 却打不满精英三星」
+  const ascMin = STAGE_ASCENSION_RATING.minChapter || 14
+  const nHp = _effectiveStageHp(normalWaves)
+  const eHp = _effectiveStageHp(eliteWaves)
+  const hpScaled = ch >= ascMin && nHp > 0 && eHp > nHp
+  if (hpScaled) {
+    s = Math.max(s, Math.ceil(normalRating.s * eHp / nHp))
+  }
+
+  const ratioOff = Math.round(s * (STAGE_ASCENSION_RATING.aOffsetRatio != null ? STAGE_ASCENSION_RATING.aOffsetRatio : 0.35))
+  const aOff = hpScaled && s > eliteRating.s
+    ? Math.max(
+      STAGE_RATING.aOffset,
+      STAGE_ASCENSION_RATING.aOffsetMin != null ? STAGE_ASCENSION_RATING.aOffsetMin : 0,
+      ratioOff
+    )
+    : STAGE_RATING.aOffset
+  const a = Math.max(
+    eliteRating.a,
+    (normalRating.a || 0) + bonus,
+    s + aOff
+  )
   return { s, a }
 }
 
@@ -383,7 +425,7 @@ function buildAllStages() {
         }
       }
 
-      const normalRating = _calcAscensionNormalRating(ch, normalWaves, s.rating)
+      const normalRating = _calcAscensionRating(ch, normalWaves, s.rating)
 
       stages.push({
         id: `stage_${ch}_${ord}`,
@@ -440,6 +482,15 @@ function buildAllStages() {
         }
       }
 
+      // 飞升篇按精英实际血量校准；全章再保底「精英门槛 > 普通」
+      const eliteRating = _ensureEliteRatingAboveNormal(
+        ch,
+        normalRating,
+        _calcAscensionRating(ch, eliteWaves, s.eRating),
+        normalWaves,
+        eliteWaves
+      )
+
       stages.push({
         id: `stage_${ch}_${ord}_elite`,
         name: '精英·' + s.name,
@@ -448,7 +499,7 @@ function buildAllStages() {
         difficulty: 'elite',
         waves: eliteWaves,
         teamSize: { ...STAGE_TEAM_SIZE.default },
-        rating: s.eRating,
+        rating: eliteRating,
         staminaCost: STAMINA_COST,
         rewards: mkRewards(ch, ord, 'elite', s.ePet, s.eWeapon, s.eExp, s.eRepExp),
         dailyLimit: 0,
