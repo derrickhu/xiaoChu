@@ -30,6 +30,7 @@ const ZONE_PRESETS = {
   2: { name: '逍遥剑宗', notice: '独立新进度' },
   3: { name: '玄霄洞天', notice: '新开三区，全新旅程' },
   4: { name: '碧落仙台', notice: '新开四区，全新旅程' },
+  5: { name: '绛霄仙府', notice: '新开五区，全新旅程' },
 }
 
 function loadCloudbase() {
